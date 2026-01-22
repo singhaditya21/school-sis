@@ -179,6 +179,12 @@ export default async function AdminLayout({
                         <NavLink href="/hostel" icon="🏠">
                             Hostel
                         </NavLink>
+                        <NavLink href="/settings/users" icon="👤">
+                            User Management
+                        </NavLink>
+                        <NavLink href="/settings/roles" icon="🔑">
+                            Role Management
+                        </NavLink>
                         <NavLink href="/settings/grading" icon="⚙️">
                             Grading Settings
                         </NavLink>
