@@ -1,0 +1,35 @@
+# Gradle
+.gradle/
+gradle-8.5/
+gradle-*.zip
+*.zip
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Error logs
+*_error.txt
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Compiled files
+*.class
+*.jar
+*.war
+!gradle/wrapper/*.jar
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+*.env.local
