@@ -9,3 +9,5 @@ export { feesApi } from './fees';
 export { attendanceApi } from './attendance';
 export { examsApi } from './exams';
 export { admissionsApi } from './admissions';
+export { usersApi, rolesApi } from './users';
+
