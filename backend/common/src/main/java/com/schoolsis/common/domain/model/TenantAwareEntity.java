@@ -11,7 +11,7 @@ import java.util.UUID;
 @MappedSuperclass
 public abstract class TenantAwareEntity {
 
-    @Column(name = "\"tenantId\"", nullable = false, updatable = false)
+    @Column(name = "tenant_id", updatable = false)
     private UUID tenantId;
 
     public UUID getTenantId() {

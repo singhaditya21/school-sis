@@ -26,36 +26,36 @@ public class User extends TenantAwareEntity {
     @Column(unique = true, nullable = false)
     private String email;
 
-    @Column(name = "\"passwordHash\"", nullable = false)
+    @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
-    @Column(name = "\"firstName\"", nullable = false)
+    @Column(name = "first_name", nullable = false)
     private String firstName;
 
-    @Column(name = "\"lastName\"", nullable = false)
+    @Column(name = "last_name", nullable = false)
     private String lastName;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
 
-    @Column(name = "\"isActive\"")
+    @Column(name = "is_active")
     private boolean active = true;
 
-    @Column(name = "\"lastLoginAt\"")
+    @Column(name = "last_login_at")
     private Instant lastLoginAt;
 
     @CreationTimestamp
-    @Column(name = "\"createdAt\"", updatable = false)
+    @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
     @UpdateTimestamp
-    @Column(name = "\"updatedAt\"")
+    @Column(name = "updated_at")
     private Instant updatedAt;
 
     // Relationship to Tenant
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "\"tenantId\"", insertable = false, updatable = false)
+    @JoinColumn(name = "tenant_id", insertable = false, updatable = false)
     private Tenant tenant;
 
     // Constructors

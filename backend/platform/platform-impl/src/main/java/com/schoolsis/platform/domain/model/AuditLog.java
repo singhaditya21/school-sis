@@ -16,9 +16,9 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "audit_logs", indexes = {
-        @Index(columnList = "\"tenantId\", \"entityType\", \"entityId\""),
-        @Index(columnList = "\"tenantId\", \"userId\""),
-        @Index(columnList = "\"tenantId\", timestamp")
+        @Index(columnList = "tenant_id, entity_type, entity_id"),
+        @Index(columnList = "tenant_id, user_id"),
+        @Index(columnList = "tenant_id, timestamp")
 })
 public class AuditLog extends TenantAwareEntity {
 
@@ -26,16 +26,16 @@ public class AuditLog extends TenantAwareEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "\"userId\"", nullable = false)
+    @Column(name = "user_id", nullable = false)
     private UUID userId;
 
     @Column(nullable = false, length = 50)
     private String action; // CREATE, UPDATE, DELETE, READ
 
-    @Column(name = "\"entityType\"", nullable = false, length = 100)
+    @Column(name = "entity_type", nullable = false, length = 100)
     private String entityType; // Student, Invoice, Payment, etc.
 
-    @Column(name = "\"entityId\"")
+    @Column(name = "entity_id")
     private UUID entityId;
 
     @Type(JsonType.class)
@@ -50,10 +50,10 @@ public class AuditLog extends TenantAwareEntity {
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> metadata;
 
-    @Column(name = "\"ipAddress\"", length = 50)
+    @Column(name = "ip_address", length = 50)
     private String ipAddress;
 
-    @Column(name = "\"userAgent\"")
+    @Column(name = "user_agent")
     private String userAgent;
 
     @CreationTimestamp
