@@ -70,13 +70,12 @@ public class FeeController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT')")
     public ApiResponse<PaymentResponse> recordPayment(@Valid @RequestBody RecordPaymentRequest request) {
         RecordPaymentCommand command = new RecordPaymentCommand(
-            request.invoiceId(),
-            request.amount(),
-            request.method(),
-            request.transactionRef(),
-            request.notes(),
-            request.receivedBy()
-        );
+                request.invoiceId(),
+                request.amount(),
+                request.paymentMode(),
+                request.referenceNumber(),
+                request.notes(),
+                request.receivedBy());
 
         Payment payment = feeService.recordPayment(command);
         return ApiResponse.ok(toPaymentResponse(payment));
@@ -108,69 +107,59 @@ public class FeeController {
 
     private InvoiceResponse toInvoiceResponse(Invoice invoice) {
         return new InvoiceResponse(
-            invoice.getId(),
-            invoice.getInvoiceNumber(),
-            invoice.getStudentId(),
-            invoice.getTotalAmount(),
-            invoice.getPaidAmount(),
-            invoice.getBalanceAmount(),
-            invoice.getStatus(),
-            invoice.getDueDate(),
-            invoice.getIssueDate(),
-            invoice.getDescription(),
-            invoice.isOverdue(),
-            invoice.getCreatedAt()
-        );
+                invoice.getId(),
+                invoice.getInvoiceNumber(),
+                invoice.getStudentId(),
+                invoice.getAmount(),
+                invoice.getPaidAmount(),
+                invoice.getBalanceAmount(),
+                invoice.getStatus(),
+                invoice.getDueDate(),
+                invoice.isOverdue(),
+                invoice.getCreatedAt());
     }
 
     private PaymentResponse toPaymentResponse(Payment payment) {
         return new PaymentResponse(
-            payment.getId(),
-            payment.getReceiptNumber(),
-            payment.getInvoiceId(),
-            payment.getAmount(),
-            payment.getPaymentMethod(),
-            payment.getStatus(),
-            payment.getTransactionRef(),
-            payment.getPaidAt(),
-            payment.getCreatedAt()
-        );
+                payment.getId(),
+                payment.getReferenceNumber(),
+                payment.getInvoiceId(),
+                payment.getAmount(),
+                payment.getPaymentMode(),
+                payment.getPaymentDate(),
+                payment.getCreatedAt());
     }
 
     // Request/Response records
     public record RecordPaymentRequest(
-        @NotNull UUID invoiceId,
-        @NotNull @Positive BigDecimal amount,
-        @NotNull PaymentMethod method,
-        String transactionRef,
-        String notes,
-        UUID receivedBy
-    ) {}
+            @NotNull UUID invoiceId,
+            @NotNull @Positive BigDecimal amount,
+            @NotNull String paymentMode,
+            String referenceNumber,
+            String notes,
+            UUID receivedBy) {
+    }
 
     public record InvoiceResponse(
-        UUID id,
-        String invoiceNumber,
-        UUID studentId,
-        BigDecimal totalAmount,
-        BigDecimal paidAmount,
-        BigDecimal balanceAmount,
-        InvoiceStatus status,
-        LocalDate dueDate,
-        LocalDate issueDate,
-        String description,
-        boolean overdue,
-        Instant createdAt
-    ) {}
+            UUID id,
+            String invoiceNumber,
+            UUID studentId,
+            BigDecimal amount,
+            BigDecimal paidAmount,
+            BigDecimal balanceAmount,
+            String status,
+            LocalDate dueDate,
+            boolean overdue,
+            Instant createdAt) {
+    }
 
     public record PaymentResponse(
-        UUID id,
-        String receiptNumber,
-        UUID invoiceId,
-        BigDecimal amount,
-        PaymentMethod paymentMethod,
-        PaymentStatus status,
-        String transactionRef,
-        Instant paidAt,
-        Instant createdAt
-    ) {}
+            UUID id,
+            String referenceNumber,
+            UUID invoiceId,
+            BigDecimal amount,
+            String paymentMode,
+            Instant paymentDate,
+            Instant createdAt) {
+    }
 }

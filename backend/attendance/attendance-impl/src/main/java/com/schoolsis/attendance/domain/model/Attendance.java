@@ -6,18 +6,18 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.UUID;
 
 /**
- * Attendance entity - daily/period-wise attendance record.
- * Maps to the 'attendance' table from Prisma schema.
+ * Attendance entity - daily attendance record.
+ * Maps to the 'attendance' table from Flyway schema.
  */
 @Entity
 @Table(name = "attendance", indexes = {
-    @Index(columnList = "tenant_id, class_group_id, date"),
-    @Index(columnList = "tenant_id, student_id, date")
+        @Index(columnList = "tenant_id, student_id, date")
 }, uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"student_id", "date", "period_id"})
+        @UniqueConstraint(columnNames = { "tenant_id", "student_id", "date" })
 })
 public class Attendance extends TenantAwareEntity {
 
@@ -28,34 +28,33 @@ public class Attendance extends TenantAwareEntity {
     @Column(name = "student_id", nullable = false)
     private UUID studentId;
 
-    @Column(name = "class_group_id", nullable = false)
-    private UUID classGroupId;
-
     @Column(nullable = false)
     private LocalDate date;
 
-    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private AttendanceStatus status;
+    private String status = "PRESENT";
 
-    @Column(name = "period_id")
-    private UUID periodId; // null for daily attendance
+    @Column(name = "check_in_time")
+    private LocalTime checkInTime;
 
-    @Column(name = "marked_by", nullable = false)
-    private UUID markedBy;
-
-    @CreationTimestamp
-    @Column(name = "marked_at", nullable = false)
-    private Instant markedAt;
+    @Column(name = "check_out_time")
+    private LocalTime checkOutTime;
 
     private String remarks;
 
-    // Constructors
-    public Attendance() {}
+    @Column(name = "marked_by")
+    private UUID markedBy;
 
-    public Attendance(UUID studentId, UUID classGroupId, LocalDate date, AttendanceStatus status, UUID markedBy) {
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private Instant createdAt;
+
+    // Constructors
+    public Attendance() {
+    }
+
+    public Attendance(UUID studentId, LocalDate date, String status, UUID markedBy) {
         this.studentId = studentId;
-        this.classGroupId = classGroupId;
         this.date = date;
         this.status = status;
         this.markedBy = markedBy;
@@ -63,37 +62,79 @@ public class Attendance extends TenantAwareEntity {
 
     // Business methods
     public boolean isPresent() {
-        return status == AttendanceStatus.PRESENT;
+        return "PRESENT".equals(status);
     }
 
     public boolean isAbsent() {
-        return status == AttendanceStatus.ABSENT;
+        return "ABSENT".equals(status);
     }
 
     // Getters and Setters
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
+    public UUID getId() {
+        return id;
+    }
 
-    public UUID getStudentId() { return studentId; }
-    public void setStudentId(UUID studentId) { this.studentId = studentId; }
+    public void setId(UUID id) {
+        this.id = id;
+    }
 
-    public UUID getClassGroupId() { return classGroupId; }
-    public void setClassGroupId(UUID classGroupId) { this.classGroupId = classGroupId; }
+    public UUID getStudentId() {
+        return studentId;
+    }
 
-    public LocalDate getDate() { return date; }
-    public void setDate(LocalDate date) { this.date = date; }
+    public void setStudentId(UUID studentId) {
+        this.studentId = studentId;
+    }
 
-    public AttendanceStatus getStatus() { return status; }
-    public void setStatus(AttendanceStatus status) { this.status = status; }
+    public LocalDate getDate() {
+        return date;
+    }
 
-    public UUID getPeriodId() { return periodId; }
-    public void setPeriodId(UUID periodId) { this.periodId = periodId; }
+    public void setDate(LocalDate date) {
+        this.date = date;
+    }
 
-    public UUID getMarkedBy() { return markedBy; }
-    public void setMarkedBy(UUID markedBy) { this.markedBy = markedBy; }
+    public String getStatus() {
+        return status;
+    }
 
-    public Instant getMarkedAt() { return markedAt; }
+    public void setStatus(String status) {
+        this.status = status;
+    }
 
-    public String getRemarks() { return remarks; }
-    public void setRemarks(String remarks) { this.remarks = remarks; }
+    public LocalTime getCheckInTime() {
+        return checkInTime;
+    }
+
+    public void setCheckInTime(LocalTime checkInTime) {
+        this.checkInTime = checkInTime;
+    }
+
+    public LocalTime getCheckOutTime() {
+        return checkOutTime;
+    }
+
+    public void setCheckOutTime(LocalTime checkOutTime) {
+        this.checkOutTime = checkOutTime;
+    }
+
+    public String getRemarks() {
+        return remarks;
+    }
+
+    public void setRemarks(String remarks) {
+        this.remarks = remarks;
+    }
+
+    public UUID getMarkedBy() {
+        return markedBy;
+    }
+
+    public void setMarkedBy(UUID markedBy) {
+        this.markedBy = markedBy;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 }

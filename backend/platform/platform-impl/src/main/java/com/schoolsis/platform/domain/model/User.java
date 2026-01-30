@@ -14,8 +14,8 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "users", indexes = {
-        @Index(columnList = "tenantId, role"),
-        @Index(columnList = "tenantId, isActive")
+        @Index(columnList = "tenant_id, role"),
+        @Index(columnList = "tenant_id, is_active")
 })
 public class User extends TenantAwareEntity {
 

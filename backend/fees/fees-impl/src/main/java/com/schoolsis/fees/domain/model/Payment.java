@@ -9,14 +9,12 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Payment entity - records a payment against an invoice.
- * Maps to the 'payments' table from Prisma schema.
+ * Payment entity - payment against an invoice.
+ * Maps to the 'payments' table from Flyway schema.
  */
 @Entity
 @Table(name = "payments", indexes = {
-    @Index(columnList = "tenant_id, invoice_id"),
-    @Index(columnList = "tenant_id, status"),
-    @Index(columnList = "tenant_id, paid_at")
+        @Index(columnList = "tenant_id, invoice_id")
 })
 public class Payment extends TenantAwareEntity {
 
@@ -24,28 +22,20 @@ public class Payment extends TenantAwareEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "receipt_number", unique = true)
-    private String receiptNumber;
-
     @Column(name = "invoice_id", nullable = false)
     private UUID invoiceId;
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "payment_method", nullable = false)
-    private PaymentMethod paymentMethod;
+    @Column(name = "payment_mode", nullable = false)
+    private String paymentMode;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private PaymentStatus status = PaymentStatus.PENDING;
+    @Column(name = "payment_date")
+    private Instant paymentDate;
 
-    @Column(name = "transaction_ref")
-    private String transactionRef;
-
-    @Column(name = "paid_at")
-    private Instant paidAt;
+    @Column(name = "reference_number")
+    private String referenceNumber;
 
     @Column(name = "received_by")
     private UUID receivedBy;
@@ -61,56 +51,86 @@ public class Payment extends TenantAwareEntity {
     private Invoice invoice;
 
     // Constructors
-    public Payment() {}
+    public Payment() {
+    }
 
-    public Payment(UUID invoiceId, BigDecimal amount, PaymentMethod paymentMethod) {
+    public Payment(UUID invoiceId, BigDecimal amount, String paymentMode) {
         this.invoiceId = invoiceId;
         this.amount = amount;
-        this.paymentMethod = paymentMethod;
-    }
-
-    // Business methods
-    public void complete() {
-        this.status = PaymentStatus.COMPLETED;
-        this.paidAt = Instant.now();
-    }
-
-    public void fail() {
-        this.status = PaymentStatus.FAILED;
+        this.paymentMode = paymentMode;
+        this.paymentDate = Instant.now();
     }
 
     // Getters and Setters
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
+    public UUID getId() {
+        return id;
+    }
 
-    public String getReceiptNumber() { return receiptNumber; }
-    public void setReceiptNumber(String receiptNumber) { this.receiptNumber = receiptNumber; }
+    public void setId(UUID id) {
+        this.id = id;
+    }
 
-    public UUID getInvoiceId() { return invoiceId; }
-    public void setInvoiceId(UUID invoiceId) { this.invoiceId = invoiceId; }
+    public UUID getInvoiceId() {
+        return invoiceId;
+    }
 
-    public BigDecimal getAmount() { return amount; }
-    public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public void setInvoiceId(UUID invoiceId) {
+        this.invoiceId = invoiceId;
+    }
 
-    public PaymentMethod getPaymentMethod() { return paymentMethod; }
-    public void setPaymentMethod(PaymentMethod paymentMethod) { this.paymentMethod = paymentMethod; }
+    public BigDecimal getAmount() {
+        return amount;
+    }
 
-    public PaymentStatus getStatus() { return status; }
-    public void setStatus(PaymentStatus status) { this.status = status; }
+    public void setAmount(BigDecimal amount) {
+        this.amount = amount;
+    }
 
-    public String getTransactionRef() { return transactionRef; }
-    public void setTransactionRef(String transactionRef) { this.transactionRef = transactionRef; }
+    public String getPaymentMode() {
+        return paymentMode;
+    }
 
-    public Instant getPaidAt() { return paidAt; }
-    public void setPaidAt(Instant paidAt) { this.paidAt = paidAt; }
+    public void setPaymentMode(String paymentMode) {
+        this.paymentMode = paymentMode;
+    }
 
-    public UUID getReceivedBy() { return receivedBy; }
-    public void setReceivedBy(UUID receivedBy) { this.receivedBy = receivedBy; }
+    public Instant getPaymentDate() {
+        return paymentDate;
+    }
 
-    public String getNotes() { return notes; }
-    public void setNotes(String notes) { this.notes = notes; }
+    public void setPaymentDate(Instant paymentDate) {
+        this.paymentDate = paymentDate;
+    }
 
-    public Instant getCreatedAt() { return createdAt; }
+    public String getReferenceNumber() {
+        return referenceNumber;
+    }
 
-    public Invoice getInvoice() { return invoice; }
+    public void setReferenceNumber(String referenceNumber) {
+        this.referenceNumber = referenceNumber;
+    }
+
+    public UUID getReceivedBy() {
+        return receivedBy;
+    }
+
+    public void setReceivedBy(UUID receivedBy) {
+        this.receivedBy = receivedBy;
+    }
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Invoice getInvoice() {
+        return invoice;
+    }
 }

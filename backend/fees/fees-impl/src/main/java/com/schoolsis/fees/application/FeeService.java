@@ -30,10 +30,9 @@ public class FeeService {
     private final AuditService auditService;
 
     public FeeService(
-        InvoiceRepository invoiceRepository,
-        PaymentRepository paymentRepository,
-        AuditService auditService
-    ) {
+            InvoiceRepository invoiceRepository,
+            PaymentRepository paymentRepository,
+            AuditService auditService) {
         this.invoiceRepository = invoiceRepository;
         this.paymentRepository = paymentRepository;
         this.auditService = auditService;
@@ -51,7 +50,7 @@ public class FeeService {
     public Invoice getInvoice(UUID id) {
         UUID tenantId = TenantContext.getCurrentTenantId();
         return invoiceRepository.findByTenantIdAndId(tenantId, id)
-            .orElseThrow(() -> new EntityNotFoundException("Invoice", id));
+                .orElseThrow(() -> new EntityNotFoundException("Invoice", id));
     }
 
     @Transactional(readOnly = true)
@@ -63,7 +62,7 @@ public class FeeService {
     @Transactional(readOnly = true)
     public List<Invoice> getOverdueInvoices() {
         UUID tenantId = TenantContext.getCurrentTenantId();
-        List<InvoiceStatus> statuses = List.of(InvoiceStatus.PENDING, InvoiceStatus.PARTIAL);
+        List<String> statuses = List.of("PENDING", "PARTIAL");
         return invoiceRepository.findOverdueInvoices(tenantId, statuses, LocalDate.now());
     }
 
@@ -76,24 +75,23 @@ public class FeeService {
         UUID tenantId = TenantContext.getCurrentTenantId();
 
         Invoice invoice = invoiceRepository.findByTenantIdAndId(tenantId, command.invoiceId())
-            .orElseThrow(() -> new EntityNotFoundException("Invoice", command.invoiceId()));
+                .orElseThrow(() -> new EntityNotFoundException("Invoice", command.invoiceId()));
 
-        if (invoice.getStatus() == InvoiceStatus.PAID) {
+        if ("PAID".equals(invoice.getStatus())) {
             throw new IllegalStateException("Invoice is already fully paid");
         }
 
-        if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
+        if ("CANCELLED".equals(invoice.getStatus())) {
             throw new IllegalStateException("Cannot pay a cancelled invoice");
         }
 
         // Create payment
-        Payment payment = new Payment(command.invoiceId(), command.amount(), command.method());
+        Payment payment = new Payment(command.invoiceId(), command.amount(), command.paymentMode());
         payment.setTenantId(tenantId);
-        payment.setReceiptNumber(generateReceiptNumber());
-        payment.setTransactionRef(command.transactionRef());
+        payment.setReferenceNumber(command.referenceNumber());
         payment.setNotes(command.notes());
         payment.setReceivedBy(command.receivedBy());
-        payment.complete();
+        payment.setPaymentDate(Instant.now());
 
         payment = paymentRepository.save(payment);
 
@@ -110,7 +108,7 @@ public class FeeService {
     public Payment getPayment(UUID id) {
         UUID tenantId = TenantContext.getCurrentTenantId();
         return paymentRepository.findByTenantIdAndId(tenantId, id)
-            .orElseThrow(() -> new EntityNotFoundException("Payment", id));
+                .orElseThrow(() -> new EntityNotFoundException("Payment", id));
     }
 
     @Transactional(readOnly = true)
@@ -125,8 +123,8 @@ public class FeeService {
         UUID tenantId = TenantContext.getCurrentTenantId();
 
         BigDecimal outstanding = invoiceRepository.sumOutstandingBalance(tenantId);
-        long pendingCount = invoiceRepository.countByTenantIdAndStatus(tenantId, InvoiceStatus.PENDING);
-        long overdueCount = invoiceRepository.countByTenantIdAndStatus(tenantId, InvoiceStatus.OVERDUE);
+        long pendingCount = invoiceRepository.countByTenantIdAndStatus(tenantId, "PENDING");
+        long overdueCount = invoiceRepository.countOverdue(tenantId, LocalDate.now());
 
         // Today's collections
         Instant startOfDay = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant();
@@ -134,33 +132,26 @@ public class FeeService {
         BigDecimal todayCollected = paymentRepository.sumCollectedAmountBetween(tenantId, startOfDay, endOfDay);
 
         return new FeeStats(
-            outstanding != null ? outstanding : BigDecimal.ZERO,
-            todayCollected != null ? todayCollected : BigDecimal.ZERO,
-            pendingCount,
-            overdueCount
-        );
-    }
-
-    // ========== Helpers ==========
-
-    private String generateReceiptNumber() {
-        return "RCP-" + System.currentTimeMillis();
+                outstanding != null ? outstanding : BigDecimal.ZERO,
+                todayCollected != null ? todayCollected : BigDecimal.ZERO,
+                pendingCount,
+                overdueCount);
     }
 
     // Command and result records
     public record RecordPaymentCommand(
-        UUID invoiceId,
-        BigDecimal amount,
-        PaymentMethod method,
-        String transactionRef,
-        String notes,
-        UUID receivedBy
-    ) {}
+            UUID invoiceId,
+            BigDecimal amount,
+            String paymentMode,
+            String referenceNumber,
+            String notes,
+            UUID receivedBy) {
+    }
 
     public record FeeStats(
-        BigDecimal totalOutstanding,
-        BigDecimal todayCollected,
-        long pendingInvoices,
-        long overdueInvoices
-    ) {}
+            BigDecimal totalOutstanding,
+            BigDecimal todayCollected,
+            long pendingInvoices,
+            long overdueInvoices) {
+    }
 }

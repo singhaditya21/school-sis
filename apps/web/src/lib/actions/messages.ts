@@ -2,7 +2,8 @@
 
 import { getSession } from '@/lib/auth/session';
 import { MessagingService } from '@/lib/services/messaging/messaging.service';
-import { MessageChannel } from '@prisma/client';
+// Local MessageChannel type (backend uses Java, not Prisma)
+type MessageChannel = 'EMAIL' | 'SMS' | 'WHATSAPP';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 

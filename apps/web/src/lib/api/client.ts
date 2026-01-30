@@ -51,8 +51,14 @@ class ApiClient {
             ...options.headers,
         };
 
-        if (this.token) {
-            (headers as Record<string, string>)['Authorization'] = `Bearer ${this.token}`;
+        // Get token from instance, or try localStorage on client-side
+        let token = this.token;
+        if (!token && typeof window !== 'undefined') {
+            token = localStorage.getItem('accessToken') || localStorage.getItem('auth-token');
+        }
+
+        if (token) {
+            (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
         }
 
         try {

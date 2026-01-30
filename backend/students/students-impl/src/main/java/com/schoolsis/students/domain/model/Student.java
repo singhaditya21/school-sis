@@ -17,8 +17,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "students", indexes = {
-    @Index(columnList = "tenant_id, admission_number"),
-    @Index(columnList = "tenant_id, class_group_id")
+        @Index(columnList = "tenant_id, admission_number")
 })
 public class Student extends TenantAwareEntity {
 
@@ -26,8 +25,9 @@ public class Student extends TenantAwareEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "class_group_id")
-    private UUID classGroupId;
+    private String grade;
+
+    private String section;
 
     @Column(name = "admission_number", unique = true, nullable = false)
     private String admissionNumber;
@@ -46,13 +46,16 @@ public class Student extends TenantAwareEntity {
     @Column(name = "blood_group")
     private String bloodGroup;
 
-    @Column(name = "aadhaar_encrypted")
-    private String aadhaarEncrypted;
+    @Column(name = "academic_year")
+    private String academicYear;
 
-    private String photo;
+    @Column(name = "admission_date")
+    private LocalDate admissionDate;
 
-    @Column(name = "is_active")
-    private boolean active = true;
+    private String status = "ACTIVE";
+
+    @Column(name = "photo_url")
+    private String photoUrl;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -66,7 +69,8 @@ public class Student extends TenantAwareEntity {
     private Set<StudentGuardianLink> guardianLinks = new HashSet<>();
 
     // Constructors
-    public Student() {}
+    public Student() {
+    }
 
     public Student(String admissionNumber, String firstName, String lastName, LocalDate dateOfBirth) {
         this.admissionNumber = admissionNumber;
@@ -85,41 +89,119 @@ public class Student extends TenantAwareEntity {
     }
 
     // Getters and Setters
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
+    public UUID getId() {
+        return id;
+    }
 
-    public UUID getClassGroupId() { return classGroupId; }
-    public void setClassGroupId(UUID classGroupId) { this.classGroupId = classGroupId; }
+    public void setId(UUID id) {
+        this.id = id;
+    }
 
-    public String getAdmissionNumber() { return admissionNumber; }
-    public void setAdmissionNumber(String admissionNumber) { this.admissionNumber = admissionNumber; }
+    public String getGrade() {
+        return grade;
+    }
 
-    public String getFirstName() { return firstName; }
-    public void setFirstName(String firstName) { this.firstName = firstName; }
+    public void setGrade(String grade) {
+        this.grade = grade;
+    }
 
-    public String getLastName() { return lastName; }
-    public void setLastName(String lastName) { this.lastName = lastName; }
+    public String getSection() {
+        return section;
+    }
 
-    public LocalDate getDateOfBirth() { return dateOfBirth; }
-    public void setDateOfBirth(LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }
+    public void setSection(String section) {
+        this.section = section;
+    }
 
-    public String getGender() { return gender; }
-    public void setGender(String gender) { this.gender = gender; }
+    public String getAdmissionNumber() {
+        return admissionNumber;
+    }
 
-    public String getBloodGroup() { return bloodGroup; }
-    public void setBloodGroup(String bloodGroup) { this.bloodGroup = bloodGroup; }
+    public void setAdmissionNumber(String admissionNumber) {
+        this.admissionNumber = admissionNumber;
+    }
 
-    public String getAadhaarEncrypted() { return aadhaarEncrypted; }
-    public void setAadhaarEncrypted(String aadhaarEncrypted) { this.aadhaarEncrypted = aadhaarEncrypted; }
+    public String getFirstName() {
+        return firstName;
+    }
 
-    public String getPhoto() { return photo; }
-    public void setPhoto(String photo) { this.photo = photo; }
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
 
-    public boolean isActive() { return active; }
-    public void setActive(boolean active) { this.active = active; }
+    public String getLastName() {
+        return lastName;
+    }
 
-    public Instant getCreatedAt() { return createdAt; }
-    public Instant getUpdatedAt() { return updatedAt; }
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
 
-    public Set<StudentGuardianLink> getGuardianLinks() { return guardianLinks; }
+    public LocalDate getDateOfBirth() {
+        return dateOfBirth;
+    }
+
+    public void setDateOfBirth(LocalDate dateOfBirth) {
+        this.dateOfBirth = dateOfBirth;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
+
+    public String getBloodGroup() {
+        return bloodGroup;
+    }
+
+    public void setBloodGroup(String bloodGroup) {
+        this.bloodGroup = bloodGroup;
+    }
+
+    public String getAcademicYear() {
+        return academicYear;
+    }
+
+    public void setAcademicYear(String academicYear) {
+        this.academicYear = academicYear;
+    }
+
+    public LocalDate getAdmissionDate() {
+        return admissionDate;
+    }
+
+    public void setAdmissionDate(LocalDate admissionDate) {
+        this.admissionDate = admissionDate;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getPhotoUrl() {
+        return photoUrl;
+    }
+
+    public void setPhotoUrl(String photoUrl) {
+        this.photoUrl = photoUrl;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public Set<StudentGuardianLink> getGuardianLinks() {
+        return guardianLinks;
+    }
 }

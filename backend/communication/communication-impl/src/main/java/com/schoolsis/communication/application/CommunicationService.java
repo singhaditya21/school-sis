@@ -2,6 +2,8 @@ package com.schoolsis.communication.application;
 
 import com.schoolsis.communication.domain.model.*;
 import com.schoolsis.communication.domain.repository.*;
+import com.schoolsis.communication.infrastructure.GupshupWhatsAppProvider;
+import com.schoolsis.communication.infrastructure.Msg91SmsProvider;
 import com.schoolsis.platform.infrastructure.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -22,11 +25,17 @@ public class CommunicationService {
     private final MessageTemplateRepository templateRepository;
     private final MessageLogRepository messageLogRepository;
     private final ConsentRepository consentRepository;
+    private final GupshupWhatsAppProvider whatsAppProvider;
+    private final Msg91SmsProvider smsProvider;
 
-    public CommunicationService(MessageTemplateRepository templateRepository, MessageLogRepository messageLogRepository, ConsentRepository consentRepository) {
+    public CommunicationService(MessageTemplateRepository templateRepository, MessageLogRepository messageLogRepository,
+            ConsentRepository consentRepository, GupshupWhatsAppProvider whatsAppProvider,
+            Msg91SmsProvider smsProvider) {
         this.templateRepository = templateRepository;
         this.messageLogRepository = messageLogRepository;
         this.consentRepository = consentRepository;
+        this.whatsAppProvider = whatsAppProvider;
+        this.smsProvider = smsProvider;
     }
 
     @Transactional(readOnly = true)
@@ -48,7 +57,7 @@ public class CommunicationService {
     @Async
     public void sendMessage(SendMessageCommand cmd) {
         UUID tenantId = TenantContext.getCurrentTenantIdOrNull();
-        
+
         // Check consent
         var consent = consentRepository.findByUserIdAndChannel(cmd.recipientId(), cmd.channel());
         if (consent.isEmpty() || !consent.get().isConsented()) {
@@ -65,11 +74,26 @@ public class CommunicationService {
         msg.setBody(cmd.body());
 
         try {
-            // Placeholder: actual send logic (email/SMS/WhatsApp provider)
-            log.info("Sending {} to {}", cmd.channel(), cmd.recipientContact());
+            String messageId = null;
+            switch (cmd.channel()) {
+                case WHATSAPP:
+                    messageId = whatsAppProvider.sendWhatsApp(cmd.recipientContact(), cmd.body());
+                    break;
+                case SMS:
+                    messageId = smsProvider.sendSms(cmd.recipientContact(), cmd.body(), null);
+                    break;
+                case EMAIL:
+                    // TODO: Implement email provider
+                    log.info("Email sending not yet implemented");
+                    messageId = "EMAIL_PLACEHOLDER_" + System.currentTimeMillis();
+                    break;
+            }
+            log.info("Sent {} to {} with messageId: {}", cmd.channel(), cmd.recipientContact(), messageId);
             msg.setStatus(MessageStatus.SENT);
             msg.setSentAt(Instant.now());
+            msg.setProviderMessageId(messageId);
         } catch (Exception e) {
+            log.error("Failed to send {} to {}: {}", cmd.channel(), cmd.recipientContact(), e.getMessage());
             msg.setStatus(MessageStatus.FAILED);
             msg.setErrorMessage(e.getMessage());
         }
@@ -80,13 +104,13 @@ public class CommunicationService {
     public void updateConsent(UUID userId, MessageChannel channel, boolean consented) {
         UUID tenantId = TenantContext.getCurrentTenantId();
         CommunicationConsent consent = consentRepository.findByUserIdAndChannel(userId, channel)
-            .orElseGet(() -> {
-                CommunicationConsent c = new CommunicationConsent();
-                c.setTenantId(tenantId);
-                c.setUserId(userId);
-                c.setChannel(channel);
-                return c;
-            });
+                .orElseGet(() -> {
+                    CommunicationConsent c = new CommunicationConsent();
+                    c.setTenantId(tenantId);
+                    c.setUserId(userId);
+                    c.setChannel(channel);
+                    return c;
+                });
         consent.setConsented(consented);
         if (consented) {
             consent.setConsentedAt(Instant.now());
@@ -102,6 +126,10 @@ public class CommunicationService {
         return consentRepository.findActiveByUserId(userId);
     }
 
-    public record CreateTemplateCommand(String name, String subject, String body, MessageChannel channel) {}
-    public record SendMessageCommand(MessageChannel channel, UUID recipientId, String recipientContact, String subject, String body) {}
+    public record CreateTemplateCommand(String name, String subject, String body, MessageChannel channel) {
+    }
+
+    public record SendMessageCommand(MessageChannel channel, UUID recipientId, String recipientContact, String subject,
+            String body) {
+    }
 }

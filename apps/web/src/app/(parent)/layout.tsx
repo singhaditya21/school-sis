@@ -37,12 +37,13 @@ export default async function ParentLayout({
             <main className="p-4 pb-20">{children}</main>
 
             {/* Bottom Navigation (Mobile-First) */}
-            <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3">
-                <div className="flex justify-around items-center max-w-md mx-auto">
+            <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 safe-area-pb">
+                <div className="flex justify-around items-center max-w-lg mx-auto">
                     <NavItem href="/overview" icon="🏠" label="Home" />
+                    <NavItem href="/my-attendance" icon="📅" label="Attendance" />
+                    <NavItem href="/my-results" icon="📊" label="Results" />
                     <NavItem href="/my-fees" icon="💰" label="Fees" />
                     <NavItem href="/my-transport" icon="🚌" label="Transport" />
-                    <NavItem href="/profile" icon="👤" label="Profile" />
                 </div>
             </nav>
         </div>

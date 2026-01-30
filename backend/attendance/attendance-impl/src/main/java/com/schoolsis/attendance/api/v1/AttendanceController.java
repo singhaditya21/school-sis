@@ -3,7 +3,6 @@ package com.schoolsis.attendance.api.v1;
 import com.schoolsis.attendance.application.AttendanceService;
 import com.schoolsis.attendance.application.AttendanceService.*;
 import com.schoolsis.attendance.domain.model.Attendance;
-import com.schoolsis.attendance.domain.model.AttendanceStatus;
 import com.schoolsis.common.api.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -14,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,35 +31,31 @@ public class AttendanceController {
     }
 
     /**
-     * Mark attendance for a class.
+     * Mark attendance for students.
      */
     @PostMapping("/mark")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')")
     public ApiResponse<List<AttendanceResponse>> markAttendance(@Valid @RequestBody MarkAttendanceRequest request) {
         MarkAttendanceCommand command = new MarkAttendanceCommand(
-            request.classGroupId(),
-            request.date(),
-            request.markedBy(),
-            request.records().stream()
-                .map(r -> new AttendanceEntry(r.studentId(), r.status(), r.remarks()))
-                .toList()
-        );
+                request.date(),
+                request.markedBy(),
+                request.records().stream()
+                        .map(r -> new AttendanceEntry(r.studentId(), r.status(), r.remarks()))
+                        .toList());
 
-        List<Attendance> records = attendanceService.markClassAttendance(command);
+        List<Attendance> records = attendanceService.markAttendance(command);
         return ApiResponse.ok(records.stream().map(this::toResponse).toList());
     }
 
     /**
-     * Get attendance for a class on a date.
+     * Get attendance for a date.
      */
-    @GetMapping("/class/{classGroupId}")
+    @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')")
-    public ApiResponse<List<AttendanceResponse>> getClassAttendance(
-        @PathVariable UUID classGroupId,
-        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
-    ) {
-        List<Attendance> records = attendanceService.getClassAttendance(classGroupId, date);
+    public ApiResponse<List<AttendanceResponse>> getAttendance(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        List<Attendance> records = attendanceService.getAttendanceByDate(date);
         return ApiResponse.ok(records.stream().map(this::toResponse).toList());
     }
 
@@ -69,10 +65,9 @@ public class AttendanceController {
     @GetMapping("/student/{studentId}/summary")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'PARENT')")
     public ApiResponse<StudentAttendanceSummary> getStudentSummary(
-        @PathVariable UUID studentId,
-        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
-    ) {
+            @PathVariable UUID studentId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         StudentAttendanceSummary summary = attendanceService.getStudentAttendanceSummary(studentId, startDate, endDate);
         return ApiResponse.ok(summary);
     }
@@ -83,8 +78,7 @@ public class AttendanceController {
     @GetMapping("/stats/daily")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL')")
     public ApiResponse<DailyAttendanceStats> getDailyStats(
-        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
-    ) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         DailyAttendanceStats stats = attendanceService.getDailyStats(date != null ? date : LocalDate.now());
         return ApiResponse.ok(stats);
     }
@@ -92,39 +86,39 @@ public class AttendanceController {
     // DTO mappings
     private AttendanceResponse toResponse(Attendance attendance) {
         return new AttendanceResponse(
-            attendance.getId(),
-            attendance.getStudentId(),
-            attendance.getClassGroupId(),
-            attendance.getDate(),
-            attendance.getStatus(),
-            attendance.getRemarks(),
-            attendance.getMarkedBy(),
-            attendance.getMarkedAt()
-        );
+                attendance.getId(),
+                attendance.getStudentId(),
+                attendance.getDate(),
+                attendance.getStatus(),
+                attendance.getCheckInTime(),
+                attendance.getCheckOutTime(),
+                attendance.getRemarks(),
+                attendance.getMarkedBy(),
+                attendance.getCreatedAt());
     }
 
     // Request/Response records
     public record MarkAttendanceRequest(
-        @NotNull UUID classGroupId,
-        @NotNull LocalDate date,
-        @NotNull UUID markedBy,
-        @NotNull List<AttendanceRecord> records
-    ) {}
+            @NotNull LocalDate date,
+            @NotNull UUID markedBy,
+            @NotNull List<AttendanceRecord> records) {
+    }
 
     public record AttendanceRecord(
-        @NotNull UUID studentId,
-        @NotNull AttendanceStatus status,
-        String remarks
-    ) {}
+            @NotNull UUID studentId,
+            @NotNull String status,
+            String remarks) {
+    }
 
     public record AttendanceResponse(
-        UUID id,
-        UUID studentId,
-        UUID classGroupId,
-        LocalDate date,
-        AttendanceStatus status,
-        String remarks,
-        UUID markedBy,
-        Instant markedAt
-    ) {}
+            UUID id,
+            UUID studentId,
+            LocalDate date,
+            String status,
+            LocalTime checkInTime,
+            LocalTime checkOutTime,
+            String remarks,
+            UUID markedBy,
+            Instant createdAt) {
+    }
 }

@@ -17,10 +17,10 @@ import java.util.UUID;
 @Repository
 public interface StudentRepository extends JpaRepository<Student, UUID> {
 
-    @Query("SELECT s FROM Student s WHERE s.tenantId = :tenantId AND s.active = true")
+    @Query("SELECT s FROM Student s WHERE s.tenantId = :tenantId AND s.status = 'ACTIVE'")
     List<Student> findActiveByTenantId(UUID tenantId);
 
-    @Query("SELECT s FROM Student s WHERE s.tenantId = :tenantId AND s.active = true")
+    @Query("SELECT s FROM Student s WHERE s.tenantId = :tenantId AND s.status = 'ACTIVE'")
     Page<Student> findActiveByTenantId(UUID tenantId, Pageable pageable);
 
     @Query("SELECT s FROM Student s WHERE s.tenantId = :tenantId AND s.id = :id")
@@ -29,10 +29,10 @@ public interface StudentRepository extends JpaRepository<Student, UUID> {
     @Query("SELECT s FROM Student s WHERE s.tenantId = :tenantId AND s.admissionNumber = :admissionNumber")
     Optional<Student> findByTenantIdAndAdmissionNumber(UUID tenantId, String admissionNumber);
 
-    @Query("SELECT s FROM Student s WHERE s.tenantId = :tenantId AND s.classGroupId = :classGroupId AND s.active = true")
-    List<Student> findActiveByTenantIdAndClassGroupId(UUID tenantId, UUID classGroupId);
+    @Query("SELECT s FROM Student s WHERE s.tenantId = :tenantId AND s.grade = :grade AND s.status = 'ACTIVE'")
+    List<Student> findActiveByTenantIdAndGrade(UUID tenantId, String grade);
 
-    @Query("SELECT COUNT(s) FROM Student s WHERE s.tenantId = :tenantId AND s.active = true")
+    @Query("SELECT COUNT(s) FROM Student s WHERE s.tenantId = :tenantId AND s.status = 'ACTIVE'")
     long countActiveByTenantId(UUID tenantId);
 
     boolean existsByAdmissionNumber(String admissionNumber);

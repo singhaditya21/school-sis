@@ -27,10 +27,9 @@ public class StudentService {
     private final AuditService auditService;
 
     public StudentService(
-        StudentRepository studentRepository,
-        GuardianRepository guardianRepository,
-        AuditService auditService
-    ) {
+            StudentRepository studentRepository,
+            GuardianRepository guardianRepository,
+            AuditService auditService) {
         this.studentRepository = studentRepository;
         this.guardianRepository = guardianRepository;
         this.auditService = auditService;
@@ -61,16 +60,16 @@ public class StudentService {
     public Student getStudent(UUID id) {
         UUID tenantId = TenantContext.getCurrentTenantId();
         return studentRepository.findByTenantIdAndId(tenantId, id)
-            .orElseThrow(() -> new EntityNotFoundException("Student", id));
+                .orElseThrow(() -> new EntityNotFoundException("Student", id));
     }
 
     /**
-     * Get students by class group.
+     * Get students by grade.
      */
     @Transactional(readOnly = true)
-    public List<Student> getStudentsByClassGroup(UUID classGroupId) {
+    public List<Student> getStudentsByGrade(String grade) {
         UUID tenantId = TenantContext.getCurrentTenantId();
-        return studentRepository.findActiveByTenantIdAndClassGroupId(tenantId, classGroupId);
+        return studentRepository.findActiveByTenantIdAndGrade(tenantId, grade);
     }
 
     /**
@@ -85,15 +84,15 @@ public class StudentService {
         }
 
         Student student = new Student(
-            command.admissionNumber(),
-            command.firstName(),
-            command.lastName(),
-            command.dateOfBirth()
-        );
+                command.admissionNumber(),
+                command.firstName(),
+                command.lastName(),
+                command.dateOfBirth());
         student.setTenantId(tenantId);
         student.setGender(command.gender());
         student.setBloodGroup(command.bloodGroup());
-        student.setClassGroupId(command.classGroupId());
+        student.setGrade(command.grade());
+        student.setSection(command.section());
 
         student = studentRepository.save(student);
 
@@ -109,14 +108,22 @@ public class StudentService {
         UUID tenantId = TenantContext.getCurrentTenantId();
 
         Student student = studentRepository.findByTenantIdAndId(tenantId, id)
-            .orElseThrow(() -> new EntityNotFoundException("Student", id));
+                .orElseThrow(() -> new EntityNotFoundException("Student", id));
 
-        if (command.firstName() != null) student.setFirstName(command.firstName());
-        if (command.lastName() != null) student.setLastName(command.lastName());
-        if (command.dateOfBirth() != null) student.setDateOfBirth(command.dateOfBirth());
-        if (command.gender() != null) student.setGender(command.gender());
-        if (command.bloodGroup() != null) student.setBloodGroup(command.bloodGroup());
-        if (command.classGroupId() != null) student.setClassGroupId(command.classGroupId());
+        if (command.firstName() != null)
+            student.setFirstName(command.firstName());
+        if (command.lastName() != null)
+            student.setLastName(command.lastName());
+        if (command.dateOfBirth() != null)
+            student.setDateOfBirth(command.dateOfBirth());
+        if (command.gender() != null)
+            student.setGender(command.gender());
+        if (command.bloodGroup() != null)
+            student.setBloodGroup(command.bloodGroup());
+        if (command.grade() != null)
+            student.setGrade(command.grade());
+        if (command.section() != null)
+            student.setSection(command.section());
 
         student = studentRepository.save(student);
 
@@ -132,9 +139,9 @@ public class StudentService {
         UUID tenantId = TenantContext.getCurrentTenantId();
 
         Student student = studentRepository.findByTenantIdAndId(tenantId, id)
-            .orElseThrow(() -> new EntityNotFoundException("Student", id));
+                .orElseThrow(() -> new EntityNotFoundException("Student", id));
 
-        student.setActive(false);
+        student.setStatus("INACTIVE");
         studentRepository.save(student);
 
         auditService.log(tenantId, null, "DELETE", "Student", student.getId());
@@ -161,21 +168,23 @@ public class StudentService {
 
     // Command records
     public record CreateStudentCommand(
-        String admissionNumber,
-        String firstName,
-        String lastName,
-        java.time.LocalDate dateOfBirth,
-        String gender,
-        String bloodGroup,
-        UUID classGroupId
-    ) {}
+            String admissionNumber,
+            String firstName,
+            String lastName,
+            java.time.LocalDate dateOfBirth,
+            String gender,
+            String bloodGroup,
+            String grade,
+            String section) {
+    }
 
     public record UpdateStudentCommand(
-        String firstName,
-        String lastName,
-        java.time.LocalDate dateOfBirth,
-        String gender,
-        String bloodGroup,
-        UUID classGroupId
-    ) {}
+            String firstName,
+            String lastName,
+            java.time.LocalDate dateOfBirth,
+            String gender,
+            String bloodGroup,
+            String grade,
+            String section) {
+    }
 }

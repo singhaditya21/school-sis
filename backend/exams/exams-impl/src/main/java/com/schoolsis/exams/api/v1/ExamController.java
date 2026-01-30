@@ -29,7 +29,7 @@ public class ExamController {
     @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')")
     public ApiResponse<List<ExamResponse>> getExams() {
-        return ApiResponse.ok(examService.getActiveExams().stream().map(this::toResponse).toList());
+        return ApiResponse.ok(examService.getExams().stream().map(this::toResponse).toList());
     }
 
     @GetMapping("/{id}")
@@ -42,16 +42,19 @@ public class ExamController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL')")
     public ApiResponse<ExamResponse> createExam(@Valid @RequestBody CreateExamRequest req) {
-        Exam exam = examService.createExam(new CreateExamCommand(req.name(), req.type(), req.maxMarks(),
-            req.passingMarks(), req.academicYearId(), req.termId(), req.startDate(), req.endDate()));
+        Exam exam = examService.createExam(new CreateExamCommand(
+                req.name(), req.academicYear(), req.term(), req.startDate(), req.endDate()));
         return ApiResponse.ok(toResponse(exam));
     }
 
     @PostMapping("/{examId}/marks")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')")
-    public ApiResponse<List<MarkResponse>> enterMarks(@PathVariable UUID examId, @Valid @RequestBody EnterMarksRequest req) {
+    public ApiResponse<List<MarkResponse>> enterMarks(@PathVariable UUID examId,
+            @Valid @RequestBody EnterMarksRequest req) {
         List<Mark> marks = examService.enterMarks(new EnterMarksCommand(examId, req.enteredBy(),
-            req.marks().stream().map(m -> new MarkEntry(m.studentId(), m.subjectId(), m.marksObtained(), m.isAbsent(), m.remarks())).toList()));
+                req.marks().stream().map(
+                        m -> new MarkEntry(m.studentId(), m.subject(), m.marksObtained(), m.maxMarks(), m.remarks()))
+                        .toList()));
         return ApiResponse.ok(marks.stream().map(this::toMarkResponse).toList());
     }
 
@@ -61,36 +64,42 @@ public class ExamController {
         return ApiResponse.ok(examService.getStudentMarks(studentId).stream().map(this::toMarkResponse).toList());
     }
 
-    @PostMapping("/report-card/{studentId}/{termId}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL')")
-    public ApiResponse<ReportCardResponse> generateReportCard(@PathVariable UUID studentId, @PathVariable UUID termId) {
-        ReportCard rc = examService.generateReportCard(studentId, termId);
-        return ApiResponse.ok(toReportCardResponse(rc));
-    }
-
     private ExamResponse toResponse(Exam e) {
-        return new ExamResponse(e.getId(), e.getName(), e.getType(), e.getMaxMarks(), e.getPassingMarks(),
-            e.getStartDate(), e.getEndDate(), e.isActive(), e.getCreatedAt());
+        return new ExamResponse(e.getId(), e.getName(), e.getAcademicYear(), e.getTerm(),
+                e.getStartDate(), e.getEndDate(), e.isPublished(), e.getCreatedAt());
     }
 
     private MarkResponse toMarkResponse(Mark m) {
-        return new MarkResponse(m.getId(), m.getExamId(), m.getStudentId(), m.getSubjectId(),
-            m.getMarksObtained(), m.isAbsent(), m.getRemarks());
+        return new MarkResponse(m.getId(), m.getExamId(), m.getStudentId(), m.getSubject(),
+                m.getMarksObtained(), m.getMaxMarks(), m.getGrade(), m.getRemarks());
     }
 
-    private ReportCardResponse toReportCardResponse(ReportCard r) {
-        return new ReportCardResponse(r.getId(), r.getStudentId(), r.getTermId(), r.getTotalMarks(),
-            r.getMaxMarks(), r.getPercentage(), r.getGrade(), r.getRank(), r.getGeneratedAt());
+    public record CreateExamRequest(
+            @NotBlank String name,
+            @NotBlank String academicYear,
+            String term,
+            LocalDate startDate,
+            LocalDate endDate) {
     }
 
-    public record CreateExamRequest(@NotBlank String name, @NotNull ExamType type, @NotNull BigDecimal maxMarks,
-        @NotNull BigDecimal passingMarks, @NotNull UUID academicYearId, UUID termId,
-        @NotNull LocalDate startDate, @NotNull LocalDate endDate) {}
-    public record EnterMarksRequest(@NotNull UUID enteredBy, @NotNull List<MarkInput> marks) {}
-    public record MarkInput(@NotNull UUID studentId, @NotNull UUID subjectId, BigDecimal marksObtained, boolean isAbsent, String remarks) {}
-    public record ExamResponse(UUID id, String name, ExamType type, BigDecimal maxMarks, BigDecimal passingMarks,
-        LocalDate startDate, LocalDate endDate, boolean active, Instant createdAt) {}
-    public record MarkResponse(UUID id, UUID examId, UUID studentId, UUID subjectId, BigDecimal marksObtained, boolean absent, String remarks) {}
-    public record ReportCardResponse(UUID id, UUID studentId, UUID termId, BigDecimal totalMarks, BigDecimal maxMarks,
-        BigDecimal percentage, String grade, Integer rank, Instant generatedAt) {}
+    public record EnterMarksRequest(@NotNull UUID enteredBy, @NotNull List<MarkInput> marks) {
+    }
+
+    public record MarkInput(
+            @NotNull UUID studentId,
+            @NotBlank String subject,
+            BigDecimal marksObtained,
+            BigDecimal maxMarks,
+            String remarks) {
+    }
+
+    public record ExamResponse(
+            UUID id, String name, String academicYear, String term,
+            LocalDate startDate, LocalDate endDate, boolean published, Instant createdAt) {
+    }
+
+    public record MarkResponse(
+            UUID id, UUID examId, UUID studentId, String subject,
+            BigDecimal marksObtained, BigDecimal maxMarks, String grade, String remarks) {
+    }
 }

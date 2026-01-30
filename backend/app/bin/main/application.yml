@@ -69,3 +69,23 @@ app:
     refresh-expiration: 7d
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:3000}
+
+# WhatsApp Provider (Gupshup)
+gupshup:
+  enabled: ${GUPSHUP_ENABLED:false}
+  api-key: ${GUPSHUP_API_KEY:}
+  source-mobile: ${GUPSHUP_SOURCE_MOBILE:}
+  app-name: ${GUPSHUP_APP_NAME:SchoolSIS}
+
+# SMS Provider (MSG91)
+msg91:
+  enabled: ${MSG91_ENABLED:false}
+  auth-key: ${MSG91_AUTH_KEY:}
+  sender-id: ${MSG91_SENDER_ID:SCHLSS}
+  route: ${MSG91_ROUTE:4}
+
+# Razorpay Payment Gateway
+razorpay:
+  enabled: ${RAZORPAY_ENABLED:false}
+  key-id: ${RAZORPAY_KEY_ID:}
+  key-secret: ${RAZORPAY_KEY_SECRET:}

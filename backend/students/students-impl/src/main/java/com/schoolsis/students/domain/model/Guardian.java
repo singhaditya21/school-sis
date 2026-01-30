@@ -16,7 +16,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "guardians", indexes = {
-    @Index(columnList = "tenant_id")
+        @Index(columnList = "\"tenantId\"")
 })
 public class Guardian extends TenantAwareEntity {
 
@@ -56,7 +56,8 @@ public class Guardian extends TenantAwareEntity {
     private Set<StudentGuardianLink> studentLinks = new HashSet<>();
 
     // Constructors
-    public Guardian() {}
+    public Guardian() {
+    }
 
     public Guardian(String firstName, String lastName) {
         this.firstName = firstName;
@@ -69,32 +70,79 @@ public class Guardian extends TenantAwareEntity {
     }
 
     // Getters and Setters
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
+    public UUID getId() {
+        return id;
+    }
 
-    public String getFirstName() { return firstName; }
-    public void setFirstName(String firstName) { this.firstName = firstName; }
+    public void setId(UUID id) {
+        this.id = id;
+    }
 
-    public String getLastName() { return lastName; }
-    public void setLastName(String lastName) { this.lastName = lastName; }
+    public String getFirstName() {
+        return firstName;
+    }
 
-    public String getEmailEncrypted() { return emailEncrypted; }
-    public void setEmailEncrypted(String emailEncrypted) { this.emailEncrypted = emailEncrypted; }
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
 
-    public String getPhoneEncrypted() { return phoneEncrypted; }
-    public void setPhoneEncrypted(String phoneEncrypted) { this.phoneEncrypted = phoneEncrypted; }
+    public String getLastName() {
+        return lastName;
+    }
 
-    public String getOccupation() { return occupation; }
-    public void setOccupation(String occupation) { this.occupation = occupation; }
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
 
-    public boolean isPrimary() { return primary; }
-    public void setPrimary(boolean primary) { this.primary = primary; }
+    public String getEmailEncrypted() {
+        return emailEncrypted;
+    }
 
-    public UUID getUserId() { return userId; }
-    public void setUserId(UUID userId) { this.userId = userId; }
+    public void setEmailEncrypted(String emailEncrypted) {
+        this.emailEncrypted = emailEncrypted;
+    }
 
-    public Instant getCreatedAt() { return createdAt; }
-    public Instant getUpdatedAt() { return updatedAt; }
+    public String getPhoneEncrypted() {
+        return phoneEncrypted;
+    }
 
-    public Set<StudentGuardianLink> getStudentLinks() { return studentLinks; }
+    public void setPhoneEncrypted(String phoneEncrypted) {
+        this.phoneEncrypted = phoneEncrypted;
+    }
+
+    public String getOccupation() {
+        return occupation;
+    }
+
+    public void setOccupation(String occupation) {
+        this.occupation = occupation;
+    }
+
+    public boolean isPrimary() {
+        return primary;
+    }
+
+    public void setPrimary(boolean primary) {
+        this.primary = primary;
+    }
+
+    public UUID getUserId() {
+        return userId;
+    }
+
+    public void setUserId(UUID userId) {
+        this.userId = userId;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public Set<StudentGuardianLink> getStudentLinks() {
+        return studentLinks;
+    }
 }

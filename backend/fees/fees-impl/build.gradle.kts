@@ -11,6 +11,9 @@ dependencies {
     // PDF generation
     implementation("com.itextpdf:itext-core:8.0.2")
     
+    // Payment Gateway - Razorpay
+    implementation("com.razorpay:razorpay-java:1.4.6")
+    
     implementation("org.mapstruct:mapstruct:${rootProject.extra["mapstructVersion"]}")
     annotationProcessor("org.mapstruct:mapstruct-processor:${rootProject.extra["mapstructVersion"]}")
     

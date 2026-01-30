@@ -52,12 +52,12 @@ public class StudentController {
     }
 
     /**
-     * Get students by class group.
+     * Get students by grade.
      */
-    @GetMapping("/class/{classGroupId}")
+    @GetMapping("/grade/{grade}")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')")
-    public ApiResponse<List<StudentResponse>> getStudentsByClass(@PathVariable UUID classGroupId) {
-        List<Student> students = studentService.getStudentsByClassGroup(classGroupId);
+    public ApiResponse<List<StudentResponse>> getStudentsByGrade(@PathVariable String grade) {
+        List<Student> students = studentService.getStudentsByGrade(grade);
         return ApiResponse.ok(students.stream().map(this::toResponse).toList());
     }
 
@@ -69,14 +69,14 @@ public class StudentController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'ADMISSION_COUNSELOR')")
     public ApiResponse<StudentResponse> createStudent(@Valid @RequestBody CreateStudentRequest request) {
         CreateStudentCommand command = new CreateStudentCommand(
-            request.admissionNumber(),
-            request.firstName(),
-            request.lastName(),
-            request.dateOfBirth(),
-            request.gender(),
-            request.bloodGroup(),
-            request.classGroupId()
-        );
+                request.admissionNumber(),
+                request.firstName(),
+                request.lastName(),
+                request.dateOfBirth(),
+                request.gender(),
+                request.bloodGroup(),
+                request.grade(),
+                request.section());
 
         Student student = studentService.createStudent(command);
         return ApiResponse.ok(toResponse(student));
@@ -88,17 +88,16 @@ public class StudentController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL')")
     public ApiResponse<StudentResponse> updateStudent(
-        @PathVariable UUID id,
-        @Valid @RequestBody UpdateStudentRequest request
-    ) {
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateStudentRequest request) {
         UpdateStudentCommand command = new UpdateStudentCommand(
-            request.firstName(),
-            request.lastName(),
-            request.dateOfBirth(),
-            request.gender(),
-            request.bloodGroup(),
-            request.classGroupId()
-        );
+                request.firstName(),
+                request.lastName(),
+                request.dateOfBirth(),
+                request.gender(),
+                request.bloodGroup(),
+                request.grade(),
+                request.section());
 
         Student student = studentService.updateStudent(id, command);
         return ApiResponse.ok(toResponse(student));
@@ -126,53 +125,56 @@ public class StudentController {
     // DTO mapping
     private StudentResponse toResponse(Student student) {
         return new StudentResponse(
-            student.getId(),
-            student.getAdmissionNumber(),
-            student.getFirstName(),
-            student.getLastName(),
-            student.getFullName(),
-            student.getDateOfBirth(),
-            student.getGender(),
-            student.getBloodGroup(),
-            student.getClassGroupId(),
-            student.isActive(),
-            student.getCreatedAt(),
-            student.getUpdatedAt()
-        );
+                student.getId(),
+                student.getAdmissionNumber(),
+                student.getFirstName(),
+                student.getLastName(),
+                student.getFullName(),
+                student.getDateOfBirth(),
+                student.getGender(),
+                student.getBloodGroup(),
+                student.getGrade(),
+                student.getSection(),
+                student.getStatus(),
+                student.getCreatedAt(),
+                student.getUpdatedAt());
     }
 
     // Request/Response records
     public record CreateStudentRequest(
-        @NotBlank String admissionNumber,
-        @NotBlank String firstName,
-        @NotBlank String lastName,
-        @NotNull LocalDate dateOfBirth,
-        String gender,
-        String bloodGroup,
-        UUID classGroupId
-    ) {}
+            @NotBlank String admissionNumber,
+            @NotBlank String firstName,
+            @NotBlank String lastName,
+            @NotNull LocalDate dateOfBirth,
+            String gender,
+            String bloodGroup,
+            String grade,
+            String section) {
+    }
 
     public record UpdateStudentRequest(
-        String firstName,
-        String lastName,
-        LocalDate dateOfBirth,
-        String gender,
-        String bloodGroup,
-        UUID classGroupId
-    ) {}
+            String firstName,
+            String lastName,
+            LocalDate dateOfBirth,
+            String gender,
+            String bloodGroup,
+            String grade,
+            String section) {
+    }
 
     public record StudentResponse(
-        UUID id,
-        String admissionNumber,
-        String firstName,
-        String lastName,
-        String fullName,
-        LocalDate dateOfBirth,
-        String gender,
-        String bloodGroup,
-        UUID classGroupId,
-        boolean active,
-        java.time.Instant createdAt,
-        java.time.Instant updatedAt
-    ) {}
+            UUID id,
+            String admissionNumber,
+            String firstName,
+            String lastName,
+            String fullName,
+            LocalDate dateOfBirth,
+            String gender,
+            String bloodGroup,
+            String grade,
+            String section,
+            String status,
+            java.time.Instant createdAt,
+            java.time.Instant updatedAt) {
+    }
 }

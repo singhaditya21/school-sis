@@ -3,20 +3,22 @@ package com.schoolsis.exams.domain.model;
 import com.schoolsis.common.domain.model.TenantAwareEntity;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Mark entity - student marks for an exam subject.
+ * Mark entity - student marks for an exam.
+ * Maps to the 'marks' table from Flyway schema.
  */
 @Entity
 @Table(name = "marks", indexes = {
         @Index(columnList = "tenant_id, exam_id"),
         @Index(columnList = "tenant_id, student_id")
 }, uniqueConstraints = {
-        @UniqueConstraint(columnNames = { "exam_id", "student_id", "subject_id" })
+        @UniqueConstraint(columnNames = { "exam_id", "student_id", "subject" })
 })
 public class Mark extends TenantAwareEntity {
 
@@ -30,14 +32,16 @@ public class Mark extends TenantAwareEntity {
     @Column(name = "student_id", nullable = false)
     private UUID studentId;
 
-    @Column(name = "subject_id", nullable = false)
-    private UUID subjectId;
+    @Column(nullable = false)
+    private String subject;
 
     @Column(name = "marks_obtained", precision = 5, scale = 2)
     private BigDecimal marksObtained;
 
-    @Column(name = "is_absent")
-    private boolean absent = false;
+    @Column(name = "max_marks", precision = 5, scale = 2)
+    private BigDecimal maxMarks = new BigDecimal("100");
+
+    private String grade;
 
     private String remarks;
 
@@ -48,39 +52,22 @@ public class Mark extends TenantAwareEntity {
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
-    // Verification workflow fields
-    @Enumerated(EnumType.STRING)
-    @Column(name = "\"verificationStatus\"", length = 20)
-    private VerificationStatus verificationStatus = VerificationStatus.PENDING;
-
-    @Column(name = "\"verifiedBy\"")
-    private UUID verifiedBy;
-
-    @Column(name = "\"verifiedAt\"")
-    private Instant verifiedAt;
-
-    @Column(name = "\"rejectionReason\"")
-    private String rejectionReason;
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private Instant updatedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exam_id", insertable = false, updatable = false)
     private Exam exam;
 
-    // Verification status enum
-    public enum VerificationStatus {
-        PENDING, // Awaiting verification
-        VERIFIED, // Approved by checker
-        REJECTED // Sent back for correction
-    }
-
+    // Constructors
     public Mark() {
     }
 
-    public Mark(UUID examId, UUID studentId, UUID subjectId, BigDecimal marksObtained) {
+    public Mark(UUID examId, UUID studentId, String subject) {
         this.examId = examId;
         this.studentId = studentId;
-        this.subjectId = subjectId;
-        this.marksObtained = marksObtained;
+        this.subject = subject;
     }
 
     // Getters and Setters
@@ -108,12 +95,12 @@ public class Mark extends TenantAwareEntity {
         this.studentId = studentId;
     }
 
-    public UUID getSubjectId() {
-        return subjectId;
+    public String getSubject() {
+        return subject;
     }
 
-    public void setSubjectId(UUID subjectId) {
-        this.subjectId = subjectId;
+    public void setSubject(String subject) {
+        this.subject = subject;
     }
 
     public BigDecimal getMarksObtained() {
@@ -124,12 +111,20 @@ public class Mark extends TenantAwareEntity {
         this.marksObtained = marksObtained;
     }
 
-    public boolean isAbsent() {
-        return absent;
+    public BigDecimal getMaxMarks() {
+        return maxMarks;
     }
 
-    public void setAbsent(boolean absent) {
-        this.absent = absent;
+    public void setMaxMarks(BigDecimal maxMarks) {
+        this.maxMarks = maxMarks;
+    }
+
+    public String getGrade() {
+        return grade;
+    }
+
+    public void setGrade(String grade) {
+        this.grade = grade;
     }
 
     public String getRemarks() {
@@ -152,63 +147,11 @@ public class Mark extends TenantAwareEntity {
         return createdAt;
     }
 
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
     public Exam getExam() {
         return exam;
-    }
-
-    // Verification getters/setters
-    public VerificationStatus getVerificationStatus() {
-        return verificationStatus;
-    }
-
-    public void setVerificationStatus(VerificationStatus verificationStatus) {
-        this.verificationStatus = verificationStatus;
-    }
-
-    public UUID getVerifiedBy() {
-        return verifiedBy;
-    }
-
-    public void setVerifiedBy(UUID verifiedBy) {
-        this.verifiedBy = verifiedBy;
-    }
-
-    public Instant getVerifiedAt() {
-        return verifiedAt;
-    }
-
-    public void setVerifiedAt(Instant verifiedAt) {
-        this.verifiedAt = verifiedAt;
-    }
-
-    public String getRejectionReason() {
-        return rejectionReason;
-    }
-
-    public void setRejectionReason(String rejectionReason) {
-        this.rejectionReason = rejectionReason;
-    }
-
-    // Business methods for verification
-    public void verify(UUID verifierId) {
-        this.verificationStatus = VerificationStatus.VERIFIED;
-        this.verifiedBy = verifierId;
-        this.verifiedAt = Instant.now();
-        this.rejectionReason = null;
-    }
-
-    public void reject(UUID verifierId, String reason) {
-        this.verificationStatus = VerificationStatus.REJECTED;
-        this.verifiedBy = verifierId;
-        this.verifiedAt = Instant.now();
-        this.rejectionReason = reason;
-    }
-
-    public boolean isPending() {
-        return verificationStatus == VerificationStatus.PENDING;
-    }
-
-    public boolean isVerified() {
-        return verificationStatus == VerificationStatus.VERIFIED;
     }
 }

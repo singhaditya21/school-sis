@@ -10,7 +10,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @Entity
-@Table(name = "applications", indexes = {@Index(columnList = "status")})
+@Table(name = "applications", indexes = { @Index(columnList = "status") })
 public class Application {
 
     @Id
@@ -44,20 +44,62 @@ public class Application {
     @OneToMany(mappedBy = "application", cascade = CascadeType.ALL)
     private Set<DocumentSubmission> documents = new HashSet<>();
 
-    public Application() {}
+    public Application() {
+    }
 
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
-    public UUID getLeadId() { return leadId; }
-    public void setLeadId(UUID leadId) { this.leadId = leadId; }
-    public ApplicationStatus getStatus() { return status; }
-    public void setStatus(ApplicationStatus status) { this.status = status; }
-    public Instant getSubmittedAt() { return submittedAt; }
-    public void setSubmittedAt(Instant submittedAt) { this.submittedAt = submittedAt; }
-    public String getNotes() { return notes; }
-    public void setNotes(String notes) { this.notes = notes; }
-    public Instant getCreatedAt() { return createdAt; }
-    public Instant getUpdatedAt() { return updatedAt; }
-    public AdmissionLead getLead() { return lead; }
-    public Set<DocumentSubmission> getDocuments() { return documents; }
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public UUID getLeadId() {
+        return leadId;
+    }
+
+    public void setLeadId(UUID leadId) {
+        this.leadId = leadId;
+    }
+
+    public ApplicationStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(ApplicationStatus status) {
+        this.status = status;
+    }
+
+    public Instant getSubmittedAt() {
+        return submittedAt;
+    }
+
+    public void setSubmittedAt(Instant submittedAt) {
+        this.submittedAt = submittedAt;
+    }
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public AdmissionLead getLead() {
+        return lead;
+    }
+
+    public Set<DocumentSubmission> getDocuments() {
+        return documents;
+    }
 }

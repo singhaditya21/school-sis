@@ -1,4 +1,15 @@
-import { UserRole } from '@prisma/client';
+// Local UserRole enum (backend uses Java, not Prisma)
+export enum UserRole {
+    SUPER_ADMIN = 'SUPER_ADMIN',
+    SCHOOL_ADMIN = 'SCHOOL_ADMIN',
+    PRINCIPAL = 'PRINCIPAL',
+    ACCOUNTANT = 'ACCOUNTANT',
+    ADMISSION_COUNSELOR = 'ADMISSION_COUNSELOR',
+    TEACHER = 'TEACHER',
+    TRANSPORT_MANAGER = 'TRANSPORT_MANAGER',
+    PARENT = 'PARENT',
+    STUDENT = 'STUDENT',
+}
 
 type Permission = string;
 

@@ -9,6 +9,7 @@ export type UUID = string;
 export interface LoginRequest {
     email: string;
     password: string;
+    schoolCode?: string;
 }
 
 export interface LoginResponse {

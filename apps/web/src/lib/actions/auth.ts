@@ -13,6 +13,7 @@ const loginSchema = z.object({
 export async function loginAction(formData: FormData) {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
+    const schoolCode = formData.get('schoolCode') as string || 'GREENWOOD';
 
     // Validate input
     const validation = loginSchema.safeParse({ email, password });
@@ -23,68 +24,89 @@ export async function loginAction(formData: FormData) {
     }
 
     try {
-        // Demo credentials for testing (matches constants.ts)
+        // Demo credentials for testing (password: 'password' matches backend)
+        // These are fallbacks when backend is unavailable
         const demoUsers: Record<string, { password: string; userId: string; tenantId: string; role: string; name: string }> = {
-            'admin@greenwood.edu': { password: 'admin123', userId: 'demo-admin', tenantId: 'demo-tenant', role: 'SUPER_ADMIN', name: 'Admin User' },
-            'accountant@greenwood.edu': { password: 'accountant123', userId: 'demo-accountant', tenantId: 'demo-tenant', role: 'ACCOUNTANT', name: 'Accountant' },
-            'principal@greenwood.edu': { password: 'principal123', userId: 'demo-principal', tenantId: 'demo-tenant', role: 'PRINCIPAL', name: 'Principal' },
-            'teacher@greenwood.edu': { password: 'teacher123', userId: 'demo-teacher', tenantId: 'demo-tenant', role: 'TEACHER', name: 'Teacher' },
-            'parent@example.com': { password: 'parent123', userId: 'demo-parent', tenantId: 'demo-tenant', role: 'PARENT', name: 'Parent User' },
+            'admin@greenwood.edu': { password: 'password', userId: 'demo-admin', tenantId: 'demo-tenant', role: 'SUPER_ADMIN', name: 'Admin User' },
+            'accountant@greenwood.edu': { password: 'password', userId: 'demo-accountant', tenantId: 'demo-tenant', role: 'ACCOUNTANT', name: 'Accountant' },
+            'principal@greenwood.edu': { password: 'password', userId: 'demo-principal', tenantId: 'demo-tenant', role: 'PRINCIPAL', name: 'Principal' },
+            'teacher@greenwood.edu': { password: 'password', userId: 'demo-teacher', tenantId: 'demo-tenant', role: 'TEACHER', name: 'Teacher' },
+            'parent@example.com': { password: 'password', userId: 'demo-parent', tenantId: 'demo-tenant', role: 'PARENT', name: 'Parent User' },
         };
 
-        // Check demo credentials first
-        const demoUser = demoUsers[email];
-        if (demoUser && demoUser.password === password) {
-            const session = await getSession();
-            session.userId = demoUser.userId;
-            session.tenantId = demoUser.tenantId;
-            session.role = demoUser.role as any;
-            session.email = email;
-            session.token = 'demo-token-' + Date.now();
-            session.isLoggedIn = true;
-            await session.save();
-
-            if (demoUser.role === 'PARENT') {
-                redirect('/overview');
-            } else if (demoUser.role === 'STUDENT') {
-                redirect('/profile');
-            } else {
-                redirect('/dashboard');
-            }
-        }
-
-        // Try real API if not demo user
+        // Try real API FIRST
         try {
-            const response = await authApi.login({ email, password });
+            const response = await authApi.login({ email, password, schoolCode });
 
-            if (!response.success || !response.data) {
-                return {
-                    error: response.error?.message || 'Invalid email or password',
-                };
+            if (response.success && response.data) {
+                const { accessToken, refreshToken, userId, tenantId, role, email: userEmail, name } = response.data;
+
+                const session = await getSession();
+                session.userId = userId;
+                session.tenantId = tenantId || '';
+                session.role = role;
+                session.email = userEmail;
+                session.token = accessToken;
+                session.isLoggedIn = true;
+                await session.save();
+
+                if (role === 'PARENT') {
+                    redirect('/overview');
+                } else if (role === 'STUDENT') {
+                    redirect('/profile');
+                } else {
+                    redirect('/dashboard');
+                }
             }
 
-            const { accessToken, refreshToken, userId, tenantId, role, email: userEmail, name } = response.data;
+            // API returned error - check demo credentials as fallback
+            const demoUser = demoUsers[email];
+            if (demoUser && demoUser.password === password) {
+                const session = await getSession();
+                session.userId = demoUser.userId;
+                session.tenantId = demoUser.tenantId;
+                session.role = demoUser.role as any;
+                session.email = email;
+                session.token = 'demo-token-' + Date.now();
+                session.isLoggedIn = true;
+                await session.save();
 
-            const session = await getSession();
-            session.userId = userId;
-            session.tenantId = tenantId || '';
-            session.role = role;
-            session.email = userEmail;
-            session.token = accessToken;
-            session.isLoggedIn = true;
-            await session.save();
-
-            if (role === 'PARENT') {
-                redirect('/overview');
-            } else if (role === 'STUDENT') {
-                redirect('/profile');
-            } else {
-                redirect('/dashboard');
+                if (demoUser.role === 'PARENT') {
+                    redirect('/overview');
+                } else if (demoUser.role === 'STUDENT') {
+                    redirect('/profile');
+                } else {
+                    redirect('/dashboard');
+                }
             }
-        } catch {
-            // API not available, reject non-demo users
+
             return {
-                error: 'Invalid email or password. Try demo: admin@school.edu / admin123',
+                error: response.error?.message || 'Invalid email or password',
+            };
+        } catch {
+            // API not available - use demo credentials as fallback
+            const demoUser = demoUsers[email];
+            if (demoUser && demoUser.password === password) {
+                const session = await getSession();
+                session.userId = demoUser.userId;
+                session.tenantId = demoUser.tenantId;
+                session.role = demoUser.role as any;
+                session.email = email;
+                session.token = 'demo-token-' + Date.now();
+                session.isLoggedIn = true;
+                await session.save();
+
+                if (demoUser.role === 'PARENT') {
+                    redirect('/overview');
+                } else if (demoUser.role === 'STUDENT') {
+                    redirect('/profile');
+                } else {
+                    redirect('/dashboard');
+                }
+            }
+
+            return {
+                error: 'Invalid email or password',
             };
         }
     } catch (error) {

@@ -9,8 +9,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "message_logs", indexes = {
-    @Index(columnList = "tenant_id, recipient_id"),
-    @Index(columnList = "tenant_id, sent_at")
+        @Index(columnList = "tenant_id, recipient_id"),
+        @Index(columnList = "tenant_id, sent_at")
 })
 public class MessageLog extends TenantAwareEntity {
 
@@ -46,31 +46,105 @@ public class MessageLog extends TenantAwareEntity {
     @Column(name = "error_message")
     private String errorMessage;
 
+    @Column(name = "provider_message_id")
+    private String providerMessageId;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
-    public MessageLog() {}
+    public MessageLog() {
+    }
 
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
-    public UUID getTemplateId() { return templateId; }
-    public void setTemplateId(UUID templateId) { this.templateId = templateId; }
-    public MessageChannel getChannel() { return channel; }
-    public void setChannel(MessageChannel channel) { this.channel = channel; }
-    public UUID getRecipientId() { return recipientId; }
-    public void setRecipientId(UUID recipientId) { this.recipientId = recipientId; }
-    public String getRecipientContact() { return recipientContact; }
-    public void setRecipientContact(String recipientContact) { this.recipientContact = recipientContact; }
-    public String getSubject() { return subject; }
-    public void setSubject(String subject) { this.subject = subject; }
-    public String getBody() { return body; }
-    public void setBody(String body) { this.body = body; }
-    public MessageStatus getStatus() { return status; }
-    public void setStatus(MessageStatus status) { this.status = status; }
-    public Instant getSentAt() { return sentAt; }
-    public void setSentAt(Instant sentAt) { this.sentAt = sentAt; }
-    public String getErrorMessage() { return errorMessage; }
-    public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
-    public Instant getCreatedAt() { return createdAt; }
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public UUID getTemplateId() {
+        return templateId;
+    }
+
+    public void setTemplateId(UUID templateId) {
+        this.templateId = templateId;
+    }
+
+    public MessageChannel getChannel() {
+        return channel;
+    }
+
+    public void setChannel(MessageChannel channel) {
+        this.channel = channel;
+    }
+
+    public UUID getRecipientId() {
+        return recipientId;
+    }
+
+    public void setRecipientId(UUID recipientId) {
+        this.recipientId = recipientId;
+    }
+
+    public String getRecipientContact() {
+        return recipientContact;
+    }
+
+    public void setRecipientContact(String recipientContact) {
+        this.recipientContact = recipientContact;
+    }
+
+    public String getSubject() {
+        return subject;
+    }
+
+    public void setSubject(String subject) {
+        this.subject = subject;
+    }
+
+    public String getBody() {
+        return body;
+    }
+
+    public void setBody(String body) {
+        this.body = body;
+    }
+
+    public MessageStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(MessageStatus status) {
+        this.status = status;
+    }
+
+    public Instant getSentAt() {
+        return sentAt;
+    }
+
+    public void setSentAt(Instant sentAt) {
+        this.sentAt = sentAt;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
+    public void setErrorMessage(String errorMessage) {
+        this.errorMessage = errorMessage;
+    }
+
+    public String getProviderMessageId() {
+        return providerMessageId;
+    }
+
+    public void setProviderMessageId(String providerMessageId) {
+        this.providerMessageId = providerMessageId;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 }
