@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.github
+*.md
+.env
+.env.local
+uploads/
+drizzle/
+*.log
+.DS_Store
+Thumbs.db

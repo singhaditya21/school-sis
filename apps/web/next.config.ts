@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+    output: 'standalone',
     typescript: {
         // Type errors must be fixed — no silent failures in production
         ignoreBuildErrors: false,

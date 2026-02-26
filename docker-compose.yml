@@ -1,38 +1,67 @@
 version: '3.8'
 
 services:
+  # ─── PostgreSQL ──────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: school-sis-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: school_admin
-      POSTGRES_PASSWORD: dev_password_change_in_prod
       POSTGRES_DB: school_sis
+      POSTGRES_USER: school_admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-school_sis_dev_2026}
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U school_admin -d school_sis"]
+      test: [ "CMD-SHELL", "pg_isready -U school_admin -d school_sis" ]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: school-sis-redis
+  # ─── Next.js Application ────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    container_name: school-sis-web
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://school_admin:${DB_PASSWORD:-school_sis_dev_2026}@postgres:5432/school_sis
+      SESSION_SECRET: ${SESSION_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+      UPLOAD_DIR: /app/uploads
+      JOB_QUEUE_MODE: ${JOB_QUEUE_MODE:-sync}
+      # Razorpay (optional)
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_SECRET: ${RAZORPAY_SECRET:-}
+      # S3 (optional)
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
     volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+  # ─── Redis (optional, for BullMQ jobs) ──────────────────
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: school-sis-redis
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redisdata:/data
 
 volumes:
-  postgres_data:
-  redis_data:
+  pgdata:
+  uploads: # redisdata:
