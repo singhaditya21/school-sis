@@ -24,14 +24,12 @@ export async function createStudent(formData: FormData) {
         firstName: formData.get('firstName') as string,
         lastName: formData.get('lastName') as string,
         dateOfBirth: formData.get('dateOfBirth') as string,
-        gender: formData.get('gender') as string,
-        bloodGroup: (formData.get('bloodGroup') as string) || null,
+        gender: (formData.get('gender') as string) as any,
+        bloodGroup: (formData.get('bloodGroup') as string as any) || null,
         gradeId: formData.get('gradeId') as string,
         sectionId: formData.get('sectionId') as string,
-        rollNumber: (formData.get('rollNumber') as string) || null,
+        rollNumber: formData.get('rollNumber') ? parseInt(formData.get('rollNumber') as string) : null,
         admissionDate: (formData.get('admissionDate') as string) || new Date().toISOString().split('T')[0],
-        phone: (formData.get('phone') as string) || null,
-        email: (formData.get('email') as string) || null,
         address: (formData.get('address') as string) || null,
         city: (formData.get('city') as string) || null,
         state: (formData.get('state') as string) || null,
@@ -45,9 +43,9 @@ export async function createStudent(formData: FormData) {
         tenantId,
         userId,
         action: 'CREATE',
-        tableName: 'students',
-        recordId: student.id,
-        newState: { firstName: formData.get('firstName'), lastName: formData.get('lastName') },
+        entityType: 'students',
+        entityId: student.id,
+        afterState: { firstName: formData.get('firstName'), lastName: formData.get('lastName') },
     });
 
     return { success: true, studentId: student.id };
@@ -107,25 +105,27 @@ export async function recordPayment(formData: FormData) {
     const invoiceId = formData.get('invoiceId') as string;
     const amount = parseFloat(formData.get('amount') as string);
     const method = formData.get('method') as string;
-    const reference = (formData.get('reference') as string) || null;
+
+    // Look up the invoice to get the studentId
+    const [invoice] = await db
+        .select({ studentId: schema.invoices.studentId, paidAmount: schema.invoices.paidAmount, totalAmount: schema.invoices.totalAmount })
+        .from(schema.invoices)
+        .where(eq(schema.invoices.id, invoiceId));
+
+    if (!invoice) throw new Error('Invoice not found');
 
     // Create payment
     const [payment] = await db.insert(schema.payments).values({
         id: randomUUID(),
         tenantId,
         invoiceId,
+        studentId: invoice.studentId,
         amount: String(amount),
         method: method as any,
         status: 'COMPLETED',
-        gatewayRef: reference,
     }).returning({ id: schema.payments.id });
 
     // Update invoice paid amount
-    const [invoice] = await db
-        .select({ paidAmount: schema.invoices.paidAmount, totalAmount: schema.invoices.totalAmount })
-        .from(schema.invoices)
-        .where(eq(schema.invoices.id, invoiceId));
-
     const newPaid = Number(invoice.paidAmount) + amount;
     const newStatus = newPaid >= Number(invoice.totalAmount) ? 'PAID' : 'PARTIAL';
 
@@ -147,10 +147,10 @@ export async function recordPayment(formData: FormData) {
         id: randomUUID(),
         tenantId,
         userId,
-        action: 'CREATE',
-        tableName: 'payments',
-        recordId: payment.id,
-        newState: { amount, method, invoiceId },
+        action: 'PAYMENT',
+        entityType: 'payments',
+        entityId: payment.id,
+        afterState: { amount, method, invoiceId },
     });
 
     return { success: true, paymentId: payment.id };
@@ -187,4 +187,92 @@ export async function createExam(formData: FormData) {
     }).returning({ id: schema.exams.id });
 
     return { success: true, examId: exam.id };
+}
+
+// ─── Mark Class Attendance (for attendance-form.tsx) ──────
+export async function markClassAttendance(
+    sectionId: string,
+    date: Date,
+    attendanceData: { studentId: string; status: string; remarks?: string }[]
+) {
+    const { tenantId, userId } = await requireAuth('attendance:write');
+    const dateStr = date.toISOString().split('T')[0];
+
+    for (const entry of attendanceData) {
+        const existing = await db
+            .select({ id: schema.attendanceRecords.id })
+            .from(schema.attendanceRecords)
+            .where(and(
+                eq(schema.attendanceRecords.studentId, entry.studentId),
+                eq(schema.attendanceRecords.date, dateStr),
+                eq(schema.attendanceRecords.tenantId, tenantId)
+            ));
+
+        if (existing.length > 0) {
+            await db.update(schema.attendanceRecords)
+                .set({ status: entry.status as any, markedBy: userId })
+                .where(eq(schema.attendanceRecords.id, existing[0].id));
+        } else {
+            await db.insert(schema.attendanceRecords).values({
+                id: randomUUID(),
+                tenantId,
+                studentId: entry.studentId,
+                sectionId,
+                date: dateStr,
+                status: entry.status as any,
+                markedBy: userId,
+            });
+        }
+    }
+
+    return { success: true as const, error: undefined as string | undefined };
+}
+
+// ─── Enter Exam Marks (for marks-entry-form.tsx) ──────────
+export async function enterMarks(
+    examId: string,
+    marksData: { studentId: string; subjectId: string; marksObtained: number; isAbsent: boolean }[]
+) {
+    const { tenantId } = await requireAuth('exams:write');
+
+    // Look up exam schedules for this exam
+    for (const entry of marksData) {
+        // Find schedule for this subject
+        const [schedule] = await db
+            .select({ id: schema.examSchedules.id })
+            .from(schema.examSchedules)
+            .where(and(
+                eq(schema.examSchedules.examId, examId),
+                eq(schema.examSchedules.subjectId, entry.subjectId)
+            ));
+
+        if (!schedule) continue;
+
+        // Upsert result
+        const existing = await db
+            .select({ id: schema.studentResults.id })
+            .from(schema.studentResults)
+            .where(and(
+                eq(schema.studentResults.examScheduleId, schedule.id),
+                eq(schema.studentResults.studentId, entry.studentId),
+                eq(schema.studentResults.tenantId, tenantId)
+            ));
+
+        if (existing.length > 0) {
+            await db.update(schema.studentResults)
+                .set({ marksObtained: String(entry.marksObtained), isAbsent: entry.isAbsent })
+                .where(eq(schema.studentResults.id, existing[0].id));
+        } else {
+            await db.insert(schema.studentResults).values({
+                id: randomUUID(),
+                tenantId,
+                examScheduleId: schedule.id,
+                studentId: entry.studentId,
+                marksObtained: String(entry.marksObtained),
+                isAbsent: entry.isAbsent,
+            });
+        }
+    }
+
+    return { success: true as const, error: undefined as string | undefined };
 }

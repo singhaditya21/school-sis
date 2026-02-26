@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { markClassAttendance, AttendanceStatus } from '@/lib/actions/attendance';
+import { markClassAttendance } from '@/lib/actions/mutations';
+type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'LEAVE' | 'HALF_DAY' | 'EXCUSED';
 import Link from 'next/link';
 
 interface Student {
@@ -150,8 +151,8 @@ export function AttendanceForm({
                                             }))
                                         }
                                         className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${attendance[student.id] === option.value
-                                                ? `${option.color} text-white`
-                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            ? `${option.color} text-white`
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                             }`}
                                     >
                                         {option.label}

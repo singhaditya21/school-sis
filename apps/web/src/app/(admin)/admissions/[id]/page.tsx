@@ -73,8 +73,8 @@ export default async function AdmissionDetailPage({ params }: { params: Promise<
                                     <p className="font-medium">{app.applicationNumber}</p>
                                     <p className="text-sm text-gray-500">{formatDate(app.createdAt)}</p>
                                 </div>
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${app.status === 'SUBMITTED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                                    }`}>{app.status}</span>
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${app.submittedAt ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                                    }`}>{app.submittedAt ? 'Submitted' : 'Draft'}</span>
                             </div>
                         ))}
                     </div>

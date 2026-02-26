@@ -1,4 +1,4 @@
-import { createAdmissionLeadAction } from '@/lib/actions/forms';
+import { createStudent } from '@/lib/actions/mutations';
 import Link from 'next/link';
 
 export default function NewAdmissionLeadPage() {
@@ -9,7 +9,7 @@ export default function NewAdmissionLeadPage() {
                 <p className="text-gray-600 mt-1">Add a new prospective student inquiry</p>
             </div>
 
-            <form action={createAdmissionLeadAction} className="space-y-6">
+            <form action={createStudent as any} className="space-y-6">
                 {/* Child Information */}
                 <div className="bg-white rounded-xl shadow-sm border p-6">
                     <h2 className="text-lg font-semibold mb-4">Child Information</h2>

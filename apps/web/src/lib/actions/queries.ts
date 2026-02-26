@@ -26,8 +26,6 @@ export async function getStudentDetail(studentId: string) {
             city: schema.students.city,
             state: schema.students.state,
             pincode: schema.students.pincode,
-            phone: schema.students.phone,
-            email: schema.students.email,
             rollNumber: schema.students.rollNumber,
             admissionDate: schema.students.admissionDate,
             status: schema.students.status,
@@ -231,8 +229,7 @@ export async function getAdmissionLeadDetail(leadId: string) {
         .select({
             id: schema.admissionApplications.id,
             applicationNumber: schema.admissionApplications.applicationNumber,
-            status: schema.admissionApplications.status,
-            formData: schema.admissionApplications.formData,
+            submittedAt: schema.admissionApplications.submittedAt,
             createdAt: schema.admissionApplications.createdAt,
         })
         .from(schema.admissionApplications)

@@ -44,8 +44,8 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
                 <div className="bg-white rounded-xl shadow-sm border p-6">
                     <h2 className="font-semibold text-gray-900 mb-4">Contact & Address</h2>
                     <dl className="space-y-2 text-sm">
-                        <div className="flex justify-between"><dt className="text-gray-500">Phone</dt><dd>{student.phone || 'N/A'}</dd></div>
-                        <div className="flex justify-between"><dt className="text-gray-500">Email</dt><dd>{student.email || 'N/A'}</dd></div>
+                        <div className="flex justify-between"><dt className="text-gray-500">Phone</dt><dd>{student.guardians?.[0]?.phone || 'N/A'}</dd></div>
+                        <div className="flex justify-between"><dt className="text-gray-500">Email</dt><dd>{student.guardians?.[0]?.email || 'N/A'}</dd></div>
                         <div className="flex justify-between"><dt className="text-gray-500">Address</dt><dd>{student.address || 'N/A'}</dd></div>
                         <div className="flex justify-between"><dt className="text-gray-500">City</dt><dd>{student.city || 'N/A'}</dd></div>
                         <div className="flex justify-between"><dt className="text-gray-500">State</dt><dd>{student.state || 'N/A'}</dd></div>

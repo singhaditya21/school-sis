@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { enterMarks } from '@/lib/actions/exams';
+import { enterMarks } from '@/lib/actions/mutations';
 import Link from 'next/link';
 
 interface Student {
@@ -135,10 +135,10 @@ export function MarksEntryForm({
                                 key={subject.id}
                                 onClick={() => setSelectedSubject(subject.id)}
                                 className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${selectedSubject === subject.id
-                                        ? 'bg-blue-600 text-white'
-                                        : hasMarks
-                                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    ? 'bg-blue-600 text-white'
+                                    : hasMarks
+                                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                     }`}
                             >
                                 {subject.code}
@@ -196,8 +196,8 @@ export function MarksEntryForm({
                             <button
                                 onClick={() => toggleAbsent(student.id, selectedSubject)}
                                 className={`px-3 py-1 rounded-lg text-sm font-medium ${isAbsent
-                                        ? 'bg-red-500 text-white'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    ? 'bg-red-500 text-white'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                     }`}
                             >
                                 Absent
@@ -214,10 +214,10 @@ export function MarksEntryForm({
                                     max={maxMarks}
                                     placeholder="0"
                                     className={`w-full px-3 py-2 border rounded-lg text-center font-medium ${isAbsent
-                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                            : isInvalid
-                                                ? 'border-red-300 bg-red-50 text-red-600'
-                                                : 'border-gray-300'
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        : isInvalid
+                                            ? 'border-red-300 bg-red-50 text-red-600'
+                                            : 'border-gray-300'
                                         }`}
                                 />
                             </div>
