@@ -2,12 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
     typescript: {
-        // Skip type checking during build (types will be checked in IDE)
-        ignoreBuildErrors: true,
+        // Type errors must be fixed — no silent failures in production
+        ignoreBuildErrors: false,
     },
     eslint: {
-        // Skip linting during build (linting happens in dev)
-        ignoreDuringBuilds: true,
+        // Lint errors must be fixed before deployment
+        ignoreDuringBuilds: false,
     },
     experimental: {
         serverActions: {

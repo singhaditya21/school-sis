@@ -2,7 +2,10 @@
 
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/session';
-import { authApi } from '@/lib/api';
+import { db } from '@/lib/db';
+import { users } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import { compare } from 'bcryptjs';
 import { z } from 'zod';
 
 const loginSchema = z.object({
@@ -13,7 +16,6 @@ const loginSchema = z.object({
 export async function loginAction(formData: FormData) {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
-    const schoolCode = formData.get('schoolCode') as string || 'GREENWOOD';
 
     // Validate input
     const validation = loginSchema.safeParse({ email, password });
@@ -24,98 +26,58 @@ export async function loginAction(formData: FormData) {
     }
 
     try {
-        // Demo credentials for testing (password: 'password' matches backend)
-        // These are fallbacks when backend is unavailable
-        const demoUsers: Record<string, { password: string; userId: string; tenantId: string; role: string; name: string }> = {
-            'admin@greenwood.edu': { password: 'password', userId: 'demo-admin', tenantId: 'demo-tenant', role: 'SUPER_ADMIN', name: 'Admin User' },
-            'accountant@greenwood.edu': { password: 'password', userId: 'demo-accountant', tenantId: 'demo-tenant', role: 'ACCOUNTANT', name: 'Accountant' },
-            'principal@greenwood.edu': { password: 'password', userId: 'demo-principal', tenantId: 'demo-tenant', role: 'PRINCIPAL', name: 'Principal' },
-            'teacher@greenwood.edu': { password: 'password', userId: 'demo-teacher', tenantId: 'demo-tenant', role: 'TEACHER', name: 'Teacher' },
-            'parent@example.com': { password: 'password', userId: 'demo-parent', tenantId: 'demo-tenant', role: 'PARENT', name: 'Parent User' },
-        };
+        // Query real database for user
+        const [user] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, email))
+            .limit(1);
 
-        // Try real API FIRST
-        try {
-            const response = await authApi.login({ email, password, schoolCode });
+        if (!user) {
+            return { error: 'Invalid email or password' };
+        }
 
-            if (response.success && response.data) {
-                const { accessToken, refreshToken, userId, tenantId, role, email: userEmail, name } = response.data;
+        if (!user.isActive) {
+            return { error: 'Account is deactivated. Contact your administrator.' };
+        }
 
-                const session = await getSession();
-                session.userId = userId;
-                session.tenantId = tenantId || '';
-                session.role = role;
-                session.email = userEmail;
-                session.token = accessToken;
-                session.isLoggedIn = true;
-                await session.save();
+        // Verify password with bcrypt
+        const isValidPassword = await compare(password, user.passwordHash);
+        if (!isValidPassword) {
+            return { error: 'Invalid email or password' };
+        }
 
-                if (role === 'PARENT') {
-                    redirect('/overview');
-                } else if (role === 'STUDENT') {
-                    redirect('/profile');
-                } else {
-                    redirect('/dashboard');
-                }
-            }
+        // Update last login timestamp
+        await db
+            .update(users)
+            .set({ lastLoginAt: new Date() })
+            .where(eq(users.id, user.id));
 
-            // API returned error - check demo credentials as fallback
-            const demoUser = demoUsers[email];
-            if (demoUser && demoUser.password === password) {
-                const session = await getSession();
-                session.userId = demoUser.userId;
-                session.tenantId = demoUser.tenantId;
-                session.role = demoUser.role as any;
-                session.email = email;
-                session.token = 'demo-token-' + Date.now();
-                session.isLoggedIn = true;
-                await session.save();
+        // Create session
+        const session = await getSession();
+        session.userId = user.id;
+        session.tenantId = user.tenantId;
+        session.role = user.role;
+        session.email = user.email;
+        session.token = ''; // No JWT needed — session is the auth
+        session.isLoggedIn = true;
+        await session.save();
 
-                if (demoUser.role === 'PARENT') {
-                    redirect('/overview');
-                } else if (demoUser.role === 'STUDENT') {
-                    redirect('/profile');
-                } else {
-                    redirect('/dashboard');
-                }
-            }
-
-            return {
-                error: response.error?.message || 'Invalid email or password',
-            };
-        } catch {
-            // API not available - use demo credentials as fallback
-            const demoUser = demoUsers[email];
-            if (demoUser && demoUser.password === password) {
-                const session = await getSession();
-                session.userId = demoUser.userId;
-                session.tenantId = demoUser.tenantId;
-                session.role = demoUser.role as any;
-                session.email = email;
-                session.token = 'demo-token-' + Date.now();
-                session.isLoggedIn = true;
-                await session.save();
-
-                if (demoUser.role === 'PARENT') {
-                    redirect('/overview');
-                } else if (demoUser.role === 'STUDENT') {
-                    redirect('/profile');
-                } else {
-                    redirect('/dashboard');
-                }
-            }
-
-            return {
-                error: 'Invalid email or password',
-            };
+        // Redirect based on role
+        if (user.role === 'PARENT') {
+            redirect('/overview');
+        } else if (user.role === 'STUDENT') {
+            redirect('/profile');
+        } else {
+            redirect('/dashboard');
         }
     } catch (error) {
-        console.error('[Login] Error:', error);
-
+        // Re-throw Next.js redirects
         if (error instanceof Error && error.message.includes('NEXT_REDIRECT')) {
             throw error;
         }
 
+        console.error('[Login] Error:', error);
         return {
             error: 'An error occurred during login. Please try again.',
         };
@@ -123,7 +85,6 @@ export async function loginAction(formData: FormData) {
 }
 
 export async function logoutAction() {
-    authApi.logout();
     const session = await getSession();
     session.destroy();
     redirect('/login');

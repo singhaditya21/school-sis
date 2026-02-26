@@ -3,24 +3,32 @@ import { cookies } from 'next/headers';
 
 export type SessionData = {
     userId: string;
-    tenantId: string | null;
+    tenantId: string;
     role: string;
     email: string;
-    token: string;
+    token: string; // kept for backward compatibility, not used
     isLoggedIn: boolean;
 };
 
 const defaultSession: SessionData = {
     userId: '',
-    tenantId: null,
+    tenantId: '',
     role: '',
     email: '',
     token: '',
     isLoggedIn: false,
 };
 
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret || sessionSecret.length < 32) {
+    throw new Error(
+        'SESSION_SECRET environment variable is required and must be at least 32 characters. ' +
+        'Generate one with: openssl rand -base64 32'
+    );
+}
+
 export const sessionOptions: SessionOptions = {
-    password: process.env.SESSION_SECRET || 'complex_password_at_least_32_characters_long',
+    password: sessionSecret,
     cookieName: 'school-sis-session',
     cookieOptions: {
         httpOnly: true,
