@@ -1,27 +1,25 @@
 # ─── Stage 1: Dependencies ─────────────────────────────────
 FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
+RUN corepack enable pnpm
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json* pnpm-lock.yaml* ./
+# Copy workspace config + lockfile
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json ./apps/web/
 
-# Install dependencies
-RUN if [ -f pnpm-lock.yaml ]; then \
-        corepack enable pnpm && pnpm install --frozen-lockfile; \
-    elif [ -f package-lock.json ]; then \
-        npm ci; \
-    else \
-        npm install; \
-    fi
+# Install all dependencies
+RUN pnpm install --frozen-lockfile
 
 # ─── Stage 2: Build ───────────────────────────────────────
 FROM node:20-alpine AS builder
+RUN corepack enable pnpm
 WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+# Copy all installed deps from stage 1
+COPY --from=deps /app/ ./
+
+# Copy source code on top
 COPY . .
 
 # Build arguments for env vars needed at build time
@@ -30,7 +28,7 @@ ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
 # Build Next.js
 WORKDIR /app/apps/web
-RUN npx next build
+RUN pnpm next build
 
 # ─── Stage 3: Production ──────────────────────────────────
 FROM node:20-alpine AS runner
