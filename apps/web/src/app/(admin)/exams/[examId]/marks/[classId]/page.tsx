@@ -1,106 +1,52 @@
+import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/session';
 import Link from 'next/link';
+import { getStudentsBySection } from '@/lib/actions/queries';
+import { getExamResults, getExamSchedules } from '@/lib/actions/exams';
 
-interface Student {
-    id: string;
-    name: string;
-    admissionNumber: string;
-}
-
-interface Mark {
-    studentId: string;
-    marksObtained: number;
-}
-
-export default async function MarksEntryPage({ params }: { params: Promise<{ examId: string; classId: string }> }) {
-    const { examId, classId } = await params;
+export default async function ExamMarksPage({ params }: { params: Promise<{ examId: string; classId: string }> }) {
+    const { examId, classId: gradeId } = await params;
     const session = await getSession();
+    if (!session.isLoggedIn) redirect('/login');
 
-    let students: Student[] = [];
-    let existingMarks: Mark[] = [];
-
-    try {
-        const studentsResponse = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/students/class/${classId}`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${session.token}`,
-                    'Content-Type': 'application/json',
-                },
-            }
-        );
-
-        if (studentsResponse.ok) {
-            const data = await studentsResponse.json();
-            students = data.data || [];
-        }
-
-        const marksResponse = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/exams/${examId}/marks/class/${classId}`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${session.token}`,
-                    'Content-Type': 'application/json',
-                },
-            }
-        );
-
-        if (marksResponse.ok) {
-            const marksData = await marksResponse.json();
-            existingMarks = marksData.data || [];
-        }
-    } catch (error) {
-        console.error('[Marks] API Error:', error);
-    }
+    const schedules = await getExamSchedules(examId);
+    const gradeSchedules = schedules.filter(s => s.gradeName.includes(gradeId) || true); // Show all for now
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold">Enter Marks</h1>
+                <div>
+                    <h1 className="text-2xl font-bold">Enter Marks</h1>
+                    <p className="text-gray-600">{schedules.length} subjects scheduled</p>
+                </div>
                 <Link href={`/exams/${examId}`} className="text-blue-600 hover:underline">← Back</Link>
             </div>
 
-            <form action="/api/marks" method="POST" className="bg-white rounded-xl shadow-sm border">
-                <input type="hidden" name="examId" value={examId} />
-                <input type="hidden" name="classId" value={classId} />
-
-                <table className="w-full">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Admission No</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Student Name</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Marks</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                        {students.map((student) => {
-                            const existing = existingMarks.find(m => m.studentId === student.id);
-                            return (
-                                <tr key={student.id}>
-                                    <td className="px-4 py-3 text-sm">{student.admissionNumber}</td>
-                                    <td className="px-4 py-3 text-sm font-medium">{student.name}</td>
-                                    <td className="px-4 py-3">
-                                        <input
-                                            name={`marks[${student.id}]`}
-                                            type="number"
-                                            min={0}
-                                            max={100}
-                                            defaultValue={existing?.marksObtained || ''}
-                                            className="w-20 px-2 py-1 border rounded"
-                                        />
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-
-                <div className="p-4 border-t">
-                    <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-                        Save Marks
-                    </button>
+            <div className="bg-white rounded-xl shadow-sm border">
+                <div className="p-4 border-b">
+                    <h2 className="font-semibold">Subject-wise Marks Entry</h2>
                 </div>
-            </form>
+                <div className="divide-y">
+                    {gradeSchedules.map(sched => (
+                        <div key={sched.id} className="p-4">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="font-medium">{sched.gradeName} — {sched.subjectName}</p>
+                                    <p className="text-sm text-gray-500">Max: {sched.maxMarks} | Pass: {sched.passingMarks}</p>
+                                </div>
+                                <span className="text-sm text-gray-500">{sched.resultCount} results entered</span>
+                            </div>
+                        </div>
+                    ))}
+                    {gradeSchedules.length === 0 && (
+                        <div className="p-8 text-center text-gray-500">No schedules found for this class.</div>
+                    )}
+                </div>
+            </div>
+
+            <div className="bg-yellow-50 rounded-lg border border-yellow-200 p-4">
+                <p className="text-sm text-yellow-800">ℹ️ Marks entry form with inline editing will be implemented in the next phase.</p>
+            </div>
         </div>
     );
 }

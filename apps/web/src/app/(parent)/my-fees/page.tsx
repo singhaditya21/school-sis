@@ -333,7 +333,7 @@ function PaymentModal({
         try {
             // Step 1: Create order on backend
             const orderResponse = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/payments/orders`,
+                `/api/payments/orders`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -372,7 +372,7 @@ function PaymentModal({
                         // Step 3: Verify payment on backend
                         try {
                             const verifyResponse = await fetch(
-                                `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/payments/verify`,
+                                `${process.env.NEXT_PUBLIC_APP_URL || ''}/api/payments/verify`,
                                 {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
