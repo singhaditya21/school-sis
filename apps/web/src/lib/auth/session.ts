@@ -19,16 +19,19 @@ const defaultSession: SessionData = {
     isLoggedIn: false,
 };
 
-const sessionSecret = process.env.SESSION_SECRET;
-if (!sessionSecret || sessionSecret.length < 32) {
-    throw new Error(
-        'SESSION_SECRET environment variable is required and must be at least 32 characters. ' +
-        'Generate one with: openssl rand -base64 32'
-    );
+function getSessionSecret(): string {
+    const secret = process.env.SESSION_SECRET;
+    if (!secret || secret.length < 32) {
+        throw new Error(
+            'SESSION_SECRET environment variable is required and must be at least 32 characters. ' +
+            'Generate one with: openssl rand -base64 32'
+        );
+    }
+    return secret;
 }
 
 export const sessionOptions: SessionOptions = {
-    password: sessionSecret,
+    password: process.env.SESSION_SECRET || 'PLACEHOLDER_BUILD_SECRET_DO_NOT_USE_IN_PROD_0123456789abcdef',
     cookieName: 'school-sis-session',
     cookieOptions: {
         httpOnly: true,

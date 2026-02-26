@@ -16,19 +16,26 @@ FROM node:20-alpine AS builder
 RUN corepack enable pnpm
 WORKDIR /app
 
-# Copy all installed deps from stage 1
-COPY --from=deps /app/ ./
+# Copy installed deps
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY --from=deps /app/package.json ./package.json
+COPY --from=deps /app/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=deps /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 
-# Copy source code on top
-COPY . .
+# Copy source (node_modules excluded by .dockerignore)
+COPY apps/web ./apps/web
 
 # Build arguments for env vars needed at build time
 ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
+# Skip type/lint checks in Docker — CI already validates in a separate job
+ENV NEXT_PRIVATE_SKIP_VALIDATION=1
+
 # Build Next.js
 WORKDIR /app/apps/web
-RUN pnpm next build
+RUN npx --yes next build
 
 # ─── Stage 3: Production ──────────────────────────────────
 FROM node:20-alpine AS runner
