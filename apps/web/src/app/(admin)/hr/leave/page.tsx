@@ -1,56 +1,43 @@
-'use client';
-
-import { useState } from 'react';
 import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { mockLeaveRequests, type LeaveRequest } from '@/lib/services/hr/hr.service';
+import { getPendingLeaves, approveLeave, rejectLeave } from '@/lib/actions/hr';
+import { revalidatePath } from 'next/cache';
 
-export default function LeavePage() {
-    const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
-    const [leaves, setLeaves] = useState(mockLeaveRequests);
-    const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null);
+export default async function LeavePage() {
+    const leaves = await getPendingLeaves();
 
-    const filteredLeaves = leaves.filter(l => filter === 'ALL' || l.status === filter);
+    async function handleApprove(formData: FormData) {
+        'use server';
+        const leaveId = formData.get('leaveId') as string;
+        await approveLeave(leaveId);
+        revalidatePath('/hr/leave');
+    }
 
-    const pendingCount = leaves.filter(l => l.status === 'PENDING').length;
-    const approvedCount = leaves.filter(l => l.status === 'APPROVED').length;
-    const rejectedCount = leaves.filter(l => l.status === 'REJECTED').length;
+    async function handleReject(formData: FormData) {
+        'use server';
+        const leaveId = formData.get('leaveId') as string;
+        await rejectLeave(leaveId, 'Rejected by admin');
+        revalidatePath('/hr/leave');
+    }
 
-    const getStatusBadge = (status: LeaveRequest['status']) => {
+    const getTypeBadge = (type: string) => {
         const colors: Record<string, string> = {
-            PENDING: 'bg-yellow-100 text-yellow-700',
-            APPROVED: 'bg-green-100 text-green-700',
-            REJECTED: 'bg-red-100 text-red-700',
+            CL: 'bg-blue-100 text-blue-700',
+            SL: 'bg-orange-100 text-orange-700',
+            EL: 'bg-purple-100 text-purple-700',
+            ML: 'bg-pink-100 text-pink-700',
+            PL: 'bg-indigo-100 text-indigo-700',
+            COMP_OFF: 'bg-teal-100 text-teal-700',
+            LWP: 'bg-gray-100 text-gray-700',
         };
-        return <Badge className={colors[status]}>{status}</Badge>;
-    };
-
-    const getTypeBadge = (type: LeaveRequest['leaveType']) => {
-        const colors: Record<string, string> = {
-            CASUAL: 'bg-blue-100 text-blue-700',
-            SICK: 'bg-orange-100 text-orange-700',
-            EARNED: 'bg-purple-100 text-purple-700',
-            MATERNITY: 'bg-pink-100 text-pink-700',
-            PATERNITY: 'bg-indigo-100 text-indigo-700',
-            UNPAID: 'bg-gray-100 text-gray-700',
+        const labels: Record<string, string> = {
+            CL: 'Casual', SL: 'Sick', EL: 'Earned', ML: 'Maternity', PL: 'Paternity', COMP_OFF: 'Comp Off', LWP: 'LWP',
         };
-        return <Badge className={colors[type]}>{type}</Badge>;
-    };
-
-    const handleApprove = (id: string) => {
-        setLeaves(prev => prev.map(l =>
-            l.id === id ? { ...l, status: 'APPROVED' as const, approvedBy: 'Admin User' } : l
-        ));
-        setSelectedLeave(null);
-    };
-
-    const handleReject = (id: string) => {
-        setLeaves(prev => prev.map(l =>
-            l.id === id ? { ...l, status: 'REJECTED' as const, approvedBy: 'Admin User' } : l
-        ));
-        setSelectedLeave(null);
+        return (
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[type] || 'bg-gray-100 text-gray-700'}`}>
+                {labels[type] || type}
+            </span>
+        );
     };
 
     return (
@@ -67,29 +54,11 @@ export default function LeavePage() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="cursor-pointer" onClick={() => setFilter('ALL')}>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <Card className="border-2 border-yellow-200">
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Total Requests</div>
-                        <div className="text-2xl font-bold text-blue-600">{leaves.length}</div>
-                    </CardContent>
-                </Card>
-                <Card className="cursor-pointer border-2 border-yellow-200" onClick={() => setFilter('PENDING')}>
-                    <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Pending</div>
-                        <div className="text-2xl font-bold text-yellow-600">{pendingCount}</div>
-                    </CardContent>
-                </Card>
-                <Card className="cursor-pointer" onClick={() => setFilter('APPROVED')}>
-                    <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Approved</div>
-                        <div className="text-2xl font-bold text-green-600">{approvedCount}</div>
-                    </CardContent>
-                </Card>
-                <Card className="cursor-pointer" onClick={() => setFilter('REJECTED')}>
-                    <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Rejected</div>
-                        <div className="text-2xl font-bold text-red-600">{rejectedCount}</div>
+                        <div className="text-sm text-gray-500">Pending Approval</div>
+                        <div className="text-2xl font-bold text-yellow-600">{leaves.length}</div>
                     </CardContent>
                 </Card>
             </div>
@@ -97,56 +66,64 @@ export default function LeavePage() {
             {/* Leave Requests Table */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Leave Requests ({filter === 'ALL' ? 'All' : filter})</CardTitle>
+                    <CardTitle>Pending Leave Requests</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                     <table className="w-full">
                         <thead className="bg-gray-50 border-b">
                             <tr>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">From</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">To</th>
                                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Days</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y">
-                            {filteredLeaves.map(leave => (
-                                <tr key={leave.id} className={`hover:bg-gray-50 ${leave.status === 'PENDING' ? 'bg-yellow-50' : ''}`}>
-                                    <td className="px-4 py-3 font-medium">{leave.staffName}</td>
+                            {leaves.map(leave => (
+                                <tr key={leave.id} className="hover:bg-yellow-50">
                                     <td className="px-4 py-3">
-                                        <Badge variant="outline">{leave.department}</Badge>
+                                        <div className="font-medium">{leave.staffFirstName} {leave.staffLastName}</div>
+                                        <div className="text-xs text-gray-500">{leave.staffEmployeeId}</div>
                                     </td>
                                     <td className="px-4 py-3">{getTypeBadge(leave.leaveType)}</td>
-                                    <td className="px-4 py-3 text-sm">{new Date(leave.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
-                                    <td className="px-4 py-3 text-sm">{new Date(leave.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
-                                    <td className="px-4 py-3 text-center font-semibold">{leave.days}</td>
-                                    <td className="px-4 py-3">{getStatusBadge(leave.status)}</td>
+                                    <td className="px-4 py-3 text-sm">{leave.fromDate}</td>
+                                    <td className="px-4 py-3 text-sm">{leave.toDate}</td>
+                                    <td className="px-4 py-3 text-center font-semibold">{leave.totalDays}</td>
+                                    <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">{leave.reason}</td>
                                     <td className="px-4 py-3">
-                                        {leave.status === 'PENDING' ? (
-                                            <div className="flex gap-2">
+                                        <div className="flex gap-2">
+                                            <form action={handleApprove}>
+                                                <input type="hidden" name="leaveId" value={leave.id} />
                                                 <button
-                                                    onClick={() => handleApprove(leave.id)}
+                                                    type="submit"
                                                     className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                                                 >
                                                     ✓ Approve
                                                 </button>
+                                            </form>
+                                            <form action={handleReject}>
+                                                <input type="hidden" name="leaveId" value={leave.id} />
                                                 <button
-                                                    onClick={() => handleReject(leave.id)}
+                                                    type="submit"
                                                     className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
                                                 >
                                                     ✗ Reject
                                                 </button>
-                                            </div>
-                                        ) : (
-                                            <span className="text-xs text-gray-500">By {leave.approvedBy}</span>
-                                        )}
+                                            </form>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
+                            {leaves.length === 0 && (
+                                <tr>
+                                    <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
+                                        🎉 No pending leave requests. All caught up!
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </CardContent>

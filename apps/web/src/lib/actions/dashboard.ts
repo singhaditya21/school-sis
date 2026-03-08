@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db';
 import { tenants, users, students, invoices, payments, attendanceRecords, admissionLeads, grades, sections } from '@/lib/db/schema';
-import { eq, sql, count, sum, and } from 'drizzle-orm';
+import { eq, sql, count, sum, and, lt, ne } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth/middleware';
 
 export interface DashboardStats {
@@ -16,6 +16,8 @@ export interface DashboardStats {
     admissionLeads: number;
     collectionRate: number;
     overdueAmount: number;
+    defaulterCount: number;
+    overdueInvoiceCount: number;
 }
 
 export interface TenantInfo {
@@ -81,6 +83,19 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         .from(admissionLeads)
         .where(eq(admissionLeads.tenantId, tenantId));
 
+    // Overdue invoices + defaulter count
+    const overdueRows = await db
+        .select({ studentId: invoices.studentId })
+        .from(invoices)
+        .where(and(
+            eq(invoices.tenantId, tenantId),
+            lt(invoices.dueDate, today),
+            ne(invoices.status, 'PAID'),
+            ne(invoices.status, 'CANCELLED'),
+            ne(invoices.status, 'WAIVED'),
+        ));
+    const uniqueDefaulters = new Set(overdueRows.map(r => r.studentId));
+
     return {
         totalStudents: studentCount.count,
         totalTeachers: teacherCount.count,
@@ -92,6 +107,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         admissionLeads: leadCount.count,
         collectionRate,
         overdueAmount: pendingFees,
+        defaulterCount: uniqueDefaulters.size,
+        overdueInvoiceCount: overdueRows.length,
     };
 }
 

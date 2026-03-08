@@ -2,8 +2,9 @@
 
 import { db } from '@/lib/db';
 import { periods, timetableEntries, subjects, sections, grades, users } from '@/lib/db/schema';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, ne } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth/middleware';
+import { randomUUID } from 'crypto';
 
 export interface PeriodItem {
     id: string;
@@ -122,3 +123,223 @@ export async function getSectionsForTimetable() {
         .where(eq(sections.tenantId, tenantId))
         .orderBy(asc(grades.displayOrder), asc(sections.name));
 }
+
+// ─── Conflict Detection ─────────────────────────────────────
+
+export interface TimetableConflict {
+    type: 'TEACHER_DOUBLE_BOOKED' | 'ROOM_DOUBLE_BOOKED';
+    periodId: string;
+    dayOfWeek: string;
+    conflictWith: string;
+    details: string;
+}
+
+export async function checkConflicts(data: {
+    sectionId: string;
+    periodId: string;
+    dayOfWeek: string;
+    teacherId: string;
+    roomNumber?: string;
+    excludeEntryId?: string; // for updates
+}): Promise<TimetableConflict[]> {
+    const { tenantId } = await requireAuth('timetable:read');
+    const conflicts: TimetableConflict[] = [];
+
+    // Check teacher double-booking
+    const teacherEntries = await db
+        .select({
+            id: timetableEntries.id,
+            sectionId: timetableEntries.sectionId,
+            sectionName: sections.name,
+            gradeName: grades.name,
+        })
+        .from(timetableEntries)
+        .innerJoin(sections, eq(timetableEntries.sectionId, sections.id))
+        .innerJoin(grades, eq(sections.gradeId, grades.id))
+        .where(and(
+            eq(timetableEntries.tenantId, tenantId),
+            eq(timetableEntries.periodId, data.periodId),
+            eq(timetableEntries.dayOfWeek, data.dayOfWeek as any),
+            eq(timetableEntries.teacherId, data.teacherId),
+            ne(timetableEntries.sectionId, data.sectionId),
+            ...(data.excludeEntryId ? [ne(timetableEntries.id, data.excludeEntryId)] : []),
+        ));
+
+    for (const entry of teacherEntries) {
+        conflicts.push({
+            type: 'TEACHER_DOUBLE_BOOKED',
+            periodId: data.periodId,
+            dayOfWeek: data.dayOfWeek,
+            conflictWith: `${entry.gradeName} - ${entry.sectionName}`,
+            details: `Teacher is already assigned to ${entry.gradeName} ${entry.sectionName} during this period`,
+        });
+    }
+
+    // Check room double-booking
+    if (data.roomNumber) {
+        const roomEntries = await db
+            .select({
+                id: timetableEntries.id,
+                sectionName: sections.name,
+                gradeName: grades.name,
+            })
+            .from(timetableEntries)
+            .innerJoin(sections, eq(timetableEntries.sectionId, sections.id))
+            .innerJoin(grades, eq(sections.gradeId, grades.id))
+            .where(and(
+                eq(timetableEntries.tenantId, tenantId),
+                eq(timetableEntries.periodId, data.periodId),
+                eq(timetableEntries.dayOfWeek, data.dayOfWeek as any),
+                eq(timetableEntries.roomNumber, data.roomNumber),
+                ne(timetableEntries.sectionId, data.sectionId),
+                ...(data.excludeEntryId ? [ne(timetableEntries.id, data.excludeEntryId)] : []),
+            ));
+
+        for (const entry of roomEntries) {
+            conflicts.push({
+                type: 'ROOM_DOUBLE_BOOKED',
+                periodId: data.periodId,
+                dayOfWeek: data.dayOfWeek,
+                conflictWith: `${entry.gradeName} - ${entry.sectionName}`,
+                details: `Room ${data.roomNumber} is already assigned to ${entry.gradeName} ${entry.sectionName}`,
+            });
+        }
+    }
+
+    return conflicts;
+}
+
+// ─── Create Entry (with conflict check) ──────────────────────
+
+export async function createTimetableEntry(data: {
+    sectionId: string;
+    periodId: string;
+    dayOfWeek: string;
+    subjectId: string;
+    teacherId: string;
+    roomNumber?: string;
+}) {
+    const { tenantId } = await requireAuth('timetable:write');
+
+    // Check for conflicts first
+    const conflicts = await checkConflicts({
+        sectionId: data.sectionId,
+        periodId: data.periodId,
+        dayOfWeek: data.dayOfWeek,
+        teacherId: data.teacherId,
+        roomNumber: data.roomNumber,
+    });
+
+    if (conflicts.length > 0) {
+        return { success: false, conflicts };
+    }
+
+    await db.insert(timetableEntries).values({
+        id: randomUUID(),
+        tenantId,
+        sectionId: data.sectionId,
+        periodId: data.periodId,
+        dayOfWeek: data.dayOfWeek as any,
+        subjectId: data.subjectId,
+        teacherId: data.teacherId,
+        roomNumber: data.roomNumber,
+    });
+
+    return { success: true, conflicts: [] };
+}
+
+// ─── Bulk Create ─────────────────────────────────────────────
+
+export async function bulkCreateEntries(entries: {
+    sectionId: string;
+    periodId: string;
+    dayOfWeek: string;
+    subjectId: string;
+    teacherId: string;
+    roomNumber?: string;
+}[]) {
+    const { tenantId } = await requireAuth('timetable:write');
+
+    const allConflicts: TimetableConflict[] = [];
+    const validEntries: typeof entries = [];
+
+    for (const entry of entries) {
+        const conflicts = await checkConflicts({
+            sectionId: entry.sectionId,
+            periodId: entry.periodId,
+            dayOfWeek: entry.dayOfWeek,
+            teacherId: entry.teacherId,
+            roomNumber: entry.roomNumber,
+        });
+
+        if (conflicts.length > 0) {
+            allConflicts.push(...conflicts);
+        } else {
+            validEntries.push(entry);
+        }
+    }
+
+    // Insert valid entries
+    if (validEntries.length > 0) {
+        await db.insert(timetableEntries).values(
+            validEntries.map(e => ({
+                id: randomUUID(),
+                tenantId,
+                sectionId: e.sectionId,
+                periodId: e.periodId,
+                dayOfWeek: e.dayOfWeek as any,
+                subjectId: e.subjectId,
+                teacherId: e.teacherId,
+                roomNumber: e.roomNumber,
+            }))
+        );
+    }
+
+    return {
+        success: allConflicts.length === 0,
+        inserted: validEntries.length,
+        skipped: entries.length - validEntries.length,
+        conflicts: allConflicts,
+    };
+}
+
+// ─── Substitution Management ─────────────────────────────────
+
+export async function getSubstitutionSuggestions(data: {
+    periodId: string;
+    dayOfWeek: string;
+    subjectId: string;
+}) {
+    const { tenantId } = await requireAuth('timetable:read');
+
+    // Find all teachers who teach this subject and are NOT busy during this period+day
+    const busyTeachers = await db
+        .select({ teacherId: timetableEntries.teacherId })
+        .from(timetableEntries)
+        .where(and(
+            eq(timetableEntries.tenantId, tenantId),
+            eq(timetableEntries.periodId, data.periodId),
+            eq(timetableEntries.dayOfWeek, data.dayOfWeek as any),
+        ));
+
+    const busyIds = new Set(busyTeachers.map(t => t.teacherId));
+
+    // Get all teachers (simple approach — could be refined with subject-teacher mapping)
+    const allTeachers = await db
+        .select({
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+        })
+        .from(users)
+        .where(and(eq(users.tenantId, tenantId), eq(users.role, 'TEACHER'), eq(users.isActive, true)));
+
+    return allTeachers
+        .filter(t => !busyIds.has(t.id))
+        .map(t => ({
+            teacherId: t.id,
+            teacherName: `${t.firstName} ${t.lastName}`,
+            isFree: true,
+        }));
+}
+

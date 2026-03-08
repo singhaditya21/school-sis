@@ -103,14 +103,27 @@ export async function recordPayment(formData: FormData) {
     const { tenantId, userId } = await requireAuth('fees:write');
 
     const invoiceId = formData.get('invoiceId') as string;
-    const amount = parseFloat(formData.get('amount') as string);
+    const amountStr = formData.get('amount') as string;
     const method = formData.get('method') as string;
 
-    // Look up the invoice to get the studentId
+    // Validate inputs
+    if (!invoiceId || typeof invoiceId !== 'string') {
+        return { success: false, error: 'Invoice ID is required' };
+    }
+    const amount = parseFloat(amountStr);
+    if (isNaN(amount) || amount <= 0) {
+        return { success: false, error: 'Amount must be a positive number' };
+    }
+    const validMethods = ['CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'CARD', 'ONLINE'];
+    if (!validMethods.includes(method)) {
+        return { success: false, error: `Invalid payment method. Must be one of: ${validMethods.join(', ')}` };
+    }
+
+    // Look up the invoice — tenant-scoped
     const [invoice] = await db
         .select({ studentId: schema.invoices.studentId, paidAmount: schema.invoices.paidAmount, totalAmount: schema.invoices.totalAmount })
         .from(schema.invoices)
-        .where(eq(schema.invoices.id, invoiceId));
+        .where(and(eq(schema.invoices.id, invoiceId), eq(schema.invoices.tenantId, tenantId)));
 
     if (!invoice) throw new Error('Invoice not found');
 

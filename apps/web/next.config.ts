@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-    output: 'standalone',
+    // output: 'standalone', // Uncomment for Docker — Windows lacks symlink perms
     typescript: {
         // CI runs tsc --noEmit separately; skip during next build to avoid
         // redundant checks that may fail in Docker environments

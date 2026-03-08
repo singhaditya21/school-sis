@@ -1,89 +1,141 @@
-import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/session';
-import { formatDate } from '@/lib/utils';
+import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
-import { getAdmissionLeadDetail } from '@/lib/actions/queries';
+import { getLeadById, updateLeadStage } from '@/lib/actions/admissions';
+import LeadStageManager from '@/components/admissions/lead-stage-manager';
 
-export default async function AdmissionDetailPage({ params }: { params: Promise<{ id: string }> }) {
-    const { id } = await params;
+interface Props {
+    params: Promise<{ id: string }>;
+}
+
+export default async function LeadDetailPage({ params }: Props) {
     const session = await getSession();
     if (!session.isLoggedIn) redirect('/login');
 
-    const lead = await getAdmissionLeadDetail(id);
-
-    if (!lead) {
-        return <div className="p-8 text-center text-gray-500">Lead not found.</div>;
-    }
+    const { id } = await params;
+    const lead = await getLeadById(id);
+    if (!lead) notFound();
 
     const stageColors: Record<string, string> = {
-        NEW: 'bg-blue-100 text-blue-700', CONTACTED: 'bg-yellow-100 text-yellow-700',
-        FORM_SUBMITTED: 'bg-purple-100 text-purple-700', DOCUMENTS_PENDING: 'bg-orange-100 text-orange-700',
-        INTERVIEW_SCHEDULED: 'bg-indigo-100 text-indigo-700', OFFERED: 'bg-teal-100 text-teal-700',
-        ENROLLED: 'bg-green-100 text-green-700', REJECTED: 'bg-red-100 text-red-700',
+        NEW: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+        CONTACTED: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+        FORM_SUBMITTED: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+        DOCUMENTS_PENDING: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+        INTERVIEW_SCHEDULED: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
+        INTERVIEW_DONE: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
+        OFFERED: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+        ACCEPTED: 'bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-300',
+        ENROLLED: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+        REJECTED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+        WITHDRAWN: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
     };
 
+    async function handleStageUpdate(newStage: string) {
+        'use server';
+        return updateLeadStage(id, newStage);
+    }
+
     return (
-        <div className="space-y-6">
+        <div className="max-w-3xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold">{lead.childFirstName} {lead.childLastName}</h1>
-                    <p className="text-gray-600">Applying for {lead.applyingForGrade}</p>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {lead.childFirstName} {lead.childLastName}
+                    </h1>
+                    <p className="text-muted-foreground mt-1">
+                        Applying for {lead.applyingForGrade} • Added {lead.createdAt.toLocaleDateString('en-IN')}
+                    </p>
                 </div>
-                <Link href="/admissions" className="text-blue-600 hover:underline">← Back</Link>
+                <div className="flex items-center gap-3">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${stageColors[lead.stage] || 'bg-gray-100 text-gray-700'}`}>
+                        {lead.stage.replace(/_/g, ' ')}
+                    </span>
+                    <Link href="/admissions" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+                        ← Back
+                    </Link>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white rounded-xl shadow-sm border p-6">
-                    <h2 className="font-semibold mb-4">Child Information</h2>
-                    <dl className="space-y-2 text-sm">
-                        <div className="flex justify-between"><dt className="text-gray-500">Name</dt><dd>{lead.childFirstName} {lead.childLastName}</dd></div>
-                        <div className="flex justify-between"><dt className="text-gray-500">DOB</dt><dd>{lead.childDob ? formatDate(lead.childDob) : 'N/A'}</dd></div>
-                        <div className="flex justify-between"><dt className="text-gray-500">Applying For</dt><dd>{lead.applyingForGrade}</dd></div>
-                        <div className="flex justify-between"><dt className="text-gray-500">Stage</dt><dd>
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${stageColors[lead.stage] || 'bg-gray-100 text-gray-700'}`}>{lead.stage.replace(/_/g, ' ')}</span>
-                        </dd></div>
-                    </dl>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-sm border p-6">
-                    <h2 className="font-semibold mb-4">Parent/Guardian</h2>
-                    <dl className="space-y-2 text-sm">
-                        <div className="flex justify-between"><dt className="text-gray-500">Name</dt><dd>{lead.parentName}</dd></div>
-                        <div className="flex justify-between"><dt className="text-gray-500">Phone</dt><dd>{lead.parentPhone}</dd></div>
-                        <div className="flex justify-between"><dt className="text-gray-500">Email</dt><dd>{lead.parentEmail || 'N/A'}</dd></div>
-                        <div className="flex justify-between"><dt className="text-gray-500">Source</dt><dd className="capitalize">{lead.source.toLowerCase().replace(/_/g, ' ')}</dd></div>
-                    </dl>
-                </div>
-            </div>
-
-            {lead.notes && (
-                <div className="bg-white rounded-xl shadow-sm border p-6">
-                    <h2 className="font-semibold mb-2">Notes</h2>
-                    <p className="text-sm text-gray-700">{lead.notes}</p>
-                </div>
-            )}
-
-            {lead.applications.length > 0 && (
-                <div className="bg-white rounded-xl shadow-sm border p-6">
-                    <h2 className="font-semibold mb-4">Applications ({lead.applications.length})</h2>
-                    <div className="divide-y">
-                        {lead.applications.map(app => (
-                            <div key={app.id} className="py-3 flex justify-between items-center">
-                                <div>
-                                    <p className="font-medium">{app.applicationNumber}</p>
-                                    <p className="text-sm text-gray-500">{formatDate(app.createdAt)}</p>
-                                </div>
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${app.submittedAt ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                                    }`}>{app.submittedAt ? 'Submitted' : 'Draft'}</span>
+                {/* Lead Details */}
+                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Lead Details</h2>
+                    <dl className="space-y-3 text-sm">
+                        <div className="flex justify-between">
+                            <dt className="text-muted-foreground">Child Name</dt>
+                            <dd className="font-medium text-gray-900 dark:text-white">{lead.childFirstName} {lead.childLastName}</dd>
+                        </div>
+                        {lead.childDob && (
+                            <div className="flex justify-between">
+                                <dt className="text-muted-foreground">Date of Birth</dt>
+                                <dd className="font-medium text-gray-900 dark:text-white">{lead.childDob}</dd>
                             </div>
-                        ))}
-                    </div>
+                        )}
+                        <div className="flex justify-between">
+                            <dt className="text-muted-foreground">Grade</dt>
+                            <dd className="font-medium text-gray-900 dark:text-white">{lead.applyingForGrade}</dd>
+                        </div>
+                        <div className="flex justify-between">
+                            <dt className="text-muted-foreground">Source</dt>
+                            <dd className="font-medium text-gray-900 dark:text-white capitalize">{lead.source.toLowerCase().replace(/_/g, ' ')}</dd>
+                        </div>
+                        {lead.previousSchool && (
+                            <div className="flex justify-between">
+                                <dt className="text-muted-foreground">Previous School</dt>
+                                <dd className="font-medium text-gray-900 dark:text-white">{lead.previousSchool}</dd>
+                            </div>
+                        )}
+                        {lead.assignedToName && (
+                            <div className="flex justify-between">
+                                <dt className="text-muted-foreground">Assigned To</dt>
+                                <dd className="font-medium text-gray-900 dark:text-white">{lead.assignedToName}</dd>
+                            </div>
+                        )}
+                    </dl>
+                </div>
+
+                {/* Parent Contact */}
+                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Parent Contact</h2>
+                    <dl className="space-y-3 text-sm">
+                        <div className="flex justify-between">
+                            <dt className="text-muted-foreground">Name</dt>
+                            <dd className="font-medium text-gray-900 dark:text-white">{lead.parentName}</dd>
+                        </div>
+                        <div className="flex justify-between">
+                            <dt className="text-muted-foreground">Phone</dt>
+                            <dd>
+                                <a href={`tel:${lead.parentPhone}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                                    {lead.parentPhone}
+                                </a>
+                            </dd>
+                        </div>
+                        <div className="flex justify-between">
+                            <dt className="text-muted-foreground">Email</dt>
+                            <dd>
+                                <a href={`mailto:${lead.parentEmail}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                                    {lead.parentEmail}
+                                </a>
+                            </dd>
+                        </div>
+                    </dl>
+                </div>
+            </div>
+
+            {/* Notes */}
+            {lead.notes && (
+                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Notes</h2>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{lead.notes}</p>
                 </div>
             )}
 
-            <div className="flex gap-3">
-                <Link href={`/admissions/${id}/documents`} className="px-4 py-2 border rounded-lg hover:bg-gray-50">📄 Documents</Link>
-            </div>
+            {/* Stage Management */}
+            <LeadStageManager
+                currentStage={lead.stage}
+                leadId={lead.id}
+                onStageUpdate={handleStageUpdate}
+            />
         </div>
     );
 }
