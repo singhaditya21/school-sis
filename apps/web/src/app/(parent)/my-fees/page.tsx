@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { useStudent } from '@/components/providers/student-provider';
 
 declare global {
     interface Window {
@@ -315,6 +316,7 @@ function PaymentModal({
     razorpayLoaded: boolean;
     onClose: () => void;
 }) {
+    const { student } = useStudent();
     const [amount, setAmount] = useState(invoice.balanceAmount.toString());
     const [isProcessing, setIsProcessing] = useState(false);
     const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
@@ -340,7 +342,7 @@ function PaymentModal({
                     body: JSON.stringify({
                         invoiceId: invoice.id,
                         amount: paymentAmount,
-                        studentName: 'Student Name', // TODO: Get from context
+                        studentName: student?.name || 'Student Name',
                         description: invoice.description || 'Fee Payment',
                     }),
                 }

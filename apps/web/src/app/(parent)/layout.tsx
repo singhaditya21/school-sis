@@ -1,5 +1,6 @@
 import { getSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
+import { StudentProvider } from '@/components/providers/student-provider';
 
 export default async function ParentLayout({
     children,
@@ -34,7 +35,11 @@ export default async function ParentLayout({
             </header>
 
             {/* Main Content */}
-            <main className="p-4 pb-20">{children}</main>
+            <main className="p-4 pb-20">
+                <StudentProvider>
+                    {children}
+                </StudentProvider>
+            </main>
 
             {/* Bottom Navigation (Mobile-First) */}
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 safe-area-pb">
