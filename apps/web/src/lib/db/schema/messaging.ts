@@ -4,8 +4,8 @@ import { tenants, users } from './core';
 
 // ─── Enums ───────────────────────────────────────────────────
 
-export const messageChannelEnum = pgEnum('message_channel', ['SMS', 'WHATSAPP', 'EMAIL']);
-export const messageStatusEnum = pgEnum('message_status', ['QUEUED', 'SENT', 'DELIVERED', 'FAILED']);
+export const messagingChannelEnum = pgEnum('message_channel', ['SMS', 'WHATSAPP', 'EMAIL']);
+export const messagingStatusEnum = pgEnum('message_status', ['QUEUED', 'SENT', 'DELIVERED', 'FAILED']);
 
 // ─── Message Templates ──────────────────────────────────────
 
@@ -13,7 +13,7 @@ export const messageTemplates = pgTable('message_templates', {
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 200 }).notNull(),
-    channel: messageChannelEnum('channel').notNull(),
+    channel: messagingChannelEnum('channel').notNull(),
     subject: varchar('subject', { length: 500 }),
     body: text('body').notNull(),
     variables: jsonb('variables').$type<string[]>().default([]),
@@ -27,13 +27,13 @@ export const messageLogs = pgTable('message_logs', {
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     templateId: uuid('template_id').references(() => messageTemplates.id),
-    channel: messageChannelEnum('channel').notNull(),
+    channel: messagingChannelEnum('channel').notNull(),
     recipients: jsonb('recipients').$type<string[]>().default([]),
     message: text('message').notNull(),
     subject: varchar('subject', { length: 500 }),
     sentBy: uuid('sent_by').references(() => users.id),
     sentAt: timestamp('sent_at', { withTimezone: true }).defaultNow().notNull(),
-    status: messageStatusEnum('status').default('QUEUED').notNull(),
+    status: messagingStatusEnum('status').default('QUEUED').notNull(),
     deliveryCount: integer('delivery_count').default(0),
     failureCount: integer('failure_count').default(0),
 });

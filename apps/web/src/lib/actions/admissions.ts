@@ -105,7 +105,7 @@ export async function getAdmissionPipelineCounts() {
 
 // ─── Create Lead ─────────────────────────────────────────────
 
-export async function createLead(formData: FormData) {
+export async function createLead(formData: FormData): Promise<void> {
     const { tenantId } = await requireAuth('admissions:write');
 
     const childFirstName = formData.get('childFirstName') as string;
@@ -121,7 +121,7 @@ export async function createLead(formData: FormData) {
 
     // Validate required fields
     if (!childFirstName || !childLastName || !applyingForGrade || !parentName || !parentEmail || !parentPhone) {
-        return { success: false, error: 'Missing required fields' };
+        throw new Error('Missing required fields');
     }
 
     await db.insert(admissionLeads).values({
@@ -241,6 +241,7 @@ export async function convertLeadToStudent(
         gradeId,
         sectionId,
         status: 'ACTIVE' as any,
+        admissionDate: new Date().toISOString().split("T")[0],
     });
 
     // Create guardian record
@@ -253,7 +254,7 @@ export async function convertLeadToStudent(
         studentId,
         firstName: parentFirstName,
         lastName: parentLastName,
-        relationship: 'PARENT' as any,
+        relation: 'PARENT' as any,
         phone: lead.parentPhone,
         email: lead.parentEmail,
         isPrimary: true,

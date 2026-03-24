@@ -159,7 +159,7 @@ export async function sendFeeReminders(
                 id: randomUUID(),
                 tenantId,
                 userId,
-                action: 'FEE_REMINDER',
+                action: 'UPDATE',
                 entityType: 'students',
                 entityId: studentId,
                 afterState: { channel, totalDue, invoiceCount: overdueInvoices.length },
