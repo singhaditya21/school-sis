@@ -191,7 +191,7 @@ VALUES (
     '00000000-0000-0000-0000-000000000002',
     '00000000-0000-0000-0000-000000000001',
     'admin@greenwood.edu',
-    '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', -- admin123
+    '[REDACTED_PASSWORD_HASH]', -- admin123
     'SUPER_ADMIN',
     'Admin',
     'User',
@@ -205,7 +205,7 @@ VALUES (
     '00000000-0000-0000-0000-000000000003',
     '00000000-0000-0000-0000-000000000001',
     'accountant@greenwood.edu',
-    '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', -- accountant123 (same hash for demo)
+    '[REDACTED_PASSWORD_HASH]', -- accountant123 (same hash for demo)
     'ACCOUNTANT',
     'Accounts',
     'Team',

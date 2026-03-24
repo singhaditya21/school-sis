@@ -46,16 +46,16 @@ async function executeSyncJob(type: string, payload: JobPayload): Promise<JobRes
 
     const handler = handlers[type];
     if (!handler) {
-        console.warn(`[Jobs] No handler registered for type: ${type}`);
+        console.warn("[Jobs] No handler registered for type: %s", type);
         return { jobId, status: 'completed', result: { skipped: true, reason: 'no handler' } };
     }
 
     try {
         const result = await handler(payload);
-        console.log(`[Jobs] ✓ ${type} completed (${jobId})`);
+        console.log("[Jobs] ✓ %s completed (%s)", type, jobId);
         return { jobId, status: 'completed', result };
     } catch (error: any) {
-        console.error(`[Jobs] ✗ ${type} failed (${jobId}):`, error.message);
+        console.error("[Jobs] ✗ %s failed (%s):", type, jobId, error.message);
         return { jobId, status: 'failed', error: error.message };
     }
 }
@@ -85,32 +85,32 @@ export async function enqueueJob(type: JobType, payload: JobPayload): Promise<Jo
 registerHandler('send-sms', async (payload) => {
     const { phone, message } = payload as { phone: string; message: string };
     // TODO: Integrate with Gupshup/Msg91
-    console.log(`[SMS] Would send to ${phone}: ${message}`);
+    console.log("[SMS] Would send to %s: %s", phone, message);
     return { sent: true, provider: 'mock' };
 });
 
 registerHandler('send-email', async (payload) => {
     const { to, subject, body } = payload as { to: string; subject: string; body: string };
     // TODO: Integrate with Resend/SendGrid/Nodemailer
-    console.log(`[Email] Would send to ${to}: ${subject}`);
+    console.log("[Email] Would send to %s: %s", to, subject);
     return { sent: true, provider: 'mock' };
 });
 
 registerHandler('send-whatsapp', async (payload) => {
     const { phone, template, params } = payload as { phone: string; template: string; params: Record<string, string> };
     // TODO: Integrate with Gupshup WhatsApp Business API
-    console.log(`[WhatsApp] Would send template ${template} to ${phone}`);
+    console.log("[WhatsApp] Would send template %s to %s", template, phone);
     return { sent: true, provider: 'mock' };
 });
 
 registerHandler('fee-reminder', async (payload) => {
     const { studentId, invoiceId, dueDate } = payload as { studentId: string; invoiceId: string; dueDate: string };
-    console.log(`[FeeReminder] Student ${studentId}, Invoice ${invoiceId}, Due ${dueDate}`);
+    console.log("[FeeReminder] Student %s, Invoice %s, Due %s", studentId, invoiceId, dueDate);
     return { reminded: true };
 });
 
 registerHandler('attendance-reminder', async (payload) => {
     const { sectionId, date } = payload as { sectionId: string; date: string };
-    console.log(`[AttendanceReminder] Section ${sectionId}, Date ${date}`);
+    console.log("[AttendanceReminder] Section %s, Date %s", sectionId, date);
     return { reminded: true };
 });

@@ -65,6 +65,7 @@ export async function dispatchEvent(tenantId: string, event: string, payload: Re
     const subs = await db
         .select({
             id: webhookSubscriptions.id,
+            events: webhookSubscriptions.events,
             url: webhookSubscriptions.url,
             secret: webhookSubscriptions.secret,
             headers: webhookSubscriptions.headers,

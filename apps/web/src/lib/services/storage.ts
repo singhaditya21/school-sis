@@ -41,6 +41,9 @@ class LocalStorageProvider implements StorageProvider {
         const ext = path.extname(metadata.filename) || '.bin';
         const key = `${folder}/${randomUUID()}${ext}`;
         const fullPath = path.join(this.baseDir, key);
+        if (!fullPath.startsWith(path.resolve(this.baseDir))) {
+            throw new Error('Path traversal attempt detected');
+        }
 
         // Ensure directory exists
         await mkdir(path.dirname(fullPath), { recursive: true });
@@ -61,11 +64,17 @@ class LocalStorageProvider implements StorageProvider {
 
     async delete(key: string): Promise<void> {
         const fullPath = path.join(this.baseDir, key);
+        if (!fullPath.startsWith(path.resolve(this.baseDir))) {
+            throw new Error('Path traversal attempt detected');
+        }
         try { await unlink(fullPath); } catch { /* File might not exist */ }
     }
 
     async getFile(key: string): Promise<Buffer | null> {
         const fullPath = path.join(this.baseDir, key);
+        if (!fullPath.startsWith(path.resolve(this.baseDir))) {
+            throw new Error('Path traversal attempt detected');
+        }
         try { return await readFile(fullPath); } catch { return null; }
     }
 }

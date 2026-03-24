@@ -45,6 +45,7 @@ export function decrypt(ciphertext: string): string {
         const [ivB64, authTagB64, encryptedData] = parts;
         const iv = Buffer.from(ivB64, 'base64');
         const authTag = Buffer.from(authTagB64, 'base64');
+        if (authTag.length !== 16) throw new Error("Invalid authentication tag length");
 
         const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), iv);
         decipher.setAuthTag(authTag);

@@ -5,6 +5,9 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: school-sis-db
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
     restart: unless-stopped
     environment:
       POSTGRES_DB: school_sis
