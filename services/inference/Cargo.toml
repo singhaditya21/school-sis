@@ -1,0 +1,20 @@
+[package]
+name = "scholarmind-inference"
+version = "0.1.0"
+edition = "2021"
+description = "ScholarMind local LLM inference engine — llama.cpp + Qwen 7B + Nomic Embed"
+
+[dependencies]
+actix-web = "4"
+actix-rt = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+anyhow = "1"
+dotenvy = "0.15"
+
+# llama.cpp bindings — use HTTP client to llama-server for Windows compatibility
+reqwest = { version = "0.12", features = ["json"] }

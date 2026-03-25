@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, integer, date, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean, integer, date, pgEnum, customType } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { tenants, users } from './core';
 import { grades, sections } from './academic';
@@ -39,6 +39,11 @@ export const students = pgTable('students', {
     status: studentStatusEnum('status').default('ACTIVE').notNull(),
     previousSchool: varchar('previous_school', { length: 255 }),
     medicalNotes: text('medical_notes'),
+    embedding: customType<{ data: number[]; driverData: string }>({
+        dataType() {
+            return 'vector(768)';
+        },
+    })('embedding'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

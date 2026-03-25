@@ -1,5 +1,6 @@
 // Local UserRole enum (backend uses Java, not Prisma)
 export enum UserRole {
+    PLATFORM_ADMIN = 'PLATFORM_ADMIN',
     SUPER_ADMIN = 'SUPER_ADMIN',
     SCHOOL_ADMIN = 'SCHOOL_ADMIN',
     PRINCIPAL = 'PRINCIPAL',
@@ -15,7 +16,9 @@ type Permission = string;
 
 // Role-Permission Matrix
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
-    SUPER_ADMIN: ['*'], // all permissions
+    PLATFORM_ADMIN: ['*'], // platform-level superuser — all permissions across all tenants
+
+    SUPER_ADMIN: ['*'], // tenant-level superuser — all permissions within their tenant
 
     SCHOOL_ADMIN: [
         'fees:*',
@@ -125,6 +128,7 @@ export function requirePermission(role: UserRole, permission: Permission): void 
  */
 export function isAdmin(role: UserRole): boolean {
     return [
+        UserRole.PLATFORM_ADMIN,
         UserRole.SUPER_ADMIN,
         UserRole.SCHOOL_ADMIN,
         UserRole.PRINCIPAL,
@@ -136,6 +140,7 @@ export function isAdmin(role: UserRole): boolean {
  */
 export function isStaff(role: UserRole): boolean {
     return [
+        UserRole.PLATFORM_ADMIN,
         UserRole.SUPER_ADMIN,
         UserRole.SCHOOL_ADMIN,
         UserRole.PRINCIPAL,

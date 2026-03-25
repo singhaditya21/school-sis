@@ -36,11 +36,18 @@ export async function middleware(request: NextRequest) {
     }
 
     // Role-based route protection
-    const isAdminRoute = pathname.startsWith('/admin');
-    const isParentRoute = pathname.startsWith('/parent');
+    const isAdminRoute = pathname.startsWith('/admin') || pathname.startsWith('/dashboard') || pathname.startsWith('/hq');
+    const isParentRoute = pathname.startsWith('/parent') || pathname.startsWith('/overview');
+    const isPlatformRoute = pathname.startsWith('/platform');
+
+    if (isPlatformRoute) {
+        if (session.role !== 'PLATFORM_ADMIN') {
+            return NextResponse.redirect(new URL('/unauthorized', request.url));
+        }
+    }
 
     if (isAdminRoute) {
-        const adminRoles = ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'ACCOUNTANT', 'ADMISSION_COUNSELOR', 'TEACHER', 'TRANSPORT_MANAGER'];
+        const adminRoles = ['PLATFORM_ADMIN', 'SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'ACCOUNTANT', 'ADMISSION_COUNSELOR', 'TEACHER', 'TRANSPORT_MANAGER'];
         if (!adminRoles.includes(session.role)) {
             return NextResponse.redirect(new URL('/unauthorized', request.url));
         }
@@ -50,6 +57,41 @@ export async function middleware(request: NextRequest) {
         if (session.role !== 'PARENT') {
             return NextResponse.redirect(new URL('/unauthorized', request.url));
         }
+    }
+
+    // ─── SaaS Paywall & Feature Flagging (Phase 5) ─────────────
+    // Note: In production, `activeModules` is injected into the JWT/Session
+    // during login from the `tenants` DB table.
+    const activeModules = session.activeModules || ['ATTENDANCE', 'FEES']; 
+    
+    // Group HQ Command Center (Super Admin Only + Multi-Campus Tier)
+    if (pathname.startsWith('/hq')) {
+        if (session.role !== 'SUPER_ADMIN') {
+            return NextResponse.redirect(new URL('/unauthorized', request.url));
+        }
+        if (!activeModules.includes('MULTI_CAMPUS') && !activeModules.includes('ENTERPRISE')) {
+            return NextResponse.redirect(new URL('/upgrade?feature=hq', request.url));
+        }
+    }
+
+    // Higher Education Paywall
+    if (pathname.startsWith('/university') && !activeModules.includes('HIGHER_ED')) {
+        return NextResponse.redirect(new URL('/upgrade?feature=university', request.url));
+    }
+
+    // Coaching Paywall
+    if (pathname.startsWith('/coaching') && !activeModules.includes('COACHING')) {
+        return NextResponse.redirect(new URL('/upgrade?feature=coaching', request.url));
+    }
+
+    // International / Visa Paywall
+    if (pathname.startsWith('/international') && !activeModules.includes('INTERNATIONAL')) {
+        return NextResponse.redirect(new URL('/upgrade?feature=international', request.url));
+    }
+
+    // AI Agents Paywall
+    if (pathname.startsWith('/chat') && !activeModules.includes('AI_AGENTS') && session.subscriptionTier === 'CORE') {
+        return NextResponse.redirect(new URL('/upgrade?feature=ai', request.url));
     }
 
     return response;

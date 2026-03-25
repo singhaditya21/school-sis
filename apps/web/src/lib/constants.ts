@@ -3,6 +3,7 @@ export const APP_NAME = 'School SIS';
 export const APP_TAGLINE = 'Secure multi-tenant school management platform';
 
 export const ROLES = {
+    PLATFORM_ADMIN: 'PLATFORM_ADMIN',
     SUPER_ADMIN: 'SUPER_ADMIN',
     SCHOOL_ADMIN: 'SCHOOL_ADMIN',
     PRINCIPAL: 'PRINCIPAL',
@@ -18,6 +19,7 @@ export type UserRole = typeof ROLES[keyof typeof ROLES];
 
 // Role display names
 export const ROLE_LABELS: Record<string, string> = {
+    PLATFORM_ADMIN: 'Platform Owner',
     SUPER_ADMIN: 'Super Admin',
     SCHOOL_ADMIN: 'School Admin',
     PRINCIPAL: 'Principal',
@@ -31,6 +33,7 @@ export const ROLE_LABELS: Record<string, string> = {
 
 // Role badge colors
 export const ROLE_COLORS: Record<string, string> = {
+    PLATFORM_ADMIN: 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-300',
     SUPER_ADMIN: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
     SCHOOL_ADMIN: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
     PRINCIPAL: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300',
@@ -44,7 +47,8 @@ export const ROLE_COLORS: Record<string, string> = {
 
 // Demo credentials
 export const DEMO_CREDENTIALS = [
-    { role: 'Admin', email: 'admin@greenwood.edu', password: 'admin123' },
+    { role: 'Platform Owner', email: 'owner@scholarmind.com', password: 'owner123' },
+    { role: 'School Admin', email: 'admin@greenwood.edu', password: 'admin123' },
     { role: 'Accountant', email: 'accountant@greenwood.edu', password: 'accountant123' },
     { role: 'Parent', email: 'parent@example.com', password: 'parent123' },
 ];

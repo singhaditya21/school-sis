@@ -63,6 +63,38 @@ export const immunizations = pgTable('immunizations', {
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ─── Nurse Visit Logs ────────────────────────────────────────
+
+export const nurseVisitLogs = pgTable('nurse_visit_logs', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+    studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),
+    visitDate: timestamp('visit_date', { withTimezone: true }).defaultNow().notNull(),
+    symptoms: text('symptoms').notNull(),
+    treatmentProvided: text('treatment_provided').notNull(),
+    temperature: varchar('temperature', { length: 10 }),
+    bloodPressure: varchar('blood_pressure', { length: 20 }),
+    sentHome: boolean('sent_home').default(false).notNull(),
+    nurseId: uuid('nurse_id').references(() => users.id).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ─── Medication Schedules ────────────────────────────────────
+
+export const medicationSchedules = pgTable('medication_schedules', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+    studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),
+    medicationName: varchar('medication_name', { length: 255 }).notNull(),
+    dosage: varchar('dosage', { length: 100 }).notNull(),
+    timesPerDay: integer('times_per_day').notNull(),
+    timeSlots: jsonb('time_slots').$type<string[]>().notNull(), // e.g., ["09:00", "14:00"]
+    instructionNotes: text('instruction_notes'),
+    prescribedBy: varchar('prescribed_by', { length: 255 }),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 // ─── Relations ───────────────────────────────────────────────
 
 export const healthRecordsRelations = relations(healthRecords, ({ one }) => ({
@@ -79,4 +111,15 @@ export const healthIncidentsRelations = relations(healthIncidents, ({ one }) => 
 export const immunizationsRelations = relations(immunizations, ({ one }) => ({
     tenant: one(tenants, { fields: [immunizations.tenantId], references: [tenants.id] }),
     student: one(students, { fields: [immunizations.studentId], references: [students.id] }),
+}));
+
+export const nurseVisitLogsRelations = relations(nurseVisitLogs, ({ one }) => ({
+    tenant: one(tenants, { fields: [nurseVisitLogs.tenantId], references: [tenants.id] }),
+    student: one(students, { fields: [nurseVisitLogs.studentId], references: [students.id] }),
+    nurse: one(users, { fields: [nurseVisitLogs.nurseId], references: [users.id] }),
+}));
+
+export const medicationSchedulesRelations = relations(medicationSchedules, ({ one }) => ({
+    tenant: one(tenants, { fields: [medicationSchedules.tenantId], references: [tenants.id] }),
+    student: one(students, { fields: [medicationSchedules.studentId], references: [students.id] }),
 }));

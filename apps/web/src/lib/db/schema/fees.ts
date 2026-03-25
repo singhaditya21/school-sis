@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, integer, numeric, date, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean, integer, numeric, date, pgEnum, customType } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { tenants } from './core';
 import { academicYears } from './academic';
@@ -51,6 +51,11 @@ export const invoices = pgTable('invoices', {
     status: invoiceStatusEnum('status').default('PENDING').notNull(),
     description: text('description'),
     lineItems: text('line_items'), // JSON string of fee components breakdown
+    embedding: customType<{ data: number[]; driverData: string }>({
+        dataType() {
+            return 'vector(768)';
+        },
+    })('embedding'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

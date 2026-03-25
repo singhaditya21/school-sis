@@ -1,262 +1,93 @@
-// Quiz/Assessment Service for Online Examinations
+// Quiz/Assessment Service — Production (Real DB)
+import { db, setTenantContext } from '@/lib/db';
+import { sql } from 'drizzle-orm';
 
 export type QuestionType = 'mcq' | 'true_false' | 'short_answer';
-
-export interface QuizQuestion {
-    id: string;
-    text: string;
-    type: QuestionType;
-    options?: string[];
-    correctAnswer: string | number;
-    marks: number;
-}
-
-export interface Quiz {
-    id: string;
-    title: string;
-    subject: string;
-    class: string;
-    section?: string;
-    createdBy: string;
-    duration: number; // minutes
-    totalMarks: number;
-    questions: QuizQuestion[];
-    status: 'draft' | 'published' | 'closed';
-    startTime?: string;
-    endTime?: string;
-    createdAt: string;
-}
-
-export interface QuizAttempt {
-    id: string;
-    quizId: string;
-    studentId: string;
-    studentName: string;
-    answers: Record<string, string | number>;
-    score: number;
-    totalMarks: number;
-    percentage: number;
-    startedAt: string;
-    submittedAt?: string;
-    status: 'in_progress' | 'submitted' | 'graded';
-}
-
-// Mock Questions
-const sampleQuestions: QuizQuestion[] = [
-    {
-        id: 'q1',
-        text: 'What is the capital of India?',
-        type: 'mcq',
-        options: ['Mumbai', 'Delhi', 'Kolkata', 'Chennai'],
-        correctAnswer: 1,
-        marks: 2,
-    },
-    {
-        id: 'q2',
-        text: 'The Earth is flat.',
-        type: 'true_false',
-        options: ['True', 'False'],
-        correctAnswer: 1,
-        marks: 1,
-    },
-    {
-        id: 'q3',
-        text: 'What is 15 × 8?',
-        type: 'mcq',
-        options: ['100', '120', '130', '150'],
-        correctAnswer: 1,
-        marks: 2,
-    },
-    {
-        id: 'q4',
-        text: 'Name the process by which plants make food.',
-        type: 'short_answer',
-        correctAnswer: 'photosynthesis',
-        marks: 3,
-    },
-    {
-        id: 'q5',
-        text: 'H2O is the chemical formula for water.',
-        type: 'true_false',
-        options: ['True', 'False'],
-        correctAnswer: 0,
-        marks: 1,
-    },
-];
-
-// Mock Quizzes
-const mockQuizzes: Quiz[] = [
-    {
-        id: 'quiz-1',
-        title: 'Science Weekly Test',
-        subject: 'Science',
-        class: 'Class 8',
-        section: 'A',
-        createdBy: 'Dr. Sharma',
-        duration: 30,
-        totalMarks: 20,
-        questions: sampleQuestions,
-        status: 'published',
-        startTime: '2026-01-22T10:00:00',
-        endTime: '2026-01-22T11:00:00',
-        createdAt: '2026-01-20',
-    },
-    {
-        id: 'quiz-2',
-        title: 'Mathematics Quiz - Chapter 5',
-        subject: 'Mathematics',
-        class: 'Class 9',
-        createdBy: 'Mrs. Gupta',
-        duration: 45,
-        totalMarks: 30,
-        questions: sampleQuestions,
-        status: 'published',
-        createdAt: '2026-01-21',
-    },
-    {
-        id: 'quiz-3',
-        title: 'English Grammar Test',
-        subject: 'English',
-        class: 'Class 7',
-        createdBy: 'Mr. Kumar',
-        duration: 20,
-        totalMarks: 15,
-        questions: sampleQuestions.slice(0, 3),
-        status: 'draft',
-        createdAt: '2026-01-22',
-    },
-    {
-        id: 'quiz-4',
-        title: 'History Unit Test',
-        subject: 'Social Studies',
-        class: 'Class 10',
-        createdBy: 'Ms. Reddy',
-        duration: 60,
-        totalMarks: 50,
-        questions: sampleQuestions,
-        status: 'closed',
-        createdAt: '2026-01-15',
-    },
-];
-
-// Mock Attempts
-const mockAttempts: QuizAttempt[] = [
-    {
-        id: 'att-1',
-        quizId: 'quiz-1',
-        studentId: 'STU001',
-        studentName: 'Rahul Sharma',
-        answers: { q1: 1, q2: 1, q3: 1, q4: 'photosynthesis', q5: 0 },
-        score: 18,
-        totalMarks: 20,
-        percentage: 90,
-        startedAt: '2026-01-22T10:05:00',
-        submittedAt: '2026-01-22T10:28:00',
-        status: 'graded',
-    },
-    {
-        id: 'att-2',
-        quizId: 'quiz-1',
-        studentId: 'STU002',
-        studentName: 'Priya Patel',
-        answers: { q1: 1, q2: 0, q3: 2, q4: 'respiration', q5: 0 },
-        score: 12,
-        totalMarks: 20,
-        percentage: 60,
-        startedAt: '2026-01-22T10:02:00',
-        submittedAt: '2026-01-22T10:30:00',
-        status: 'graded',
-    },
-    {
-        id: 'att-3',
-        quizId: 'quiz-1',
-        studentId: 'STU003',
-        studentName: 'Amit Kumar',
-        answers: { q1: 1, q2: 1, q3: 1, q4: 'photo synthesis', q5: 0 },
-        score: 16,
-        totalMarks: 20,
-        percentage: 80,
-        startedAt: '2026-01-22T10:08:00',
-        submittedAt: '2026-01-22T10:25:00',
-        status: 'graded',
-    },
-];
+export interface QuizQuestion { id: string; text: string; type: QuestionType; options?: string[]; correctAnswer: string | number; marks: number; }
+export interface Quiz { id: string; title: string; subject: string; class: string; section?: string; createdBy: string; duration: number; totalMarks: number; questions: QuizQuestion[]; status: 'draft' | 'published' | 'closed'; startTime?: string; endTime?: string; createdAt: string; }
+export interface QuizAttempt { id: string; quizId: string; studentId: string; studentName: string; answers: Record<string, string | number>; score: number; totalMarks: number; percentage: number; startedAt: string; submittedAt?: string; status: 'in_progress' | 'submitted' | 'graded'; }
 
 export const QuizService = {
-    // Get all quizzes with optional filters
-    getQuizzes(filters?: { subject?: string; class?: string; status?: string }): Quiz[] {
-        let result = [...mockQuizzes];
-        if (filters?.subject) {
-            result = result.filter((q) => q.subject === filters.subject);
-        }
-        if (filters?.class) {
-            result = result.filter((q) => q.class === filters.class);
-        }
-        if (filters?.status) {
-            result = result.filter((q) => q.status === filters.status);
-        }
-        return result;
+    async getQuizzes(tenantId: string, filters?: { subject?: string; class?: string; status?: string }): Promise<Quiz[]> {
+        await setTenantContext(tenantId);
+        const rows = await db.execute(sql`
+            SELECT q.id, q.title, sub.name AS subject, g.name AS class, sec.name AS section,
+                   u.first_name || ' ' || u.last_name AS "createdBy", q.duration, q.total_marks AS "totalMarks",
+                   q.questions, q.status, q.start_time AS "startTime", q.end_time AS "endTime", q.created_at AS "createdAt"
+            FROM quizzes q LEFT JOIN subjects sub ON sub.id = q.subject_id LEFT JOIN grades g ON g.id = q.grade_id
+            LEFT JOIN sections sec ON sec.id = q.section_id LEFT JOIN users u ON u.id = q.created_by
+            WHERE q.tenant_id = ${tenantId}
+            ${filters?.subject ? sql`AND sub.name = ${filters.subject}` : sql``}
+            ${filters?.class ? sql`AND g.name = ${filters.class}` : sql``}
+            ${filters?.status ? sql`AND q.status = ${filters.status}` : sql``}
+            ORDER BY q.created_at DESC LIMIT 100`);
+        return rows as Quiz[];
     },
 
-    // Get quiz by ID
-    getQuizById(id: string): Quiz | undefined {
-        return mockQuizzes.find((q) => q.id === id);
+    async getQuizById(tenantId: string, id: string): Promise<Quiz | undefined> {
+        await setTenantContext(tenantId);
+        const [row] = await db.execute(sql`
+            SELECT q.id, q.title, sub.name AS subject, g.name AS class, sec.name AS section,
+                   u.first_name || ' ' || u.last_name AS "createdBy", q.duration, q.total_marks AS "totalMarks",
+                   q.questions, q.status, q.start_time AS "startTime", q.end_time AS "endTime", q.created_at AS "createdAt"
+            FROM quizzes q LEFT JOIN subjects sub ON sub.id = q.subject_id LEFT JOIN grades g ON g.id = q.grade_id
+            LEFT JOIN sections sec ON sec.id = q.section_id LEFT JOIN users u ON u.id = q.created_by
+            WHERE q.id = ${id} AND q.tenant_id = ${tenantId}`) as any[];
+        return row || undefined;
     },
 
-    // Get quiz statistics
-    getQuizStats() {
-        return {
-            total: mockQuizzes.length,
-            published: mockQuizzes.filter((q) => q.status === 'published').length,
-            draft: mockQuizzes.filter((q) => q.status === 'draft').length,
-            closed: mockQuizzes.filter((q) => q.status === 'closed').length,
-        };
+    async getQuizStats(tenantId: string) {
+        await setTenantContext(tenantId);
+        const [s] = await db.execute(sql`SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE status='published') AS published,
+            COUNT(*) FILTER (WHERE status='draft') AS draft, COUNT(*) FILTER (WHERE status='closed') AS closed
+            FROM quizzes WHERE tenant_id = ${tenantId}`) as any[];
+        return { total: Number(s?.total||0), published: Number(s?.published||0), draft: Number(s?.draft||0), closed: Number(s?.closed||0) };
     },
 
-    // Get attempts for a quiz
-    getQuizAttempts(quizId: string): QuizAttempt[] {
-        return mockAttempts.filter((a) => a.quizId === quizId);
+    async getQuizAttempts(tenantId: string, quizId: string): Promise<QuizAttempt[]> {
+        await setTenantContext(tenantId);
+        const rows = await db.execute(sql`
+            SELECT qa.id, qa.quiz_id AS "quizId", qa.student_id AS "studentId",
+                   s.first_name || ' ' || s.last_name AS "studentName", qa.answers, qa.score,
+                   qa.total_marks AS "totalMarks", ROUND(qa.score::numeric / NULLIF(qa.total_marks, 0) * 100) AS percentage,
+                   qa.started_at AS "startedAt", qa.submitted_at AS "submittedAt", qa.status
+            FROM quiz_attempts qa JOIN students s ON s.id = qa.student_id
+            WHERE qa.quiz_id = ${quizId} AND qa.tenant_id = ${tenantId} ORDER BY qa.score DESC`);
+        return rows as QuizAttempt[];
     },
 
-    // Get quiz results analytics
-    getQuizAnalytics(quizId: string) {
-        const attempts = this.getQuizAttempts(quizId);
-        if (attempts.length === 0) return null;
-
-        const scores = attempts.map((a) => a.percentage);
-        return {
-            totalAttempts: attempts.length,
-            averageScore: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
-            highestScore: Math.max(...scores),
-            lowestScore: Math.min(...scores),
-            passed: attempts.filter((a) => a.percentage >= 40).length,
-            failed: attempts.filter((a) => a.percentage < 40).length,
-        };
+    async getQuizAnalytics(tenantId: string, quizId: string) {
+        await setTenantContext(tenantId);
+        const [s] = await db.execute(sql`
+            SELECT COUNT(*) AS total, ROUND(AVG(score::numeric / NULLIF(total_marks, 0) * 100)) AS avg_pct,
+                   MAX(score::numeric / NULLIF(total_marks, 0) * 100) AS max_pct, MIN(score::numeric / NULLIF(total_marks, 0) * 100) AS min_pct,
+                   COUNT(*) FILTER (WHERE score::numeric / NULLIF(total_marks, 0) * 100 >= 40) AS passed,
+                   COUNT(*) FILTER (WHERE score::numeric / NULLIF(total_marks, 0) * 100 < 40) AS failed
+            FROM quiz_attempts WHERE quiz_id = ${quizId} AND tenant_id = ${tenantId} AND status = 'graded'`) as any[];
+        if (!s || Number(s.total) === 0) return null;
+        return { totalAttempts: Number(s.total), averageScore: Number(s.avg_pct||0), highestScore: Number(s.max_pct||0),
+                 lowestScore: Number(s.min_pct||0), passed: Number(s.passed||0), failed: Number(s.failed||0) };
     },
 
-    // Calculate score for an attempt
     calculateScore(quiz: Quiz, answers: Record<string, string | number>): number {
         let score = 0;
         quiz.questions.forEach((q) => {
             const answer = answers[q.id];
-            if (q.type === 'short_answer') {
-                if (String(answer).toLowerCase().trim() === String(q.correctAnswer).toLowerCase()) {
-                    score += q.marks;
-                }
-            } else if (answer === q.correctAnswer) {
-                score += q.marks;
-            }
+            if (q.type === 'short_answer') { if (String(answer).toLowerCase().trim() === String(q.correctAnswer).toLowerCase()) score += q.marks; }
+            else if (answer === q.correctAnswer) score += q.marks;
         });
         return score;
     },
 
-    // Subjects list
-    getSubjects(): string[] {
-        return ['Mathematics', 'Science', 'English', 'Social Studies', 'Hindi', 'Computer Science'];
+    async getSubjects(tenantId: string): Promise<string[]> {
+        await setTenantContext(tenantId);
+        const rows = await db.execute(sql`SELECT name FROM subjects WHERE tenant_id = ${tenantId} ORDER BY name`);
+        return (rows as any[]).map(r => r.name);
     },
 
-    // Classes list
-    getClasses(): string[] {
-        return ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'];
+    async getClasses(tenantId: string): Promise<string[]> {
+        await setTenantContext(tenantId);
+        const rows = await db.execute(sql`SELECT name FROM grades WHERE tenant_id = ${tenantId} ORDER BY display_order`);
+        return (rows as any[]).map(r => r.name);
     },
 };

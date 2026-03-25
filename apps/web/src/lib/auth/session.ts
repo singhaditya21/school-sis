@@ -31,7 +31,7 @@ function getSessionSecret(): string {
 }
 
 export const sessionOptions: SessionOptions = {
-    password: process.env.SESSION_SECRET || 'PLACEHOLDER_BUILD_SECRET_DO_NOT_USE_IN_PROD_0123456789abcdef',
+    password: getSessionSecret(),
     cookieName: 'school-sis-session',
     cookieOptions: {
         httpOnly: true,

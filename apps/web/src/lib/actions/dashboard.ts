@@ -1,9 +1,10 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { tenants, users, students, invoices, payments, attendanceRecords, admissionLeads, grades, sections } from '@/lib/db/schema';
-import { eq, sql, count, sum, and, lt, ne } from 'drizzle-orm';
+import { db, setTenantContext } from '@/lib/db';
+import { users, students, invoices, payments, attendanceRecords, admissionLeads, grades, sections } from '@/lib/db/schema';
+import { eq, sql, count, sum, and, lt, gte } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth/middleware';
+import { tenants } from '@/lib/db/schema';
 
 export interface DashboardStats {
     totalStudents: number;
@@ -28,87 +29,106 @@ export interface TenantInfo {
 export async function getDashboardStats(): Promise<DashboardStats> {
     const { tenantId } = await requireAuth();
 
-    // Total students
-    const [studentCount] = await db
-        .select({ count: count() })
-        .from(students)
-        .where(and(eq(students.tenantId, tenantId), eq(students.status, 'ACTIVE')));
+    // Set RLS context for this tenant
+    await setTenantContext(tenantId);
 
-    // Total teachers
-    const [teacherCount] = await db
-        .select({ count: count() })
-        .from(users)
-        .where(and(eq(users.tenantId, tenantId), eq(users.role, 'TEACHER')));
+    // Run all aggregate queries in parallel
+    const [
+        studentCount,
+        teacherCount,
+        gradeCount,
+        sectionCount,
+        todayAttendance,
+        feeAggregates,
+        leadCount,
+        overdueData,
+    ] = await Promise.all([
+        // Total active students
+        db.select({ value: count() })
+            .from(students)
+            .where(and(
+                eq(students.tenantId, tenantId),
+                eq(students.status, 'ACTIVE')
+            )),
 
-    // Total grades
-    const [gradeCount] = await db
-        .select({ count: count() })
-        .from(grades)
-        .where(eq(grades.tenantId, tenantId));
+        // Total teachers
+        db.select({ value: count() })
+            .from(users)
+            .where(and(
+                eq(users.tenantId, tenantId),
+                eq(users.role, 'TEACHER'),
+                eq(users.isActive, true)
+            )),
 
-    // Total sections
-    const [sectionCount] = await db
-        .select({ count: count() })
-        .from(sections)
-        .where(eq(sections.tenantId, tenantId));
+        // Total grades
+        db.select({ value: count() })
+            .from(grades)
+            .where(eq(grades.tenantId, tenantId)),
 
-    // Fee stats
-    const [feeStats] = await db
-        .select({
-            totalAmount: sum(invoices.totalAmount),
-            paidAmount: sum(invoices.paidAmount),
+        // Total sections (classes)
+        db.select({ value: count() })
+            .from(sections)
+            .where(eq(sections.tenantId, tenantId)),
+
+        // Today's attendance
+        db.select({ value: count() })
+            .from(attendanceRecords)
+            .where(and(
+                eq(attendanceRecords.tenantId, tenantId),
+                eq(attendanceRecords.status, 'PRESENT'),
+                gte(attendanceRecords.date, sql`CURRENT_DATE`)
+            )),
+
+        // Fee aggregates (collected + pending)
+        db.select({
+            collected: sum(payments.amount),
         })
-        .from(invoices)
-        .where(eq(invoices.tenantId, tenantId));
+            .from(payments)
+            .where(and(
+                eq(payments.tenantId, tenantId),
+                eq(payments.status, 'COMPLETED')
+            )),
 
-    const totalFees = Number(feeStats?.totalAmount || 0);
-    const paidFees = Number(feeStats?.paidAmount || 0);
-    const pendingFees = totalFees - paidFees;
-    const collectionRate = totalFees > 0 ? Math.round((paidFees / totalFees) * 100) : 0;
+        // Admission leads
+        db.select({ value: count() })
+            .from(admissionLeads)
+            .where(and(
+                eq(admissionLeads.tenantId, tenantId),
+                eq(admissionLeads.status, 'NEW')
+            )),
 
-    // Today's attendance
-    const today = new Date().toISOString().split('T')[0];
-    const [presentToday] = await db
-        .select({ count: count() })
-        .from(attendanceRecords)
-        .where(and(
-            eq(attendanceRecords.tenantId, tenantId),
-            eq(attendanceRecords.date, today),
-            eq(attendanceRecords.status, 'PRESENT')
-        ));
+        // Overdue invoices
+        db.select({
+            overdueAmount: sum(sql`${invoices.totalAmount} - ${invoices.paidAmount}`),
+            overdueCount: count(),
+            defaulterCount: sql<number>`COUNT(DISTINCT ${invoices.studentId})`,
+        })
+            .from(invoices)
+            .where(and(
+                eq(invoices.tenantId, tenantId),
+                eq(invoices.status, 'OVERDUE'),
+                lt(invoices.dueDate, sql`CURRENT_DATE`)
+            )),
+    ]);
 
-    // Admission leads
-    const [leadCount] = await db
-        .select({ count: count() })
-        .from(admissionLeads)
-        .where(eq(admissionLeads.tenantId, tenantId));
-
-    // Overdue invoices + defaulter count
-    const overdueRows = await db
-        .select({ studentId: invoices.studentId })
-        .from(invoices)
-        .where(and(
-            eq(invoices.tenantId, tenantId),
-            lt(invoices.dueDate, today),
-            ne(invoices.status, 'PAID'),
-            ne(invoices.status, 'CANCELLED'),
-            ne(invoices.status, 'WAIVED'),
-        ));
-    const uniqueDefaulters = new Set(overdueRows.map(r => r.studentId));
+    const collected = Number(feeAggregates[0]?.collected || 0);
+    const overdue = Number(overdueData[0]?.overdueAmount || 0);
+    const totalBilled = collected + overdue;
+    const collectionRate = totalBilled > 0 ? Math.round((collected / totalBilled) * 100) : 0;
 
     return {
-        totalStudents: studentCount.count,
-        totalTeachers: teacherCount.count,
-        totalGrades: gradeCount.count,
-        totalClasses: sectionCount.count,
-        attendanceToday: presentToday.count,
-        feeCollected: paidFees,
-        feesPending: pendingFees,
-        admissionLeads: leadCount.count,
+        totalStudents: studentCount[0]?.value || 0,
+        totalTeachers: teacherCount[0]?.value || 0,
+        totalGrades: gradeCount[0]?.value || 0,
+        totalClasses: sectionCount[0]?.value || 0,
+        attendanceToday: todayAttendance[0]?.value || 0,
+        feeCollected: collected,
+        feesPending: overdue,
+        admissionLeads: leadCount[0]?.value || 0,
         collectionRate,
-        overdueAmount: pendingFees,
-        defaulterCount: uniqueDefaulters.size,
-        overdueInvoiceCount: overdueRows.length,
+        overdueAmount: overdue,
+        defaulterCount: Number(overdueData[0]?.defaulterCount || 0),
+        overdueInvoiceCount: Number(overdueData[0]?.overdueCount || 0),
     };
 }
 
@@ -118,7 +138,8 @@ export async function getTenantInfo(): Promise<TenantInfo> {
     const [tenant] = await db
         .select({ name: tenants.name, code: tenants.code })
         .from(tenants)
-        .where(eq(tenants.id, tenantId));
+        .where(eq(tenants.id, tenantId))
+        .limit(1);
 
-    return tenant || { name: 'School', code: 'SCH' };
+    return tenant || { name: 'Unknown School', code: '???' };
 }

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npx next build",
+  "outputDirectory": ".next",
+  "regions": ["bom1"],
+  "env": {
+    "SESSION_SECRET": "@session-secret",
+    "DATABASE_URL": "@database-url",
+    "PII_ENCRYPTION_KEY": "@pii-encryption-key",
+    "STRIPE_SECRET_KEY": "@stripe-secret-key",
+    "STRIPE_WEBHOOK_SECRET": "@stripe-webhook-secret",
+    "RAZORPAY_KEY_ID": "@razorpay-key-id",
+    "RAZORPAY_KEY_SECRET": "@razorpay-key-secret",
+    "RESEND_API_KEY": "@resend-api-key",
+    "LTI_JWKS_URL": "@lti-jwks-url",
+    "LTI_CLIENT_ID": "@lti-client-id",
+    "LTI_ISSUER": "@lti-issuer",
+    "R2_ACCOUNT_ID": "@r2-account-id",
+    "R2_ACCESS_KEY_ID": "@r2-access-key-id",
+    "R2_SECRET_ACCESS_KEY": "@r2-secret-access-key",
+    "R2_BUCKET_NAME": "@r2-bucket-name",
+    "NEXT_PUBLIC_SENTRY_DSN": "@sentry-dsn",
+    "NEXT_PUBLIC_POSTHOG_KEY": "@posthog-key"
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    }
+  ]
+}

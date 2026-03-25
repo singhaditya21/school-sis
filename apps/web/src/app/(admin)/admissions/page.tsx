@@ -1,113 +1,157 @@
-import { getSession } from '@/lib/auth/session';
-import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import { getAdmissionLeads, getAdmissionPipelineCounts } from '@/lib/actions/admissions';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
-export default async function AdmissionsPage() {
-    const session = await getSession();
-    if (!session.isLoggedIn) redirect('/login');
-
-    const { leads, total } = await getAdmissionLeads();
-    const pipeline = await getAdmissionPipelineCounts();
-
-    const stageColors: Record<string, string> = {
-        NEW: 'bg-blue-100 text-blue-700',
-        CONTACTED: 'bg-yellow-100 text-yellow-700',
-        FORM_SUBMITTED: 'bg-purple-100 text-purple-700',
-        DOCUMENTS_PENDING: 'bg-orange-100 text-orange-700',
-        INTERVIEW_SCHEDULED: 'bg-indigo-100 text-indigo-700',
-        INTERVIEW_DONE: 'bg-cyan-100 text-cyan-700',
-        OFFERED: 'bg-teal-100 text-teal-700',
-        ACCEPTED: 'bg-lime-100 text-lime-700',
-        ENROLLED: 'bg-green-100 text-green-700',
-        REJECTED: 'bg-red-100 text-red-700',
-        WITHDRAWN: 'bg-gray-100 text-gray-700',
-    };
-
-    const pipelineStages = ['NEW', 'CONTACTED', 'FORM_SUBMITTED', 'INTERVIEW_SCHEDULED', 'OFFERED', 'ENROLLED'];
-
+export default async function AdmissionsPipelinePage() {
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
+        <div className="space-y-6 max-w-7xl mx-auto">
+            <div className="flex justify-between items-center pb-4 border-b border-gray-200">
                 <div>
-                    <h1 className="text-3xl font-bold">Admissions</h1>
-                    <p className="text-gray-600 mt-1">{total} leads total</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-gray-900">Admissions Pipeline</h1>
+                    <p className="text-gray-500 mt-1">Multi-program intake management for University Degrees and Coaching Batches.</p>
                 </div>
-                <Link href="/admissions/new" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                    + Add Lead
-                </Link>
+                <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                    + New Application
+                </button>
             </div>
 
-            {/* Pipeline Funnel */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                {pipelineStages.map(stage => (
-                    <div key={stage} className="bg-white rounded-lg shadow-sm border p-4 text-center">
-                        <p className="text-2xl font-bold">{pipeline[stage] || 0}</p>
-                        <p className="text-xs text-gray-500 mt-1">{stage.replace(/_/g, ' ')}</p>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="border-blue-100 bg-blue-50/50">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-xs font-semibold text-blue-600 uppercase tracking-widest">Active Leads</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-gray-900">142</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Document Verifications</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-gray-900">38</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Fee Deposits Pending</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-gray-900">12</div>
+                    </CardContent>
+                </Card>
+                <Card className="border-emerald-100 bg-emerald-50/50">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-xs font-semibold text-emerald-600 uppercase tracking-widest">Enrolled Today</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-gray-900">5</div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Kanban Pipeline */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 overflow-x-auto pb-4">
+                
+                {/* Column 1: Lead Capture */}
+                <div className="space-y-3 min-w-[280px]">
+                    <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                            New Inquiries
+                        </h3>
+                        <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs font-medium">24</span>
                     </div>
-                ))}
-            </div>
-
-            {/* Leads Table */}
-            <div className="bg-white rounded-xl shadow-sm border">
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Child Name</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grade</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Parent</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stage</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                            {leads.length === 0 ? (
-                                <tr>
-                                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
-                                        No leads found. Add your first lead to get started.
-                                    </td>
-                                </tr>
-                            ) : (
-                                leads.map((lead) => (
-                                    <tr key={lead.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
-                                            {lead.childFirstName} {lead.childLastName}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                            {lead.applyingForGrade}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-gray-600">
-                                            {lead.parentName}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-gray-600">
-                                            {lead.parentPhone}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${stageColors[lead.stage] || 'bg-gray-100 text-gray-700'}`}>
-                                                {lead.stage.replace(/_/g, ' ')}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-gray-600 capitalize">
-                                            {lead.source.toLowerCase().replace(/_/g, ' ')}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                            {lead.assignedToName || '—'}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <Link href={`/admissions/${lead.id}`} className="text-blue-600 hover:underline">
-                                                View
-                                            </Link>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                    {[
+                        { name: 'Aarav Sharma', program: 'JEE Target 2027', score: 'Mock: 140/300', date: 'Today, 10:30 AM' },
+                        { name: 'Priya Patel', program: 'B.Tech CompSci', score: '12th: 92%', date: 'Yesterday' }
+                    ].map((lead, i) => (
+                        <Card key={i} className="hover:shadow-md transition-shadow cursor-grab border-gray-200">
+                            <CardContent className="p-4">
+                                <h4 className="font-semibold text-gray-900">{lead.name}</h4>
+                                <p className="text-xs font-medium text-blue-600 mt-1 bg-blue-50 w-max px-2 py-0.5 rounded">{lead.program}</p>
+                                <div className="flex justify-between items-center mt-3 text-xs text-gray-500">
+                                    <span>{lead.score}</span>
+                                    <span>{lead.date}</span>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
                 </div>
+
+                {/* Column 2: Document Verification */}
+                <div className="space-y-3 min-w-[280px]">
+                    <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                            Document Verification
+                        </h3>
+                        <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs font-medium">8</span>
+                    </div>
+                    {[
+                        { name: 'Karan Singh', program: 'NEET Dropper', status: 'Aadhaar Pending', date: '2 days ago' },
+                        { name: 'Neha Gupta', program: 'MBA Core', status: 'CAT Scorecard verified', date: '3 days ago' }
+                    ].map((lead, i) => (
+                        <Card key={i} className="hover:shadow-md transition-shadow cursor-grab border-amber-200 border-l-4 border-l-amber-400">
+                            <CardContent className="p-4">
+                                <h4 className="font-semibold text-gray-900">{lead.name}</h4>
+                                <p className="text-xs font-medium text-blue-600 mt-1 bg-blue-50 w-max px-2 py-0.5 rounded">{lead.program}</p>
+                                <div className="flex justify-between items-center mt-3 text-xs text-gray-500">
+                                    <span className="text-amber-600 font-medium">{lead.status}</span>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+
+                {/* Column 3: Entrance / Interview */}
+                <div className="space-y-3 min-w-[280px]">
+                    <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-purple-400"></span>
+                            Entrance & Interview
+                        </h3>
+                        <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs font-medium">15</span>
+                    </div>
+                    {[
+                        { name: 'Rohan Verma', program: 'JEE Target 2027', status: 'Scholarship Test Scheduled', date: 'Tomorrow, 2 PM' },
+                    ].map((lead, i) => (
+                        <Card key={i} className="hover:shadow-md transition-shadow cursor-grab border-purple-200 border-l-4 border-l-purple-400">
+                            <CardContent className="p-4">
+                                <h4 className="font-semibold text-gray-900">{lead.name}</h4>
+                                <p className="text-xs font-medium text-blue-600 mt-1 bg-blue-50 w-max px-2 py-0.5 rounded">{lead.program}</p>
+                                <div className="flex justify-between items-center mt-3 text-xs">
+                                    <span className="text-purple-600 font-medium">{lead.status}</span>
+                                </div>
+                                <div className="mt-2 text-xs text-gray-500">{lead.date}</div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+
+                {/* Column 4: Fee Deposit & Allocation */}
+                <div className="space-y-3 min-w-[280px]">
+                    <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                            Enrollment Deposit
+                        </h3>
+                        <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs font-medium">4</span>
+                    </div>
+                    {[
+                        { name: 'Ananya Desai', program: 'B.Tech CompSci', status: 'Payment Link Sent', amount: '₹50,000' },
+                    ].map((lead, i) => (
+                        <Card key={i} className="hover:shadow-md transition-shadow cursor-grab border-emerald-200 border-l-4 border-l-emerald-400">
+                            <CardContent className="p-4">
+                                <h4 className="font-semibold text-gray-900">{lead.name}</h4>
+                                <p className="text-xs font-medium text-blue-600 mt-1 bg-blue-50 w-max px-2 py-0.5 rounded">{lead.program}</p>
+                                <div className="flex justify-between items-center mt-3 text-xs">
+                                    <span className="text-emerald-600 font-medium">{lead.status}</span>
+                                    <span className="font-semibold text-gray-700">{lead.amount}</span>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+
             </div>
         </div>
     );

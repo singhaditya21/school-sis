@@ -1,0 +1,1 @@
+export type { IDCardTemplate, StudentIDCard, StaffIDCard } from './idcard.service';

@@ -33,6 +33,7 @@ function SubmitButton() {
 export default function LoginPage() {
     const [error, setError] = useState<string | null>(null);
     const [schoolCode, setSchoolCode] = useState('GREENWOOD');
+    const [loginMode, setLoginMode] = useState<'school' | 'platform'>('school');
 
     async function handleSubmit(formData: FormData) {
         setError(null);
@@ -62,13 +63,17 @@ export default function LoginPage() {
                             </div>
                         </div>
 
-                        {/* Hero Text */}
+                        {/* Hero Text - Changes based on login mode */}
                         <div className="max-w-md mb-10">
                             <h2 className="text-4xl xl:text-5xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">
-                                Fees-First Intelligence for Modern Schools
+                                {loginMode === 'platform'
+                                    ? 'Your SaaS Command Center'
+                                    : 'Fees-First Intelligence for Modern Schools'}
                             </h2>
                             <p className="text-lg text-gray-600 dark:text-gray-300">
-                                Streamline fee collections, automate reminders, and gain actionable insights into your school&apos;s financial health.
+                                {loginMode === 'platform'
+                                    ? 'Monitor all tenant schools, track ARR growth, and manage subscription tiers from a single unified dashboard.'
+                                    : 'Streamline fee collections, automate reminders, and gain actionable insights into your school\u0027s financial health.'}
                             </p>
                         </div>
 
@@ -130,31 +135,61 @@ export default function LoginPage() {
                             <CardHeader className="space-y-1 pb-4">
                                 <CardTitle className="text-2xl font-bold text-center">Welcome back</CardTitle>
                                 <CardDescription className="text-center">
-                                    Sign in to access your school dashboard
+                                    {loginMode === 'platform'
+                                        ? 'Sign in to your Platform Command Center'
+                                        : 'Sign in to access your school dashboard'}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <form action={handleSubmit} className="space-y-4">
-                                    {/* Tenant Field */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="schoolCode">School Code</Label>
-                                        <Input
-                                            id="schoolCode"
-                                            name="schoolCode"
-                                            type="text"
-                                            placeholder="Enter your school code"
-                                            value={schoolCode}
-                                            onChange={(e) => setSchoolCode(e.target.value.toUpperCase())}
-                                            required
-                                            className="uppercase"
-                                            aria-describedby="schoolCode-hint"
-                                        />
-                                        <p id="schoolCode-hint" className="text-xs text-muted-foreground">
-                                            Contact your school administrator for the code
-                                        </p>
-                                    </div>
+                                {/* Login Mode Toggle */}
+                                <div className="flex rounded-xl bg-gray-100 dark:bg-slate-800 p-1 mb-6">
+                                    <button
+                                        type="button"
+                                        onClick={() => setLoginMode('school')}
+                                        className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                                            loginMode === 'school'
+                                                ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
+                                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                                        }`}
+                                    >
+                                        🏫 School Staff
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setLoginMode('platform')}
+                                        className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                                            loginMode === 'platform'
+                                                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
+                                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                                        }`}
+                                    >
+                                        🌍 Platform Admin
+                                    </button>
+                                </div>
 
-                                    <Separator className="my-4" />
+                                <form action={handleSubmit} className="space-y-4">
+                                    {/* School Code - Only visible for School Staff mode */}
+                                    {loginMode === 'school' && (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="schoolCode">School Code</Label>
+                                            <Input
+                                                id="schoolCode"
+                                                name="schoolCode"
+                                                type="text"
+                                                placeholder="Enter your school code"
+                                                value={schoolCode}
+                                                onChange={(e) => setSchoolCode(e.target.value.toUpperCase())}
+                                                required
+                                                className="uppercase"
+                                                aria-describedby="schoolCode-hint"
+                                            />
+                                            <p id="schoolCode-hint" className="text-xs text-muted-foreground">
+                                                Contact your school administrator for the code
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {loginMode === 'school' && <Separator className="my-4" />}
 
                                     {/* Auth Tabs */}
                                     <Tabs defaultValue="password" className="w-full">
@@ -171,7 +206,7 @@ export default function LoginPage() {
                                                     id="email"
                                                     name="email"
                                                     type="email"
-                                                    placeholder="you@school.edu"
+                                                    placeholder={loginMode === 'platform' ? 'owner@scholarmind.com' : 'you@school.edu'}
                                                     required
                                                     autoComplete="email"
                                                     aria-invalid={error ? 'true' : 'false'}

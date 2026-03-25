@@ -15,6 +15,8 @@ export const userRoleEnum = pgEnum('user_role', [
     'STUDENT',
 ]);
 
+export const subscriptionTierEnum = pgEnum('subscription_tier', ['CORE', 'AI_PRO', 'ENTERPRISE']);
+
 // ─── Tenants ─────────────────────────────────────────────────
 
 export const tenants = pgTable('tenants', {
@@ -33,6 +35,8 @@ export const tenants = pgTable('tenants', {
     affiliationBoard: varchar('affiliation_board', { length: 50 }), // CBSE, ICSE, State
     affiliationNumber: varchar('affiliation_number', { length: 100 }),
     udiseCode: varchar('udise_code', { length: 20 }),
+    subscriptionTier: subscriptionTierEnum('subscription_tier').default('CORE').notNull(),
+    activeModules: text('active_modules').array().default(['ATTENDANCE', 'FEES', 'COMMUNICATION']), // PostgreSQL text array
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

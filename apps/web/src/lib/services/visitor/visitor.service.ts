@@ -1,175 +1,87 @@
-// Visitor Management Service
+// Visitor Management Service — Production (Real DB)
+
+import { db, setTenantContext } from '@/lib/db';
+import { sql } from 'drizzle-orm';
 
 export type VisitPurpose = 'meeting' | 'admission' | 'delivery' | 'interview' | 'parent_visit' | 'vendor' | 'other';
 
 export interface Visitor {
-    id: string;
-    name: string;
-    phone: string;
-    email?: string;
-    company?: string;
-    purpose: VisitPurpose;
-    purposeDetails?: string;
-    hostName: string;
-    hostDepartment: string;
-    photo?: string;
-    idProof: string;
-    idNumber: string;
-    vehicleNumber?: string;
-    checkInTime: string;
-    checkOutTime?: string;
+    id: string; name: string; phone: string; email?: string; company?: string;
+    purpose: VisitPurpose; purposeDetails?: string; hostName: string; hostDepartment: string;
+    photo?: string; idProof: string; idNumber: string; vehicleNumber?: string;
+    checkInTime: string; checkOutTime?: string;
     status: 'checked_in' | 'checked_out' | 'pre_approved';
-    visitorPass?: string;
-    preApprovedBy?: string;
-    preApprovedDate?: string;
+    visitorPass?: string; preApprovedBy?: string; preApprovedDate?: string;
 }
 
 export interface VisitorStats {
-    todayTotal: number;
-    currentlyIn: number;
-    checkedOut: number;
-    preApproved: number;
-    averageVisitDuration: string;
+    todayTotal: number; currentlyIn: number; checkedOut: number;
+    preApproved: number; averageVisitDuration: string;
 }
 
-// Mock Visitors
-const mockVisitors: Visitor[] = [
-    {
-        id: 'v1',
-        name: 'Mr. Suresh Kumar',
-        phone: '9876543210',
-        email: 'suresh@company.com',
-        company: 'ABC Supplies Ltd',
-        purpose: 'delivery',
-        purposeDetails: 'Stationery delivery for admin office',
-        hostName: 'Mrs. Priya Sharma',
-        hostDepartment: 'Administration',
-        idProof: 'Aadhaar Card',
-        idNumber: '****1234',
-        vehicleNumber: 'DL-01-AB-1234',
-        checkInTime: '2026-01-22T09:30:00',
-        status: 'checked_in',
-        visitorPass: 'VP-001',
-    },
-    {
-        id: 'v2',
-        name: 'Mrs. Anita Singh',
-        phone: '9876543211',
-        purpose: 'parent_visit',
-        purposeDetails: 'Meeting with class teacher regarding child performance',
-        hostName: 'Mr. Rajesh Gupta',
-        hostDepartment: 'Academics',
-        idProof: 'Driving License',
-        idNumber: '****5678',
-        checkInTime: '2026-01-22T10:00:00',
-        status: 'checked_in',
-        visitorPass: 'VP-002',
-    },
-    {
-        id: 'v3',
-        name: 'Mr. Rahul Verma',
-        phone: '9876543212',
-        company: 'Tech Solutions',
-        purpose: 'vendor',
-        purposeDetails: 'IT equipment maintenance',
-        hostName: 'Mr. Deepak IT',
-        hostDepartment: 'IT',
-        idProof: 'Company ID',
-        idNumber: 'TECH-456',
-        checkInTime: '2026-01-22T08:45:00',
-        checkOutTime: '2026-01-22T11:30:00',
-        status: 'checked_out',
-        visitorPass: 'VP-003',
-    },
-    {
-        id: 'v4',
-        name: 'Dr. Meera Patel',
-        phone: '9876543213',
-        purpose: 'interview',
-        purposeDetails: 'Teacher interview - Mathematics',
-        hostName: 'Dr. Anita Sharma',
-        hostDepartment: 'HR',
-        idProof: 'PAN Card',
-        idNumber: '****9012',
-        checkInTime: '2026-01-22T14:00:00',
-        status: 'pre_approved',
-        preApprovedBy: 'HR Manager',
-        preApprovedDate: '2026-01-20',
-    },
-    {
-        id: 'v5',
-        name: 'Mr. Vikram Joshi',
-        phone: '9876543214',
-        purpose: 'admission',
-        purposeDetails: 'Admission inquiry for Class 6',
-        hostName: 'Mrs. Kavita Admission',
-        hostDepartment: 'Admissions',
-        idProof: 'Voter ID',
-        idNumber: '****3456',
-        checkInTime: '2026-01-22T11:00:00',
-        checkOutTime: '2026-01-22T12:15:00',
-        status: 'checked_out',
-        visitorPass: 'VP-004',
-    },
-];
-
 export const VisitorService = {
-    // Get all visitors with filters
-    getVisitors(filters?: { status?: string; purpose?: string; date?: string }): Visitor[] {
-        let result = [...mockVisitors];
-        if (filters?.status) result = result.filter((v) => v.status === filters.status);
-        if (filters?.purpose) result = result.filter((v) => v.purpose === filters.purpose);
-        return result;
+    async getVisitors(tenantId: string, filters?: { status?: string; purpose?: string; date?: string }): Promise<Visitor[]> {
+        await setTenantContext(tenantId);
+        const rows = await db.execute(sql`
+            SELECT id, name, phone, email, company, purpose, purpose_details AS "purposeDetails",
+                   host_name AS "hostName", host_department AS "hostDepartment", photo,
+                   id_proof AS "idProof", id_number AS "idNumber", vehicle_number AS "vehicleNumber",
+                   check_in_time AS "checkInTime", check_out_time AS "checkOutTime", status,
+                   visitor_pass AS "visitorPass", pre_approved_by AS "preApprovedBy",
+                   pre_approved_date AS "preApprovedDate"
+            FROM visitors WHERE tenant_id = ${tenantId}
+            ${filters?.status ? sql`AND status = ${filters.status}` : sql``}
+            ${filters?.purpose ? sql`AND purpose = ${filters.purpose}` : sql``}
+            ${filters?.date ? sql`AND DATE(check_in_time) = ${filters.date}::date` : sql`AND DATE(check_in_time) = CURRENT_DATE`}
+            ORDER BY check_in_time DESC LIMIT 100
+        `);
+        return rows as Visitor[];
     },
 
-    // Get currently checked-in visitors
-    getActiveVisitors(): Visitor[] {
-        return mockVisitors.filter((v) => v.status === 'checked_in');
+    async getActiveVisitors(tenantId: string): Promise<Visitor[]> {
+        return this.getVisitors(tenantId, { status: 'checked_in' });
     },
 
-    // Get pre-approved visitors
-    getPreApprovedVisitors(): Visitor[] {
-        return mockVisitors.filter((v) => v.status === 'pre_approved');
+    async getPreApprovedVisitors(tenantId: string): Promise<Visitor[]> {
+        return this.getVisitors(tenantId, { status: 'pre_approved' });
     },
 
-    // Get visitor stats
-    getStats(): VisitorStats {
-        const today = mockVisitors;
+    async getStats(tenantId: string): Promise<VisitorStats> {
+        await setTenantContext(tenantId);
+        const [stats] = await db.execute(sql`
+            SELECT COUNT(*) AS "todayTotal",
+                   COUNT(*) FILTER (WHERE status = 'checked_in') AS "currentlyIn",
+                   COUNT(*) FILTER (WHERE status = 'checked_out') AS "checkedOut",
+                   COUNT(*) FILTER (WHERE status = 'pre_approved') AS "preApproved",
+                   COALESCE(EXTRACT(HOUR FROM AVG(check_out_time - check_in_time)) || 'h ' ||
+                   EXTRACT(MINUTE FROM AVG(check_out_time - check_in_time)) || 'm', '0h 0m') AS "averageVisitDuration"
+            FROM visitors WHERE tenant_id = ${tenantId} AND DATE(check_in_time) = CURRENT_DATE
+        `) as any[];
         return {
-            todayTotal: today.length,
-            currentlyIn: today.filter((v) => v.status === 'checked_in').length,
-            checkedOut: today.filter((v) => v.status === 'checked_out').length,
-            preApproved: today.filter((v) => v.status === 'pre_approved').length,
-            averageVisitDuration: '1h 45m',
+            todayTotal: Number(stats?.todayTotal || 0), currentlyIn: Number(stats?.currentlyIn || 0),
+            checkedOut: Number(stats?.checkedOut || 0), preApproved: Number(stats?.preApproved || 0),
+            averageVisitDuration: stats?.averageVisitDuration || '0h 0m',
         };
     },
 
-    // Get purpose options
     getPurposeOptions(): { value: VisitPurpose; label: string }[] {
         return [
-            { value: 'meeting', label: 'Meeting' },
-            { value: 'admission', label: 'Admission Inquiry' },
-            { value: 'delivery', label: 'Delivery' },
-            { value: 'interview', label: 'Interview' },
-            { value: 'parent_visit', label: 'Parent Visit' },
-            { value: 'vendor', label: 'Vendor/Service' },
+            { value: 'meeting', label: 'Meeting' }, { value: 'admission', label: 'Admission Inquiry' },
+            { value: 'delivery', label: 'Delivery' }, { value: 'interview', label: 'Interview' },
+            { value: 'parent_visit', label: 'Parent Visit' }, { value: 'vendor', label: 'Vendor/Service' },
             { value: 'other', label: 'Other' },
         ];
     },
 
-    // Get departments
     getDepartments(): string[] {
         return ['Administration', 'Academics', 'Admissions', 'Accounts', 'HR', 'IT', 'Sports', 'Library'];
     },
 
-    // Get ID proof types
     getIDProofTypes(): string[] {
         return ['Aadhaar Card', 'PAN Card', 'Driving License', 'Voter ID', 'Passport', 'Company ID', 'Other'];
     },
 
-    // Generate visitor pass number
     generatePassNumber(): string {
-        const num = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-        return `VP-${num}`;
+        return `VP-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
     },
 };

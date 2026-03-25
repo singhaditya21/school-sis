@@ -30,3 +30,8 @@ export * from './messaging';
 export * from './consent';
 export * from './documents';
 
+// Phase 4 Expansions (Advanced Education Sectors)
+export * from './higher_ed';
+export * from './coaching';
+export * from './hq';
+export * from './international';

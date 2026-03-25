@@ -1,13 +1,16 @@
 version: '3.8'
 
+# ─── THE NATIVE CLOUD-SPLIT ARCHITECTURE ───────────────
+# Note: Since Docker Desktop Windows VMs are failing on the 
+# host machine, the `web` (Next.js) and `agents` (FastAPI) 
+# microservices have been moved to Native Execution.
+# Use `npm run dev` and `fastapi dev` to boot them instead!
+# ────────────────────────────────────────────────────────
 services:
-  # ─── PostgreSQL ──────────────────────────────────────────
+  # ─── PostgreSQL + pgvector ─────────────────────────────
   postgres:
-    image: postgres:16-alpine
-    container_name: school-sis-db
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
+    image: pgvector/pgvector:pg16
+    container_name: scholarmind-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: school_sis
@@ -17,54 +20,147 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./services/agents/sql:/docker-entrypoint-initdb.d
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U school_admin -d school_sis" ]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ─── Next.js Application ────────────────────────────────
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-    container_name: school-sis-web
+  # ─── Redis Cache ───────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: scholarmind-redis
     restart: unless-stopped
     ports:
-      - "3000:3000"
-    environment:
-      DATABASE_URL: postgresql://school_admin:${DB_PASSWORD:-school_sis_dev_2026}@postgres:5432/school_sis
-      SESSION_SECRET: ${SESSION_SECRET}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
-      UPLOAD_DIR: /app/uploads
-      JOB_QUEUE_MODE: ${JOB_QUEUE_MODE:-sync}
-      # Razorpay (optional)
-      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
-      RAZORPAY_SECRET: ${RAZORPAY_SECRET:-}
-      # S3 (optional)
-      S3_BUCKET: ${S3_BUCKET:-}
-      S3_REGION: ${S3_REGION:-}
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
-      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
-    volumes:
-      - uploads:/app/uploads
-    depends_on:
-      postgres:
-        condition: service_healthy
-  # ─── Redis (optional, for BullMQ jobs) ──────────────────
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: school-sis-redis
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── Next.js Frontend (MOVED TO NATIVE NVM) ──────────
+  # web:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #     args:
+  #       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+  #   container_name: scholarmind-web
   #   restart: unless-stopped
   #   ports:
-  #     - "6379:6379"
+  #     - "3000:3000"
+  #   environment:
+  #     DATABASE_URL: postgresql://school_admin:${DB_PASSWORD:-school_sis_dev_2026}@postgres:5432/school_sis
+  #     SESSION_SECRET: ${SESSION_SECRET}
+  #     ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+  #     NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+  #     STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+  #     UPLOAD_DIR: /app/uploads
+  #     JOB_QUEUE_MODE: ${JOB_QUEUE_MODE:-sync}
   #   volumes:
-  #     - redisdata:/data
+  #     - uploads:/app/uploads
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+
+  # ─── Python Agent Service (MOVED TO NATIVE VENV) ─────
+  # agents:
+  #   build:
+  #     context: ./services/agents
+  #     dockerfile: Dockerfile
+  #   container_name: scholarmind-agents
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8083:8083"
+  #   environment:
+  #     AGENT_DATABASE_URL: postgresql://school_admin:${DB_PASSWORD:-school_sis_dev_2026}@postgres:5432/school_sis
+  #     AGENT_INFERENCE_URL: http://inference:8081
+  #     AGENT_PORT: 8083
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+
+  # ─── Rust Inference Engine ─────────────────────────────
+  inference:
+    build:
+      context: ./services/inference
+      dockerfile: Dockerfile
+    container_name: scholarmind-inference
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      INFERENCE_PORT: 8081
+      LLM_SERVER_URL: http://llama-llm:9001
+      EMBED_SERVER_URL: http://llama-embed:9002
+    depends_on:
+      - llama-llm
+      - llama-embed
+
+  # ─── llama.cpp Server (LLM) ───────────────────────────
+  llama-llm:
+    image: ghcr.io/ggerganov/llama.cpp:server
+    container_name: scholarmind-llm
+    restart: unless-stopped
+    ports:
+      - "9001:9001"
+    volumes:
+      - ./services/inference/models:/models
+    command: >
+      --model /models/qwen2.5-7b-instruct-q5_k_m.gguf
+      --port 9001
+      --host 0.0.0.0
+      --ctx-size 16384
+      --n-gpu-layers 35
+      --flash-attn
+      --cont-batching
+      --parallel 4
+      --metrics
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # ─── llama.cpp Server (Embeddings) ─────────────────────
+  llama-embed:
+    image: ghcr.io/ggerganov/llama.cpp:server
+    container_name: scholarmind-embed
+    restart: unless-stopped
+    ports:
+      - "9002:9002"
+    volumes:
+      - ./services/inference/models:/models
+    command: >
+      --model /models/nomic-embed-text-v1.5-f16.gguf
+      --port 9002
+      --host 0.0.0.0
+      --embedding
+      --ctx-size 8192
+      --pooling mean
+
+  # ─── Go API Gateway ────────────────────────────────────
+  gateway:
+    build:
+      context: ./services/gateway
+      dockerfile: Dockerfile
+    container_name: scholarmind-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      GATEWAY_PORT: 8080
+      WEB_URL: http://web:3000
+      AGENTS_URL: http://agents:8083
+      INFERENCE_URL: http://inference:8081
+    depends_on:
+      - web
+      - agents
 
 volumes:
   pgdata:
-  uploads: # redisdata:
+  uploads:

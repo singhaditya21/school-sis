@@ -1,121 +1,92 @@
 /**
- * File Upload Service — S3-ready abstraction.
- * Uses local filesystem in dev, can swap to S3/R2/Azure Blob in production.
- * 
- * Configuration via env:
- *   STORAGE_PROVIDER=local|s3
- *   S3_BUCKET, S3_REGION, S3_ACCESS_KEY, S3_SECRET_KEY (for S3 mode)
- *   UPLOAD_DIR=./uploads (for local mode)
+ * Cloudflare R2 Storage Adapter
+ *
+ * S3-compatible object storage for file uploads.
+ * Replaces local filesystem storage with cloud storage.
+ *
+ * Required env vars:
+ *   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME
  */
 
-import { randomUUID } from 'crypto';
-import { writeFile, mkdir, readFile, unlink } from 'fs/promises';
-import path from 'path';
+import crypto from 'crypto';
 
-export interface UploadResult {
-    key: string;          // Storage key (filename or S3 key)
-    url: string;          // Publicly accessible URL
-    size: number;
-    mimeType: string;
-    originalName: string;
+interface R2Config {
+    accountId: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    bucketName: string;
 }
 
-export interface StorageProvider {
-    upload(file: Buffer, metadata: { filename: string; mimeType: string; folder?: string }): Promise<UploadResult>;
-    getUrl(key: string): Promise<string>;
-    delete(key: string): Promise<void>;
+function getR2Config(): R2Config {
+    const accountId = process.env.R2_ACCOUNT_ID;
+    const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+    const bucketName = process.env.R2_BUCKET_NAME || 'scholarmind-uploads';
+
+    if (!accountId || !accessKeyId || !secretAccessKey) {
+        throw new Error(
+            'R2 storage not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY.'
+        );
+    }
+
+    return { accountId, accessKeyId, secretAccessKey, bucketName };
 }
 
-// ─── Local Filesystem Provider ────────────────────────────
-class LocalStorageProvider implements StorageProvider {
-    private baseDir: string;
-    private baseUrl: string;
-
-    constructor() {
-        this.baseDir = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
-        this.baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    }
-
-    async upload(file: Buffer, metadata: { filename: string; mimeType: string; folder?: string }): Promise<UploadResult> {
-        const folder = metadata.folder || 'general';
-        const ext = path.extname(metadata.filename) || '.bin';
-        const key = `${folder}/${randomUUID()}${ext}`;
-        const fullPath = path.join(this.baseDir, key);
-        if (!fullPath.startsWith(path.resolve(this.baseDir))) {
-            throw new Error('Path traversal attempt detected');
-        }
-
-        // Ensure directory exists
-        await mkdir(path.dirname(fullPath), { recursive: true });
-        await writeFile(fullPath, file);
-
-        return {
-            key,
-            url: `${this.baseUrl}/api/files/${key}`,
-            size: file.length,
-            mimeType: metadata.mimeType,
-            originalName: metadata.filename,
-        };
-    }
-
-    async getUrl(key: string): Promise<string> {
-        return `${this.baseUrl}/api/files/${key}`;
-    }
-
-    async delete(key: string): Promise<void> {
-        const fullPath = path.join(this.baseDir, key);
-        if (!fullPath.startsWith(path.resolve(this.baseDir))) {
-            throw new Error('Path traversal attempt detected');
-        }
-        try { await unlink(fullPath); } catch { /* File might not exist */ }
-    }
-
-    async getFile(key: string): Promise<Buffer | null> {
-        const fullPath = path.join(this.baseDir, key);
-        if (!fullPath.startsWith(path.resolve(this.baseDir))) {
-            throw new Error('Path traversal attempt detected');
-        }
-        try { return await readFile(fullPath); } catch { return null; }
-    }
+function getEndpoint(config: R2Config): string {
+    return `https://${config.accountId}.r2.cloudflarestorage.com`;
 }
 
-// ─── S3 Provider (stub — activate with aws-sdk) ──────────
-class S3StorageProvider implements StorageProvider {
-    async upload(file: Buffer, metadata: { filename: string; mimeType: string; folder?: string }): Promise<UploadResult> {
-        // const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
-        // const s3 = new S3Client({ region: process.env.S3_REGION });
-        // const key = `${metadata.folder || 'general'}/${randomUUID()}${path.extname(metadata.filename)}`;
-        // await s3.send(new PutObjectCommand({
-        //     Bucket: process.env.S3_BUCKET!,
-        //     Key: key,
-        //     Body: file,
-        //     ContentType: metadata.mimeType,
-        // }));
-        // return { key, url: `https://${process.env.S3_BUCKET}.s3.amazonaws.com/${key}`, ... };
+/**
+ * Upload a file buffer to R2.
+ */
+export async function uploadFile(
+    key: string,
+    body: Buffer | Uint8Array,
+    contentType: string,
+    tenantId: string,
+): Promise<{ url: string; key: string; size: number }> {
+    const config = getR2Config();
+    const endpoint = getEndpoint(config);
+    const url = `${endpoint}/${config.bucketName}/${key}`;
 
-        throw new Error('S3 provider requires @aws-sdk/client-s3. Install it and uncomment the code above.');
+    const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': contentType,
+            'x-amz-content-sha256': 'UNSIGNED-PAYLOAD',
+            'x-amz-meta-tenant-id': tenantId,
+        },
+        body,
+    });
+
+    if (!response.ok) {
+        throw new Error(`R2 upload failed: ${response.status} ${response.statusText}`);
     }
 
-    async getUrl(key: string): Promise<string> {
-        return `https://${process.env.S3_BUCKET}.s3.${process.env.S3_REGION}.amazonaws.com/${key}`;
-    }
-
-    async delete(key: string): Promise<void> {
-        throw new Error('S3 delete not implemented');
-    }
+    return { url, key, size: body.length };
 }
 
-// ─── Factory ──────────────────────────────────────────────
-let _storage: StorageProvider | null = null;
+/**
+ * Delete a file from R2.
+ */
+export async function deleteFile(key: string): Promise<void> {
+    const config = getR2Config();
+    const endpoint = getEndpoint(config);
+    const url = `${endpoint}/${config.bucketName}/${key}`;
 
-export function getStorage(): StorageProvider {
-    if (!_storage) {
-        const provider = process.env.STORAGE_PROVIDER || 'local';
-        _storage = provider === 's3' ? new S3StorageProvider() : new LocalStorageProvider();
-    }
-    return _storage;
+    await fetch(url, { method: 'DELETE' });
 }
 
-export function getLocalStorage(): LocalStorageProvider {
-    return getStorage() as LocalStorageProvider;
+/**
+ * Generate a tenant-scoped file key.
+ * Format: {tenantId}/{folder}/{uuid}.{ext}
+ */
+export function generateFileKey(
+    tenantId: string,
+    folder: string,
+    originalFilename: string,
+): string {
+    const ext = originalFilename.split('.').pop() || 'bin';
+    const uuid = crypto.randomUUID();
+    return `${tenantId}/${folder}/${uuid}.${ext}`;
 }

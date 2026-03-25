@@ -1,0 +1,1 @@
+export type { Hostel, HostelRoom } from './hostel.service';

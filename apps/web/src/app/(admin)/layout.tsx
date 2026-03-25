@@ -65,6 +65,12 @@ export default async function AdminLayout({
                         <NavLink href="/dashboard" icon="📊">
                             Dashboard
                         </NavLink>
+                        <NavLink href="/chat" icon="🤖">
+                            AI Agent Chat
+                        </NavLink>
+                        <NavLink href="/approvals" icon="✅">
+                            Action Approvals
+                        </NavLink>
                         <NavLink href="/fees" icon="💰">
                             Fee Collections
                         </NavLink>
@@ -188,6 +194,23 @@ export default async function AdminLayout({
                         <NavLink href="/settings/grading" icon="⚙️">
                             Grading Settings
                         </NavLink>
+
+                        {/* Phase 4 Expansions */}
+                        <div className="pt-4 mt-4 border-t border-gray-100">
+                            <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Advanced Modules</p>
+                            <NavLink href="/university" icon="🎓">
+                                Higher Education
+                            </NavLink>
+                            <NavLink href="/coaching" icon="📚">
+                                Coaching Batches
+                            </NavLink>
+                            <NavLink href="/hq" icon="🏢">
+                                Group HQ Command
+                            </NavLink>
+                            <NavLink href="/international" icon="🌍">
+                                International Ops
+                            </NavLink>
+                        </div>
                     </nav>
                 </aside>
 

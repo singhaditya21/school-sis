@@ -1,37 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLocalStorage } from '@/lib/services/storage';
+import { getSession } from '@/lib/auth/session';
 
-/**
- * Serves uploaded files from the local filesystem.
- * In production with S3, this route would not be needed — files served directly from CDN.
- */
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ path: string[] }> }
 ) {
-    const { path: pathParts } = await params;
-    const key = pathParts.join('/');
-
-    const storage = getLocalStorage();
-    const file = await storage.getFile(key);
-
-    if (!file) {
-        return NextResponse.json({ error: 'File not found' }, { status: 404 });
+    const session = await getSession();
+    if (!session.isLoggedIn) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Determine content type from extension
-    const ext = key.split('.').pop()?.toLowerCase() || '';
-    const mimeTypes: Record<string, string> = {
-        jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-        gif: 'image/gif', webp: 'image/webp', pdf: 'application/pdf',
-        doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    };
+    const { path: pathParts } = await params;
 
-    return new NextResponse(new Uint8Array(file), {
-        headers: {
-            'Content-Type': mimeTypes[ext] || 'application/octet-stream',
-            'Cache-Control': 'public, max-age=31536000, immutable',
-        },
-    });
+    // SECURITY: Path traversal protection
+    for (const segment of pathParts) {
+        if (
+            segment === '..' ||
+            segment === '.' ||
+            segment.includes('..') ||
+            segment.includes('~') ||
+            segment.startsWith('/') ||
+            segment.includes('\0')
+        ) {
+            return NextResponse.json({ error: 'Invalid file path' }, { status: 400 });
+        }
+    }
+
+    const key = pathParts.join('/');
+    if (key.includes('..') || key.startsWith('/') || key.includes('\\')) {
+        return NextResponse.json({ error: 'Invalid file path' }, { status: 400 });
+    }
+
+    // Storage is currently stubbed
+    return NextResponse.json({ error: 'Storage not configured' }, { status: 501 });
 }

@@ -2,85 +2,172 @@
 
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/session';
-import { db } from '@/lib/db';
-import { users } from '@/lib/db/schema';
+import { checkRateLimit, recordFailedAttempt, clearRateLimit } from '@/lib/auth/rate-limit';
+import { db, setTenantContext } from '@/lib/db';
+import { users, tenants } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { compare } from 'bcryptjs';
 import { z } from 'zod';
 
+/**
+ * Login action — production-ready authentication.
+ *
+ * SECURITY:
+ * - bcrypt password comparison (timing-safe)
+ * - Tenant lookup via school code or direct user query
+ * - Session creation with real user data
+ * - Password minimum 8 chars with Zod validation
+ */
+
 const loginSchema = z.object({
     email: z.string().email('Invalid email address'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    schoolCode: z.string().optional(),
 });
 
 export async function loginAction(formData: FormData) {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
+    const schoolCode = formData.get('schoolCode') as string | null;
+    const loginMode = formData.get('loginMode') as string | null;
 
     // Validate input
-    const validation = loginSchema.safeParse({ email, password });
+    const validation = loginSchema.safeParse({ email, password, schoolCode: schoolCode || undefined });
     if (!validation.success) {
         return {
             error: validation.error.errors[0].message,
         };
     }
 
+    // Rate limiting — 5 failed attempts per email in 15 minutes
+    const rateLimitError = checkRateLimit(email);
+    if (rateLimitError) {
+        return { error: rateLimitError };
+    }
+
+    let redirectPath = '';
+
     try {
-        // Query real database for user
-        const [user] = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, email))
-            .limit(1);
+        // Platform Admin login — no school code required
+        if (loginMode === 'platform') {
+            const [user] = await db
+                .select()
+                .from(users)
+                .where(
+                    and(
+                        eq(users.email, email),
+                        eq(users.role, 'SUPER_ADMIN')
+                    )
+                )
+                .limit(1);
 
-        if (!user) {
-            return { error: 'Invalid email or password' };
-        }
+            if (!user) {
+                recordFailedAttempt(email);
+                return { error: 'Invalid credentials or not a platform admin' };
+            }
 
-        if (!user.isActive) {
-            return { error: 'Account is deactivated. Contact your administrator.' };
-        }
+            const passwordValid = await compare(password, user.passwordHash);
+            if (!passwordValid) {
+                recordFailedAttempt(email);
+                return { error: 'Invalid credentials' };
+            }
 
-        // Verify password with bcrypt
-        const isValidPassword = await compare(password, user.passwordHash);
-        if (!isValidPassword) {
-            return { error: 'Invalid email or password' };
-        }
+            // Platform admins get full access
+            clearRateLimit(email);
+            const session = await getSession();
+            session.userId = user.id;
+            session.tenantId = user.tenantId;
+            session.role = 'PLATFORM_ADMIN';
+            session.email = user.email;
+            session.token = '';
+            session.isLoggedIn = true;
+            await session.save();
 
-        // Update last login timestamp
-        await db
-            .update(users)
-            .set({ lastLoginAt: new Date() })
-            .where(eq(users.id, user.id));
+            redirectPath = '/platform';
 
-        // Create session
-        const session = await getSession();
-        session.userId = user.id;
-        session.tenantId = user.tenantId;
-        session.role = user.role;
-        session.email = user.email;
-        session.token = ''; // No JWT needed — session is the auth
-        session.isLoggedIn = true;
-        await session.save();
-
-        // Redirect based on role
-        if (user.role === 'PARENT') {
-            redirect('/overview');
-        } else if (user.role === 'STUDENT') {
-            redirect('/profile');
         } else {
-            redirect('/dashboard');
+            // School staff login — requires school code
+            if (!schoolCode) {
+                return { error: 'School code is required for staff login' };
+            }
+
+            // Look up tenant by school code
+            const [tenant] = await db
+                .select()
+                .from(tenants)
+                .where(eq(tenants.code, schoolCode.toUpperCase()))
+                .limit(1);
+
+            if (!tenant) {
+                return { error: 'Invalid school code. Please check with your school administrator.' };
+            }
+
+            if (!tenant.isActive) {
+                return { error: 'This school account has been suspended. Contact support.' };
+            }
+
+            // Find user within this tenant
+            const [user] = await db
+                .select()
+                .from(users)
+                .where(
+                    and(
+                        eq(users.email, email),
+                        eq(users.tenantId, tenant.id)
+                    )
+                )
+                .limit(1);
+
+            if (!user) {
+                recordFailedAttempt(email);
+                return { error: 'Invalid email or password' };
+            }
+
+            if (!user.isActive) {
+                recordFailedAttempt(email);
+                return { error: 'Your account has been deactivated. Contact your school admin.' };
+            }
+
+            const passwordValid = await compare(password, user.passwordHash);
+            if (!passwordValid) {
+                recordFailedAttempt(email);
+                return { error: 'Invalid email or password' };
+            }
+
+            // Create session — clear rate limit on success
+            clearRateLimit(email);
+            const session = await getSession();
+            session.userId = user.id;
+            session.tenantId = tenant.id;
+            session.role = user.role;
+            session.email = user.email;
+            session.token = '';
+            session.isLoggedIn = true;
+            await session.save();
+
+            // Update last login
+            await db.update(users)
+                .set({ lastLoginAt: new Date() })
+                .where(eq(users.id, user.id));
+
+            // Route based on role
+            if (user.role === 'PARENT') {
+                redirectPath = '/overview';
+            } else if (user.role === 'STUDENT') {
+                redirectPath = '/profile';
+            } else {
+                redirectPath = '/dashboard';
+            }
         }
     } catch (error) {
-        // Re-throw Next.js redirects
-        if (error instanceof Error && error.message.includes('NEXT_REDIRECT')) {
-            throw error;
-        }
-
         console.error('[Login] Error:', error);
         return {
             error: 'An error occurred during login. Please try again.',
         };
+    }
+
+    if (redirectPath) {
+        redirect(redirectPath);
     }
 }
 
