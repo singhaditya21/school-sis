@@ -7,7 +7,7 @@
 
 import { db } from '@/lib/db';
 import * as schema from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 
@@ -67,33 +67,59 @@ export async function saveAttendance(formData: FormData) {
         }
     }
 
-    // Upsert attendance records
-    for (const entry of entries) {
-        const existing = await db
-            .select({ id: schema.attendanceRecords.id })
+    if (entries.length === 0) {
+        return { success: true, count: 0 };
+    }
+
+    const studentIds = entries.map(e => e.studentId);
+
+    await db.transaction(async (tx) => {
+        // Fetch all existing attendance records for the given students and date
+        const existingRecords = await tx
+            .select({ id: schema.attendanceRecords.id, studentId: schema.attendanceRecords.studentId })
             .from(schema.attendanceRecords)
             .where(and(
-                eq(schema.attendanceRecords.studentId, entry.studentId),
+                inArray(schema.attendanceRecords.studentId, studentIds),
                 eq(schema.attendanceRecords.date, date),
                 eq(schema.attendanceRecords.tenantId, tenantId)
             ));
 
-        if (existing.length > 0) {
-            await db.update(schema.attendanceRecords)
-                .set({ status: entry.status as any, markedBy: userId })
-                .where(eq(schema.attendanceRecords.id, existing[0].id));
-        } else {
-            await db.insert(schema.attendanceRecords).values({
-                id: randomUUID(),
-                tenantId,
-                studentId: entry.studentId,
-                sectionId,
-                date,
-                status: entry.status as any,
-                markedBy: userId,
-            });
+        const existingMap = new Map(existingRecords.map(r => [r.studentId, r.id]));
+
+        const toInsert = [];
+        const toUpdate = [];
+
+        for (const entry of entries) {
+            const existingId = existingMap.get(entry.studentId);
+            if (existingId) {
+                toUpdate.push({ id: existingId, status: entry.status as any, markedBy: userId });
+            } else {
+                toInsert.push({
+                    id: randomUUID(),
+                    tenantId,
+                    studentId: entry.studentId,
+                    sectionId,
+                    date,
+                    status: entry.status as any,
+                    markedBy: userId,
+                });
+            }
         }
-    }
+
+        if (toInsert.length > 0) {
+            await tx.insert(schema.attendanceRecords).values(toInsert);
+        }
+
+        if (toUpdate.length > 0) {
+            await Promise.all(
+                toUpdate.map(updateData =>
+                    tx.update(schema.attendanceRecords)
+                        .set({ status: updateData.status, markedBy: updateData.markedBy })
+                        .where(eq(schema.attendanceRecords.id, updateData.id))
+                )
+            );
+        }
+    });
 
     return { success: true, count: entries.length };
 }
@@ -211,32 +237,59 @@ export async function markClassAttendance(
     const { tenantId, userId } = await requireAuth('attendance:write');
     const dateStr = date.toISOString().split('T')[0];
 
-    for (const entry of attendanceData) {
-        const existing = await db
-            .select({ id: schema.attendanceRecords.id })
+    if (attendanceData.length === 0) {
+        return { success: true as const, error: undefined as string | undefined };
+    }
+
+    const studentIds = attendanceData.map(e => e.studentId);
+
+    await db.transaction(async (tx) => {
+        const existingRecords = await tx
+            .select({ id: schema.attendanceRecords.id, studentId: schema.attendanceRecords.studentId })
             .from(schema.attendanceRecords)
             .where(and(
-                eq(schema.attendanceRecords.studentId, entry.studentId),
+                inArray(schema.attendanceRecords.studentId, studentIds),
                 eq(schema.attendanceRecords.date, dateStr),
                 eq(schema.attendanceRecords.tenantId, tenantId)
             ));
 
-        if (existing.length > 0) {
-            await db.update(schema.attendanceRecords)
-                .set({ status: entry.status as any, markedBy: userId })
-                .where(eq(schema.attendanceRecords.id, existing[0].id));
-        } else {
-            await db.insert(schema.attendanceRecords).values({
-                id: randomUUID(),
-                tenantId,
-                studentId: entry.studentId,
-                sectionId,
-                date: dateStr,
-                status: entry.status as any,
-                markedBy: userId,
-            });
+        const existingMap = new Map(existingRecords.map(r => [r.studentId, r.id]));
+
+        const toInsert = [];
+        const toUpdate = [];
+
+        for (const entry of attendanceData) {
+            const existingId = existingMap.get(entry.studentId);
+            if (existingId) {
+                toUpdate.push({ id: existingId, status: entry.status as any, markedBy: userId, remarks: entry.remarks });
+            } else {
+                toInsert.push({
+                    id: randomUUID(),
+                    tenantId,
+                    studentId: entry.studentId,
+                    sectionId,
+                    date: dateStr,
+                    status: entry.status as any,
+                    markedBy: userId,
+                    remarks: entry.remarks,
+                });
+            }
         }
-    }
+
+        if (toInsert.length > 0) {
+            await tx.insert(schema.attendanceRecords).values(toInsert);
+        }
+
+        if (toUpdate.length > 0) {
+            await Promise.all(
+                toUpdate.map(updateData =>
+                    tx.update(schema.attendanceRecords)
+                        .set({ status: updateData.status, markedBy: updateData.markedBy, remarks: updateData.remarks })
+                        .where(eq(schema.attendanceRecords.id, updateData.id))
+                )
+            );
+        }
+    });
 
     return { success: true as const, error: undefined as string | undefined };
 }
@@ -248,44 +301,84 @@ export async function enterMarks(
 ) {
     const { tenantId } = await requireAuth('exams:write');
 
-    // Look up exam schedules for this exam
-    for (const entry of marksData) {
-        // Find schedule for this subject
-        const [schedule] = await db
-            .select({ id: schema.examSchedules.id })
+    if (marksData.length === 0) {
+        return { success: true as const, error: undefined as string | undefined };
+    }
+
+    await db.transaction(async (tx) => {
+        // Fetch all relevant schedules for this exam and the subjects provided
+        const subjectIds = Array.from(new Set(marksData.map(e => e.subjectId)));
+        const schedules = await tx
+            .select({ id: schema.examSchedules.id, subjectId: schema.examSchedules.subjectId })
             .from(schema.examSchedules)
             .where(and(
                 eq(schema.examSchedules.examId, examId),
-                eq(schema.examSchedules.subjectId, entry.subjectId)
+                inArray(schema.examSchedules.subjectId, subjectIds)
             ));
 
-        if (!schedule) continue;
+        const scheduleMap = new Map(schedules.map(s => [s.subjectId, s.id]));
+        const validMarksData = marksData.filter(entry => scheduleMap.has(entry.subjectId));
 
-        // Upsert result
-        const existing = await db
-            .select({ id: schema.studentResults.id })
+        if (validMarksData.length === 0) {
+            return;
+        }
+
+        const studentIds = Array.from(new Set(validMarksData.map(e => e.studentId)));
+        const scheduleIds = Array.from(new Set(schedules.map(s => s.id)));
+
+        // Fetch existing results for these students and schedules
+        const existingResults = await tx
+            .select({
+                id: schema.studentResults.id,
+                studentId: schema.studentResults.studentId,
+                examScheduleId: schema.studentResults.examScheduleId
+            })
             .from(schema.studentResults)
             .where(and(
-                eq(schema.studentResults.examScheduleId, schedule.id),
-                eq(schema.studentResults.studentId, entry.studentId),
+                inArray(schema.studentResults.examScheduleId, scheduleIds),
+                inArray(schema.studentResults.studentId, studentIds),
                 eq(schema.studentResults.tenantId, tenantId)
             ));
 
-        if (existing.length > 0) {
-            await db.update(schema.studentResults)
-                .set({ marksObtained: String(entry.marksObtained), isAbsent: entry.isAbsent })
-                .where(eq(schema.studentResults.id, existing[0].id));
-        } else {
-            await db.insert(schema.studentResults).values({
-                id: randomUUID(),
-                tenantId,
-                examScheduleId: schedule.id,
-                studentId: entry.studentId,
-                marksObtained: String(entry.marksObtained),
-                isAbsent: entry.isAbsent,
-            });
+        // Create a lookup key based on studentId and examScheduleId
+        const existingMap = new Map(existingResults.map(r => [`${r.studentId}_${r.examScheduleId}`, r.id]));
+
+        const toInsert = [];
+        const toUpdate = [];
+
+        for (const entry of validMarksData) {
+            const scheduleId = scheduleMap.get(entry.subjectId)!;
+            const lookupKey = `${entry.studentId}_${scheduleId}`;
+            const existingId = existingMap.get(lookupKey);
+
+            if (existingId) {
+                toUpdate.push({ id: existingId, marksObtained: String(entry.marksObtained), isAbsent: entry.isAbsent });
+            } else {
+                toInsert.push({
+                    id: randomUUID(),
+                    tenantId,
+                    examScheduleId: scheduleId,
+                    studentId: entry.studentId,
+                    marksObtained: String(entry.marksObtained),
+                    isAbsent: entry.isAbsent,
+                });
+            }
         }
-    }
+
+        if (toInsert.length > 0) {
+            await tx.insert(schema.studentResults).values(toInsert);
+        }
+
+        if (toUpdate.length > 0) {
+            await Promise.all(
+                toUpdate.map(updateData =>
+                    tx.update(schema.studentResults)
+                        .set({ marksObtained: updateData.marksObtained, isAbsent: updateData.isAbsent })
+                        .where(eq(schema.studentResults.id, updateData.id))
+                )
+            );
+        }
+    });
 
     return { success: true as const, error: undefined as string | undefined };
 }
