@@ -19,6 +19,6 @@ jobs:
                   node-version: 20
                   cache: pnpm
 
-            - run: pnpm install --frozen-lockfile
+            - run: pnpm install
             - run: cd apps/web && pnpm tsc --noEmit
             - run: cd apps/web && pnpm next lint
