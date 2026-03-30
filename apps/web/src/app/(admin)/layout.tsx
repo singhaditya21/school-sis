@@ -204,7 +204,7 @@ export default async function AdminLayout({
                             <NavLink href="/coaching" icon="📚">
                                 Coaching Batches
                             </NavLink>
-                            <NavLink href="/hq" icon="🏢">
+                            <NavLink href="/hq-overview" icon="🏢">
                                 Group HQ Command
                             </NavLink>
                             <NavLink href="/international" icon="🌍">
@@ -215,7 +215,9 @@ export default async function AdminLayout({
                 </aside>
 
                 {/* Main Content */}
-                <main className="flex-1 p-6 lg:p-8">{children}</main>
+                <main className="flex-1 p-6 lg:p-8" suppressHydrationWarning>
+                    <div suppressHydrationWarning>{children}</div>
+                </main>
             </div>
         </div>
     );

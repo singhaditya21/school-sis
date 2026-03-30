@@ -150,6 +150,69 @@ async def query_agent(agent_name: str, request: QueryRequest):
     )
 
 
+class AsyncJobResponse(BaseModel):
+    """Response containing a job tracking ID for polling."""
+    job_id: str
+    status: str = "queued"
+
+
+@router.post("/agents/{agent_name}/query_async", response_model=AsyncJobResponse)
+async def query_agent_async(agent_name: str, request: QueryRequest):
+    """
+    Queue an agent query for background processing to avoid frontend timeouts.
+    Client receives a job_id and polls `/agents/jobs/{job_id}`.
+    """
+    from src.core.security import sanitize_prompt, check_rate_limit, check_subscription_tier
+    from src.core.queue import get_redis_pool
+
+    sanitize_prompt(request.query)
+    await check_subscription_tier(request.tenant_id)
+    await check_rate_limit(request.tenant_id, request.user_id)
+    
+    # Validate the agent exists
+    get_agent(agent_name)
+
+    # Put the context building into a dict
+    ctx_dict = {
+        "tenant_id": request.tenant_id,
+        "user_id": request.user_id,
+        "query": request.query
+    }
+
+    try:
+        redis = await get_redis_pool()
+        job = await redis.enqueue_job("process_agent_query", agent_name, ctx_dict)
+        if not job:
+            raise HTTPException(status_code=500, detail="Failed to enqueue background job.")
+        return AsyncJobResponse(job_id=job.job_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Redis connection failed: {str(e)}")
+
+
+@router.get("/agents/jobs/{job_id}")
+async def get_job_status(job_id: str):
+    """Poll the status and result of a background agent query."""
+    from src.core.queue import get_redis_pool
+    from arq.jobs import Job, JobStatus
+
+    try:
+        redis = await get_redis_pool()
+        job = Job(job_id, redis)
+        status = await job.status()
+        
+        if status == JobStatus.not_found:
+            raise HTTPException(status_code=404, detail="Job not found or expired")
+            
+        elif status == JobStatus.complete:
+            result = await job.result(timeout=0)
+            return {"status": "complete", "result": result}
+            
+        return {"status": status.value, "job_id": job_id}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Queue error: {str(e)}")
+
+
 @router.get("/agents")
 async def list_agents():
     """List all available agents with their tool registries."""

@@ -82,84 +82,25 @@ services:
   #     postgres:
   #       condition: service_healthy
 
-  # ─── Rust Inference Engine ─────────────────────────────
-  inference:
-    build:
-      context: ./services/inference
-      dockerfile: Dockerfile
-    container_name: scholarmind-inference
-    restart: unless-stopped
-    ports:
-      - "8081:8081"
-    environment:
-      INFERENCE_PORT: 8081
-      LLM_SERVER_URL: http://llama-llm:9001
-      EMBED_SERVER_URL: http://llama-embed:9002
-    depends_on:
-      - llama-llm
-      - llama-embed
 
-  # ─── llama.cpp Server (LLM) ───────────────────────────
-  llama-llm:
-    image: ghcr.io/ggerganov/llama.cpp:server
-    container_name: scholarmind-llm
-    restart: unless-stopped
-    ports:
-      - "9001:9001"
-    volumes:
-      - ./services/inference/models:/models
-    command: >
-      --model /models/qwen2.5-7b-instruct-q5_k_m.gguf
-      --port 9001
-      --host 0.0.0.0
-      --ctx-size 16384
-      --n-gpu-layers 35
-      --flash-attn
-      --cont-batching
-      --parallel 4
-      --metrics
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-
-  # ─── llama.cpp Server (Embeddings) ─────────────────────
-  llama-embed:
-    image: ghcr.io/ggerganov/llama.cpp:server
-    container_name: scholarmind-embed
-    restart: unless-stopped
-    ports:
-      - "9002:9002"
-    volumes:
-      - ./services/inference/models:/models
-    command: >
-      --model /models/nomic-embed-text-v1.5-f16.gguf
-      --port 9002
-      --host 0.0.0.0
-      --embedding
-      --ctx-size 8192
-      --pooling mean
 
   # ─── Go API Gateway ────────────────────────────────────
-  gateway:
-    build:
-      context: ./services/gateway
-      dockerfile: Dockerfile
-    container_name: scholarmind-gateway
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    environment:
-      GATEWAY_PORT: 8080
-      WEB_URL: http://web:3000
-      AGENTS_URL: http://agents:8083
-      INFERENCE_URL: http://inference:8081
-    depends_on:
-      - web
-      - agents
+  # gateway:
+  #   build:
+  #     context: ./services/gateway
+  #     dockerfile: Dockerfile
+  #   container_name: scholarmind-gateway
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     GATEWAY_PORT: 8080
+  #     WEB_URL: http://web:3000
+  #     AGENTS_URL: http://agents:8083
+  #     INFERENCE_URL: http://inference:8081
+  #   depends_on:
+  #     - web
+  #     - agents
 
 volumes:
   pgdata:

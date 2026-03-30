@@ -43,7 +43,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-    // output: 'standalone', // Uncomment for Docker — Windows lacks symlink perms
+    // devIndicators: {
+    //     appIsrStatus: false,
+    //     buildActivity: false,
+    // },
     typescript: {
         // CI runs tsc --noEmit separately; skip during next build to avoid
         // redundant checks that may fail in Docker environments

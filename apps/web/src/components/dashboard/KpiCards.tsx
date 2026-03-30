@@ -162,6 +162,12 @@ export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], col
         }
     };
 
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
     return (
         <>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -179,18 +185,20 @@ export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], col
                 ))}
             </div>
 
-            <Dialog open={activeDrill !== null} onOpenChange={(open) => !open && setActiveDrill(null)}>
-                <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl flex items-center gap-2">
-                            {activeDrill === 'overdue' && '🔴'}{activeDrill === 'dueSoon' && '🟡'}
-                            {activeDrill === 'collection' && '🟢'}{activeDrill === 'blocked' && '⚠️'}
-                            {getDrillTitle()}
-                        </DialogTitle>
-                    </DialogHeader>
-                    {renderDrillContent()}
-                </DialogContent>
-            </Dialog>
+            {mounted && (
+                <Dialog open={activeDrill !== null} onOpenChange={(open) => !open && setActiveDrill(null)}>
+                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
+                        <DialogHeader>
+                            <DialogTitle className="text-xl flex items-center gap-2">
+                                {activeDrill === 'overdue' && '🔴'}{activeDrill === 'dueSoon' && '🟡'}
+                                {activeDrill === 'collection' && '🟢'}{activeDrill === 'blocked' && '⚠️'}
+                                {getDrillTitle()}
+                            </DialogTitle>
+                        </DialogHeader>
+                        {renderDrillContent()}
+                    </DialogContent>
+                </Dialog>
+            )}
         </>
     );
 }

@@ -1,134 +1,80 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { tenants, users } from '@/lib/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { tenants, users } from '@/lib/db/schema/core';
 import { hash } from 'bcryptjs';
-import { getLimit } from '@/lib/config/limits';
+import { cookies } from 'next/headers';
+import { getIronSession } from 'iron-session';
+import { sessionOptions, SessionData } from '@/lib/auth/session';
+import { eq } from 'drizzle-orm';
 
-/**
- * Self-Serve School Onboarding
- *
- * Complete onboarding flow:
- * 1. Create tenant (school)
- * 2. Create admin account
- * 3. Set default subscription tier
- * 4. Initialize sample data (optional)
- */
-
-export interface OnboardingInput {
-    schoolName: string;
-    schoolCode: string;
-    adminEmail: string;
-    adminPassword: string;
-    adminFirstName: string;
-    adminLastName: string;
-    affiliationBoard?: string;
-    city?: string;
-    state?: string;
-    phone?: string;
-}
-
-export interface OnboardingResult {
-    success: boolean;
-    tenantId?: string;
-    adminId?: string;
-    loginUrl?: string;
-    error?: string;
-}
-
-export async function onboardSchool(input: OnboardingInput): Promise<OnboardingResult> {
-    // Validation
-    if (!input.schoolName || input.schoolName.length < 3) {
-        return { success: false, error: 'School name must be at least 3 characters' };
-    }
-    if (!input.schoolCode || input.schoolCode.length < 2) {
-        return { success: false, error: 'School code must be at least 2 characters' };
-    }
-    if (!input.adminEmail || !input.adminEmail.includes('@')) {
-        return { success: false, error: 'Valid admin email is required' };
-    }
-    if (!input.adminPassword || input.adminPassword.length < 8) {
-        return { success: false, error: 'Password must be at least 8 characters' };
-    }
-
-    const code = input.schoolCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
-
+export async function setupSchoolWorkspace(formData: FormData) {
     try {
-        // FREE TIER: Check tenant count cap
-        const [tenantCount] = await db.execute(sql`SELECT COUNT(*)::int AS cnt FROM tenants WHERE is_active = true`);
-        if ((tenantCount as any)?.cnt >= getLimit('MAX_TENANTS')) {
-            return { success: false, error: `Free tier limit reached (${getLimit('MAX_TENANTS')} schools). Contact support to upgrade.` };
+        const schoolName = formData.get('schoolName') as string;
+        const firstName = formData.get('adminFirstName') as string;
+        const lastName = formData.get('adminLastName') as string;
+        const email = formData.get('email') as string;
+        const domain = formData.get('domain') as string;
+        const password = formData.get('password') as string;
+
+        if (!schoolName || !email || !password || !domain) {
+            return { error: 'Missing required onboarding parameters.' };
         }
 
-        // Check if school code is taken
-        const [existing] = await db.select({ id: tenants.id })
-            .from(tenants)
-            .where(eq(tenants.code, code))
-            .limit(1);
+        const domainUrl = `${domain}.scholarmind.app`.toLowerCase();
 
-        if (existing) {
-            return { success: false, error: 'This school code is already taken. Try a different one.' };
+        // Ensure email isn't already used
+        const existingUser = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+        if (existingUser.length > 0) {
+            return { error: 'An administrator with this email already exists.' };
         }
 
-        // Check if admin email is taken
-        const [existingUser] = await db.select({ id: users.id })
-            .from(users)
-            .where(eq(users.email, input.adminEmail.toLowerCase()))
-            .limit(1);
-
-        if (existingUser) {
-            return { success: false, error: 'An account with this email already exists.' };
+        const existingDomain = await db.select().from(tenants).where(eq(tenants.code, domain.toLowerCase()));
+        if (existingDomain.length > 0) {
+            return { error: 'This workspace subdomain is already taken. Please choose another.' };
         }
 
-        // Create tenant
-        const passwordHash = await hash(input.adminPassword, 12);
+        // Generate tenant record. Defaults to 'TRIALING' billing status and 'isActive=true' for now
+        // so they can log in, or we can make it false and let Stripe activate it.
+        const [tenant] = await db.insert(tenants).values({
+            name: schoolName,
+            code: domain.toLowerCase(),
+            domain: domainUrl,
+            email: email.toLowerCase(),
+            billingStatus: 'INCOMPLETE',
+            isActive: false // Will be activated via Stripe Webhook
+        }).returning();
 
-        const result = await db.execute(sql`
-            WITH new_tenant AS (
-                INSERT INTO tenants (
-                    name, code, affiliation_board, city, state, phone,
-                    subscription_tier, active_modules, is_active
-                ) VALUES (
-                    ${input.schoolName}, ${code},
-                    ${input.affiliationBoard || null}, ${input.city || null},
-                    ${input.state || null}, ${input.phone || null},
-                    'CORE',
-                    ARRAY['ATTENDANCE', 'FEES', 'COMMUNICATION'],
-                    true
-                )
-                RETURNING id
-            ),
-            new_admin AS (
-                INSERT INTO users (
-                    tenant_id, email, password_hash, first_name, last_name,
-                    role, is_active
-                )
-                SELECT id, ${input.adminEmail.toLowerCase()}, ${passwordHash},
-                       ${input.adminFirstName}, ${input.adminLastName},
-                       'SUPER_ADMIN', true
-                FROM new_tenant
-                RETURNING id, tenant_id
-            )
-            SELECT new_admin.id AS admin_id, new_admin.tenant_id
-            FROM new_admin
-        `);
+        // Hash admin password
+        const passwordHash = await hash(password, 12);
 
-        const row = (result as any[])[0];
-        if (!row) {
-            return { success: false, error: 'Failed to create school account. Please try again.' };
-        }
+        // Create the founding administrator user
+        const [adminUser] = await db.insert(users).values({
+            tenantId: tenant.id,
+            email: email.toLowerCase(),
+            passwordHash,
+            firstName,
+            lastName,
+            role: 'SCHOOL_ADMIN',
+            isActive: true
+        }).returning();
 
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        // Automatically log them in immediately so the checkout API route succeeds
+        const c = await cookies();
+        const session = await getIronSession<SessionData>(c, sessionOptions);
+        
+        session.isLoggedIn = true;
+        session.userId = adminUser.id;
+        session.tenantId = tenant.id;
+        session.role = adminUser.role;
+        session.email = adminUser.email;
+        session.displayName = `${adminUser.firstName} ${adminUser.lastName}`;
+        
+        await session.save();
 
-        return {
-            success: true,
-            tenantId: row.tenant_id,
-            adminId: row.admin_id,
-            loginUrl: `${appUrl}/login?code=${code}`,
-        };
+        return { success: true, tenantId: tenant.id };
     } catch (error: any) {
-        console.error('[Onboarding] Error:', error.message);
-        return { success: false, error: 'An error occurred during registration. Please try again.' };
+        console.error('[ONBOARDING_ERROR]', error);
+        return { error: error.message || 'Failed to create workspace database. Please try again later.' };
     }
 }

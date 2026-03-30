@@ -40,7 +40,7 @@ export async function loginAction(formData: FormData) {
     }
 
     // Rate limiting — 5 failed attempts per email in 15 minutes
-    const rateLimitError = checkRateLimit(email);
+    const rateLimitError = await checkRateLimit(email);
     if (rateLimitError) {
         return { error: rateLimitError };
     }
@@ -62,18 +62,18 @@ export async function loginAction(formData: FormData) {
                 .limit(1);
 
             if (!user) {
-                recordFailedAttempt(email);
+                await recordFailedAttempt(email);
                 return { error: 'Invalid credentials or not a platform admin' };
             }
 
             const passwordValid = await compare(password, user.passwordHash);
             if (!passwordValid) {
-                recordFailedAttempt(email);
+                await recordFailedAttempt(email);
                 return { error: 'Invalid credentials' };
             }
 
             // Platform admins get full access
-            clearRateLimit(email);
+            await clearRateLimit(email);
             const session = await getSession();
             session.userId = user.id;
             session.tenantId = user.tenantId;
@@ -119,23 +119,23 @@ export async function loginAction(formData: FormData) {
                 .limit(1);
 
             if (!user) {
-                recordFailedAttempt(email);
+                await recordFailedAttempt(email);
                 return { error: 'Invalid email or password' };
             }
 
             if (!user.isActive) {
-                recordFailedAttempt(email);
+                await recordFailedAttempt(email);
                 return { error: 'Your account has been deactivated. Contact your school admin.' };
             }
 
             const passwordValid = await compare(password, user.passwordHash);
             if (!passwordValid) {
-                recordFailedAttempt(email);
+                await recordFailedAttempt(email);
                 return { error: 'Invalid email or password' };
             }
 
             // Create session — clear rate limit on success
-            clearRateLimit(email);
+            await clearRateLimit(email);
             const session = await getSession();
             session.userId = user.id;
             session.tenantId = tenant.id;

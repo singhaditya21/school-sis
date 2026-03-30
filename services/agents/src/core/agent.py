@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 
 import httpx
 import structlog
+from openai import AsyncOpenAI
 
 from src.config import settings
 from src.core.tool import ToolRegistry
@@ -53,13 +54,14 @@ class Agent(ABC):
         self,
         name: str,
         rag: RAGPipeline,
-        inference_url: str | None = None,
     ):
         self.name = name
         self.tools = ToolRegistry()
         self.rag = rag
-        self.inference_url = inference_url or settings.inference_url
-        self._http_client = httpx.AsyncClient(timeout=settings.llm_timeout_seconds)
+        self._llm_client = AsyncOpenAI(
+            api_key=settings.nvidia_api_key,
+            base_url=settings.nvidia_base_url,
+        )
 
         # Register domain-specific tools
         self._register_tools()
@@ -152,7 +154,7 @@ class Agent(ABC):
                         iteration=iteration,
                     )
 
-                    result = await self.tools.execute(tool_name, tool_args)
+                    result = await self.tools.execute(tool_name, tool_args, context)
                     result_str = json.dumps(result, default=str)
 
                     tool_calls_log.append({
@@ -208,21 +210,30 @@ class Agent(ABC):
     async def _call_llm(
         self, messages: list[dict], tools: list[dict] | None
     ) -> dict:
-        """Call the inference engine's chat completions endpoint."""
-        payload: dict = {
+        """Call the NVIDIA NIM chat completions endpoint."""
+        kwargs = {
+            "model": settings.llm_model,
             "messages": messages,
             "temperature": settings.default_temperature,
             "max_tokens": settings.max_tokens,
+            "extra_body": {"chat_template_kwargs": {"enable_thinking": True, "clear_thinking": False}}
         }
         if tools:
-            payload["tools"] = tools
+            kwargs["tools"] = tools
 
-        response = await self._http_client.post(
-            f"{self.inference_url}/v1/chat/completions",
-            json=payload,
-        )
-        response.raise_for_status()
-        return response.json()
+        response = await self._llm_client.chat.completions.create(**kwargs)
+        resp_dict = response.model_dump()
+        
+        # glm4.7 exposes reasoning. Let's merge it so the UI displays the agent's internal thought process.
+        choice = resp_dict["choices"][0]
+        msg = choice.get("message", {})
+        reasoning = msg.get("reasoning_content")
+        if reasoning and msg.get("content"):
+            msg["content"] = f"**[Agent Internal Reasoning]**\n<details><summary>Click to view thought process</summary>\n\n```text\n{reasoning}\n```\n</details>\n\n{msg.get('content')}"
+        elif reasoning and not msg.get("content"):
+            msg["content"] = f"**[Agent Internal Reasoning]**\n{reasoning}"
+            
+        return resp_dict
 
     def _format_rag_context(self, results: list[RetrievalResult]) -> str:
         """Format RAG results into a text block for the LLM prompt."""
@@ -261,4 +272,4 @@ class Agent(ABC):
 
     async def close(self):
         """Cleanup resources."""
-        await self._http_client.aclose()
+        await self._llm_client.close()

@@ -35,6 +35,11 @@ export const tenants = pgTable('tenants', {
     affiliationBoard: varchar('affiliation_board', { length: 50 }), // CBSE, ICSE, State
     affiliationNumber: varchar('affiliation_number', { length: 100 }),
     udiseCode: varchar('udise_code', { length: 20 }),
+    stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
+    stripeSubscriptionId: varchar('stripe_subscription_id', { length: 255 }),
+    stripePriceId: varchar('stripe_price_id', { length: 255 }),
+    stripeCurrentPeriodEnd: timestamp('stripe_current_period_end', { withTimezone: true }),
+    billingStatus: varchar('billing_status', { length: 50 }).default('TRIALING').notNull(),
     subscriptionTier: subscriptionTierEnum('subscription_tier').default('CORE').notNull(),
     activeModules: text('active_modules').array().default(['ATTENDANCE', 'FEES', 'COMMUNICATION']), // PostgreSQL text array
     isActive: boolean('is_active').default(true).notNull(),

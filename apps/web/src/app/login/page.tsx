@@ -34,6 +34,7 @@ export default function LoginPage() {
     const [error, setError] = useState<string | null>(null);
     const [schoolCode, setSchoolCode] = useState('GREENWOOD');
     const [loginMode, setLoginMode] = useState<'school' | 'platform'>('school');
+    const [authTab, setAuthTab] = useState<'password' | 'otp'>('password');
 
     async function handleSubmit(formData: FormData) {
         setError(null);
@@ -192,74 +193,90 @@ export default function LoginPage() {
                                     {loginMode === 'school' && <Separator className="my-4" />}
 
                                     {/* Auth Tabs */}
-                                    <Tabs defaultValue="password" className="w-full">
-                                        <TabsList className="grid w-full grid-cols-2">
-                                            <TabsTrigger value="password">Password</TabsTrigger>
-                                            <TabsTrigger value="otp">OTP</TabsTrigger>
-                                        </TabsList>
+                                    <div className="w-full">
+                                        <div className="grid w-full grid-cols-2 rounded-lg bg-muted p-1 text-muted-foreground">
+                                            <button
+                                                type="button"
+                                                onClick={() => setAuthTab('password')}
+                                                className={`inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all ${authTab === 'password' ? 'bg-background text-foreground shadow-sm' : 'hover:bg-muted/80'}`}
+                                            >
+                                                Password
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setAuthTab('otp')}
+                                                className={`inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all ${authTab === 'otp' ? 'bg-background text-foreground shadow-sm' : 'hover:bg-muted/80'}`}
+                                            >
+                                                OTP
+                                            </button>
+                                        </div>
 
                                         {/* Password Tab */}
-                                        <TabsContent value="password" className="space-y-4 mt-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="email">Email</Label>
-                                                <Input
-                                                    id="email"
-                                                    name="email"
-                                                    type="email"
-                                                    placeholder={loginMode === 'platform' ? 'owner@scholarmind.com' : 'you@school.edu'}
-                                                    required
-                                                    autoComplete="email"
-                                                    aria-invalid={error ? 'true' : 'false'}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <div className="flex items-center justify-between">
-                                                    <Label htmlFor="password">Password</Label>
-                                                    <a href="/forgot-password" className="text-xs text-blue-600 hover:underline dark:text-blue-400">
-                                                        Forgot password?
-                                                    </a>
+                                        {authTab === 'password' && (
+                                            <div className="space-y-4 mt-4 animate-in fade-in slide-in-from-bottom-1 duration-300">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="email">Email</Label>
+                                                    <Input
+                                                        id="email"
+                                                        name="email"
+                                                        type="email"
+                                                        placeholder={loginMode === 'platform' ? 'owner@scholarmind.com' : 'you@school.edu'}
+                                                        required
+                                                        autoComplete="email"
+                                                        aria-invalid={error ? 'true' : 'false'}
+                                                    />
                                                 </div>
-                                                <Input
-                                                    id="password"
-                                                    name="password"
-                                                    type="password"
-                                                    placeholder="••••••••"
-                                                    required
-                                                    autoComplete="current-password"
-                                                    aria-invalid={error ? 'true' : 'false'}
-                                                />
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label htmlFor="password">Password</Label>
+                                                        <a href="/forgot-password" className="text-xs text-blue-600 hover:underline dark:text-blue-400">
+                                                            Forgot password?
+                                                        </a>
+                                                    </div>
+                                                    <Input
+                                                        id="password"
+                                                        name="password"
+                                                        type="password"
+                                                        placeholder="••••••••"
+                                                        required
+                                                        autoComplete="current-password"
+                                                        aria-invalid={error ? 'true' : 'false'}
+                                                    />
+                                                </div>
                                             </div>
-                                        </TabsContent>
+                                        )}
 
                                         {/* OTP Tab */}
-                                        <TabsContent value="otp" className="space-y-4 mt-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="otp-email">Email or Phone</Label>
-                                                <Input
-                                                    id="otp-email"
-                                                    name="otpEmail"
-                                                    type="text"
-                                                    placeholder="you@school.edu or +91 98765..."
-                                                />
+                                        {authTab === 'otp' && (
+                                            <div className="space-y-4 mt-4 animate-in fade-in slide-in-from-bottom-1 duration-300">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="otp-email">Email or Phone</Label>
+                                                    <Input
+                                                        id="otp-email"
+                                                        name="otpEmail"
+                                                        type="text"
+                                                        placeholder="you@school.edu or +91 98765..."
+                                                    />
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Input
+                                                        id="otp"
+                                                        name="otp"
+                                                        type="text"
+                                                        placeholder="Enter OTP"
+                                                        maxLength={6}
+                                                        className="flex-1"
+                                                    />
+                                                    <Button type="button" variant="outline" className="shrink-0">
+                                                        Send OTP
+                                                    </Button>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground">
+                                                    OTP will be sent to your registered email or phone
+                                                </p>
                                             </div>
-                                            <div className="flex gap-2">
-                                                <Input
-                                                    id="otp"
-                                                    name="otp"
-                                                    type="text"
-                                                    placeholder="Enter OTP"
-                                                    maxLength={6}
-                                                    className="flex-1"
-                                                />
-                                                <Button type="button" variant="outline" className="shrink-0">
-                                                    Send OTP
-                                                </Button>
-                                            </div>
-                                            <p className="text-xs text-muted-foreground">
-                                                OTP will be sent to your registered email or phone
-                                            </p>
-                                        </TabsContent>
-                                    </Tabs>
+                                        )}
+                                    </div>
 
                                     {/* Remember Me */}
                                     <div className="flex items-center space-x-2">
@@ -280,7 +297,7 @@ export default function LoginPage() {
                                     <SubmitButton />
                                 </form>
 
-                                {/* Demo Credentials */}
+                                {/* Demo Credentials (Hidden for immersive demo experience)
                                 <Accordion type="single" collapsible className="mt-6">
                                     <AccordionItem value="demo" className="border-dashed">
                                         <AccordionTrigger className="text-sm text-muted-foreground hover:no-underline">
@@ -299,6 +316,7 @@ export default function LoginPage() {
                                         </AccordionContent>
                                     </AccordionItem>
                                 </Accordion>
+                                */}
                             </CardContent>
                             <CardFooter className="flex-col gap-4 pt-0">
                                 <Separator />

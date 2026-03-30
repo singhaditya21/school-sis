@@ -2,7 +2,7 @@
 
 import { db, setTenantContext } from '@/lib/db';
 import { users, students, invoices, payments, attendanceRecords, admissionLeads, grades, sections } from '@/lib/db/schema';
-import { eq, sql, count, sum, and, lt, gte } from 'drizzle-orm';
+import { eq, sql, count, sum, and, lt, gte, desc } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth/middleware';
 import { tenants } from '@/lib/db/schema';
 
@@ -142,4 +142,73 @@ export async function getTenantInfo(): Promise<TenantInfo> {
         .limit(1);
 
     return tenant || { name: 'Unknown School', code: '???' };
+}
+
+export interface ActivityLogItem {
+    id: string;
+    type: string;
+    title: string;
+    description: string;
+    timestamp: Date;
+    user?: string;
+}
+
+export async function getRecentActivity(limit_num: number = 10): Promise<ActivityLogItem[]> {
+    const { tenantId } = await requireAuth();
+
+    // In a real production environment, you might just want this to be isolated by RLS implicitly.
+    await setTenantContext(tenantId);
+
+    try {
+        const { auditLogs } = await import('@/lib/db/schema/audit');
+        
+        const logs = await db
+            .select({
+                id: auditLogs.id,
+                action: auditLogs.action,
+                entityType: auditLogs.entityType,
+                description: auditLogs.description,
+                timestamp: auditLogs.createdAt,
+                userName: users.firstName,
+                userLastName: users.lastName,
+                userRole: users.role,
+            })
+            .from(auditLogs)
+            .leftJoin(users, eq(auditLogs.userId, users.id))
+            .where(eq(auditLogs.tenantId, tenantId))
+            .orderBy(desc(auditLogs.createdAt))
+            .limit(limit_num);
+
+        return logs.map((log) => {
+            // Map DB enums to UI types for styling
+            let uiType = 'login';
+            let title = 'System Activity';
+            
+            switch (log.action) {
+                case 'PAYMENT': uiType = 'payment'; title = 'Payment Processed'; break;
+                case 'CREATE': 
+                    if (log.entityType === 'invoice') { uiType = 'invoice'; title = 'Invoice Generated'; }
+                    else if (log.entityType === 'admission') { uiType = 'admission'; title = 'New Lead Added'; }
+                    else { uiType = 'login'; title = 'Record Created'; }
+                    break;
+                case 'UPDATE': uiType = 'consent'; title = 'Record Updated'; break;
+                case 'LOGIN': uiType = 'login'; title = 'User Login'; break;
+            }
+
+            // Fallback for missing desc
+            const descStr = log.description || `${log.action} performed on ${log.entityType}`;
+            
+            return {
+                id: log.id,
+                type: uiType,
+                title: title,
+                description: descStr,
+                timestamp: log.timestamp,
+                user: log.userName ? `${log.userName} ${log.userLastName || ''}`.trim() : log.userRole || 'System',
+            };
+        });
+    } catch (e) {
+        console.error("Failed fetching recent activity:", e);
+        return [];
+    }
 }

@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS embeddings (
     entity_type VARCHAR(50) NOT NULL,
     entity_id UUID NOT NULL,
     text_content TEXT NOT NULL,
-    embedding vector(768) NOT NULL,
+    embedding vector(1024) NOT NULL,
     metadata JSONB DEFAULT '{}',
     indexed_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),

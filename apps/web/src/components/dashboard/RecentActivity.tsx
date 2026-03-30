@@ -1,91 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { getRecentActivity, ActivityLogItem } from '@/lib/actions/dashboard';
 
-interface ActivityItem {
-    id: string;
-    type: 'payment' | 'invoice' | 'admission' | 'reminder' | 'consent' | 'login' | 'attendance' | 'exam' | 'health';
-    title: string;
-    description: string;
-    timestamp: Date;
-    user?: string;
-    isNew?: boolean;
-}
-
-// Indian names for generating activities
-const STUDENT_NAMES = [
-    'Aarav Sharma', 'Priya Patel', 'Arjun Singh', 'Ananya Gupta', 'Vivaan Reddy',
-    'Saanvi Jain', 'Krishna Menon', 'Kavya Nair', 'Ishaan Das', 'Diya Roy',
-    'Dhruv Banerjee', 'Navya Kapoor', 'Atharva Kulkarni', 'Aanya Chopra', 'Kabir Mehta',
-    'Kiara Shah', 'Reyansh Verma', 'Shanaya Kumar', 'Yuvan Saxena', 'Myra Agarwal',
-    'Rudra Singh', 'Avni Gupta', 'Shivansh Reddy', 'Manya Joshi', 'Lakshya Mehta',
-];
-
-const USERS = ['System', 'Admin', 'Accountant', 'Counselor', 'Teacher', 'Principal', 'Parent', 'Nurse'];
-const CLASSES = ['1-A', '2-B', '3-C', '4-A', '5-B', '6-A', '7-C', '8-B', '9-A', '10-B', '11-A', '12-B'];
-const AMOUNTS = [15000, 18500, 22000, 25000, 28500, 32000, 35000, 38500, 42000, 45000, 50000, 55000];
-const PAYMENT_MODES = ['UPI', 'NEFT', 'Card', 'Cash', 'Cheque'];
-
-// Activity generators
-const activityGenerators = [
-    () => ({
-        type: 'payment' as const,
-        title: 'Payment Received',
-        description: `${STUDENT_NAMES[Math.floor(Math.random() * STUDENT_NAMES.length)]} - ₹${AMOUNTS[Math.floor(Math.random() * AMOUNTS.length)].toLocaleString('en-IN')} via ${PAYMENT_MODES[Math.floor(Math.random() * PAYMENT_MODES.length)]}`,
-        user: 'System',
-    }),
-    () => ({
-        type: 'reminder' as const,
-        title: 'Reminder Sent',
-        description: `${Math.floor(Math.random() * 20) + 5} SMS reminders dispatched to overdue accounts`,
-        user: 'Accountant',
-    }),
-    () => ({
-        type: 'invoice' as const,
-        title: 'Invoice Generated',
-        description: `${STUDENT_NAMES[Math.floor(Math.random() * STUDENT_NAMES.length)]} - Q${Math.floor(Math.random() * 4) + 1} fee invoice created`,
-        user: 'Admin',
-    }),
-    () => ({
-        type: 'admission' as const,
-        title: 'New Lead Added',
-        description: `${STUDENT_NAMES[Math.floor(Math.random() * STUDENT_NAMES.length)]} - Grade ${Math.floor(Math.random() * 12) + 1} admission inquiry`,
-        user: 'Counselor',
-    }),
-    () => ({
-        type: 'consent' as const,
-        title: 'Consent Updated',
-        description: `Parent consent for ${['SMS', 'WhatsApp', 'Email'][Math.floor(Math.random() * 3)]} notifications ${['enabled', 'updated'][Math.floor(Math.random() * 2)]}`,
-        user: 'Parent',
-    }),
-    () => ({
-        type: 'login' as const,
-        title: 'Staff Login',
-        description: `${USERS[Math.floor(Math.random() * USERS.length)]} logged in from ${['mobile', 'desktop', 'tablet'][Math.floor(Math.random() * 3)]}`,
-    }),
-    () => ({
-        type: 'attendance' as const,
-        title: 'Attendance Marked',
-        description: `Class ${CLASSES[Math.floor(Math.random() * CLASSES.length)]} - ${Math.floor(Math.random() * 5) + 55}/60 present`,
-        user: 'Teacher',
-    }),
-    () => ({
-        type: 'exam' as const,
-        title: 'Marks Entered',
-        description: `${['Mathematics', 'English', 'Science', 'Hindi', 'Social Studies'][Math.floor(Math.random() * 5)]} - Class ${Math.floor(Math.random() * 12) + 1} marks uploaded`,
-        user: 'Teacher',
-    }),
-    () => ({
-        type: 'health' as const,
-        title: 'Health Checkup',
-        description: `${STUDENT_NAMES[Math.floor(Math.random() * STUDENT_NAMES.length)]} - Annual checkup completed`,
-        user: 'Nurse',
-    }),
-];
-
-const TYPE_ICONS: Record<ActivityItem['type'], string> = {
+const TYPE_ICONS: Record<string, string> = {
     payment: '💳',
     invoice: '🧾',
     admission: '📝',
@@ -97,7 +17,7 @@ const TYPE_ICONS: Record<ActivityItem['type'], string> = {
     health: '🏥',
 };
 
-const TYPE_COLORS: Record<ActivityItem['type'], string> = {
+const TYPE_COLORS: Record<string, string> = {
     payment: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
     invoice: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
     admission: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
@@ -109,9 +29,18 @@ const TYPE_COLORS: Record<ActivityItem['type'], string> = {
     health: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400',
 };
 
-function formatTimeAgo(date: Date): string {
+function formatTimeAgo(dateInput: Date | string): string {
+    const defaultVal = 'Just now';
+    if (!dateInput) return defaultVal;
+    
+    // Server Actions pass back date strings, so parsing is required.
+    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
+    
+    // If future or invalid, default to Just Now
+    if (diffMs < 0 || isNaN(diffMs)) return defaultVal;
+    
     const diffSecs = Math.floor(diffMs / 1000);
 
     if (diffSecs < 5) return 'Just now';
@@ -126,88 +55,107 @@ function formatTimeAgo(date: Date): string {
     return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
 
-function generateActivity(): ActivityItem {
-    const generator = activityGenerators[Math.floor(Math.random() * activityGenerators.length)];
-    const activity = generator();
-    return {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        ...activity,
-        timestamp: new Date(),
-        isNew: true,
-    };
-}
-
-// Generate initial activities with staggered timestamps
-function generateInitialActivities(): ActivityItem[] {
-    const activities: ActivityItem[] = [];
-    const now = new Date();
-
-    for (let i = 0; i < 8; i++) {
-        const generator = activityGenerators[Math.floor(Math.random() * activityGenerators.length)];
-        const activity = generator();
-        const timestamp = new Date(now.getTime() - (i * 300000 + Math.random() * 60000)); // 5 mins apart with some randomness
-
-        activities.push({
-            id: `initial-${i}`,
-            ...activity,
-            timestamp,
-            isNew: false,
-        });
-    }
-
-    return activities;
-}
-
 export function RecentActivity() {
-    const [activities, setActivities] = useState<ActivityItem[]>([]);
+    const [activities, setActivities] = useState<(ActivityLogItem & { isNew?: boolean })[]>([]);
     const [isLive, setIsLive] = useState(true);
+    const [mounted, setMounted] = useState(false);
 
-    // Initialize activities
+    // Initialize activities from the Database via Server Action
     useEffect(() => {
-        setActivities(generateInitialActivities());
+        async function fetchInitial() {
+            try {
+                const logs = await getRecentActivity(10);
+                setActivities(logs.map(l => ({ ...l, isNew: false })));
+            } catch (error) {
+                console.error("Failed to load activities", error);
+            } finally {
+                setMounted(true);
+            }
+        }
+        fetchInitial();
     }, []);
 
-    // Add new activity periodically
+    // Polling interval to check database for new real events
     useEffect(() => {
         if (!isLive) return;
 
-        const interval = setInterval(() => {
-            // Random chance to add a new activity (every 2-5 seconds on average)
-            if (Math.random() < 0.4) {
-                const newActivity = generateActivity();
+        const interval = setInterval(async () => {
+             try {
+                const logs = await getRecentActivity(10);
+                
                 setActivities(prev => {
-                    // Remove isNew flag from previous activities
-                    const updated = prev.map(a => ({ ...a, isNew: false }));
-                    // Add new activity at the top, keep max 10
-                    return [newActivity, ...updated].slice(0, 10);
+                    if (prev.length === 0) return logs.map(l => ({ ...l, isNew: false }));
+                    
+                    const prevIds = new Set(prev.map(a => a.id));
+                    const newLogs = logs.filter(l => !prevIds.has(l.id));
+                    
+                    if (newLogs.length === 0) return prev;
+                    
+                    // Add isNew flag to newly fetched records, clear it from old ones
+                    const updatedPrev = prev.map(a => ({ ...a, isNew: false }));
+                    const markedNew = newLogs.map(l => ({ ...l, isNew: true }));
+                    
+                    return [...markedNew, ...updatedPrev].slice(0, 10);
                 });
-            }
-        }, 1000);
+             } catch (error) {
+                // Silently swallow polling errors so we don't spam the console heavily
+             }
+        }, 3000); // 3-second live DB polling
 
         return () => clearInterval(interval);
     }, [isLive]);
 
-    // Update timestamps every second
+    // Update time-ago labels periodically
     const [, forceUpdate] = useState(0);
     useEffect(() => {
-        const interval = setInterval(() => {
-            forceUpdate(n => n + 1);
-        }, 1000);
+        const interval = setInterval(() => forceUpdate(n => n + 1), 5000);
         return () => clearInterval(interval);
     }, []);
+
+    if (!mounted) {
+        return (
+            <Card>
+                <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg">Recent Activity</CardTitle>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-4 max-h-[400px] overflow-hidden">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="flex gap-3 animate-pulse">
+                                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800"></div>
+                                <div className="flex-1 space-y-2">
+                                    <div className="h-4 w-3/4 bg-slate-100 dark:bg-slate-800 rounded"></div>
+                                    <div className="h-3 w-1/2 bg-slate-50 dark:bg-slate-900 rounded"></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    }
 
     return (
         <Card>
             <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">Recent Activity</CardTitle>
-                    <button
+                    <div
                         onClick={() => setIsLive(!isLive)}
-                        className="focus:outline-none"
+                        className="focus:outline-none cursor-pointer"
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === 'Space') {
+                                setIsLive(!isLive);
+                            }
+                        }}
                     >
                         <Badge
                             variant="outline"
-                            className={`text-xs cursor-pointer transition-all ${isLive
+                            className={`text-xs transition-all ${isLive
                                     ? 'bg-green-50 border-green-500 text-green-700 animate-pulse'
                                     : 'bg-gray-50 border-gray-400 text-gray-600'
                                 }`}
@@ -215,65 +163,55 @@ export function RecentActivity() {
                             <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${isLive ? 'bg-green-500' : 'bg-gray-400'}`} />
                             {isLive ? 'Live' : 'Paused'}
                         </Badge>
-                    </button>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent>
-                <div className="space-y-4 max-h-[400px] overflow-y-auto">
-                    {activities.map((activity) => (
-                        <div
-                            key={activity.id}
-                            className={`flex items-start gap-3 transition-all duration-500 ${activity.isNew
-                                    ? 'animate-slideIn bg-yellow-50 dark:bg-yellow-900/10 -mx-2 px-2 py-1 rounded-lg'
-                                    : ''
-                                }`}
-                        >
+                {activities.length === 0 ? (
+                    <div className="py-8 text-center text-sm text-gray-500">
+                        No activity found in the system.
+                    </div>
+                ) : (
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                        {activities.map((activity) => (
                             <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${TYPE_COLORS[activity.type]}`}
+                                key={activity.id}
+                                className={`flex items-start gap-3 transition-all duration-500 ${activity.isNew
+                                        ? 'animate-in fade-in slide-in-from-top-4 duration-300 bg-yellow-50 dark:bg-yellow-900/10 -mx-2 px-2 py-1 rounded-lg'
+                                        : ''
+                                    }`}
                             >
-                                <span className="text-sm">{TYPE_ICONS[activity.type]}</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                    {activity.title}
-                                </p>
-                                <p className="text-sm text-muted-foreground truncate">
-                                    {activity.description}
-                                </p>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-xs text-muted-foreground">
-                                        {formatTimeAgo(activity.timestamp)}
-                                    </span>
-                                    {activity.user && (
-                                        <>
-                                            <span className="text-xs text-muted-foreground">•</span>
-                                            <span className="text-xs text-muted-foreground">
-                                                {activity.user}
-                                            </span>
-                                        </>
-                                    )}
+                                <div
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${TYPE_COLORS[activity.type] || TYPE_COLORS.login}`}
+                                >
+                                    <span className="text-sm">{TYPE_ICONS[activity.type] || '⚡'}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                        {activity.title}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground truncate">
+                                        {activity.description}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs text-muted-foreground">
+                                            {formatTimeAgo(activity.timestamp)}
+                                        </span>
+                                        {activity.user && (
+                                            <>
+                                                <span className="text-xs text-muted-foreground">•</span>
+                                                <span className="text-xs text-muted-foreground">
+                                                    {activity.user}
+                                                </span>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                )}
             </CardContent>
-
-            <style jsx>{`
-                @keyframes slideIn {
-                    from {
-                        opacity: 0;
-                        transform: translateY(-10px);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: translateY(0);
-                    }
-                }
-                .animate-slideIn {
-                    animation: slideIn 0.3s ease-out;
-                }
-            `}</style>
         </Card>
     );
 }

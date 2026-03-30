@@ -21,22 +21,65 @@ export default function ChatPage() {
         setLoading(true);
 
         try {
-            // Forwarding directly to the AI Agent Gateway API
-            const response = await fetch(`http://localhost:8000/api/v1/agents/${agent}/query`, {
+            const agentBaseUrl = process.env.NEXT_PUBLIC_AGENT_URL || 'http://localhost:8083';
+            const response = await fetch(`${agentBaseUrl}/api/v1/agents/${agent}/query_async`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query: newMessages[newMessages.length - 1].content, tenant_id: tenantId })
             });
             const data = await response.json();
             
-            if (response.ok) {
-                setMessages([...newMessages, { role: 'agent', content: data.answer, meta: { tokens: data.tokens_used, latency: data.latency_ms } }]);
-            } else {
+            if (!response.ok) {
                 setMessages([...newMessages, { role: 'agent', content: 'Agent Error: ' + (data.detail || 'Unknown error') }]);
+                setLoading(false);
+                return;
             }
+
+            const jobId = data.job_id;
+            let pollingAttempts = 0;
+            const maxAttempts = 60; // 2 minutes with 2s interval
+
+            const pollInterval = setInterval(async () => {
+                pollingAttempts++;
+                if (pollingAttempts > maxAttempts) {
+                    clearInterval(pollInterval);
+                    setMessages([...newMessages, { role: 'agent', content: 'System Error: Task timed out after 2 minutes.' }]);
+                    setLoading(false);
+                    return;
+                }
+
+                try {
+                    const pollRes = await fetch(`${agentBaseUrl}/api/v1/agents/jobs/${jobId}`);
+                    const pollData = await pollRes.json();
+
+                    if (pollRes.ok && pollData.status === 'complete') {
+                        clearInterval(pollInterval);
+                        const result = pollData.result || {};
+                        setMessages([...newMessages, { 
+                            role: 'agent', 
+                            content: result.answer || 'Background task completed successfully.', 
+                            meta: { tokens: result.tokens_used, latency: result.latency_ms } 
+                        }]);
+                        setLoading(false);
+                    } else if (pollRes.ok && pollData.status === 'failed') {
+                        clearInterval(pollInterval);
+                        setMessages([...newMessages, { role: 'agent', content: 'Background agent crashed or failed to process the request.' }]);
+                        setLoading(false);
+                    } else if (!pollRes.ok) {
+                        clearInterval(pollInterval);
+                        setMessages([...newMessages, { role: 'agent', content: 'Polling Error: ' + (pollData.detail || 'Unknown error') }]);
+                        setLoading(false);
+                    }
+                    // If queued or in-progress, just wait for the next iteration
+                } catch (pollError: any) {
+                    clearInterval(pollInterval);
+                    setMessages([...newMessages, { role: 'agent', content: 'Polling connection interrupted: ' + pollError.message }]);
+                    setLoading(false);
+                }
+            }, 2000);
+
         } catch (error: any) {
             setMessages([...newMessages, { role: 'agent', content: 'Connection Error: ' + error.message }]);
-        } finally {
             setLoading(false);
         }
     };

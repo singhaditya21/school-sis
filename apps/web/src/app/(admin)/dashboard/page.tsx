@@ -7,6 +7,9 @@ import { ROLE_LABELS, ROLE_COLORS } from '@/lib/constants';
 import { isAdminRole, getDashboardType } from '@/lib/rbac';
 import { getDashboardStats, getTenantInfo } from '@/lib/actions/dashboard';
 
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 export default async function DashboardPage() {
     const session = await getSession();
 

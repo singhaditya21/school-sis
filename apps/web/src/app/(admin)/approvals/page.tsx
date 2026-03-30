@@ -12,7 +12,8 @@ export default function ApprovalsPage() {
 
     const fetchApprovals = async () => {
         try {
-            const res = await fetch(`http://localhost:8000/api/v1/approvals/${tenantId}`);
+            const agentBaseUrl = process.env.NEXT_PUBLIC_AGENT_URL || 'http://localhost:8083';
+            const res = await fetch(`${agentBaseUrl}/api/v1/approvals/${tenantId}`);
             if (!res.ok) throw new Error('Failed to fetch approvals');
             const data = await res.json();
             setApprovals(data);
@@ -29,7 +30,8 @@ export default function ApprovalsPage() {
 
     const handleReview = async (id: string, action: 'APPROVED' | 'REJECTED') => {
         try {
-            const res = await fetch(`http://localhost:8000/api/v1/approvals/${tenantId}/${id}/review`, {
+            const agentBaseUrl = process.env.NEXT_PUBLIC_AGENT_URL || 'http://localhost:8083';
+            const res = await fetch(`${agentBaseUrl}/api/v1/approvals/${tenantId}/${id}/review`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action, user_id: '22222222-2222-2222-2222-222222222222' })

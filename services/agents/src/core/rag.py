@@ -8,6 +8,7 @@ from uuid import UUID
 import httpx
 import psycopg
 import structlog
+from openai import AsyncOpenAI
 
 from src.config import settings
 
@@ -27,30 +28,28 @@ class RetrievalResult:
 class RAGPipeline:
     """Retrieval-Augmented Generation pipeline backed by pgvector."""
 
-    def __init__(self, db_url: str | None = None, inference_url: str | None = None):
+    def __init__(self, db_url: str | None = None):
         self.db_url = db_url or settings.database_url
-        self.inference_url = inference_url or settings.inference_url
-        self._http_client = httpx.AsyncClient(timeout=60.0)
+        self._llm_client = AsyncOpenAI(
+            api_key=settings.nvidia_api_key,
+            base_url=settings.nvidia_base_url,
+        )
 
     async def embed_text(self, text: str) -> list[float]:
-        """Generate embedding for a text using the inference engine."""
-        response = await self._http_client.post(
-            f"{self.inference_url}/v1/embeddings",
-            json={"input": text},
+        """Generate embedding for a text using the NVIDIA NIM."""
+        response = await self._llm_client.embeddings.create(
+            model=settings.embed_model,
+            input=text
         )
-        response.raise_for_status()
-        data = response.json()
-        return data["data"][0]["embedding"]
+        return response.data[0].embedding
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for multiple texts."""
-        response = await self._http_client.post(
-            f"{self.inference_url}/v1/embeddings",
-            json={"input": texts},
+        response = await self._llm_client.embeddings.create(
+            model=settings.embed_model,
+            input=texts
         )
-        response.raise_for_status()
-        data = response.json()
-        return [item["embedding"] for item in data["data"]]
+        return [item.embedding for item in response.data]
 
     async def search(
         self,
@@ -146,4 +145,4 @@ class RAGPipeline:
 
     async def close(self):
         """Cleanup HTTP client."""
-        await self._http_client.aclose()
+        await self._llm_client.close()

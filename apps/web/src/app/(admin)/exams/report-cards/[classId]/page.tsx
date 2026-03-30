@@ -1,39 +1,19 @@
-'use client';
-
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
-import { generateMockRankedResults, type RankComputationResult } from '@/lib/services/exams/rank-computation.service';
+import { calculateLiveRankings } from '@/lib/services/exams/rank-computation.service';
 
 interface PageProps {
     params: Promise<{ classId: string }>;
 }
 
-export default function ClassReportCardsPage({ params }: PageProps) {
-    const [classId, setClassId] = useState<string>('');
-    const [rankData, setRankData] = useState<RankComputationResult | null>(null);
-    const [loading, setLoading] = useState(true);
+export default async function ClassReportCardsPage({ params }: PageProps) {
+    const { classId } = await params;
+    
+    // Fetch live ranked data directly from Drizzle ORM
+    const rankData = await calculateLiveRankings(classId, 'Current Term Examination');
 
-    useEffect(() => {
-        params.then(({ classId }) => {
-            setClassId(classId);
-            // Generate mock ranked data
-            const data = generateMockRankedResults(classId, 'Term 1 Examination 2025-26');
-            setRankData(data);
-            setLoading(false);
-        });
-    }, [params]);
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
-        );
-    }
-
-    if (!rankData) {
-        return <div className="text-center py-8 text-gray-500">No data available</div>;
+    if (!rankData || rankData.results.length === 0) {
+        return <div className="text-center py-8 text-gray-500">No data available for this class. (Database is empty)</div>;
     }
 
     const getRankBadge = (rank: number | undefined) => {
@@ -80,6 +60,7 @@ export default function ClassReportCardsPage({ params }: PageProps) {
             </div>
 
             {/* Top Performers */}
+            {(rankData.topPerformers?.length ?? 0) > 0 && (
             <div className="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl shadow-sm border p-4">
                 <h2 className="font-semibold mb-3">🏆 Top Performers</h2>
                 <div className="flex gap-6">
@@ -97,6 +78,7 @@ export default function ClassReportCardsPage({ params }: PageProps) {
                     ))}
                 </div>
             </div>
+            )}
 
             {/* Full Rankings Table */}
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">

@@ -81,7 +81,7 @@ class ToolRegistry:
         """Convert all tools to OpenAI function calling schema."""
         return [tool.to_openai_schema() for tool in self._tools.values()]
 
-    async def execute(self, name: str, arguments: str | dict) -> Any:
+    async def execute(self, name: str, arguments: str | dict, context: Any = None) -> Any:
         """Execute a tool by name with the given arguments."""
         tool = self._tools.get(name)
         if not tool:
@@ -91,7 +91,22 @@ class ToolRegistry:
             if isinstance(arguments, str):
                 args = json.loads(arguments)
             else:
-                args = arguments
+                # Copy dict to avoid modifying original schema payload
+                args = dict(arguments)
+
+            # --- SECURITY: Multi-Tenant Sandbox Enforcement ---
+            if context and hasattr(context, "tenant_id"):
+                expected_tenant = str(context.tenant_id)
+                if "tenant_id" in args and str(args["tenant_id"]) != expected_tenant:
+                    logger.warning(
+                        "security_cross_tenant_violation_prevented",
+                        requested_tenant=args["tenant_id"],
+                        actual_tenant=expected_tenant,
+                        tool_name=name
+                    )
+                # Forcefully inject/override the trusted tenant_id
+                args["tenant_id"] = expected_tenant
+            # ---------------------------------------------------
 
             result = await tool.handler(**args)
             logger.info(

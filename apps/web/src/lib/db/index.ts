@@ -60,19 +60,19 @@ export async function setTenantContext(tenantId: string): Promise<void> {
     );
 }
 
-/**
- * Execute a query with automatic tenant context.
- * Wraps the query in a transaction with RLS context set.
- */
 export async function withTenant<T>(
     tenantId: string,
-    fn: (tx: typeof db) => Promise<T>
+    fn: (tx: any) => Promise<T>
 ): Promise<T> {
     // Note: In postgres.js, set_config with `true` scopes to the transaction.
-    // Since Drizzle executes queries on the same connection within a callback,
-    // the context persists.
-    await setTenantContext(tenantId);
-    return fn(db);
+    // We MUST wrap this in a Drizzle transaction, otherwise the context is immediately
+    // dumped at the end of the set_config statement, or it leaks to the connection pool.
+    return db.transaction(async (tx) => {
+        await tx.execute(
+            sql`SELECT set_config('app.current_tenant', ${tenantId}, true)`
+        );
+        return fn(tx);
+    });
 }
 
 // Re-export schema for convenience

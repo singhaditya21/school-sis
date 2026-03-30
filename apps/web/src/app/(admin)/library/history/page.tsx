@@ -1,31 +1,15 @@
-'use client';
-
-import { useState } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { db } from '@/lib/db';
+import { bookIssues, books, students, users } from '@/lib/db/schema';
+import { eq, desc, and } from 'drizzle-orm';
+import { requireAuth } from '@/lib/auth/middleware';
+import { setTenantContext } from '@/lib/db';
 
-// Inline mock data for library history
-interface BookIssue {
-    id: string;
-    bookId: string;
-    bookTitle: string;
-    studentId: string;
-    studentName: string;
-    studentClass: string;
-    issueDate: string;
-    dueDate: string;
-    returnDate?: string;
-    status: 'ISSUED' | 'OVERDUE' | 'RETURNED' | 'LOST';
-    fineAmount: number;
-    finePaid: boolean;
+interface PageProps {
+    searchParams: Promise<{ filter?: string, q?: string }>;
 }
-
-const mockIssues: BookIssue[] = [
-    { id: '1', bookId: 'b1', bookTitle: 'Introduction to Algorithms', studentId: 'stu1', studentName: 'Aarav Kumar', studentClass: '10-A', issueDate: '2023-10-01', dueDate: '2023-10-15', returnDate: '2023-10-14', status: 'RETURNED', fineAmount: 0, finePaid: true },
-    { id: '2', bookId: 'b2', bookTitle: 'Physics Vol 1', studentId: 'stu2', studentName: 'Neha Sharma', studentClass: '11-B', issueDate: '2023-11-01', dueDate: '2023-11-15', status: 'OVERDUE', fineAmount: 50, finePaid: false },
-    { id: '3', bookId: 'b3', bookTitle: 'Chemistry Basics', studentId: 'stu3', studentName: 'Rohan Gupta', studentClass: '9-C', issueDate: new Date().toISOString().split('T')[0], dueDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0], status: 'ISSUED', fineAmount: 0, finePaid: true }
-];
 
 const isOverdue = (dueDate: string) => new Date(dueDate) < new Date();
 const calculateFine = (dueDate: string, returnDate?: string) => {
@@ -36,20 +20,69 @@ const calculateFine = (dueDate: string, returnDate?: string) => {
     return diffDays * 5; // 5 Rs per day
 };
 
-export default function LibraryHistoryPage() {
-    const [filter, setFilter] = useState<'ALL' | 'ISSUED' | 'OVERDUE' | 'RETURNED'>('ALL');
-    const [searchQuery, setSearchQuery] = useState('');
+export default async function LibraryHistoryPage({ searchParams }: PageProps) {
+    const { tenantId } = await requireAuth('library:read');
+    await setTenantContext(tenantId);
+    
+    // Unroll search parameters
+    const params = await searchParams;
+    const filter = params.filter || 'ALL';
+    const searchQuery = params.q?.toLowerCase() || '';
 
-    const processedIssues = mockIssues.map(issue => {
-        if (issue.status === 'ISSUED' && isOverdue(issue.dueDate)) {
-            return { ...issue, status: 'OVERDUE' as const, fineAmount: calculateFine(issue.dueDate) };
+    // Fetch live issues joined with books and users/students
+    const rawIssues = await db
+        .select({
+            id: bookIssues.id,
+            bookId: bookIssues.bookId,
+            bookTitle: books.title,
+            studentId: bookIssues.issuedToStudentId,
+            studentName: students.firstName,
+            studentLastName: students.lastName,
+            userName: users.firstName,
+            userLastName: users.lastName,
+            issueDate: bookIssues.issueDate,
+            dueDate: bookIssues.dueDate,
+            returnDate: bookIssues.returnDate,
+            status: bookIssues.status,
+            fineAmount: bookIssues.fineAmount,
+            finePaid: bookIssues.isFinePaid,
+        })
+        .from(bookIssues)
+        .leftJoin(books, eq(bookIssues.bookId, books.id))
+        .leftJoin(students, eq(bookIssues.issuedToStudentId, students.id))
+        .leftJoin(users, eq(bookIssues.issuedToUserId, users.id))
+        .where(eq(bookIssues.tenantId, tenantId))
+        .orderBy(desc(bookIssues.issueDate));
+
+    // Process raw issues and auto-calculate dynamic overdue fines
+    const processedIssues = rawIssues.map(issue => {
+        let currentStatus = issue.status;
+        const sName = issue.studentName ? `${issue.studentName} ${issue.studentLastName || ''}` : `${issue.userName} ${issue.userLastName || ''}`;
+        
+        let calculatedFine = Number(issue.fineAmount || 0);
+
+        if (currentStatus === 'ISSUED' && isOverdue(issue.dueDate)) {
+            currentStatus = 'OVERDUE';
+            calculatedFine = Math.max(calculatedFine, calculateFine(issue.dueDate));
+        } else if (currentStatus === 'RETURNED' && issue.returnDate) {
+            calculatedFine = Math.max(calculatedFine, calculateFine(issue.dueDate, issue.returnDate));
         }
-        return { ...issue, fineAmount: issue.status === 'RETURNED' && issue.returnDate ? calculateFine(issue.dueDate, issue.returnDate) : issue.fineAmount };
+
+        return {
+            ...issue,
+            studentName: sName.trim() || 'Unknown Borrower',
+            bookTitle: issue.bookTitle || 'Unknown Book',
+            status: currentStatus as 'ISSUED' | 'OVERDUE' | 'RETURNED' | 'LOST',
+            fineAmount: calculatedFine,
+        };
     });
 
+    // Apply filtering and search
     const filteredIssues = processedIssues.filter(issue => {
         const matchesFilter = filter === 'ALL' || issue.status === filter;
-        const matchesSearch = !searchQuery || issue.studentName.toLowerCase().includes(searchQuery.toLowerCase()) || issue.bookTitle.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = !searchQuery || 
+                               issue.studentName.toLowerCase().includes(searchQuery) || 
+                               issue.bookTitle.toLowerCase().includes(searchQuery);
         return matchesFilter && matchesSearch;
     });
 
@@ -62,7 +95,7 @@ export default function LibraryHistoryPage() {
         unpaidFines: processedIssues.filter(i => !i.finePaid && i.fineAmount > 0).reduce((sum, i) => sum + i.fineAmount, 0),
     };
 
-    const getStatusBadge = (status: BookIssue['status']) => {
+    const getStatusBadge = (status: string) => {
         const colors: Record<string, string> = { ISSUED: 'bg-blue-100 text-blue-700', OVERDUE: 'bg-red-100 text-red-700', RETURNED: 'bg-green-100 text-green-700', LOST: 'bg-gray-100 text-gray-700' };
         return <Badge className={colors[status]}>{status}</Badge>;
     };
@@ -75,19 +108,39 @@ export default function LibraryHistoryPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-                <Card className="cursor-pointer" onClick={() => setFilter('ALL')}><CardContent className="pt-4"><div className="text-sm text-gray-500">Total</div><div className="text-2xl font-bold text-blue-600">{stats.total}</div></CardContent></Card>
-                <Card className="cursor-pointer" onClick={() => setFilter('ISSUED')}><CardContent className="pt-4"><div className="text-sm text-gray-500">Issued</div><div className="text-2xl font-bold text-purple-600">{stats.issued}</div></CardContent></Card>
-                <Card className="cursor-pointer" onClick={() => setFilter('OVERDUE')}><CardContent className="pt-4"><div className="text-sm text-gray-500">Overdue</div><div className="text-2xl font-bold text-red-600">{stats.overdue}</div></CardContent></Card>
-                <Card className="cursor-pointer" onClick={() => setFilter('RETURNED')}><CardContent className="pt-4"><div className="text-sm text-gray-500">Returned</div><div className="text-2xl font-bold text-green-600">{stats.returned}</div></CardContent></Card>
+                <Link href="?filter=ALL">
+                  <Card className="cursor-pointer hover:bg-gray-50 transition-colors"><CardContent className="pt-4"><div className="text-sm text-gray-500">Total</div><div className="text-2xl font-bold text-blue-600">{stats.total}</div></CardContent></Card>
+                </Link>
+                <Link href="?filter=ISSUED">
+                  <Card className="cursor-pointer hover:bg-gray-50 transition-colors"><CardContent className="pt-4"><div className="text-sm text-gray-500">Issued</div><div className="text-2xl font-bold text-purple-600">{stats.issued}</div></CardContent></Card>
+                </Link>
+                <Link href="?filter=OVERDUE">
+                  <Card className="cursor-pointer hover:bg-gray-50 transition-colors"><CardContent className="pt-4"><div className="text-sm text-gray-500">Overdue</div><div className="text-2xl font-bold text-red-600">{stats.overdue}</div></CardContent></Card>
+                </Link>
+                <Link href="?filter=RETURNED">
+                  <Card className="cursor-pointer hover:bg-gray-50 transition-colors"><CardContent className="pt-4"><div className="text-sm text-gray-500">Returned</div><div className="text-2xl font-bold text-green-600">{stats.returned}</div></CardContent></Card>
+                </Link>
                 <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Total Fines</div><div className="text-2xl font-bold text-orange-600">₹{stats.totalFines}</div></CardContent></Card>
                 <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Unpaid Fines</div><div className="text-2xl font-bold text-red-600">₹{stats.unpaidFines}</div></CardContent></Card>
             </div>
 
             <div className="flex gap-4 items-center">
-                <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="flex-1 px-4 py-2 border rounded-lg" />
+                {/* As a Server Component, search happens via form action to update the URL */}
+                <form action="" method="GET" className="flex-1 flex gap-2 w-full max-w-sm">
+                    <input type="hidden" name="filter" value={filter} />
+                    <input type="text" name="q" placeholder="Search title or student..." defaultValue={searchQuery} className="flex-1 px-4 py-2 border rounded-lg" />
+                    <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Search</button>
+                </form>
+                
                 <div className="flex gap-2">
                     {(['ALL', 'ISSUED', 'OVERDUE', 'RETURNED'] as const).map(status => (
-                        <button key={status} onClick={() => setFilter(status)} className={`px-4 py-2 rounded-lg text-sm font-medium ${filter === status ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>{status}</button>
+                        <Link 
+                            key={status} 
+                            href={`?filter=${status}${searchQuery ? `&q=${searchQuery}` : ''}`} 
+                            className={`px-4 py-2 rounded-lg text-sm font-medium ${filter === status ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'} transition-all`}
+                        >
+                            {status}
+                        </Link>
                     ))}
                 </div>
             </div>
@@ -97,18 +150,29 @@ export default function LibraryHistoryPage() {
                     <table className="w-full">
                         <thead className="bg-gray-50 border-b">
                             <tr>
-                                <th className="px-4 py-3 text-left">Book</th><th className="px-4 py-3 text-left">Student</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-right">Fine</th>
+                                <th className="px-4 py-3 text-left">Book</th><th className="px-4 py-3 text-left">Borrower</th><th className="px-4 py-3 text-left">Dates</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-right">Fine</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y">
-                            {filteredIssues.map(issue => (
-                                <tr key={issue.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3 font-medium">{issue.bookTitle}</td>
-                                    <td className="px-4 py-3">{issue.studentName}</td>
-                                    <td className="px-4 py-3">{getStatusBadge(issue.status)}</td>
-                                    <td className="px-4 py-3 text-right">{issue.fineAmount > 0 ? <span className="text-red-600 font-semibold">₹{issue.fineAmount}</span> : '-'}</td>
+                            {filteredIssues.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} className="py-8 text-center text-gray-500">No borrowing records found.</td>
                                 </tr>
-                            ))}
+                            ) : (
+                                filteredIssues.map(issue => (
+                                    <tr key={issue.id} className="hover:bg-gray-50">
+                                        <td className="px-4 py-3 font-medium">{issue.bookTitle}</td>
+                                        <td className="px-4 py-3">{issue.studentName}</td>
+                                        <td className="px-4 py-3 text-xs text-gray-500">Out: {issue.issueDate}<br/>Due: {issue.dueDate}</td>
+                                        <td className="px-4 py-3">{getStatusBadge(issue.status)}</td>
+                                        <td className="px-4 py-3 text-right">
+                                            {issue.fineAmount > 0 
+                                                ? <span className={`font-semibold ${issue.finePaid ? 'text-green-600' : 'text-red-600'}`}>₹{issue.fineAmount} {issue.finePaid && '(Paid)'}</span> 
+                                                : '-'}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </CardContent>
