@@ -4,8 +4,7 @@ import { db } from '@/lib/db';
 import { invoices, payments } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
-export const dynamic = 'force-dynamic';
-
+export const dynamic = "force-dynamic";
 
 /**
  * Stripe Webhook Handler

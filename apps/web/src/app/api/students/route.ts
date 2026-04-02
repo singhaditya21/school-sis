@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createStudent } from '@/lib/actions/mutations';
 import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-
+export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
     try {

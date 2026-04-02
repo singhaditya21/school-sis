@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-
-export const dynamic = 'force-dynamic';
-
     getAllStudents,
     searchStudents,
     getStudentsByClass,
@@ -13,6 +10,9 @@ export const dynamic = 'force-dynamic';
     generateHealthStats,
     generateClassList
 } from '@/lib/mock-data';
+
+export const dynamic = "force-dynamic";
+
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
