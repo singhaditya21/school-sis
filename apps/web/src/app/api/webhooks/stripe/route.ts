@@ -5,6 +5,9 @@ import { tenants } from '@/lib/db/schema/core';
 import { eq } from 'drizzle-orm';
 import Stripe from 'stripe';
 
+export const dynamic = 'force-dynamic';
+
+
 // Stripe CLI testing: 
 // stripe listen --forward-to localhost:3000/api/webhooks/stripe
 

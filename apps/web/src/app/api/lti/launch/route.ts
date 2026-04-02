@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import * as jose from 'jose';
 
+export const dynamic = 'force-dynamic';
+
+
 /**
  * LTI 1.3 OIDC Launch Endpoint
  * Verifies the id_token JWT against the LMS's JWKS endpoint.

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 
+export const dynamic = 'force-dynamic';
+
+
 const ALLOWED_MIME_TYPES = new Set([
     'image/jpeg', 'image/png', 'image/webp', 'image/gif',
     'application/pdf',

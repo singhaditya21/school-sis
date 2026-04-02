@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 
+export const dynamic = 'force-dynamic';
+
+
 /**
  * GET /api/auth/token
  * Returns the current session token for client-side API calls.

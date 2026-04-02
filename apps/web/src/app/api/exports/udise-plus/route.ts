@@ -4,6 +4,9 @@ import { tenants, students, grades, sections, users } from '@/lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { getSession } from '@/lib/auth/session';
 
+export const dynamic = 'force-dynamic';
+
+
 /**
  * UDISE+ CSV Export Endpoint
  *

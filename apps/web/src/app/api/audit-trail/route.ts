@@ -3,6 +3,9 @@ import { db, setTenantContext } from '@/lib/db';
 import { sql } from 'drizzle-orm';
 import { getSession } from '@/lib/auth/session';
 
+export const dynamic = 'force-dynamic';
+
+
 /**
  * Audit Trail API
  *

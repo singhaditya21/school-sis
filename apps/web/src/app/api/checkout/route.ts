@@ -5,6 +5,9 @@ import { tenants } from '@/lib/db/schema/core';
 import { eq } from 'drizzle-orm';
 import { getSession } from '@/lib/auth/session';
 
+export const dynamic = 'force-dynamic';
+
+
 export async function POST(req: NextRequest) {
     try {
         // Authenticate request to ensure only logged in "unpaid" users can checkout
