@@ -1,0 +1,6 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "cd ../.. && npx turbo run build --filter=@school-sis/web",
+  "installCommand": "npm i -g pnpm@9.0.0 && cd ../.. && pnpm install",
+  "outputDirectory": ".next"
+}
