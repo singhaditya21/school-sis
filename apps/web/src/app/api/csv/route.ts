@@ -6,6 +6,8 @@ import { getSession } from '@/lib/auth/session';
 import { parse } from 'csv-parse/sync';
 import { getLimit } from '@/lib/config/limits';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * CSV Import/Export API
  *
