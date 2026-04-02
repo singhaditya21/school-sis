@@ -1,4 +1,4 @@
-'use server';
+
 
 import { getSession } from '@/lib/auth/session';
 import { logoutAction } from '@/lib/actions/auth';
