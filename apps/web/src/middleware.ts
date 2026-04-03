@@ -66,10 +66,10 @@ export async function middleware(request: NextRequest) {
     
     // Group HQ Command Center (Super Admin Only + Multi-Campus Tier)
     if (pathname.startsWith('/hq')) {
-        if (session.role !== 'SUPER_ADMIN') {
+        if (session.role !== 'SUPER_ADMIN' && session.role !== 'PLATFORM_ADMIN') {
             return NextResponse.redirect(new URL('/unauthorized', request.url));
         }
-        if (!activeModules.includes('MULTI_CAMPUS') && !activeModules.includes('ENTERPRISE')) {
+        if (session.role !== 'PLATFORM_ADMIN' && !activeModules.includes('MULTI_CAMPUS') && !activeModules.includes('ENTERPRISE')) {
             return NextResponse.redirect(new URL('/upgrade?feature=hq', request.url));
         }
     }

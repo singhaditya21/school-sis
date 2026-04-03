@@ -63,12 +63,12 @@ export async function loginActionV2(formData: FormData) {
 
             if (!user) {
                 await recordFailedAttempt(email);
-                return { error: 'Platform admin account not found in database.' };
+                return { error: 'Invalid email or password' };
             }
 
-            if (user.role !== 'SUPER_ADMIN') {
+            if (user.role !== 'SUPER_ADMIN' && user.role !== 'PLATFORM_ADMIN') {
                 await recordFailedAttempt(email);
-                return { error: 'Platform admin account not found or invalid privileges.' };
+                return { error: 'Invalid email or password' };
             }
 
             const passwordValid = await compare(password, user.passwordHash);
