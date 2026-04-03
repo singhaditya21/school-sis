@@ -1,27 +1,26 @@
-export default function StripeBillingPage() {
-    const invoices = [
-        { id: 'INV-001', school: 'Greenwood High International', amount: 8500, status: 'PAID', date: '2026-03-01', tier: 'ENTERPRISE' },
-        { id: 'INV-002', school: 'St. Marys Academy', amount: 2400, status: 'PAID', date: '2026-03-01', tier: 'AI_PRO' },
-        { id: 'INV-003', school: 'Delhi Public School (North)', amount: 14500, status: 'PAID', date: '2026-03-01', tier: 'ENTERPRISE' },
-        { id: 'INV-004', school: 'Oakridge International', amount: 1200, status: 'PAST_DUE', date: '2026-02-01', tier: 'CORE' },
-        { id: 'INV-005', school: 'Ryan International', amount: 4800, status: 'PAID', date: '2026-03-01', tier: 'AI_PRO' },
-    ];
+import { getPlatformBillingStats } from '@/lib/actions/platform';
 
-    const totalMRR = invoices.filter(i => i.status === 'PAID').reduce((s, i) => s + i.amount, 0);
-    const pastDue = invoices.filter(i => i.status === 'PAST_DUE');
+export default async function StripeBillingPage() {
+    const invoices = await getPlatformBillingStats();
+
+    const totalMRR = invoices.filter(i => i.status === 'PAID' || i.status === 'ACTIVE').reduce((s, i) => s + i.amount, 0);
+    const pastDue = invoices.filter(i => i.status === 'PAST_DUE' || i.status === 'UNPAID');
 
     return (
-        <div className="max-w-7xl mx-auto space-y-8">
+        <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
             <div>
-                <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Stripe Billing</h1>
-                <p className="text-slate-500 mt-1">Manage subscriptions, invoices, and payment methods across all tenants.</p>
+                <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Platform Billing</h1>
+                <p className="text-slate-500 mt-1">Manage subscriptions, platform revenue, and tier assignments across all entities.</p>
             </div>
 
             {/* Revenue Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                    <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Monthly Recurring Revenue</p>
-                    <span className="text-4xl font-bold text-slate-900">${totalMRR.toLocaleString()}</span>
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div className="absolute right-0 top-0 w-24 h-24 bg-indigo-50 rounded-bl-[100px] z-0"></div>
+                    <div className="relative z-10">
+                        <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Platform MRR (Est)</p>
+                        <span className="text-4xl font-bold text-slate-900">${totalMRR.toLocaleString()}</span>
+                    </div>
                 </div>
                 <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200 shadow-sm">
                     <p className="text-sm font-semibold text-emerald-600 uppercase tracking-wider mb-2">Paid This Month</p>

@@ -1,5 +1,6 @@
-import { getAllPlatformTenants } from '@/lib/actions/platform';
+import { getAllPlatformTenants, toggleTenantStatusAction, impersonateTenantAction } from '@/lib/actions/platform';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 export default async function TenantSchoolsPage() {
     const tenants = await getAllPlatformTenants();
@@ -48,15 +49,32 @@ export default async function TenantSchoolsPage() {
                         </div>
 
                         <div className="flex gap-2">
-                            <button className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-200 transition">
-                                View Dashboard
-                            </button>
-                            <button className="flex-1 px-4 py-2.5 bg-indigo-50 text-indigo-700 rounded-xl text-sm font-medium hover:bg-indigo-100 transition">
-                                Manage Billing
-                            </button>
-                            <button className="px-4 py-2.5 bg-rose-50 text-rose-600 rounded-xl text-sm font-medium hover:bg-rose-100 transition">
-                                Suspend
-                            </button>
+                            <form className="flex-1" action={async () => {
+                                'use server';
+                                await impersonateTenantAction(tenant.id);
+                                redirect('/dashboard');
+                            }}>
+                                <button className="w-full px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-200 transition">
+                                    View Dashboard
+                                </button>
+                            </form>
+                            
+                            <Link href={`/platform/tenants/${tenant.companyId}`} className="flex-1 px-4 py-2.5 bg-indigo-50 text-indigo-700 rounded-xl text-sm font-medium hover:bg-indigo-100 transition text-center flex items-center justify-center">
+                                Manage Config
+                            </Link>
+                            
+                            <form action={async () => {
+                                'use server';
+                                await toggleTenantStatusAction(tenant.id, tenant.status !== 'ACTIVE');
+                            }}>
+                                <button className={`px-4 py-2.5 rounded-xl text-sm font-medium transition ${
+                                    tenant.status === 'ACTIVE' 
+                                    ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' 
+                                    : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                                }`}>
+                                    {tenant.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}
+                                </button>
+                            </form>
                         </div>
                     </div>
                 ))}

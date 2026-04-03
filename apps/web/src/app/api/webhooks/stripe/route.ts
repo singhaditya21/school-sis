@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
 import { db } from '@/lib/db';
-import { tenants } from '@/lib/db/schema/core';
+import { companies } from '@/lib/db/schema/core';
 import { eq } from 'drizzle-orm';
 import Stripe from 'stripe';
 
@@ -32,26 +32,26 @@ export async function POST(req: NextRequest) {
             case 'checkout.session.completed': {
                 const session = event.data.object as Stripe.Checkout.Session;
                 
-                // Retrieve the user/tenant ID injected from checkout creation
-                const tenantId = session.client_reference_id;
+                // Retrieve the company ID injected from checkout creation
+                const companyId = session.client_reference_id;
                 const subscriptionId = session.subscription as string;
                 const planType = session.metadata?.planType;
 
-                if (!tenantId) {
+                if (!companyId) {
                     throw new Error('No client_reference_id found in session');
                 }
 
-                // Activate the tenant immediately upon successful checkout
-                await db.update(tenants)
+                // Activate the company immediately upon successful checkout
+                await db.update(companies)
                     .set({
                         stripeSubscriptionId: subscriptionId,
                         subscriptionTier: (planType || 'CORE') as any,
                         billingStatus: 'ACTIVE',
-                        isActive: true // Tenant is fully provisioned and unlocked
+                        isActive: true // Company is fully provisioned and unlocked
                     })
-                    .where(eq(tenants.id, tenantId));
+                    .where(eq(companies.id, companyId));
                 
-                console.log(`✅ Tenant ${tenantId} successfully provisioned and paid for tier: ${planType}`);
+                console.log(`✅ Company ${companyId} successfully provisioned and paid for tier: ${planType}`);
                 break;
             }
 
@@ -62,14 +62,14 @@ export async function POST(req: NextRequest) {
                                subscription.status === 'past_due' ? 'PAST_DUE' : 
                                subscription.status === 'canceled' ? 'CANCELED' : 'UNPAID';
 
-                // Find the tenant by their subscription ID
-                await db.update(tenants)
+                // Find the company by their subscription ID
+                await db.update(companies)
                     .set({
                         billingStatus: status,
-                        isActive: status === 'ACTIVE', // Suspend tenant access if canceled or unpaid
-                        stripeCurrentPeriodEnd: new Date(subscription.current_period_end * 1000)
+                        isActive: status === 'ACTIVE', // Suspend company access if canceled or unpaid
+                        stripeCurrentPeriodEnd: new Date((subscription as any).current_period_end * 1000)
                     })
-                    .where(eq(tenants.stripeSubscriptionId, subscription.id));
+                    .where(eq(companies.stripeSubscriptionId, subscription.id));
 
                 console.log(`🔄 Subscription ${subscription.id} status updated to: ${status}`);
                 break;
@@ -78,15 +78,15 @@ export async function POST(req: NextRequest) {
             case 'customer.subscription.deleted': {
                 const subscription = event.data.object as Stripe.Subscription;
 
-                // Deactivate the tenant completely
-                await db.update(tenants)
+                // Deactivate the company completely
+                await db.update(companies)
                     .set({
                         billingStatus: 'CANCELED',
                         isActive: false
                     })
-                    .where(eq(tenants.stripeSubscriptionId, subscription.id));
+                    .where(eq(companies.stripeSubscriptionId, subscription.id));
                 
-                console.log(`❌ Subscription ${subscription.id} canceled. Tenant access revoked.`);
+                console.log(`❌ Subscription ${subscription.id} canceled. Company access revoked.`);
                 break;
             }
             

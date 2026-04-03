@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/session';
 import { checkRateLimit, recordFailedAttempt, clearRateLimit } from '@/lib/auth/rate-limit';
 import { db, setTenantContext } from '@/lib/db';
-import { users, tenants } from '@/lib/db/schema';
+import { users, tenants, companies } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { compare } from 'bcryptjs';
 import { z } from 'zod';
@@ -96,18 +96,25 @@ export async function loginAction(formData: FormData) {
                 return { error: 'School code is required for staff login' };
             }
 
-            // Look up tenant by school code
-            const [tenant] = await db
-                .select()
+            // Look up tenant by school code and join company for features
+            const [tenantRecord] = await db
+                .select({
+                    tenant: tenants,
+                    company: companies
+                })
                 .from(tenants)
+                .leftJoin(companies, eq(tenants.companyId, companies.id))
                 .where(eq(tenants.code, schoolCode.toUpperCase()))
                 .limit(1);
 
-            if (!tenant) {
+            if (!tenantRecord || !tenantRecord.tenant) {
                 return { error: 'Invalid school code. Please check with your school administrator.' };
             }
 
-            if (!tenant.isActive) {
+            const tenant = tenantRecord.tenant;
+            const company = tenantRecord.company;
+
+            if (!tenant.isActive || (company && !company.isActive)) {
                 return { error: 'This school account has been suspended. Contact support.' };
             }
 
@@ -148,6 +155,14 @@ export async function loginAction(formData: FormData) {
             session.email = user.email;
             session.token = '';
             session.isLoggedIn = true;
+            
+            // Inject Company Context & Features
+            if (company) {
+                session.companyId = company.id;
+                session.subscriptionTier = company.subscriptionTier;
+                session.activeModules = company.activeModules || [];
+            }
+            
             await session.save();
 
             // Update last login

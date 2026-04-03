@@ -2,6 +2,7 @@ import { getSession } from '@/lib/auth/session';
 import { isStaff } from '@/lib/rbac/permissions';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { returnToHQAction } from '@/lib/actions/platform';
 
 export default async function AdminLayout({
     children,
@@ -19,10 +20,29 @@ export default async function AdminLayout({
         redirect('/unauthorized');
     }
 
+    const isImpersonating = session.token?.startsWith('impersonating:');
+
     return (
         <div className="min-h-screen bg-gray-50">
+            {isImpersonating && (
+                <div className="bg-rose-600 text-white px-4 py-2 flex items-center justify-between sticky top-0 z-[60]">
+                    <div className="flex items-center gap-2">
+                        <span className="animate-pulse">🔴</span>
+                        <span className="text-sm font-bold tracking-wider">IMPERSONATION ACTIVE</span>
+                        <span className="text-xs opacity-80 border-l border-white/20 pl-2 ml-2">You are viewing {session.email}&apos;s dashboard</span>
+                    </div>
+                    <form action={async () => {
+                        'use server';
+                        await returnToHQAction();
+                    }}>
+                        <button type="submit" className="text-xs bg-white text-rose-600 font-bold px-3 py-1 rounded-md hover:bg-rose-50 transition shadow-sm">
+                            Return to HQ
+                        </button>
+                    </form>
+                </div>
+            )}
             {/* Header */}
-            <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+            <header className={`bg-white border-b border-gray-200 sticky ${isImpersonating ? 'top-10' : 'top-0'} z-50`}>
                 <div className="px-6 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">

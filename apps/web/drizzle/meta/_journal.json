@@ -29,6 +29,13 @@
       "when": 1774608564798,
       "tag": "0003_amused_tinkerer",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775207601620,
+      "tag": "0004_secret_silvermane",
+      "breakpoints": true
     }
   ]
 }

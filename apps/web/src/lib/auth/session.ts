@@ -8,6 +8,9 @@ export type SessionData = {
     email: string;
     token: string; // kept for backward compatibility, not used
     isLoggedIn: boolean;
+    companyId?: string;
+    subscriptionTier?: string;
+    activeModules?: string[];
 };
 
 const defaultSession: SessionData = {

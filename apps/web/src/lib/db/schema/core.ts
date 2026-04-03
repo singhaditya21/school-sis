@@ -17,10 +17,28 @@ export const userRoleEnum = pgEnum('user_role', [
 
 export const subscriptionTierEnum = pgEnum('subscription_tier', ['CORE', 'AI_PRO', 'ENTERPRISE']);
 
-// ─── Tenants ─────────────────────────────────────────────────
+// ─── Companies (Master Billing & Features) ───────────────────
+
+export const companies = pgTable('companies', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 255 }).notNull(),
+    stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
+    stripeSubscriptionId: varchar('stripe_subscription_id', { length: 255 }),
+    stripePriceId: varchar('stripe_price_id', { length: 255 }),
+    stripeCurrentPeriodEnd: timestamp('stripe_current_period_end', { withTimezone: true }),
+    billingStatus: varchar('billing_status', { length: 50 }).default('TRIALING').notNull(),
+    subscriptionTier: subscriptionTierEnum('subscription_tier').default('CORE').notNull(),
+    activeModules: text('active_modules').array().default(['ATTENDANCE', 'FEES', 'COMMUNICATION']), // PostgreSQL text array
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ─── Tenants (Schools / Nodes) ──────────────────────────────
 
 export const tenants = pgTable('tenants', {
     id: uuid('id').primaryKey().defaultRandom(),
+    companyId: uuid('company_id').references(() => companies.id, { onDelete: 'cascade' }), // Nullable initially for migration
     name: varchar('name', { length: 255 }).notNull(),
     code: varchar('code', { length: 50 }).notNull().unique(),
     domain: varchar('domain', { length: 255 }),
@@ -32,16 +50,9 @@ export const tenants = pgTable('tenants', {
     phone: varchar('phone', { length: 20 }),
     email: varchar('email', { length: 255 }),
     website: varchar('website', { length: 255 }),
-    affiliationBoard: varchar('affiliation_board', { length: 50 }), // CBSE, ICSE, State
+    affiliationBoard: varchar('affiliation_board', { length: 50 }),
     affiliationNumber: varchar('affiliation_number', { length: 100 }),
     udiseCode: varchar('udise_code', { length: 20 }),
-    stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
-    stripeSubscriptionId: varchar('stripe_subscription_id', { length: 255 }),
-    stripePriceId: varchar('stripe_price_id', { length: 255 }),
-    stripeCurrentPeriodEnd: timestamp('stripe_current_period_end', { withTimezone: true }),
-    billingStatus: varchar('billing_status', { length: 50 }).default('TRIALING').notNull(),
-    subscriptionTier: subscriptionTierEnum('subscription_tier').default('CORE').notNull(),
-    activeModules: text('active_modules').array().default(['ATTENDANCE', 'FEES', 'COMMUNICATION']), // PostgreSQL text array
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -67,7 +78,15 @@ export const users = pgTable('users', {
 
 // ─── Relations ───────────────────────────────────────────────
 
-export const tenantsRelations = relations(tenants, ({ many }) => ({
+export const companiesRelations = relations(companies, ({ many }) => ({
+    tenants: many(tenants),
+}));
+
+export const tenantsRelations = relations(tenants, ({ one, many }) => ({
+    company: one(companies, {
+        fields: [tenants.companyId],
+        references: [companies.id],
+    }),
     users: many(users),
 }));
 
