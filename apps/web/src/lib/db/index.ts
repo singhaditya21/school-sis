@@ -16,11 +16,14 @@ import { getLimit } from '@/lib/config/limits';
 
 const isBuildPhase = process.env.npm_lifecycle_event === 'build' || process.env.NEXT_PHASE === 'phase-production-build';
 
-let connectionString = process.env.DATABASE_URL;
+// HARDCODED SUPABASE URL: Render aggressively injects its own DATABASE_URL environment variable
+// if a local postgres instance is attached to the web service, completely hijacking Drizzle.
+// This ensures we always hit the Supabase Source of Truth.
+let connectionString = "postgresql://postgres.vmysvgehpqfkibqatvfo:Mango%4095127%24%24%24%24%24%24@aws-1-ap-southeast-2.pooler.supabase.com:6543/postgres?pgbouncer=true";
 
 // ALWAYS use a dummy connection string during Vercel SSG Build phase to completely
 // prevent postgres.js from opening a socket pool and hanging the Webpack worker thread indefinitely.
-if (isBuildPhase || !connectionString) {
+if (isBuildPhase) {
     connectionString = 'postgresql://dummy:dummy@dummy:5432/dummy';
 }
 
