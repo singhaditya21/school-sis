@@ -178,10 +178,11 @@ export async function loginActionV2(formData: FormData) {
                 redirectPath = '/dashboard';
             }
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Login] Error:', error);
         return {
-            error: 'An error occurred during login. Please try again.',
+            // Expose the raw error message to diagnose Render crash
+            error: `System Error: ${error.message || 'Unknown exception'}. Please screenshot this.`,
         };
     }
 
