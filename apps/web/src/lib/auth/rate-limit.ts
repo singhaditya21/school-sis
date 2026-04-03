@@ -26,6 +26,11 @@ const redis = (redisUrl && redisToken) ? new Redis({ url: redisUrl, token: redis
 // Fallback in-memory store
 const loginAttempts = new Map<string, RateLimitEntry>();
 
+if (!redis && process.env.NODE_ENV === 'production') {
+    // SECURITY PATCH: Horizontal Render deployments render local memory maps useless for rate limiting.
+    console.warn('[SECURITY] Rate Limiter is using local memory Maps. Brute-force protection will fail across horizontal instances!');
+}
+
 // Periodic cleanup of expired entries (only relevant for in-memory fallback)
 if (!redis && typeof setInterval !== 'undefined') {
     setInterval(() => {

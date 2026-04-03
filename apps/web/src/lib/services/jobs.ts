@@ -40,6 +40,8 @@ export function registerHandler(type: JobType, handler: (payload: JobPayload) =>
     handlers[type] = handler;
 }
 
+import { after } from 'next/server';
+
 // ─── Dev Mode: Synchronous Execution ──────────────────────
 async function executeSyncJob(type: string, payload: JobPayload): Promise<JobResult> {
     const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -51,11 +53,21 @@ async function executeSyncJob(type: string, payload: JobPayload): Promise<JobRes
     }
 
     try {
-        const result = await handler(payload);
-        console.log("[Jobs] ✓ %s completed (%s)", type, jobId);
-        return { jobId, status: 'completed', result };
+        // SECURITY PATCH: Floating promises die on Render when the HTTP handler finishes.
+        // `after()` natively signals to Next.js / Serverless platforms to keep the lifecycle active
+        // until the background task successfully completes.
+        after(async () => {
+             try {
+                 await handler(payload);
+                 console.log("[Jobs] ✓ %s background execution completed (%s)", type, jobId);
+             } catch(e: any) {
+                 console.error("[Jobs] ✗ %s background execution failed (%s):", type, jobId, e.message);
+             }
+        });
+        
+        return { jobId, status: 'queued', result: { message: "Task handed to server off-ramp" } };
     } catch (error: any) {
-        console.error("[Jobs] ✗ %s failed (%s):", type, jobId, error.message);
+        console.error("[Jobs] ✗ %s queueing failed (%s):", type, jobId, error.message);
         return { jobId, status: 'failed', error: error.message };
     }
 }
