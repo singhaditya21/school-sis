@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: school-sis
+    env: node
+    region: singapore # Closest to your ap-southeast-2 Supabase database for lightning-fast speeds!
+    plan: free
+    buildCommand: npm install -g pnpm && pnpm install && cd apps/web && pnpm run build
+    startCommand: cd apps/web && pnpm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: PII_ENCRYPTION_KEY
+        sync: false
