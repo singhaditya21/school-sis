@@ -43,6 +43,13 @@
       "when": 1775212008235,
       "tag": "0005_complete_thunderbolts",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775224531791,
+      "tag": "0006_little_the_enforcers",
+      "breakpoints": true
     }
   ]
 }

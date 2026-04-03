@@ -60,3 +60,16 @@ export const aiTokenLogsRelations = relations(aiTokenLogs, ({ one }) => ({
 export const platformBroadcastsRelations = relations(platformBroadcasts, ({ one }) => ({
     creator: one(users, { fields: [platformBroadcasts.createdBy], references: [users.id] }),
 }));
+
+// ─── Marketing Lead Engine (Stage 6) ───────────────────────────
+
+export const marketingLeads = pgTable('marketing_leads', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    contactName: varchar('contact_name', { length: 255 }).notNull(),
+    contactEmail: varchar('contact_email', { length: 255 }).notNull(),
+    schoolName: varchar('school_name', { length: 255 }).notNull(),
+    studentCapacity: integer('student_capacity').notNull(),
+    painPoints: text('pain_points'),
+    status: varchar('status', { length: 20 }).default('NEW').notNull(), // 'NEW', 'CONTACTED', 'CLOSED'
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
