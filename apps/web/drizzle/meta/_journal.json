@@ -36,6 +36,13 @@
       "when": 1775207601620,
       "tag": "0004_secret_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1775212008235,
+      "tag": "0005_complete_thunderbolts",
+      "breakpoints": true
     }
   ]
 }

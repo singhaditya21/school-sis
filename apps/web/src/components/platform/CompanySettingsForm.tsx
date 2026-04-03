@@ -13,6 +13,8 @@ export default function CompanySettingsForm({
     const [loading, setLoading] = useState(false);
     const [tier, setTier] = useState(company.subscriptionTier || 'CORE');
     const [isActive, setIsActive] = useState(company.isActive);
+    const [themeColor, setThemeColor] = useState(company.themeColor || '#4F46E5');
+    const [domainMask, setDomainMask] = useState(company.domainMask || '');
     
     // Default active modules logic
     const allModules = [
@@ -49,7 +51,9 @@ export default function CompanySettingsForm({
             await updateCompanySettingsAction(company.id, {
                 subscriptionTier: tier as any,
                 activeModules,
-                isActive
+                isActive,
+                themeColor,
+                domainMask
             });
             alert('Company settings updated successfully.');
             router.refresh();
@@ -125,6 +129,40 @@ export default function CompanySettingsForm({
                                 </button>
                             );
                         })}
+                    </div>
+                </div>
+
+                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-6">
+                    <h4 className="font-bold text-slate-900 text-sm uppercase tracking-widest border-b border-slate-200 pb-3 mb-4">White Label Settings</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-900 mb-2">Custom Domain Mask</label>
+                            <input 
+                                type="text"
+                                value={domainMask}
+                                onChange={e => setDomainMask(e.target.value)}
+                                placeholder="portal.clientdomain.com"
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                            />
+                            <p className="text-xs text-slate-500 mt-2">Requires CNAME redirect to edge.scholarmind.app</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-900 mb-2">Primary HEX Theme Color</label>
+                            <div className="flex gap-3">
+                                <input 
+                                    type="color"
+                                    value={themeColor}
+                                    onChange={e => setThemeColor(e.target.value)}
+                                    className="w-12 h-10 p-1 border border-slate-300 rounded-lg cursor-pointer"
+                                />
+                                <input 
+                                    type="text"
+                                    value={themeColor}
+                                    onChange={e => setThemeColor(e.target.value)}
+                                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg uppercase"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
 

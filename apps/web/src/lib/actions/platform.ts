@@ -3,11 +3,12 @@
 import { requireRole } from '@/lib/auth/middleware';
 import { db, setTenantContext } from '@/lib/db';
 import { tenants, companies, invoices, users, students } from '@/lib/db/schema';
-import { sum, count, eq, and, sql } from 'drizzle-orm';
+import { sum, count, eq, and, sql, desc, inArray } from 'drizzle-orm';
 import { UserRole } from '@/lib/rbac/permissions';
 import { hash } from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
 import { getSession } from '@/lib/auth/session';
+import { platformAuditLogs, platformBroadcasts, aiTokenLogs } from '@/lib/db/schema/platform';
 
 export interface PlatformTenant {
     id: string;
@@ -138,6 +139,7 @@ export async function createTenantAction(formData: FormData) {
     const adminEmail = formData.get('adminEmail') as string;
     const adminFirstName = formData.get('adminFirstName') as string;
     const adminLastName = formData.get('adminLastName') as string;
+    const region = formData.get('region') as string || 'US-EAST';
 
     if (!name || !adminEmail || !adminFirstName || !adminLastName) {
         return { error: 'All fields are required.' };
@@ -153,6 +155,7 @@ export async function createTenantAction(formData: FormData) {
             name: `${name} Org`,
             subscriptionTier: 'CORE',
             isActive: true,
+            region: region
         }).returning();
 
         // 2. Create Tenant bounded to Company
@@ -192,6 +195,9 @@ export async function toggleTenantStatusAction(tenantId: string, isActive: boole
     await setTenantContext('platform');
 
     await db.update(tenants).set({ isActive }).where(eq(tenants.id, tenantId));
+    
+    await logPlatformAudit('TOGGLE_TENANT_STATUS', `Status changed to ${isActive}`, undefined, tenantId);
+    
     revalidatePath('/platform/tenants');
     
     return { success: true };
@@ -230,10 +236,13 @@ export async function impersonateTenantAction(tenantId: string) {
 
     // Set Impersonation Origin Pointer (using token as a hacky transport since it's "kept for backward compatibility, not used" in session)
     // Wait, the session object is strictly typed. We should add `impersonatingFromHQ` or use token.
-    // Instead of messing with types again securely, let's use the token field:
+    // Set Impersonation Origin Pointer
     session.token = `impersonating:${originalId}`;
 
     await session.save();
+    
+    await logPlatformAudit('IMPERSONATE_TENANT', `Founder requested impersonation of tenant ${tenantId}`, session.companyId, tenantId);
+
     return { success: true };
 }
 
@@ -283,6 +292,8 @@ export async function updateCompanySettingsAction(companyId: string, payload: {
     subscriptionTier: 'CORE' | 'AI_PRO' | 'ENTERPRISE';
     activeModules: string[];
     isActive: boolean;
+    themeColor?: string;
+    domainMask?: string;
 }) {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
     await setTenantContext('platform');
@@ -290,8 +301,12 @@ export async function updateCompanySettingsAction(companyId: string, payload: {
     await db.update(companies).set({
         subscriptionTier: payload.subscriptionTier,
         activeModules: payload.activeModules,
-        isActive: payload.isActive
+        isActive: payload.isActive,
+        themeColor: payload.themeColor,
+        domainMask: payload.domainMask || null
     }).where(eq(companies.id, companyId));
+
+    await logPlatformAudit('UPDATE_COMPANY_SETTINGS', `Updated tier to ${payload.subscriptionTier}, features toggled`, companyId);
 
     revalidatePath(`/platform/tenants/${companyId}`);
     revalidatePath('/platform/tenants');
@@ -334,4 +349,102 @@ export async function getPlatformBillingStats() {
     });
 
     return invoices;
+}
+
+/**
+ * Stage 2: Central Logs & Impersonation Safety
+ */
+export async function logPlatformAudit(actionType: string, metadata: string, targetCompanyId?: string, targetTenantId?: string) {
+    const session = await getSession();
+    if (!session.userId) return;
+
+    try {
+        await setTenantContext('platform');
+        await db.insert(platformAuditLogs).values({
+            actorId: session.userId,
+            targetCompanyId: targetCompanyId || null,
+            targetTenantId: targetTenantId || null,
+            actionType,
+            metadata: metadata,
+            ipAddress: '127.0.0.1' // Ideally read from headers
+        });
+    } catch(e) {
+        console.error('Audit Log Failed', e);
+    }
+}
+
+/**
+ * Stage 5: Global Notifications Array
+ */
+export async function fetchActiveBroadcasts() {
+    const session = await getSession();
+    if (!session.isLoggedIn) return [];
+
+    await setTenantContext('platform');
+    
+    // Natively queries active broadcasts targeting the current node's tier
+    const userTier = session.subscriptionTier || 'CORE';
+
+    const broadcasts = await db.select().from(platformBroadcasts)
+        .where(and(
+            eq(platformBroadcasts.isActive, true),
+            // Match tiers if targeted, otherwise assume public broadcast
+            sql`(${platformBroadcasts.targetTiers} IS NULL OR ${userTier} = ANY(${platformBroadcasts.targetTiers}))`
+        ))
+        .orderBy(desc(platformBroadcasts.createdAt))
+        .limit(3);
+
+    return broadcasts;
+}
+
+/**
+ * Stage 1: AI Metering
+ */
+export async function logAITokenUsage(companyId: string, tenantId: string, agentType: string, model: string, tokensUsed: number, costCostMs: number) {
+    await setTenantContext('platform');
+    const queryCostUsd = (tokensUsed / 1000) * 0.002; // Assuming $0.002 per 1k tokens
+
+    await db.insert(aiTokenLogs).values({
+        companyId,
+        tenantId,
+        agentType,
+        model,
+        tokensUsed,
+        computeCostMs: costCostMs,
+        queryCostUsd: queryCostUsd.toString(),
+    });
+}
+
+export async function getPlatformAIAnalytics() {
+    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await setTenantContext('platform');
+
+    const logs = await db.select().from(aiTokenLogs);
+    
+    // Aggregation logic
+    let totalTokens = 0;
+    let totalCostUsd = 0;
+    const modelStats: Record<string, number> = {};
+    const agentStats: Record<string, { queries: number, cost: number }> = {};
+
+    logs.forEach(log => {
+        totalTokens += log.tokensUsed;
+        const cost = Number(log.queryCostUsd);
+        totalCostUsd += cost;
+
+        if (!modelStats[log.model]) modelStats[log.model] = 0;
+        modelStats[log.model] += log.tokensUsed;
+
+        if (!agentStats[log.agentType]) agentStats[log.agentType] = { queries: 0, cost: 0 };
+        agentStats[log.agentType].queries += 1;
+        agentStats[log.agentType].cost += cost;
+    });
+
+    return {
+        totalTokens,
+        totalCostUsd,
+        modelStats,
+        agentStats,
+        totalQueries: logs.length
+    };
 }

@@ -29,6 +29,9 @@ export const companies = pgTable('companies', {
     billingStatus: varchar('billing_status', { length: 50 }).default('TRIALING').notNull(),
     subscriptionTier: subscriptionTierEnum('subscription_tier').default('CORE').notNull(),
     activeModules: text('active_modules').array().default(['ATTENDANCE', 'FEES', 'COMMUNICATION']), // PostgreSQL text array
+    region: varchar('region', { length: 50 }).default('US-EAST').notNull(), // Autonomous deployment routing
+    domainMask: varchar('domain_mask', { length: 255 }), // White label mask portal.client.com
+    themeColor: varchar('theme_color', { length: 50 }).default('#4F46E5'), // White label CSS root variable injection
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

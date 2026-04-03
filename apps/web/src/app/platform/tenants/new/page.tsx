@@ -57,6 +57,16 @@ export default function NewTenantPage() {
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Registered School Name</label>
                                     <input type="text" name="name" required className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" placeholder="e.g. Delhi Public School" />
                                 </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Cluster Database Region</label>
+                                    <select name="region" className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition">
+                                        <option value="US-EAST">Northeast USA (us-east-1)</option>
+                                        <option value="US-WEST">Western USA (us-west-1)</option>
+                                        <option value="EU-CENTRAL">European Union (eu-central-1)</option>
+                                        <option value="AP-SOUTH">India & South Asia (ap-south-1)</option>
+                                    </select>
+                                    <p className="text-xs text-slate-500 mt-1">Databases will be spun up in this cloud region to guarantee local privacy compliance.</p>
+                                </div>
                             </div>
                         </div>
 

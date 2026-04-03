@@ -35,3 +35,4 @@ export * from './higher_ed';
 export * from './coaching';
 export * from './hq';
 export * from './international';
+export * from './platform';

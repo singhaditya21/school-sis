@@ -3,6 +3,7 @@ import { isStaff } from '@/lib/rbac/permissions';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { returnToHQAction } from '@/lib/actions/platform';
+import PlatformBroadcastTicker from '@/components/platform/PlatformBroadcastTicker';
 
 export default async function AdminLayout({
     children,
@@ -41,6 +42,9 @@ export default async function AdminLayout({
                     </form>
                 </div>
             )}
+            
+            <PlatformBroadcastTicker />
+
             {/* Header */}
             <header className={`bg-white border-b border-gray-200 sticky ${isImpersonating ? 'top-10' : 'top-0'} z-50`}>
                 <div className="px-6 py-4">
