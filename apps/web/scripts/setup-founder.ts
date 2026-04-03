@@ -16,7 +16,24 @@ const db = drizzle(client, { schema });
 async function setup() {
     console.log('🚀 Setting up ScholarMind Platform Admin (Founder)...');
 
-    // 1. Check if HQ tenant exists
+    // 1. Check if HQ company exists
+    let hqCompany;
+    const [existingCompany] = await db.select().from(schema.companies).where(eq(schema.companies.name, 'ScholarMind HQ'));
+    if (existingCompany) {
+        console.log('HQ Company already exists.');
+        hqCompany = existingCompany;
+    } else {
+        console.log('🏢 Creating HQ company...');
+        const [company] = await db.insert(schema.companies).values({
+            name: 'ScholarMind HQ',
+            subscriptionTier: 'ENTERPRISE',
+            isActive: true,
+            region: 'GLOBAL',
+        }).returning();
+        hqCompany = company;
+    }
+
+    // 2. Check if HQ tenant exists
     const [existingHQ] = await db.select().from(schema.tenants).where(eq(schema.tenants.code, 'HQ'));
     
     let hqTenant;
@@ -28,17 +45,17 @@ async function setup() {
         const [tenant] = await db.insert(schema.tenants).values({
             name: 'ScholarMind HQ',
             code: 'HQ',
-            subscriptionTier: 'ENTERPRISE', // Master tier
+            companyId: hqCompany.id,
             isActive: true,
         }).returning();
         hqTenant = tenant;
     }
 
-    // 2. Check if founder exists
+    // 3. Check if founder exists
     const [existingFounder] = await db.select().from(schema.users).where(eq(schema.users.email, 'founder@scholarmind.com'));
 
     if (existingFounder) {
-        console.log('Founder account already exists.');
+        console.log('✅ Founder account already exists: founder@scholarmind.com / password');
     } else {
         console.log('👤 Creating founder user...');
         const defaultPassword = await hash('password', 12);

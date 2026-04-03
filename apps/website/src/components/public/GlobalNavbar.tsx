@@ -13,8 +13,12 @@ export default function GlobalNavbar() {
             setScrolled(window.scrollY > 20);
         };
         window.addEventListener('scroll', handleScroll);
+        // Correct initial state after mount to avoid hydration mismatch
+        handleScroll();
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://school-sis.onrender.com';
 
     return (
         <nav className={`fixed top-0 left-0 w-full z-50 transition-all duration-300 ${
@@ -51,12 +55,12 @@ export default function GlobalNavbar() {
 
                     {/* CTAs */}
                     <div className="hidden md:flex items-center space-x-4">
-                        <Link href="/login" className={`text-sm font-bold transition-colors ${
+                        <a href={`${appUrl}/login`} className={`text-sm font-bold transition-colors ${
                             scrolled ? 'text-gray-700 hover:text-gray-900' : 'text-white hover:text-gray-200'
                         }`}>
                             Sign In
-                        </Link>
-                        <Link href="#demo" className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all flex items-center gap-2 group ${
+                        </a>
+                        <Link href="/book-demo" className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all flex items-center gap-2 group ${
                             scrolled ? 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-600/30' : 'bg-white text-indigo-600 hover:bg-gray-50 hover:shadow-xl hover:-translate-y-0.5'
                         }`}>
                             Book Demo
@@ -80,8 +84,8 @@ export default function GlobalNavbar() {
                     <Link href="/pricing" onClick={() => setMobileOpen(false)} className="text-gray-700 font-medium px-4 py-2 hover:bg-gray-50 rounded-lg">Pricing</Link>
                     <Link href="/apply-online" onClick={() => setMobileOpen(false)} className="text-gray-700 font-medium px-4 py-2 hover:bg-gray-50 rounded-lg">Apply Online</Link>
                     <div className="h-px bg-gray-100 my-2"></div>
-                    <Link href="/login" onClick={() => setMobileOpen(false)} className="text-gray-700 font-medium px-4 py-2 hover:bg-gray-50 rounded-lg">Sign In</Link>
-                    <Link href="#demo" onClick={() => setMobileOpen(false)} className="text-center bg-indigo-600 text-white font-bold px-4 py-3 rounded-xl shadow-md">Book Demo</Link>
+                    <a href={`${appUrl}/login`} onClick={() => setMobileOpen(false)} className="text-gray-700 font-medium px-4 py-2 hover:bg-gray-50 rounded-lg">Sign In</a>
+                    <Link href="/book-demo" onClick={() => setMobileOpen(false)} className="text-center bg-indigo-600 text-white font-bold px-4 py-3 rounded-xl shadow-md">Book Demo</Link>
                 </div>
             )}
         </nav>

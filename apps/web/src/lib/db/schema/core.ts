@@ -4,6 +4,7 @@ import { relations } from 'drizzle-orm';
 // ─── Enums ───────────────────────────────────────────────────
 
 export const userRoleEnum = pgEnum('user_role', [
+    'PLATFORM_ADMIN',
     'SUPER_ADMIN',
     'SCHOOL_ADMIN',
     'PRINCIPAL',

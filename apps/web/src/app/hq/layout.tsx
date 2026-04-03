@@ -69,6 +69,9 @@ export default async function HQLayout({
                             <NavLink href="/hq/tenants" icon="🏢">
                                 Campus Management
                             </NavLink>
+                            <NavLink href="/hq/leads" icon="📥">
+                                Lead Pipeline
+                            </NavLink>
                             <NavLink href="/hq/ai-governance" icon="🧠">
                                 AI Governance
                             </NavLink>
@@ -81,6 +84,9 @@ export default async function HQLayout({
                             </NavLink>
                             <NavLink href="/hq/compliance" icon="⚖️">
                                 Global Compliance
+                            </NavLink>
+                            <NavLink href="/hq/broadcasts" icon="📢">
+                                Broadcasts
                             </NavLink>
                         </div>
 

@@ -177,8 +177,8 @@ export async function createTenantAction(formData: FormData) {
             passwordHash: defaultPassword
         });
 
-        revalidatePath('/platform/tenants');
-        revalidatePath('/platform');
+        revalidatePath('/hq/tenants');
+        revalidatePath('/hq');
 
         return { success: true, tenantId: newTenant.id, code: tenantCode };
     } catch (e: any) {
@@ -198,7 +198,7 @@ export async function toggleTenantStatusAction(tenantId: string, isActive: boole
     
     await logPlatformAudit('TOGGLE_TENANT_STATUS', `Status changed to ${isActive}`, undefined, tenantId);
     
-    revalidatePath('/platform/tenants');
+    revalidatePath('/hq/tenants');
     
     return { success: true };
 }
@@ -309,7 +309,7 @@ export async function updateCompanySettingsAction(companyId: string, payload: {
     await logPlatformAudit('UPDATE_COMPANY_SETTINGS', `Updated tier to ${payload.subscriptionTier}, features toggled`, companyId);
 
     revalidatePath(`/platform/tenants/${companyId}`);
-    revalidatePath('/platform/tenants');
+    revalidatePath('/hq/tenants');
     
     return { success: true };
 }

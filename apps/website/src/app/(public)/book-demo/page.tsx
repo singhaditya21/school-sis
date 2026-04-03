@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { captureLeadAction } from '@/lib/actions/marketing';
 import { CheckCircle, Building } from 'lucide-react';
 import Link from 'next/link';
 
@@ -13,12 +12,26 @@ export default function BookDemoPage() {
         setStatus('loading');
         setErrMsg('');
 
-        const res = await captureLeadAction(formData);
-        if (res.error) {
-            setErrMsg(res.error);
+        // Point to the Core Web App API endpoint (using env var locally vs production)
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+        
+        try {
+            const res = await fetch(`${API_URL}/api/leads`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+            
+            if (!res.ok || data.error) {
+                setErrMsg(data.error || 'Failed to submit route.');
+                setStatus('error');
+            } else {
+                setStatus('success');
+            }
+        } catch (e) {
+            setErrMsg('Network error executing API bridging.');
             setStatus('error');
-        } else {
-            setStatus('success');
         }
     }
 

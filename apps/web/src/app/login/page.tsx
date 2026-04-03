@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { loginAction } from '@/lib/actions/auth';
+import { loginActionV2 } from '@/lib/actions/auth';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,7 +38,11 @@ export default function LoginPage() {
 
     async function handleSubmit(formData: FormData) {
         setError(null);
-        const result = await loginAction(formData);
+        // Architecturally sound: Manually bind the React state to the FormData payload
+        // This guarantees the server action receives the exact active tab state.
+        formData.append('loginMode', loginMode);
+        
+        const result = await loginActionV2(formData);
         if (result?.error) {
             setError(result.error);
         }
@@ -169,6 +173,8 @@ export default function LoginPage() {
                                 </div>
 
                                 <form action={handleSubmit} className="space-y-4">
+                                    {/* Hidden field to pass loginMode to server action */}
+                                    <input type="hidden" name="loginMode" value={loginMode} />
                                     {/* School Code - Only visible for School Staff mode */}
                                     {loginMode === 'school' && (
                                         <div className="space-y-2">
@@ -220,7 +226,7 @@ export default function LoginPage() {
                                                         id="email"
                                                         name="email"
                                                         type="email"
-                                                        placeholder={loginMode === 'platform' ? 'owner@scholarmind.com' : 'you@school.edu'}
+                                                        placeholder={loginMode === 'platform' ? 'founder@scholarmind.com' : 'you@school.edu'}
                                                         required
                                                         autoComplete="email"
                                                         aria-invalid={error ? 'true' : 'false'}

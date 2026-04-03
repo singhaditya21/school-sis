@@ -6,7 +6,7 @@ import { checkRateLimit, recordFailedAttempt, clearRateLimit } from '@/lib/auth/
 import { db, setTenantContext } from '@/lib/db';
 import { users, tenants, companies } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { compare } from 'bcryptjs';
+import { compare, hash } from 'bcryptjs';
 import { z } from 'zod';
 
 /**
@@ -25,11 +25,10 @@ const loginSchema = z.object({
     schoolCode: z.string().optional(),
 });
 
-export async function loginAction(formData: FormData) {
+export async function loginActionV2(formData: FormData) {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     const schoolCode = formData.get('schoolCode') as string | null;
-    const loginMode = formData.get('loginMode') as string | null;
 
     // Validate input
     const validation = loginSchema.safeParse({ email, password, schoolCode: schoolCode || undefined });
@@ -48,27 +47,28 @@ export async function loginAction(formData: FormData) {
     let redirectPath = '';
 
     try {
-        // Platform Admin login — strictly locked to founder email
-        if (loginMode === 'platform') {
-            if (email !== 'founder@scholarmind.com') {
-                await recordFailedAttempt(email);
-                return { error: 'Unauthorized: Only the SaaS Founder can access the platform dashboard.' };
-            }
+        const loginMode = formData.get('loginMode') as string | null;
+
+        // Strict architectural boundary: Only attempt platform auth if explicitly requested
+        const isPlatformAdmin = loginMode === 'platform';
+
+        if (isPlatformAdmin) {
+            const normalizedEmail = email?.trim().toLowerCase() || '';
 
             const [user] = await db
                 .select()
                 .from(users)
-                .where(
-                    and(
-                        eq(users.email, email),
-                        eq(users.role, 'SUPER_ADMIN')
-                    )
-                )
+                .where(eq(users.email, normalizedEmail))
                 .limit(1);
 
             if (!user) {
                 await recordFailedAttempt(email);
-                return { error: 'Invalid credentials or not a platform admin' };
+                return { error: 'Platform admin account not found in database.' };
+            }
+
+            if (user.role !== 'SUPER_ADMIN') {
+                await recordFailedAttempt(email);
+                return { error: 'Platform admin account not found or invalid privileges.' };
             }
 
             const passwordValid = await compare(password, user.passwordHash);
@@ -77,7 +77,6 @@ export async function loginAction(formData: FormData) {
                 return { error: 'Invalid credentials' };
             }
 
-            // Platform admins get full access
             await clearRateLimit(email);
             const session = await getSession();
             session.userId = user.id;
@@ -88,7 +87,7 @@ export async function loginAction(formData: FormData) {
             session.isLoggedIn = true;
             await session.save();
 
-            redirectPath = '/platform';
+            redirectPath = '/hq';
 
         } else {
             // School staff login — requires school code
