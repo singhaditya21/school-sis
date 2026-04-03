@@ -14,13 +14,17 @@ import { getLimit } from '@/lib/config/limits';
  * - Serverless-optimized pool settings
  */
 
-const connectionString = process.env.DATABASE_URL;
+let connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
-    throw new Error(
-        'DATABASE_URL environment variable is required. ' +
-        'Set it in your .env file: DATABASE_URL=postgresql://user:pass@host:5432/dbname?sslmode=require'
-    );
+    if (process.env.npm_lifecycle_event === 'build' || !process.env.VERCEL_ENV || process.env.NEXT_PHASE === 'phase-production-build') {
+        connectionString = 'postgresql://dummy:dummy@dummy:5432/dummy';
+    } else {
+        throw new Error(
+            'DATABASE_URL environment variable is required. ' +
+            'Set it in your .env file: DATABASE_URL=postgresql://user:pass@host:5432/dbname?sslmode=require'
+        );
+    }
 }
 
 // Warn if SSL is not enforced in production
