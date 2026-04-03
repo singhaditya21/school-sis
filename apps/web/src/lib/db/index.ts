@@ -14,17 +14,21 @@ import { getLimit } from '@/lib/config/limits';
  * - Serverless-optimized pool settings
  */
 
+const isBuildPhase = process.env.npm_lifecycle_event === 'build' || process.env.NEXT_PHASE === 'phase-production-build';
+
 let connectionString = process.env.DATABASE_URL;
 
-if (!connectionString) {
-    if (process.env.npm_lifecycle_event === 'build' || !process.env.VERCEL_ENV || process.env.NEXT_PHASE === 'phase-production-build') {
-        connectionString = 'postgresql://dummy:dummy@dummy:5432/dummy';
-    } else {
-        throw new Error(
-            'DATABASE_URL environment variable is required. ' +
-            'Set it in your .env file: DATABASE_URL=postgresql://user:pass@host:5432/dbname?sslmode=require'
-        );
-    }
+// ALWAYS use a dummy connection string during Vercel SSG Build phase to completely
+// prevent postgres.js from opening a socket pool and hanging the Webpack worker thread indefinitely.
+if (isBuildPhase || !connectionString) {
+    connectionString = 'postgresql://dummy:dummy@dummy:5432/dummy';
+}
+
+if (!isBuildPhase && !process.env.DATABASE_URL) {
+    throw new Error(
+        'DATABASE_URL environment variable is required. ' +
+        'Set it in your .env file: DATABASE_URL=postgresql://user:pass@host:5432/dbname?sslmode=require'
+    );
 }
 
 // Warn if SSL is not enforced in production
