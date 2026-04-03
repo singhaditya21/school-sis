@@ -48,8 +48,13 @@ export async function loginAction(formData: FormData) {
     let redirectPath = '';
 
     try {
-        // Platform Admin login — no school code required
+        // Platform Admin login — strictly locked to founder email
         if (loginMode === 'platform') {
+            if (email !== 'founder@scholarmind.com') {
+                await recordFailedAttempt(email);
+                return { error: 'Unauthorized: Only the SaaS Founder can access the platform dashboard.' };
+            }
+
             const [user] = await db
                 .select()
                 .from(users)

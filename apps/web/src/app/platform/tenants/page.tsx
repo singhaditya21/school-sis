@@ -1,4 +1,5 @@
 import { getAllPlatformTenants } from '@/lib/actions/platform';
+import Link from 'next/link';
 
 export default async function TenantSchoolsPage() {
     const tenants = await getAllPlatformTenants();
@@ -10,9 +11,9 @@ export default async function TenantSchoolsPage() {
                     <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Tenant Schools</h1>
                     <p className="text-slate-500 mt-1">Manage all registered school instances on the platform.</p>
                 </div>
-                <button className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition shadow-md shadow-indigo-200">
+                <Link href="/platform/tenants/new" className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition shadow-md shadow-indigo-200">
                     + Onboard New School
-                </button>
+                </Link>
             </div>
 
             {/* Tenant Cards */}

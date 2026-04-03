@@ -119,3 +119,62 @@ export async function getAllPlatformTenants(): Promise<PlatformTenant[]> {
         revenue: Number(row.revenue),
     }));
 }
+
+/**
+ * Provisions a completely new tenant and their native SUPER_ADMIN.
+ * SECURITY: Requires PLATFORM_ADMIN.
+ */
+import { hash } from 'bcryptjs';
+import { revalidatePath } from 'next/cache';
+
+export async function createTenantAction(formData: FormData) {
+    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await setTenantContext('platform');
+
+    const name = formData.get('name') as string;
+    const adminEmail = formData.get('adminEmail') as string;
+    const adminFirstName = formData.get('adminFirstName') as string;
+    const adminLastName = formData.get('adminLastName') as string;
+
+    if (!name || !adminEmail || !adminFirstName || !adminLastName) {
+        return { error: 'All fields are required.' };
+    }
+
+    try {
+        // Generate a 4-8 char alphanumeric code from the name
+        const baseCode = name.replace(/[^a-zA-Z0-9]/g, '').substring(0, 5).toUpperCase();
+        const randSuffix = Math.floor(Math.random() * 900) + 100;
+        const tenantCode = `${baseCode}${randSuffix}`;
+
+        // Create Tenant
+        const [newTenant] = await db.insert(tenants).values({
+            name,
+            code: tenantCode,
+            subscriptionTier: 'CORE',
+            isActive: true,
+        }).returning();
+
+        // Create SUPER_ADMIN for this tenant
+        const defaultPassword = await hash('password', 12); // Default secure password
+        await db.insert(users).values({
+            tenantId: newTenant.id,
+            email: adminEmail,
+            firstName: adminFirstName,
+            lastName: adminLastName,
+            role: 'SUPER_ADMIN',
+            passwordHash: defaultPassword
+        });
+
+        revalidatePath('/platform/tenants');
+        revalidatePath('/platform');
+
+        return { 
+            success: true, 
+            tenantId: newTenant.id, 
+            code: tenantCode 
+        };
+    } catch (e: any) {
+        console.error('Error creating tenant:', e);
+        return { error: 'An unexpected error occurred while creating the tenant.' };
+    }
+}
