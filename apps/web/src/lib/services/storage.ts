@@ -45,6 +45,10 @@ export async function uploadFile(
     contentType: string,
     tenantId: string,
 ): Promise<{ url: string; key: string; size: number }> {
+    if (key.includes('..')) {
+        throw new Error('Invalid file key: Path traversal detected');
+    }
+
     const config = getR2Config();
     const endpoint = getEndpoint(config);
     const url = `${endpoint}/${config.bucketName}/${key}`;
@@ -70,6 +74,10 @@ export async function uploadFile(
  * Delete a file from R2.
  */
 export async function deleteFile(key: string): Promise<void> {
+    if (key.includes('..')) {
+        throw new Error('Invalid file key: Path traversal detected');
+    }
+
     const config = getR2Config();
     const endpoint = getEndpoint(config);
     const url = `${endpoint}/${config.bucketName}/${key}`;
