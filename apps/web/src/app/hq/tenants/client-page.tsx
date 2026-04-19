@@ -60,7 +60,7 @@ export default function TenantsClient({ initialTenants, stats }: { initialTenant
                 <div className="bg-slate-950 border border-red-900/50 bg-red-950/10 p-5 rounded-xl">
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-sm font-medium text-red-400 mb-1">Churn Risks (>90d No Pay)</p>
+                            <p className="text-sm font-medium text-red-400 mb-1">Churn Risks (&gt;90d No Pay)</p>
                             <p className="text-3xl font-bold text-red-500">{stats.churnRiskSchools}</p>
                         </div>
                         <AlertTriangle className="w-5 h-5 text-red-400" />
