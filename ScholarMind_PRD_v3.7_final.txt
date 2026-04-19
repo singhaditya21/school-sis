@@ -1,0 +1,2821 @@
+
+PRODUCT REQUIREMENTS DOCUMENT — v3.7
+ScholarMind
+Universal Education Management Platform
+K-12 Schools · Multi-Campus · National/International · Colleges & Universities · Coaching Institutes
+Agentic AI · Zero-Trust Security · Global Equity · Human-Governed Autonomy · Commercial Operating Discipline
+
+Document Version:
+v3.7 — Universal Education Edition
+Supersedes:
+v3.0 — Universal Education Edition (February 2026)
+Date:
+March 2026
+Classification:
+Confidential — Internal Use Only
+Institution Types:
+K-12 · Multi-Campus Chains · International Schools · Colleges · Universities · Coaching Institutes · Hybrid Institutions
+New in v3.7:
+Commercial architecture · 4 pricing models · 5-year financial plans · expanded module suite · learner records · privacy controls · payment orchestration · safety & resilience
+
+Table of Contents
+
+
+Universal Education Edition
+1. Executive Summary	3
+2. Problem Statement & Market Context	6
+2.5 Competitor Landscape & Strategic Positioning	9
+2.7 Beachhead Strategy, Segment Sequencing & Non-Goals	12
+3. Product Overview & Architecture	13
+4. User Personas & Use Cases	17
+5. Functional Requirements - All 36 Modules	20
+6. Security Architecture & Data Privacy	35
+7. Non-Functional Requirements	39
+8. Integrations & API Ecosystem	42
+9. Data Model & Information Architecture	45
+10. Implementation Roadmap	47
+10.3 Commercial Architecture & Packaging	49
+10.4 Five-Year Financial Model Comparison	52
+11. Risks, Assumptions & Constraints	59
+12. Appendices	61
+
+1. Executive Summary
+ScholarMind v3.7 is an AI-native education operating platform designed to run the full spectrum of institutions — from single-campus K-12 schools to multi-campus university systems, coaching networks, international school groups, and hybrid education enterprises. It unifies student, academic, financial, workforce, compliance, and intelligence workflows into a single configurable operating layer.
+Version 3.7 carries forward every capability introduced in v3.0–v3.6 and adds a research-driven learner-record, privacy, AI adoption, payment orchestration, safeguarding, professional-licensure, and resilience layer.
+1.1 Vision Statement
+To become the education sector's definitive operating platform — the single system of record, workflow, and intelligence that institutions of any type, size, geography, or resource level use to manage people, programmes, finances, compliance, and outcomes with strong local fit, global scale, and trusted AI.
+1.2 Mission
+Deliver a unified, agent-first platform that adapts its interface, workflows, data model, regulatory pack, and analytics layer to the specific institution type — K-12, multi-campus chain, international school, college, university, coaching institute, or hybrid education group — while preserving a shared core for security, AI governance, interoperability, and equity architecture.
+1.3 Strategic Pillars — v3.5
+	•	Universal Institution Model — a single platform serving K-12, higher education, and coaching; no product silos.
+	•	Multi-Campus Hierarchy — centralised governance with campus-level autonomy; chain-level analytics with school-level control.
+	•	Higher Education Intelligence — course management, credit systems, faculty research, academic advising, accreditation — purpose-built for degree-granting institutions.
+	•	Coaching Engine — batch management, test series, competitive exam intelligence, doubt resolution, student progression tracking.
+	•	International Operations — multi-country, multi-currency, multi-regulatory, multi-curriculum management for global school and university groups.
+	•	Agent-First Architecture — 26-agent fleet, each domain-specialised, coordinated by SynthesisAgent and governed by human-in-the-loop principles.
+	•	Zero-Trust Security — defence-in-depth, FERPA/COPPA/GDPR/EU AI Act/UGC/AICTE compliant.
+	•	Global Equity by Design — offline-first, SMS-native, crisis-mode, refugee intake — all capabilities from v2.0 fully retained.
+Commercial Flexibility — supports per-institution, per-campus, per-student, and hybrid pricing by region and segment.
+AI Margin Discipline — separates platform, services, and inference economics so growth does not erode long-term gross margin.
+1.4 Institution Type Capability Map
+Module Area
+K-12 School
+Multi-Campus
+Intl. School
+College/Univ.
+Coaching
+Student Management
+Full
+Full
+Full
+Full
+Full
+Attendance & Timetable
+Full
+Cross-campus
+Multi-board
+Dept-level
+Batch-level
+Academic & Curriculum
+K-12 Boards
+Centralised
+Multi-board
+Credit/Course
+Competitive
+Fee & Finance
+School fees
+Consolidated
+Multi-currency
+Tuition/Grants
+Batch fees
+HR & Payroll
+Full
+Multi-campus
+Multi-country
+Faculty/Staff
+Faculty
+Admissions
+School
+Chain-central
+International
+UG/PG/PhD
+Batch enrollment
+Communications
+Full
+Cascaded
+Multi-lang
+Faculty/Student
+Batch
+Analytics & Reporting
+School
+Chain KPIs
+Multi-country
+Research/Outcomes
+Rank analytics
+Compliance
+CBSE/ICSE/State
+Multi-board
+IGCSE/IB/AP
+UGC/AICTE/NAAC
+None specific
+Research Management
+—
+—
+—
+Full
+—
+Test Series & Mock Exams
+—
+—
+—
+—
+Full
+Global Equity / Crisis
+Full
+Full
+Full
+Full
+Partial
+1.5 Key Outcomes by Institution Type
+Institution
+Pain Today
+Outcome with ScholarMind v3.7
+Multi-Campus Chain (100 schools)
+100 separate data silos; no chain-level analytics; manual policy enforcement
+Single data platform; chain KPI dashboard; policy pushed from HQ; CampusAgent coordinates cross-campus ops
+International School Group
+Multi-country ops in spreadsheets; currency reconciliation manual; regulatory compliance fragmented
+Unified group platform; multi-currency consolidation; country-specific regulatory modules; global board reporting
+College / University
+Course registration manual; faculty workload untracked; accreditation prep months of work
+Automated course registration; faculty workload AI-optimised; AccredAgent maintains accreditation readiness 365 days
+Coaching Institute
+Batch management in Excel; test results in WhatsApp; no learning analytics
+BatchAgent manages all batches; test series engine with rank analytics; AI doubt resolution; parent-facing progress
+Hybrid (School + College + Coaching)
+Three separate systems; student records don't follow across institution type
+Single student record spanning school, college, and coaching; longitudinal academic identity from age 5 to 25
+
+2. Problem Statement & Market Context
+2.1 The Fragmented Education Technology Landscape
+Today's educational institutions — whether a K-12 school chain, a university, or a coaching institute — are forced to operate across 3 to 8 disconnected software systems: a school ERP for administration, a separate LMS for learning, a standalone fee management tool, a payroll system, a CRM for admissions, and a spreadsheet for everything else. The result is systemic fragmentation: data exists in silos, decision-making is reactive, and the student record is incomplete.
+For multi-campus institutions, this fragmentation is compounded across geography. A school chain with 50 campuses runs 50 separate data islands. The CEO cannot see a real-time view of attendance across the network. The CFO reconciles fee collection from 50 different spreadsheets. The Academic Director has no way to compare outcomes across campuses to identify best practices or underperformance.
+For coaching institutes — one of the fastest-growing segments of the global education market, particularly in India, China, South Korea, and the Middle East — purpose-built management software is almost entirely absent. Batches are managed in WhatsApp groups. Test results are distributed via PDF. Student analytics are non-existent. Fee collection is informal.
+For colleges and universities, legacy Student Information Systems (Banner, PeopleSoft, Ellucian) are monolithic, expensive, and not AI-native. Accreditation preparation consumes months of manual work. Faculty workload allocation is subjective. Academic advising is under-resourced. Course registration is a high-anxiety annual event.
+2.2 Market Size & Growth
+Segment
+Market Lens
+Growth Driver
+Global EdTech Market
+Large global category
+Digital core systems + AI operations + analytics convergence
+School Management Software
+Large, fragmented, region-specific market
+Shift from ERP to parent-connected cloud platforms
+Higher Education SIS
+Mission-critical but legacy-heavy segment
+Modernisation pressure on registrar, accreditation, and advising workflows
+Coaching/Test Prep Market (India alone)
+High-growth, operationally underserved segment
+Need for batch intelligence, test analytics, and parent visibility
+International Schools
+Premium, globally distributed institutional segment
+Demand for multi-currency, multi-curriculum, and compliance support
+Multi-Campus K-12 Chains (India)
+Large but under-digitised network-management opportunity
+Need for central governance with campus autonomy
+2.3 Specific Gaps by Institution Type
+Multi-Campus & Chain Schools
+	•	No chain-level platform offers simultaneous central governance and campus-level operational autonomy.
+	•	Cross-campus student transfer is a manual, week-long process in most chains.
+	•	Chain-wide academic benchmarking does not exist in any current SIS product.
+	•	HQ cannot push policy (grading rubrics, fee structures, curriculum maps) to campuses in real time.
+International Schools
+	•	Multi-currency fee management across 10+ countries requires manual reconciliation in every current platform.
+	•	Expatriate student visa and immigration status tracking is entirely manual.
+	•	Multi-board curriculum management (IB + IGCSE + AP + national boards simultaneously) is unsupported.
+	•	Cross-country consolidated financial and academic reporting for international groups does not exist.
+Colleges & Universities
+	•	Course registration systems (Banner, PeopleSoft) are not AI-native; students cannot get personalised course advice.
+	•	Faculty research management, grant tracking, and output reporting are managed outside the SIS entirely.
+	•	Accreditation (NAAC, NBA, UGC, ABET, QAA) preparation is a manual, compliance-calendar-driven exercise.
+	•	Academic advising is human-only, under-resourced, and reactive — students at risk of not graduating are identified too late.
+Coaching Institutes
+	•	No purpose-built management software exists for the $5.6B Indian coaching market.
+	•	Batch management, test series scheduling, doubt clearing, and fee collection happen across WhatsApp, Google Sheets, and cash receipts.
+	•	Student performance analytics (rank prediction, weak chapter identification, peer comparison) are not systematically available.
+	•	Parent communication is informal and inconsistent.
+	•	Franchise/multi-centre coaching operations have no consolidated platform.
+2.4 Regulatory Landscape — Updated for v3.5
+	•	UGC (India) — University Grants Commission regulations for higher education institutions.
+	•	AICTE (India) — All India Council for Technical Education for engineering/management colleges.
+	•	NAAC/NBA (India) — National Assessment and Accreditation Council / National Board of Accreditation for quality certification.
+	•	NIRF (India) — National Institutional Ranking Framework submission requirements.
+	•	ABET (USA) — Engineering and technology programme accreditation.
+	•	QAA (UK) — Quality Assurance Agency for Higher Education.
+	•	EQUIS/AACSB (Global) — Business school accreditation standards.
+	•	COBIS/CIS (International Schools) — Council of British International Schools / Council of International Schools accreditation.
+	•	All v2.0 regulations (FERPA, COPPA, GDPR, EU AI Act, PDPB, ISO 27001, SOC 2, UNICEF EdTech for Good) remain in force.
+
+2.5 Competitor Landscape & Strategic Positioning — v3.5
+The education software market is converging into strong but still fragmented clusters: K-12 administration, private and international school operations, higher-education ERP/SIS, digital admissions and communications, international curriculum platforms, and coaching digitisation. The implication for ScholarMind is that differentiation cannot be based on feature count alone; it must come from a credible cross-segment operating model, strong migration capability, enterprise-grade governance, and a visible AI trust posture.
+2.5.1 Competitor Matrix
+Competitor
+Primary Segment
+What They Do Well
+Current Signal
+Structural Gaps
+ScholarMind Opportunity
+PowerSchool
+K-12 districts / large school systems
+Unified K-12 admin stack with strong compliance, assessments, and district-scale workflows
+Large installed base; expanding AI assistants and analytics
+Heavily K-12 / North America led; limited universal multi-segment story
+Position ScholarMind as multi-campus, international, and cross-institution by design
+Ellucian
+Higher education
+Deep SIS/ERP, student lifecycle, finance, HCM, alumni, and workforce-linked AI
+Higher-ed market consolidating further after Anthology SIS/ERP acquisition
+Higher-ed centric; weak fit for K-12 + coaching + mixed groups
+Own the cross-segment education operating-system category
+Blackbaud
+Private / independent K-12
+Strong SIS + LMS + tuition + accounting + fundraising for private schools
+Actively enhancing K-12 AI, integrations, and partner ecosystem
+Private-school bias; not designed for universities or coaching networks
+Differentiate on broader institution coverage and group governance
+Veracross
+Independent / international K-12
+Single-record database, strong family and community workflows, good independent-school fit
+Growing international footprint and multi-campus private-school wins
+Focused on private K-12; limited higher-ed and coaching depth
+Beat on universal platform breadth and AI-native operations
+Competitor
+Primary Segment
+What They Do Well
+Current Signal
+Structural Gaps
+ScholarMind Opportunity
+ManageBac+
+IB / international schools
+Excellent curriculum, programme, and learning workflows across IB and global curricula
+Trusted by a large share of IB schools globally
+Stronger on teaching and learning than on full back-office operating stack
+Compete with deeper finance, HR, compliance, and multi-entity controls
+Finalsite
+Digital admissions / communications
+Strong website, communications, enrollment, and parent-facing experience layer
+Winning the digital front door for many schools; integrations into multiple SIS stacks
+Not a full operating core or cross-segment admin platform
+Build a first-class applicant and family experience natively
+Classplus
+Coaching institutes / creator-led education
+White-label apps, commerce, content delivery, and coaching digitisation at scale
+Very strong India coaching distribution footprint
+Not a full universal institution operating system; weaker enterprise governance
+Win coaching groups that need operations + analytics + finance + governance
+openSIS
+Cost-sensitive global institutions
+Affordable multilingual SIS with broad institution-type coverage and simple pricing
+Competes on accessibility and fast adoption across countries
+Less enterprise depth, weaker premium governance and intelligence positioning
+Offer premium enterprise-grade controls while preserving affordability tiers
+2.5.2 Strategic Implications for ScholarMind
+2.5.3 Competitor Battlecards — v3.5
+The battlecards below turn market research into tactical product and GTM guidance. They focus on where ScholarMind should attack, coexist, or avoid direct head-on competition during the first 24 months.
+Competitor
+Primary segment
+What they do well
+Where ScholarMind should press
+PowerSchool
+K-12 districts / schools
+Deep SIS footprint, scheduling, compliance muscle, broad admin workflows.
+Win where groups need multi-brand, cross-country, AI-governed operations and stronger coexistence with mixed stacks.
+Ellucian (+ Anthology SIS/ERP)
+Higher education
+Mission-critical ERP/SIS depth, registrar and finance workflows, strong installed base.
+Lead with mixed-institution groups, faster AI operating layer, modern integration, and cross-campus command centre value.
+Veracross / Finalsite
+Independent & international schools
+Unified parent/community experience, admissions-to-communications continuity.
+Beat them on multi-entity finance, AI automation, deeper analytics, and support for chains that include non-school entities.
+ManageBac+
+IB / international schools
+Strong curriculum and IB-specific academic workflows, teacher familiarity.
+Differentiate on full enterprise operating stack: finance, HR, compliance, payments, and group governance beyond academics.
+Classplus
+Coaching institutes
+India scale, simple mobile-first digitisation for centres and educators.
+Target larger chains and franchises needing governance, test analytics, revenue assurance, and centre-level profitability.
+openSIS / low-cost SIS tools
+Price-sensitive schools
+Affordability and straightforward SIS basics.
+Respond with affordable entry packaging plus migration path into premium AI and multi-campus capabilities.
+
+ScholarMind must lead with a clearly stated wedge: a universal institution model that connects K-12, higher education, coaching, and multi-country groups inside one operating core rather than separate product families.
+ScholarMind should treat interoperability and migration as first-class product features, not implementation afterthoughts. Winning requires fast data import, coexistence with incumbent LMS/finance stacks, and low-risk cutover.
+ScholarMind must make trust visible. AI governance, human approval, audit logs, and incident readiness should be productised because education buyers are increasingly evaluating AI capability and security posture together.
+ScholarMind should strengthen the family / applicant / community experience layer so that admissions, communications, mobile access, and payment UX can compete with best-of-breed front-door platforms.
+ScholarMind must keep curriculum and regulatory flexibility deeper than segment specialists: IB/IGCSE/AP/CBSE/ICSE for schools; credit, degree audit, accreditation, and research flows for higher education; test-series and franchise operations for coaching.
+2.6 Research-Led Improvements Required in This PRD — v3.5
+Segment Priority & Wedge - the PRD should explicitly sequence go-to-market by segment instead of trying to win K-12, higher education, coaching, and international schools simultaneously on day one. Recommend: Phase A private chains/coaching groups in India and GCC; Phase B international schools and university groups; Phase C public systems.
+Migration Factory - add a named migration workstream covering SIS/ERP data mapping, document import, gradebook/history conversion, identity matching, cutover tooling, and rollback playbooks. Incumbents stay sticky because switching risk is high.
+Interoperability Standards - strengthen the API and data-exchange position with explicit support for OneRoster, LTI 1.3, SIF/Ed-Fi, SCIM, OpenAPI webhooks, finance connectors, and no-code integration templates.
+Security & Incident Response - extend the security section with breach-notification SLAs, customer-facing audit packs, data-retention schedules, key-management posture, tenant-level logging, model-governance controls, and crisis communications workflows.
+Experience Layer - sharpen the digital-front-door story with school website CMS, admissions funnel, communications, mobile app, and parent experience. This is where Finalsite and similar players create high switching value.
+Proof of ROI - add quantified success benchmarks by segment: enrollment conversion lift, fee collection improvement, counselor/admin time saved, accreditation-preparation time reduced, and AI-assist utilisation targets.
+Partner Ecosystem - formalise which capabilities are native, partner-led, or marketplace-led across payments, proctoring, transport, hostel, CRM, fundraising, learning tools, and government reporting.
+Responsible AI Operations - add prompt-policy governance, human-review thresholds, model-routing rules, evaluation scorecards, hallucination controls, explainability, and segment-specific approval chains for fees, grades, advising, and compliance actions.
+2.7 Beachhead Strategy, Segment Sequencing & Non-Goals — v3.5
+Initial wedge: multi-campus and multi-brand education groups that operate across more than one institutional form (for example schools plus higher-ed, schools plus coaching, or international school groups with shared services) and therefore suffer from fragmented data, duplicated operations, and weak governance across campuses and countries.
+Why this wedge first: incumbents are strongest inside single-segment silos, while ScholarMind is structurally differentiated when one group needs common finance, identity, analytics, AI policy controls, and executive command centres across heterogeneous institutions.
+First 24 months - Wave 1: premium school chains, international groups, and diversified education groups with shared-service finance and admissions complexity. Wave 2: autonomous colleges and university systems that need stronger group reporting, payments, and AI operations. Wave 3: coaching and franchise networks where governance, testing, and collections become the expansion motion.
+Non-goals for the first 24 months: pure LMS replacement deals, one-off brochure website projects, bespoke consumer tutoring marketplaces, and heavily customised on-prem implementations with no path to product repeatability.
+2.8 Research-Upgraded Product Gaps Closed in v3.7
+Version 3.7 closes the highest-priority research gaps that matter in current enterprise education buying cycles: portable learner records and employability pathways, standards conformance roadmaps, privacy-retention-model-training controls, role-based AI adoption, payment orchestration, K-12 safeguarding, professional licensure compliance, and resilience engineering.
+Portable learner record and employability exchange: extends the platform beyond administration into skills, credentials, internships, career mobility, and employer-verifiable outcomes.
+Operational privacy and consent model: converts compliance language into product controls covering collection purpose, advertising prohibition, retention schedules, training exclusions, deletion workflows, and export/revocation rights.
+AI adoption operating model: defines how institutions safely roll out AI by role, workflow, and risk level rather than treating governance as a static policy document.
+Payments, safeguarding, licensure, and resilience: adds practical buying-center capabilities frequently requested by CFOs, school leaders, university compliance teams, and public-sector evaluators.
+3. Product Overview & Architecture — v3.5
+3.1 Universal Platform Architecture
+ScholarMind v3.5 introduces the Institution Type Adapter Layer as the platform control point between the shared core and each deployment, transforming the same underlying modules into the right interface, workflow, data model, compliance posture, and reporting view for each institution type. A college student sees course registration, a coaching student sees batches and test series, a K-12 student sees timetable and parent-linked progress, and a group office sees network governance and benchmarking — all on the same platform through type-aware configuration rather than separate products.
+3.1.1 Extended Layered Architecture
+Layer
+Components
+Group/Chain Management Layer (new)
+Group Dashboard, Cross-Campus Analytics, HQ Policy Engine, Group Financial Consolidation, International Reporting
+Institution Type Adapter (new)
+K-12 Adapter · Multi-Campus Adapter · International Adapter · Higher Ed Adapter · Coaching Adapter · Hybrid Adapter
+Presentation Layer
+Web App (React), Mobile App (React Native), PWA, Parent Portal, Student Portal, Faculty Portal (new), SMS/USSD, Admin Dashboard
+Master Synthesis Layer
+SynthesisAgent — cross-domain signal aggregation, welfare synthesis, multi-agent orchestration
+Agent Orchestration Layer
+26-agent fleet (expanded from 19), Agent Registry, Task Planner, Memory Store, Tool Router, HITL Gateway, Bias Monitor
+Application Services Layer
+31 core microservices, REST + GraphQL APIs, WebSocket, Offline Sync Engine, Group Federation API (new)
+Data Layer
+PostgreSQL, Redis, Elasticsearch, S3, Vector DB, Edge DB, Research Data Warehouse (new for universities)
+Security & Ethics Layer
+Zero-Trust IAM, mTLS, WAF, DLP, SIEM, HSM, Bias Monitor, AI Act Compliance, UGC/AICTE Compliance Module (new)
+Infrastructure Layer
+Kubernetes, Multi-region DR, CDN, VPN, Edge Nodes; Country-specific data centres for international deployments
+3.2 Multi-Campus Hierarchy Model
+ScholarMind v3.5 implements a three-tier organisational hierarchy that supports any combination of institution types within a group, including mixed networks that run schools, colleges, universities, coaching centres, and international campuses under one governance model.
+3.2.1 Hierarchy Tiers
+Tier
+Entity
+Capabilities
+Tier 1
+Group HQ / Trust / University System
+Cross-campus KPI dashboard; consolidated financials; HQ policy engine; group-wide agent fleet oversight; accreditation portfolio
+Tier 2
+Campus / Branch / College / Centre
+Campus-level operations; local policy customisation within HQ bounds; campus-specific agents; local financial management
+Tier 3
+Department / Division / Batch
+Department-level analytics; subject/course management; batch-level coaching operations; section-level K-12 management
+Policy inheritance: HQ defines guardrails for fees, grading scales, curriculum frameworks, compliance packs, and role templates; campuses and institutions operate within those boundaries and customise only where explicitly permitted. A campus cannot undercut group fee floors or bypass required controls, but it can adapt approved parameters for its geography, curriculum, or student mix.
+3.2.2 Cross-Campus Student Transfer
+	•	Student transfer between campuses of the same group is fully automated: records, IEP, attendance history, fee balance, and academic transcript all transfer within 24 hours.
+	•	Cross-group transfer (between unrelated institutions): exports a standard portable record (SIF/Ed-Fi format) for import into the receiving institution.
+	•	For higher education: credit transfer between departments, colleges, or international partner universities with equivalency mapping.
+3.3 Complete Agent Fleet — v3.5 (26 Agents)
+Agent
+Domain
+Core Responsibilities
+SynthesisAgent
+Cross-Domain
+Master orchestrator; multi-signal welfare synthesis; cross-campus escalation; chain-level anomaly detection
+EnrollAgent
+Admissions
+K-12 + UG/PG/PhD + coaching batch enrollment; document verification; refugee rapid intake
+AttendAgent
+Attendance
+Multi-modal attendance; cross-campus pattern detection; lecture/lab/batch attendance for HE
+AcademAgent
+Academics
+K-12 curriculum + HE course management + coaching syllabus; grade/credit management
+NeuroAgent
+SEND
+Real-time IEP compliance; accommodation monitoring; disability services for HE
+RiskAgent
+Student Wellbeing
+Early warning scoring; dropout prediction; mental health flags; adapted for HE attrition
+CommAgent
+Communications
+Multi-channel messaging; multi-language; multi-campus cascaded communications
+FeeAgent
+Finance
+School fees + HE tuition + coaching batch fees + scholarship/grant management
+HRAgent
+Human Resources
+School staff + university faculty + coaching faculty; multi-campus payroll; workload management
+SchedulAgent
+Timetabling
+K-12 timetables + HE lecture/lab/tutorial schedules + coaching batch schedules
+TeachAgent
+Teacher CPD
+CPD profiles; pedagogical analysis; coaching faculty performance; faculty workload monitoring
+AlumniAgent
+Alumni & Outcomes
+School alumni + HE graduate tracking; placement statistics; employer relationships
+FacilitiesAgent
+Campus & IoT
+Multi-campus facilities; smart building management; laboratory equipment tracking
+GreenAgent
+Sustainability
+Multi-campus carbon footprint; group sustainability reporting; SDG indicators
+CompliAgent
+Compliance
+Multi-board K-12 + UGC/AICTE/NAAC + international accreditation; regulatory calendar
+InsightAgent
+Analytics
+Chain KPI dashboards; campus benchmarking; HE outcome analytics; coaching rank analytics
+SecureAgent
+Security
+Group-level threat detection; cross-campus security policy enforcement; AI ethics audit
+LibraryAgent
+Library
+Multi-campus catalogue federation; inter-library loans; digital repository
+CrisisAgent
+Emergency
+Group-wide crisis activation; campus-level isolation; cross-campus welfare coordination
+CampusAgent
+Multi-Campus (NEW)
+Cross-campus coordination; transfer management; HQ policy enforcement; benchmarking
+AdvisorAgent
+Academic Advising (NEW)
+HE degree audit; course prerequisite checking; personalised study plan; graduation risk
+ResearchAgent
+Research Management (NEW)
+Grant tracking; publication management; ethical clearance; research output reporting
+AccredAgent
+Accreditation (NEW)
+NAAC/NBA/UGC/ABET data collection; self-study report drafting; criterion tracking; visit preparation
+BatchAgent
+Coaching (NEW)
+Batch creation/management; test series scheduling; performance analytics; doubt resolution routing
+PlacementAgent
+Placement & Careers (NEW)
+Job posting; interview scheduling; offer tracking; employer relationship management; placement analytics
+IntlAgent
+International Ops (NEW)
+Multi-currency management; cross-country compliance; visa tracking; expatriate student support
+3.4 Deployment, Tenancy & Regional Hosting Options — v3.5
+ScholarMind must be sold as a configurable cloud operating system rather than a one-size-fits-all SaaS deployment. Deployment choice is a product feature because data residency, procurement rules, and cyber-risk posture vary sharply across countries and institution types.
+Deployment model
+Best fit
+Residency / control posture
+Commercial note
+Shared multi-tenant SaaS
+Most schools, colleges, coaching groups
+Logical tenant isolation, regional hosting, standard controls
+Fastest go-live and best gross margin
+Regional SaaS
+National chains and cross-border groups
+Data stored in selected region; common product core
+Default for international expansion
+Dedicated single-tenant
+Large universities / premium groups
+Dedicated runtime and stronger change-control boundaries
+Higher ACV and premium support
+Private cloud / sovereign cloud
+Public sector, regulated markets
+Customer-approved cloud boundary and stricter residency
+Strategic but slower sales cycle
+Restricted on-prem edge nodes
+Low-connectivity campuses or policy exceptions
+Offline-capable sync edge with central policy control
+Only where repeatable product architecture is preserved
+
+
+4. User Personas & Use Cases
+4.1 Extended User Personas — v3.5
+Persona 1: Group CEO / Trustee (Multi-Campus Chain)
+Name: Mr. Ajay Singhania | Role: CEO, 80-campus CBSE school chain across 12 states | Tech Comfort: High. Needs: a real-time group-level KPI dashboard — fee collection across all campuses, attendance averages, exam results by campus, staff vacancies, and any crisis flags. Wants to benchmark campus performance and identify outliers without visiting each campus. Key Job: see the entire group in one screen; intervene where needed; push policy from HQ.
+Persona 2: University Registrar
+Name: Dr. Sunita Rao | Role: Registrar, 15,000-student private university | Tech Comfort: Moderate-High. Needs: automated course registration with waitlist management, degree audit for every student, examination timetable management for 300+ courses, and transcript generation. Currently spends 6 months per year on NAAC accreditation data compilation. Key Job: accreditation-ready 365 days a year; zero manual transcript requests.
+Persona 3: Coaching Institute Director
+Name: Mr. Kamlesh Sharma | Role: Director, 3-centre JEE/NEET coaching institute, 2,400 students | Tech Comfort: Low-Moderate. Manages batches via WhatsApp groups. Test results shared as PDFs. Fee collection via cash and bank transfer with no automated reminders. Key Job: know which students are falling behind in which chapters; communicate results to parents professionally; manage batch fees automatically.
+Persona 4: University Faculty / Professor
+Name: Dr. Meena Krishnan | Role: Associate Professor, Computer Science | Tech Comfort: High. Needs: online grade submission, research grant tracking, publication recording, workload visibility, and a portal for advising her 30 assigned students. Frustrated by paper-based systems for research ethics approvals. Key Job: manage all academic responsibilities from one interface; have research activities recognised in workload calculations.
+Persona 5: College Student — UG
+Name: Rohan Kapoor | Role: B.Tech 2nd year student | Tech Comfort: Very High. Needs: self-service course registration with AI-recommended electives, real-time grade visibility, assignment submission, fee payment, library access, placement company viewing, and a personal academic advisor chatbot. Key Job: plan his degree programme optimally; never miss a deadline or requirement.
+Persona 6: International School Principal
+Name: Ms. Claire Beaumont | Role: Principal, IB World School, Dubai (900 students from 45 nationalities) | Tech Comfort: Moderate. Challenges: multi-currency fee collection (USD, AED, EUR, GBP), student visa tracking for 60% non-resident families, IB curriculum management alongside A-Level and AP options, and a parent community communicating in 12 languages. Key Job: seamless operations across all nationalities; one platform for all three curricula.
+Persona 7: Campus Principal (Chain School)
+Name: Mrs. Pooja Mehta | Role: Principal, Campus #37 of a 60-campus chain | Tech Comfort: Moderate. She operates with the autonomy of a school principal but within HQ-mandated policies. Her students' data feeds into group analytics. She receives benchmarking reports comparing her campus to others. Key Job: run her campus excellently; understand where she stands in the chain; flag issues to HQ quickly.
+Persona 8: Head of Department (University)
+Name: Dr. Arun Thomas | Role: HoD, Management Studies Department, 800 students | Tech Comfort: Moderate. Responsible for faculty workload allocation, course scheduling, department budget, research output tracking, and NBA accreditation for the MBA programme. Key Job: ensure no faculty member is overloaded; track research KPIs; have NBA criterion data available on demand.
+Persona 9: Coaching Student's Parent
+Name: Mrs. Anita Verma | Role: Parent of a JEE aspirant | Tech Comfort: Moderate (smartphone). Currently: gets test results via WhatsApp PDF. No visibility into which topics her child is weak in. Pays fees via bank transfer with no receipt. Key Job: real-time visibility into test performance, chapter-wise strengths, and fee receipts.
+Persona 10 — v2.0 Personas
+All personas from v2.0 remain active: School Principal, Class Teacher, SENCO, Smartphone-less Parent, Refugee Intake Coordinator, Crisis Zone Teacher, Admissions Officer, IT Administrator, Finance Manager. See v2.0 Section 4 for full profiles.
+4.2 Extended Use Case Scenarios — v3.5
+UC-007: Group-Level Crisis Response (Multi-Campus)
+A cyclone warning is issued across a coastal state where 14 campuses of a school chain are located. CrisisAgent detects the government alert via integration with the national disaster management API. Within 60 seconds: it activates Crisis Mode on the 14 affected campuses, pushes a school closure SMS to all 18,000 affected parent contacts, generates campus-specific welfare triage lists for students with SEND, medical needs, or transport dependency, notifies the Group CEO's dashboard, and creates a recovery timeline. CampusAgent coordinates cross-campus teacher redeployment for the post-crisis period. SynthesisAgent monitors welfare follow-up completion across all 14 campuses simultaneously.
+UC-008: AI-Powered Course Registration (University)
+A B.Com third-year student logs in for course registration. AdvisorAgent has pre-run a degree audit: she needs 18 more credits, must complete 2 mandatory core courses, and has 3 elective slots. AdvisorAgent presents personalised elective recommendations based on her academic performance, career goals (indicated in her profile), and real-time seat availability. It flags a prerequisite conflict in her initial selection and suggests an alternative. She registers in 4 minutes. AcademAgent updates her degree progress. SchedulAgent integrates her timetable into the university-wide schedule without conflicts.
+UC-009: Coaching Batch Performance Intelligence
+BatchAgent processes results from a JEE Mock Test Series Test #12 across all students in the Dropper batch (180 students). Within 2 hours of result upload: it generates individual performance reports for each student (topic-wise analysis, percentile rank, time-per-question analysis), creates a batch-level weak chapter report for the faculty, identifies the 25 students in the bottom quartile and triggers a parent communication, adjusts the next week's revision schedule to address the top 3 weakest topics across the batch, and surfaces a personalised study plan for each student. All without any manual intervention.
+UC-010: International School Multi-Currency Fee Consolidation
+An international school group operates across Dubai, Singapore, and London. IntlAgent runs the monthly fee consolidation: fee invoices in AED, SGD, and GBP are converted to USD at the day's exchange rates, FX gains/losses are calculated and posted to the relevant cost centres, a consolidated group revenue dashboard is updated, and country-specific tax treatment (VAT in UAE, GST in Singapore, VAT in UK) is applied. The Group CFO receives a single consolidated P&L dashboard in USD with drill-down to campus level in local currency — in 15 minutes rather than 3 days.
+UC-011: Accreditation Self-Study Report — AI-Drafted
+A college is due for NAAC reaccreditation in 8 months. AccredAgent has been monitoring all 7 NAAC criteria continuously for 3 years. On instruction, it auto-populates the Self-Study Report (SSR) template: pulling faculty qualification data from HRAgent, research publications from ResearchAgent, student outcome data from AcademAgent, infrastructure metrics from FacilitiesAgent, and financial data from FeeAgent. The draft SSR is 85% complete in 4 hours. The IQAC Coordinator reviews and supplements the remaining 15% requiring qualitative narrative. Accreditation prep time reduced from 6 months to 6 weeks.
+UC-012: Longitudinal Student Identity — School to University
+Aryan studied at a ScholarMind-powered CBSE school (Grades 6–12) and is now enrolling at a ScholarMind-powered university in the same group. With Aryan's consent, his entire academic identity — grade history, attendance record, IEP accommodations (mild dyslexia), extracurricular achievements, risk interventions history, and learning style profile — is transferred to the university platform. AdvisorAgent at the university receives this context and, on Day 1, already knows Aryan's dyslexia accommodations, his strong subject areas (Mathematics, Physics), his history of exam anxiety, and recommends an academic advisor with experience supporting students with similar profiles. No re-intake forms. No lost context.
+
+5. Functional Requirements — All 36 Modules
+Modules 1–21 carry forward from v2.0 with v3.5 enhancements noted inline. Modules 22–31 are new additions for multi-campus, international, higher education, and coaching contexts.
+For full specification of Modules 1–21 (Student Management, Attendance, Academics, Timetabling, Communications, Finance, HR, Library, Health, Examinations, Analytics, Global Equity, Crisis Education, SEND, Teacher CPD, Alumni, IoT/Facilities, Student Voice, Community/Sustainability, AI Ethics), refer to Section 5 of PRD v2.0. The enhancements below are additive.
+
+ENHANCEMENTS TO FOUNDATIONAL MODULES
+
+Module 1 (Admissions) — v3.5 Enhancements
+	•	University admissions: UG/PG/PhD application workflows with entrance exam score integration (JEE, NEET, CAT, GRE, GMAT, IELTS, TOEFL, SAT), merit list generation, counselling rounds management.
+	•	Coaching batch enrollment: simplified 3-step registration; batch recommendation based on diagnostic test; fee structure selection; digital agreement signing.
+	•	International admissions: visa type tracking, I-20/CAS generation support, guardian declaration for minors, country-of-origin document authentication.
+	•	Group-level admissions funnel: chain schools or multi-campus groups can manage admissions centrally with campus allocation algorithms.
+Module 4 (Academics) — v3.5 Enhancements
+	•	Credit-based curriculum management: full credit system (UGC Choice Based Credit System — CBCS; semester/annual scheme; credit transfer protocols).
+	•	Course catalogue management: course codes, prerequisites, credit hours, faculty assignment, seat limits, elective groups.
+	•	Grade Point Average (GPA/CGPA) calculation: configurable grading scales (10-point, 4-point, percentage); cumulative GPA tracking across semesters.
+	•	Coaching syllabus engine: competitive exam syllabus mapping (JEE Main/Advanced, NEET, CAT, UPSC, State PSCs, GATE, GRE, GMAT); chapter-level progress tracking; difficulty-level tagging.
+Module 7 (Finance) — v3.5 Enhancements
+	•	Multi-campus financial consolidation: group-level P&L, balance sheet, and cash flow in a consolidated view with campus-level drill-down.
+	•	Multi-currency management: real-time exchange rates, FX gain/loss calculation, hedging exposure reporting for international groups.
+	•	University-specific financial flows: tuition, hostel, mess, laboratory fees; research grant receipts and expenditure; corpus fund management.
+	•	Coaching fee models: one-time course fee; instalment plans; per-test-series billing; refund policy automation on batch changes.
+Module 8 (HR) — v3.5 Enhancements
+	•	Faculty workload management: automatic workload calculation per faculty member (contact hours, lecture preparation, research, advising); WorkloadAgent flag when any faculty exceeds UGC/AICTE norms.
+	•	Multi-campus HR consolidation: group-level headcount, vacancy, and compensation reporting; cross-campus transfer management.
+	•	Visiting/adjunct faculty management: contract management, pro-rata payroll, course assignment for part-time academic staff.
+	•	Research leave and sabbatical management: approval workflow, replacement planning, grant-funded leave tracking.
+
+NEW MODULES — v3.5
+
+5.22 Module 22: Multi-Campus Management & Group Governance (NEW)
+The defining new capability of v3.5. This module transforms ScholarMind from a school-level system into a group-level operating platform.
+5.22.1 Group HQ Command Centre
+	•	Real-time group KPI dashboard: attendance rate, fee collection %, exam results average, staff vacancy count, and open crisis flags — across all campuses simultaneously, updated in real time.
+	•	Campus benchmarking engine: ranks campuses on configurable KPIs; identifies top and bottom performers; surfaces the specific factors driving the gap using InsightAgent analysis.
+	•	HQ Policy Engine: group administrators push policies (fee structures, grading scales, curriculum frameworks, code of conduct, security standards) to all campuses; campuses cannot override HQ policy but can customise within defined ranges.
+	•	Cross-campus calendar management: group-wide academic calendar (exam dates, holidays, events) pushed to all campuses; campus-specific local events managed locally.
+	•	Group-level compliance dashboard: single view of regulatory compliance status across all campuses; automatic alerts when any campus is at risk of non-compliance.
+5.22.2 CampusAgent Capabilities
+	•	Cross-campus anomaly detection: CampusAgent monitors KPI distributions across the group and flags outlier campuses (e.g., Campus #23 has attendance 15 percentage points below the group mean for 3 consecutive weeks).
+	•	Resource rebalancing: identifies campuses with surplus staff or facilities and recommends redeployment to campuses with shortfalls.
+	•	Student transfer orchestration: manages the end-to-end transfer workflow — record export, new campus setup, parent notification, fee balance transfer — in under 24 hours.
+	•	New campus onboarding: when a new campus joins the group, CampusAgent orchestrates the setup — data migration, policy inheritance, staff account creation, parent portal activation — within a defined onboarding SLA.
+5.22.3 Inter-Campus Academic Management
+	•	Shared teacher pools: teachers can be assigned to teach across campuses (in-person or virtual); SchedulAgent manages cross-campus availability.
+	•	Group-wide question bank: a centralised, version-controlled assessment repository shared across all campuses; campus can use group questions or add local ones.
+	•	Cross-campus student comparison: anonymised performance benchmarking showing how a student at Campus A compares to students at the same grade level across the group.
+	•	Best practice propagation: InsightAgent identifies instructional practices at high-performing campuses and recommends adoption across the group.
+5.22.4 Group Financial Management
+	•	Consolidated financial reporting: group-level P&L, balance sheet, and cash flow consolidated across all campuses in real time.
+	•	Inter-campus fund transfers: HQ to campus grant transfers, campus to HQ fee remittances, and internal loans tracked with full audit trail.
+	•	Group procurement: centralised procurement workflows (textbooks, uniforms, technology) with campus-level distribution tracking.
+	•	Group insurance and liability management: policy tracking, claim filing, and renewal management across the entire group.
+5.23 Module 23: Higher Education Management (NEW)
+A comprehensive higher education management suite purpose-built for degree-granting institutions — colleges, universities, and professional institutes. Covers the full academic lifecycle from application to graduation and beyond.
+5.23.1 Course & Programme Management
+	•	Programme catalogue: full management of all academic programmes (UG/PG/PhD/Diploma/Certificate); programme structure, duration, credit requirements, specialisations.
+	•	Course management: course codes, descriptions, credit hours, contact hours, prerequisites, co-requisites, course types (core/elective/audit/project).
+	•	Curriculum revision workflow: tracked changes to programme structures; version control; regulatory approval workflow for curriculum changes.
+	•	Choice-Based Credit System (CBCS): UGC-compliant credit framework; ability/skill/discipline-specific/generic electives configuration.
+	•	Course section management: multiple sections per course; section-level enrollment caps; section-faculty assignment; classroom allocation.
+5.23.2 Student Registration & Degree Audit
+	•	Online course registration: time-slot-based registration opening; prerequisite enforcement; seat availability in real time; waitlist management.
+	•	AdvisorAgent degree audit: continuously monitors every student's credit completion against their programme requirements; identifies gaps, at-risk-of-not-graduating students, and optimal paths to completion.
+	•	Academic hold management: automated holds for fee arrears, missing documents, or academic sanctions; self-clearance workflows.
+	•	Course add/drop: online add/drop within defined periods; withdrawal with grade implications clearly communicated to student.
+	•	Credit transfer evaluation: incoming transfer student credits evaluated against programme requirements using equivalency mapping; AdvisorAgent recommends recognised credits.
+	•	Graduation eligibility check: automated graduation audit run 2 semesters in advance; flags students at risk of delayed graduation.
+5.23.3 Faculty Management — Higher Ed Specific
+	•	Faculty portal: dedicated interface for grade submission, attendance marking, course material upload, research activity logging, advising management.
+	•	Academic workload calculator: automatically computes UGC/AICTE-compliant workload per faculty (lecture hours, tutorials, practicals, research, administration, advising); flags workload violations.
+	•	Syllabi and lesson plan management: faculty uploads approved syllabi; AcademAgent tracks coverage against the approved syllabus.
+	•	Examination paper submission: secure question paper submission with encrypted storage, access log, and version control.
+	•	Internal assessment marks entry: online marks entry with moderation workflow; statistical analysis to flag extreme distributions.
+5.23.4 Academic Advising System
+	•	Advisor assignment: every student assigned an academic advisor; advisor sees their full advisee list with risk flags.
+	•	AdvisorAgent AI assistant: advising chatbot answering degree-related questions 24/7; escalates complex cases to human advisor.
+	•	Advising session logging: mandatory logging of advising interactions; missed advising triggers RiskAgent flag.
+	•	At-risk student early intervention: AdvisorAgent identifies students at risk of academic failure or non-graduation 2 semesters in advance; generates intervention plans.
+	•	Career pathway guidance: links academic performance and course choices to career outcomes data from AlumniAgent; personalises course recommendations.
+5.23.5 Examination & Results Management — Higher Ed
+	•	University examination timetable: generates clash-free timetable for hundreds of courses; manages invigilation assignments; hall allocation.
+	•	Exam hall entry management: digital admit card generation; biometric entry verification.
+	•	Answer script management: barcode-based script tracking from collection to dispatch to examiner to receipt; chain-of-custody audit trail.
+	•	Online/hybrid examination: proctored online exams with AI anomaly detection; hybrid exam management.
+	•	Result processing: marks entry, moderation, grace marks, re-evaluation workflow; grade sheet generation; university-standard transcript production.
+	•	Revaluation and challenge: student-initiated revaluation requests; automated routing to senior examiner; result amendment workflow with approvals.
+5.23.6 Hostel & Campus Life
+	•	Hostel allocation: room assignment engine considering student preferences, gender, year of study; block/floor/room hierarchy.
+	•	Hostel attendance: daily check-in/check-out; late entry management; parent notification for night absences.
+	•	Mess management: daily meal registration; dietary preference management; billing integration.
+	•	Student clubs and activities: club registration, membership management, event approvals, budget management, activity credit tracking.
+	•	Disciplinary management: incident logging, show-cause notice generation, inquiry committee management, penalty enforcement.
+5.24 Module 24: Coaching Institute Management (NEW)
+A ground-up coaching management engine designed for the specific operational reality of competitive exam preparation institutes — JEE, NEET, CAT, UPSC, GATE, GRE, GMAT, State PSCs, Banking exams, and more.
+5.24.1 Batch Management
+	•	Batch architecture: batches defined by exam target, preparation level (Foundation/Regular/Dropper/Crash), timing (Morning/Evening/Weekend), medium of instruction, and year of exam.
+	•	Batch creation wizard: guided setup for batch name, exam target, faculty assignments, schedule, strength cap, fee structure, start/end date, and syllabus attachment.
+	•	Dynamic batch recomposition: based on mid-term diagnostic performance, BatchAgent recommends student movement between batches (e.g., move student from Advanced to Regular batch or vice versa).
+	•	Multi-centre batch management: for coaching groups with multiple centres, BatchAgent manages cross-centre batch transfers, travelling faculty assignments, and consolidated performance analytics.
+	•	Batch strength optimisation: when a batch falls below minimum viable strength, BatchAgent recommends consolidation with another batch.
+5.24.2 Test Series Engine
+	•	Test series management: full lifecycle management — test creation, scheduling, paper setting, seating, conduct, result processing, analysis, and distribution.
+	•	Question bank: comprehensive chapter/topic/subtopic-tagged question repository with difficulty level, source (past year/standard), cognitive level (recall/application/analysis), and time benchmark.
+	•	Auto-paper generation: AI-assisted test paper creation from the question bank based on syllabus coverage, topic weightage, and difficulty distribution matching target exam patterns.
+	•	Online and offline test modes: fully integrated online exam with OMR simulation; offline OMR sheet scanning with AI-based answer extraction.
+	•	Test scheduling: automated test calendar across all batches; conflict-free seating plan generation; room allocation.
+5.24.3 BatchAgent — Performance Intelligence
+	•	Individual performance dashboard: every student gets a granular post-test analysis — accuracy by topic, time management, question-level mistakes, percentile rank within batch and across all centres.
+	•	Chapter-wise mastery tracking: longitudinal tracking of student performance on every chapter/topic across all tests; generates a heat-map of mastery gaps.
+	•	Rank prediction engine: based on test series performance trends, BatchAgent predicts probable JEE Main/Advanced, NEET, or CAT rank range; updated after every test.
+	•	Comparative analytics: student vs. batch average, student vs. top 10% of batch, batch vs. other batches in centre, centre vs. group.
+	•	Parent performance communication: automated, professionally formatted performance reports dispatched to parents after every test; no manual PDF creation.
+	•	Faculty batch intelligence: faculty receives a batch-level analysis after every test — which topics the batch is weak on, which students need additional attention.
+5.24.4 Doubt Resolution Platform
+	•	Structured doubt logging: students submit doubts with topic tag, sub-topic, specific question image (camera capture), and urgency flag.
+	•	AI first-response: BatchAgent attempts to resolve the doubt using the knowledge base for the relevant exam; escalates to human faculty only if the AI confidence is below threshold.
+	•	Faculty doubt queue: unresolved doubts routed to the relevant subject faculty with SLA; doubt resolution logged for quality tracking.
+	•	Video doubt library: common doubts resolved on video by faculty; AI tags and indexes the video library; students get matched to relevant video solutions.
+	•	Doubt analytics: identifies the most frequently asked doubts by topic; InsightAgent surfaces this to faculty as curriculum coverage gaps.
+5.24.5 Study Material & Content Management
+	•	Digital study material library: chapter-wise notes, practice sheets, past year papers, formula sheets — all in a searchable digital library with version control.
+	•	Student material tracking: tracks which materials each student has downloaded and engaged with; BatchAgent flags students who aren't accessing study materials.
+	•	Lecture recording management: video lectures recorded and tagged by faculty; integrated with the batch schedule; accessible to students who missed class.
+	•	Personalised revision plans: BatchAgent generates weekly revision plans for each student based on their chapter mastery gaps, upcoming test topics, and time remaining to exam.
+	•	Motivational milestones: automated milestone notifications when students cross rank improvement thresholds; leaderboards within batch (optional, teacher-configured).
+5.25 Module 25: International Operations Management (NEW)
+For school groups, university systems, coaching brands, and hybrid education institutions operating across multiple countries, currencies, curricula, and regulatory environments.
+5.25.1 Multi-Currency Financial Operations
+	•	Real-time exchange rate integration: live FX rates from central bank APIs for all active currencies.
+	•	Multi-currency invoicing: fee invoices generated in the student's local currency; converted to group reporting currency at the transaction date rate.
+	•	FX gain/loss accounting: automatically calculated and posted to the relevant financial period; country-level exposure reporting.
+	•	Cross-border fund repatriation tracking: management of fund transfers between country entities; regulatory remittance approval workflows.
+	•	Country-specific tax management: VAT (UAE), GST (Singapore, India), VAT (UK, EU), GST (Australia) — each country's tax rules configured and applied automatically.
+5.25.2 Student Visa & Immigration Management
+	•	Visa status tracking: student visa type, issue date, expiry date, renewal status — for all international students.
+	•	Automated renewal alerts: IntlAgent sends visa expiry alerts to the student, parent, and registrar 90/60/30 days in advance.
+	•	I-20/CAS generation support (US/UK): auto-population of enrolment and financial data into I-20 (US F-1) and CAS (UK Tier 4) applications.
+	•	Attendance compliance for visa: many visa regimes require minimum attendance; AttendAgent flags students whose attendance threatens visa compliance and routes alerts to the international office.
+	•	Emergency visa support: document generation for visa emergencies (family medical emergency travel, visa renewal expedite).
+5.25.3 Multi-Curriculum Management
+	•	Simultaneous curriculum support: a single campus can operate IB, IGCSE, A-Level, AP, and a national board simultaneously; each student assigned to their curriculum pathway.
+	•	International Baccalaureate (IB) module: PYP/MYP/DP/CP programme management; CAS tracking; extended essay management; TOK management; predicted grades.
+	•	Cambridge International (IGCSE/A-Level): course management, component tracking, predicted grades, Cambridge submission data generation.
+	•	US Advanced Placement (AP): course management, exam registration, score reporting.
+	•	Cross-curriculum university guidance: AdvisorAgent provides university application support considering the student's specific curriculum.
+5.25.4 Expatriate & Diverse Community Support
+	•	Multi-language parent communication: CommAgent sends communications in each family's preferred language; 40+ languages.
+	•	Cultural calendar management: school calendar aware of major religious and cultural observances across the student population; optional absence pre-approval for cultural observances.
+	•	Nationality diversity reporting: demographic diversity reports for institutional reporting and accreditation bodies.
+	•	Guardian / Embassy communication: for boarding students or students on guardianship arrangements, formal communication protocols for guardians and relevant embassies.
+5.26 Module 26: Research & Innovation Management (NEW)
+For universities and research institutions. Manages the full research lifecycle from proposal to publication, with grant, ethics, output, and collaboration controls built into the same institutional core.
+5.26.1 Research Grant Management
+	•	Grant repository: all active and completed research grants catalogued with funding agency, PI, co-investigators, budget, timeline, and deliverables.
+	•	Grant application support: ResearchAgent helps researchers draft grant applications using institutional data (past publications, equipment, facilities) and funding agency guidelines.
+	•	Budget tracking: grant expenditure tracked in real time against budget heads; ResearchAgent alerts when expenditure trajectories suggest over/underspend before reporting periods.
+	•	Utilisation certificate generation: automated generation of utilisation certificates for funding agencies at reporting milestones.
+	•	Grant compliance calendar: automated reminders for interim reports, financial statements, and project completion reports.
+5.26.2 Research Output Management
+	•	Publication repository: all faculty and student publications catalogued with metadata (journal, IF, Scopus/WoS indexing, citations, co-authors).
+	•	Automated publication tracking: ResearchAgent monitors Google Scholar, Scopus, and Web of Science for new publications by faculty; requests confirmation and adds to repository.
+	•	H-index and citation tracking: live tracking of faculty h-index and total citations; InsightAgent surfaces trends.
+	•	Patent management: patent applications, grants, and commercialisation tracked with legal status updates.
+	•	Research output reporting: automated generation of research reports for NIRF, NAAC, UGC, and accreditation bodies.
+5.26.3 Research Ethics & Compliance
+	•	Institutional Ethics Committee (IEC) management: research proposal submission, ethics review workflow, conditional approval tracking, post-approval compliance monitoring.
+	•	Human subjects research protocols: Informed Consent documentation, IRB-equivalent workflow.
+	•	Animal ethics board integration: where applicable, IAEC approval workflow.
+	•	Data management plans: standardised DMPs required for all externally funded research; compliance tracking.
+5.26.4 Research Collaboration
+	•	MoU and collaboration management: institutional agreements with industry and international partners; activity tracking against MoU terms.
+	•	PhD student management: supervisor assignment, thesis proposal submission, progress milestones, pre-submission review, viva scheduling.
+	•	Internship and industry project coordination: ResearchAgent matches students with industry-defined projects; manages work agreements, interim reviews, and final assessments.
+5.27 Module 27: Accreditation & Quality Management (NEW)
+Eliminates the months-long manual effort of accreditation preparation by embedding continuous quality monitoring into the platform.
+5.27.1 AccredAgent — Continuous Readiness
+	•	Multi-accreditation support: NAAC, NBA, UGC, AICTE, ABET, QAA, EQUIS, AACSB, COBIS, CIS, IB World School — each with its own criterion framework configured in AccredAgent.
+	•	Criterion mapping: every data point in ScholarMind is mapped to the relevant accreditation criteria it can evidentially support; data flows automatically to accreditation dashboards.
+	•	Accreditation readiness score: live score for each accreditation criterion, updated as underlying data changes; alerts when any criterion falls below the minimum satisfactory threshold.
+	•	Evidence collection engine: AccredAgent automatically collects, organises, and stores evidence artefacts (data tables, policy documents, photographs, testimonials) against each criterion throughout the year.
+5.27.2 Self-Study Report (SSR) Automation
+	•	SSR template management: official SSR templates for each accreditation body; version-controlled against accreditation cycle updates.
+	•	AI-assisted SSR drafting: AccredAgent auto-populates quantitative sections from live data; generates draft narrative for qualitative sections based on institutional data and approved templates.
+	•	Collaborative SSR editing: multi-user editing with contribution tracking; IQAC Coordinator, HoDs, and Principal all contribute in their sections simultaneously.
+	•	SSR submission package: auto-generates the complete submission package (SSR document, data tables, supporting documents) in the format required by the accreditation body.
+5.27.3 Internal Quality Assurance Cell (IQAC)
+	•	IQAC dashboard: dedicated interface for the IQAC Coordinator with criterion-by-criterion status, pending data collection tasks, and upcoming accreditation milestones.
+	•	Annual Quality Assurance Report (AQAR): automated generation of the AQAR for NAAC institutions based on the year's activity data.
+	•	Academic audit management: internal academic audit scheduling, observation recording, compliance tracking, and action point follow-up.
+	•	Best practice documentation: structured templates for documenting institutional best practices and distinctive features for accreditation submission.
+5.28 Module 28: Placement & Career Services (NEW)
+For higher education institutions and coaching institutes preparing students for career entry.
+5.28.1 PlacementAgent Capabilities
+	•	Company relationship management: employer database with contacts, past placement history, package trends, and selection process documentation.
+	•	Job and internship posting: companies post opportunities directly; PlacementAgent matches eligible students based on CGPA, skills, programme, and preferences.
+	•	Campus recruitment calendar: PlacementAgent manages the entire placement season — pre-placement talks, aptitude tests, GDs, interviews — with automated scheduling and communication.
+	•	Offer tracking: real-time offer status dashboard; PlacementAgent tracks each student's application status, interview outcomes, and offer receipt.
+	•	Student placement preparation: aptitude test practice, mock interview scheduling, resume builder, LinkedIn profile optimisation guidance.
+5.28.2 Placement Analytics
+	•	Placement statistics dashboard: real-time placement percentage, average/median package, top recruiter, sector-wise distribution — auto-updated.
+	•	NIRF placement data: automated generation of placement data in NIRF submission format.
+	•	Salary trend analysis: year-over-year package trend; comparison with national benchmarks.
+	•	Employer satisfaction survey: automated post-placement surveys to employers; results feed TeachAgent for curriculum alignment recommendations.
+	•	Alumni placement tracking: AlumniAgent tracks career progression post-placement; multi-year salary and role growth data.
+5.29 Module 29: Student Financial Aid & Scholarship Management (NEW — Enhanced)
+Expanded from the v2.0 scholarship features to a full financial aid management system for higher education.
+	•	Financial aid application portal: online FAFSA-style application for merit and need-based aid; document upload and verification.
+	•	Aid package calculation: automated calculation of aid packages based on institutional policy, financial need assessment, and available fund inventory.
+	•	Government scholarship integration: direct integration with NSP (National Scholarship Portal, India), state scholarship portals, and international scholarship databases.
+	•	Scholarship compliance tracking: conditions of scholarships (minimum GPA, attendance) monitored continuously; scholarship disbursement held if conditions are not met.
+	•	Loan disbursement coordination: integration with bank education loan portals; disbursement confirmation tracking.
+	•	Aid renewal automation: aid renewed automatically when conditions are met; FeeAgent adjusts tuition billing accordingly.
+5.30 Module 30: Digital Learning Integration (NEW)
+A unified learning technology layer connecting ScholarMind to the full spectrum of learning platforms.
+	•	LMS deep integration: bi-directional sync with Moodle, Canvas, Blackboard, Google Classroom, and Microsoft Teams for Education via LTI 1.3 and xAPI.
+	•	Content delivery network: integrated digital content library — NCERT, CBSE, IB, Cambridge official digital resources — licensed and accessible within the platform.
+	•	Video lecture management: faculty upload and manage recorded lectures; students access via the student portal; engagement analytics (completion rate, pause points, rewatch patterns).
+	•	Live class management: virtual classroom scheduling, attendance tracking for live sessions, recording, and post-class resource sharing.
+	•	xAPI learning analytics: all learning activities (video views, quiz attempts, content downloads, forum posts) tracked via xAPI; AcademAgent uses this data to build richer student learning profiles.
+	•	AI tutoring integration: plug-in interface for AI tutoring platforms (Khan Academy, Byju's, Vedantu APIs) — student usage data flows into AcademAgent.
+	•	Offline content delivery: curriculum-aligned content cached on student devices for offline access; progress synced when connectivity returns.
+5.31 Module 31: Enterprise Configuration & White-Labelling (NEW)
+For large institution groups, technology partners, and government deployments requiring institutional branding and configuration control.
+	•	Full white-label capability: institution logo, colour scheme, custom domain, custom email domain, and branded mobile app (iOS + Android) configurable per group or campus.
+	•	Custom module configuration: institutions can enable, disable, or rename modules to match their internal terminology (e.g., 'Batches' vs. 'Classes' vs. 'Sections').
+	•	Workflow customisation: key workflows (admissions approval, leave approval, grade submission) configurable by the institution without code changes.
+	•	Custom report builder: drag-and-drop report designer allowing institutions to create custom reports from any combination of data in the platform.
+	•	API-first extensibility: every module accessible via documented API; institutions can build custom extensions, integrations, and UI layers on top of ScholarMind.
+	•	Data export and portability: institutions own their data; full export in open formats (CSV, JSON, XML) on demand; data deletion on contract termination within 30 days.
+
+5.32 Module 32: Revenue Cycle, Payments & Financing Intelligence (NEW)
+5.32.1 Omnichannel Collections & Payment Orchestration
+Unified fee collection across cash, card, UPI, bank transfer, wallet, cheque, POS, and campus kiosk modes.
+Dynamic payment plans for tuition, hostel, transport, coaching batches, semester fees, and international remittance collections.
+Automated receivable ageing, promise-to-pay tracking, failed payment retries, and campus/group-level DSO dashboards.
+5.32.2 Sponsorships, EMI, Loan & Grant-Backed Funding
+Student financing workflows for EMI schedules, lender integrations, scholarships, grants, and deferred payment approvals.
+Sponsor-based billing for corporates, governments, foundations, and embassy-backed student cohorts.
+RiskAgent scoring for collections risk, sponsor dependency, and at-risk revenue concentration.
+5.32.3 CollectionsAgent — Revenue Assurance
+AI-assisted nudges for parents, students, and sponsors based on arrears stage, preferred channel, and compliance guardrails.
+Predicted default probability, campus-wise cashflow variance, and escalation routing to finance teams.
+Auto-generated reconciliation pack for ERP posting, bank matching, and audit review.
+5.33 Module 33: Workforce, Timetabling & Capacity Planning (NEW)
+5.33.1 Teacher, Faculty & Staff Capacity Model
+Workload planning across teachers, faculty, counselors, invigilators, hostel wardens, transport staff, and support functions.
+Role-based staffing norms by board, accreditation requirement, student-teacher ratio, and programme type.
+Cross-campus resource pooling for substitute teachers, visiting faculty, and shared service teams.
+5.33.2 Timetable & Infrastructure Utilisation
+Optimises timetable creation against rooms, labs, hostels, transport shifts, sports grounds, and coaching batch windows.
+Capacity analytics for classrooms, hostel beds, buses, labs, libraries, and exam centres.
+Scenario planning for enrolment growth, new campus openings, and peak examination periods.
+5.33.3 WorkforceAgent — Resilience & Continuity
+Alerts for timetable fragility, single points of failure, excessive teacher load, and understaffed campuses.
+Suggests redistribution of sections, alternate schedules, and shared staffing moves.
+Links staffing efficiency to cost-to-serve and academic outcomes.
+5.34 Module 34: Alumni, Advancement & Endowment Management (NEW)
+5.34.1 Alumni CRM & Lifecycle Engagement
+Persistent relationship graph from student to alumnus with programme history, achievements, chapter participation, and giving potential.
+Community engagement for reunions, mentoring, guest lectures, referrals, and placement networks.
+Geo-based chapter management for international alumni communities.
+5.34.2 Fundraising, Donations & Capital Campaigns
+Donor pipeline management for scholarships, infrastructure, labs, chairs, and endowed programmes.
+Campaign tracking with ask ladders, pledge schedules, tax receipts, utilisation reporting, and stewardship workflows.
+Grant overlap checks across alumni, CSR, foundation, and government sources.
+5.34.3 Endowment Intelligence
+Endowment allocation visibility by purpose, spend rule, institution, and beneficiary cohort.
+Forecasts committed vs available funds and flags utilisation delays.
+Connects advancement outcomes to branding, placements, and research goals.
+5.35 Module 35: Government Reporting & Statutory Submissions (NEW)
+5.35.1 Board, University & Regulatory Filing Packs
+Auto-prepares filings for education boards, university councils, accreditation agencies, scholarship bodies, and local regulators.
+Supports jurisdiction-specific templates for CBSE/ICSE/state boards, UGC/AICTE, NAAC/NBA, ABET, and international bodies.
+Maintains filing calendars, evidence repositories, preparer-reviewer workflows, and submission history.
+5.35.2 Audit & Inspection Readiness
+One-click audit pack generation for academic, financial, HR, transport, hostel, safety, and child-protection audits.
+Traceability from report line item to underlying transactions, documents, and approvals.
+Exception dashboards for missing artefacts, stale approvals, and unresolved non-conformities.
+5.35.3 Public Funding & Utilisation Monitoring
+Tracks utilisation of grants, subsidies, vouchers, and public funding across campuses and programmes.
+Supports restricted-fund accounting and evidence for reimbursement claims.
+Flags overspend, underspend, and non-compliant usage patterns before submission deadlines.
+5.36 Module 36: Marketplace, Ecosystem & Partner Services (NEW)
+5.36.1 Partner Marketplace
+Configurable marketplace for transport vendors, content partners, exam providers, hardware suppliers, and wellness partners.
+Campus and group teams can onboard approved vendors under centrally governed commercial terms and data-sharing policies.
+Partner performance scorecards for SLA, quality, utilisation, and satisfaction.
+5.36.2 Franchise & Network Partner Operations
+Franchise governance for coaching networks and school brands: fee sharing, compliance scores, audits, and launch readiness.
+Curriculum/content distribution with watermarking, access controls, and partner-wise adoption analytics.
+Supports master franchise, regional operator, and affiliate delivery models.
+5.36.3 Ecosystem Revenue Streams
+Commission and referral tracking for partners sold through the platform ecosystem.
+Marketplace settlement, invoice generation, and revenue share rules by product line and geography.
+Provides a path to non-subscription revenue without compromising core platform control.
+5.37 Module 37: Comprehensive Learner Record, Skills Wallet & Employability Network (NEW)
+5.37.1 Learner Record & Skills Graph
+Builds a lifelong learner profile spanning admissions, academics, co-curriculars, attendance, conduct, projects, certifications, internships, capstones, placements, and alumni outcomes.
+Maps evidence to competencies, programme outcomes, graduate attributes, board criteria, and employability skills; supports institution-defined skill taxonomies and external competency frameworks.
+Issues portable learner records, transcript supplements, badge bundles, and evidence packs that can be shared across institutions or with employers under explicit consent controls.
+5.37.2 Career Mobility, Internship & Employer Exchange
+Tracks internships, apprenticeships, practicums, placement readiness, employer evaluations, and offer outcomes across campuses and programmes.
+Creates employer-facing talent pools with institution-controlled visibility, verified achievement claims, and hiring analytics by skill, campus, and programme.
+Supports student-to-employer document exchange, offer workflow, joining confirmation, mentor feedback, and outcome reporting for ranking/accreditation submissions.
+5.37.3 Credential Wallet & Verification
+Maintains a verifiable credential wallet for badges, micro-credentials, course completions, licenses, and achievement evidence with expiry and renewal logic where relevant.
+Allows registrars or authorised institutional officers to revoke, supersede, reissue, and audit credentials without breaking historical traceability.
+5.38 Module 38: Payment Orchestration, Treasury & Reconciliation (NEW)
+5.38.1 Omnichannel Collections & Funding Mix
+Accepts cards, ACH/bank transfer, UPI, wallets, POS, cheque, cash-office, scholarships, grants, sponsorships, loans, and employer funding in a single rules engine.
+Supports split tender, instalment plans, recurring mandates, family-level accounts, sponsor billing, and combined funding scenarios such as scholarship plus loan plus parent co-pay.
+5.38.2 Gateway Orchestration & Exceptions
+Routes payments across gateways by geography, cost, uptime, payment type, institutional policy, and failover rules; useful for multi-country and public-sector deployments.
+Manages payment retries, reversals, disputes, refunds, duplicate receipts, chargebacks, and stale pending transactions with auditable ownership.
+5.38.3 Treasury, Ledger Posting & Reconciliation
+Auto-reconciles settlement files, bank statements, payment gateway reports, receivable ledgers, concessions, and scholarship offsets down to transaction-line level.
+Produces daily cash visibility, unallocated receipt queues, ageing of unreconciled transactions, and exception dashboards for finance shared-services teams.
+5.39 Module 39: K-12 Safeguarding, School Safety & Threat Response (NEW)
+5.39.1 Welfare, Wellbeing & Case Intake
+Captures concerns from teachers, counsellors, transport teams, parents, helplines, and anonymous channels with severity scoring, confidentiality flags, and mandated escalation paths.
+Links attendance anomalies, academic decline, disciplinary incidents, nurse logs, counselling notes, and transport/safety observations into one safeguarded case timeline.
+5.39.2 Anonymous Threat Intake & Response
+Provides a structured intake workflow for anonymous threats, school-safety reports, or suspicious communications with evidence capture, triage, law-enforcement coordination notes, and emergency communications templates.
+Supports multidisciplinary review teams, watchlists, campus closure or restricted-access decisions, and post-incident review with immutable audit trails.
+5.39.3 Family Communication & Regulatory Audit
+Maintains controlled family communications, safeguarding disclosures, action logs, and evidence packs for inspections or child-protection audits.
+Separates safeguarding records from routine student-access pathways; access is limited to authorised personnel with break-glass approval and heightened audit logging.
+5.40 Module 40: Professional Licensure, State Authorization & Regulated Programmes (NEW)
+5.40.1 Jurisdiction Mapping & Student Location
+Maps programme requirements by country, state, province, or regulator; determines whether a learner's location affects delivery permission, disclosure obligations, or licensure eligibility.
+Tracks student location, residency changes, online delivery mode, and cross-border study patterns that can trigger professional-licensure compliance actions.
+5.40.2 Clinical, Practicum & Placement Compliance
+Manages practicum sites, clinical placements, supervisor approvals, permit prerequisites, and placement restrictions for regulated programmes such as teaching, nursing, counselling, and allied health.
+Flags location-programme mismatches before registration or placement approval, reducing regulatory exposure for online and hybrid universities.
+5.40.3 Ongoing Regulatory Monitoring
+Maintains disclosure templates, approval calendars, evidence repositories, renewal workflows, and exception logs for state authorization and profession-specific rules.
+Provides programme-level compliance dashboards for provost, registrar, legal, and online-learning teams with drill-down to affected students and unresolved tasks.
+6. Security Architecture & Data Privacy
+ScholarMind v3.5 extends the Zero-Trust security model from v2.0 to cover the significantly expanded attack surface of a multi-campus, multi-country, multi-institution-type platform. The core principle is unchanged: no user, device, campus, or network segment is trusted by default. Every access request is authenticated, authorised, and continuously validated — regardless of whether it originates from a school principal in Mumbai, a university professor in London, or a coaching student in Kota.
+6.1 Multi-Tenant Security Model — Hierarchical Isolation
+v3.5 introduces a three-tier tenancy model to match the institutional hierarchy:
+	•	Group Tenant: the top-level security boundary for a multi-campus group or university system. Group admins see cross-campus analytics but never raw student PII from individual campuses.
+	•	Campus/Institution Tenant: each campus or college is a fully isolated tenant at the data layer — schema-per-tenant, no possibility of data leakage between campuses, even within the same group.
+	•	Department/Division Sub-tenant: within a university, departments have sub-tenant isolation; a faculty member in the Commerce department cannot access student records from the Engineering department.
+	•	Cross-tenant data flows (for CampusAgent analytics) use aggregated, anonymised data only — raw PII never crosses tenant boundaries.
+6.2 Identity & Access Management — Updated for v3.5
+6.2.1 Extended Role Framework
+Tier
+Role Examples
+Access Scope
+Tier 0 — Group/Trust
+Group CEO, Group CFO, Trust Chairman
+Cross-campus KPIs and consolidated financials; no individual student PII; policy engine
+Tier 1 — Institution Super Admin
+Principal, Registrar, Campus IT Head
+Full access to their campus/institution data; cannot access other campuses
+Tier 2 — Institution Admin
+Vice-Principal, Finance Manager, HoD
+Assigned module access within their institution
+Tier 3 — Faculty/Operational Staff
+Teachers, Lecturers, Counselors, Nurse
+Data of students in their assigned classes/sections/courses
+Tier 4 — External Stakeholders
+Students, Parents, Alumni
+Own/child's data only; sandboxed portal
+Tier 5 — Data Ethics Officer
+DEO, DPO
+Read-only AI decision logs, bias reports, compliance dashboards — all campuses
+Tier 6 — Coaching Faculty
+Batch Teacher, Subject Faculty
+Students in assigned batches only
+Tier 7 — Research Role (NEW)
+PI, Co-Investigator, PhD Supervisor
+Research module and supervised student records only
+Tier 8 — Placement Role (NEW)
+Placement Officer, Career Counselor
+Student profiles shared with placement consent; employer data
+6.2.2 Authentication — Multi-Institutional
+	•	MFA mandatory for all Tier 0–2 roles across all institution types.
+	•	University SSO: deep integration with university Microsoft 365 / Google Workspace tenants using SAML 2.0 / OIDC — faculty and student accounts federated from the university directory.
+	•	Coaching institute: lightweight OTP-based authentication for students and parents; PIN-based for faculty on mobile app.
+	•	Cross-campus federation: a group-level identity provider federates authentication across all campuses; one login for staff who work across campuses.
+	•	Student identity continuity: a student's identity persists as they move from K-12 school to university to placement — single academic identity across the entire ScholarMind ecosystem.
+6.3 Data Security — Updated for v3.5
+6.3.1 International Data Residency
+	•	Country-specific data centres: student data stored in-country for jurisdictions with data localisation requirements (India, UAE, EU, Saudi Arabia, Russia).
+	•	Automated data residency enforcement: IntlAgent monitors student nationality and host country; flags any cross-border data flow that may violate local regulations.
+	•	Group analytics data: for consolidated group analytics, only anonymised/aggregated data flows to the group-level analytics layer; no PII leaves the originating country tenant.
+	•	GDPR adequacy decisions: for EU students at non-EU campuses, data transfer mechanisms (SCCs, BCRs) applied automatically based on the destination country's adequacy status.
+6.3.2 Research Data Security
+	•	Research data classification: all research data classified at intake — public, restricted, confidential, or top-secret (for defence-funded research).
+	•	Sensitive research data vault: encrypted, access-logged vault for clinical trial data, personal data used in research, and commercially sensitive IP.
+	•	Data anonymisation for research: built-in anonymisation tools for student/patient data used in research, meeting IRB/IEC requirements.
+6.3.3 Coaching Data Security
+	•	Test paper security: question papers stored encrypted with access restricted to the Exam Controller role; decryption key released only at test time via time-locked access.
+	•	Rank data sensitivity: individual rank data classified as sensitive; parent access provided only to their own child's rank, not other students'.
+	•	Recording security: batch lecture recordings accessible only to enrolled students in that batch; watermarked with student ID to deter leakage.
+6.4 Compliance Framework — v3.5
+Standard / Regulation
+Applicable To
+Phase
+Key Requirements
+FERPA
+US institutions
+Phase 1
+Student record access, parental rights
+COPPA
+US students <13
+Phase 1
+Parental consent, data minimisation
+GDPR
+EU institutions/students
+Phase 2
+Data subject rights, Article 22, DPO, 72h breach
+EU AI Act
+EU / best practice globally
+Phase 3
+High-risk AI registration, bias monitoring, transparency
+PDPB / DPDP Act
+India institutions
+Phase 2
+Consent, localisation, data principal rights
+UGC Regulations
+Indian universities
+Phase 3
+Academic records, examination, faculty norms
+AICTE Regulations
+Indian tech/mgmt colleges
+Phase 3
+Faculty workload, curriculum, admissions norms
+NAAC / NBA / NIRF
+Indian HE accreditation
+Phase 3
+Data for SSR, AQAR, NIRF ranking submission
+ISO 27001
+All tiers
+Phase 2
+ISMS, risk management, security controls
+SOC 2 Type II
+Enterprise / HE tier
+Phase 3
+Availability, confidentiality, processing integrity
+UNICEF EdTech for Good
+Equity tier
+Phase 4
+Safety, inclusion, effectiveness
+COBIS / CIS
+International schools
+Phase 3
+Child safeguarding, curriculum standards
+ABET / QAA / EQUIS
+Intl. HE accreditation
+Phase 4
+Programme quality, outcomes data
+UNHCR Data Protocols
+Refugee deployments
+Phase 4
+Refugee data protection and portability
+6.5 AI Governance, Evaluation & Human Oversight — v3.5
+Each institution or group must be able to configure an AI policy console that defines allowed use cases, data boundaries, model choices, approval requirements, prompt logging, redaction rules, and escalation pathways by module, persona, geography, and age band.
+Every production AI workflow must support offline evaluation, shadow testing before broad release, versioned prompts/tools, rollback capability, and audit trails linking outputs to model version, context sources, human approver, and downstream business action.
+Decision class
+Typical examples
+Autonomy level
+Required control
+Inform
+Summaries, translations, search, risk surfacing
+Autonomous output allowed
+Traceability and user override
+Recommend
+Schedule suggestions, fee follow-up prioritisation, retention risk ranking
+Human reviews recommendation
+Confidence score plus explainability
+Act with approval
+Student transfer approval pack, scholarship recommendation, collections outreach
+AI prepares action; human approves execution
+Dual logging of AI draft and human decision
+Never autonomous
+Disciplinary outcomes, expulsion, final grades, visa decisions, safeguarding judgments
+Human-only final authority
+AI may assist with evidence collation only
+
+Evaluation pack: accuracy, harmful-output rate, hallucination rate, demographic fairness checks where relevant, educator satisfaction, and operational delta versus human-only baseline must be tracked before scale-up.
+Child and youth safety controls: age-appropriate interaction policies, institution-defined guardrails, anti-self-harm escalation, and mandatory human routing for sensitive wellbeing or disciplinary content.
+6.6 What ScholarMind Will Not Automate — v3.5
+Final disciplinary or expulsion decisions, safeguarding determinations, and legal / immigration judgements.
+Authoritative final grades, thesis outcomes, or accreditation attestations without accountable academic sign-off.
+High-impact financial waivers, scholarship awards, or collections actions without institution-configured approval workflows.
+Sensitive communications involving grief, abuse, medical crisis, or protected-category investigations without human ownership.
+6.7 Privacy, Consent, Retention & Model-Training Controls — v3.7
+Purpose limitation by default: every data object and workflow stores a permitted-use tag so institutions can prove why information was collected, where it may flow, and which downstream uses are prohibited.
+No student-data advertising posture: ScholarMind does not use institutional student data for advertising, audience-building, or third-party behavioural targeting; partner data access is contractually and technically restricted to declared service purposes.
+Collection and sharing consent controls: parental/guardian consent, student consent, legitimate-interest basis, or statutory basis can be configured by age band, institution type, and jurisdiction.
+Retention schedule engine: each record category has a default retention window, legal-hold override, archive policy, and defensible deletion workflow; institutions can apply local policies without custom engineering.
+Model-training exclusion controls: institution tenants choose whether their data can be used for tenant-specific tuning, global product improvement, or neither; the most restrictive setting is the default for minors and safeguarding data.
+Deletion and revocation pack: supports subject access requests, export, correction, suppression, model-training exclusion certificates, and downstream deletion tasks across integrated systems.
+6.8 AI Adoption Operating Model — v3.7
+Role-based rollout lanes: institutions can enable AI in observation mode, recommendation mode, approval-required mode, or restricted mode by persona, module, and campus maturity.
+Sandbox-first enablement: administrators and faculty can trial prompts, workflows, and automations in a non-production sandbox with synthetic or masked data before any live rollout.
+Prompt/data boundary policies: each AI workflow declares which fields may be exposed, which sources are authoritative, and when retrieval-only or no-generative-response modes must be enforced.
+Change enablement pack: training plans, certification checkpoints, adoption dashboards, champion networks, and post-launch coaching are built into the product rollout methodology.
+Adoption metrics: measures AI feature activation, override rates, approval-cycle times, recommendation acceptance, time saved, exception rate, and policy violations by institution and user role.
+
+7. Non-Functional Requirements
+7.1 Performance — Multi-Institution Scale
+Metric
+K-12 / Coaching
+University
+Group / Chain
+API Response Time (P95)
+< 200ms
+< 250ms
+< 300ms (cross-campus)
+Page Load (LCP)
+< 2s / < 3s low-BW
+< 2.5s
+< 3s (group dashboard)
+Concurrent Users
+2,000 / campus
+25,000 / institution
+100,000 / group
+Attendance notification
+< 5 minutes
+< 5 minutes
+< 5 min all campuses
+Course registration (peak)
+N/A
+10,000 reg/hour
+N/A
+Test result processing
+1,000 scripts/hour
+5,000 scripts/hour
+50,000 scripts/hour
+Group KPI dashboard refresh
+N/A
+N/A
+< 60 seconds
+Accreditation SSR generation
+N/A
+< 4 hours
+N/A
+Offline sync (72hr backlog)
+< 5 minutes
+< 10 minutes
+N/A
+7.2 Availability & Reliability
+	•	Standard tier (K-12, coaching): 99.9% uptime SLA.
+	•	Professional tier (multi-campus chains, standalone colleges): 99.95% uptime SLA.
+	•	Enterprise tier (universities, large national chains, international groups): 99.99% uptime SLA with active-active multi-region deployment.
+	•	Course registration peak protection: dedicated auto-scaling pool activated 24 hours before registration windows; guaranteed zero-downtime during registration periods.
+	•	Recovery Time Objective (RTO): < 1 hour (Enterprise); < 4 hours (Professional); < 8 hours (Standard).
+	•	Recovery Point Objective (RPO): < 15 minutes (Enterprise); < 1 hour (Professional); < 4 hours (Standard).
+	•	Scheduled maintenance: zero-downtime rolling deployments for all tiers; planned maintenance communicated 7 days in advance.
+7.2.1 Resilience Engineering & Recovery Validation — v3.7
+Immutable backup architecture: encrypted snapshots, append-only backup vaults, and cross-region replica policies for critical datasets, credential records, and finance ledgers.
+Restore testing: mandated quarterly restore drills for each deployment tier; annual full-environment recovery exercise with documented recovery evidence shared with enterprise customers on request.
+Tenant isolation during incidents: blast-radius controls allow one tenant or integration to be quarantined without forcing platform-wide downtime.
+Crisis operating playbooks: incident communication trees, customer status notices, regulator notification templates, and tabletop exercises form part of the standard service operation.
+7.3 Scalability
+	•	Institution count: designed to scale to 10,000 campuses in a single group deployment.
+	•	Student records: supports 10 million student records in a single group tenant.
+	•	Concurrent agent operations: 26-agent fleet scales horizontally; each agent type auto-scales independently.
+	•	Data warehouse: InsightAgent analytics layer built on a columnar data warehouse (Apache Iceberg on S3) supporting petabyte-scale historical data.
+	•	Question bank: test series engine supports 10 million questions in the bank with sub-second search.
+7.4 Accessibility & Usability
+	•	WCAG 2.2 Level AA minimum across all web and mobile interfaces; targeted enhanced support for SEND and assistive technology experiences.
+	•	Mobile-first responsive design; native iOS and Android apps for all user roles.
+	•	Low-bandwidth mode: all pages under 100KB total payload; functional on 2G connections.
+	•	RTL language support for Arabic, Urdu, Hebrew, and Persian interfaces.
+	•	Cognitive accessibility mode: simplified navigation for students with cognitive needs.
+	•	Faculty portal: optimised for desktop-heavy workflows (grade entry, research logging, advising); also mobile-responsive.
+Keyboard-only completion for all critical journeys, including admissions, fee payments, grade entry, and approvals.
+Screen-reader verified pathways for portals used by students, parents, registrars, faculty, finance teams, and call-centre staff.
+Caption, transcript, and downloadable alternative format support for rich media, notices, and learning-linked institutional communications.
+Touch-target sizing, reduced-motion option, and offline-first parity for the most common mobile actions in low-connectivity environments.
+7.4.1 AI Accessibility Commitments — v3.7
+All AI copilots and recommendation panes must be keyboard-complete, screen-reader compatible, and visually distinguish machine-generated content from system-of-record values.
+AI-generated summaries, notices, and learning-support responses must support transcript, alt-text, and downloadable alternative-format outputs where relevant.
+Human fallback required: if an AI workflow cannot produce an accessible or confident response, the system routes the user to a non-AI workflow or human support path without dead ends.
+Accessibility QA includes disability-related bias checks for high-impact AI outputs such as student support recommendations, welfare risk triage, and advising interventions.
+7.5 Internationalisation
+	•	UI languages: 50+ languages including Hindi, Bengali, Tamil, Telugu, Marathi, Urdu (India), Arabic, French, Spanish, Portuguese, German, Chinese, Japanese, Korean, Swahili.
+	•	Academic calendar: Gregorian, Indian fiscal year, Islamic Hijri, Hebrew, East African calendar systems.
+	•	Multi-currency: 180+ currencies with real-time exchange rates; 3-currency triangulation for complex group consolidations.
+	•	Time zone management: multi-campus groups spanning time zones managed transparently; all events stored in UTC and displayed in campus local time.
+	•	Number formatting: locale-aware number, date, and currency formatting; Indian number system (lakhs, crores) supported alongside international formats.
+
+8. Integrations & API Ecosystem
+8.1 Integration Matrix — v3.5
+Integration
+Category
+Applicable To
+Purpose
+Twilio / MSG91 / Africa's Talking
+Communication
+All
+SMS, WhatsApp, Voice, USSD
+Razorpay / Stripe / Flutterwave
+Payment
+All
+Fee collection, refunds, reconciliation
+Google Workspace / MS 365
+Identity & Productivity
+All
+SSO, directory sync, email
+Moodle / Canvas / Blackboard
+LMS
+HE, Coaching
+Course delivery, grade passback (LTI 1.3)
+Google Classroom / Teams Edu
+LMS (K-12)
+K-12
+Assignment sync, attendance
+Zoom / Google Meet / Teams
+Video
+All
+Parent meetings, virtual classes, interviews
+ZKTeco / Suprema / Hikvision
+Biometrics
+All
+Fingerprint, facial recognition, RFID
+DigiLocker (India)
+Document Verification
+India
+Academic certificate verification
+UDISE+ / NIC
+Govt. Reporting
+India K-12
+Statutory school data submission
+UGC / AICTE Portals
+Govt. Reporting
+India HE
+Faculty data, course approvals, compliance
+NAAC / NBA Systems
+Accreditation
+India HE
+SSR data submission, AQAR upload
+NIRF Portal
+Ranking
+India HE
+Annual ranking data submission
+NSP / State Scholarship Portals
+Scholarships
+India
+Scholarship application and disbursement
+UNHCR ProGres v4
+Refugee
+Crisis/Intl.
+Refugee record linkage
+Scopus / Web of Science
+Research
+Universities
+Publication tracking, citation data
+DST / ICMR / DBT Portals
+Research Grants
+India HE
+Grant application and reporting
+AWS IoT / Azure IoT Hub
+IoT
+All (campus)
+Sensor data, energy, occupancy
+Tally / SAP / Oracle Financials
+Accounting
+All
+Journal export, financial reconciliation
+OneRoster 2.0 / SIF / Ed-Fi
+Interoperability
+All
+Govt. data exchange, LMS roster
+Anthropic Claude / OpenAI / Gemini
+AI Engine
+All
+Core LLM for agent intelligence
+National Emergency Alert APIs
+Crisis
+All
+Disaster / weather alert triggers
+Currency Exchange Rate APIs
+Finance
+Intl.
+Live FX rates for multi-currency ops
+I-20 / CAS Generation Systems
+Immigration
+Intl. Schools / HE
+US / UK visa documentation support
+LinkedIn Learning / Coursera
+CPD / Learning
+HE, Coaching
+Faculty CPD; student skill courses
+Placement Portals (Naukri, LinkedIn)
+Careers
+HE
+Job posting, candidate matching
+8.2 API Architecture
+	•	RESTful API (OpenAPI 3.1 specification) for all integrations — fully documented with interactive sandbox.
+	•	GraphQL API for flexible querying — used by group-level analytics dashboards and third-party BI tools.
+	•	WebSocket API for real-time events: live attendance, agent notifications, placement offer updates, test results.
+	•	Webhooks for 50+ event types covering all 31 modules.
+	•	MCP (Model Context Protocol) Server Layer: enables third-party AI agents to securely access ScholarMind data with OAuth 2.0 scoped permissions.
+	•	Group Federation API: secure API enabling data aggregation across campuses within the same group; anonymisation applied at the API gateway layer.
+	•	Offline Sync API: edge nodes sync accumulated offline data through this endpoint with conflict resolution.
+8.3 Developer Platform
+	•	Developer portal: API documentation, interactive explorer, sandbox with synthetic test data for each institution type.
+	•	SDK: JavaScript/TypeScript, Python, and Java SDKs for the most common integration patterns.
+	•	Plugin marketplace: vetted third-party extensions for specialised institutional requirements.
+	•	Webhook tester and replay: developers can test and replay any webhook event without triggering production workflows.
+	•	Rate limiting: configurable per-API-consumer rate limits with burst allowances for registration-day peaks.
+
+8.4 Standards-Based Interoperability Roadmap — v3.5
+8.4.1 Standards Conformance & Certification Calendar — v3.7
+Versioned standards register maintained by product management, architecture, and compliance teams; every supported standard lists exact version, in-scope objects, certification status, and planned review date.
+OneRoster, LTI/LTI Advantage, Ed-Fi, SCIM, and credential/learning-record exchange support are tracked release-by-release with automated regression suites and customer-facing conformance notes.
+Institutions can view which standards are native, roadmap, partner-supported, or custom-project only before procurement or implementation sign-off.
+Interoperability is a board-level buying criterion for ScholarMind. The platform should reduce replacement risk by supporting sector standards, structured migration, and controlled coexistence with incumbent SIS, LMS, finance, HR, and identity systems.
+Standard / protocol
+Scope
+ScholarMind commitment
+Target phase
+OneRoster 1.2
+Roster, classes, assignments, grades
+Support import/export and certified interoperability path for K-12 and digital learning ecosystems
+Phase 1-2
+LTI 1.3 / LTI Advantage
+Tool launch, roles, grade passback
+Enable secure LMS/content interoperability and deep-link learning tools
+Phase 2
+Ed-Fi 5.2 / 6.x
+K-12 data exchange and state / district interoperability
+Provide mapped connector layer and Ed-Fi-aligned analytics export for supported deployments
+Phase 2-3
+SCIM 2.0
+Identity provisioning / deprovisioning
+Automate lifecycle management for staff, students, guardians, and contractors
+Phase 1
+SAML 2.0 / OIDC
+SSO and federation
+Enterprise identity federation across groups and partner tools
+Phase 1
+OpenAPI 3.1 + Webhooks
+Custom integrations and events
+Full developer access, versioning policy, and event-driven automation
+Phase 1
+
+8.5 Migration Factory & Legacy Coexistence — v3.5
+Migration must be productised as a repeatable factory rather than handled as bespoke implementation work. ScholarMind should provide pre-built templates, validation rules, reconciliation dashboards, and cutover runbooks for common source systems and spreadsheets.
+Legacy coexistence must support phased replacement: institutions should be able to run ScholarMind alongside incumbent LMS, finance, HR, or admissions tools while master data, identities, and event streams remain synchronised through controlled adapters.
+Migration workstream
+Automation target
+Acceptance gate
+Master data mapping
+Institution, campus, programme, user, guardian, vendor templates
+100% mandatory-field completeness and duplicate resolution
+Academic history
+Attendance, grades, credits, transcripts, test history
+Record counts reconcile to source and sample QA approved
+Finance & payments
+Fee ledgers, concessions, scholarships, collections ageing
+Opening balances and receivables variance within agreed threshold
+Documents & evidence
+Student docs, contracts, compliance files, research records
+Checksum / file-count validation and permission inheritance
+Cutover & rollback
+Mock migrations, parallel runs, rollback scripts
+Named sign-off for cutover, rollback window, hypercare ownership
+
+9. Data Model & Information Architecture
+9.1 Core Entity Extensions — v3.5
+Entity
+Key Attributes — v3.5 Extensions
+Institution Group (new)
+group_id, name, type (school_chain/university_system/coaching_network/hybrid), hq_address, group_policies{}, consolidated_currency, active_countries[], campuses[]
+Campus
+campus_id, group_id, name, type (k12/college/university/coaching/international), tier, country, curriculum_type[], data_residency_region, crisis_mode_active
+Student (extended)
+student_id, academic_identity_id (persistent across institutions), current_campus_id, institution_type, batch_id (coaching), programme_id (HE), cgpa, semester, visa_status, refugee_flag
+Academic Identity (new)
+academic_identity_id, created_date, linked_student_records[], linked_alumni_record, consent_level, portability_key
+Programme (new — HE)
+programme_id, campus_id, name, type (UG/PG/PhD/Diploma), duration_years, credit_requirement, specialisations[], accreditation_status, courses[]
+Course (new — HE)
+course_id, programme_id, code, title, credits, contact_hours, type (core/elective/audit/lab), prerequisites[], faculty_id, sections[], semester_offered
+Batch (new — Coaching)
+batch_id, campus_id, name, exam_target, level, schedule, faculty_ids[], strength, fee_structure_id, syllabus_id, test_series[], start_date, end_date
+Test (new — Coaching)
+test_id, batch_id, series_name, test_number, date, duration_mins, total_marks, sections[], question_paper_id, results_published, analytics_complete
+Research Grant (new)
+grant_id, campus_id, pi_id, title, agency, amount, currency, start_date, end_date, budget_heads{}, expenditure{}, reports_due[], status
+Publication (new)
+pub_id, campus_id, authors[], title, journal, year, doi, scopus_id, impact_factor, citations, type (journal/conference/book/patent)
+Accreditation Record (new)
+accred_id, campus_id, body, type, cycle_start, cycle_end, criteria_scores{}, ssr_draft_id, last_visit_date, current_grade, next_due
+Placement Record (new)
+placement_id, student_id, company_id, role, package_lpa, offer_date, joining_date, status, type (on-campus/off-campus/internship)
+Employer (new)
+employer_id, name, sector, contacts[], past_placements[], avg_package_trend[], preferred_programmes[], active_jobs[]
+Visa Record (new — Intl.)
+visa_id, student_id, type, country, issue_date, expiry_date, renewal_status, compliance_attendance_threshold, i20_cas_ref
+9.2 Persistent Academic Identity
+One of the most significant data architecture decisions in v3.5: a student's Academic Identity persists across institutions within the ScholarMind ecosystem. When a student moves from a ScholarMind-powered school to a ScholarMind-powered university or coaching institute, their core academic record — with explicit consent — can be linked. This gives receiving institutions immediate context, eliminates re-intake paperwork, and enables true longitudinal outcome analysis.
+	•	Academic Identity is opt-in with granular consent: students/parents choose which data elements to share and can revoke at any time.
+	•	Identity linkage is cryptographically signed: the receiving institution receives a consent token; without the token, no data transfers.
+	•	Cross-institution data remains separated at the storage layer: linkage is at the application layer, not the database layer.
+	•	Academic Identity is portable beyond ScholarMind: exports to SIF/Ed-Fi standard for portability to non-ScholarMind institutions.
+9.3 Group Analytics Data Architecture
+Group-level analytics (chain KPI dashboards, campus benchmarking, consolidated financials) require data aggregation across tenant boundaries. This is achieved through a dedicated Group Analytics Pipeline:
+	•	Campus-level agents generate anonymised metric snapshots every 15 minutes — no PII in the snapshots.
+	•	Snapshots flow to the Group Analytics Warehouse via encrypted, tenant-isolated channels.
+	•	InsightAgent operates on the warehouse — it never has access to raw PII from individual campuses.
+	•	Drill-down from group-level KPI to campus-level detail requires the user to switch into the campus tenant with the appropriate RBAC permissions.
+9.4 Verifiable Learner Record & Employability Graph — v3.7
+Core entities extended to include competency, skill assertion, evidence artefact, badge, credential, placement opportunity, employer, internship evaluation, and career outcome.
+Every employability claim is traceable to evidence such as grade components, project reviews, attendance thresholds, internship feedback, or approved extracurricular achievement.
+The learner record graph separates institution-authored facts, learner-contributed portfolio items, employer feedback, and externally issued credentials so trust levels remain explicit.
+
+10. Implementation Roadmap — v3.5
+10.1 Phased Delivery Plan
+Phase 1: Core Foundation (Months 1–6)
+Establish the shared platform core that all institution types will build on: common data model, tenant hierarchy, security baseline, core K-12 operations, and the first adapter-ready services. All existing Phase 1 commitments remain intact, but implementation is explicitly structured so later higher-ed, coaching, and international layers plug into the same foundation.
+	•	Core infrastructure: Kubernetes, CI/CD, Zero-Trust security, audit trail, MFA, RBAC.
+	•	K-12 core modules: Student Master, Attendance, Academic Gradebook, Fee Management, Communications.
+	•	Base agents: AttendAgent, FeeAgent, CommAgent, RiskAgent v1.
+	•	Web + mobile applications: Admin dashboard, Teacher app, Parent portal.
+	•	Target: 3 pilot K-12 schools; up to 2,000 students each.
+Phase 2: Intelligence & Scale (Months 7–12)
+Scale the common platform across larger K-12 deployments while introducing the first network-governance and coaching capabilities. Phase 2 proves that ScholarMind is not a single-school product but a configurable platform for chains, districts, and coaching pilots.
+	•	Full K-12 agent fleet + SynthesisAgent: cross-domain welfare synthesis operational.
+	•	Remaining K-12 modules: Admissions Engine, Timetable Scheduler, HR & Payroll, Library, Exam Management.
+	•	v2.0 modules: SEND/NeuroAgent, Global Equity architecture, Offline-First, SMS interface, AI Ethics baseline.
+	•	Coaching Module Alpha: BatchAgent, batch management, test series engine, basic performance analytics.
+	•	Multi-Campus Alpha: CampusAgent v1, group KPI dashboard, basic HQ policy engine.
+	•	Target: 100 K-12 schools; 5 pilot coaching institutes.
+Phase 3: Higher Education & Full Coaching (Months 13–24)
+Launch the higher education operating layer and complete the coaching engine on top of the shared platform, with deliberate focus on registrar workflows, examination integrity, faculty operations, and hybrid-group interoperability.
+	•	Higher Education suite: course/programme management, credit system, degree audit, AdvisorAgent, faculty portal.
+	•	Exam & Results Management (HE): university examination timetable, script management, result processing, transcripts.
+	•	Coaching engine complete: BatchAgent v2 with rank prediction, doubt resolution platform, personalised study plans, parent reporting.
+	•	Research Module Alpha: ResearchAgent, grant management, publication repository.
+	•	Placement Module: PlacementAgent, campus recruitment calendar, placement analytics.
+	•	Accreditation Module Alpha: AccredAgent, NAAC/NBA criterion tracking, SSR data aggregation.
+	•	Teacher CPD, Alumni, Facilities, Sustainability, Student Voice modules (from v2.0) — full deployment.
+	•	Target: 500 K-12 schools; 50 coaching institutes; 10 colleges/universities.
+Phase 4: Global Equity & International Operations (Months 25–36)
+Extend the platform to international groups, full multi-country operations, and underserved populations while maturing accreditation, research, digital learning, and enterprise configuration into globally deployable capabilities.
+	•	International Operations module: IntlAgent, multi-currency consolidation, visa tracking, multi-curriculum support.
+	•	Full accreditation suite: AccredAgent v2, AI-assisted SSR drafting, IQAC dashboard, AQAR automation.
+	•	Research module complete: ethics board workflow, PhD management, industry collaboration, ResearchAgent v2.
+	•	Full v2.0 equity modules: Crisis Mode, Refugee Rapid Intake, USSD interface, government financial model.
+	•	Digital Learning Integration: LMS deep integration, xAPI analytics, offline content delivery.
+	•	Enterprise Configuration: white-labelling, custom workflow builder, custom report designer.
+	•	Student Financial Aid: full aid management, NSP integration, loan disbursement coordination.
+	•	Target: 2,000 K-12 + coaching; 100 colleges/universities; 20 international school groups; country-level government contracts in 5 markets.
+10.1.1 Research Upgrade Sequencing — v3.7
+Phase 1-2: privacy/retention controls, payment orchestration core, resilience playbooks, and AI sandbox/adoption instrumentation.
+Phase 2-3: learner record graph, skills wallet, employer exchange, safeguarding case management, and standards conformance automation.
+Phase 3-4: regulated-programme licensure controls, advanced credential verification, multi-country treasury optimisation, and full conformance/certification coverage.
+10.2 Success Metrics & KPIs — v3.5
+KPI
+K-12 (P2)
+Coaching (P3)
+HE (P3)
+Intl./Group (P4)
+Admin time saved/staff/week
+15 hrs
+10 hrs
+12 hrs
+15 hrs (HQ)
+At-risk detection lead time
+90 days
+Post-test
+2 semesters
+90 days
+Attendance notification
+< 3 min
+< 5 min
+< 5 min
+< 3 min
+SSR preparation time
+N/A
+N/A
+6 months → 6 weeks
+N/A
+Test result turnaround
+N/A
+< 2 hours
+< 24 hours
+N/A
+Group KPI dashboard latency
+N/A
+N/A
+N/A
+< 60 seconds
+SEND IEP compliance rate
+> 95%
+N/A
+> 95%
+> 95%
+AI bias incidents/year
+< 5 (flagged)
+< 5
+< 5
+< 5 per group
+System uptime
+99.99%
+99.9%
+99.99%
+99.99%
+Student placement rate (HE)
+N/A
+N/A
+Baseline +15%
+N/A
+Fee collection efficiency
+Baseline +20%
+Baseline +30%
+Baseline +15%
+Consolidated
+10.3 Commercial Architecture & Packaging — v3.5
+ScholarMind must support four monetisation paths because institution size, procurement maturity, and willingness to pay vary widely across K-12 chains, universities, coaching networks, and international groups. The product therefore separates platform subscription, implementation revenue, AI/inference cost, and optional ecosystem revenue so management can scale without losing visibility into margin quality.
+10.3.1 Edition & SKU Packaging — v3.5
+Edition / pack
+Primary buyer
+Core fit
+Expansion path
+Schools Core
+K-12 schools / chains
+Admissions, SIS, attendance, assessments, fees, parent experience
+International Pack, AI Pack, Payments Pack
+Higher-Ed Core
+Colleges / universities
+Registrar, programme, credits, finance, hostel, placement, research-ready base
+Research Pack, Alumni Pack, AI Pack
+Coaching Core
+Coaching centres / franchises
+Batch ops, tests, content, collections, centre analytics
+Franchise Governance, Marketplace, AI Pack
+International Pack
+Cross-border groups
+Multi-currency, curriculum flexibility, multilingual and residency controls
+Group Governance, Dedicated tenancy
+AI Intelligence Pack
+Any segment
+Copilots, automation, command centres, predictive workflows
+Premium automation SLAs and model controls
+
+10.3.2 Module Priority Matrix by Institution Type — v3.5
+Legend: M = Must-have, I = Important, O = Optional. Detailed matrix provided in Appendix I.
+Module family
+K-12
+Chain
+Intl
+College
+Univ
+Coach
+Admissions & CRM
+M
+M
+M
+M
+M
+M
+Core SIS / Academics
+M
+M
+M
+M
+M
+I
+Finance & Revenue
+M
+M
+M
+M
+M
+M
+Digital Learning / LMS
+I
+I
+I
+I
+I
+M
+Research & Accreditation
+O
+O
+O
+I
+M
+O
+Coaching / Test Ops
+O
+O
+O
+O
+O
+M
+Alumni / Advancement
+O
+O
+O
+I
+M
+O
+
+Pricing Model
+Primary Unit
+Best-Fit Segment
+Expansion Motion
+Margin Profile
+Key Risk
+Per Institution
+Institution / legal entity
+Premium schools, colleges, universities
+Module upsell + enterprise add-ons
+High ACV, slower logo count
+Under-monetises large multi-campus groups
+Per Campus
+Campus / centre
+Chains, franchises, school groups
+Campus additions + governance packs
+Good balance of ACV and scale
+Large campuses may be underpriced
+Per Student
+Enrolled student
+High-volume affordable deployments
+Volume growth + AI usage
+Fastest top-line scaling
+Lower gross margin if AI cost is unmanaged
+Hybrid
+Base fee + campus fee + student band + AI premium
+Universal / mixed institution groups
+Best land-and-expand motion
+Best long-term monetisation quality
+Pricing operations and sales design are more complex
+10.3.3 Modular Adoption, Bundle Architecture & Feature Dependency Framework — v3.6
+ScholarMind must explicitly support partial-platform buying patterns, because many institutions ask for only the modules needed for their current maturity, budget, or transformation phase. This framework defines which capabilities are foundational, which are optional add-ons, what dependencies apply, and how commercial, implementation, and support guardrails should work when customers contract only selected features.
+Principle: every deployment must include a minimum operational foundation so that data integrity, security, reporting, identity, and supportability remain intact even when a client chooses a narrow module footprint.
+Layer / bundle type
+Typical inclusions
+Can be sold without full platform?
+Commercial / product rule
+Foundation Core
+IAM, institution master, learner master, notifications, audit trail, baseline reporting
+No
+Mandatory for every live tenant
+Operational Core
+Admissions, SIS / academics, attendance, fee basics, timetable, staff basics
+Yes, by segment core
+At least one segment core must sit on Foundation Core
+Domain Add-Ons
+Hostel, transport, scholarships, placement, research, accreditation, alumni, government reporting
+Yes
+Only after relevant operational prerequisites exist
+AI & Intelligence
+Copilots, workflow automation, prediction, command centres, analytics agents
+Conditional
+Needs approved governance and usable source data
+Ecosystem / Marketplace
+Payments orchestration, lenders, partners, marketplace, franchise services
+Conditional
+Only where commercial and integration dependencies are met
+Contracting rule: ScholarMind will never contract an advanced module in a way that compromises auditability, role-based security, billing integrity, or support ownership. Where a requested feature depends on a missing foundational module, the proposal must show the required prerequisite bundle and the reason it cannot be bypassed.
+Module family
+Can be sold standalone?
+Prerequisites / dependency
+Minimum contractable bundle
+Typical first live phase
+Implementation note
+Admissions & CRM
+Yes
+Foundation Core
+Foundation + Admissions Pack
+Phase 1
+Fastest entry point if approvals and learner master are ready
+Attendance & timetable
+Partial
+Foundation + SIS / academics
+Schools Core or Higher-Ed Core
+Phase 1 or 2
+Needs calendar, class/course master, and academic structure
+Fees & payments
+Partial
+Foundation + learner master
+Core pack + Revenue Pack
+Phase 1 or 2
+Gateway can come later; fee ledger cannot
+Higher-Ed curriculum & credits
+No
+Foundation + Higher-Ed Core
+Higher-Ed Core
+Phase 1 or 2
+Programme and credit engine should go live together
+Coaching batches & tests
+Yes
+Foundation Core
+Coaching Core
+Phase 1
+Best after fee policy and batch master are confirmed
+AI copilots & automation
+No
+Underlying live modules + governance setup
+Any core pack + AI Pack
+Phase 2 or 3
+Requires prompts, thresholds, and cost controls
+De-scoping guardrails: Foundation Core is non-negotiable; reporting, audit logs, notification framework, identity, role administration, and data export capabilities cannot be removed from a live production deployment. A client may contract only selected modules, but the statement of work must identify excluded modules, affected workflows, manual fallback processes, and known limitations in analytics, integrations, and SLA coverage.
+Client adoption pattern
+Phase 1 bundle
+Phase 2 expansion
+Phase 3 expansion
+Non-negotiables
+Commercial / success note
+Single-campus K-12
+Foundation + Schools Core
+Revenue + Parent + Transport
+AI + Compliance
+Learner master, attendance, fee ledger
+Best low-friction starter deal
+School chain / trust
+Foundation + Schools Core + Group Gov.
+Payments + Workforce + Benchmarking
+AI + Partner services
+Campus hierarchy, shared IAM, group reporting
+Include HQ governance from day one
+College / university
+Foundation + Higher-Ed Core
+Hostel + Scholarships + Placement
+Research + Alumni + AI
+Programme rules, registrar controls, finance baseline
+Registrar and finance owners must be named
+Coaching / franchise
+Foundation + Coaching Core
+Revenue + Franchise Gov. + CRM
+AI + Marketplace
+Batch master, fee policy, test engine
+Optimise for repeatable multi-centre rollout
+International / multi-country
+Foundation + core + International Pack
+Group Gov. + Residency + FX
+AI + dedicated tenancy
+Residency controls, multilingual setup, regional finance
+Proposal must state country and residency scope
+Minimum commercial rules for partial-feature deals: every live customer buys Foundation Core plus one segment core. Add-ons with missing prerequisites are quoted as later phases, not as unsupported exceptions. Implementation fees scale by module family, migration complexity, and integration count. Partial deployments carry scoped SLAs and an explicit expansion map.
+This framework lets ScholarMind say yes to subset-feature requests while protecting platform integrity, delivery quality, and expansion economics.
+10.4 Five-Year Financial Model Comparison — v3.5
+All figures below are illustrative planning numbers in INR, intended for board discussions, operating planning, and fund-raise narrative design. They are not market commitments; local pricing, segment mix, and services intensity will vary by geography.
+Metric
+Per Institution
+Per Campus
+Per Student
+Hybrid
+Management View
+Year 1 ARR (₹ Cr)
+1.80
+1.95
+1.40
+2.36
+Hybrid starts highest while retaining enterprise logic
+Year 5 ARR (₹ Cr)
+28.05
+25.65
+49.00
+83.70
+Hybrid creates the strongest scale ceiling
+5-Year ARR CAGR
+98.7%
+90.4%
+143.2%
+144.0%
+Per-student and hybrid outgrow pure enterprise pricing
+Year 5 Gross Margin
+76.0%
+78.0%
+72.0%
+80.0%
+Hybrid preserves best long-term margin quality
+Year 5 NRR
+112.0%
+114.0%
+116.0%
+120.0%
+Hybrid has the strongest expansion economics
+Year 5 CAC Payback
+16 mo
+14 mo
+12 mo
+13 mo
+Per-student closes fastest; hybrid remains efficient
+Recommended Use
+Selective enterprise
+Networks
+Mass deployment
+Default commercial architecture
+Hybrid is recommended as primary GTM model
+10.5 Model A: Per Institution Pricing
+Best for premium K-12 brands, autonomous colleges, universities, and institution groups that buy platform capability at the legal-entity level and then expand via modules and premium governance packs.
+Commercial Plan
+Y1
+Y2
+Y3
+Y4
+Y5
+Institutions
+12
+25
+40
+58
+75
+ACV / Institution (₹ Lakh)
+15.0
+23.4
+28.5
+32.6
+37.4
+ARR (₹ Cr)
+1.80
+5.85
+11.40
+18.91
+28.05
+Professional Services Rev. (₹ Cr)
+0.63
+1.29
+2.05
+2.65
+3.37
+Total Revenue (₹ Cr)
+2.43
+7.14
+13.45
+21.56
+31.42
+Blended Gross Margin
+58.0%
+63.0%
+68.0%
+72.0%
+76.0%
+EBITDA Margin
+-140.0%
+-45.0%
+5.0%
+14.0%
+22.0%
+Metric
+Y1
+Y2
+Y3
+Y4
+Y5
+GRR
+92.0%
+93.0%
+94.0%
+95.0%
+95.0%
+NRR
+105.0%
+108.0%
+110.0%
+111.0%
+112.0%
+CAC Payback (months)
+28
+24
+20
+18
+16
+Sales Cycle (days)
+180
+165
+150
+135
+120
+AI Infra Cost as % of ARR
+18.0%
+16.0%
+14.0%
+12.0%
+11.0%
+Support & Success Cost as % of ARR
+12.0%
+11.0%
+10.0%
+9.0%
+8.0%
+LTV / CAC
+2.0x
+2.5x
+3.2x
+4.0x
+4.8x
+Strength: High ACV and cleaner procurement motion; strongest fit for traditional enterprise education sales.
+Primary Risk: Can under-monetise very large multi-campus networks if student and campus complexity grow faster than module pricing.
+10.5 Model A.1 Scenario Planning — v3.5
+Base case remains the operating plan. Best and worst cases are designed for board sensitivity analysis across sales velocity, retention, implementation capacity, and AI cost-to-serve.
+Scenario
+Y3 ARR (₹ Cr)
+Y5 ARR (₹ Cr)
+Y5 GM
+Y5 EBITDA
+CAC payback
+Worst
+8.4
+21.0
+70%
+8%
+24 mo
+Base
+11.4
+28.1
+76%
+18%
+18 mo
+Best
+14.9
+36.8
+79%
+24%
+14 mo
+10.6 Model B: Per Campus Pricing
+Best for school chains, coaching networks, and distributed education groups where operational complexity scales with the number of campuses or centres more than with legal entities alone.
+Commercial Plan
+Y1
+Y2
+Y3
+Y4
+Y5
+Campuses / Centres
+30
+70
+125
+190
+270
+ACV / Campus (₹ Lakh)
+6.5
+7.2
+8.0
+8.8
+9.5
+ARR (₹ Cr)
+1.95
+5.04
+10.00
+16.72
+25.65
+Professional Services Rev. (₹ Cr)
+0.58
+1.01
+1.60
+2.01
+2.56
+Total Revenue (₹ Cr)
+2.53
+6.05
+11.60
+18.73
+28.21
+Blended Gross Margin
+60.0%
+65.0%
+70.0%
+74.0%
+78.0%
+EBITDA Margin
+-135.0%
+-40.0%
+7.0%
+16.0%
+24.0%
+Metric
+Y1
+Y2
+Y3
+Y4
+Y5
+GRR
+93.0%
+94.0%
+95.0%
+95.0%
+96.0%
+NRR
+106.0%
+110.0%
+112.0%
+113.0%
+114.0%
+CAC Payback (months)
+24
+21
+18
+16
+14
+Sales Cycle (days)
+150
+135
+120
+110
+100
+AI Infra Cost as % of ARR
+17.0%
+15.0%
+13.0%
+11.0%
+10.0%
+Support & Success Cost as % of ARR
+11.0%
+10.0%
+9.0%
+8.0%
+7.0%
+LTV / CAC
+2.2x
+2.8x
+3.6x
+4.4x
+5.1x
+Strength: Natural land-and-expand motion for chains and franchises; pricing scales with operational footprint.
+Primary Risk: Needs strong campus-definition governance so customers cannot collapse multiple operating units into a single priced campus.
+10.6 Model B.1 Scenario Planning — v3.5
+Base case remains the operating plan. Best and worst cases are designed for board sensitivity analysis across sales velocity, retention, implementation capacity, and AI cost-to-serve.
+Scenario
+Y3 ARR (₹ Cr)
+Y5 ARR (₹ Cr)
+Y5 GM
+Y5 EBITDA
+CAC payback
+Worst
+7.6
+19.6
+72%
+6%
+23 mo
+Base
+10.0
+25.7
+77%
+17%
+17 mo
+Best
+13.1
+33.5
+80%
+23%
+13 mo
+10.7 Model C: Per Student Pricing
+Best for high-volume, cost-sensitive deployments where affordability and adoption speed matter most, including affordable private schools, test prep, tutoring networks, and state-supported programmes.
+Commercial Plan
+Y1
+Y2
+Y3
+Y4
+Y5
+Students on Platform
+20,000
+75,000
+160,000
+300,000
+500,000
+Fee / Student / Year (₹)
+700
+760
+820
+900
+980
+ARR (₹ Cr)
+1.40
+5.70
+13.12
+27.00
+49.00
+Professional Services Rev. (₹ Cr)
+0.31
+0.86
+1.57
+2.43
+3.43
+Total Revenue (₹ Cr)
+1.71
+6.56
+14.69
+29.43
+52.43
+Blended Gross Margin
+52.0%
+58.0%
+64.0%
+69.0%
+72.0%
+EBITDA Margin
+-150.0%
+-55.0%
+2.0%
+12.0%
+20.0%
+Metric
+Y1
+Y2
+Y3
+Y4
+Y5
+GRR
+91.0%
+92.0%
+93.0%
+94.0%
+95.0%
+NRR
+104.0%
+108.0%
+112.0%
+114.0%
+116.0%
+CAC Payback (months)
+20
+18
+16
+14
+12
+Sales Cycle (days)
+120
+110
+100
+95
+90
+AI Infra Cost as % of ARR
+24.0%
+22.0%
+20.0%
+18.0%
+17.0%
+Support & Success Cost as % of ARR
+13.0%
+11.0%
+10.0%
+9.0%
+8.0%
+LTV / CAC
+1.8x
+2.4x
+3.2x
+4.0x
+4.8x
+Strength: Fastest deployment velocity and easiest value story for budget-sensitive segments.
+Primary Risk: Most exposed to margin compression if inference, support, or compliance servicing costs rise faster than ARPU.
+10.7 Model C.1 Scenario Planning — v3.5
+Base case remains the operating plan. Best and worst cases are designed for board sensitivity analysis across sales velocity, retention, implementation capacity, and AI cost-to-serve.
+Scenario
+Y3 ARR (₹ Cr)
+Y5 ARR (₹ Cr)
+Y5 GM
+Y5 EBITDA
+CAC payback
+Worst
+9.8
+34.8
+62%
+2%
+21 mo
+Base
+13.1
+49.0
+70%
+14%
+16 mo
+Best
+17.0
+63.7
+74%
+20%
+12 mo
+10.8 Model D: Hybrid Pricing (Recommended)
+Recommended default model for ScholarMind because it matches the diversity of institutions covered by the platform. A base institutional fee establishes platform value, campus fees price operational footprint, and student / AI premiums monetise usage intensity.
+Commercial Plan
+Y1
+Y2
+Y3
+Y4
+Y5
+Institution Groups
+12
+28
+50
+78
+110
+Campuses / Centres
+30
+85
+180
+320
+500
+Students on Platform
+25,000
+110,000
+320,000
+750,000
+1,500,000
+ARR (₹ Cr)
+2.36
+7.75
+19.48
+42.38
+83.70
+Professional Services Rev. (₹ Cr)
+0.76
+1.71
+3.12
+5.09
+7.53
+Total Revenue (₹ Cr)
+3.12
+9.46
+22.60
+47.47
+91.23
+Blended Gross Margin
+59.0%
+65.0%
+71.0%
+76.0%
+80.0%
+EBITDA Margin
+-130.0%
+-35.0%
+10.0%
+20.0%
+29.0%
+Metric
+Y1
+Y2
+Y3
+Y4
+Y5
+GRR
+93.0%
+94.0%
+95.0%
+96.0%
+96.0%
+NRR
+108.0%
+112.0%
+115.0%
+118.0%
+120.0%
+CAC Payback (months)
+26
+22
+18
+15
+13
+Sales Cycle (days)
+170
+150
+130
+115
+100
+AI Infra Cost as % of ARR
+17.0%
+15.0%
+13.0%
+11.0%
+10.0%
+Support & Success Cost as % of ARR
+12.0%
+10.0%
+9.0%
+8.0%
+7.0%
+LTV / CAC
+2.3x
+3.0x
+3.9x
+4.9x
+5.8x
+Strength: Best fit for mixed institution groups, strongest NRR potential, and most resilient monetisation as the product expands.
+Primary Risk: Requires disciplined quoting, packaging, and revenue operations so deals remain understandable to buyers and sales teams.
+10.8 Model D.1 Scenario Planning — v3.5
+Base case remains the operating plan. Best and worst cases are designed for board sensitivity analysis across sales velocity, retention, implementation capacity, and AI cost-to-serve.
+Scenario
+Y3 ARR (₹ Cr)
+Y5 ARR (₹ Cr)
+Y5 GM
+Y5 EBITDA
+CAC payback
+Worst
+14.6
+58.6
+72%
+10%
+20 mo
+Base
+19.5
+83.7
+79%
+22%
+15 mo
+Best
+25.4
+108.4
+82%
+28%
+11 mo
+10.9 Recommended Commercial Rollout & Operating Plan — v3.5
+Management recommendation: launch with the hybrid model as the default enterprise architecture, while retaining the other three models as controlled exceptions for specific markets. This keeps GTM flexible without fragmenting pricing philosophy.
+Rollout Dimension
+Phase 1 (0–12 mo)
+Phase 2 (12–24 mo)
+Phase 3 (24–36 mo)
+Phase 4 (36–60 mo)
+Management Target
+Primary Pricing Motion
+Institution + implementation
+Hybrid for chains
+Hybrid + AI premium
+Hybrid + ecosystem revenue
+Single quoting engine
+Services Mix
+High-touch onboarding
+Template-led deployments
+Partner-led implementation
+Selective premium services
+< 12% of total revenue by Y5
+AI Monetisation
+Bundled assistive AI
+Premium analytics packs
+Workflow automation SKUs
+Outcome-based AI pricing
+AI gross margin > 70% by Y5
+Channel Strategy
+Direct sales
+Regional partners
+Franchise / SI overlay
+Marketplace and referrals
+CAC payback < 15 months
+Financial Milestone
+Product-market fit
+Segment fit
+Scaled NRR expansion
+Profitable growth
+Positive EBITDA by Y3 in hybrid plan
+10.10 Additional Financial KPIs for Board Review — v3.5
+Recurring revenue mix, implementation revenue mix, and ecosystem revenue mix tracked separately by segment and geography.
+Gross margin split into software platform, AI/inference, implementation services, support, and partner marketplace components.
+Revenue retention reviewed at three levels: legal entity, campus/centre, and active student cohort.
+Cost-to-serve dashboard maintained by institution type to prevent coaching or affordable segments from diluting enterprise profitability.
+Expansion tracked through module attach rate, campus expansion rate, AI adoption rate, and wallet-share per institution group.
+10.11 Implementation Governance, RACI & Hypercare — v3.5
+Every enterprise deployment must run through a repeatable operating model: discovery and source-system inventory, configuration blueprint, migration sprints, pilot campus, controlled cutover, and 30- to 90-day hypercare before BAU handoff.
+Program governance cadence: weekly workstream review, fortnightly steering committee, milestone sign-off at data freeze, mock migration, user acceptance, production cutover, and hypercare exit.
+Workstream
+ScholarMind lead
+Client lead
+Primary output
+Solution design
+Product / Solution Architect
+Registrar / COO sponsor
+Approved blueprint and scope boundaries
+Data migration
+Migration factory lead
+IT / data owner
+Mapped templates, reconciled test loads, cutover sign-off
+Change management
+Enablement manager
+Principal / dean / PMO
+Training plan, champions, role-specific readiness
+Integration
+Technical delivery lead
+IT / security
+SSO, APIs, partner-system validation
+Hypercare
+Customer success lead
+Operations manager
+Issue burn-down, KPI stabilisation, BAU transition
+
+Reference rollout: 0-30 days discovery and blueprint; 31-75 days configuration and migrations; 76-105 days pilot and UAT; 106-120 days cutover; 30-60 days hypercare.
+Success gate to exit hypercare: core transactions stable, user adoption above target, no unresolved Sev-1 defects, and executive dashboard variance within agreed threshold.
+10.12 KPI Trees by Persona — v3.5
+KPI trees must be opinionated by decision-maker so ScholarMind dashboards are purchased for actionability, not just reporting breadth.
+Persona
+North-star outcomes
+Leading indicators
+Monthly pack focus
+Group CEO / Trustee
+Growth, margin, risk, brand quality
+Admissions funnel, collections, NPS, campus variance
+Group scorecard and expansion signals
+Principal / Registrar
+Operational control and compliance
+Attendance, timetable fill, case backlog, transfer SLA
+Campus command centre
+CFO / Finance head
+Cash, ageing, leakage, margin
+Daily collections, bad debt risk, waiver rate
+Revenue assurance and profitability
+Academic dean / HoD
+Outcomes and faculty capacity
+Assessment completion, pass rates, workload
+Academic quality and staffing
+Coaching director
+Batch performance and renewals
+Test scores, centre utilisation, churn signals
+Franchise and centre leaderboard
+Parent / student experience lead
+Retention and satisfaction
+App usage, ticket turnaround, payment success
+Experience, complaints, and trust
+
+11. Risks, Assumptions & Constraints
+11.1 Risk Register — v3.5
+Risk
+Prob.
+Impact
+Mitigation
+AI agent incorrect autonomous action
+Medium
+High
+HITL gates; confidence thresholds; rollback capability across all 26 agents
+Data breach — student PII
+Low
+Critical
+Zero Trust, AES-256, DLP, quarterly pen tests, cyber insurance, breach response SLA
+Algorithmic bias in risk/grading
+Medium
+High
+Continuous Bias Monitor; demographic disparity alerts; quarterly model audits; DEO governance
+Multi-campus data leakage (tenant cross-contamination)
+Low
+Critical
+Schema-per-tenant isolation; anonymised group analytics pipeline; cross-tenant access audit
+University course registration failure at peak (NEW)
+Medium
+High
+Dedicated auto-scaling pool; load testing to 3× peak; queue-based registration fallback
+Accreditation data inaccuracy (NEW)
+Medium
+Critical
+AccredAgent cross-validates from 3+ independent data sources; human IQAC review mandatory before submission
+Coaching test paper leakage (NEW)
+Medium
+High
+Time-locked encrypted paper vault; access log; paper watermarking; DLP on exports
+International data residency violation
+Low
+Critical
+Automated residency enforcement by IntlAgent; legal review on each new country entry
+Research data theft / IP loss (NEW)
+Low
+High
+Classified data vault; role-based access; external collaboration access time-limited and logged
+Coaching faculty resistance to analytics
+High
+Medium
+Faculty analytics framed as growth tool; private dashboards; faculty union engagement in rollout
+LLM provider outage
+Low
+High
+Multi-LLM architecture; rule-based fallback agents; on-premise LLM option for critical functions
+University regulatory change (UGC/AICTE)
+Medium
+Medium
+CompliAgent monitors regulatory feeds; quarterly legal review; 6-week implementation buffer built into release cycle
+Group HQ overreach — campus autonomy tension
+Medium
+Medium
+Policy Engine enforces defined bounds of HQ authority; campus can flag disputes; escalation to Trust governance
+Agent hallucination in academic records
+Low
+High
+RAG-grounded generation; numerical data always sourced from DB not LLM; human review before transcript issue
+11.2 Key Assumptions
+	•	Multi-campus groups have a designated IT coordinator at HQ and at each campus.
+	•	Universities have an IQAC Coordinator willing to act as AccredAgent's human review partner.
+	•	Coaching institutes have at least one technically proficient staff member to manage the platform.
+	•	International deployments can secure legal entity and data residency compliance in each country before go-live.
+	•	Faculty at higher education institutions will engage with the faculty portal for grade submission and research logging.
+	•	LLM API providers (Anthropic, OpenAI) maintain their service availability and pricing SLAs.
+	•	All v2.0 assumptions (connectivity, leadership commitment, biometric consent) remain valid.
+11.3 Constraints
+	•	Per-student / per-seat pricing must remain affordable across institution types; coaching institutes are particularly price-sensitive.
+	•	University deployments may require parallel operation with legacy Banner/PeopleSoft systems during transition; migration tools required.
+	•	Accreditation module requires 12–24 months of historical data before it can generate meaningful SSR narratives — institutions must plan early adoption.
+	•	International deployments in new countries require 3–6 months of legal, tax, and data residency compliance work before first student record can be processed.
+	•	Research module for PhD management requires careful alignment with each university's academic regulations — not fully standardisable.
+
+12. Appendices
+Appendix A: Glossary — v3.5
+Term
+Definition
+AICTE
+All India Council for Technical Education — regulator for technical and management education in India.
+AccredAgent
+AI agent managing continuous accreditation readiness, SSR drafting, and criterion tracking.
+Academic Identity
+Persistent cross-institution student record enabling longitudinal academic history across ScholarMind-powered institutions.
+AdvisorAgent
+AI agent providing academic advising: degree audit, course recommendations, graduation risk, and career pathway guidance.
+AQAR
+Annual Quality Assurance Report — mandatory annual submission by NAAC-accredited institutions.
+BatchAgent
+AI agent managing coaching institute batches: performance analytics, rank prediction, study plans, doubt routing.
+CBCS
+Choice Based Credit System — UGC-mandated credit framework for Indian universities.
+CampusAgent
+AI agent coordinating multi-campus operations: cross-campus analytics, transfer management, policy enforcement.
+CGPA
+Cumulative Grade Point Average — aggregate GPA across all completed semesters.
+COBIS
+Council of British International Schools — accreditation body for British international schools.
+Group Tenant
+Top-level security boundary for a multi-campus group or university system in ScholarMind.
+IntlAgent
+AI agent managing international operations: multi-currency, visa tracking, cross-country compliance.
+IQAC
+Internal Quality Assurance Cell — mandatory body in NAAC-accredited institutions overseeing quality assurance.
+NAAC
+National Assessment and Accreditation Council — quality assurance body for Indian higher education.
+NBA
+National Board of Accreditation — accreditation for engineering, management, and pharmacy programmes in India.
+NIRF
+National Institutional Ranking Framework — annual ranking of Indian educational institutions by MoE.
+PlacementAgent
+AI agent managing campus recruitment, job matching, placement analytics, and employer relationships.
+ResearchAgent
+AI agent managing research grants, publication tracking, ethics compliance, and PhD student progress.
+SSR
+Self-Study Report — the primary submission document for NAAC reaccreditation cycles.
+UGC
+University Grants Commission — statutory body for coordination, determination, and maintenance of standards in Indian higher education.
+xAPI
+Experience API (Tin Can API) — e-learning specification for tracking learning experiences across platforms.
+All v2.0 terms
+See PRD v2.0 Appendix A for definitions of: AOP, FERPA, HITL, IEP, MCP, NeuroAgent, RBAC, SEND, SENCO, SIF, USSD, WORM, ZTA, and others.
+
+
+Appendix B: Agent Decision Authority Matrix — v3.5 (New Agents)
+Action Type
+Agent Authority
+Human Required
+Escalation Path
+CampusAgent: cross-campus KPI alert
+Full autonomous (alert)
+No for alert; Yes for intervention
+Group CEO dashboard
+CampusAgent: student transfer
+Draft workflow
+Yes — both campus principals
+Transfer approval queue
+AdvisorAgent: degree audit flag
+Full autonomous (flag)
+No for flag; Yes for intervention plan
+Advisor + Registrar notification
+AdvisorAgent: graduation hold recommendation
+Draft only
+Yes — Registrar
+Academic hold review queue
+ResearchAgent: grant expenditure alert
+Full autonomous (alert)
+No
+PI + Finance notification
+ResearchAgent: ethics compliance flag
+Full autonomous (flag)
+Yes — IEC/IRB review required
+Ethics committee queue
+AccredAgent: SSR section draft
+Draft only
+Yes — IQAC Coordinator review
+IQAC review portal
+AccredAgent: criterion failure alert
+Full autonomous (alert)
+Yes — remediation plan
+IQAC + Principal alert
+BatchAgent: student batch reallocation
+Recommendation only
+Yes — Batch Coordinator
+Batch management queue
+BatchAgent: parent test report dispatch
+Full autonomous
+No
+Logged; faculty weekly digest
+BatchAgent: doubt AI resolution
+Full autonomous (< threshold)
+Yes — if AI confidence low
+Faculty doubt queue
+PlacementAgent: student-company match
+Draft recommendation
+No for match; Yes for shortlist
+Placement officer review
+PlacementAgent: offer recording
+Full autonomous
+No
+Logged; placement statistics updated
+IntlAgent: visa expiry alert
+Full autonomous
+No
+Student + parent + intl. office
+IntlAgent: attendance-visa compliance flag
+Full autonomous (flag)
+Yes — international office action
+International office queue
+Appendix C: Institution Type Configuration Reference
+Configuration Parameter
+K-12
+Multi-Campus
+Intl. School
+College/Univ.
+Coaching
+Academic record type
+Class/Section
+Class/Section
+Class/Programme
+Programme/Course
+Batch/Test
+Performance metric
+% marks
+% / GPA
+% / IB points
+CGPA
+Rank / Percentile
+Fee model
+Term fees
+Chain-consolidated
+Multi-currency
+Tuition + hostel
+Batch / course
+Compliance framework
+CBSE/State/ICSE
+Multi-board
+IB/IGCSE/AP
+UGC/AICTE/NAAC
+None specific
+Analytics scope
+School
+Cross-campus
+Multi-country
+Dept/Programme
+Batch/Chapter
+Parent communication
+Full
+Full
+Multi-language
+Limited (adult)
+Performance-focused
+Research module
+Off
+Off
+Off
+Full
+Off
+Placement module
+Off
+Off
+Off
+Full
+Partial
+Accreditation module
+Off
+Chain-level
+COBIS/CIS
+NAAC/NBA/ABET
+Off
+Visa tracking
+Off
+Off
+Full
+Full (intl.)
+Off
+Hostel management
+Optional
+Optional
+Optional
+Full
+Off
+Appendix D: Coaching Institute Competitive Exam Coverage
+Exam Category
+Exams Supported
+Specialised ScholarMind Features
+Engineering Entrance (India)
+JEE Main, JEE Advanced, BITSAT, VITEEE, MHT-CET
+Rank prediction, IIT/NIT seat matrix, chapter-weighted mock paper generation
+Medical Entrance (India)
+NEET UG, NEET PG, AIIMS (historical), JIPMER
+Biology chapter tracking, NEET cut-off prediction, state quota analysis
+Management Entrance
+CAT, XAT, IIFT, SNAP, NMAT, GMAT
+Sectional percentile tracking, IIM/B-school probability matrix
+Civil Services
+UPSC CSE, State PSC, IFS
+GS/Optional syllabus tracking, answer writing evaluation, interview prep
+Banking & Finance
+IBPS PO/Clerk, SBI PO, RBI Grade B, SEBI
+Speed and accuracy tracking, topic-wise banking awareness analytics
+Graduate Entrance (India)
+GATE, UGC-NET, CSIR-NET, CAT, MAT
+Subject-wise technical analytics, research aptitude tracking
+International Standardised Tests
+GRE, GMAT, SAT, ACT, IELTS, TOEFL
+Score prediction, adaptive practice, university shortlisting analytics
+Defence & Paramilitary
+NDA, CDS, AFCAT, SSB prep
+Physical + written tracking; SSB psychology prep module
+State Board Competitive
+Various state-level competitive exams
+Configurable syllabus upload; custom exam analytics
+Appendix E: All v2.0 Appendices Retained
+The following appendices from PRD v2.0 are fully retained in v3.5 and incorporated by reference: Appendix B (Compliance & Standards Matrix — expanded in Section 6.4 above), Appendix C (Agent Decision Authority Matrix for original 19 agents — extended in Appendix B above), Appendix D (Global Equity Deployment Checklist). Refer to PRD v2.0 for these appendices if the original format is required.
+
+
+Appendix F: Country & Regulation Configuration Matrix — v3.5
+Region / archetype
+Configuration themes
+Representative obligations
+Product implications
+India
+Boards, fee controls, scholarships, statutory filings
+CBSE/ICSE/state board variations, GST / local fee rules, UGC/AICTE style higher-ed reporting where relevant
+Configurable academic calendars, fee policies, scholarship and statutory packs
+US / Canada K-12
+District interoperability, privacy, attendance
+FERPA / state privacy expectations, Ed-Fi / district reporting
+Stronger SIS exchange, residency options, district-grade audit trails
+UK / Europe
+GDPR-grade privacy, accessibility, safeguarding
+GDPR / UK GDPR, SEND accessibility expectations, safeguarding workflows
+Consent controls, deletion policies, accessibility and incident controls
+GCC / Middle East
+Arabic support, residency, private-school regulation
+Arabic RTL support, local residency preferences, ministry reporting
+Regional hosting, multilingual UX, country pack templates
+IB / international schools
+Curriculum and transcript flexibility
+IB / IGCSE / AP style reporting and evidence handling
+Curriculum engine, transcript variants, multilingual family experience
+
+Appendix G: Visual Workflow Specifications — v3.5
+Diagram 1 - applicant-to-enrolment journey across web, counselling, admission, payment, and onboarding.
+Diagram 2 - multi-campus governance hierarchy showing group, region, brand, campus, programme, and centre relationships.
+Diagram 3 - higher-ed course registration, advising, degree audit, and examination flow.
+Diagram 4 - coaching batch lifecycle covering enrolment, timetable, test engine, doubt resolution, and renewal.
+Diagram 5 - AI decision and approval flow showing inform / recommend / act-with-approval / never-autonomous states.
+Diagram 6 - migration factory pipeline from source extraction through mapping, reconciliation, cutover, and hypercare.
+Diagram 7 - revenue cycle flow covering invoice generation, concessions, scholarship offsets, collections, financing, and ageing recovery.
+Diagram 8 - executive KPI tree linking group outcomes to campus and programme drivers.
+Appendix H: Deployment & Tenancy Reference — v3.5
+Model
+HA / DR target
+Identity model
+Notes
+Shared multi-tenant
+Standard HA, regional DR
+Central IdP + tenant RBAC
+Default operating model
+Regional SaaS
+In-region HA, paired-region DR where allowed
+Federated SSO
+For country or region packs
+Dedicated single-tenant
+Dedicated HA and stronger change windows
+Customer SSO + scoped local admins
+Premium enterprise tier
+Private / sovereign cloud
+Customer-agreed DR boundary
+Customer identity standards
+Used for regulated deals only
+
+Appendix I: Expanded Module Priority Matrix — v3.5
+Legend: M = Must-have, I = Important, O = Optional, N = Not applicable in standard packaging.
+Module family
+K-12
+Chain
+Intl
+College
+Univ
+Coach
+Admissions / CRM
+M
+M
+M
+M
+M
+M
+Attendance / SIS core
+M
+M
+M
+M
+M
+I
+Assessments / exams
+M
+M
+M
+M
+M
+M
+Finance / payments
+M
+M
+M
+M
+M
+M
+HR / workforce
+I
+I
+I
+I
+I
+I
+Digital learning
+I
+I
+I
+I
+I
+M
+Research / grants
+N
+N
+N
+I
+M
+N
+Placement / career
+N
+N
+N
+I
+M
+N
+Alumni / advancement
+O
+O
+O
+I
+M
+N
+Coaching / batch ops
+N
+N
+N
+N
+N
+M
+
+Appendix J: Detailed Implementation Governance RACI — v3.5
+Appendix K: Modular Adoption, Bundle & Dependency Reference — v3.6
+Appendix L: Standards Conformance & Certification Matrix — v3.7
+Documents each supported interoperability standard, exact version, in-scope entities, supported deployment tiers, test coverage, certification owner, and planned refresh cycle.
+Appendix M: Privacy, Retention & Data Use Control Matrix — v3.7
+Defines record categories, legal basis options, default retention, local override rules, deletion workflow owner, archive location, model-training eligibility, and breach-notification dependencies.
+Appendix N: AI Adoption & Enablement Blueprint — v3.7
+Contains rollout archetypes by role, training curriculum, sandbox checklist, approval thresholds, prompt-policy rules, adoption KPIs, and escalation playbooks.
+Appendix O: Learner Record, Credential & Employability Exchange — v3.7
+Maps the learner-record entities, badge/credential lifecycle, employer exchange controls, internship evidence, consent model, and revocation or correction pathways.
+Appendix P: Payments, Safeguarding & Resilience Control Catalogue — v3.7
+Catalogues payment exception codes, safeguarding case severities, incident-communication templates, restore-drill evidence, and required controls by deployment tier.
+Reference use: solution consultants, sales, implementation managers, and product teams should use Section 10.3.3 together with this appendix to decide the minimum contractable bundle, mandatory prerequisites, excluded workflows, phased rollout design, and customer-specific expansion roadmap for deals where only a subset of ScholarMind modules is requested.
+Milestone
+ScholarMind
+Client sponsor
+Client operations
+IT / security
+Blueprint sign-off
+R
+A
+C
+C
+Data mapping approval
+R
+A
+R
+C
+Integration readiness
+R
+C
+C
+A/R
+Pilot go-live
+R
+A
+R
+C
+Hypercare exit
+R
+A
+R
+C
+
+ScholarMind — Product Requirements Document v3.7 — Universal Education Edition
+Supersedes: v3.4 (Universal Education Edition, March 2026) · v3.0 (Universal Education Edition, February 2026) · v2.0 (Global Equity Edition, February 2026)
+K-12 · Multi-Campus · International · Colleges & Universities · Coaching Institutes
+Confidential — Internal Use Only

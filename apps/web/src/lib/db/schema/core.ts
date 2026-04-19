@@ -18,6 +18,14 @@ export const userRoleEnum = pgEnum('user_role', [
 
 export const subscriptionTierEnum = pgEnum('subscription_tier', ['CORE', 'AI_PRO', 'ENTERPRISE']);
 
+export const institutionTypeEnum = pgEnum('institution_type', [
+    'K12',
+    'COLLEGE',
+    'UNIVERSITY',
+    'COACHING',
+    'HYBRID'
+]);
+
 // ─── Companies (Master Billing & Features) ───────────────────
 
 export const companies = pgTable('companies', {
@@ -46,6 +54,7 @@ export const tenants = pgTable('tenants', {
     name: varchar('name', { length: 255 }).notNull(),
     code: varchar('code', { length: 50 }).notNull().unique(),
     domain: varchar('domain', { length: 255 }),
+    institutionType: institutionTypeEnum('institution_type').default('K12').notNull(),
     logoUrl: text('logo_url'),
     address: text('address'),
     city: varchar('city', { length: 100 }),
