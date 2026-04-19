@@ -101,9 +101,9 @@ export default async function AdminLayout({
                         <NavLink href="/fees/intelligence" icon="🤖">
                             AI Intelligence
                         </NavLink>
-                        <NavLink href="/fees/defaulters" icon="⚠️">
+                        {/* <NavLink href="/fees/defaulters" icon="⚠️">
                             Defaulters
-                        </NavLink>
+                        </NavLink> */}
                         <NavLink href="/invoices" icon="🧾">
                             Invoices
                         </NavLink>
@@ -149,9 +149,9 @@ export default async function AdminLayout({
                         <NavLink href="/digilocker" icon="🔐">
                             DigiLocker
                         </NavLink>
-                        <NavLink href="/fees/cashflow" icon="📈">
+                        {/* <NavLink href="/fees/cashflow" icon="📈">
                             Cashflow
-                        </NavLink>
+                        </NavLink> */}
                         <NavLink href="/fees/alerts" icon="🔔">
                             Fee Alerts
                         </NavLink>

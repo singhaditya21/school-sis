@@ -60,7 +60,7 @@ export default async function FeesPage() {
                     >
                         Generate Invoices
                     </a>
-                    <a
+                    {/* <a
                         href="/fees/cashflow"
                         className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors font-medium text-sm"
                     >
@@ -71,7 +71,7 @@ export default async function FeesPage() {
                         className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors font-medium text-sm"
                     >
                         Defaulters
-                    </a>
+                    </a> */}
                     <a
                         href="/fees/plans/new"
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
@@ -96,12 +96,12 @@ export default async function FeesPage() {
 
             <Separator />
 
-            {/* Defaulter Dashboard */}
+            {/* Defaulter Dashboard 
             <DefaulterDashboard
                 initialStats={defaulterStats}
                 initialAgeing={ageing}
                 initialDefaulters={defaulters}
-            />
+            /> */}
 
             <Separator />
 
