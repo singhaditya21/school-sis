@@ -4,6 +4,9 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { returnToHQAction } from '@/lib/actions/platform';
 import PlatformBroadcastTicker from '@/components/platform/PlatformBroadcastTicker';
+import { db } from '@/lib/db';
+import { tenants } from '@/lib/db/schema/core';
+import { eq } from 'drizzle-orm';
 
 export default async function AdminLayout({
     children,
@@ -22,6 +25,15 @@ export default async function AdminLayout({
     }
 
     const isImpersonating = session.token?.startsWith('impersonating:');
+
+    // Safe DB fetch to prevent UUID parsing errors for Platform Admins without immediate tenants
+    let institutionType = 'K12';
+    if (session.tenantId && session.tenantId.trim() !== '') {
+        const tenantRows = await db.select({ type: tenants.institutionType }).from(tenants).where(eq(tenants.id, session.tenantId)).limit(1);
+        if (tenantRows.length > 0) {
+            institutionType = tenantRows[0].type;
+        }
+    }
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -86,6 +98,7 @@ export default async function AdminLayout({
                 {/* Sidebar Navigation */}
                 <aside className="w-64 bg-white border-r border-gray-200 min-h-screen sticky top-16">
                     <nav className="p-4 space-y-1">
+                        {/* --- CORE / SHARED MODULES --- */}
                         <NavLink href="/dashboard" icon="📊">
                             Dashboard
                         </NavLink>
@@ -98,20 +111,11 @@ export default async function AdminLayout({
                         <NavLink href="/fees" icon="💰">
                             Fee Collections
                         </NavLink>
-                        <NavLink href="/fees/intelligence" icon="🤖">
-                            AI Intelligence
-                        </NavLink>
-                        {/* <NavLink href="/fees/defaulters" icon="⚠️">
-                            Defaulters
-                        </NavLink> */}
                         <NavLink href="/invoices" icon="🧾">
                             Invoices
                         </NavLink>
                         <NavLink href="/students" icon="👥">
                             Students
-                        </NavLink>
-                        <NavLink href="/health" icon="🏥">
-                            Health Records
                         </NavLink>
                         <NavLink href="/attendance" icon="✅">
                             Attendance
@@ -122,119 +126,60 @@ export default async function AdminLayout({
                         <NavLink href="/admissions" icon="🎓">
                             Admissions
                         </NavLink>
-                        <NavLink href="/timetable" icon="📅">
-                            Timetable
-                        </NavLink>
-                        <NavLink href="/transport" icon="🚌">
-                            Transport
-                        </NavLink>
-                        <NavLink href="/library" icon="📚">
-                            Library
-                        </NavLink>
-                        <NavLink href="/inventory" icon="📦">
-                            Inventory
-                        </NavLink>
                         <NavLink href="/messages/templates" icon="✉️">
                             Messages
-                        </NavLink>
-                        <NavLink href="/messages/tracking" icon="📡">
-                            Delivery Tracking
-                        </NavLink>
-                        <NavLink href="/timetable/substitution" icon="🔄">
-                            Substitutions
-                        </NavLink>
-                        <NavLink href="/certificates" icon="📜">
-                            Certificates
-                        </NavLink>
-                        <NavLink href="/digilocker" icon="🔐">
-                            DigiLocker
-                        </NavLink>
-                        {/* <NavLink href="/fees/cashflow" icon="📈">
-                            Cashflow
-                        </NavLink> */}
-                        <NavLink href="/fees/alerts" icon="🔔">
-                            Fee Alerts
-                        </NavLink>
-                        <NavLink href="/exams/verification" icon="✓">
-                            Marks Verification
-                        </NavLink>
-                        <NavLink href="/compliance" icon="🏛️">
-                            Compliance
-                        </NavLink>
-                        <NavLink href="/analytics" icon="📊">
-                            Analytics
-                        </NavLink>
-                        <NavLink href="/audit" icon="📋">
-                            Audit Log
-                        </NavLink>
-                        <NavLink href="/schools" icon="🏫">
-                            Schools
-                        </NavLink>
-                        <NavLink href="/api-docs" icon="📖">
-                            API Docs
                         </NavLink>
                         <NavLink href="/hr" icon="👥">
                             HR & Payroll
                         </NavLink>
-                        <NavLink href="/appointments" icon="📅">
-                            Appointments
-                        </NavLink>
-                        <NavLink href="/diary" icon="📓">
-                            Digital Diary
-                        </NavLink>
-                        <NavLink href="/homework" icon="📝">
-                            Homework
-                        </NavLink>
-                        <NavLink href="/lesson-plans" icon="📚">
-                            Lesson Plans
-                        </NavLink>
-                        <NavLink href="/calendar" icon="🗓️">
-                            Academic Calendar
-                        </NavLink>
-                        <NavLink href="/quiz" icon="📝">
-                            Online Quiz
-                        </NavLink>
-                        <NavLink href="/id-cards" icon="🪪">
-                            ID Cards
-                        </NavLink>
-                        <NavLink href="/visitors" icon="🚶">
-                            Visitors
-                        </NavLink>
-                        <NavLink href="/documents" icon="📂">
-                            Documents
-                        </NavLink>
-                        <NavLink href="/alumni" icon="🎓">
-                            Alumni
-                        </NavLink>
-                        <NavLink href="/hostel" icon="🏠">
-                            Hostel
-                        </NavLink>
-                        <NavLink href="/settings/users" icon="👤">
-                            User Management
-                        </NavLink>
-                        <NavLink href="/settings/roles" icon="🔑">
-                            Role Management
-                        </NavLink>
-                        <NavLink href="/settings/grading" icon="⚙️">
-                            Grading Settings
+                        <NavLink href="/analytics" icon="📊">
+                            Analytics
                         </NavLink>
 
-                        {/* Phase 4 Expansions */}
-                        <div className="pt-4 mt-4 border-t border-gray-100">
-                            <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Advanced Modules</p>
-                            <NavLink href="/university" icon="🎓">
-                                Higher Education
-                            </NavLink>
-                            <NavLink href="/coaching" icon="📚">
-                                Coaching Batches
-                            </NavLink>
-                            <NavLink href="/hq-overview" icon="🏢">
-                                Group HQ Command
-                            </NavLink>
-                            <NavLink href="/international" icon="🌍">
-                                International Ops
-                            </NavLink>
-                        </div>
+                        {/* --- K-12 SPECIFIC MODULES --- */}
+                        {(institutionType === 'K12' || institutionType === 'HYBRID') && (
+                            <div className="pt-2 mt-2 border-t border-gray-100">
+                                <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">K-12 School</p>
+                                <NavLink href="/timetable" icon="📅">Timetable</NavLink>
+                                <NavLink href="/transport" icon="🚌">Transport</NavLink>
+                                <NavLink href="/homework" icon="📝">Homework</NavLink>
+                                <NavLink href="/lesson-plans" icon="📚">Lesson Plans</NavLink>
+                                <NavLink href="/diary" icon="📓">Digital Diary</NavLink>
+                                <NavLink href="/health" icon="🏥">Health Records</NavLink>
+                            </div>
+                        )}
+
+                        {/* --- HIGHER EDUCATION MODULES --- */}
+                        {(institutionType === 'COLLEGE' || institutionType === 'UNIVERSITY' || institutionType === 'HYBRID') && (
+                            <div className="pt-2 mt-2 border-t border-gray-100">
+                                <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Higher Ed</p>
+                                <NavLink href="/university/courses" icon="🎓">Course Registration</NavLink>
+                                <NavLink href="/university/advising" icon="👨‍🏫">Academic Advising</NavLink>
+                                <NavLink href="/university/research" icon="🔬">Research Grants</NavLink>
+                                <NavLink href="/university/placement" icon="💼">Placements</NavLink>
+                            </div>
+                        )}
+
+                        {/* --- COACHING MODULES --- */}
+                        {(institutionType === 'COACHING' || institutionType === 'HYBRID') && (
+                            <div className="pt-2 mt-2 border-t border-gray-100">
+                                <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Coaching</p>
+                                <NavLink href="/coaching/batches" icon="📚">Batches</NavLink>
+                                <NavLink href="/coaching/tests" icon="📋">Test Series</NavLink>
+                                <NavLink href="/coaching/doubts" icon="❓">Doubt Portal</NavLink>
+                            </div>
+                        )}
+
+                        {/* --- HQ COMMAND CENTER --- */}
+                        {session.role === 'PLATFORM_ADMIN' || session.role === 'SUPER_ADMIN' ? (
+                            <div className="pt-2 mt-2 border-t border-gray-100">
+                                <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Group HQ</p>
+                                <NavLink href="/hq-overview" icon="🏢">Command Center</NavLink>
+                                <NavLink href="/international" icon="🌍">International Ops</NavLink>
+                                <NavLink href="/schools" icon="🏫">Campuses</NavLink>
+                                <NavLink href="/settings/users" icon="👤">Users & Roles</NavLink>
+                            </div>
+                        ) : null}
                     </nav>
                 </aside>
 
