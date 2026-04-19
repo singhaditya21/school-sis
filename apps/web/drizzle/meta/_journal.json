@@ -50,6 +50,13 @@
       "when": 1775224531791,
       "tag": "0006_little_the_enforcers",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1776625603854,
+      "tag": "0007_spotty_true_believers",
+      "breakpoints": true
     }
   ]
 }
