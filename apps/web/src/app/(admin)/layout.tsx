@@ -114,6 +114,9 @@ export default async function AdminLayout({
                         <NavLink href="/invoices" icon="🧾">
                             Invoices
                         </NavLink>
+                        <NavLink href="/treasury" icon="🏦">
+                            Treasury
+                        </NavLink>
                         <NavLink href="/students" icon="👥">
                             Students
                         </NavLink>
@@ -134,6 +137,9 @@ export default async function AdminLayout({
                         </NavLink>
                         <NavLink href="/analytics" icon="📊">
                             Analytics
+                        </NavLink>
+                        <NavLink href="/credentials" icon="📜">
+                            Trust Registry
                         </NavLink>
 
                         {/* --- K-12 SPECIFIC MODULES --- */}
@@ -175,6 +181,7 @@ export default async function AdminLayout({
                             <div className="pt-2 mt-2 border-t border-gray-100">
                                 <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Group HQ</p>
                                 <NavLink href="/hq-overview" icon="🏢">Command Center</NavLink>
+                                <NavLink href="/procurement" icon="🔐">Trust Center</NavLink>
                                 <NavLink href="/international" icon="🌍">International Ops</NavLink>
                                 <NavLink href="/schools" icon="🏫">Campuses</NavLink>
                                 <NavLink href="/settings/users" icon="👤">Users & Roles</NavLink>
