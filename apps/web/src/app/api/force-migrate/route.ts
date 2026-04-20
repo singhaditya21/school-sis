@@ -1,12 +1,36 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sql } from "drizzle-orm";
+import { getSession } from "@/lib/auth/session";
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Force-migrate endpoint — STRICTLY gated.
+ *
+ * SECURITY:
+ * - Only accessible by authenticated PLATFORM_ADMIN
+ * - Blocked entirely in production unless ALLOW_FORCE_MIGRATE=true
+ * - Returns generic errors to prevent schema disclosure
+ */
+
 export async function GET() {
+    // SECURITY: Require PLATFORM_ADMIN authentication
+    const session = await getSession();
+    if (!session.isLoggedIn || session.role !== 'PLATFORM_ADMIN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // SECURITY: Block in production unless explicitly allowed
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_FORCE_MIGRATE !== 'true') {
+        return NextResponse.json(
+            { error: 'Force migration is disabled in production. Set ALLOW_FORCE_MIGRATE=true to enable.' },
+            { status: 403 }
+        );
+    }
+
     try {
-        console.log("Starting forced migration...");
+        console.log("Starting forced migration (authenticated by", session.email, ")...");
 
         // 1. Add missing enum role if not exists
         try {
@@ -40,6 +64,6 @@ export async function GET() {
 
     } catch (error: any) {
         console.error('Fatal Migration Error:', error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        return NextResponse.json({ success: false, error: 'Migration failed' }, { status: 500 });
     }
 }

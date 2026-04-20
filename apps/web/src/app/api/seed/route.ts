@@ -3,8 +3,26 @@ import { db } from '@/lib/db';
 import { users, companies, tenants } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { hash } from 'bcryptjs';
+import { getSession } from '@/lib/auth/session';
+
+/**
+ * Seed endpoint — STRICTLY gated.
+ * 
+ * SECURITY:
+ * - Only accessible in development mode OR by authenticated PLATFORM_ADMIN
+ * - Uses a strong default password (not 'password')
+ * - Returns generic errors to prevent information disclosure
+ */
 
 export async function GET() {
+    // SECURITY: Block in production unless called by authenticated PLATFORM_ADMIN
+    if (process.env.NODE_ENV === 'production') {
+        const session = await getSession();
+        if (!session.isLoggedIn || session.role !== 'PLATFORM_ADMIN') {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+    }
+
     try {
         console.log('📦 Seeding Platform Admin account...');
         
@@ -34,8 +52,9 @@ export async function GET() {
             console.log('✅ Created HQ Tenant');
         }
 
-        // 3. Create Admin Users (both founder and owner to be absolutely safe)
-        const defaultPassword = await hash('password', 12);
+        // 3. Create Admin User with STRONG password from env var
+        const seedPassword = process.env.SEED_ADMIN_PASSWORD || 'ScholarM!nd#2026$Secure';
+        const defaultPassword = await hash(seedPassword, 12);
         
         const emailsToSeed = ['founder@scholarmind.com', 'owner@scholarmind.com'];
         const seededUsers = [];
@@ -65,6 +84,6 @@ export async function GET() {
 
     } catch (error: any) {
         console.error('Seed Error:', error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        return NextResponse.json({ success: false, error: 'Seed operation failed' }, { status: 500 });
     }
 }
