@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.git/
+venv/
+dist/
+*.lock
+*.log
+pnpm-lock.yaml
+package-lock.json
+tsconfig.tsbuildinfo
