@@ -46,6 +46,33 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
         }
 
+        // SECURITY: Server-side invoice ownership + amount verification
+        const { db } = await import('@/lib/db');
+        const { invoices } = await import('@/lib/db/schema');
+        const { eq, and } = await import('drizzle-orm');
+
+        const [invoice] = await db.select().from(invoices)
+            .where(and(
+                eq(invoices.id, invoiceId),
+                eq(invoices.tenantId, session.tenantId)
+            ))
+            .limit(1);
+
+        if (!invoice) {
+            return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+        }
+
+        // Verify the amount matches what the server expects (outstanding balance)
+        const expectedAmount = Number(invoice.totalAmount) - Number(invoice.paidAmount || 0);
+        if (Math.abs(amount - expectedAmount) > 0.01) {
+            console.error(`[Stripe] Amount mismatch: client sent ${amount}, expected ${expectedAmount} for invoice ${invoiceId}`);
+            return NextResponse.json({ error: 'Amount does not match invoice balance' }, { status: 400 });
+        }
+
+        if (invoice.status === 'PAID') {
+            return NextResponse.json({ error: 'Invoice is already paid' }, { status: 400 });
+        }
+
         const stripe = getStripeClient();
 
         // Create Stripe Checkout session

@@ -66,7 +66,7 @@ export async function loginActionV2(formData: FormData) {
                 return { error: 'Invalid email or password' };
             }
 
-            if (user.role !== 'SUPER_ADMIN' && user.role !== 'PLATFORM_ADMIN') {
+            if (user.role !== 'PLATFORM_ADMIN') {
                 await recordFailedAttempt(email);
                 return { error: 'Invalid email or password' };
             }
@@ -181,8 +181,7 @@ export async function loginActionV2(formData: FormData) {
     } catch (error: any) {
         console.error('[Login] Error:', error);
         return {
-            // Expose the raw error message to diagnose Render crash
-            error: `System Error: ${error.message || 'Unknown exception'}. Please screenshot this.`,
+            error: 'An unexpected error occurred. Please try again or contact support.',
         };
     }
 
