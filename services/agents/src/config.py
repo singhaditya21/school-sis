@@ -8,12 +8,12 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8083
 
-    # Database & Redis
-    database_url: str = "postgresql://school_admin:school_sis_dev_2026@localhost:5432/school_sis"
+    # Database & Redis (MUST be set via AGENT_DATABASE_URL / AGENT_REDIS_URL env vars)
+    database_url: str = ""
     redis_url: str = "redis://localhost:6379/0"
 
-    # Cloud LLM Configuration (Cerebras)
-    llm_api_key: str = "csk-vfrek62k49v6c6eytt2tn6e6mvt9t95c2hfrwd2vvdw4e2ff"
+    # Cloud LLM Configuration (Cerebras) — MUST be set via AGENT_LLM_API_KEY env var
+    llm_api_key: str = ""
     llm_base_url: str = "https://api.cerebras.ai/v1"
     llm_model: str = "llama3.1-70b"
     embed_model: str = "nvidia/nv-embedqa-e5-v5"  # Fallback valid NIM embedding model
