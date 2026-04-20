@@ -24,6 +24,7 @@ class AgentContext:
     """Context for a single agent invocation."""
     tenant_id: UUID
     user_id: UUID | None = None
+    agent_name: str | None = None
     query: str = ""
     conversation_id: UUID = field(default_factory=uuid4)
 
@@ -96,6 +97,9 @@ class Agent(ABC):
         tool_calls_log: list[dict] = []
         sources: list[dict] = []
         total_tokens = 0
+        
+        # Inject agent name into context for HITL approvals
+        context.agent_name = self.name
 
         # Step 1: RAG retrieval
         rag_context = []

@@ -177,7 +177,7 @@ export default async function AdminLayout({
                         )}
 
                         {/* --- HQ COMMAND CENTER --- */}
-                        {session.role === 'PLATFORM_ADMIN' || session.role === 'SUPER_ADMIN' ? (
+                        {session.role === 'PLATFORM_ADMIN' || session.role === 'SUPER_ADMIN' || session.role === 'GROUP_EXECUTIVE' ? (
                             <div className="pt-2 mt-2 border-t border-gray-100">
                                 <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Group HQ</p>
                                 <NavLink href="/hq-overview" icon="🏢">Command Center</NavLink>

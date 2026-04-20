@@ -28,6 +28,7 @@ class Tool:
     description: str
     parameters: list[ToolParameter]
     handler: Callable[..., Awaitable[Any]]
+    requires_human_approval: bool = False
 
     def to_openai_schema(self) -> dict:
         """Convert to OpenAI function calling schema for Qwen."""
@@ -107,6 +108,26 @@ class ToolRegistry:
                 # Forcefully inject/override the trusted tenant_id
                 args["tenant_id"] = expected_tenant
             # ---------------------------------------------------
+
+            # --- HUMAN-IN-THE-LOOP (HITL) ENFORCEMENT ---
+            if tool.requires_human_approval:
+                from src.core.approvals import create_approval, ApprovalRequest
+                approval_req = ApprovalRequest(
+                    tenant_id=expected_tenant if 'expected_tenant' in locals() else args.get('tenant_id'),
+                    agent_name=context.agent_name if hasattr(context, 'agent_name') else "unknown_agent",
+                    title=f"Approval needed for: {name}",
+                    description=f"Agent requested to run {name} with arguments: {json.dumps(args)}",
+                    proposed_action={"tool": name, "args": args},
+                    priority="HIGH",
+                    created_by_user_id=context.user_id if hasattr(context, 'user_id') else None
+                )
+                await create_approval(approval_req)
+                logger.info(
+                    "tool_execution_intercepted_for_approval",
+                    tool_name=name,
+                )
+                return {"status": "PENDING_HUMAN_APPROVAL", "message": f"This action is high-risk and requires human administrator approval. It has been queued in the Approvals inbox."}
+            # --------------------------------------------
 
             result = await tool.handler(**args)
             logger.info(

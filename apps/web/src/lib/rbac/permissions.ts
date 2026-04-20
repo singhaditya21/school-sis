@@ -2,12 +2,18 @@
 export enum UserRole {
     PLATFORM_ADMIN = 'PLATFORM_ADMIN',
     SUPER_ADMIN = 'SUPER_ADMIN',
+    GROUP_EXECUTIVE = 'GROUP_EXECUTIVE',
     SCHOOL_ADMIN = 'SCHOOL_ADMIN',
     PRINCIPAL = 'PRINCIPAL',
+    REGISTRAR = 'REGISTRAR',
+    FINANCE_LEAD = 'FINANCE_LEAD',
     ACCOUNTANT = 'ACCOUNTANT',
     ADMISSION_COUNSELOR = 'ADMISSION_COUNSELOR',
+    STUDENT_SUCCESS_COUNSELOR = 'STUDENT_SUCCESS_COUNSELOR',
     TEACHER = 'TEACHER',
     TRANSPORT_MANAGER = 'TRANSPORT_MANAGER',
+    TRUST_OFFICER = 'TRUST_OFFICER',
+    CREDENTIAL_OFFICER = 'CREDENTIAL_OFFICER',
     PARENT = 'PARENT',
     STUDENT = 'STUDENT',
 }
@@ -19,6 +25,12 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PLATFORM_ADMIN: ['*'], // platform-level superuser — all permissions across all tenants
 
     SUPER_ADMIN: ['*'], // tenant-level superuser — all permissions within their tenant
+
+    GROUP_EXECUTIVE: [
+        'reports:*',
+        'hq:*',
+        'policy:read'
+    ],
 
     SCHOOL_ADMIN: [
         'fees:*',
@@ -51,6 +63,40 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
         'concessions:*',
         'reports:fees',
         'students:read',
+    ],
+
+    FINANCE_LEAD: [
+        'fees:*',
+        'invoices:*',
+        'payments:*',
+        'treasury:*',
+        'reports:finance'
+    ],
+
+    REGISTRAR: [
+        'students:*',
+        'academic:*',
+        'exams:*',
+        'credentials:*',
+        'transfer:*'
+    ],
+
+    STUDENT_SUCCESS_COUNSELOR: [
+        'students:read',
+        'welfare:*',
+        'interventions:*'
+    ],
+
+    TRUST_OFFICER: [
+        'audit:read',
+        'procurement:*',
+        'policy:*'
+    ],
+
+    CREDENTIAL_OFFICER: [
+        'credentials:issue',
+        'credentials:revoke',
+        'credentials:read'
     ],
 
     ADMISSION_COUNSELOR: [
@@ -138,15 +184,21 @@ export function isAdmin(role: UserRole): boolean {
 /**
  * Check if role is staff
  */
-export function isStaff(role: UserRole): boolean {
+    export function isStaff(role: UserRole): boolean {
     return [
         UserRole.PLATFORM_ADMIN,
         UserRole.SUPER_ADMIN,
+        UserRole.GROUP_EXECUTIVE,
         UserRole.SCHOOL_ADMIN,
         UserRole.PRINCIPAL,
+        UserRole.REGISTRAR,
+        UserRole.FINANCE_LEAD,
         UserRole.ACCOUNTANT,
         UserRole.ADMISSION_COUNSELOR,
+        UserRole.STUDENT_SUCCESS_COUNSELOR,
         UserRole.TEACHER,
         UserRole.TRANSPORT_MANAGER,
+        UserRole.TRUST_OFFICER,
+        UserRole.CREDENTIAL_OFFICER,
     ].includes(role);
 }
