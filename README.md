@@ -1,361 +1,79 @@
-# School Information System (SIS)
+# ScholarMind — V6 Enterprise Architecture
 
-**Multi-tenant, production-ready MVP for schools from Pre-School to Grade 12**
+Welcome to the **ScholarMind Administration Portal**, a multi-tenant, SaaS-based School Information System (SIS) infused with a deeply integrated 26-agent cognitive AI fleet. 
 
-A modern school management platform with fees collections, admissions CRM, timetable management, transport tracking, and privacy-by-design features.
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- **Node.js** 20+ and **pnpm** 9+
-- **Docker** and **Docker Compose** (for Postgres + Redis)
-- **Git**
-
-### Setup Steps
-
-1. **Clone the repository** (or use existing directory):
-
-   ```bash
-   cd d:\singhaditya21.github.io\school-sis
-   ```
-
-2. **Install dependencies**:
-
-   ```bash
-   pnpm install
-   ```
-
-3. **Configure environment variables**:
-
-   ```bash
-   cp .env.example apps/web/.env
-   ```
-
-   **Edit `apps/web/.env`** and update:
-   - `DATABASE_URL` (default is fine for local Docker)
-   - `SESSION_SECRET` (generate with: `openssl rand -base64 32`)
-   - `ENCRYPTION_KEY` (generate with: `openssl rand -base64 32`)
-
-4. **Start database services**:
-
-   ```bash
-   pnpm docker:up
-   ```
-
-5. **Run database migrations**:
-
-   ```bash
-   pnpm db:migrate
-   ```
-
-6. **Seed demo data**:
-
-   ```bash
-   pnpm db:seed
-   ```
-
-7. **Start development server**:
-
-   ```bash
-   pnpm dev
-   ```
-
-8. **Open browser**:
-   Navigate to `http://localhost:3000`
+This repository enforces the **V6 PRD Enterprise Standard**, which radically restructures the platform into a centralized cloud deployment utilizing Drizzle ORM, Next.js Server Components, PostgreSQL Vector searching, and a dedicated AI swarm operated via Cerebras (`llama3.1-70b`).
 
 ---
 
-## 🔑 Demo Credentials
+## 🏛️ System Architecture
 
-After seeding, use these credentials to log in:
+The ScholarMind framework operates on a hybrid monolith/microservice architecture split distinctly between the Presentation/Core API Layer (Next.js) and the Cognitive Execution Layer (Python FastAPI).
 
-| Role | Email | Password |
-|------|-------|----------|
-| **School Admin** | <admin@greenwood.edu> | admin123 |
-| **Accountant** | <accountant@greenwood.edu> | accountant123 |
-| **Parent** | <parent@example.com> | parent123 |
+### 1. Presentation & Core API Layer (`/apps/web`)
+- **Framework**: Next.js 15 (App Router)
+- **Database**: Supabase PostgreSQL (via Pooler)
+- **ORM**: Drizzle ORM — Fully typed, zero-abstraction relational querying.
+- **Styling**: Tailwind CSS & Tremor React components for rich dashboards.
+- **Identity**: NextAuth/IronSession tracking multi-tenant boundaries (`tenantId`) explicitly for every query.
 
-**Demo Tenant**: Greenwood International School
-
----
-
-## 📊 Seeded Data
-
-- **1 School/Tenant**: Greenwood International School
-- **Academic Year**: 2025-2026 with 2 terms
-- **Grades**: Grade 1, Grade 2
-- **Sections**: 1-A, 1-B, 2-A
-- **Students**: 20 students with guardians
-- **Fee Plans**: Standard fee plan with tuition, transport, library fees
-- **Invoices**: 10 invoices (some pending, partial, paid)
-- **Admissions**: 3 leads in different pipeline stages
-- **Transport**: 1 vehicle, 1 route with 3 stops
-- **Subjects**: Mathematics, English, Science
+### 2. Cognitive AI Subsystem (`/services/agents`)
+- **Framework**: Python FastAPI
+- **LLM Engine**: Cerebras Inference (`llama3.1-70b`)
+- **Memory**: Redis (Arq) for background queue management and cost-tracking.
+- **Embeddings**: `pgvector` stored back in the Supabase instance for instant RAG retreival.
+- **Agent Framework**: Custom lightweight framework derived from LangChain principles, built for extreme latency optimization and strict tool execution oversight.
 
 ---
 
-## 🏗️ Architecture
+## 🧩 Modularity & Domains
 
-### Tech Stack
+The V6 release implements strict structural domain boundaries based on the `institutionType` flag inherent to each Tenant.
 
-- **Frontend**: Next.js 15 (App Router), React 19, TypeScript
-- **Styling**: Tailwind CSS + shadcn/ui
-- **Backend**: Next.js Server Actions
-- **Database**: PostgreSQL + Prisma ORM
-- **Cache/Jobs**: Redis (for future background jobs)
-- **Auth**: iron-session (encrypted cookies)
-- **Testing**: Jest + Playwright
-
-### Project Structure
-
-```
-school-sis/
-├── apps/
-│   └── web/                    # Next.js application
-│       ├── src/
-│       │   ├── app/           # App Router pages
-│       │   │   ├── (auth)/    # Login routes
-│       │   │   ├── (admin)/   # Admin portal
-│       │   │   └── (parent)/  # Parent portal
-│       │   ├── components/    # React components
-│       │   │   ├── ui/        # shadcn/ui components
-│       │   │   ├── admin/     # Admin components
-│       │   │   └── parent/    # Parent components
-│       │   └── lib/
-│       │       ├── actions/   # Server Actions
-│       │       ├── services/  # Business logic
-│       │       ├── auth/      # Authentication
-│       │       ├── rbac/      # Permissions
-│       │       └── db.ts      # Prisma client
-│       └── prisma/
-│           ├── schema.prisma  # Database schema
-│           └── seed.ts        # Seed script
-├── packages/                  # (Future: shared code)
-├── docker-compose.yml
-├── turbo.json
-└── package.json
-```
+- **K-12 Foundation**: Timetables, Homework, Digital Diaries, Guardian Portal, Transport.
+- **Higher Education Ecosystem**: Course registration, Academic Advising, Research Grants, Placements.
+- **Group HQ / Core Operations**: Global Fee orchestration, Staff HR, Analytics, Enterprise Evidence Trusts.
 
 ---
 
-## 🔐 Multi-Tenancy & Security
+## 🤖 The 26-Agent Swarm
 
-### Tenant Isolation
+At the heart of the V6 transition is the Autonomous Agent Swarm. Instead of a single chatbot, ScholarMind delegates logic to 26 highly specialized, domain-isolated Python agents.
 
-- **Application-level scoping**: Every query includes `tenantId` filter
-- **Prisma middleware**: Warns on queries without tenant scope
-- **Session-based**: User's `tenantId` stored in encrypted session cookie
-- **Future**: Row-Level Security (RLS) in Postgres for defense-in-depth
+| Agent | Domain | Role Description |
+|---|---|---|
+| **Synthesis Agent** | Cross-Module | Acts as the "Headmaster", distributing queries to child agents and synthesizing results. |
+| **Fee Agent** | Treasury | Pre-computes default risks, analyzes grade-wise payment trends. |
+| **Risk Agent** | Core Ops | A hybrid correlation agent detecting overlapping signs of student decline (e.g., fee defaults + attendance drops). |
+| **Crisis Agent** | Executive | Manages high-priority physical or institutional workflow emergencies. |
+| **Neuro Agent** | Wellness | Assesses welfare indicators securely using anonymized sentiment processing. |
 
-### Data Privacy
-
-1. **PII Encryption**: Guardian emails & phones encrypted with AES-256-GCM
-   - Encryption key in `ENCRYPTION_KEY` env variable
-   - Decrypt on-demand using helper functions
-
-2. **Audit Logging**: All financial mutations and role changes logged
-   - Actor, action, entity, before/after states
-   - IP address & user agent tracking
-
-3. **Consent Vault**: Guardian consents for communication channels
-   - SMS, Email, WhatsApp opt-ins
-   - Opt-out enforcement in messaging system
-
-### RBAC (Role-Based Access Control)
-
-**Roles**:
-
-- `SUPER_ADMIN`: Platform administrator
-- `SCHOOL_ADMIN`: Full school management
-- `PRINCIPAL`: Read-only + reports
-- `ACCOUNTANT`: Fees & payments
-- `ADMISSION_COUNSELOR`: Admissions management
-- `TEACHER`: Timetable & attendance
-- `TRANSPORT_MANAGER`: Transport management
-- `PARENT`: View own child's data
-- `STUDENT`: View own profile
-
-**Permission System**: See `src/lib/rbac/permissions.ts`
+### HITL Safety Guardrails (Human-In-The-Loop)
+Agents possess a specialized `requires_human_approval` Tool flag. If the Swarm attempts to execute a high-risk system mutation (like modifying a Grade or Revoking a Certificate), it is physically blocked. Instead, it places the payload in the `agent_approvals` PostgreSQL queue and requests human signoff via the UI.
 
 ---
 
-## 🎯 Core Features
+## 🔐 Enterprise Governance
 
-### Primary Wedge: Fee Collections + Dues Intelligence
+ScholarMind V6 aggressively enforces the **Section 8.2 Persona Matrix**:
 
-- ✅ Fee plan configuration (components: tuition, transport, misc)
-- ✅ Auto-invoice generation (monthly/term-wise)
-- ✅ Partial payments & multiple payments per invoice
-- ✅ Receipt generation
-- ✅ Concessions & fine rules
-- ⏳ Defaulter dashboard (in progress)
-- ⏳ Cashflow forecast (in progress)
-- ⏳ Reminders system (SMS/Email/WhatsApp mock providers)
+1. **`GROUP_EXECUTIVE`**: Has overarching command-center access but limited edit capability across subsidiary campuses.
+2. **`SUPER_ADMIN`**: Tenant-level absolute authority.
+3. **`FINANCE_LEAD`**: Treasury, Overdue Invoices, Multi-currency splits.
+4. **`REGISTRAR`**: The only role permitted to perform Verifiable Credential issuance. 
+5. **`TRUST_OFFICER`**: Dedicated access to the Procurement & Platform Audit Trail dashboards for SOC2 compliance logging.
+6. **`STUDENT_SUCCESS_COUNSELOR`**: Isolated access for sensitive interventions blocking general teacher prying.
 
-### Secondary Wedges
-
-- **Admissions CRM**: Lead capture, pipeline stages, document checklist
-- **Timetable**: Periods, subject assignments, substitution engine
-- **Transport**: Routes, stops, student assignments, parent ETA page
-- **Consent Vault**: Communication consents, audit logs
+*(Review `/apps/web/src/lib/rbac/permissions.ts` for the direct authorization schemas).*
 
 ---
 
-## 🧪 Testing
+## 🛠️ Quick Links
 
-### Run Unit Tests
-
-```bash
-pnpm test
-```
-
-### Run E2E Tests
-
-```bash
-pnpm test:e2e
-```
-
-**Test Coverage Goals**: 90%+ for service layer
-
-**E2E Test Scenarios**:
-
-1. Fee plan → invoice → payment → receipt
-2. Reminder → message log → consent respected
-3. Admission lead → application → docs → enrollment
-4. Multi-tenant isolation verification
+- [Setup Guide](./docs/SETUP_GUIDE.md) — For developer onboarding and environment mapping.
+- [Database Security Checks](./docs/SECURITY_REPORT.md) — RLS policies and SQL injection testing details.
+- [Historical PRDs](./docs/PRDs/) — Review the evolution from V3 to V6. 
+- [Audit Artifacts](./audits/reports/) — The latest TRIVY, Npm, and SemGrep sweeps for SOC2 artifacts.
 
 ---
-
-## 📜 Database Commands
-
-```bash
-# Generate Prisma Client
-cd apps/web && pnpm prisma generate
-
-# Create migration
-pnpm db:migrate
-
-# Seed database
-pnpm db:seed
-
-# Open Prisma Studio (GUI)
-pnpm db:studio
-
-# Reset database (WARNING: deletes all data)
-cd apps/web && pnpm prisma migrate reset
-```
-
----
-
-## 🐳 Docker Commands
-
-```bash
-# Start services
-pnpm docker:up
-
-# Stop services
-pnpm docker:down
-
-# View logs
-docker-compose logs -f postgres
-
-# Connect to Postgres
-docker exec -it school-sis-db psql -U school_admin -d school_sis
-```
-
----
-
-## 🛠️ Development
-
-### Adding New Features
-
-1. **Update Prisma schema** (`apps/web/prisma/schema.prisma`)
-2. **Create migration**: `pnpm db:migrate`
-3. **Add service logic** (`src/lib/services/`)
-4. **Create server action** (`src/lib/actions/`)
-5. **Build UI components** (`src/app/`)
-6. **Write tests** (`__tests__/`)
-
-### Adding shadcn/ui Components
-
-```bash
-cd apps/web
-npx shadcn@latest add [component-name]
-```
-
-### Code Quality
-
-```bash
-# Lint
-pnpm lint
-
-# Format
-pnpm format  # (if configured)
-```
-
----
-
-## 🗺️ Roadmap
-
-### Phase 2 (Next 3-6 months)
-
-- Attendance module with biometric integration
-- Exam & grading system with report cards
-- Library management
-- Real-time communication (in-app chat, push notifications)
-- Advanced analytics & predictive insights
-- Native iOS/Android parent apps
-- Real payment gateways (Razorpay, Stripe)
-- Real SMS/WhatsApp providers (Twilio, Gupshup)
-
-### Phase 3 (6-12 months)
-
-- Multi-campus hierarchical structure
-- Advanced RBAC with custom roles
-- Compliance certifications (GDPR, COPPA readiness)
-- Data residency options
-- Offline-first mobile apps with sync
-- Integrations: Google Classroom, Microsoft Teams
-- AI-powered insights (dropout prediction, fee optimization)
-- White-label capabilities
-
----
-
-## 📞 Support & Contributing
-
-### Issues
-
-Report bugs or feature requests via GitHub issues.
-
-### Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit changes with clear messages
-4. Push and open a pull request
-
----
-
-## 📄 License
-
-**Proprietary** - All rights reserved
-
----
-
-## 🙏 Acknowledgments
-
-Built with modern best practices for school management, privacy-by-design, and fast ROI.
-
-**Tech Stack Credits**:
-
-- Next.js, React, TypeScript
-- Prisma, PostgreSQL
-- Tailwind CSS, shadcn/ui
-- Radix UI primitives
-
----
-
-**Happy School Management! 🎓**
+*Generated mathematically aligned to the PRD V6 Standard implementation.*
