@@ -59,8 +59,8 @@ class Agent(ABC):
         self.tools = ToolRegistry()
         self.rag = rag
         self._llm_client = AsyncOpenAI(
-            api_key=settings.nvidia_api_key,
-            base_url=settings.nvidia_base_url,
+            api_key=settings.llm_api_key,
+            base_url=settings.llm_base_url,
         )
 
         # Register domain-specific tools

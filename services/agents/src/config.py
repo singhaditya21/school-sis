@@ -12,10 +12,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://school_admin:school_sis_dev_2026@localhost:5432/school_sis"
     redis_url: str = "redis://localhost:6379/0"
 
-    # Cloud LLM Configuration (NVIDIA NIM)
-    nvidia_api_key: str = "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"
-    nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
-    llm_model: str = "z-ai/glm4.7"
+    # Cloud LLM Configuration (Cerebras)
+    llm_api_key: str = "csk-vfrek62k49v6c6eytt2tn6e6mvt9t95c2hfrwd2vvdw4e2ff"
+    llm_base_url: str = "https://api.cerebras.ai/v1"
+    llm_model: str = "llama3.1-70b"
     embed_model: str = "nvidia/nv-embedqa-e5-v5"  # Fallback valid NIM embedding model
 
     # Embedding

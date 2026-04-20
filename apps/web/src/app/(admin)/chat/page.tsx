@@ -98,6 +98,7 @@ export default function ChatPage() {
                     <option value="attend">Attendance Agent</option>
                     <option value="academ">Academic Agent</option>
                     <option value="risk">Risk Agent</option>
+                    <option value="crisis">Crisis Agent</option>
                 </select>
             </div>
 
