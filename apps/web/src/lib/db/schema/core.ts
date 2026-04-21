@@ -85,6 +85,12 @@ export const users = pgTable('users', {
     avatarUrl: text('avatar_url'),
     isActive: boolean('is_active').default(true).notNull(),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+    // ─── MFA Fields ──────────────────────────────────────────
+    // mfaSecret is stored encrypted via encryptField() before insert
+    mfaSecret: varchar('mfa_secret', { length: 512 }),
+    mfaEnabled: boolean('mfa_enabled').default(false).notNull(),
+    // Hashed backup codes (bcrypt); stored as a JSON array of hashed strings
+    mfaBackupCodes: text('mfa_backup_codes').array(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

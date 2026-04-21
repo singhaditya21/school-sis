@@ -9,12 +9,68 @@
  */
 
 import crypto from 'crypto';
+import path from 'path';
 
 interface R2Config {
     accountId: string;
     accessKeyId: string;
     secretAccessKey: string;
     bucketName: string;
+}
+
+// ─── Allowlisted upload folders ─────────────────────────────
+const ALLOWED_FOLDERS = new Set([
+    'documents', 'avatars', 'reports', 'invoices',
+    'certificates', 'id-cards', 'attachments', 'exports',
+]);
+
+/**
+ * Validates an R2 object key against path traversal and injection attacks.
+ *
+ * Security checks:
+ * - Rejects `..` sequences in any form (URL-encoded, unicode, backslash)
+ * - Rejects absolute path prefixes
+ * - Rejects null bytes
+ * - Enforces allowlisted folder segment
+ * - Ensures key stays within a tenant-scoped prefix
+ */
+function validateObjectKey(key: string, tenantId: string): void {
+    // Normalise before checking to catch URL-encoded variants like %2F, %2e%2e
+    let decoded: string;
+    try {
+        decoded = decodeURIComponent(key);
+    } catch {
+        throw new Error(`[Storage] Invalid object key encoding: ${key}`);
+    }
+    const normalised = path.posix.normalize(decoded);
+
+    const dangers = [
+        /\.\./,           // traversal: ../
+        /^\/|^\\/,        // absolute path
+        // eslint-disable-next-line no-control-regex
+        /\x00/,           // null byte injection
+        /\\/,             // Windows separator
+    ];
+
+    for (const pattern of dangers) {
+        if (pattern.test(normalised)) {
+            throw new Error(
+                `[Storage] Invalid object key — path traversal or injection detected: ${key}`
+            );
+        }
+    }
+
+    // Key must begin with the tenantId prefix
+    if (!normalised.startsWith(`${tenantId}/`)) {
+        throw new Error(`[Storage] Object key must be scoped to tenant: ${tenantId}`);
+    }
+
+    // Second segment must be an allowlisted folder
+    const segments = normalised.split('/');
+    const folder = segments[1]; // tenantId / folder / filename
+    if (!folder || !ALLOWED_FOLDERS.has(folder)) {
+        throw new Error(`[Storage] Upload folder '${folder}' is not in the allowlist`);
+    }
 }
 
 function getR2Config(): R2Config {
@@ -45,9 +101,8 @@ export async function uploadFile(
     contentType: string,
     tenantId: string,
 ): Promise<{ url: string; key: string; size: number }> {
-    if (key.includes('..')) {
-        throw new Error('Invalid file key: Path traversal detected');
-    }
+    // Security: validate key before use
+    validateObjectKey(key, tenantId);
 
     const config = getR2Config();
     const endpoint = getEndpoint(config);
@@ -71,12 +126,11 @@ export async function uploadFile(
 }
 
 /**
- * Delete a file from R2.
+ * Delete a file from R2. Requires tenantId for key validation.
  */
-export async function deleteFile(key: string): Promise<void> {
-    if (key.includes('..')) {
-        throw new Error('Invalid file key: Path traversal detected');
-    }
+export async function deleteFile(key: string, tenantId: string): Promise<void> {
+    // Security: validate key before use
+    validateObjectKey(key, tenantId);
 
     const config = getR2Config();
     const endpoint = getEndpoint(config);
@@ -88,13 +142,21 @@ export async function deleteFile(key: string): Promise<void> {
 /**
  * Generate a tenant-scoped file key.
  * Format: {tenantId}/{folder}/{uuid}.{ext}
+ *
+ * Only allowlisted folder names are accepted.
  */
 export function generateFileKey(
     tenantId: string,
     folder: string,
     originalFilename: string,
 ): string {
-    const ext = originalFilename.split('.').pop() || 'bin';
+    if (!ALLOWED_FOLDERS.has(folder)) {
+        throw new Error(`[Storage] Folder '${folder}' is not in the allowlist`);
+    }
+
+    // Only preserve the extension — never use the original filename directly
+    const rawExt = path.extname(originalFilename).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const ext = rawExt.length > 0 && rawExt.length <= 5 ? rawExt : 'bin';
     const uuid = crypto.randomUUID();
     return `${tenantId}/${folder}/${uuid}.${ext}`;
 }

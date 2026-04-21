@@ -101,7 +101,7 @@ export async function dispatchEvent(tenantId: string, event: string, payload: Re
 
         // Deliver asynchronously (fire-and-forget)
         deliverWebhook(deliveryId, sub.url, body, signature, sub.headers as Record<string, string> | null, sub.timeoutMs)
-            .catch(err => console.error(`[Webhook] Delivery ${deliveryId} failed:`, err));
+            .catch(err => console.error({ event: 'webhook.delivery_failed', deliveryId, error: err.message }));
     }
 
     return { dispatched: matchingSubs.length };
