@@ -29,10 +29,12 @@
         "overrides": {
             "minimatch": ">=9.0.7",
             "ajv": ">=8.17.1",
-            "flatted": ">=3.4.1",
+            "flatted": ">=3.4.2",
             "dompurify": ">=3.3.2",
             "lodash": ">=4.17.23",
-            "jsonwebtoken": ">=9.0.2"
+            "jsonwebtoken": ">=9.0.2",
+            "picomatch": ">=4.0.4",
+            "next": ">=16.2.4"
         }
     }
 }
