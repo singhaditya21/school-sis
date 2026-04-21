@@ -25,11 +25,22 @@
 | Property | Value |
 |----------|-------|
 | **Provider** | Supabase (managed PostgreSQL) |
+| **Project ID** | `vmysvgehpqfkibqatvfo` |
 | **Region** | `ap-southeast-2` (Sydney, Australia) |
 | **Engine** | PostgreSQL 16 + pgvector extension |
 | **ORM** | Drizzle ORM (`drizzle.config.ts`) |
-| **Connection** | `process.env.DIRECT_URL` (direct) or `process.env.DATABASE_URL` (pooled) |
-| **Pooler** | Supabase connection pooler (Pgbouncer) via `DATABASE_URL` |
+
+### Connection Strings
+
+| Mode | URL | Use for |
+|------|-----|---------|
+| **Direct** | `postgresql://postgres:[PASSWORD]@db.vmysvgehpqfkibqatvfo.supabase.co:5432/postgres` | Drizzle migrations (`DIRECT_URL`) |
+| **Session Pooler** | `postgresql://postgres.vmysvgehpqfkibqatvfo:[PASSWORD]@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres` | App runtime (`DATABASE_URL`) |
+| **Transaction Pooler** | `postgresql://postgres.vmysvgehpqfkibqatvfo:[PASSWORD]@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres` | Serverless / edge (`DATABASE_URL` alternative) |
+
+> [!IMPORTANT]
+> Always use **Direct URL** for `DIRECT_URL` (migrations). Never use the transaction pooler for migrations — it breaks DDL statements.
+> Always use **Session Pooler** for `DATABASE_URL` at runtime on Render (long-lived Node process).
 
 ### Source references
 - `render.yaml:5` — `region: singapore # Closest to your ap-southeast-2 Supabase database`
