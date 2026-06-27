@@ -441,3 +441,64 @@ export async function getFeeOverview(): Promise<FeeOverview> {
         paidInvoiceCount: parseInt(paidStats?.count || '0', 10),
     };
 }
+
+// ─── Defaulter Alert Stats ────────────────────────────────────
+
+export interface DefaulterAlertStats {
+    total: number;
+    critical: number;   // 60+ days overdue
+    serious: number;    // 30-59 days overdue
+    warning: number;    // 15-29 days overdue
+    totalAmount: number;
+}
+
+export async function getDefaulterAlertStats(): Promise<DefaulterAlertStats> {
+    const { tenantId } = await requireAuth('fees:read');
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    const { rows: overdueRows } = await pool.query(`
+        SELECT 
+            i.student_id AS "studentId", 
+            i.total_amount AS "totalAmount", 
+            i.paid_amount AS "paidAmount", 
+            i.due_date AS "dueDate"
+        FROM invoices i
+        WHERE i.tenant_id = $1 
+          AND i.due_date < $2 
+          AND i.status NOT IN ('PAID', 'CANCELLED', 'WAIVED')
+    `, [tenantId, todayStr]);
+
+    // Group by student and find the max days overdue per student
+    const studentMaxDays = new Map<string, number>();
+    let totalAmount = 0;
+
+    for (const row of overdueRows) {
+        const balance = Number(row.totalAmount) - Number(row.paidAmount);
+        totalAmount += balance;
+        const dueDate = new Date(row.dueDate);
+        const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+        const existing = studentMaxDays.get(row.studentId) || 0;
+        if (daysOverdue > existing) {
+            studentMaxDays.set(row.studentId, daysOverdue);
+        }
+    }
+
+    let critical = 0;
+    let serious = 0;
+    let warning = 0;
+
+    for (const days of studentMaxDays.values()) {
+        if (days >= 60) critical++;
+        else if (days >= 30) serious++;
+        else if (days >= 15) warning++;
+    }
+
+    return {
+        total: studentMaxDays.size,
+        critical,
+        serious,
+        warning,
+        totalAmount,
+    };
+}
