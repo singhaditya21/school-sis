@@ -1,11 +1,7 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { issuedCertificates, certificateTemplates } from '@/lib/db/schema/certificate';
-import { students } from '@/lib/db/schema/students';
-import { users } from '@/lib/db/schema/core';
+import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
-import { eq, desc } from 'drizzle-orm';
 
 /**
  * Fetch all credentials logged in the trust ledger
@@ -14,22 +10,23 @@ export async function getCredentialRegistryAction() {
     const session = await getSession();
     if (!session.tenantId) throw new Error('Unauthorized');
 
-    const credentials = await db
-        .select({
-            id: issuedCertificates.id,
-            certificateNumber: issuedCertificates.certificateNumber,
-            status: issuedCertificates.status,
-            issuedDate: issuedCertificates.issuedDate,
-            templateName: certificateTemplates.name,
-            studentName: students.firstName,
-            issuedBy: users.name,
-        })
-        .from(issuedCertificates)
-        .leftJoin(certificateTemplates, eq(issuedCertificates.templateId, certificateTemplates.id))
-        .leftJoin(students, eq(issuedCertificates.studentId, students.id))
-        .leftJoin(users, eq(issuedCertificates.issuedBy, users.id))
-        .where(eq(issuedCertificates.tenantId, session.tenantId))
-        .orderBy(desc(issuedCertificates.issuedDate));
+    const { rows } = await pool.query(
+        `SELECT 
+            ic.id, 
+            ic.certificate_number AS "certificateNumber", 
+            ic.status, 
+            ic.issued_date AS "issuedDate", 
+            ct.name AS "templateName", 
+            s.first_name AS "studentName", 
+            u.name AS "issuedBy" 
+         FROM issued_certificates ic 
+         LEFT JOIN certificate_templates ct ON ic.template_id = ct.id 
+         LEFT JOIN students s ON ic.student_id = s.id 
+         LEFT JOIN users u ON ic.issued_by = u.id 
+         WHERE ic.tenant_id = $1 
+         ORDER BY ic.issued_date DESC`,
+        [session.tenantId]
+    );
 
-    return credentials;
+    return rows;
 }
