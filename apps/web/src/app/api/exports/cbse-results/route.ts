@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, setTenantContext } from '@/lib/db';
-import { sql } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 
 export const dynamic = "force-dynamic";
@@ -24,10 +23,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const examId = searchParams.get('examId');
 
-    await setTenantContext(tenantId);
-
     try {
-        const data = await db.execute(sql`
+        const params: any[] = [tenantId];
+        let examClause = '';
+        if (examId) {
+            params.push(examId);
+            examClause = `AND e.id = $2`;
+        }
+
+        const { rows: data } = await pool.query(`
             SELECT
                 s.admission_number AS "Roll Number",
                 s.first_name || ' ' || s.last_name AS "Candidate Name",
@@ -47,12 +51,12 @@ export async function GET(request: NextRequest) {
             JOIN students s ON s.id = er.student_id
             LEFT JOIN sections sec ON sec.id = s.section_id
             LEFT JOIN grades g ON g.id = sec.grade_id
-            WHERE e.tenant_id = ${tenantId}
-            ${examId ? sql`AND e.id = ${examId}` : sql``}
+            WHERE e.tenant_id = $1
+            ${examClause}
             ORDER BY g.display_order, s.admission_number, sub.name
-        `);
+        `, params);
 
-        if ((data as any[]).length === 0) {
+        if (data.length === 0) {
             return NextResponse.json({ error: 'No results found' }, { status: 404 });
         }
 
@@ -60,7 +64,7 @@ export async function GET(request: NextRequest) {
         const columns = ['Roll Number', 'Candidate Name', 'Gender', 'DOB', 'Category', 'Class', 'Subject', 'Subject Code', 'Marks Obtained', 'Total Marks', 'Grade'];
         const rows = [columns.join(',')];
 
-        for (const row of data as any[]) {
+        for (const row of data) {
             rows.push(columns.map(col => {
                 const val = row[col];
                 if (val === null || val === undefined) return '';
@@ -69,7 +73,8 @@ export async function GET(request: NextRequest) {
             }).join(','));
         }
 
-        const [tenant] = await db.execute(sql`SELECT code FROM tenants WHERE id = ${tenantId}`) as any[];
+        const { rows: tenants } = await pool.query(`SELECT code FROM tenants WHERE id = $1`, [tenantId]);
+        const tenant = tenants[0];
 
         return new NextResponse(rows.join('\n'), {
             headers: {

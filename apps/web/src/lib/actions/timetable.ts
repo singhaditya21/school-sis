@@ -1,6 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
+import { db, pool } from '@/lib/db';
 import { periods, timetableEntries, subjects, sections, grades, users } from '@/lib/db/schema';
 import { eq, and, asc, ne } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth/middleware';
@@ -341,5 +341,45 @@ export async function getSubstitutionSuggestions(data: {
             teacherName: `${t.firstName} ${t.lastName}`,
             isFree: true,
         }));
+}
+
+export async function createSubstitutionRequest(data: {
+    date: string;
+    absentTeacherName: string;
+    subject: string;
+    period: number;
+}) {
+    const { tenantId } = await requireAuth('timetable:read');
+
+    // Resolve teacher ID from name
+    const teacherRes = await pool.query(
+        `SELECT id FROM users WHERE tenant_id = $1 AND role = 'TEACHER' AND (first_name || ' ' || last_name) = $2 LIMIT 1`,
+        [tenantId, data.absentTeacherName]
+    );
+    const teacherId = teacherRes.rows[0]?.id;
+    if (!teacherId) {
+        throw new Error('Teacher not found');
+    }
+
+    // Resolve a default section and substitute teacher for the request
+    const sectionRes = await pool.query(
+        `SELECT id FROM sections WHERE tenant_id = $1 LIMIT 1`,
+        [tenantId]
+    );
+    const sectionId = sectionRes.rows[0]?.id;
+
+    const substituteRes = await pool.query(
+        `SELECT id FROM users WHERE tenant_id = $1 AND role = 'TEACHER' AND id != $2 LIMIT 1`,
+        [tenantId, teacherId]
+    );
+    const substituteId = substituteRes.rows[0]?.id;
+
+    await pool.query(
+        `INSERT INTO substitution_requests (tenant_id, teacher_id, substitute_id, section_id, period, date, reason, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')`,
+        [tenantId, teacherId, substituteId, sectionId, data.period, data.date, data.subject]
+    );
+
+    return { success: true };
 }
 

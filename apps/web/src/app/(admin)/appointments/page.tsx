@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getAppointments } from '@/lib/actions/scaffolding-bridge';
+import { getAppointments } from '@/lib/services/appointments/appointments.service';
 
 export default function AppointmentsPage() {
     const [appointments, setAppointments] = useState<any[]>([]);

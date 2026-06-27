@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { feePlans, feeComponents, invoices, payments, receipts, academicYears, students, grades, sections } from '@/lib/db/schema';
-import { eq, and, count, sum, asc, desc, lt, sql, ne } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
 export interface FeePlanListItem {
@@ -37,41 +35,41 @@ export interface InvoiceListItem {
 export async function getFeePlans(): Promise<FeePlanListItem[]> {
     const { tenantId } = await requireAuth('fees:read');
 
-    const plans = await db
-        .select({
-            id: feePlans.id,
-            name: feePlans.name,
-            description: feePlans.description,
-            isActive: feePlans.isActive,
-            academicYearName: academicYears.name,
-        })
-        .from(feePlans)
-        .innerJoin(academicYears, eq(feePlans.academicYearId, academicYears.id))
-        .where(eq(feePlans.tenantId, tenantId))
-        .orderBy(desc(feePlans.createdAt));
+    const plansResult = await pool.query(`
+        SELECT 
+            p.id, 
+            p.name, 
+            p.description, 
+            p.is_active AS "isActive", 
+            a.name AS "academicYearName"
+        FROM fee_plans p
+        INNER JOIN academic_years a ON p.academic_year_id = a.id
+        WHERE p.tenant_id = $1
+        ORDER BY p.created_at DESC
+    `, [tenantId]);
 
-    // Get component counts and invoice stats for each plan
     const result: FeePlanListItem[] = [];
 
-    for (const plan of plans) {
-        const [compCount] = await db
-            .select({ count: count() })
-            .from(feeComponents)
-            .where(eq(feeComponents.feePlanId, plan.id));
+    for (const plan of plansResult.rows) {
+        const compResult = await pool.query(`
+            SELECT COUNT(*) AS count
+            FROM fee_components
+            WHERE fee_plan_id = $1
+        `, [plan.id]);
 
-        const [invStats] = await db
-            .select({
-                count: count(),
-                totalPaid: sum(invoices.paidAmount),
-            })
-            .from(invoices)
-            .where(and(eq(invoices.feePlanId, plan.id), eq(invoices.tenantId, tenantId)));
+        const invResult = await pool.query(`
+            SELECT 
+                COUNT(*) AS count, 
+                SUM(paid_amount) AS "totalPaid"
+            FROM invoices
+            WHERE fee_plan_id = $1 AND tenant_id = $2
+        `, [plan.id, tenantId]);
 
         result.push({
             ...plan,
-            componentCount: compCount.count,
-            invoiceCount: invStats.count,
-            totalCollected: Number(invStats.totalPaid || 0),
+            componentCount: parseInt(compResult.rows[0].count, 10),
+            invoiceCount: parseInt(invResult.rows[0].count, 10),
+            totalCollected: Number(invResult.rows[0].totalPaid || 0),
         });
     }
 
@@ -81,19 +79,19 @@ export async function getFeePlans(): Promise<FeePlanListItem[]> {
 export async function getFeePlanComponents(planId: string): Promise<FeeComponentItem[]> {
     await requireAuth('fees:read');
 
-    const components = await db
-        .select({
-            id: feeComponents.id,
-            name: feeComponents.name,
-            amount: feeComponents.amount,
-            frequency: feeComponents.frequency,
-            isOptional: feeComponents.isOptional,
-        })
-        .from(feeComponents)
-        .where(eq(feeComponents.feePlanId, planId))
-        .orderBy(asc(feeComponents.createdAt));
+    const result = await pool.query(`
+        SELECT 
+            id, 
+            name, 
+            amount, 
+            frequency, 
+            is_optional AS "isOptional"
+        FROM fee_components
+        WHERE fee_plan_id = $1
+        ORDER BY created_at ASC
+    `, [planId]);
 
-    return components;
+    return result.rows;
 }
 
 export async function getInvoices(options?: {
@@ -103,29 +101,31 @@ export async function getInvoices(options?: {
     const { tenantId } = await requireAuth('fees:read');
     const limit = options?.limit || 50;
 
-    const conditions = [eq(invoices.tenantId, tenantId)];
+    let query = `
+        SELECT 
+            i.id, 
+            i.invoice_number AS "invoiceNumber", 
+            s.first_name AS "studentFirstName", 
+            s.last_name AS "studentLastName", 
+            i.total_amount AS "totalAmount", 
+            i.paid_amount AS "paidAmount", 
+            i.due_date AS "dueDate", 
+            i.status
+        FROM invoices i
+        INNER JOIN students s ON i.student_id = s.id
+        WHERE i.tenant_id = $1
+    `;
+    const params: any[] = [tenantId];
+
     if (options?.status) {
-        conditions.push(eq(invoices.status, options.status as any));
+        params.push(options.status);
+        query += ` AND i.status = $${params.length}`;
     }
 
-    // Join with students to get names
+    query += ` ORDER BY i.created_at DESC LIMIT $${params.length + 1}`;
+    params.push(limit);
 
-    const rows = await db
-        .select({
-            id: invoices.id,
-            invoiceNumber: invoices.invoiceNumber,
-            studentFirstName: students.firstName,
-            studentLastName: students.lastName,
-            totalAmount: invoices.totalAmount,
-            paidAmount: invoices.paidAmount,
-            dueDate: invoices.dueDate,
-            status: invoices.status,
-        })
-        .from(invoices)
-        .innerJoin(students, eq(invoices.studentId, students.id))
-        .where(and(...conditions))
-        .orderBy(desc(invoices.createdAt))
-        .limit(limit);
+    const { rows } = await pool.query(query, params);
 
     return rows.map(r => ({
         id: r.id,
@@ -133,7 +133,7 @@ export async function getInvoices(options?: {
         studentName: `${r.studentFirstName} ${r.studentLastName}`,
         totalAmount: r.totalAmount,
         paidAmount: r.paidAmount,
-        dueDate: r.dueDate,
+        dueDate: r.dueDate instanceof Date ? r.dueDate.toISOString().split('T')[0] : String(r.dueDate),
         status: r.status,
     }));
 }
@@ -187,22 +187,17 @@ export async function getDefaulterStats(): Promise<DefaulterStats> {
     const { tenantId } = await requireAuth('fees:read');
     const today = new Date().toISOString().split('T')[0];
 
-    // Get overdue invoices (status not PAID/CANCELLED/WAIVED and past due date)
-    const overdueRows = await db
-        .select({
-            totalAmount: invoices.totalAmount,
-            paidAmount: invoices.paidAmount,
-            dueDate: invoices.dueDate,
-            studentId: invoices.studentId,
-        })
-        .from(invoices)
-        .where(and(
-            eq(invoices.tenantId, tenantId),
-            lt(invoices.dueDate, today),
-            ne(invoices.status, 'PAID'),
-            ne(invoices.status, 'CANCELLED'),
-            ne(invoices.status, 'WAIVED'),
-        ));
+    const { rows: overdueRows } = await pool.query(`
+        SELECT 
+            total_amount AS "totalAmount", 
+            paid_amount AS "paidAmount", 
+            due_date AS "dueDate", 
+            student_id AS "studentId"
+        FROM invoices
+        WHERE tenant_id = $1 
+          AND due_date < $2 
+          AND status NOT IN ('PAID', 'CANCELLED', 'WAIVED')
+    `, [tenantId, today]);
 
     if (overdueRows.length === 0) {
         return {
@@ -244,20 +239,16 @@ export async function getFeeAgeingBreakdown(): Promise<AgeingBucket[]> {
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
 
-    const overdueRows = await db
-        .select({
-            totalAmount: invoices.totalAmount,
-            paidAmount: invoices.paidAmount,
-            dueDate: invoices.dueDate,
-        })
-        .from(invoices)
-        .where(and(
-            eq(invoices.tenantId, tenantId),
-            lt(invoices.dueDate, todayStr),
-            ne(invoices.status, 'PAID'),
-            ne(invoices.status, 'CANCELLED'),
-            ne(invoices.status, 'WAIVED'),
-        ));
+    const { rows: overdueRows } = await pool.query(`
+        SELECT 
+            total_amount AS "totalAmount", 
+            paid_amount AS "paidAmount", 
+            due_date AS "dueDate"
+        FROM invoices
+        WHERE tenant_id = $1 
+          AND due_date < $2 
+          AND status NOT IN ('PAID', 'CANCELLED', 'WAIVED')
+    `, [tenantId, todayStr]);
 
     const buckets: AgeingBucket[] = [
         { label: '0-30 days', count: 0, amount: 0 },
@@ -291,36 +282,32 @@ export async function getDefaulterList(options?: {
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
 
-    // Get overdue invoices with student info
-    const overdueRows = await db
-        .select({
-            studentId: invoices.studentId,
-            studentFirstName: students.firstName,
-            studentLastName: students.lastName,
-            gradeName: grades.name,
-            sectionName: sections.name,
-            totalAmount: invoices.totalAmount,
-            paidAmount: invoices.paidAmount,
-            dueDate: invoices.dueDate,
-        })
-        .from(invoices)
-        .innerJoin(students, eq(invoices.studentId, students.id))
-        .innerJoin(grades, eq(students.gradeId, grades.id))
-        .innerJoin(sections, eq(students.sectionId, sections.id))
-        .where(and(
-            eq(invoices.tenantId, tenantId),
-            lt(invoices.dueDate, todayStr),
-            ne(invoices.status, 'PAID'),
-            ne(invoices.status, 'CANCELLED'),
-            ne(invoices.status, 'WAIVED'),
-        ));
+    const { rows: overdueRows } = await pool.query(`
+        SELECT 
+            i.student_id AS "studentId", 
+            s.first_name AS "studentFirstName", 
+            s.last_name AS "studentLastName", 
+            g.name AS "gradeName", 
+            sec.name AS "sectionName", 
+            i.total_amount AS "totalAmount", 
+            i.paid_amount AS "paidAmount", 
+            i.due_date AS "dueDate"
+        FROM invoices i
+        INNER JOIN students s ON i.student_id = s.id
+        INNER JOIN grades g ON s.grade_id = g.id
+        INNER JOIN sections sec ON s.section_id = sec.id
+        WHERE i.tenant_id = $1 
+          AND i.due_date < $2 
+          AND i.status NOT IN ('PAID', 'CANCELLED', 'WAIVED')
+    `, [tenantId, todayStr]);
 
-    // Group by student
     const studentMap = new Map<string, DefaulterItem>();
     for (const row of overdueRows) {
         const existing = studentMap.get(row.studentId);
         const balance = Number(row.totalAmount) - Number(row.paidAmount);
-        const daysOverdue = Math.floor((today.getTime() - new Date(row.dueDate).getTime()) / (1000 * 60 * 60 * 24));
+        const dueDate = new Date(row.dueDate);
+        const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+        const dueDateStr = row.dueDate instanceof Date ? row.dueDate.toISOString().split('T')[0] : String(row.dueDate);
 
         if (existing) {
             existing.totalDue += Number(row.totalAmount);
@@ -329,7 +316,7 @@ export async function getDefaulterList(options?: {
             existing.invoiceCount++;
             if (daysOverdue > existing.daysOverdue) {
                 existing.daysOverdue = daysOverdue;
-                existing.oldestDueDate = row.dueDate;
+                existing.oldestDueDate = dueDateStr;
             }
         } else {
             studentMap.set(row.studentId, {
@@ -339,7 +326,7 @@ export async function getDefaulterList(options?: {
                 totalDue: Number(row.totalAmount),
                 totalPaid: Number(row.paidAmount),
                 balance,
-                oldestDueDate: row.dueDate,
+                oldestDueDate: dueDateStr,
                 daysOverdue,
                 invoiceCount: 1,
             });
@@ -348,7 +335,6 @@ export async function getDefaulterList(options?: {
 
     let result = Array.from(studentMap.values());
 
-    // Sort
     const sortBy = options?.sortBy || 'amount';
     if (sortBy === 'amount') {
         result.sort((a, b) => b.balance - a.balance);
@@ -356,7 +342,6 @@ export async function getDefaulterList(options?: {
         result.sort((a, b) => b.daysOverdue - a.daysOverdue);
     }
 
-    // Limit
     if (options?.limit) {
         result = result.slice(0, options.limit);
     }
@@ -367,35 +352,26 @@ export async function getDefaulterList(options?: {
 export async function getCollectionTrend(months: number = 6): Promise<CollectionTrendItem[]> {
     const { tenantId } = await requireAuth('fees:read');
 
-    // Get monthly payment totals
-    const paymentRows = await db
-        .select({
-            month: sql<string>`to_char(${payments.paidAt}, 'YYYY-MM')`,
-            total: sum(payments.amount),
-        })
-        .from(payments)
-        .where(and(
-            eq(payments.tenantId, tenantId),
-            eq(payments.status, 'COMPLETED'),
-        ))
-        .groupBy(sql`to_char(${payments.paidAt}, 'YYYY-MM')`)
-        .orderBy(sql`to_char(${payments.paidAt}, 'YYYY-MM')`);
+    const { rows: paymentRows } = await pool.query(`
+        SELECT 
+            to_char(paid_at, 'YYYY-MM') AS month, 
+            SUM(amount) AS total
+        FROM payments
+        WHERE tenant_id = $1 AND status = 'COMPLETED'
+        GROUP BY to_char(paid_at, 'YYYY-MM')
+        ORDER BY to_char(paid_at, 'YYYY-MM')
+    `, [tenantId]);
 
-    // Get monthly invoice totals
-    const invoiceRows = await db
-        .select({
-            month: sql<string>`to_char(${invoices.createdAt}, 'YYYY-MM')`,
-            total: sum(invoices.totalAmount),
-        })
-        .from(invoices)
-        .where(and(
-            eq(invoices.tenantId, tenantId),
-            ne(invoices.status, 'CANCELLED'),
-        ))
-        .groupBy(sql`to_char(${invoices.createdAt}, 'YYYY-MM')`)
-        .orderBy(sql`to_char(${invoices.createdAt}, 'YYYY-MM')`);
+    const { rows: invoiceRows } = await pool.query(`
+        SELECT 
+            to_char(created_at, 'YYYY-MM') AS month, 
+            SUM(total_amount) AS total
+        FROM invoices
+        WHERE tenant_id = $1 AND status != 'CANCELLED'
+        GROUP BY to_char(created_at, 'YYYY-MM')
+        ORDER BY to_char(created_at, 'YYYY-MM')
+    `, [tenantId]);
 
-    // Build last N months
     const result: CollectionTrendItem[] = [];
     const now = new Date();
     for (let i = months - 1; i >= 0; i--) {
@@ -420,39 +396,32 @@ export async function getFeeOverview(): Promise<FeeOverview> {
     const { tenantId } = await requireAuth('fees:read');
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // Aggregate invoice stats
-    const [invoiceStats] = await db
-        .select({
-            totalBilled: sum(invoices.totalAmount),
-            totalPaid: sum(invoices.paidAmount),
-            totalCount: count(),
-        })
-        .from(invoices)
-        .where(and(
-            eq(invoices.tenantId, tenantId),
-            ne(invoices.status, 'CANCELLED'),
-        ));
+    const { rows: invoiceStatsRows } = await pool.query(`
+        SELECT 
+            SUM(total_amount) AS "totalBilled", 
+            SUM(paid_amount) AS "totalPaid", 
+            COUNT(*) AS "totalCount"
+        FROM invoices
+        WHERE tenant_id = $1 AND status != 'CANCELLED'
+    `, [tenantId]);
 
-    // Paid invoice count
-    const [paidStats] = await db
-        .select({ count: count() })
-        .from(invoices)
-        .where(and(
-            eq(invoices.tenantId, tenantId),
-            eq(invoices.status, 'PAID'),
-        ));
+    const invoiceStats = invoiceStatsRows[0];
 
-    // Overdue count + defaulter count
-    const overdueRows = await db
-        .select({ studentId: invoices.studentId })
-        .from(invoices)
-        .where(and(
-            eq(invoices.tenantId, tenantId),
-            lt(invoices.dueDate, todayStr),
-            ne(invoices.status, 'PAID'),
-            ne(invoices.status, 'CANCELLED'),
-            ne(invoices.status, 'WAIVED'),
-        ));
+    const { rows: paidStatsRows } = await pool.query(`
+        SELECT COUNT(*) AS count
+        FROM invoices
+        WHERE tenant_id = $1 AND status = 'PAID'
+    `, [tenantId]);
+
+    const paidStats = paidStatsRows[0];
+
+    const { rows: overdueRows } = await pool.query(`
+        SELECT student_id AS "studentId"
+        FROM invoices
+        WHERE tenant_id = $1 
+          AND due_date < $2 
+          AND status NOT IN ('PAID', 'CANCELLED', 'WAIVED')
+    `, [tenantId, todayStr]);
 
     const uniqueDefaulters = new Set(overdueRows.map(r => r.studentId));
 
@@ -466,9 +435,9 @@ export async function getFeeOverview(): Promise<FeeOverview> {
         totalCollected,
         totalPending,
         collectionRate,
-        overdueAmount: totalPending, // simplified — overdue ≈ pending for now
+        overdueAmount: totalPending,
         defaulterCount: uniqueDefaulters.size,
-        invoiceCount: invoiceStats?.totalCount || 0,
-        paidInvoiceCount: paidStats?.count || 0,
+        invoiceCount: parseInt(invoiceStats?.totalCount || '0', 10),
+        paidInvoiceCount: parseInt(paidStats?.count || '0', 10),
     };
 }

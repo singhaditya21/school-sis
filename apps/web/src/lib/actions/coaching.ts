@@ -1,9 +1,7 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { coachingBatches, testSeries, testSeriesResults } from '@/lib/db/schema/coaching';
+import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
-import { eq, and, desc, sql } from 'drizzle-orm';
 
 /**
  * Fetch all active batches for the current coaching institute.
@@ -12,18 +10,17 @@ export async function getActiveBatchesAction() {
     const session = await getSession();
     if (!session.tenantId) throw new Error('Unauthorized');
 
-    const batches = await db
-        .select()
-        .from(coachingBatches)
-        .where(
-            and(
-                eq(coachingBatches.tenantId, session.tenantId),
-                eq(coachingBatches.isActive, true)
-            )
-        )
-        .orderBy(desc(coachingBatches.createdAt));
+    const { rows } = await pool.query(`
+        SELECT 
+            id, tenant_id as "tenantId", name, course_id as "courseId", 
+            start_date as "startDate", end_date as "endDate", 
+            capacity, is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt"
+        FROM coaching_batches
+        WHERE tenant_id = $1 AND is_active = true
+        ORDER BY created_at DESC
+    `, [session.tenantId]);
 
-    return batches;
+    return rows;
 }
 
 /**
@@ -34,29 +31,21 @@ export async function getCoachingDashboardSummaryAction() {
     const session = await getSession();
     if (!session.tenantId) throw new Error('Unauthorized');
 
-    const activeBatchesCount = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(coachingBatches)
-        .where(
-            and(
-                eq(coachingBatches.tenantId, session.tenantId),
-                eq(coachingBatches.isActive, true)
-            )
-        );
+    const activeBatchesRes = await pool.query(`
+        SELECT count(*)
+        FROM coaching_batches
+        WHERE tenant_id = $1 AND is_active = true
+    `, [session.tenantId]);
 
-    const upcomingTestsCount = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(testSeries)
-        .where(
-            and(
-                eq(testSeries.tenantId, session.tenantId),
-                sql`${testSeries.scheduledAt} > current_date`
-            )
-        );
+    const upcomingTestsRes = await pool.query(`
+        SELECT count(*)
+        FROM test_series
+        WHERE tenant_id = $1 AND scheduled_at > CURRENT_DATE
+    `, [session.tenantId]);
 
     return {
-        activeBatches: activeBatchesCount[0]?.count || 0,
-        upcomingTests: upcomingTestsCount[0]?.count || 0,
+        activeBatches: parseInt(activeBatchesRes.rows[0].count, 10) || 0,
+        upcomingTests: parseInt(upcomingTestsRes.rows[0].count, 10) || 0,
         liveDoubts: 14, // Mocked pending NLP insights integration
     };
 }

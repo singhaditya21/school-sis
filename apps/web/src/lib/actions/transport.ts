@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { vehicles, routes, stops, studentTransport, students, grades, sections } from '@/lib/db/schema';
-import { eq, and, count, asc } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
 export interface VehicleItem {
@@ -45,26 +43,21 @@ export interface StopItem {
 export async function getVehicles(): Promise<VehicleItem[]> {
     const { tenantId } = await requireAuth('transport:read');
 
-    const rows = await db
-        .select({
-            id: vehicles.id,
-            vehicleNumber: vehicles.vehicleNumber,
-            type: vehicles.type,
-            capacity: vehicles.capacity,
-            driverName: vehicles.driverName,
-            driverPhone: vehicles.driverPhone,
-        })
-        .from(vehicles)
-        .where(eq(vehicles.tenantId, tenantId));
+    const { rows: vehiclesRows } = await pool.query(`
+        SELECT id, vehicle_number AS "vehicleNumber", type, capacity, driver_name AS "driverName", driver_phone AS "driverPhone"
+        FROM vehicles
+        WHERE tenant_id = $1
+    `, [tenantId]);
 
     const result: VehicleItem[] = [];
-    for (const v of rows) {
-        const [routeCount] = await db
-            .select({ count: count() })
-            .from(routes)
-            .where(eq(routes.vehicleId, v.id));
+    for (const v of vehiclesRows) {
+        const { rows: countRows } = await pool.query(`
+            SELECT count(*)
+            FROM routes
+            WHERE vehicle_id = $1
+        `, [v.id]);
 
-        result.push({ ...v, routeCount: routeCount.count });
+        result.push({ ...v, routeCount: Number(countRows[0].count) });
     }
 
     return result;
@@ -73,35 +66,34 @@ export async function getVehicles(): Promise<VehicleItem[]> {
 export async function getRoutes(): Promise<RouteItem[]> {
     const { tenantId } = await requireAuth('transport:read');
 
-    const rows = await db
-        .select({
-            id: routes.id,
-            name: routes.name,
-            vehicleNumber: vehicles.vehicleNumber,
-            morningDepartureTime: routes.morningDepartureTime,
-            afternoonDepartureTime: routes.afternoonDepartureTime,
-            monthlyFee: routes.monthlyFee,
-        })
-        .from(routes)
-        .innerJoin(vehicles, eq(routes.vehicleId, vehicles.id))
-        .where(eq(routes.tenantId, tenantId));
+    const { rows: routeRows } = await pool.query(`
+        SELECT r.id, r.name, v.vehicle_number AS "vehicleNumber",
+               r.morning_departure_time AS "morningDepartureTime",
+               r.afternoon_departure_time AS "afternoonDepartureTime",
+               r.monthly_fee AS "monthlyFee"
+        FROM routes r
+        INNER JOIN vehicles v ON r.vehicle_id = v.id
+        WHERE r.tenant_id = $1
+    `, [tenantId]);
 
     const result: RouteItem[] = [];
-    for (const r of rows) {
-        const [stopCount] = await db
-            .select({ count: count() })
-            .from(stops)
-            .where(eq(stops.routeId, r.id));
+    for (const r of routeRows) {
+        const { rows: stopCountRows } = await pool.query(`
+            SELECT count(*)
+            FROM stops
+            WHERE route_id = $1
+        `, [r.id]);
 
-        const [studentCount] = await db
-            .select({ count: count() })
-            .from(studentTransport)
-            .where(eq(studentTransport.routeId, r.id));
+        const { rows: studentCountRows } = await pool.query(`
+            SELECT count(*)
+            FROM student_transport
+            WHERE route_id = $1
+        `, [r.id]);
 
         result.push({
             ...r,
-            stopCount: stopCount.count,
-            studentCount: studentCount.count,
+            stopCount: Number(stopCountRows[0].count),
+            studentCount: Number(studentCountRows[0].count),
         });
     }
 
@@ -111,51 +103,44 @@ export async function getRoutes(): Promise<RouteItem[]> {
 export async function getRouteDetail(routeId: string): Promise<RouteDetail | null> {
     const { tenantId } = await requireAuth('transport:read');
 
-    const routeRows = await db
-        .select({
-            id: routes.id,
-            name: routes.name,
-            vehicleNumber: vehicles.vehicleNumber,
-            morningDepartureTime: routes.morningDepartureTime,
-            afternoonDepartureTime: routes.afternoonDepartureTime,
-            monthlyFee: routes.monthlyFee,
-        })
-        .from(routes)
-        .innerJoin(vehicles, eq(routes.vehicleId, vehicles.id))
-        .where(and(eq(routes.id, routeId), eq(routes.tenantId, tenantId)));
+    const { rows: routeRows } = await pool.query(`
+        SELECT r.id, r.name, v.vehicle_number AS "vehicleNumber",
+               r.morning_departure_time AS "morningDepartureTime",
+               r.afternoon_departure_time AS "afternoonDepartureTime",
+               r.monthly_fee AS "monthlyFee"
+        FROM routes r
+        INNER JOIN vehicles v ON r.vehicle_id = v.id
+        WHERE r.id = $1 AND r.tenant_id = $2
+    `, [routeId, tenantId]);
 
     if (routeRows.length === 0) return null;
 
-    const stopRows = await db
-        .select({
-            id: stops.id,
-            name: stops.name,
-            address: stops.address,
-            latitude: stops.latitude,
-            longitude: stops.longitude,
-            pickupTime: stops.pickupTime,
-            dropTime: stops.dropTime,
-            displayOrder: stops.displayOrder,
-        })
-        .from(stops)
-        .where(eq(stops.routeId, routeId))
-        .orderBy(asc(stops.displayOrder));
+    const { rows: stopRows } = await pool.query(`
+        SELECT id, name, address, latitude, longitude,
+               pickup_time AS "pickupTime", drop_time AS "dropTime",
+               display_order AS "displayOrder"
+        FROM stops
+        WHERE route_id = $1
+        ORDER BY display_order ASC
+    `, [routeId]);
 
-    const [stopCount] = await db
-        .select({ count: count() })
-        .from(stops)
-        .where(eq(stops.routeId, routeId));
+    const { rows: stopCountRows } = await pool.query(`
+        SELECT count(*)
+        FROM stops
+        WHERE route_id = $1
+    `, [routeId]);
 
-    const [studentCount] = await db
-        .select({ count: count() })
-        .from(studentTransport)
-        .where(eq(studentTransport.routeId, routeId));
+    const { rows: studentCountRows } = await pool.query(`
+        SELECT count(*)
+        FROM student_transport
+        WHERE route_id = $1
+    `, [routeId]);
 
     return {
         route: {
             ...routeRows[0],
-            stopCount: stopCount.count,
-            studentCount: studentCount.count,
+            stopCount: Number(stopCountRows[0].count),
+            studentCount: Number(studentCountRows[0].count),
         },
         stops: stopRows,
     };

@@ -4,7 +4,15 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getHostelFees } from '@/lib/actions/scaffolding-bridge';
+import { getHostelFees } from '@/lib/services/hostel/hostel.service';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import Link from 'next/link';
 
 export default function HostelFeesPage() {
@@ -55,24 +63,55 @@ export default function HostelFeesPage() {
                 <CardHeader><CardTitle>Fee Records</CardTitle></CardHeader>
                 <CardContent>
                     {fees.length === 0 ? <p className="text-gray-500 text-center py-8">No fee records found.</p> : (
-                    <table className="w-full"><thead><tr className="border-b">
-                        <th className="text-left py-3 px-4">Student</th><th className="text-left py-3 px-4">Hostel / Room</th>
-                        <th className="text-left py-3 px-4">Fee Type</th><th className="text-left py-3 px-4">Amount</th>
-                        <th className="text-left py-3 px-4">Due Date</th><th className="text-left py-3 px-4">Status</th>
-                        <th className="text-left py-3 px-4">Actions</th>
-                    </tr></thead><tbody>
-                        {fees.map((fee: any) => (
-                            <tr key={fee.id} className="border-b hover:bg-gray-50">
-                                <td className="py-3 px-4"><p className="font-medium">{fee.studentName}</p><p className="text-sm text-muted-foreground">{fee.studentId} | {fee.class}</p></td>
-                                <td className="py-3 px-4"><p>{fee.hostelName}</p><p className="text-sm text-muted-foreground">Room {fee.roomNumber}</p></td>
-                                <td className="py-3 px-4"><Badge className={getFeeTypeColor(fee.feeType)}>{fee.feeType}</Badge></td>
-                                <td className="py-3 px-4 font-medium">₹{fee.amount.toLocaleString()}</td>
-                                <td className="py-3 px-4">{fee.dueDate}</td>
-                                <td className="py-3 px-4"><Badge className={getStatusColor(fee.status)}>{fee.status}</Badge>{fee.paidDate && (<p className="text-xs text-muted-foreground mt-1">Paid: {fee.paidDate}</p>)}</td>
-                                <td className="py-3 px-4">{fee.status !== 'paid' && (<div className="flex gap-2"><Button size="sm">Collect</Button><Button size="sm" variant="outline">Remind</Button></div>)}{fee.status === 'paid' && (<Button size="sm" variant="outline">Receipt</Button>)}</td>
-                            </tr>
-                        ))}
-                    </tbody></table>)}
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Student</TableHead>
+                                <TableHead>Hostel / Room</TableHead>
+                                <TableHead>Fee Type</TableHead>
+                                <TableHead>Amount</TableHead>
+                                <TableHead>Due Date</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {fees.map((fee: any) => (
+                                <TableRow key={fee.id}>
+                                    <TableCell>
+                                        <p className="font-medium">{fee.studentName}</p>
+                                        <p className="text-sm text-muted-foreground">{fee.studentId} | {fee.class}</p>
+                                    </TableCell>
+                                    <TableCell>
+                                        <p>{fee.hostelName}</p>
+                                        <p className="text-sm text-muted-foreground">Room {fee.roomNumber}</p>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge className={getFeeTypeColor(fee.feeType)}>{fee.feeType}</Badge>
+                                    </TableCell>
+                                    <TableCell className="font-medium">₹{fee.amount.toLocaleString()}</TableCell>
+                                    <TableCell>{fee.dueDate}</TableCell>
+                                    <TableCell>
+                                        <Badge className={getStatusColor(fee.status)}>{fee.status}</Badge>
+                                        {fee.paidDate && (
+                                            <p className="text-xs text-muted-foreground mt-1">Paid: {fee.paidDate}</p>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        {fee.status !== 'paid' && (
+                                            <div className="flex gap-2">
+                                                <Button size="sm">Collect</Button>
+                                                <Button size="sm" variant="outline">Remind</Button>
+                                            </div>
+                                        )}
+                                        {fee.status === 'paid' && (
+                                            <Button size="sm" variant="outline">Receipt</Button>
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>)}
                 </CardContent>
             </Card>
         </div>

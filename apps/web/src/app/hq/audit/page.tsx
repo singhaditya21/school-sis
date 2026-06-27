@@ -1,10 +1,7 @@
 import React from 'react';
 import { requireRole } from '@/lib/auth/middleware';
 import { UserRole } from '@/lib/rbac/permissions';
-import { db, setTenantContext } from '@/lib/db';
-import { platformAuditLogs } from '@/lib/db/schema/platform';
-import { users, tenants } from '@/lib/db/schema/core';
-import { desc, eq } from 'drizzle-orm';
+import { pool, } from '@/lib/db';
 import { Shield, Fingerprint, Lock, ShieldAlert } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -14,25 +11,25 @@ export const metadata = {
 
 export default async function AuditPage() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await setTenantContext('platform');
+    await ('platform');
 
     // Fetch Security Audit Logs
-    const logs = await db
-        .select({
-            id: platformAuditLogs.id,
-            actionType: platformAuditLogs.actionType,
-            metadata: platformAuditLogs.metadata,
-            ipAddress: platformAuditLogs.ipAddress,
-            createdAt: platformAuditLogs.createdAt,
-            actorEmail: users.email,
-            targetTenantName: tenants.name,
-            targetTenantCode: tenants.code,
-        })
-        .from(platformAuditLogs)
-        .leftJoin(users, eq(platformAuditLogs.actorId, users.id))
-        .leftJoin(tenants, eq(platformAuditLogs.targetTenantId, tenants.id))
-        .orderBy(desc(platformAuditLogs.createdAt))
-        .limit(100);
+    const { rows: logs } = await pool.query(`
+        SELECT 
+            a.id,
+            a.action_type AS "actionType",
+            a.metadata,
+            a.ip_address AS "ipAddress",
+            a.created_at AS "createdAt",
+            u.email AS "actorEmail",
+            t.name AS "targetTenantName",
+            t.code AS "targetTenantCode"
+        FROM platform_audit_logs a
+        LEFT JOIN users u ON a.actor_id = u.id
+        LEFT JOIN tenants t ON a.target_tenant_id = t.id
+        ORDER BY a.created_at DESC
+        LIMIT 100
+    `);
 
     const totalLogs = logs.length;
     const suspicousNodesCount = logs.filter(l => l.actionType === 'SUSPEND').length;

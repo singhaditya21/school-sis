@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { hostels, hostelRooms, hostelAllocations, messMenus, students } from '@/lib/db/schema';
-import { eq, and, count, sql, asc, desc } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
 // ─── Get Hostels ─────────────────────────────────────────────
@@ -10,11 +8,12 @@ import { requireAuth } from '@/lib/auth/middleware';
 export async function getHostels() {
     const { tenantId } = await requireAuth('hostel:read');
 
-    return db
-        .select()
-        .from(hostels)
-        .where(and(eq(hostels.tenantId, tenantId), eq(hostels.isActive, true)))
-        .orderBy(asc(hostels.name));
+    const result = await pool.query(
+        'SELECT id, tenant_id AS "tenantId", name, is_active AS "isActive", total_beds AS "totalBeds", occupied_beds AS "occupiedBeds", created_at AS "createdAt", updated_at AS "updatedAt" FROM hostels WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC',
+        [tenantId]
+    );
+    
+    return result.rows;
 }
 
 // ─── Get Hostel Stats ────────────────────────────────────────
@@ -22,13 +21,15 @@ export async function getHostels() {
 export async function getHostelStats() {
     const { tenantId } = await requireAuth('hostel:read');
 
-    const hostelList = await db
-        .select()
-        .from(hostels)
-        .where(and(eq(hostels.tenantId, tenantId), eq(hostels.isActive, true)));
+    const result = await pool.query(
+        'SELECT total_beds AS "totalBeds", occupied_beds AS "occupiedBeds" FROM hostels WHERE tenant_id = $1 AND is_active = true',
+        [tenantId]
+    );
 
-    const totalBeds = hostelList.reduce((sum, h) => sum + h.totalBeds, 0);
-    const occupiedBeds = hostelList.reduce((sum, h) => sum + h.occupiedBeds, 0);
+    const hostelList = result.rows;
+
+    const totalBeds = hostelList.reduce((sum, h) => sum + Number(h.totalBeds || 0), 0);
+    const occupiedBeds = hostelList.reduce((sum, h) => sum + Number(h.occupiedBeds || 0), 0);
 
     return {
         totalHostels: hostelList.length,
@@ -44,14 +45,18 @@ export async function getHostelStats() {
 export async function getRooms(hostelId?: string) {
     const { tenantId } = await requireAuth('hostel:read');
 
-    const conditions = [eq(hostelRooms.tenantId, tenantId)];
-    if (hostelId) conditions.push(eq(hostelRooms.hostelId, hostelId));
+    let query = 'SELECT id, tenant_id AS "tenantId", hostel_id AS "hostelId", floor, room_number AS "roomNumber", total_beds AS "totalBeds", occupied_beds AS "occupiedBeds", status, created_at AS "createdAt", updated_at AS "updatedAt" FROM hostel_rooms WHERE tenant_id = $1';
+    const params: any[] = [tenantId];
 
-    return db
-        .select()
-        .from(hostelRooms)
-        .where(and(...conditions))
-        .orderBy(asc(hostelRooms.floor), asc(hostelRooms.roomNumber));
+    if (hostelId) {
+        params.push(hostelId);
+        query += ` AND hostel_id = $${params.length}`;
+    }
+    
+    query += ' ORDER BY floor ASC, room_number ASC';
+
+    const result = await pool.query(query, params);
+    return result.rows;
 }
 
 // ─── Get Allocations ─────────────────────────────────────────
@@ -59,29 +64,43 @@ export async function getRooms(hostelId?: string) {
 export async function getAllocations(filters?: { hostelId?: string; status?: string }) {
     const { tenantId } = await requireAuth('hostel:read');
 
-    const conditions = [eq(hostelAllocations.tenantId, tenantId)];
-    if (filters?.hostelId) conditions.push(eq(hostelAllocations.hostelId, filters.hostelId));
-    if (filters?.status) conditions.push(eq(hostelAllocations.status, filters.status as 'ACTIVE' | 'VACATED' | 'PENDING'));
+    let query = `
+        SELECT 
+            ha.id, 
+            ha.student_id AS "studentId", 
+            s.first_name || ' ' || s.last_name AS "studentName", 
+            ha.hostel_id AS "hostelId", 
+            h.name AS "hostelName", 
+            hr.room_number AS "roomNumber", 
+            ha.bed_number AS "bedNumber", 
+            ha.allocated_from AS "allocatedFrom", 
+            ha.allocated_to AS "allocatedTo", 
+            ha.status 
+        FROM hostel_allocations ha
+        LEFT JOIN students s ON ha.student_id = s.id
+        LEFT JOIN hostels h ON ha.hostel_id = h.id
+        LEFT JOIN hostel_rooms hr ON ha.room_id = hr.id
+        WHERE ha.tenant_id = $1`;
+    
+    const params: any[] = [tenantId];
 
-    return db
-        .select({
-            id: hostelAllocations.id,
-            studentId: hostelAllocations.studentId,
-            studentName: sql<string>`${students.firstName} || ' ' || ${students.lastName}`,
-            hostelId: hostelAllocations.hostelId,
-            hostelName: hostels.name,
-            roomNumber: hostelRooms.roomNumber,
-            bedNumber: hostelAllocations.bedNumber,
-            allocatedFrom: hostelAllocations.allocatedFrom,
-            allocatedTo: hostelAllocations.allocatedTo,
-            status: hostelAllocations.status,
-        })
-        .from(hostelAllocations)
-        .leftJoin(students, eq(hostelAllocations.studentId, students.id))
-        .leftJoin(hostels, eq(hostelAllocations.hostelId, hostels.id))
-        .leftJoin(hostelRooms, eq(hostelAllocations.roomId, hostelRooms.id))
-        .where(and(...conditions))
-        .orderBy(desc(hostelAllocations.createdAt));
+    if (filters?.hostelId) {
+        params.push(filters.hostelId);
+        query += ` AND ha.hostel_id = $${params.length}`;
+    }
+    if (filters?.status) {
+        params.push(filters.status);
+        query += ` AND ha.status = $${params.length}`;
+    }
+    
+    query += ' ORDER BY ha.created_at DESC';
+
+    const result = await pool.query(query, params);
+    return result.rows.map(row => ({
+        ...row,
+        allocatedFrom: row.allocatedFrom ? new Date(row.allocatedFrom).toISOString().split('T')[0] : '',
+        allocatedTo: row.allocatedTo ? new Date(row.allocatedTo).toISOString().split('T')[0] : '',
+    }));
 }
 
 // ─── Allocate Student ────────────────────────────────────────
@@ -97,32 +116,34 @@ export async function allocateStudent(data: {
     const { tenantId } = await requireAuth('hostel:write');
 
     // Check room availability
-    const [room] = await db.select().from(hostelRooms)
-        .where(and(eq(hostelRooms.id, data.roomId), eq(hostelRooms.tenantId, tenantId)));
+    const roomResult = await pool.query(
+        'SELECT id, occupied_beds AS "occupiedBeds", total_beds AS "totalBeds" FROM hostel_rooms WHERE id = $1 AND tenant_id = $2',
+        [data.roomId, tenantId]
+    );
+    
+    const room = roomResult.rows[0];
 
     if (!room) return { success: false, error: 'Room not found' };
     if (room.occupiedBeds >= room.totalBeds) return { success: false, error: 'Room is full' };
 
-    await db.insert(hostelAllocations).values({
-        tenantId,
-        studentId: data.studentId,
-        hostelId: data.hostelId,
-        roomId: data.roomId,
-        bedNumber: data.bedNumber,
-        allocatedFrom: data.allocatedFrom,
-        allocatedTo: data.allocatedTo,
-        status: 'ACTIVE',
-    });
+    await pool.query(
+        `INSERT INTO hostel_allocations (tenant_id, student_id, hostel_id, room_id, bed_number, allocated_from, allocated_to, status) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [tenantId, data.studentId, data.hostelId, data.roomId, data.bedNumber, data.allocatedFrom, data.allocatedTo, 'ACTIVE']
+    );
 
     // Update room occupancy
-    await db.update(hostelRooms)
-        .set({ occupiedBeds: room.occupiedBeds + 1, status: room.occupiedBeds + 1 >= room.totalBeds ? 'FULL' : 'AVAILABLE' })
-        .where(eq(hostelRooms.id, data.roomId));
+    const newStatus = room.occupiedBeds + 1 >= room.totalBeds ? 'FULL' : 'AVAILABLE';
+    await pool.query(
+        'UPDATE hostel_rooms SET occupied_beds = occupied_beds + 1, status = $1 WHERE id = $2',
+        [newStatus, data.roomId]
+    );
 
     // Update hostel occupancy
-    await db.update(hostels)
-        .set({ occupiedBeds: sql`${hostels.occupiedBeds} + 1` })
-        .where(eq(hostels.id, data.hostelId));
+    await pool.query(
+        'UPDATE hostels SET occupied_beds = occupied_beds + 1 WHERE id = $1',
+        [data.hostelId]
+    );
 
     return { success: true };
 }
@@ -132,24 +153,31 @@ export async function allocateStudent(data: {
 export async function vacateStudent(allocationId: string) {
     const { tenantId } = await requireAuth('hostel:write');
 
-    const [allocation] = await db.select().from(hostelAllocations)
-        .where(and(eq(hostelAllocations.id, allocationId), eq(hostelAllocations.tenantId, tenantId)));
+    const allocationResult = await pool.query(
+        'SELECT room_id AS "roomId", hostel_id AS "hostelId" FROM hostel_allocations WHERE id = $1 AND tenant_id = $2',
+        [allocationId, tenantId]
+    );
+    
+    const allocation = allocationResult.rows[0];
 
     if (!allocation) return { success: false, error: 'Allocation not found' };
 
-    await db.update(hostelAllocations)
-        .set({ status: 'VACATED', updatedAt: new Date() })
-        .where(eq(hostelAllocations.id, allocationId));
+    await pool.query(
+        "UPDATE hostel_allocations SET status = 'VACATED', updated_at = NOW() WHERE id = $1",
+        [allocationId]
+    );
 
     // Update room occupancy
-    await db.update(hostelRooms)
-        .set({ occupiedBeds: sql`GREATEST(${hostelRooms.occupiedBeds} - 1, 0)`, status: 'AVAILABLE' })
-        .where(eq(hostelRooms.id, allocation.roomId));
+    await pool.query(
+        "UPDATE hostel_rooms SET occupied_beds = GREATEST(occupied_beds - 1, 0), status = 'AVAILABLE' WHERE id = $1",
+        [allocation.roomId]
+    );
 
     // Update hostel occupancy
-    await db.update(hostels)
-        .set({ occupiedBeds: sql`GREATEST(${hostels.occupiedBeds} - 1, 0)` })
-        .where(eq(hostels.id, allocation.hostelId));
+    await pool.query(
+        'UPDATE hostels SET occupied_beds = GREATEST(occupied_beds - 1, 0) WHERE id = $1',
+        [allocation.hostelId]
+    );
 
     return { success: true };
 }
@@ -159,9 +187,21 @@ export async function vacateStudent(allocationId: string) {
 export async function getMessMenu(hostelId: string) {
     const { tenantId } = await requireAuth('hostel:read');
 
-    return db
-        .select()
-        .from(messMenus)
-        .where(and(eq(messMenus.tenantId, tenantId), eq(messMenus.hostelId, hostelId)))
-        .orderBy(sql`CASE day WHEN 'Monday' THEN 1 WHEN 'Tuesday' THEN 2 WHEN 'Wednesday' THEN 3 WHEN 'Thursday' THEN 4 WHEN 'Friday' THEN 5 WHEN 'Saturday' THEN 6 WHEN 'Sunday' THEN 7 END`);
+    const result = await pool.query(
+        `SELECT id, tenant_id AS "tenantId", hostel_id AS "hostelId", day, meal_type AS "mealType", items, created_at AS "createdAt", updated_at AS "updatedAt" 
+         FROM mess_menus 
+         WHERE tenant_id = $1 AND hostel_id = $2 
+         ORDER BY CASE day 
+            WHEN 'Monday' THEN 1 
+            WHEN 'Tuesday' THEN 2 
+            WHEN 'Wednesday' THEN 3 
+            WHEN 'Thursday' THEN 4 
+            WHEN 'Friday' THEN 5 
+            WHEN 'Saturday' THEN 6 
+            WHEN 'Sunday' THEN 7 
+         END`,
+        [tenantId, hostelId]
+    );
+    
+    return result.rows;
 }

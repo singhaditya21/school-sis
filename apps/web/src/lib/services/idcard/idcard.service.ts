@@ -1,5 +1,5 @@
 // ID Card Generation Service — Production (Real DB)
-import { db, setTenantContext } from '@/lib/db';
+import { db, } from '@/lib/db';
 import { sql } from 'drizzle-orm';
 
 export interface IDCardTemplate { id: string; name: string; type: 'student' | 'staff'; backgroundColor: string; textColor: string; logoPosition: 'left' | 'center' | 'right'; fields: string[]; }
@@ -8,13 +8,13 @@ export interface StaffIDCard { id: string; staffId: string; staffName: string; d
 
 export const IDCardService = {
     async getTemplates(tenantId: string, type?: 'student' | 'staff'): Promise<IDCardTemplate[]> {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const rows = await db.execute(sql`SELECT id, name, type, background_color AS "backgroundColor", text_color AS "textColor", logo_position AS "logoPosition", fields FROM id_card_templates WHERE tenant_id = ${tenantId} ${type ? sql`AND type = ${type}` : sql``} ORDER BY name`);
         return rows as IDCardTemplate[];
     },
 
     async getStudentCards(tenantId: string, filters?: { class?: string; status?: string }): Promise<StudentIDCard[]> {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const rows = await db.execute(sql`
             SELECT ic.id, s.admission_number AS "studentId", s.first_name || ' ' || s.last_name AS "studentName",
                    g.name AS class, sec.name AS section, s.roll_number AS "rollNo", s.date_of_birth AS dob,
@@ -33,7 +33,7 @@ export const IDCardService = {
     },
 
     async getStaffCards(tenantId: string, filters?: { department?: string; status?: string }): Promise<StaffIDCard[]> {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const rows = await db.execute(sql`
             SELECT ic.id, u.employee_id AS "staffId", u.first_name || ' ' || u.last_name AS "staffName",
                    u.designation, u.department, u.date_of_birth AS dob, u.blood_group AS "bloodGroup",
@@ -48,7 +48,7 @@ export const IDCardService = {
     },
 
     async getCardStats(tenantId: string) {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const [s] = await db.execute(sql`
             SELECT COUNT(*) FILTER (WHERE card_type='student') AS st, COUNT(*) FILTER (WHERE card_type='student' AND status='pending') AS sp,
             COUNT(*) FILTER (WHERE card_type='student' AND status='printed') AS spr, COUNT(*) FILTER (WHERE card_type='student' AND status='issued') AS si,
@@ -62,13 +62,13 @@ export const IDCardService = {
     generateQRData(id: string, type: 'student' | 'staff'): string { return `${id}-${new Date().getFullYear()}-${type.toUpperCase()}`; },
 
     async getClasses(tenantId: string): Promise<string[]> {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const rows = await db.execute(sql`SELECT name FROM grades WHERE tenant_id = ${tenantId} ORDER BY display_order`);
         return (rows as any[]).map(r => r.name);
     },
 
     async getDepartments(tenantId: string): Promise<string[]> {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const rows = await db.execute(sql`SELECT DISTINCT department FROM users WHERE tenant_id = ${tenantId} AND department IS NOT NULL ORDER BY department`);
         return (rows as any[]).map(r => r.department);
     },

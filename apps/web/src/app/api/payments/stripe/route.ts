@@ -47,16 +47,15 @@ export async function POST(req: Request) {
         }
 
         // SECURITY: Server-side invoice ownership + amount verification
-        const { db } = await import('@/lib/db');
-        const { invoices } = await import('@/lib/db/schema');
-        const { eq, and } = await import('drizzle-orm');
+        const { pool } = await import('@/lib/db');
 
-        const [invoice] = await db.select().from(invoices)
-            .where(and(
-                eq(invoices.id, invoiceId),
-                eq(invoices.tenantId, session.tenantId)
-            ))
-            .limit(1);
+        const { rows } = await pool.query(
+            `SELECT total_amount AS "totalAmount", paid_amount AS "paidAmount", status 
+             FROM invoices 
+             WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+            [invoiceId, session.tenantId]
+        );
+        const invoice = rows[0];
 
         if (!invoice) {
             return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });

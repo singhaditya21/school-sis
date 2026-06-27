@@ -7,7 +7,7 @@
  * Uses native HTML rendering for cross-platform compatibility.
  */
 
-import { db, setTenantContext } from '@/lib/db';
+import { db, } from '@/lib/db';
 import { tenants, students, invoices, payments } from '@/lib/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 

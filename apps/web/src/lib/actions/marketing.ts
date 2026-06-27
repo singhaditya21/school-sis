@@ -1,12 +1,9 @@
 'use server';
 
-import { db, setTenantContext } from '@/lib/db';
-import { marketingLeads } from '@/lib/db/schema/platform';
+import { withTenant } from '@/lib/db';
 
 export async function captureLeadAction(formData: FormData) {
     try {
-        await setTenantContext('platform');
-
         const contactName = formData.get('contactName') as string;
         const contactEmail = formData.get('contactEmail') as string;
         const schoolName = formData.get('schoolName') as string;
@@ -22,13 +19,20 @@ export async function captureLeadAction(formData: FormData) {
             return { error: 'Invalid student capacity.' };
         }
 
-        await db.insert(marketingLeads).values({
-            contactName,
-            contactEmail,
-            schoolName,
-            studentCapacity,
-            painPoints: painPoints || null,
-            status: 'NEW',
+        await withTenant('platform', async (client) => {
+            await client.query(
+                `INSERT INTO marketing_leads (
+                    contact_name, contact_email, school_name, student_capacity, pain_points, status
+                ) VALUES ($1, $2, $3, $4, $5, $6)`,
+                [
+                    contactName,
+                    contactEmail,
+                    schoolName,
+                    studentCapacity,
+                    painPoints || null,
+                    'NEW'
+                ]
+            );
         });
 
         return { success: true };

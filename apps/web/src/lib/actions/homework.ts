@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { homeworkAssignments, homeworkSubmissions, students } from '@/lib/db/schema';
-import { eq, and, count, sql, asc, desc } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
 // ─── Get Assignments ─────────────────────────────────────────
@@ -10,10 +8,18 @@ import { requireAuth } from '@/lib/auth/middleware';
 export async function getAssignments(filters?: { gradeId?: string }) {
     const { tenantId } = await requireAuth('homework:read');
 
-    const conditions = [eq(homeworkAssignments.tenantId, tenantId)];
-    if (filters?.gradeId) conditions.push(eq(homeworkAssignments.gradeId, filters.gradeId));
+    let query = 'SELECT id, tenant_id AS "tenantId", title, description, subject_id AS "subjectId", grade_id AS "gradeId", section_id AS "sectionId", due_date AS "dueDate", assigned_by AS "assignedBy", max_marks AS "maxMarks", created_at AS "createdAt", updated_at AS "updatedAt" FROM homework_assignments WHERE tenant_id = $1';
+    const params: any[] = [tenantId];
 
-    return db.select().from(homeworkAssignments).where(and(...conditions)).orderBy(desc(homeworkAssignments.createdAt));
+    if (filters?.gradeId) {
+        params.push(filters.gradeId);
+        query += ` AND grade_id = $${params.length}`;
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const result = await pool.query(query, params);
+    return result.rows;
 }
 
 // ─── Create Assignment ──────────────────────────────────────
@@ -29,19 +35,14 @@ export async function createAssignment(data: {
 }) {
     const { tenantId, userId } = await requireAuth('homework:write');
 
-    const [hw] = await db.insert(homeworkAssignments).values({
-        tenantId,
-        title: data.title,
-        description: data.description,
-        subjectId: data.subjectId,
-        gradeId: data.gradeId,
-        sectionId: data.sectionId,
-        dueDate: data.dueDate,
-        assignedBy: userId,
-        maxMarks: data.maxMarks,
-    }).returning();
+    const result = await pool.query(
+        `INSERT INTO homework_assignments (tenant_id, title, description, subject_id, grade_id, section_id, due_date, assigned_by, max_marks) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+         RETURNING id, tenant_id AS "tenantId", title, description, subject_id AS "subjectId", grade_id AS "gradeId", section_id AS "sectionId", due_date AS "dueDate", assigned_by AS "assignedBy", max_marks AS "maxMarks", created_at AS "createdAt", updated_at AS "updatedAt"`,
+        [tenantId, data.title, data.description, data.subjectId, data.gradeId, data.sectionId, data.dueDate, userId, data.maxMarks]
+    );
 
-    return { success: true, assignment: hw };
+    return { success: true, assignment: result.rows[0] };
 }
 
 // ─── Get Submissions ─────────────────────────────────────────
@@ -49,20 +50,23 @@ export async function createAssignment(data: {
 export async function getSubmissions(assignmentId: string) {
     const { tenantId } = await requireAuth('homework:read');
 
-    return db
-        .select({
-            id: homeworkSubmissions.id,
-            studentId: homeworkSubmissions.studentId,
-            studentName: sql<string>`${students.firstName} || ' ' || ${students.lastName}`,
-            submittedAt: homeworkSubmissions.submittedAt,
-            content: homeworkSubmissions.content,
-            marks: homeworkSubmissions.marks,
-            feedback: homeworkSubmissions.feedback,
-        })
-        .from(homeworkSubmissions)
-        .leftJoin(students, eq(homeworkSubmissions.studentId, students.id))
-        .where(and(eq(homeworkSubmissions.assignmentId, assignmentId), eq(homeworkSubmissions.tenantId, tenantId)))
-        .orderBy(desc(homeworkSubmissions.submittedAt));
+    const result = await pool.query(
+        `SELECT 
+            hs.id, 
+            hs.student_id AS "studentId", 
+            s.first_name || ' ' || s.last_name AS "studentName", 
+            hs.submitted_at AS "submittedAt", 
+            hs.content, 
+            hs.marks, 
+            hs.feedback 
+         FROM homework_submissions hs
+         LEFT JOIN students s ON hs.student_id = s.id
+         WHERE hs.assignment_id = $1 AND hs.tenant_id = $2
+         ORDER BY hs.submitted_at DESC`,
+        [assignmentId, tenantId]
+    );
+    
+    return result.rows;
 }
 
 // ─── Grade Submission ────────────────────────────────────────
@@ -70,9 +74,12 @@ export async function getSubmissions(assignmentId: string) {
 export async function gradeSubmission(submissionId: string, marks: number, feedback?: string) {
     const { tenantId, userId } = await requireAuth('homework:write');
 
-    await db.update(homeworkSubmissions)
-        .set({ marks, feedback, gradedBy: userId, gradedAt: new Date() })
-        .where(and(eq(homeworkSubmissions.id, submissionId), eq(homeworkSubmissions.tenantId, tenantId)));
+    await pool.query(
+        `UPDATE homework_submissions 
+         SET marks = $1, feedback = $2, graded_by = $3, graded_at = NOW() 
+         WHERE id = $4 AND tenant_id = $5`,
+        [marks, feedback, userId, submissionId, tenantId]
+    );
 
     return { success: true };
 }
@@ -82,19 +89,29 @@ export async function gradeSubmission(submissionId: string, marks: number, feedb
 export async function getHomeworkStats() {
     const { tenantId } = await requireAuth('homework:read');
 
-    const [assignmentCount] = await db.select({ c: count() }).from(homeworkAssignments)
-        .where(eq(homeworkAssignments.tenantId, tenantId));
+    const assignmentCountResult = await pool.query(
+        'SELECT COUNT(*) as c FROM homework_assignments WHERE tenant_id = $1',
+        [tenantId]
+    );
 
-    const [submissionCount] = await db.select({ c: count() }).from(homeworkSubmissions)
-        .where(eq(homeworkSubmissions.tenantId, tenantId));
+    const submissionCountResult = await pool.query(
+        'SELECT COUNT(*) as c FROM homework_submissions WHERE tenant_id = $1',
+        [tenantId]
+    );
 
-    const [gradedCount] = await db.select({ c: count() }).from(homeworkSubmissions)
-        .where(and(eq(homeworkSubmissions.tenantId, tenantId), sql`${homeworkSubmissions.marks} IS NOT NULL`));
+    const gradedCountResult = await pool.query(
+        'SELECT COUNT(*) as c FROM homework_submissions WHERE tenant_id = $1 AND marks IS NOT NULL',
+        [tenantId]
+    );
+
+    const totalAssignments = Number(assignmentCountResult.rows[0]?.c || 0);
+    const totalSubmissions = Number(submissionCountResult.rows[0]?.c || 0);
+    const gradedSubmissions = Number(gradedCountResult.rows[0]?.c || 0);
 
     return {
-        totalAssignments: assignmentCount?.c || 0,
-        totalSubmissions: submissionCount?.c || 0,
-        gradedSubmissions: gradedCount?.c || 0,
-        pendingGrading: (submissionCount?.c || 0) - (gradedCount?.c || 0),
+        totalAssignments,
+        totalSubmissions,
+        gradedSubmissions,
+        pendingGrading: totalSubmissions - gradedSubmissions,
     };
 }

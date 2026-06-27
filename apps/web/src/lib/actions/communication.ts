@@ -5,9 +5,7 @@
  * Handles messages, notifications, and consent management.
  */
 
-import { db } from '@/lib/db';
-import * as schema from '@/lib/db/schema';
-import { eq, and, desc, count, sql } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 import { enqueueJob } from '@/lib/services/jobs';
@@ -23,33 +21,33 @@ export async function getMessages(options?: {
     const limit = options?.limit || 50;
     const offset = options?.offset || 0;
 
-    const conditions = [eq(schema.messages.tenantId, tenantId)];
+    let query = `
+        SELECT 
+            id, channel, subject, body, status, sent_at AS "sentAt", created_at AS "createdAt"
+        FROM messages
+        WHERE tenant_id = $1
+    `;
+    const params: any[] = [tenantId];
+
     if (options?.channel) {
-        conditions.push(eq(schema.messages.channel, options.channel as any));
+        params.push(options.channel);
+        query += ` AND channel = $${params.length}`;
     }
 
-    const msgs = await db
-        .select({
-            id: schema.messages.id,
-            channel: schema.messages.channel,
-            subject: schema.messages.subject,
-            body: schema.messages.body,
-            status: schema.messages.status,
-            sentAt: schema.messages.sentAt,
-            createdAt: schema.messages.createdAt,
-        })
-        .from(schema.messages)
-        .where(and(...conditions))
-        .orderBy(desc(schema.messages.createdAt))
-        .limit(limit)
-        .offset(offset);
+    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    
+    const { rows: msgs } = await pool.query(query, [...params, limit, offset]);
 
-    const [countResult] = await db
-        .select({ count: count() })
-        .from(schema.messages)
-        .where(and(...conditions));
+    let countQuery = `SELECT COUNT(*) AS count FROM messages WHERE tenant_id = $1`;
+    const countParams: any[] = [tenantId];
+    if (options?.channel) {
+        countParams.push(options.channel);
+        countQuery += ` AND channel = $${countParams.length}`;
+    }
 
-    return { messages: msgs, total: countResult.count };
+    const { rows: countResult } = await pool.query(countQuery, countParams);
+
+    return { messages: msgs, total: Number(countResult[0]?.count || 0) };
 }
 
 // ─── Send Message (SMS/WhatsApp/Email) ────────────────────
@@ -66,18 +64,24 @@ export async function sendMessage(data: {
     const messageId = randomUUID();
 
     // Create message record
-    await db.insert(schema.messages).values({
-        id: messageId,
+    const insertQuery = `
+        INSERT INTO messages (
+            id, tenant_id, channel, subject, body, 
+            recipient_id, recipient_phone, recipient_email, 
+            sent_by, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'QUEUED')
+    `;
+    await pool.query(insertQuery, [
+        messageId,
         tenantId,
-        channel: data.channel,
-        subject: data.subject,
-        body: data.body,
-        recipientId: data.recipientId || null,
-        recipientPhone: data.recipientPhone || null,
-        recipientEmail: data.recipientEmail || null,
-        sentBy: userId,
-        status: 'QUEUED',
-    });
+        data.channel,
+        data.subject,
+        data.body,
+        data.recipientId || null,
+        data.recipientPhone || null,
+        data.recipientEmail || null,
+        userId
+    ]);
 
     // Enqueue delivery job
     const jobType = data.channel === 'SMS' ? 'send-sms'
@@ -92,9 +96,12 @@ export async function sendMessage(data: {
     });
 
     // Update status to SENT
-    await db.update(schema.messages)
-        .set({ status: 'SENT', sentAt: new Date() })
-        .where(eq(schema.messages.id, messageId));
+    const updateQuery = `
+        UPDATE messages
+        SET status = 'SENT', sent_at = $1
+        WHERE id = $2
+    `;
+    await pool.query(updateQuery, [new Date(), messageId]);
 
     return { success: true, messageId };
 }
@@ -103,31 +110,42 @@ export async function sendMessage(data: {
 export async function getCommunicationStats() {
     const { tenantId } = await requireAuth();
 
-    const [stats] = await db
-        .select({
-            total: count(),
-            sms: sql<number>`count(*) filter (where ${schema.messages.channel} = 'SMS')`,
-            whatsapp: sql<number>`count(*) filter (where ${schema.messages.channel} = 'WHATSAPP')`,
-            email: sql<number>`count(*) filter (where ${schema.messages.channel} = 'EMAIL')`,
-        })
-        .from(schema.messages)
-        .where(eq(schema.messages.tenantId, tenantId));
+    const query = `
+        SELECT 
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE channel = 'SMS') AS sms,
+            COUNT(*) FILTER (WHERE channel = 'WHATSAPP') AS whatsapp,
+            COUNT(*) FILTER (WHERE channel = 'EMAIL') AS email
+        FROM messages
+        WHERE tenant_id = $1
+    `;
+    const { rows } = await pool.query(query, [tenantId]);
 
-    return stats;
+    return {
+        total: Number(rows[0]?.total || 0),
+        sms: Number(rows[0]?.sms || 0),
+        whatsapp: Number(rows[0]?.whatsapp || 0),
+        email: Number(rows[0]?.email || 0),
+    };
 }
 
 // ─── Get Consent Status ───────────────────────────────────
 export async function getConsentStats() {
     const { tenantId } = await requireAuth();
 
-    const [consentData] = await db
-        .select({
-            total: count(),
-            opted_in: sql<number>`count(*) filter (where ${schema.consents.isOptedIn} = true)`,
-            opted_out: sql<number>`count(*) filter (where ${schema.consents.isOptedIn} = false)`,
-        })
-        .from(schema.consents)
-        .where(eq(schema.consents.tenantId, tenantId));
+    const query = `
+        SELECT 
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE is_opted_in = true) AS opted_in,
+            COUNT(*) FILTER (WHERE is_opted_in = false) AS opted_out
+        FROM consents
+        WHERE tenant_id = $1
+    `;
+    const { rows } = await pool.query(query, [tenantId]);
 
-    return consentData;
+    return {
+        total: Number(rows[0]?.total || 0),
+        opted_in: Number(rows[0]?.opted_in || 0),
+        opted_out: Number(rows[0]?.opted_out || 0),
+    };
 }

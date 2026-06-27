@@ -38,10 +38,21 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
         'students:*',
         'staff:*',
         'timetable:*',
+        'substitution:*',
         'transport:*',
         'settings:*',
         'reports:*',
         'audit:read',
+        'hostel:read',
+        'hostel:write',
+        'diary:read',
+        'diary:write',
+        'appointments:read',
+        'appointments:write',
+        'library:read',
+        'library:write',
+        'gradebook:read',
+        'gradebook:write',
     ],
 
     PRINCIPAL: [
@@ -111,6 +122,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
         'attendance:*',
         'students:read',
         'substitution:read',
+        'gradebook:read',
+        'gradebook:write',
+        'diary:read',
+        'appointments:read',
     ],
 
     TRANSPORT_MANAGER: [

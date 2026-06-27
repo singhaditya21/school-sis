@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getDiaryEntries } from '@/lib/actions/scaffolding-bridge';
+import { getDiaryEntries } from '@/lib/services/diary/diary.service';
 
 export default function DiaryPage() {
     const [entries, setEntries] = useState<any[]>([]);

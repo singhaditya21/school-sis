@@ -92,7 +92,7 @@ export default async function HQLayout({
 
                         <div>
                             <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">System</p>
-                            <NavLink href="/hq/settings" icon="⚙️">
+                            <NavLink href="/hq/policies" icon="⚙️">
                                 Global Policy Engine
                             </NavLink>
                             <NavLink href="/hq/audit" icon="🛡️">

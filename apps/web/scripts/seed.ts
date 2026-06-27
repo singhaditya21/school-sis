@@ -23,9 +23,21 @@ const db = drizzle(client, { schema });
 async function seed() {
     console.log('🌱 Seeding database...\n');
 
+    console.log('🧹 Cleaning existing data...');
+    await client`
+        DO $$ DECLARE
+            r RECORD;
+        BEGIN
+            FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+                EXECUTE 'TRUNCATE TABLE ' || quote_ident(r.tablename) || ' CASCADE';
+            END LOOP;
+        END $$;
+    `;
+
     // ─── 1. Tenant ───────────────────────────────────────────
     console.log('📦 Creating tenant...');
     const [tenant] = await db.insert(schema.tenants).values({
+        id: '0c413c23-6f0f-40ab-bd41-73e6e996ff35',
         name: 'Greenwood International School',
         code: 'GREENWOOD',
         address: '123 Education Lane, Sector 15',
@@ -161,7 +173,7 @@ async function seed() {
             );
         const section = sectionRows[0];
 
-        const [student] = await db.insert(schema.students).values({
+        const studentValues: any = {
             tenantId: tenant.id,
             admissionNumber: `GWD2025${String(i + 1).padStart(5, '0')}`,
             firstName,
@@ -177,7 +189,11 @@ async function seed() {
             sectionId: section.id,
             rollNumber: i + 1,
             admissionDate: '2025-04-01',
-        }).returning();
+        };
+        if (i === 0) {
+            studentValues.id = 'ad50cb20-83f0-42bf-bce6-770addf54375';
+        }
+        const [student] = await db.insert(schema.students).values(studentValues).returning();
 
         createdStudents.push(student);
 

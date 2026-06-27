@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { assets, consumables, stockAlerts } from '@/lib/db/schema';
-import { eq, and, count, sql, asc, desc, lte } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
 // ─── Get Assets ──────────────────────────────────────────────
@@ -10,10 +8,27 @@ import { requireAuth } from '@/lib/auth/middleware';
 export async function getAssets(category?: string) {
     const { tenantId } = await requireAuth('inventory:read');
 
-    const conditions = [eq(assets.tenantId, tenantId)];
-    if (category) conditions.push(eq(assets.category, category as any));
+    let query = `
+        SELECT 
+            id, tenant_id AS "tenantId", name, category, serial_number AS "serialNumber",
+            purchase_date AS "purchaseDate", purchase_price AS "purchasePrice", vendor,
+            location, condition, warranty_expiry AS "warrantyExpiry",
+            created_at AS "createdAt", updated_at AS "updatedAt"
+        FROM assets
+        WHERE tenant_id = $1
+    `;
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
 
-    return db.select().from(assets).where(and(...conditions)).orderBy(asc(assets.name));
+    if (category) {
+        query += ` AND category = $${paramIndex++}`;
+        params.push(category);
+    }
+
+    query += ` ORDER BY name ASC`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
 }
 
 // ─── Add Asset ───────────────────────────────────────────────
@@ -31,20 +46,26 @@ export async function addAsset(data: {
 }) {
     const { tenantId } = await requireAuth('inventory:write');
 
-    const [asset] = await db.insert(assets).values({
-        tenantId,
-        name: data.name,
-        category: data.category as any,
-        serialNumber: data.serialNumber,
-        purchaseDate: data.purchaseDate,
-        purchasePrice: data.purchasePrice,
-        vendor: data.vendor,
-        location: data.location,
-        condition: (data.condition || 'GOOD') as any,
-        warrantyExpiry: data.warrantyExpiry,
-    }).returning();
+    const query = `
+        INSERT INTO assets (
+            tenant_id, name, category, serial_number, purchase_date,
+            purchase_price, vendor, location, condition, warranty_expiry
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+        ) RETURNING 
+            id, tenant_id AS "tenantId", name, category, serial_number AS "serialNumber",
+            purchase_date AS "purchaseDate", purchase_price AS "purchasePrice", vendor,
+            location, condition, warranty_expiry AS "warrantyExpiry",
+            created_at AS "createdAt", updated_at AS "updatedAt"
+    `;
+    const params = [
+        tenantId, data.name, data.category, data.serialNumber || null,
+        data.purchaseDate || null, data.purchasePrice || null, data.vendor || null,
+        data.location || null, data.condition || 'GOOD', data.warrantyExpiry || null
+    ];
 
-    return { success: true, asset };
+    const { rows } = await pool.query(query, params);
+    return { success: true, asset: rows[0] };
 }
 
 // ─── Get Consumables ─────────────────────────────────────────
@@ -52,10 +73,28 @@ export async function addAsset(data: {
 export async function getConsumables(category?: string) {
     const { tenantId } = await requireAuth('inventory:read');
 
-    const conditions = [eq(consumables.tenantId, tenantId)];
-    if (category) conditions.push(eq(consumables.category, category as any));
+    let query = `
+        SELECT 
+            id, tenant_id AS "tenantId", name, category, unit,
+            current_stock AS "currentStock", minimum_stock AS "minimumStock",
+            reorder_level AS "reorderLevel", unit_price AS "unitPrice", supplier,
+            last_restock_date AS "lastRestockDate",
+            created_at AS "createdAt", updated_at AS "updatedAt"
+        FROM consumables
+        WHERE tenant_id = $1
+    `;
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
 
-    return db.select().from(consumables).where(and(...conditions)).orderBy(asc(consumables.name));
+    if (category) {
+        query += ` AND category = $${paramIndex++}`;
+        params.push(category);
+    }
+
+    query += ` ORDER BY name ASC`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
 }
 
 // ─── Add Consumable ──────────────────────────────────────────
@@ -72,19 +111,26 @@ export async function addConsumable(data: {
 }) {
     const { tenantId } = await requireAuth('inventory:write');
 
-    const [item] = await db.insert(consumables).values({
-        tenantId,
-        name: data.name,
-        category: data.category as any,
-        unit: data.unit,
-        currentStock: data.currentStock,
-        minimumStock: data.minimumStock,
-        reorderLevel: data.reorderLevel,
-        unitPrice: data.unitPrice,
-        supplier: data.supplier,
-    }).returning();
+    const query = `
+        INSERT INTO consumables (
+            tenant_id, name, category, unit, current_stock,
+            minimum_stock, reorder_level, unit_price, supplier
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9
+        ) RETURNING 
+            id, tenant_id AS "tenantId", name, category, unit,
+            current_stock AS "currentStock", minimum_stock AS "minimumStock",
+            reorder_level AS "reorderLevel", unit_price AS "unitPrice", supplier,
+            last_restock_date AS "lastRestockDate",
+            created_at AS "createdAt", updated_at AS "updatedAt"
+    `;
+    const params = [
+        tenantId, data.name, data.category, data.unit, data.currentStock,
+        data.minimumStock, data.reorderLevel, data.unitPrice || null, data.supplier || null
+    ];
 
-    return { success: true, item };
+    const { rows } = await pool.query(query, params);
+    return { success: true, item: rows[0] };
 }
 
 // ─── Restock Consumable ──────────────────────────────────────
@@ -92,22 +138,23 @@ export async function addConsumable(data: {
 export async function restockConsumable(consumableId: string, quantity: number) {
     const { tenantId } = await requireAuth('inventory:write');
 
-    await db.update(consumables)
-        .set({
-            currentStock: sql`${consumables.currentStock} + ${quantity}`,
-            lastRestockDate: new Date().toISOString().split('T')[0],
-            updatedAt: new Date(),
-        })
-        .where(and(eq(consumables.id, consumableId), eq(consumables.tenantId, tenantId)));
+    const updateQuery = `
+        UPDATE consumables
+        SET 
+            current_stock = current_stock + $1,
+            last_restock_date = $2,
+            updated_at = NOW()
+        WHERE id = $3 AND tenant_id = $4
+    `;
+    const lastRestockDate = new Date().toISOString().split('T')[0];
+    await pool.query(updateQuery, [quantity, lastRestockDate, consumableId, tenantId]);
 
-    // Resolve any low-stock alerts for this item
-    await db.update(stockAlerts)
-        .set({ isResolved: true, resolvedAt: new Date() })
-        .where(and(
-            eq(stockAlerts.itemId, consumableId),
-            eq(stockAlerts.tenantId, tenantId),
-            eq(stockAlerts.isResolved, false),
-        ));
+    const alertUpdateQuery = `
+        UPDATE stock_alerts
+        SET is_resolved = true, resolved_at = NOW()
+        WHERE item_id = $1 AND tenant_id = $2 AND is_resolved = false
+    `;
+    await pool.query(alertUpdateQuery, [consumableId, tenantId]);
 
     return { success: true };
 }
@@ -117,10 +164,26 @@ export async function restockConsumable(consumableId: string, quantity: number) 
 export async function getStockAlerts(resolved?: boolean) {
     const { tenantId } = await requireAuth('inventory:read');
 
-    const conditions = [eq(stockAlerts.tenantId, tenantId)];
-    if (resolved !== undefined) conditions.push(eq(stockAlerts.isResolved, resolved));
+    let query = `
+        SELECT 
+            id, tenant_id AS "tenantId", item_id AS "itemId", item_type AS "itemType",
+            alert_type AS "alertType", severity, message, is_resolved AS "isResolved",
+            resolved_at AS "resolvedAt", created_at AS "createdAt"
+        FROM stock_alerts
+        WHERE tenant_id = $1
+    `;
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
 
-    return db.select().from(stockAlerts).where(and(...conditions)).orderBy(desc(stockAlerts.createdAt));
+    if (resolved !== undefined) {
+        query += ` AND is_resolved = $${paramIndex++}`;
+        params.push(resolved);
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
 }
 
 // ─── Generate Stock Alerts ───────────────────────────────────
@@ -128,7 +191,12 @@ export async function getStockAlerts(resolved?: boolean) {
 export async function generateStockAlerts() {
     const { tenantId } = await requireAuth('inventory:write');
 
-    const items = await db.select().from(consumables).where(eq(consumables.tenantId, tenantId));
+    const { rows: items } = await pool.query(`
+        SELECT 
+            id, name, current_stock AS "currentStock", minimum_stock AS "minimumStock", unit
+        FROM consumables
+        WHERE tenant_id = $1
+    `, [tenantId]);
 
     const alerts: { itemId: string; alertType: string; severity: string; message: string }[] = [];
 
@@ -150,24 +218,25 @@ export async function generateStockAlerts() {
         }
     }
 
-    // Insert new alerts (skip if already exists and unresolved)
     for (const alert of alerts) {
-        const existing = await db.select().from(stockAlerts)
-            .where(and(
-                eq(stockAlerts.itemId, alert.itemId),
-                eq(stockAlerts.tenantId, tenantId),
-                eq(stockAlerts.isResolved, false),
-            )).limit(1);
+        const checkQuery = `
+            SELECT id FROM stock_alerts 
+            WHERE item_id = $1 AND tenant_id = $2 AND is_resolved = false 
+            LIMIT 1
+        `;
+        const { rows: existing } = await pool.query(checkQuery, [alert.itemId, tenantId]);
 
         if (existing.length === 0) {
-            await db.insert(stockAlerts).values({
-                tenantId,
-                itemId: alert.itemId,
-                itemType: 'CONSUMABLE',
-                alertType: alert.alertType as any,
-                severity: alert.severity as any,
-                message: alert.message,
-            });
+            const insertQuery = `
+                INSERT INTO stock_alerts (
+                    tenant_id, item_id, item_type, alert_type, severity, message
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6
+                )
+            `;
+            await pool.query(insertQuery, [
+                tenantId, alert.itemId, 'CONSUMABLE', alert.alertType, alert.severity, alert.message
+            ]);
         }
     }
 
@@ -179,10 +248,23 @@ export async function generateStockAlerts() {
 export async function getInventoryStats() {
     const { tenantId } = await requireAuth('inventory:read');
 
-    const assetList = await db.select().from(assets).where(eq(assets.tenantId, tenantId));
-    const consumableList = await db.select().from(consumables).where(eq(consumables.tenantId, tenantId));
-    const unresolvedAlerts = await db.select({ c: count() }).from(stockAlerts)
-        .where(and(eq(stockAlerts.tenantId, tenantId), eq(stockAlerts.isResolved, false)));
+    const { rows: assetList } = await pool.query(`
+        SELECT purchase_price AS "purchasePrice", condition
+        FROM assets
+        WHERE tenant_id = $1
+    `, [tenantId]);
+
+    const { rows: consumableList } = await pool.query(`
+        SELECT current_stock AS "currentStock", minimum_stock AS "minimumStock"
+        FROM consumables
+        WHERE tenant_id = $1
+    `, [tenantId]);
+
+    const { rows: unresolvedAlerts } = await pool.query(`
+        SELECT COUNT(*) AS c
+        FROM stock_alerts
+        WHERE tenant_id = $1 AND is_resolved = false
+    `, [tenantId]);
 
     const totalAssetValue = assetList.reduce((sum, a) => sum + Number(a.purchasePrice || 0), 0);
 
@@ -193,6 +275,6 @@ export async function getInventoryStats() {
         assetsNeedingRepair: assetList.filter(a => a.condition === 'NEEDS_REPAIR').length,
         lowStockItems: consumableList.filter(c => c.currentStock <= c.minimumStock).length,
         outOfStockItems: consumableList.filter(c => c.currentStock === 0).length,
-        activeAlerts: unresolvedAlerts[0]?.c || 0,
+        activeAlerts: Number(unresolvedAlerts[0]?.c || 0),
     };
 }

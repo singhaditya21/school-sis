@@ -165,10 +165,7 @@ export function computeFullRanks(
     };
 }
 
-import { db } from '@/lib/db';
-import { studentResults, examSchedules, students, exams, sections } from '@/lib/db/schema';
-import { eq, sum, count, desc, and } from 'drizzle-orm';
-import { setTenantContext } from '@/lib/db';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
 /**
@@ -176,28 +173,28 @@ import { requireAuth } from '@/lib/auth/middleware';
  */
 export async function calculateLiveRankings(classId: string, examName: string): Promise<RankComputationResult> {
     const { tenantId } = await requireAuth();
-    await setTenantContext(tenantId);
     
     // In a real scenario we might need the actual examId or filter by examName.
     // For now we'll aggregate all exam schedules for this classId conceptually 
     // or just fetch whatever student results exist for this tenant as a fallback live query.
     
-    const rawResults = await db
-        .select({
-            studentId: students.id,
-            studentName: students.firstName, // We'll concatenate lastName later if desired
-            lastName: students.lastName,
-            sectionId: students.sectionId,
-            sectionName: sections.name,
-            totalMarks: sum(studentResults.marksObtained),
-            maxMarks: sum(examSchedules.maxMarks),
-        })
-        .from(studentResults)
-        .innerJoin(students, eq(studentResults.studentId, students.id))
-        .innerJoin(examSchedules, eq(studentResults.examScheduleId, examSchedules.id))
-        .leftJoin(sections, eq(students.sectionId, sections.id))
-        .where(eq(studentResults.tenantId, tenantId))
-        .groupBy(students.id, students.firstName, students.lastName, students.sectionId, sections.name);
+    const { rows: rawResults } = await pool.query(
+        `SELECT 
+            s.id AS "studentId",
+            s.first_name AS "studentName",
+            s.last_name AS "lastName",
+            s.section_id AS "sectionId",
+            sec.name AS "sectionName",
+            SUM(sr.marks_obtained) AS "totalMarks",
+            SUM(es.max_marks) AS "maxMarks"
+         FROM student_results sr
+         INNER JOIN students s ON sr.student_id = s.id
+         INNER JOIN exam_schedules es ON sr.exam_schedule_id = es.id
+         LEFT JOIN sections sec ON s.section_id = sec.id
+         WHERE sr.tenant_id = $1
+         GROUP BY s.id, s.first_name, s.last_name, s.section_id, sec.name`,
+        [tenantId]
+    );
 
     if (rawResults.length === 0) {
         // Return empty result set instead of faking data

@@ -39,6 +39,14 @@ export async function middleware(request: NextRequest) {
     const isAdminRoute = pathname.startsWith('/admin') || pathname.startsWith('/dashboard') || pathname.startsWith('/hq');
     const isParentRoute = pathname.startsWith('/parent') || pathname.startsWith('/overview');
     const isPlatformRoute = pathname.startsWith('/platform');
+    const isTeacherRoute = pathname.startsWith('/teacher');
+
+    if (isTeacherRoute) {
+        const allowedRoles = ['PLATFORM_ADMIN', 'SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER'];
+        if (!allowedRoles.includes(session.role)) {
+            return NextResponse.redirect(new URL('/unauthorized', request.url));
+        }
+    }
 
     if (isPlatformRoute) {
         if (session.role !== 'PLATFORM_ADMIN') {

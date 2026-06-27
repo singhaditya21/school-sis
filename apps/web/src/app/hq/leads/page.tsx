@@ -1,9 +1,7 @@
 import React from 'react';
 import { requireRole } from '@/lib/auth/middleware';
 import { UserRole } from '@/lib/rbac/permissions';
-import { db, setTenantContext } from '@/lib/db';
-import { marketingLeads } from '@/lib/db/schema/platform';
-import { sql, count, sum } from 'drizzle-orm';
+import { pool, } from '@/lib/db';
 import LeadsClient from './client-page';
 
 export const metadata = {
@@ -12,10 +10,10 @@ export const metadata = {
 
 export default async function LeadsPage() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await setTenantContext('platform');
+    await ('platform');
 
     // Aggregate by Status
-    const statusAggregates = await db.execute(sql`
+    const { rows: statusAggregates } = await pool.query(`
         SELECT 
             status, 
             COUNT(*)::int as count,
@@ -25,9 +23,9 @@ export default async function LeadsPage() {
     `);
 
     // Get Raw Leads
-    const leadsList = await db.execute(sql`
+    const { rows: leadsList } = await pool.query(`
         SELECT 
-            id, contact_name, contact_email, school_name, student_capacity, status, created_at
+            id, contact_name AS "contactName", contact_email AS "contactEmail", school_name AS "schoolName", student_capacity AS "studentCapacity", status, created_at AS "createdAt"
         FROM marketing_leads
         ORDER BY created_at DESC
         LIMIT 50

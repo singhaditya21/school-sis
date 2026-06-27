@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { users, companies, tenants } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { hash } from 'bcryptjs';
 import { getSession } from '@/lib/auth/session';
 
@@ -27,27 +25,29 @@ export async function GET() {
         console.log('📦 Seeding Platform Admin account...');
         
         // 1. Create HQ Company
-        let [hqCompany] = await db.select().from(companies).where(eq(companies.name, 'ScholarMind HQ'));
+        let { rows: [hqCompany] } = await pool.query(
+            `SELECT * FROM companies WHERE name = $1`, 
+            ['ScholarMind HQ']
+        );
         if (!hqCompany) {
-            const [newComp] = await db.insert(companies).values({
-                name: 'ScholarMind HQ',
-                subscriptionTier: 'ENTERPRISE',
-                isActive: true,
-                region: 'GLOBAL',
-            }).returning();
+            const { rows: [newComp] } = await pool.query(
+                `INSERT INTO companies (name, subscription_tier, is_active, region) VALUES ($1, $2, $3, $4) RETURNING *`,
+                ['ScholarMind HQ', 'ENTERPRISE', true, 'GLOBAL']
+            );
             hqCompany = newComp;
             console.log('✅ Created HQ Company');
         }
 
         // 2. Create HQ Tenant
-        let [hqTenant] = await db.select().from(tenants).where(eq(tenants.code, 'HQ'));
+        let { rows: [hqTenant] } = await pool.query(
+            `SELECT * FROM tenants WHERE code = $1`, 
+            ['HQ']
+        );
         if (!hqTenant) {
-            const [newTen] = await db.insert(tenants).values({
-                name: 'ScholarMind HQ',
-                code: 'HQ',
-                companyId: hqCompany.id,
-                isActive: true,
-            }).returning();
+            const { rows: [newTen] } = await pool.query(
+                `INSERT INTO tenants (name, code, company_id, is_active) VALUES ($1, $2, $3, $4) RETURNING *`,
+                ['ScholarMind HQ', 'HQ', hqCompany.id, true]
+            );
             hqTenant = newTen;
             console.log('✅ Created HQ Tenant');
         }
@@ -60,16 +60,15 @@ export async function GET() {
         const seededUsers = [];
 
         for (const email of emailsToSeed) {
-            let [user] = await db.select().from(users).where(eq(users.email, email));
+            let { rows: [user] } = await pool.query(
+                `SELECT * FROM users WHERE email = $1`,
+                [email]
+            );
             if (!user) {
-                const [newUser] = await db.insert(users).values({
-                    tenantId: hqTenant.id,
-                    email: email,
-                    passwordHash: defaultPassword,
-                    firstName: 'Platform',
-                    lastName: 'Admin',
-                    role: 'SUPER_ADMIN',
-                }).returning();
+                const { rows: [newUser] } = await pool.query(
+                    `INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+                    [hqTenant.id, email, defaultPassword, 'Platform', 'Admin', 'SUPER_ADMIN']
+                );
                 seededUsers.push(newUser.email);
             }
         }

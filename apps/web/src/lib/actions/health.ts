@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { healthRecords, healthIncidents, immunizations, students } from '@/lib/db/schema';
-import { eq, and, count, sql, asc, desc } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
 // ─── Get Health Record ───────────────────────────────────────
@@ -10,10 +8,12 @@ import { requireAuth } from '@/lib/auth/middleware';
 export async function getHealthRecord(studentId: string) {
     const { tenantId } = await requireAuth('health:read');
 
-    const [record] = await db.select().from(healthRecords)
-        .where(and(eq(healthRecords.studentId, studentId), eq(healthRecords.tenantId, tenantId)));
+    const { rows } = await pool.query(
+        `SELECT id, tenant_id AS "tenantId", student_id AS "studentId", blood_group AS "bloodGroup", height, weight, allergies, conditions, medications, emergency_contact AS "emergencyContact", emergency_phone AS "emergencyPhone", doctor_name AS "doctorName", doctor_phone AS "doctorPhone", insurance_id AS "insuranceId", insurance_provider AS "insuranceProvider", notes, created_at AS "createdAt", updated_at AS "updatedAt" FROM health_records WHERE student_id = $1 AND tenant_id = $2`,
+        [studentId, tenantId]
+    );
 
-    return record || null;
+    return rows[0] || null;
 }
 
 // ─── Update Health Record ────────────────────────────────────
@@ -38,10 +38,46 @@ export async function updateHealthRecord(studentId: string, data: {
     const existing = await getHealthRecord(studentId);
 
     if (existing) {
-        await db.update(healthRecords).set({ ...data, updatedAt: new Date() })
-            .where(and(eq(healthRecords.studentId, studentId), eq(healthRecords.tenantId, tenantId)));
+        const updates: string[] = [];
+        const params: any[] = [];
+        let index = 1;
+        
+        for (const [key, value] of Object.entries(data)) {
+            if (value !== undefined) {
+                const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+                updates.push(`${snakeKey} = $${index}`);
+                params.push(value);
+                index++;
+            }
+        }
+        
+        updates.push(`updated_at = $${index}`);
+        params.push(new Date());
+        index++;
+
+        if (updates.length > 1) {
+            const query = `UPDATE health_records SET ${updates.join(', ')} WHERE student_id = $${index} AND tenant_id = $${index + 1}`;
+            params.push(studentId, tenantId);
+            await pool.query(query, params);
+        }
     } else {
-        await db.insert(healthRecords).values({ tenantId, studentId, ...data });
+        const columns = ['tenant_id', 'student_id'];
+        const values = ['$1', '$2'];
+        const params: any[] = [tenantId, studentId];
+        let index = 3;
+        
+        for (const [key, value] of Object.entries(data)) {
+            if (value !== undefined) {
+                const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+                columns.push(snakeKey);
+                values.push(`$${index}`);
+                params.push(value);
+                index++;
+            }
+        }
+        
+        const query = `INSERT INTO health_records (${columns.join(', ')}) VALUES (${values.join(', ')})`;
+        await pool.query(query, params);
     }
 
     return { success: true };
@@ -58,16 +94,13 @@ export async function logIncident(data: {
 }) {
     const { tenantId, userId } = await requireAuth('health:write');
 
-    const [incident] = await db.insert(healthIncidents).values({
-        tenantId,
-        studentId: data.studentId,
-        type: data.type as any,
-        description: data.description,
-        actionTaken: data.actionTaken,
-        reportedBy: userId,
-        parentNotified: data.parentNotified || false,
-        parentNotifiedAt: data.parentNotified ? new Date() : null,
-    }).returning();
+    const { rows: [incident] } = await pool.query(
+        `INSERT INTO health_incidents (
+            tenant_id, student_id, type, description, action_taken, reported_by, parent_notified, parent_notified_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+        RETURNING id, tenant_id AS "tenantId", student_id AS "studentId", type, description, action_taken AS "actionTaken", reported_by AS "reportedBy", parent_notified AS "parentNotified", parent_notified_at AS "parentNotifiedAt", incident_date AS "incidentDate"`,
+        [tenantId, data.studentId, data.type, data.description, data.actionTaken, userId, data.parentNotified || false, data.parentNotified ? new Date() : null]
+    );
 
     return { success: true, incident };
 }
@@ -77,24 +110,19 @@ export async function logIncident(data: {
 export async function getIncidents(studentId?: string) {
     const { tenantId } = await requireAuth('health:read');
 
-    const conditions = [eq(healthIncidents.tenantId, tenantId)];
-    if (studentId) conditions.push(eq(healthIncidents.studentId, studentId));
+    let query = `SELECT h.id, h.student_id AS "studentId", s.first_name || ' ' || s.last_name AS "studentName", h.incident_date AS "incidentDate", h.type, h.description, h.action_taken AS "actionTaken", h.parent_notified AS "parentNotified"
+                 FROM health_incidents h
+                 LEFT JOIN students s ON h.student_id = s.id
+                 WHERE h.tenant_id = $1`;
+    const params: any[] = [tenantId];
+    if (studentId) {
+        query += ` AND h.student_id = $2`;
+        params.push(studentId);
+    }
+    query += ` ORDER BY h.incident_date DESC`;
 
-    return db
-        .select({
-            id: healthIncidents.id,
-            studentId: healthIncidents.studentId,
-            studentName: sql<string>`${students.firstName} || ' ' || ${students.lastName}`,
-            incidentDate: healthIncidents.incidentDate,
-            type: healthIncidents.type,
-            description: healthIncidents.description,
-            actionTaken: healthIncidents.actionTaken,
-            parentNotified: healthIncidents.parentNotified,
-        })
-        .from(healthIncidents)
-        .leftJoin(students, eq(healthIncidents.studentId, students.id))
-        .where(and(...conditions))
-        .orderBy(desc(healthIncidents.incidentDate));
+    const { rows } = await pool.query(query, params);
+    return rows;
 }
 
 // ─── Get Immunizations ──────────────────────────────────────
@@ -102,9 +130,15 @@ export async function getIncidents(studentId?: string) {
 export async function getImmunizations(studentId: string) {
     const { tenantId } = await requireAuth('health:read');
 
-    return db.select().from(immunizations)
-        .where(and(eq(immunizations.studentId, studentId), eq(immunizations.tenantId, tenantId)))
-        .orderBy(desc(immunizations.dateGiven));
+    const { rows } = await pool.query(
+        `SELECT id, tenant_id AS "tenantId", student_id AS "studentId", vaccine_name AS "vaccineName", dose_number AS "doseNumber", date_given AS "dateGiven", next_due_date AS "nextDueDate", administered_by AS "administeredBy", batch_number AS "batchNumber", created_at AS "createdAt"
+         FROM immunizations
+         WHERE student_id = $1 AND tenant_id = $2
+         ORDER BY date_given DESC`,
+        [studentId, tenantId]
+    );
+
+    return rows;
 }
 
 // ─── Add Immunization ────────────────────────────────────────
@@ -120,16 +154,12 @@ export async function addImmunization(data: {
 }) {
     const { tenantId } = await requireAuth('health:write');
 
-    const [record] = await db.insert(immunizations).values({
-        tenantId,
-        studentId: data.studentId,
-        vaccineName: data.vaccineName,
-        doseNumber: data.doseNumber,
-        dateGiven: data.dateGiven,
-        nextDueDate: data.nextDueDate,
-        administeredBy: data.administeredBy,
-        batchNumber: data.batchNumber,
-    }).returning();
+    const { rows: [record] } = await pool.query(
+        `INSERT INTO immunizations (tenant_id, student_id, vaccine_name, dose_number, date_given, next_due_date, administered_by, batch_number)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id, tenant_id AS "tenantId", student_id AS "studentId", vaccine_name AS "vaccineName", dose_number AS "doseNumber", date_given AS "dateGiven", next_due_date AS "nextDueDate", administered_by AS "administeredBy", batch_number AS "batchNumber", created_at AS "createdAt"`,
+        [tenantId, data.studentId, data.vaccineName, data.doseNumber, data.dateGiven, data.nextDueDate, data.administeredBy, data.batchNumber]
+    );
 
     return { success: true, record };
 }
@@ -139,24 +169,19 @@ export async function addImmunization(data: {
 export async function getHealthStats() {
     const { tenantId } = await requireAuth('health:read');
 
-    const [recordCount] = await db.select({ c: count() }).from(healthRecords)
-        .where(eq(healthRecords.tenantId, tenantId));
-
-    const [incidentCount] = await db.select({ c: count() }).from(healthIncidents)
-        .where(eq(healthIncidents.tenantId, tenantId));
+    const { rows: [{ c: studentsWithRecords }] } = await pool.query(`SELECT COUNT(*) AS c FROM health_records WHERE tenant_id = $1`, [tenantId]);
+    const { rows: [{ c: totalIncidents }] } = await pool.query(`SELECT COUNT(*) AS c FROM health_incidents WHERE tenant_id = $1`, [tenantId]);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const [todayIncidents] = await db.select({ c: count() }).from(healthIncidents)
-        .where(and(eq(healthIncidents.tenantId, tenantId), sql`${healthIncidents.incidentDate} >= ${today}`));
+    const { rows: [{ c: todayIncidents }] } = await pool.query(`SELECT COUNT(*) AS c FROM health_incidents WHERE tenant_id = $1 AND incident_date >= $2`, [tenantId, today]);
 
-    const [immunizationCount] = await db.select({ c: count() }).from(immunizations)
-        .where(eq(immunizations.tenantId, tenantId));
+    const { rows: [{ c: totalImmunizations }] } = await pool.query(`SELECT COUNT(*) AS c FROM immunizations WHERE tenant_id = $1`, [tenantId]);
 
     return {
-        studentsWithRecords: recordCount?.c || 0,
-        totalIncidents: incidentCount?.c || 0,
-        todayIncidents: todayIncidents?.c || 0,
-        totalImmunizations: immunizationCount?.c || 0,
+        studentsWithRecords: Number(studentsWithRecords) || 0,
+        totalIncidents: Number(totalIncidents) || 0,
+        todayIncidents: Number(todayIncidents) || 0,
+        totalImmunizations: Number(totalImmunizations) || 0,
     };
 }

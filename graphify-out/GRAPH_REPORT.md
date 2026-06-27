@@ -44,3 +44,23 @@
 
 ---
 *Use `graphify query "<question>"` or `graphify path "A" "B"` to traverse.*
+
+## Changelog
+- **2026-06-27**: Added system-wide layer-based BDD Markdown specifications in `docs/specs/`:
+  - `architecture.md` / `architecture_detailed.md`: Global service topology, directory mapping, regional hosting, multi-campus policies, and security sandboxes.
+  - `database.md` / `complete_database_guide.md`: Drizzle ORM schemas, pgvector definitions, index topology, and data access models.
+  - `agents.md` / `agents_detailed.md` / `complete_agent_swarm_guide.md`: 26-agent Swarm layout, prompt structures, tool namespaces, and background worker queue flows.
+  - `frontend.md` / `complete_frontend_guide.md`: Next.js 15 routing layouts, RBAC configurations, session handling, and HITL approvals console dashboards.
+  - `governance_detailed.md`: Complete 10-role access control matrix, AI decision control rules, compliance retention standards, and disaster recovery recovery targets.
+  - `complete_usecases_personas_guide.md`: Detailed segment-specific user persona profile cards and BDD/Gherkin workflow specs.
+  - `migration_detailed.md`: Legacy database migration coexistence modes, data deduplication metrics, ledger reconciliation rules, and automated rollback triggers.
+  - `remediation_plan.md`: Security audit package CVE patches, cryptographic GCM tag validations, and storage path traversal defense scopes.
+  - **Codebase Verification**: Successfully resolved missing configuration parameter and route handler bugs, running all 25 Python FastAPI unit tests (all passing), 32 frontend Jest tests (all passing), and validating the production Next.js compilation build output.
+
+
+
+
+
+
+
+

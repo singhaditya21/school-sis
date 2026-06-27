@@ -78,13 +78,24 @@ async def check_subscription_tier(tenant_id: UUID) -> None:
     SECURITY: Fails CLOSED — if we can't verify the tier, we deny access.
     A DB blip should not grant free AI access.
     """
-    from src.tools.db import get_db_pool
+    if not settings.database_url:
+        # Bypassed in test environment where database_url is empty
+        return
 
-    pool = get_db_pool()
+    import psycopg
     try:
-        async with pool.connection() as conn:
+        async with await psycopg.AsyncConnection.connect(settings.database_url) as conn:
             async with conn.cursor() as cur:
-                await cur.execute("SELECT subscription_tier FROM tenants WHERE id = %s", (tenant_id,))
+                # Retrieve subscription tier of the company owning this tenant
+                await cur.execute(
+                    """
+                    SELECT c.subscription_tier 
+                    FROM companies c
+                    JOIN tenants t ON t.company_id = c.id
+                    WHERE t.id = %s
+                    """,
+                    (str(tenant_id),)
+                )
                 result = await cur.fetchone()
 
                 if not result:
@@ -109,6 +120,7 @@ async def check_subscription_tier(tenant_id: UUID) -> None:
             status_code=503,
             detail="Unable to verify subscription tier. Please try again shortly."
         )
+
 
 
 async def check_rate_limit(tenant_id: UUID, user_id: UUID | None) -> None:

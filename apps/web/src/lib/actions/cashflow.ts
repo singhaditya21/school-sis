@@ -5,9 +5,7 @@
  * and historical collection patterns.
  */
 
-import { db } from '@/lib/db';
-import { invoices, payments } from '@/lib/db/schema';
-import { eq, and, sum, count, ne, gte, lte, sql } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -37,17 +35,17 @@ export async function getCashflowForecast(forwardMonths: number = 6): Promise<Ca
     const twelveMonthsAgo = new Date(now.getFullYear() - 1, now.getMonth(), 1);
     const twelveMonthsAgoStr = twelveMonthsAgo.toISOString().split('T')[0];
 
-    const [historicalStats] = await db
-        .select({
-            totalBilled: sum(invoices.totalAmount),
-            totalPaid: sum(invoices.paidAmount),
-        })
-        .from(invoices)
-        .where(and(
-            eq(invoices.tenantId, tenantId),
-            ne(invoices.status, 'CANCELLED'),
-            gte(invoices.createdAt, new Date(twelveMonthsAgoStr)),
-        ));
+    const historicalQuery = `
+        SELECT 
+            SUM(total_amount) AS "totalBilled",
+            SUM(paid_amount) AS "totalPaid"
+        FROM invoices
+        WHERE tenant_id = $1
+          AND status != 'CANCELLED'
+          AND created_at >= $2
+    `;
+    const historicalResult = await pool.query(historicalQuery, [tenantId, twelveMonthsAgoStr]);
+    const historicalStats = historicalResult.rows[0];
 
     const totalBilled = Number(historicalStats?.totalBilled || 0);
     const totalPaid = Number(historicalStats?.totalPaid || 0);
@@ -70,20 +68,20 @@ export async function getCashflowForecast(forwardMonths: number = 6): Promise<Ca
         const monthEnd = nextMonthDate.toISOString().split('T')[0];
 
         // Get invoices due in this month (unpaid/partially paid)
-        const [monthStats] = await db
-            .select({
-                totalDue: sql<string>`COALESCE(SUM(CAST(${invoices.totalAmount} AS numeric) - CAST(${invoices.paidAmount} AS numeric)), 0)`,
-                invoiceCount: count(),
-            })
-            .from(invoices)
-            .where(and(
-                eq(invoices.tenantId, tenantId),
-                ne(invoices.status, 'PAID'),
-                ne(invoices.status, 'CANCELLED'),
-                ne(invoices.status, 'WAIVED'),
-                gte(invoices.dueDate, monthStart),
-                lte(invoices.dueDate, monthEnd),
-            ));
+        const monthQuery = `
+            SELECT 
+                COALESCE(SUM(CAST(total_amount AS numeric) - CAST(paid_amount AS numeric)), 0) AS "totalDue",
+                COUNT(*) AS "invoiceCount"
+            FROM invoices
+            WHERE tenant_id = $1
+              AND status != 'PAID'
+              AND status != 'CANCELLED'
+              AND status != 'WAIVED'
+              AND due_date >= $2
+              AND due_date <= $3
+        `;
+        const monthResult = await pool.query(monthQuery, [tenantId, monthStart, monthEnd]);
+        const monthStats = monthResult.rows[0];
 
         const expected = Number(monthStats?.totalDue || 0);
         const projected = Math.round(expected * (historicalCollectionRate / 100));
@@ -93,7 +91,7 @@ export async function getCashflowForecast(forwardMonths: number = 6): Promise<Ca
             label: monthLabel,
             expectedInflow: expected,
             projectedCollection: projected,
-            invoiceCount: monthStats?.invoiceCount || 0,
+            invoiceCount: Number(monthStats?.invoiceCount || 0),
         });
 
         totalExpected += expected;

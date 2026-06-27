@@ -4,127 +4,138 @@
  * All queries are tenant-scoped via requireAuth() middleware.
  */
 
-import { db } from '@/lib/db';
-import * as schema from '@/lib/db/schema';
-import { eq, and, asc, desc, count } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+
+function isValidUUID(uuid: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+}
 
 // ─── Student Detail ───────────────────────────────────────
 export async function getStudentDetail(studentId: string) {
+    if (!isValidUUID(studentId)) return null;
     const { tenantId } = await requireAuth('students:read');
 
-    const [student] = await db
-        .select({
-            id: schema.students.id,
-            admissionNumber: schema.students.admissionNumber,
-            firstName: schema.students.firstName,
-            lastName: schema.students.lastName,
-            dateOfBirth: schema.students.dateOfBirth,
-            gender: schema.students.gender,
-            bloodGroup: schema.students.bloodGroup,
-            address: schema.students.address,
-            city: schema.students.city,
-            state: schema.students.state,
-            pincode: schema.students.pincode,
-            rollNumber: schema.students.rollNumber,
-            admissionDate: schema.students.admissionDate,
-            status: schema.students.status,
-            gradeName: schema.grades.name,
-            sectionName: schema.sections.name,
-        })
-        .from(schema.students)
-        .innerJoin(schema.grades, eq(schema.students.gradeId, schema.grades.id))
-        .innerJoin(schema.sections, eq(schema.students.sectionId, schema.sections.id))
-        .where(and(eq(schema.students.id, studentId), eq(schema.students.tenantId, tenantId)));
+    const { rows: students } = await pool.query(
+        `SELECT 
+            s.id,
+            s.admission_number AS "admissionNumber",
+            s.first_name AS "firstName",
+            s.last_name AS "lastName",
+            s.date_of_birth AS "dateOfBirth",
+            s.gender,
+            s.blood_group AS "bloodGroup",
+            s.address,
+            s.city,
+            s.state,
+            s.pincode,
+            s.roll_number AS "rollNumber",
+            s.admission_date AS "admissionDate",
+            s.status,
+            g.name AS "gradeName",
+            sec.name AS "sectionName"
+        FROM students s
+        INNER JOIN grades g ON s.grade_id = g.id
+        INNER JOIN sections sec ON s.section_id = sec.id
+        WHERE s.id = $1 AND s.tenant_id = $2`,
+        [studentId, tenantId]
+    );
 
-    if (!student) return null;
+    if (students.length === 0) return null;
+    const student = students[0];
 
-    const studentGuardians = await db
-        .select({
-            id: schema.guardians.id,
-            firstName: schema.guardians.firstName,
-            lastName: schema.guardians.lastName,
-            relation: schema.guardians.relation,
-            phone: schema.guardians.phone,
-            email: schema.guardians.email,
-            occupation: schema.guardians.occupation,
-            isPrimary: schema.guardians.isPrimary,
-        })
-        .from(schema.guardians)
-        .where(and(eq(schema.guardians.studentId, studentId), eq(schema.guardians.tenantId, tenantId)));
+    const { rows: guardians } = await pool.query(
+        `SELECT 
+            id,
+            first_name AS "firstName",
+            last_name AS "lastName",
+            relation,
+            phone,
+            email,
+            occupation,
+            is_primary AS "isPrimary"
+        FROM guardians
+        WHERE student_id = $1 AND tenant_id = $2`,
+        [studentId, tenantId]
+    );
 
-    return { ...student, guardians: studentGuardians };
+    return { ...student, guardians };
 }
 
 // ─── Students by Section (for attendance, timetable) ──────
 export async function getStudentsBySection(sectionId: string) {
+    if (!isValidUUID(sectionId)) return [];
     const { tenantId } = await requireAuth('students:read');
 
-    return db
-        .select({
-            id: schema.students.id,
-            admissionNumber: schema.students.admissionNumber,
-            firstName: schema.students.firstName,
-            lastName: schema.students.lastName,
-            rollNumber: schema.students.rollNumber,
-        })
-        .from(schema.students)
-        .where(and(
-            eq(schema.students.sectionId, sectionId),
-            eq(schema.students.tenantId, tenantId),
-            eq(schema.students.status, 'ACTIVE')
-        ))
-        .orderBy(asc(schema.students.rollNumber), asc(schema.students.firstName));
+    const { rows } = await pool.query(
+        `SELECT 
+            id,
+            admission_number AS "admissionNumber",
+            first_name AS "firstName",
+            last_name AS "lastName",
+            roll_number AS "rollNumber"
+        FROM students
+        WHERE section_id = $1 AND tenant_id = $2 AND status = 'ACTIVE'
+        ORDER BY roll_number ASC, first_name ASC`,
+        [sectionId, tenantId]
+    );
+
+    return rows;
 }
 
 // ─── Invoice Detail ───────────────────────────────────────
 export async function getInvoiceDetail(invoiceId: string) {
+    if (!isValidUUID(invoiceId)) return null;
     const { tenantId } = await requireAuth('fees:read');
 
-    const [invoice] = await db
-        .select({
-            id: schema.invoices.id,
-            invoiceNumber: schema.invoices.invoiceNumber,
-            totalAmount: schema.invoices.totalAmount,
-            paidAmount: schema.invoices.paidAmount,
-            dueDate: schema.invoices.dueDate,
-            status: schema.invoices.status,
-            description: schema.invoices.description,
-            studentFirstName: schema.students.firstName,
-            studentLastName: schema.students.lastName,
-            studentId: schema.students.id,
-            feePlanId: schema.invoices.feePlanId,
-        })
-        .from(schema.invoices)
-        .innerJoin(schema.students, eq(schema.invoices.studentId, schema.students.id))
-        .where(and(eq(schema.invoices.id, invoiceId), eq(schema.invoices.tenantId, tenantId)));
+    const { rows: invoices } = await pool.query(
+        `SELECT 
+            i.id,
+            i.invoice_number AS "invoiceNumber",
+            i.total_amount AS "totalAmount",
+            i.paid_amount AS "paidAmount",
+            i.due_date AS "dueDate",
+            i.status,
+            i.description,
+            s.first_name AS "studentFirstName",
+            s.last_name AS "studentLastName",
+            s.id AS "studentId",
+            i.fee_plan_id AS "feePlanId"
+        FROM invoices i
+        INNER JOIN students s ON i.student_id = s.id
+        WHERE i.id = $1 AND i.tenant_id = $2`,
+        [invoiceId, tenantId]
+    );
 
-    if (!invoice) return null;
+    if (invoices.length === 0) return null;
+    const invoice = invoices[0];
 
     // Get fee components (line items)
-    const components = await db
-        .select({
-            name: schema.feeComponents.name,
-            amount: schema.feeComponents.amount,
-            frequency: schema.feeComponents.frequency,
-            isOptional: schema.feeComponents.isOptional,
-        })
-        .from(schema.feeComponents)
-        .where(eq(schema.feeComponents.feePlanId, invoice.feePlanId))
-        .orderBy(asc(schema.feeComponents.createdAt));
+    const { rows: components } = await pool.query(
+        `SELECT 
+            name,
+            amount,
+            frequency,
+            is_optional AS "isOptional"
+        FROM fee_components
+        WHERE fee_plan_id = $1
+        ORDER BY created_at ASC`,
+        [invoice.feePlanId]
+    );
 
     // Get payments
-    const payments = await db
-        .select({
-            id: schema.payments.id,
-            amount: schema.payments.amount,
-            method: schema.payments.method,
-            status: schema.payments.status,
-            createdAt: schema.payments.createdAt,
-        })
-        .from(schema.payments)
-        .where(and(eq(schema.payments.invoiceId, invoiceId), eq(schema.payments.tenantId, tenantId)))
-        .orderBy(desc(schema.payments.createdAt));
+    const { rows: payments } = await pool.query(
+        `SELECT 
+            id,
+            amount,
+            method,
+            status,
+            created_at AS "createdAt"
+        FROM payments
+        WHERE invoice_id = $1 AND tenant_id = $2
+        ORDER BY created_at DESC`,
+        [invoiceId, tenantId]
+    );
 
     return {
         ...invoice,
@@ -137,184 +148,205 @@ export async function getInvoiceDetail(invoiceId: string) {
 
 // ─── Receipt Detail ───────────────────────────────────────
 export async function getReceiptDetail(receiptId: string) {
+    if (!isValidUUID(receiptId)) return null;
     const { tenantId } = await requireAuth('fees:read');
 
-    const [receipt] = await db
-        .select({
-            id: schema.receipts.id,
-            receiptNumber: schema.receipts.receiptNumber,
-            amount: schema.payments.amount,
-            method: schema.payments.method,
-            paymentDate: schema.payments.createdAt,
-            invoiceId: schema.payments.invoiceId,
-            studentFirstName: schema.students.firstName,
-            studentLastName: schema.students.lastName,
-        })
-        .from(schema.receipts)
-        .innerJoin(schema.payments, eq(schema.receipts.paymentId, schema.payments.id))
-        .innerJoin(schema.invoices, eq(schema.payments.invoiceId, schema.invoices.id))
-        .innerJoin(schema.students, eq(schema.invoices.studentId, schema.students.id))
-        .where(and(eq(schema.receipts.id, receiptId), eq(schema.receipts.tenantId, tenantId)));
+    const { rows } = await pool.query(
+        `SELECT 
+            r.id,
+            r.receipt_number AS "receiptNumber",
+            p.amount,
+            p.method,
+            p.created_at AS "paymentDate",
+            p.invoice_id AS "invoiceId",
+            s.first_name AS "studentFirstName",
+            s.last_name AS "studentLastName"
+        FROM receipts r
+        INNER JOIN payments p ON r.payment_id = p.id
+        INNER JOIN invoices i ON p.invoice_id = i.id
+        INNER JOIN students s ON i.student_id = s.id
+        WHERE r.id = $1 AND r.tenant_id = $2`,
+        [receiptId, tenantId]
+    );
 
-    return receipt || null;
+    return rows.length > 0 ? rows[0] : null;
 }
 
 // ─── Exam Detail ──────────────────────────────────────────
 export async function getExamDetail(examId: string) {
+    if (!isValidUUID(examId)) return null;
     const { tenantId } = await requireAuth('exams:read');
 
-    const [exam] = await db
-        .select({
-            id: schema.exams.id,
-            name: schema.exams.name,
-            type: schema.exams.type,
-            startDate: schema.exams.startDate,
-            endDate: schema.exams.endDate,
-            description: schema.exams.description,
-            academicYearName: schema.academicYears.name,
-        })
-        .from(schema.exams)
-        .innerJoin(schema.academicYears, eq(schema.exams.academicYearId, schema.academicYears.id))
-        .where(and(eq(schema.exams.id, examId), eq(schema.exams.tenantId, tenantId)));
+    const { rows: exams } = await pool.query(
+        `SELECT 
+            e.id,
+            e.name,
+            e.type,
+            e.start_date AS "startDate",
+            e.end_date AS "endDate",
+            e.description,
+            ay.name AS "academicYearName"
+        FROM exams e
+        INNER JOIN academic_years ay ON e.academic_year_id = ay.id
+        WHERE e.id = $1 AND e.tenant_id = $2`,
+        [examId, tenantId]
+    );
 
-    if (!exam) return null;
+    if (exams.length === 0) return null;
+    const exam = exams[0];
 
-    const schedules = await db
-        .select({
-            id: schema.examSchedules.id,
-            gradeName: schema.grades.name,
-            gradeId: schema.grades.id,
-            subjectName: schema.subjects.name,
-            examDate: schema.examSchedules.examDate,
-            startTime: schema.examSchedules.startTime,
-            endTime: schema.examSchedules.endTime,
-            maxMarks: schema.examSchedules.maxMarks,
-            passingMarks: schema.examSchedules.passingMarks,
-        })
-        .from(schema.examSchedules)
-        .innerJoin(schema.grades, eq(schema.examSchedules.gradeId, schema.grades.id))
-        .innerJoin(schema.subjects, eq(schema.examSchedules.subjectId, schema.subjects.id))
-        .where(eq(schema.examSchedules.examId, examId))
-        .orderBy(asc(schema.examSchedules.examDate));
+    const { rows: schedules } = await pool.query(
+        `SELECT 
+            es.id,
+            g.name AS "gradeName",
+            g.id AS "gradeId",
+            s.name AS "subjectName",
+            es.exam_date AS "examDate",
+            es.start_time AS "startTime",
+            es.end_time AS "endTime",
+            es.max_marks AS "maxMarks",
+            es.passing_marks AS "passingMarks"
+        FROM exam_schedules es
+        INNER JOIN grades g ON es.grade_id = g.id
+        INNER JOIN subjects s ON es.subject_id = s.id
+        WHERE es.exam_id = $1
+        ORDER BY es.exam_date ASC`,
+        [examId]
+    );
 
     return { ...exam, schedules };
 }
 
 // ─── Admission Lead Detail ────────────────────────────────
 export async function getAdmissionLeadDetail(leadId: string) {
+    if (!isValidUUID(leadId)) return null;
     const { tenantId } = await requireAuth('admissions:read');
 
-    const [lead] = await db
-        .select({
-            id: schema.admissionLeads.id,
-            childFirstName: schema.admissionLeads.childFirstName,
-            childLastName: schema.admissionLeads.childLastName,
-            childDob: schema.admissionLeads.childDob,
-            applyingForGrade: schema.admissionLeads.applyingForGrade,
-            parentName: schema.admissionLeads.parentName,
-            parentEmail: schema.admissionLeads.parentEmail,
-            parentPhone: schema.admissionLeads.parentPhone,
-            source: schema.admissionLeads.source,
-            stage: schema.admissionLeads.stage,
-            notes: schema.admissionLeads.notes,
-            createdAt: schema.admissionLeads.createdAt,
-        })
-        .from(schema.admissionLeads)
-        .where(and(eq(schema.admissionLeads.id, leadId), eq(schema.admissionLeads.tenantId, tenantId)));
+    const { rows: leads } = await pool.query(
+        `SELECT 
+            id,
+            child_first_name AS "childFirstName",
+            child_last_name AS "childLastName",
+            child_dob AS "childDob",
+            applying_for_grade AS "applyingForGrade",
+            parent_name AS "parentName",
+            parent_email AS "parentEmail",
+            parent_phone AS "parentPhone",
+            source,
+            stage,
+            notes,
+            created_at AS "createdAt"
+        FROM admission_leads
+        WHERE id = $1 AND tenant_id = $2`,
+        [leadId, tenantId]
+    );
 
-    if (!lead) return null;
+    if (leads.length === 0) return null;
+    const lead = leads[0];
 
     // Get documents
-    const applications = await db
-        .select({
-            id: schema.admissionApplications.id,
-            applicationNumber: schema.admissionApplications.applicationNumber,
-            submittedAt: schema.admissionApplications.submittedAt,
-            createdAt: schema.admissionApplications.createdAt,
-        })
-        .from(schema.admissionApplications)
-        .where(eq(schema.admissionApplications.leadId, leadId))
-        .orderBy(desc(schema.admissionApplications.createdAt));
+    const { rows: applications } = await pool.query(
+        `SELECT 
+            id,
+            application_number AS "applicationNumber",
+            submitted_at AS "submittedAt",
+            created_at AS "createdAt"
+        FROM admission_applications
+        WHERE lead_id = $1
+        ORDER BY created_at DESC`,
+        [leadId]
+    );
 
     return { ...lead, applications };
 }
 
 // ─── Section Info (for attendance marking) ────────────────
 export async function getSectionInfo(sectionId: string) {
+    if (!isValidUUID(sectionId)) return null;
     const { tenantId } = await requireAuth();
 
-    const [section] = await db
-        .select({
-            id: schema.sections.id,
-            sectionName: schema.sections.name,
-            gradeName: schema.grades.name,
-        })
-        .from(schema.sections)
-        .innerJoin(schema.grades, eq(schema.sections.gradeId, schema.grades.id))
-        .where(and(eq(schema.sections.id, sectionId), eq(schema.sections.tenantId, tenantId)));
+    const { rows } = await pool.query(
+        `SELECT 
+            sec.id,
+            sec.name AS "sectionName",
+            g.name AS "gradeName"
+        FROM sections sec
+        INNER JOIN grades g ON sec.grade_id = g.id
+        WHERE sec.id = $1 AND sec.tenant_id = $2`,
+        [sectionId, tenantId]
+    );
 
-    return section || null;
+    return rows.length > 0 ? rows[0] : null;
 }
 
 // ─── Attendance for section on date ───────────────────────
 export async function getAttendanceForSection(sectionId: string, date: string) {
+    if (!isValidUUID(sectionId)) return [];
     const { tenantId } = await requireAuth('attendance:read');
 
-    return db
-        .select({
-            studentId: schema.attendanceRecords.studentId,
-            status: schema.attendanceRecords.status,
-        })
-        .from(schema.attendanceRecords)
-        .where(and(
-            eq(schema.attendanceRecords.sectionId, sectionId),
-            eq(schema.attendanceRecords.tenantId, tenantId),
-            eq(schema.attendanceRecords.date, date)
-        ));
+    const { rows } = await pool.query(
+        `SELECT 
+            student_id AS "studentId",
+            status
+        FROM attendance_records
+        WHERE section_id = $1 AND tenant_id = $2 AND date = $3`,
+        [sectionId, tenantId, date]
+    );
+
+    return rows;
 }
 
 // ─── Academic Years (for dropdowns) ───────────────────────
 export async function getAcademicYears() {
     const { tenantId } = await requireAuth();
 
-    return db
-        .select({
-            id: schema.academicYears.id,
-            name: schema.academicYears.name,
-            isCurrent: schema.academicYears.isCurrent,
-        })
-        .from(schema.academicYears)
-        .where(eq(schema.academicYears.tenantId, tenantId))
-        .orderBy(desc(schema.academicYears.startDate));
+    const { rows } = await pool.query(
+        `SELECT 
+            id,
+            name,
+            is_current AS "isCurrent"
+        FROM academic_years
+        WHERE tenant_id = $1
+        ORDER BY start_date DESC`,
+        [tenantId]
+    );
+
+    return rows;
 }
 
 // ─── Terms (for dropdowns) ────────────────────────────────
 export async function getTerms() {
     const { tenantId } = await requireAuth();
 
-    return db
-        .select({
-            id: schema.terms.id,
-            name: schema.terms.name,
-            type: schema.terms.type,
-            academicYearId: schema.terms.academicYearId,
-        })
-        .from(schema.terms)
-        .where(eq(schema.terms.tenantId, tenantId))
-        .orderBy(asc(schema.terms.startDate));
+    const { rows } = await pool.query(
+        `SELECT 
+            id,
+            name,
+            type,
+            academic_year_id AS "academicYearId"
+        FROM terms
+        WHERE tenant_id = $1
+        ORDER BY start_date ASC`,
+        [tenantId]
+    );
+
+    return rows;
 }
 
 // ─── Subjects list (for dropdowns) ────────────────────────
 export async function getSubjects() {
     const { tenantId } = await requireAuth();
 
-    return db
-        .select({
-            id: schema.subjects.id,
-            name: schema.subjects.name,
-            code: schema.subjects.code,
-        })
-        .from(schema.subjects)
-        .where(eq(schema.subjects.tenantId, tenantId))
-        .orderBy(asc(schema.subjects.name));
+    const { rows } = await pool.query(
+        `SELECT 
+            id,
+            name,
+            code
+        FROM subjects
+        WHERE tenant_id = $1
+        ORDER BY name ASC`,
+        [tenantId]
+    );
+
+    return rows;
 }

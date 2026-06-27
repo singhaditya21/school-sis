@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { webhookSubscriptions, webhookDeliveries } from '@/lib/db/schema';
-import { eq, and, count, asc, desc } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 import crypto from 'crypto';
@@ -19,15 +17,18 @@ export async function registerWebhook(data: {
 
     const secret = crypto.randomBytes(32).toString('hex');
 
-    await db.insert(webhookSubscriptions).values({
-        id: randomUUID(),
-        tenantId,
-        name: data.name,
-        url: data.url,
-        secret,
-        events: data.events,
-        headers: data.headers,
-    });
+    await pool.query(`
+        INSERT INTO webhook_subscriptions (id, tenant_id, name, url, secret, events, headers)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [
+        randomUUID(), 
+        tenantId, 
+        data.name, 
+        data.url, 
+        secret, 
+        data.events, 
+        data.headers ? JSON.stringify(data.headers) : null 
+    ]);
 
     return { success: true, secret };
 }
@@ -35,25 +36,23 @@ export async function registerWebhook(data: {
 export async function listWebhooks() {
     const { tenantId } = await requireAuth('webhooks:read');
 
-    return db
-        .select({
-            id: webhookSubscriptions.id,
-            name: webhookSubscriptions.name,
-            url: webhookSubscriptions.url,
-            events: webhookSubscriptions.events,
-            status: webhookSubscriptions.status,
-            createdAt: webhookSubscriptions.createdAt,
-        })
-        .from(webhookSubscriptions)
-        .where(eq(webhookSubscriptions.tenantId, tenantId))
-        .orderBy(desc(webhookSubscriptions.createdAt));
+    const { rows } = await pool.query(`
+        SELECT id, name, url, events, status, created_at AS "createdAt"
+        FROM webhook_subscriptions
+        WHERE tenant_id = $1
+        ORDER BY created_at DESC
+    `, [tenantId]);
+
+    return rows;
 }
 
 export async function deleteWebhook(webhookId: string) {
     const { tenantId } = await requireAuth('webhooks:write');
 
-    await db.delete(webhookSubscriptions)
-        .where(and(eq(webhookSubscriptions.id, webhookId), eq(webhookSubscriptions.tenantId, tenantId)));
+    await pool.query(`
+        DELETE FROM webhook_subscriptions
+        WHERE id = $1 AND tenant_id = $2
+    `, [webhookId, tenantId]);
 
     return { success: true };
 }
@@ -62,21 +61,11 @@ export async function deleteWebhook(webhookId: string) {
 
 export async function dispatchEvent(tenantId: string, event: string, payload: Record<string, unknown>) {
     // Find all active subscriptions matching this event
-    const subs = await db
-        .select({
-            id: webhookSubscriptions.id,
-            events: webhookSubscriptions.events,
-            url: webhookSubscriptions.url,
-            secret: webhookSubscriptions.secret,
-            headers: webhookSubscriptions.headers,
-            retryCount: webhookSubscriptions.retryCount,
-            timeoutMs: webhookSubscriptions.timeoutMs,
-        })
-        .from(webhookSubscriptions)
-        .where(and(
-            eq(webhookSubscriptions.tenantId, tenantId),
-            eq(webhookSubscriptions.status, 'ACTIVE'),
-        ));
+    const { rows: subs } = await pool.query(`
+        SELECT id, events, url, secret, headers, retry_count AS "retryCount", timeout_ms AS "timeoutMs"
+        FROM webhook_subscriptions
+        WHERE tenant_id = $1 AND status = 'ACTIVE'
+    `, [tenantId]);
 
     // Filter subscriptions by event match
     const matchingSubs = subs.filter(sub => {
@@ -91,13 +80,10 @@ export async function dispatchEvent(tenantId: string, event: string, payload: Re
         const signature = crypto.createHmac('sha256', sub.secret).update(body).digest('hex');
 
         // Log delivery attempt
-        await db.insert(webhookDeliveries).values({
-            id: deliveryId,
-            subscriptionId: sub.id,
-            event,
-            payload: { event, payload },
-            status: 'PENDING',
-        });
+        await pool.query(`
+            INSERT INTO webhook_deliveries (id, subscription_id, event, payload, status)
+            VALUES ($1, $2, $3, $4, $5)
+        `, [deliveryId, sub.id, event, JSON.stringify({ event, payload }), 'PENDING']);
 
         // Deliver asynchronously (fire-and-forget)
         deliverWebhook(deliveryId, sub.url, body, signature, sub.headers as Record<string, string> | null, sub.timeoutMs)
@@ -133,24 +119,17 @@ async function deliverWebhook(
 
         clearTimeout(timeout);
 
-        await db.update(webhookDeliveries)
-            .set({
-                status: res.ok ? 'SUCCESS' : 'FAILED',
-                responseCode: res.status,
-                attempts: 1,
-                lastAttemptAt: new Date(),
-                error: res.ok ? null : `HTTP ${res.status}`,
-            })
-            .where(eq(webhookDeliveries.id, deliveryId));
+        await pool.query(`
+            UPDATE webhook_deliveries
+            SET status = $1, response_code = $2, attempts = 1, last_attempt_at = NOW(), error = $3
+            WHERE id = $4
+        `, [res.ok ? 'SUCCESS' : 'FAILED', res.status, res.ok ? null : `HTTP ${res.status}`, deliveryId]);
     } catch (err: any) {
-        await db.update(webhookDeliveries)
-            .set({
-                status: 'FAILED',
-                attempts: 1,
-                lastAttemptAt: new Date(),
-                error: err.message,
-            })
-            .where(eq(webhookDeliveries.id, deliveryId));
+        await pool.query(`
+            UPDATE webhook_deliveries
+            SET status = 'FAILED', attempts = 1, last_attempt_at = NOW(), error = $1
+            WHERE id = $2
+        `, [err.message, deliveryId]);
     }
 }
 
@@ -159,18 +138,13 @@ async function deliverWebhook(
 export async function getWebhookDeliveries(webhookId: string) {
     await requireAuth('webhooks:read');
 
-    return db
-        .select({
-            id: webhookDeliveries.id,
-            event: webhookDeliveries.event,
-            status: webhookDeliveries.status,
-            responseCode: webhookDeliveries.responseCode,
-            attempts: webhookDeliveries.attempts,
-            error: webhookDeliveries.error,
-            createdAt: webhookDeliveries.createdAt,
-        })
-        .from(webhookDeliveries)
-        .where(eq(webhookDeliveries.subscriptionId, webhookId))
-        .orderBy(desc(webhookDeliveries.createdAt))
-        .limit(50);
+    const { rows } = await pool.query(`
+        SELECT id, event, status, response_code AS "responseCode", attempts, error, created_at AS "createdAt"
+        FROM webhook_deliveries
+        WHERE subscription_id = $1
+        ORDER BY created_at DESC
+        LIMIT 50
+    `, [webhookId]);
+
+    return rows;
 }

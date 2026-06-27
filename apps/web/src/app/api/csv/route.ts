@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, setTenantContext } from '@/lib/db';
-import { students, users, invoices, payments } from '@/lib/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { pool, } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 import { parse } from 'csv-parse/sync';
 import { getLimit } from '@/lib/config/limits';
@@ -26,14 +24,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const entity = searchParams.get('entity');
     const tenantId = session.tenantId;
-    await setTenantContext(tenantId);
+    await (tenantId);
 
     try {
         let csvContent: string;
 
         switch (entity) {
             case 'students': {
-                const data = await db.execute(sql`
+                const result = await pool.query(`
                     SELECT
                         s.admission_number, s.first_name, s.last_name, s.gender,
                         s.date_of_birth, s.category, s.religion,
@@ -43,11 +41,11 @@ export async function GET(request: NextRequest) {
                     FROM students s
                     LEFT JOIN sections sec ON sec.id = s.section_id
                     LEFT JOIN grades g ON g.id = sec.grade_id
-                    WHERE s.tenant_id = ${tenantId}
+                    WHERE s.tenant_id = $1
                     ORDER BY g.display_order, sec.name, s.first_name
-                `);
+                `, [tenantId]);
 
-                csvContent = toCSV(data as any[], [
+                csvContent = toCSV(result.rows, [
                     'admission_number', 'first_name', 'last_name', 'gender',
                     'date_of_birth', 'category', 'religion',
                     'aadhaar_number', 'apaar_id',
@@ -58,7 +56,7 @@ export async function GET(request: NextRequest) {
             }
 
             case 'fees': {
-                const data = await db.execute(sql`
+                const result = await pool.query(`
                     SELECT
                         i.invoice_number, s.admission_number,
                         s.first_name || ' ' || s.last_name AS student_name,
@@ -70,11 +68,11 @@ export async function GET(request: NextRequest) {
                     JOIN students s ON s.id = i.student_id
                     LEFT JOIN sections sec ON sec.id = s.section_id
                     LEFT JOIN grades g ON g.id = sec.grade_id
-                    WHERE i.tenant_id = ${tenantId}
+                    WHERE i.tenant_id = $1
                     ORDER BY i.due_date DESC
-                `);
+                `, [tenantId]);
 
-                csvContent = toCSV(data as any[], [
+                csvContent = toCSV(result.rows, [
                     'invoice_number', 'admission_number', 'student_name', 'grade',
                     'total_amount', 'paid_amount', 'balance', 'due_date', 'status',
                 ]);
@@ -82,7 +80,7 @@ export async function GET(request: NextRequest) {
             }
 
             case 'attendance': {
-                const data = await db.execute(sql`
+                const result = await pool.query(`
                     SELECT
                         s.admission_number,
                         s.first_name || ' ' || s.last_name AS student_name,
@@ -92,12 +90,12 @@ export async function GET(request: NextRequest) {
                     JOIN students s ON s.id = ar.student_id
                     LEFT JOIN sections sec ON sec.id = s.section_id
                     LEFT JOIN grades g ON g.id = sec.grade_id
-                    WHERE ar.tenant_id = ${tenantId}
+                    WHERE ar.tenant_id = $1
                     ORDER BY ar.date DESC, g.display_order, s.first_name
-                    LIMIT ${getLimit('CSV_EXPORT_MAX_ROWS')}
-                `);
+                    LIMIT $2
+                `, [tenantId, getLimit('CSV_EXPORT_MAX_ROWS')]);
 
-                csvContent = toCSV(data as any[], [
+                csvContent = toCSV(result.rows, [
                     'admission_number', 'student_name', 'grade', 'date', 'status', 'remarks',
                 ]);
                 break;
@@ -131,7 +129,7 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantId = session.tenantId;
-    await setTenantContext(tenantId);
+    await (tenantId);
 
     try {
         const formData = await request.formData();
@@ -182,19 +180,25 @@ export async function POST(request: NextRequest) {
                             continue;
                         }
 
-                        await db.execute(sql`
+                        await pool.query(`
                             INSERT INTO students (
                                 tenant_id, first_name, last_name, gender,
                                 date_of_birth, category, religion,
                                 admission_number, status
                             ) VALUES (
-                                ${tenantId}, ${row.first_name}, ${row.last_name},
-                                ${row.gender || 'OTHER'},
-                                ${row.date_of_birth || null}, ${row.category || null},
-                                ${row.religion || null},
-                                ${row.admission_number || null}, 'ACTIVE'
+                                $1, $2, $3,
+                                $4,
+                                $5, $6,
+                                $7,
+                                $8, 'ACTIVE'
                             )
-                        `);
+                        `, [
+                            tenantId, row.first_name, row.last_name,
+                            row.gender || 'OTHER',
+                            row.date_of_birth || null, row.category || null,
+                            row.religion || null,
+                            row.admission_number || null
+                        ]);
                         imported++;
                     } catch (e: any) {
                         skipped++;

@@ -1,9 +1,7 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { universityPrograms, universityCourses, facultyWorkload } from '@/lib/db/schema/higher_ed';
+import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
-import { eq, and, sql } from 'drizzle-orm';
 
 /**
  * Fetch all degree programs for the university.
@@ -12,10 +10,12 @@ export async function getUniversityProgramsAction() {
     const session = await getSession();
     if (!session.tenantId) throw new Error('Unauthorized');
 
-    return await db
-        .select()
-        .from(universityPrograms)
-        .where(eq(universityPrograms.tenantId, session.tenantId));
+    const result = await pool.query(
+        'SELECT id, tenant_id AS "tenantId", name, degree_type AS "degreeType", created_at AS "createdAt", updated_at AS "updatedAt" FROM university_programs WHERE tenant_id = $1',
+        [session.tenantId]
+    );
+    
+    return result.rows;
 }
 
 /**
@@ -25,18 +25,21 @@ export async function getUniversityCoursesAction() {
     const session = await getSession();
     if (!session.tenantId) throw new Error('Unauthorized');
 
-    return await db
-        .select({
-            id: universityCourses.id,
-            code: universityCourses.code,
-            title: universityCourses.title,
-            credits: universityCourses.credits,
-            programName: universityPrograms.name,
-            degreeType: universityPrograms.degreeType,
-        })
-        .from(universityCourses)
-        .leftJoin(universityPrograms, eq(universityCourses.programId, universityPrograms.id))
-        .where(eq(universityCourses.tenantId, session.tenantId));
+    const result = await pool.query(
+        `SELECT 
+            uc.id, 
+            uc.code, 
+            uc.title, 
+            uc.credits, 
+            up.name AS "programName", 
+            up.degree_type AS "degreeType"
+         FROM university_courses uc
+         LEFT JOIN university_programs up ON uc.program_id = up.id
+         WHERE uc.tenant_id = $1`,
+        [session.tenantId]
+    );
+    
+    return result.rows;
 }
 
 /**
@@ -46,19 +49,19 @@ export async function getUniversityDashboardSummaryAction() {
     const session = await getSession();
     if (!session.tenantId) throw new Error('Unauthorized');
 
-    const programsCount = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(universityPrograms)
-        .where(eq(universityPrograms.tenantId, session.tenantId));
-
-    const coursesCount = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(universityCourses)
-        .where(eq(universityCourses.tenantId, session.tenantId));
+    const programsCountResult = await pool.query(
+        'SELECT COUNT(*) as count FROM university_programs WHERE tenant_id = $1',
+        [session.tenantId]
+    );
+    
+    const coursesCountResult = await pool.query(
+        'SELECT COUNT(*) as count FROM university_courses WHERE tenant_id = $1',
+        [session.tenantId]
+    );
 
     return {
-        totalPrograms: programsCount[0]?.count || 0,
-        totalCourses: coursesCount[0]?.count || 0,
+        totalPrograms: Number(programsCountResult.rows[0]?.count || 0),
+        totalCourses: Number(coursesCountResult.rows[0]?.count || 0),
         facultyAllocations: 0, // Mocked for now
     };
 }

@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { certificateTemplates, issuedCertificates, idCards, students } from '@/lib/db/schema';
-import { eq, and, count, sql, asc, desc } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
 // ─── Get Templates ───────────────────────────────────────────
@@ -10,10 +8,24 @@ import { requireAuth } from '@/lib/auth/middleware';
 export async function getCertificateTemplates(type?: string) {
     const { tenantId } = await requireAuth('certificate:read');
 
-    const conditions = [eq(certificateTemplates.tenantId, tenantId)];
-    if (type) conditions.push(eq(certificateTemplates.type, type as any));
+    let query = `
+        SELECT 
+            id, tenant_id AS "tenantId", name, type, html_template AS "htmlTemplate", 
+            variables, created_at AS "createdAt", updated_at AS "updatedAt"
+        FROM certificate_templates
+        WHERE tenant_id = $1
+    `;
+    const params: any[] = [tenantId];
 
-    return db.select().from(certificateTemplates).where(and(...conditions)).orderBy(asc(certificateTemplates.name));
+    if (type) {
+        params.push(type);
+        query += ` AND type = $${params.length}`;
+    }
+
+    query += ` ORDER BY name ASC`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
 }
 
 // ─── Create Template ─────────────────────────────────────────
@@ -26,15 +38,24 @@ export async function createCertificateTemplate(data: {
 }) {
     const { tenantId } = await requireAuth('certificate:write');
 
-    const [tpl] = await db.insert(certificateTemplates).values({
+    const query = `
+        INSERT INTO certificate_templates (tenant_id, name, type, html_template, variables)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING 
+            id, tenant_id AS "tenantId", name, type, html_template AS "htmlTemplate", 
+            variables, created_at AS "createdAt", updated_at AS "updatedAt"
+    `;
+    const params = [
         tenantId,
-        name: data.name,
-        type: data.type as any,
-        htmlTemplate: data.htmlTemplate,
-        variables: data.variables || [],
-    }).returning();
+        data.name,
+        data.type,
+        data.htmlTemplate || null,
+        data.variables ? JSON.stringify(data.variables) : '[]'
+    ];
 
-    return { success: true, template: tpl };
+    const { rows } = await pool.query(query, params);
+
+    return { success: true, template: rows[0] };
 }
 
 // ─── Issue Certificate ──────────────────────────────────────
@@ -48,18 +69,31 @@ export async function issueCertificate(data: {
 }) {
     const { tenantId, userId } = await requireAuth('certificate:write');
 
-    const [cert] = await db.insert(issuedCertificates).values({
+    const query = `
+        INSERT INTO issued_certificates (
+            tenant_id, template_id, student_id, certificate_number, 
+            issued_date, issued_by, data, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING 
+            id, tenant_id AS "tenantId", template_id AS "templateId", 
+            student_id AS "studentId", certificate_number AS "certificateNumber", 
+            issued_date AS "issuedDate", issued_by AS "issuedBy", 
+            data, status, created_at AS "createdAt", updated_at AS "updatedAt"
+    `;
+    const params = [
         tenantId,
-        templateId: data.templateId,
-        studentId: data.studentId,
-        certificateNumber: data.certificateNumber,
-        issuedDate: data.issuedDate,
-        issuedBy: userId,
-        data: data.data || {},
-        status: 'ISSUED',
-    }).returning();
+        data.templateId,
+        data.studentId,
+        data.certificateNumber,
+        data.issuedDate,
+        userId,
+        data.data ? JSON.stringify(data.data) : '{}',
+        'ISSUED'
+    ];
 
-    return { success: true, certificate: cert };
+    const { rows } = await pool.query(query, params);
+
+    return { success: true, certificate: rows[0] };
 }
 
 // ─── Get Issued Certificates ────────────────────────────────
@@ -67,25 +101,32 @@ export async function issueCertificate(data: {
 export async function getIssuedCertificates(studentId?: string) {
     const { tenantId } = await requireAuth('certificate:read');
 
-    const conditions = [eq(issuedCertificates.tenantId, tenantId)];
-    if (studentId) conditions.push(eq(issuedCertificates.studentId, studentId));
+    let query = `
+        SELECT 
+            ic.id,
+            ic.certificate_number AS "certificateNumber",
+            ic.student_id AS "studentId",
+            (s.first_name || ' ' || s.last_name) AS "studentName",
+            ct.name AS "templateName",
+            ct.type,
+            ic.issued_date AS "issuedDate",
+            ic.status
+        FROM issued_certificates ic
+        LEFT JOIN students s ON ic.student_id = s.id
+        LEFT JOIN certificate_templates ct ON ic.template_id = ct.id
+        WHERE ic.tenant_id = $1
+    `;
+    const params: any[] = [tenantId];
 
-    return db
-        .select({
-            id: issuedCertificates.id,
-            certificateNumber: issuedCertificates.certificateNumber,
-            studentId: issuedCertificates.studentId,
-            studentName: sql<string>`${students.firstName} || ' ' || ${students.lastName}`,
-            templateName: certificateTemplates.name,
-            type: certificateTemplates.type,
-            issuedDate: issuedCertificates.issuedDate,
-            status: issuedCertificates.status,
-        })
-        .from(issuedCertificates)
-        .leftJoin(students, eq(issuedCertificates.studentId, students.id))
-        .leftJoin(certificateTemplates, eq(issuedCertificates.templateId, certificateTemplates.id))
-        .where(and(...conditions))
-        .orderBy(desc(issuedCertificates.createdAt));
+    if (studentId) {
+        params.push(studentId);
+        query += ` AND ic.student_id = $${params.length}`;
+    }
+
+    query += ` ORDER BY ic.created_at DESC`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
 }
 
 // ─── Get Certificate Stats ──────────────────────────────────
@@ -93,23 +134,27 @@ export async function getIssuedCertificates(studentId?: string) {
 export async function getCertificateStats() {
     const { tenantId } = await requireAuth('certificate:read');
 
-    const [templateCount] = await db.select({ c: count() }).from(certificateTemplates)
-        .where(eq(certificateTemplates.tenantId, tenantId));
+    const templatesQuery = `SELECT COUNT(*) AS c FROM certificate_templates WHERE tenant_id = $1`;
+    const templatesResult = await pool.query(templatesQuery, [tenantId]);
+    const templateCount = templatesResult.rows[0];
 
-    const [issuedCount] = await db.select({ c: count() }).from(issuedCertificates)
-        .where(eq(issuedCertificates.tenantId, tenantId));
+    const issuedQuery = `SELECT COUNT(*) AS c FROM issued_certificates WHERE tenant_id = $1`;
+    const issuedResult = await pool.query(issuedQuery, [tenantId]);
+    const issuedCount = issuedResult.rows[0];
 
-    const [cardCount] = await db.select({ c: count() }).from(idCards)
-        .where(eq(idCards.tenantId, tenantId));
+    const cardsQuery = `SELECT COUNT(*) AS c FROM id_cards WHERE tenant_id = $1`;
+    const cardsResult = await pool.query(cardsQuery, [tenantId]);
+    const cardCount = cardsResult.rows[0];
 
-    const [pendingCards] = await db.select({ c: count() }).from(idCards)
-        .where(and(eq(idCards.tenantId, tenantId), eq(idCards.status, 'PENDING')));
+    const pendingCardsQuery = `SELECT COUNT(*) AS c FROM id_cards WHERE tenant_id = $1 AND status = 'PENDING'`;
+    const pendingCardsResult = await pool.query(pendingCardsQuery, [tenantId]);
+    const pendingCardsCount = pendingCardsResult.rows[0];
 
     return {
-        templates: templateCount?.c || 0,
-        issued: issuedCount?.c || 0,
-        idCards: cardCount?.c || 0,
-        pendingCards: pendingCards?.c || 0,
+        templates: Number(templateCount?.c || 0),
+        issued: Number(issuedCount?.c || 0),
+        idCards: Number(cardCount?.c || 0),
+        pendingCards: Number(pendingCardsCount?.c || 0),
     };
 }
 
@@ -118,8 +163,23 @@ export async function getCertificateStats() {
 export async function getIDCards(personType?: string) {
     const { tenantId } = await requireAuth('certificate:read');
 
-    const conditions = [eq(idCards.tenantId, tenantId)];
-    if (personType) conditions.push(eq(idCards.personType, personType));
+    let query = `
+        SELECT 
+            id, tenant_id AS "tenantId", person_type AS "personType", 
+            person_id AS "personId", card_number AS "cardNumber", 
+            status, valid_until AS "validUntil", created_at AS "createdAt", updated_at AS "updatedAt"
+        FROM id_cards
+        WHERE tenant_id = $1
+    `;
+    const params: any[] = [tenantId];
 
-    return db.select().from(idCards).where(and(...conditions)).orderBy(desc(idCards.createdAt));
+    if (personType) {
+        params.push(personType);
+        query += ` AND person_type = $${params.length}`;
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
 }

@@ -1,8 +1,7 @@
 import React from 'react';
 import { requireRole } from '@/lib/auth/middleware';
 import { UserRole } from '@/lib/rbac/permissions';
-import { db, setTenantContext } from '@/lib/db';
-import { sql } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { ShieldCheck, Server, Search, AlertCircle, FileCheck } from 'lucide-react';
 
 export const metadata = {
@@ -11,10 +10,9 @@ export const metadata = {
 
 export default async function CompliancePage() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await setTenantContext('platform');
 
     // Fetch Node Regions
-    const regionAggregates = await db.execute(sql`
+    const { rows: regionAggregates } = await pool.query(`
         SELECT 
             region, 
             COUNT(*)::int as count
@@ -23,7 +21,7 @@ export default async function CompliancePage() {
     `);
 
     // Fetch Tenants without Enterprise Encryption Module
-    const complianceList = await db.execute(sql`
+    const { rows: complianceList } = await pool.query(`
         SELECT 
             c.name as company_name,
             c.region,

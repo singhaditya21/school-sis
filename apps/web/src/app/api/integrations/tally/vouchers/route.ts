@@ -8,8 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db, setTenantContext } from '@/lib/db';
-import { sql } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 
 export const dynamic = "force-dynamic";
@@ -21,14 +20,13 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantId = session.tenantId;
-    await setTenantContext(tenantId);
 
     try {
         const body = await request.json();
         const fromDate = body.fromDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const toDate = body.toDate || new Date().toISOString().slice(0, 10);
 
-        const payments = await db.execute(sql`
+        const { rows: payments } = await pool.query(`
             SELECT
                 p.id, p.amount, p.method, p.paid_at, p.provider_reference,
                 i.invoice_number,
@@ -40,15 +38,15 @@ export async function POST(request: NextRequest) {
             JOIN students s ON s.id = i.student_id
             LEFT JOIN sections sec ON sec.id = s.section_id
             LEFT JOIN grades g ON g.id = sec.grade_id
-            WHERE p.tenant_id = ${tenantId}
+            WHERE p.tenant_id = $1
               AND p.status = 'COMPLETED'
-              AND p.paid_at >= ${fromDate}::date
-              AND p.paid_at <= ${toDate}::date
+              AND p.paid_at >= $2::date
+              AND p.paid_at <= $3::date
             ORDER BY p.paid_at ASC
-        `);
+        `, [tenantId, fromDate, toDate]);
 
         // Generate Tally XML
-        const vouchers = (payments as any[]).map(p => `
+        const vouchers = payments.map(p => `
     <VOUCHER VCHTYPE="Receipt" ACTION="Create">
         <DATE>${formatTallyDate(p.paid_at)}</DATE>
         <NARRATION>Fee Receipt - ${p.student_name} (${p.admission_number}) - Invoice #${p.invoice_number}</NARRATION>

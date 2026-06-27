@@ -1,8 +1,7 @@
 import React from 'react';
 import { requireRole } from '@/lib/auth/middleware';
 import { UserRole } from '@/lib/rbac/permissions';
-import { db, setTenantContext } from '@/lib/db';
-import { sql } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import TreasuryClient from './client-page';
 
 export const metadata = {
@@ -11,10 +10,9 @@ export const metadata = {
 
 export default async function TreasuryPage() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await setTenantContext('platform');
 
     // Fetch Global Payment Trends by Method
-    const methodAggregates = await db.execute(sql`
+    const { rows: methodAggregates } = await pool.query(`
         SELECT 
             payment_method, 
             SUM(amount)::int as total_volume,
@@ -25,7 +23,7 @@ export default async function TreasuryPage() {
     `);
 
     // Fetch Highest Grossing Nodes (Tenants)
-    const nodeAggregates = await db.execute(sql`
+    const { rows: nodeAggregates } = await pool.query(`
         SELECT 
             t.name as node_name,
             SUM(p.amount)::int as total_volume
@@ -38,19 +36,19 @@ export default async function TreasuryPage() {
     `);
 
     // Calculate Unreconciled / Pending Cashflow
-    const pendingCashflow = await db.execute(sql`
+    const { rows: pendingCashflow } = await pool.query(`
         SELECT 
             SUM(amount)::int as pending_volume
         FROM payments 
         WHERE status = 'PENDING' OR status = 'PROCESSING'
     `);
 
-    const totalVolume = (methodAggregates as any[]).reduce((a, b) => a + Number(b.total_volume), 0);
-    const totalPending = Number((pendingCashflow as any)[0]?.pending_volume || 0);
+    const totalVolume = methodAggregates.reduce((a, b) => a + Number(b.total_volume), 0);
+    const totalPending = Number(pendingCashflow[0]?.pending_volume || 0);
 
     return <TreasuryClient 
-        methodData={methodAggregates as any[]} 
-        nodeData={nodeAggregates as any[]}
+        methodData={methodAggregates} 
+        nodeData={nodeAggregates}
         kpis={{ totalVolume, totalPending }}
     />;
 }

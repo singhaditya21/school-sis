@@ -1,9 +1,7 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { platformAuditLogs } from '@/lib/db/schema/platform';
+import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
-import { eq, desc } from 'drizzle-orm';
 
 /**
  * Fetch the Trust & Evidence operations log (Module 43)
@@ -14,12 +12,22 @@ export async function getEvidenceLogAction() {
 
     // In a production tenant-isolation model, we would strictly index
     // user-specific platform logs.
-    const logs = await db
-        .select()
-        .from(platformAuditLogs)
-        .where(eq(platformAuditLogs.targetTenantId, session.tenantId))
-        .orderBy(desc(platformAuditLogs.createdAt))
-        .limit(50);
+    const { rows } = await pool.query(
+        `SELECT 
+            id, 
+            actor_id AS "actorId", 
+            target_company_id AS "targetCompanyId", 
+            target_tenant_id AS "targetTenantId", 
+            action_type AS "actionType", 
+            metadata, 
+            ip_address AS "ipAddress", 
+            created_at AS "createdAt"
+        FROM platform_audit_logs 
+        WHERE target_tenant_id = $1 
+        ORDER BY created_at DESC 
+        LIMIT 50`,
+        [session.tenantId]
+    );
 
-    return logs;
+    return rows;
 }

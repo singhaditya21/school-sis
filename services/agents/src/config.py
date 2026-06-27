@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://api.cerebras.ai/v1"
     llm_model: str = "llama3.1-70b"
     embed_model: str = "nvidia/nv-embedqa-e5-v5"  # Fallback valid NIM embedding model
+    nvidia_api_key: str = "nvapi-mock-placeholder-key-value"
+    nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
+
 
     # Embedding
     embedding_dim: int = 1024

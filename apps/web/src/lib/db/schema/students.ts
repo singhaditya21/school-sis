@@ -41,7 +41,7 @@ export const students = pgTable('students', {
     medicalNotes: text('medical_notes'),
     embedding: customType<{ data: number[]; driverData: string }>({
         dataType() {
-            return 'vector(768)';
+            return 'text';
         },
     })('embedding'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

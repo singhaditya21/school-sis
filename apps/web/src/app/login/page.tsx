@@ -17,7 +17,7 @@ import { APP_NAME, APP_TAGLINE, VALUE_PROPS, TRUST_BADGES, DEMO_CREDENTIALS } fr
 function SubmitButton() {
     const { pending } = useFormStatus();
     return (
-        <Button type="submit" className="w-full" disabled={pending}>
+        <Button type="submit" className="w-full" disabled={pending} data-testid="login-button">
             {pending ? (
                 <span className="flex items-center gap-2">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -230,6 +230,7 @@ export default function LoginPage() {
                                                         required
                                                         autoComplete="email"
                                                         aria-invalid={error ? 'true' : 'false'}
+                                                        data-testid="email-input"
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
@@ -247,6 +248,7 @@ export default function LoginPage() {
                                                         required
                                                         autoComplete="current-password"
                                                         aria-invalid={error ? 'true' : 'false'}
+                                                        data-testid="password-input"
                                                     />
                                                 </div>
                                             </div>
@@ -294,7 +296,7 @@ export default function LoginPage() {
 
                                     {/* Error Message */}
                                     {error && (
-                                        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                                        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800" data-testid="login-error">
                                             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
                                         </div>
                                     )}

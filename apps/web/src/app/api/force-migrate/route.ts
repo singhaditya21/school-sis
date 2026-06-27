@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { sql } from "drizzle-orm";
+import { pool } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 
 export const dynamic = 'force-dynamic';
@@ -34,31 +33,37 @@ export async function GET() {
 
         // 1. Add missing enum role if not exists
         try {
-            await db.execute(sql`ALTER TYPE "public"."user_role" ADD VALUE 'PLATFORM_ADMIN' BEFORE 'SUPER_ADMIN';`);
+            await pool.query(`ALTER TYPE "public"."user_role" ADD VALUE 'PLATFORM_ADMIN' BEFORE 'SUPER_ADMIN';`);
         } catch(e: any) {
             console.log("Enum PLATFORM_ADMIN might already exist:", e.message);
         }
 
         // 2. Add missing fields to `companies`
         try {
-            await db.execute(sql`ALTER TABLE "companies" ADD COLUMN "region" varchar(50) DEFAULT 'US-EAST' NOT NULL;`);
+            await pool.query(`ALTER TABLE "companies" ADD COLUMN "region" varchar(50) DEFAULT 'US-EAST' NOT NULL;`);
         } catch(e: any) { console.log(e.message); }
 
         try {
-            await db.execute(sql`ALTER TABLE "companies" ADD COLUMN "domain_mask" varchar(255);`);
+            await pool.query(`ALTER TABLE "companies" ADD COLUMN "domain_mask" varchar(255);`);
         } catch(e: any) { console.log(e.message); }
 
         try {
-            await db.execute(sql`ALTER TABLE "companies" ADD COLUMN "theme_color" varchar(50) DEFAULT '#4F46E5';`);
+            await pool.query(`ALTER TABLE "companies" ADD COLUMN "theme_color" varchar(50) DEFAULT '#4F46E5';`);
         } catch(e: any) { console.log(e.message); }
 
-        try { await db.execute(sql`ALTER TABLE "companies" ADD COLUMN "stripe_customer_id" varchar(255);`); } catch(e){}
-        try { await db.execute(sql`ALTER TABLE "companies" ADD COLUMN "stripe_subscription_id" varchar(255);`); } catch(e){}
-        try { await db.execute(sql`ALTER TABLE "companies" ADD COLUMN "stripe_price_id" varchar(255);`); } catch(e){}
-        try { await db.execute(sql`ALTER TABLE "companies" ADD COLUMN "stripe_current_period_end" timestamp with time zone;`); } catch(e){}
-        try { await db.execute(sql`ALTER TABLE "companies" ADD COLUMN "billing_status" varchar(50);`); } catch(e){}
-        try { await db.execute(sql`ALTER TABLE "companies" ADD COLUMN "subscription_tier" varchar(50);`); } catch(e){}
-        try { await db.execute(sql`ALTER TABLE "companies" ADD COLUMN "active_modules" text;`); } catch(e){}
+        try { await pool.query(`ALTER TABLE "companies" ADD COLUMN "stripe_customer_id" varchar(255);`); } catch(e){}
+        try { await pool.query(`ALTER TABLE "companies" ADD COLUMN "stripe_subscription_id" varchar(255);`); } catch(e){}
+        try { await pool.query(`ALTER TABLE "companies" ADD COLUMN "stripe_price_id" varchar(255);`); } catch(e){}
+        try { await pool.query(`ALTER TABLE "companies" ADD COLUMN "stripe_current_period_end" timestamp with time zone;`); } catch(e){}
+        try { await pool.query(`ALTER TABLE "companies" ADD COLUMN "billing_status" varchar(50);`); } catch(e){}
+        try { await pool.query(`ALTER TABLE "companies" ADD COLUMN "subscription_tier" varchar(50);`); } catch(e){}
+        try { await pool.query(`ALTER TABLE "companies" ADD COLUMN "active_modules" text;`); } catch(e){}
+
+        // 3. Add missing fields to `group_policies`
+        try { await pool.query(`ALTER TABLE "group_policies" ADD COLUMN "policy_key" varchar(100) DEFAULT 'UNKNOWN_KEY' NOT NULL;`); } catch(e){}
+        try { await pool.query(`ALTER TABLE "group_policies" ADD COLUMN "policy_value" varchar(255) DEFAULT '' NOT NULL;`); } catch(e){}
+        try { await pool.query(`ALTER TABLE "group_policies" ADD COLUMN "is_hard_block" boolean DEFAULT true NOT NULL;`); } catch(e){}
+        try { await pool.query(`ALTER TABLE "group_policies" ADD COLUMN "updated_at" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL;`); } catch(e){}
 
         return NextResponse.json({ success: true, message: "Remote migration completed!" });
 

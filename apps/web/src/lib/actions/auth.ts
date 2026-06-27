@@ -3,11 +3,12 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/session';
 import { checkRateLimit, recordFailedAttempt, clearRateLimit } from '@/lib/auth/rate-limit';
-import { db, setTenantContext } from '@/lib/db';
-import { users, tenants, companies } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { compare, hash } from 'bcryptjs';
 import { z } from 'zod';
+import type Users from '@/lib/db/types/public/Users';
+import type Tenants from '@/lib/db/types/public/Tenants';
+import type Companies from '@/lib/db/types/public/Companies';
 
 /**
  * Login action — production-ready authentication.
@@ -55,11 +56,13 @@ export async function loginActionV2(formData: FormData) {
         if (isPlatformAdmin) {
             const normalizedEmail = email?.trim().toLowerCase() || '';
 
-            const [user] = await db
-                .select()
-                .from(users)
-                .where(eq(users.email, normalizedEmail))
-                .limit(1);
+            const { rows: platformRows } = await pool.query(
+                `SELECT id, tenant_id as "tenantId", email, password_hash as "passwordHash", role
+                 FROM users 
+                 WHERE email = $1 LIMIT 1`,
+                [normalizedEmail]
+            );
+            const user = platformRows[0];
 
             if (!user) {
                 await recordFailedAttempt(email);
@@ -96,38 +99,33 @@ export async function loginActionV2(formData: FormData) {
             }
 
             // Look up tenant by school code and join company for features
-            const [tenantRecord] = await db
-                .select({
-                    tenant: tenants,
-                    company: companies
-                })
-                .from(tenants)
-                .leftJoin(companies, eq(tenants.companyId, companies.id))
-                .where(eq(tenants.code, schoolCode.toUpperCase()))
-                .limit(1);
+            const { rows: tenantRows } = await pool.query(
+                `SELECT 
+                    t.id as "tenantId", t.is_active as "tenantIsActive",
+                    c.id as "companyId", c.is_active as "companyIsActive", c.subscription_tier as "subscriptionTier", c.active_modules as "activeModules"
+                 FROM tenants t
+                 LEFT JOIN companies c ON t.company_id = c.id
+                 WHERE t.code = $1 LIMIT 1`,
+                [schoolCode.toUpperCase()]
+            );
+            const tenantRecord = tenantRows[0];
 
-            if (!tenantRecord || !tenantRecord.tenant) {
+            if (!tenantRecord) {
                 return { error: 'Invalid school code. Please check with your school administrator.' };
             }
 
-            const tenant = tenantRecord.tenant;
-            const company = tenantRecord.company;
-
-            if (!tenant.isActive || (company && !company.isActive)) {
+            if (!tenantRecord.tenantIsActive || (tenantRecord.companyId && !tenantRecord.companyIsActive)) {
                 return { error: 'This school account has been suspended. Contact support.' };
             }
 
             // Find user within this tenant
-            const [user] = await db
-                .select()
-                .from(users)
-                .where(
-                    and(
-                        eq(users.email, email),
-                        eq(users.tenantId, tenant.id)
-                    )
-                )
-                .limit(1);
+            const { rows: userRows } = await pool.query(
+                `SELECT id, email, password_hash as "passwordHash", role, is_active as "isActive"
+                 FROM users 
+                 WHERE email = $1 AND tenant_id = $2 LIMIT 1`,
+                [email, tenantRecord.tenantId]
+            );
+            const user = userRows[0];
 
             if (!user) {
                 await recordFailedAttempt(email);
@@ -149,25 +147,26 @@ export async function loginActionV2(formData: FormData) {
             await clearRateLimit(email);
             const session = await getSession();
             session.userId = user.id;
-            session.tenantId = tenant.id;
+            session.tenantId = tenantRecord.tenantId;
             session.role = user.role;
             session.email = user.email;
             session.token = '';
             session.isLoggedIn = true;
             
             // Inject Company Context & Features
-            if (company) {
-                session.companyId = company.id;
-                session.subscriptionTier = company.subscriptionTier;
-                session.activeModules = company.activeModules || [];
+            if (tenantRecord.companyId) {
+                session.companyId = tenantRecord.companyId;
+                session.subscriptionTier = tenantRecord.subscriptionTier;
+                session.activeModules = tenantRecord.activeModules || [];
             }
             
             await session.save();
 
             // Update last login
-            await db.update(users)
-                .set({ lastLoginAt: new Date() })
-                .where(eq(users.id, user.id));
+            await pool.query(
+                `UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1`,
+                [user.id]
+            );
 
             // Route based on role
             if (user.role === 'PARENT') {
@@ -195,3 +194,4 @@ export async function logoutAction() {
     session.destroy();
     redirect('/login');
 }
+

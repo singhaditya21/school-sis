@@ -5,64 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1772116041018,
-      "tag": "0000_initial_schema",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1774600440861,
-      "tag": "0001_violet_masque",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1774600566053,
-      "tag": "0002_enable_rls",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1774608564798,
-      "tag": "0003_amused_tinkerer",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1775207601620,
-      "tag": "0004_secret_silvermane",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1775212008235,
-      "tag": "0005_complete_thunderbolts",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1775224531791,
-      "tag": "0006_little_the_enforcers",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1776625603854,
-      "tag": "0007_spotty_true_believers",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1776782896488,
-      "tag": "0008_abandoned_storm",
+      "when": 1782539228657,
+      "tag": "0000_init_native_postgres",
       "breakpoints": true
     }
   ]

@@ -1,0 +1,18 @@
+
+> @school-sis/web@0.1.0 build /Users/adityasingh/PersonalWork/school-sis/apps/web
+> next build --webpack
+
+⚠ `eslint` configuration in next.config.ts is no longer supported. See more info here: https://nextjs.org/docs/app/api-reference/cli/next#next-lint-options
+⚠ Invalid next.config.ts options detected: 
+⚠     Unrecognized key(s) in object: 'eslint'
+⚠ See more info here: https://nextjs.org/docs/messages/invalid-next-config
+▲ Next.js 16.2.4 (webpack)
+- Environments: .env.local, .env
+- Experiments (use with caution):
+  · serverActions
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+/Users/adityasingh/PersonalWork/school-sis/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @school-sis/web@0.1.0 build: `next build --webpack`
+Exit status 143

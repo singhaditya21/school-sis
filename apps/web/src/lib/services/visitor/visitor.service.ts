@@ -1,6 +1,6 @@
 // Visitor Management Service — Production (Real DB)
 
-import { db, setTenantContext } from '@/lib/db';
+import { db, } from '@/lib/db';
 import { sql } from 'drizzle-orm';
 
 export type VisitPurpose = 'meeting' | 'admission' | 'delivery' | 'interview' | 'parent_visit' | 'vendor' | 'other';
@@ -21,7 +21,7 @@ export interface VisitorStats {
 
 export const VisitorService = {
     async getVisitors(tenantId: string, filters?: { status?: string; purpose?: string; date?: string }): Promise<Visitor[]> {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const rows = await db.execute(sql`
             SELECT id, name, phone, email, company, purpose, purpose_details AS "purposeDetails",
                    host_name AS "hostName", host_department AS "hostDepartment", photo,
@@ -47,7 +47,7 @@ export const VisitorService = {
     },
 
     async getStats(tenantId: string): Promise<VisitorStats> {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const [stats] = await db.execute(sql`
             SELECT COUNT(*) AS "todayTotal",
                    COUNT(*) FILTER (WHERE status = 'checked_in') AS "currentlyIn",

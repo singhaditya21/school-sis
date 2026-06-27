@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { staffProfiles, staffDepartments, designations, leaveRequests, leavePolicies, users } from '@/lib/db/schema';
-import { eq, and, count, asc, desc, sql, gte, lte } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 
@@ -27,39 +25,42 @@ export interface StaffListItem {
 export async function getStaffList(departmentFilter?: string): Promise<StaffListItem[]> {
     const { tenantId } = await requireAuth('hr:read');
 
-    const conditions = [eq(staffProfiles.tenantId, tenantId)];
+    let query = `
+        SELECT 
+            sp.id,
+            sp.employee_id AS "employeeId",
+            u.first_name AS "firstName",
+            u.last_name AS "lastName",
+            u.email,
+            u.phone,
+            sd.name AS "departmentName",
+            d.name AS "designationName",
+            sp.status,
+            sp.employment_type AS "employmentType",
+            sp.joining_date AS "joiningDate",
+            sp.salary_gross AS "salaryGross",
+            sp.salary_net AS "salaryNet"
+        FROM staff_profiles sp
+        INNER JOIN users u ON sp.user_id = u.id
+        LEFT JOIN staff_departments sd ON sp.department_id = sd.id
+        LEFT JOIN designations d ON sp.designation_id = d.id
+        WHERE sp.tenant_id = $1
+    `;
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
+
     if (departmentFilter && departmentFilter !== 'ALL') {
-        // Find department by name
-        const [dept] = await db
-            .select({ id: staffDepartments.id })
-            .from(staffDepartments)
-            .where(and(eq(staffDepartments.tenantId, tenantId), eq(staffDepartments.name, departmentFilter)));
-        if (dept) conditions.push(eq(staffProfiles.departmentId, dept.id));
+        const deptQuery = `SELECT id FROM staff_departments WHERE tenant_id = $1 AND name = $2`;
+        const { rows: deptRows } = await pool.query(deptQuery, [tenantId, departmentFilter]);
+        const dept = deptRows[0];
+        if (dept) {
+            query += ` AND sp.department_id = $${paramIndex++}`;
+            params.push(dept.id);
+        }
     }
 
-    const rows = await db
-        .select({
-            id: staffProfiles.id,
-            employeeId: staffProfiles.employeeId,
-            firstName: users.firstName,
-            lastName: users.lastName,
-            email: users.email,
-            phone: users.phone,
-            departmentName: staffDepartments.name,
-            designationName: designations.name,
-            status: staffProfiles.status,
-            employmentType: staffProfiles.employmentType,
-            joiningDate: staffProfiles.joiningDate,
-            salaryGross: staffProfiles.salaryGross,
-            salaryNet: staffProfiles.salaryNet,
-        })
-        .from(staffProfiles)
-        .innerJoin(users, eq(staffProfiles.userId, users.id))
-        .leftJoin(staffDepartments, eq(staffProfiles.departmentId, staffDepartments.id))
-        .leftJoin(designations, eq(staffProfiles.designationId, designations.id))
-        .where(and(...conditions))
-        .orderBy(asc(users.firstName));
-
+    query += ` ORDER BY u.first_name ASC`;
+    const { rows } = await pool.query(query, params);
     return rows;
 }
 
@@ -68,46 +69,46 @@ export async function getStaffList(departmentFilter?: string): Promise<StaffList
 export async function getStaffById(staffId: string) {
     const { tenantId } = await requireAuth('hr:read');
 
-    const [staff] = await db
-        .select({
-            id: staffProfiles.id,
-            employeeId: staffProfiles.employeeId,
-            firstName: users.firstName,
-            lastName: users.lastName,
-            email: users.email,
-            phone: users.phone,
-            avatarUrl: users.avatarUrl,
-            departmentName: staffDepartments.name,
-            designationName: designations.name,
-            status: staffProfiles.status,
-            employmentType: staffProfiles.employmentType,
-            joiningDate: staffProfiles.joiningDate,
-            confirmationDate: staffProfiles.confirmationDate,
-            dateOfBirth: staffProfiles.dateOfBirth,
-            qualification: staffProfiles.qualification,
-            experience: staffProfiles.experience,
-            specialization: staffProfiles.specialization,
-            salaryBasic: staffProfiles.salaryBasic,
-            salaryHra: staffProfiles.salaryHra,
-            salaryDa: staffProfiles.salaryDa,
-            salaryPf: staffProfiles.salaryPf,
-            salaryTax: staffProfiles.salaryTax,
-            salaryGross: staffProfiles.salaryGross,
-            salaryNet: staffProfiles.salaryNet,
-            panNumber: staffProfiles.panNumber,
-            bankAccount: staffProfiles.bankAccount,
-            bankName: staffProfiles.bankName,
-            address: staffProfiles.address,
-            emergencyContact: staffProfiles.emergencyContact,
-            emergencyContactName: staffProfiles.emergencyContactName,
-        })
-        .from(staffProfiles)
-        .innerJoin(users, eq(staffProfiles.userId, users.id))
-        .leftJoin(staffDepartments, eq(staffProfiles.departmentId, staffDepartments.id))
-        .leftJoin(designations, eq(staffProfiles.designationId, designations.id))
-        .where(and(eq(staffProfiles.id, staffId), eq(staffProfiles.tenantId, tenantId)));
-
-    return staff || null;
+    const query = `
+        SELECT 
+            sp.id,
+            sp.employee_id AS "employeeId",
+            u.first_name AS "firstName",
+            u.last_name AS "lastName",
+            u.email,
+            u.phone,
+            u.avatar_url AS "avatarUrl",
+            sd.name AS "departmentName",
+            d.name AS "designationName",
+            sp.status,
+            sp.employment_type AS "employmentType",
+            sp.joining_date AS "joiningDate",
+            sp.confirmation_date AS "confirmationDate",
+            sp.date_of_birth AS "dateOfBirth",
+            sp.qualification,
+            sp.experience,
+            sp.specialization,
+            sp.salary_basic AS "salaryBasic",
+            sp.salary_hra AS "salaryHra",
+            sp.salary_da AS "salaryDa",
+            sp.salary_pf AS "salaryPf",
+            sp.salary_tax AS "salaryTax",
+            sp.salary_gross AS "salaryGross",
+            sp.salary_net AS "salaryNet",
+            sp.pan_number AS "panNumber",
+            sp.bank_account AS "bankAccount",
+            sp.bank_name AS "bankName",
+            sp.address,
+            sp.emergency_contact AS "emergencyContact",
+            sp.emergency_contact_name AS "emergencyContactName"
+        FROM staff_profiles sp
+        INNER JOIN users u ON sp.user_id = u.id
+        LEFT JOIN staff_departments sd ON sp.department_id = sd.id
+        LEFT JOIN designations d ON sp.designation_id = d.id
+        WHERE sp.id = $1 AND sp.tenant_id = $2
+    `;
+    const { rows } = await pool.query(query, [staffId, tenantId]);
+    return rows[0] || null;
 }
 
 // ─── HR Stats ────────────────────────────────────────────────
@@ -115,44 +116,30 @@ export async function getStaffById(staffId: string) {
 export async function getHRStats() {
     const { tenantId } = await requireAuth('hr:read');
 
-    const [totalCount] = await db
-        .select({ count: count() })
-        .from(staffProfiles)
-        .where(eq(staffProfiles.tenantId, tenantId));
+    const { rows: totalCount } = await pool.query(`SELECT COUNT(*) AS count FROM staff_profiles WHERE tenant_id = $1`, [tenantId]);
+    const { rows: activeCount } = await pool.query(`SELECT COUNT(*) AS count FROM staff_profiles WHERE tenant_id = $1 AND status = 'ACTIVE'`, [tenantId]);
+    const { rows: pendingLeaves } = await pool.query(`SELECT COUNT(*) AS count FROM leave_requests WHERE tenant_id = $1 AND status = 'PENDING'`, [tenantId]);
 
-    const [activeCount] = await db
-        .select({ count: count() })
-        .from(staffProfiles)
-        .where(and(eq(staffProfiles.tenantId, tenantId), eq(staffProfiles.status, 'ACTIVE')));
+    const { rows: payrollResult } = await pool.query(`
+        SELECT COALESCE(SUM(salary_net::numeric), 0) AS total
+        FROM staff_profiles
+        WHERE tenant_id = $1 AND status = 'ACTIVE'
+    `, [tenantId]);
 
-    const [pendingLeaves] = await db
-        .select({ count: count() })
-        .from(leaveRequests)
-        .where(and(eq(leaveRequests.tenantId, tenantId), eq(leaveRequests.status, 'PENDING')));
-
-    // Total monthly payroll
-    const payrollResult = await db
-        .select({ total: sql<string>`COALESCE(SUM(${staffProfiles.salaryNet}::numeric), 0)` })
-        .from(staffProfiles)
-        .where(and(eq(staffProfiles.tenantId, tenantId), eq(staffProfiles.status, 'ACTIVE')));
-
-    // Department breakdown
-    const deptBreakdown = await db
-        .select({
-            departmentName: staffDepartments.name,
-            count: count(),
-        })
-        .from(staffProfiles)
-        .leftJoin(staffDepartments, eq(staffProfiles.departmentId, staffDepartments.id))
-        .where(eq(staffProfiles.tenantId, tenantId))
-        .groupBy(staffDepartments.name);
+    const { rows: deptBreakdown } = await pool.query(`
+        SELECT sd.name AS "departmentName", COUNT(*) AS count
+        FROM staff_profiles sp
+        LEFT JOIN staff_departments sd ON sp.department_id = sd.id
+        WHERE sp.tenant_id = $1
+        GROUP BY sd.name
+    `, [tenantId]);
 
     return {
-        totalStaff: totalCount.count,
-        activeStaff: activeCount.count,
-        pendingLeaves: pendingLeaves.count,
+        totalStaff: Number(totalCount[0].count),
+        activeStaff: Number(activeCount[0].count),
+        pendingLeaves: Number(pendingLeaves[0].count),
         monthlyPayroll: Number(payrollResult[0]?.total || 0),
-        departments: deptBreakdown,
+        departments: deptBreakdown.map(d => ({ departmentName: d.departmentName, count: Number(d.count) })),
     };
 }
 
@@ -176,32 +163,19 @@ export async function createStaff(formData: FormData) {
         return { success: false, error: 'Missing required fields' };
     }
 
-    // Create user account first
     const userId = randomUUID();
-    await db.insert(users).values({
-        id: userId,
-        tenantId,
-        email,
-        passwordHash: '$temp$', // will be set on first login
-        firstName,
-        lastName,
-        role: 'TEACHER', // default, can be changed
-        phone,
-    });
+    await pool.query(`
+        INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, phone)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [userId, tenantId, email, '$temp$', firstName, lastName, 'TEACHER', phone]);
 
-    // Create staff profile
     const staffId = randomUUID();
-    await db.insert(staffProfiles).values({
-        id: staffId,
-        tenantId,
-        userId,
-        employeeId,
-        departmentId,
-        designationId,
-        employmentType: employmentType as any,
-        joiningDate,
-        salaryBasic,
-    });
+    await pool.query(`
+        INSERT INTO staff_profiles (
+            id, tenant_id, user_id, employee_id, department_id, designation_id,
+            employment_type, joining_date, salary_basic
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `, [staffId, tenantId, userId, employeeId, departmentId, designationId, employmentType, joiningDate, salaryBasic]);
 
     return { success: true, staffId };
 }
@@ -218,16 +192,11 @@ export async function applyLeave(data: {
 }) {
     const { tenantId } = await requireAuth('hr:write');
 
-    await db.insert(leaveRequests).values({
-        id: randomUUID(),
-        tenantId,
-        staffId: data.staffId,
-        leaveType: data.leaveType as any,
-        fromDate: data.fromDate,
-        toDate: data.toDate,
-        totalDays: String(data.totalDays),
-        reason: data.reason,
-    });
+    await pool.query(`
+        INSERT INTO leave_requests (
+            id, tenant_id, staff_id, leave_type, from_date, to_date, total_days, reason
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [randomUUID(), tenantId, data.staffId, data.leaveType, data.fromDate, data.toDate, String(data.totalDays), data.reason]);
 
     return { success: true };
 }
@@ -235,14 +204,11 @@ export async function applyLeave(data: {
 export async function approveLeave(leaveId: string) {
     const { tenantId, userId } = await requireAuth('hr:write');
 
-    await db.update(leaveRequests)
-        .set({
-            status: 'APPROVED',
-            approvedBy: userId,
-            approvedAt: new Date(),
-            updatedAt: new Date(),
-        })
-        .where(and(eq(leaveRequests.id, leaveId), eq(leaveRequests.tenantId, tenantId)));
+    await pool.query(`
+        UPDATE leave_requests
+        SET status = 'APPROVED', approved_by = $3, approved_at = NOW(), updated_at = NOW()
+        WHERE id = $1 AND tenant_id = $2
+    `, [leaveId, tenantId, userId]);
 
     return { success: true };
 }
@@ -250,15 +216,11 @@ export async function approveLeave(leaveId: string) {
 export async function rejectLeave(leaveId: string, reason: string) {
     const { tenantId, userId } = await requireAuth('hr:write');
 
-    await db.update(leaveRequests)
-        .set({
-            status: 'REJECTED',
-            approvedBy: userId,
-            approvedAt: new Date(),
-            rejectionReason: reason,
-            updatedAt: new Date(),
-        })
-        .where(and(eq(leaveRequests.id, leaveId), eq(leaveRequests.tenantId, tenantId)));
+    await pool.query(`
+        UPDATE leave_requests
+        SET status = 'REJECTED', approved_by = $3, approved_at = NOW(), rejection_reason = $4, updated_at = NOW()
+        WHERE id = $1 AND tenant_id = $2
+    `, [leaveId, tenantId, userId, reason]);
 
     return { success: true };
 }
@@ -266,51 +228,45 @@ export async function rejectLeave(leaveId: string, reason: string) {
 export async function getPendingLeaves() {
     const { tenantId } = await requireAuth('hr:read');
 
-    return db
-        .select({
-            id: leaveRequests.id,
-            staffEmployeeId: staffProfiles.employeeId,
-            staffFirstName: users.firstName,
-            staffLastName: users.lastName,
-            leaveType: leaveRequests.leaveType,
-            fromDate: leaveRequests.fromDate,
-            toDate: leaveRequests.toDate,
-            totalDays: leaveRequests.totalDays,
-            reason: leaveRequests.reason,
-            status: leaveRequests.status,
-            createdAt: leaveRequests.createdAt,
-        })
-        .from(leaveRequests)
-        .innerJoin(staffProfiles, eq(leaveRequests.staffId, staffProfiles.id))
-        .innerJoin(users, eq(staffProfiles.userId, users.id))
-        .where(and(eq(leaveRequests.tenantId, tenantId), eq(leaveRequests.status, 'PENDING')))
-        .orderBy(asc(leaveRequests.createdAt));
+    const { rows } = await pool.query(`
+        SELECT 
+            lr.id,
+            sp.employee_id AS "staffEmployeeId",
+            u.first_name AS "staffFirstName",
+            u.last_name AS "staffLastName",
+            lr.leave_type AS "leaveType",
+            lr.from_date AS "fromDate",
+            lr.to_date AS "toDate",
+            lr.total_days AS "totalDays",
+            lr.reason,
+            lr.status,
+            lr.created_at AS "createdAt"
+        FROM leave_requests lr
+        INNER JOIN staff_profiles sp ON lr.staff_id = sp.id
+        INNER JOIN users u ON sp.user_id = u.id
+        WHERE lr.tenant_id = $1 AND lr.status = 'PENDING'
+        ORDER BY lr.created_at ASC
+    `, [tenantId]);
+
+    return rows;
 }
 
 export async function getLeaveBalance(staffId: string) {
     const { tenantId } = await requireAuth('hr:read');
 
-    // Get all policies for this tenant
-    const policies = await db
-        .select()
-        .from(leavePolicies)
-        .where(and(eq(leavePolicies.tenantId, tenantId), eq(leavePolicies.isActive, true)));
+    const { rows: policies } = await pool.query(`
+        SELECT leave_type AS "leaveType", name, max_days_per_year AS "maxDaysPerYear"
+        FROM leave_policies
+        WHERE tenant_id = $1 AND is_active = true
+    `, [tenantId]);
 
-    // Get approved leaves this year
     const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0];
-    const approved = await db
-        .select({
-            leaveType: leaveRequests.leaveType,
-            totalDays: sql<string>`SUM(${leaveRequests.totalDays}::numeric)`,
-        })
-        .from(leaveRequests)
-        .where(and(
-            eq(leaveRequests.staffId, staffId),
-            eq(leaveRequests.tenantId, tenantId),
-            eq(leaveRequests.status, 'APPROVED'),
-            gte(leaveRequests.fromDate, yearStart),
-        ))
-        .groupBy(leaveRequests.leaveType);
+    const { rows: approved } = await pool.query(`
+        SELECT leave_type AS "leaveType", SUM(total_days::numeric) AS "totalDays"
+        FROM leave_requests
+        WHERE staff_id = $1 AND tenant_id = $2 AND status = 'APPROVED' AND from_date >= $3
+        GROUP BY leave_type
+    `, [staffId, tenantId, yearStart]);
 
     const used = new Map(approved.map(a => [a.leaveType, Number(a.totalDays)]));
 
@@ -328,27 +284,25 @@ export async function getLeaveBalance(staffId: string) {
 export async function getDepartments() {
     const { tenantId } = await requireAuth('hr:read');
 
-    return db
-        .select({
-            id: staffDepartments.id,
-            name: staffDepartments.name,
-            code: staffDepartments.code,
-        })
-        .from(staffDepartments)
-        .where(and(eq(staffDepartments.tenantId, tenantId), eq(staffDepartments.isActive, true)))
-        .orderBy(asc(staffDepartments.name));
+    const { rows } = await pool.query(`
+        SELECT id, name, code
+        FROM staff_departments
+        WHERE tenant_id = $1 AND is_active = true
+        ORDER BY name ASC
+    `, [tenantId]);
+
+    return rows;
 }
 
 export async function getDesignations() {
     const { tenantId } = await requireAuth('hr:read');
 
-    return db
-        .select({
-            id: designations.id,
-            name: designations.name,
-            grade: designations.grade,
-        })
-        .from(designations)
-        .where(eq(designations.tenantId, tenantId))
-        .orderBy(asc(designations.displayOrder));
+    const { rows } = await pool.query(`
+        SELECT id, name, grade
+        FROM designations
+        WHERE tenant_id = $1
+        ORDER BY display_order ASC
+    `, [tenantId]);
+
+    return rows;
 }

@@ -1,14 +1,11 @@
 'use server';
 
 import { requireRole } from '@/lib/auth/middleware';
-import { db, setTenantContext } from '@/lib/db';
-import { tenants, companies, invoices, users, students } from '@/lib/db/schema';
-import { sum, count, eq, and, sql, desc, inArray } from 'drizzle-orm';
+import { pool, } from '@/lib/db';
 import { UserRole } from '@/lib/rbac/permissions';
 import { hash } from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
 import { getSession } from '@/lib/auth/session';
-import { platformAuditLogs, platformBroadcasts, aiTokenLogs } from '@/lib/db/schema/platform';
 
 export interface PlatformTenant {
     id: string;
@@ -34,20 +31,20 @@ export interface PlatformStats {
  */
 export async function getGlobalPlatformStats(): Promise<PlatformStats> {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await setTenantContext('platform');
+    await ('platform');
 
-    const [schoolCount] = await db
-        .select({ value: count() })
-        .from(tenants)
-        .where(eq(tenants.isActive, true));
+    const { rows: schoolRows } = await pool.query(
+        `SELECT COUNT(*) AS value FROM tenants WHERE is_active = true`
+    );
+    const schoolCount = schoolRows[0]?.value || 0;
 
-    const [studentCount] = await db
-        .select({ value: count() })
-        .from(students)
-        .where(eq(students.status, 'ACTIVE'));
+    const { rows: studentRows } = await pool.query(
+        `SELECT COUNT(*) AS value FROM students WHERE status = 'ACTIVE'`
+    );
+    const studentCount = studentRows[0]?.value || 0;
 
-    const [revenueData] = await db.execute(sql`
-        SELECT SUM(
+    const { rows: revenueData } = await pool.query(
+        `SELECT SUM(
             CASE 
                 WHEN c.subscription_tier = 'CORE' THEN 10
                 WHEN c.subscription_tier = 'AI_PRO' THEN 18
@@ -58,12 +55,12 @@ export async function getGlobalPlatformStats(): Promise<PlatformStats> {
         FROM students s
         JOIN tenants t ON s.tenant_id = t.id
         JOIN companies c ON t.company_id = c.id
-        WHERE s.status = 'ACTIVE' AND c.is_active = true
-    `);
+        WHERE s.status = 'ACTIVE' AND c.is_active = true`
+    );
 
     // Churn risk = companies with subscription tier CORE and no payments in 90 days across attached tenants
-    const [churnData] = await db.execute(sql`
-        SELECT COUNT(DISTINCT c.id) as churn_count
+    const { rows: churnData } = await pool.query(
+        `SELECT COUNT(DISTINCT c.id) as churn_count
         FROM companies c
         WHERE c.is_active = true
         AND c.subscription_tier = 'CORE'
@@ -72,14 +69,14 @@ export async function getGlobalPlatformStats(): Promise<PlatformStats> {
             JOIN tenants t ON p.tenant_id = t.id
             WHERE t.company_id = c.id
             AND p.paid_at >= NOW() - INTERVAL '90 days'
-        )
-    `);
+        )`
+    );
 
     return {
-        totalSchools: schoolCount?.value || 0,
-        totalARR: Number((revenueData as any)?.[0]?.arr || 0),
-        totalActiveStudents: studentCount?.value || 0,
-        churnRiskSchools: Number((churnData as any)?.[0]?.churn_count || 0),
+        totalSchools: Number(schoolCount),
+        totalARR: Number(revenueData[0]?.arr || 0),
+        totalActiveStudents: Number(studentCount),
+        churnRiskSchools: Number(churnData[0]?.churn_count || 0),
     };
 }
 
@@ -88,10 +85,10 @@ export async function getGlobalPlatformStats(): Promise<PlatformStats> {
  */
 export async function getAllPlatformTenants(): Promise<PlatformTenant[]> {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await setTenantContext('platform');
+    await ('platform');
 
-    const result = await db.execute(sql`
-        SELECT
+    const { rows } = await pool.query(
+        `SELECT
             t.id,
             t.company_id,
             t.name,
@@ -112,10 +109,10 @@ export async function getAllPlatformTenants(): Promise<PlatformTenant[]> {
             ) AS revenue
         FROM tenants t
         LEFT JOIN companies c ON t.company_id = c.id
-        ORDER BY t.name ASC
-    `);
+        ORDER BY t.name ASC`
+    );
 
-    return (result as any[]).map(row => ({
+    return rows.map((row: any) => ({
         id: row.id,
         companyId: row.company_id,
         name: row.name,
@@ -133,13 +130,13 @@ export async function getAllPlatformTenants(): Promise<PlatformTenant[]> {
  */
 export async function createTenantAction(formData: FormData) {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await setTenantContext('platform');
+    await ('platform');
 
     const name = formData.get('name') as string;
     const adminEmail = formData.get('adminEmail') as string;
     const adminFirstName = formData.get('adminFirstName') as string;
     const adminLastName = formData.get('adminLastName') as string;
-    const region = formData.get('region') as string || 'US-EAST';
+    const region = (formData.get('region') as string) || 'US-EAST';
 
     if (!name || !adminEmail || !adminFirstName || !adminLastName) {
         return { error: 'All fields are required.' };
@@ -151,31 +148,28 @@ export async function createTenantAction(formData: FormData) {
         const tenantCode = `${baseCode}${randSuffix}`;
 
         // 1. Create Company First
-        const [newCompany] = await db.insert(companies).values({
-            name: `${name} Org`,
-            subscriptionTier: 'CORE',
-            isActive: true,
-            region: region
-        }).returning();
+        const { rows: companyRows } = await pool.query(
+            `INSERT INTO companies (name, subscription_tier, is_active, region) 
+             VALUES ($1, $2, $3, $4) RETURNING id`,
+            [`${name} Org`, 'CORE', true, region]
+        );
+        const newCompany = companyRows[0];
 
         // 2. Create Tenant bounded to Company
-        const [newTenant] = await db.insert(tenants).values({
-            name,
-            code: tenantCode,
-            companyId: newCompany.id,
-            isActive: true,
-        }).returning();
+        const { rows: tenantRows } = await pool.query(
+            `INSERT INTO tenants (name, code, company_id, is_active) 
+             VALUES ($1, $2, $3, $4) RETURNING id`,
+            [name, tenantCode, newCompany.id, true]
+        );
+        const newTenant = tenantRows[0];
 
         // 3. Create SUPER_ADMIN
         const defaultPassword = await hash('password', 12);
-        await db.insert(users).values({
-            tenantId: newTenant.id,
-            email: adminEmail,
-            firstName: adminFirstName,
-            lastName: adminLastName,
-            role: 'SUPER_ADMIN',
-            passwordHash: defaultPassword
-        });
+        await pool.query(
+            `INSERT INTO users (tenant_id, email, first_name, last_name, role, password_hash) 
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [newTenant.id, adminEmail, adminFirstName, adminLastName, 'SUPER_ADMIN', defaultPassword]
+        );
 
         revalidatePath('/hq/tenants');
         revalidatePath('/hq');
@@ -192,9 +186,9 @@ export async function createTenantAction(formData: FormData) {
  */
 export async function toggleTenantStatusAction(tenantId: string, isActive: boolean) {
     await requireRole(UserRole.PLATFORM_ADMIN);
-    await setTenantContext('platform');
+    await ('platform');
 
-    await db.update(tenants).set({ isActive }).where(eq(tenants.id, tenantId));
+    await pool.query(`UPDATE tenants SET is_active = $1 WHERE id = $2`, [isActive, tenantId]);
     
     await logPlatformAudit('TOGGLE_TENANT_STATUS', `Status changed to ${isActive}`, undefined, tenantId);
     
@@ -212,15 +206,27 @@ export async function impersonateTenantAction(tenantId: string) {
     const session = await getSession();
     if (session.role !== 'PLATFORM_ADMIN') return { error: 'Unauthorized' };
 
-    await setTenantContext('platform');
+    await ('platform');
 
     // Find the super admin of the target tenant
-    const [targetAdmin] = await db.select().from(users).where(and(eq(users.tenantId, tenantId), eq(users.role, 'SUPER_ADMIN'))).limit(1);
-    if (!targetAdmin) return { error: 'Target tenant does not have an active admin to impersonate.' };
+    const { rows: admins } = await pool.query(
+        `SELECT id, email FROM users WHERE tenant_id = $1 AND role = 'SUPER_ADMIN' LIMIT 1`,
+        [tenantId]
+    );
+    if (admins.length === 0) return { error: 'Target tenant does not have an active admin to impersonate.' };
+    const targetAdmin = admins[0];
 
-    const [targetCompany] = await db.select().from(tenants)
-        .leftJoin(companies, eq(tenants.companyId, companies.id))
-        .where(eq(tenants.id, tenantId));
+    const { rows: tenantsData } = await pool.query(
+        `SELECT 
+            t.company_id AS "companyId", 
+            c.subscription_tier AS "subscriptionTier", 
+            c.active_modules AS "activeModules" 
+         FROM tenants t 
+         LEFT JOIN companies c ON t.company_id = c.id 
+         WHERE t.id = $1`,
+        [tenantId]
+    );
+    const targetCompany = tenantsData[0];
 
     // Save Founder State & Mount Target State
     const originalId = session.userId;
@@ -228,15 +234,13 @@ export async function impersonateTenantAction(tenantId: string) {
     session.tenantId = tenantId;
     session.role = 'SUPER_ADMIN'; // Lowered god privileges to just super admin of this node
     session.email = targetAdmin.email;
-    if (targetCompany && targetCompany.companies) {
-        session.companyId = targetCompany.companies.id;
-        session.subscriptionTier = targetCompany.companies.subscriptionTier;
-        session.activeModules = targetCompany.companies.activeModules || [];
+    if (targetCompany && targetCompany.companyId) {
+        session.companyId = targetCompany.companyId;
+        session.subscriptionTier = targetCompany.subscriptionTier;
+        session.activeModules = targetCompany.activeModules || [];
     }
 
     // Set Impersonation Origin Pointer (using token as a hacky transport since it's "kept for backward compatibility, not used" in session)
-    // Wait, the session object is strictly typed. We should add `impersonatingFromHQ` or use token.
-    // Set Impersonation Origin Pointer
     session.token = `impersonating:${originalId}`;
 
     await session.save();
@@ -254,8 +258,12 @@ export async function returnToHQAction() {
 
     const originalUserId = session.token.split(':')[1];
     
-    await setTenantContext('platform');
-    const [founder] = await db.select().from(users).where(eq(users.id, originalUserId)).limit(1);
+    await ('platform');
+    const { rows: usersList } = await pool.query(
+        `SELECT id, tenant_id AS "tenantId", email FROM users WHERE id = $1 LIMIT 1`,
+        [originalUserId]
+    );
+    const founder = usersList[0];
     
     session.userId = founder.id;
     session.tenantId = founder.tenantId;
@@ -276,15 +284,27 @@ export async function returnToHQAction() {
 
 export async function getCompanyDetailsWithTenants(companyId: string) {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await setTenantContext('platform');
+    await ('platform');
 
-    const [company] = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
+    const { rows: companyRows } = await pool.query(
+        `SELECT 
+            id, name, subscription_tier AS "subscriptionTier", 
+            is_active AS "isActive", region, active_modules AS "activeModules", 
+            theme_color AS "themeColor", domain_mask AS "domainMask" 
+         FROM companies WHERE id = $1 LIMIT 1`,
+        [companyId]
+    );
     
-    const companyTenants = await db.select().from(tenants).where(eq(tenants.companyId, companyId));
+    const { rows: tenantRows } = await pool.query(
+        `SELECT 
+            id, name, code, company_id AS "companyId", is_active AS "isActive" 
+         FROM tenants WHERE company_id = $1`,
+        [companyId]
+    );
 
     return {
-        company,
-        tenants: companyTenants
+        company: companyRows[0],
+        tenants: tenantRows
     };
 }
 
@@ -296,15 +316,25 @@ export async function updateCompanySettingsAction(companyId: string, payload: {
     domainMask?: string;
 }) {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await setTenantContext('platform');
+    await ('platform');
 
-    await db.update(companies).set({
-        subscriptionTier: payload.subscriptionTier,
-        activeModules: payload.activeModules,
-        isActive: payload.isActive,
-        themeColor: payload.themeColor,
-        domainMask: payload.domainMask || null
-    }).where(eq(companies.id, companyId));
+    await pool.query(
+        `UPDATE companies SET 
+            subscription_tier = $1, 
+            active_modules = $2, 
+            is_active = $3, 
+            theme_color = $4, 
+            domain_mask = $5 
+         WHERE id = $6`,
+        [
+            payload.subscriptionTier, 
+            payload.activeModules ? JSON.stringify(payload.activeModules) : '[]', 
+            payload.isActive, 
+            payload.themeColor || null, 
+            payload.domainMask || null, 
+            companyId
+        ]
+    );
 
     await logPlatformAudit('UPDATE_COMPANY_SETTINGS', `Updated tier to ${payload.subscriptionTier}, features toggled`, companyId);
 
@@ -316,10 +346,10 @@ export async function updateCompanySettingsAction(companyId: string, payload: {
 
 export async function getPlatformBillingStats() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await setTenantContext('platform');
+    await ('platform');
 
-    const result = await db.execute(sql`
-        SELECT
+    const { rows } = await pool.query(
+        `SELECT
             c.id,
             c.name as school,
             c.subscription_tier as tier,
@@ -327,10 +357,10 @@ export async function getPlatformBillingStats() {
             c.stripe_current_period_end as date,
             (SELECT COUNT(*) FROM students s JOIN tenants t ON s.tenant_id = t.id WHERE t.company_id = c.id AND s.status = 'ACTIVE') as students
         FROM companies c
-        ORDER BY c.stripe_current_period_end ASC
-    `);
+        ORDER BY c.stripe_current_period_end ASC`
+    );
 
-    const invoices = (result as any[]).map(row => {
+    const invoices = rows.map((row: any) => {
         let amount = 0;
         const students = Number(row.students);
         if (row.tier === 'CORE') amount = students * 10;
@@ -359,15 +389,12 @@ export async function logPlatformAudit(actionType: string, metadata: string, tar
     if (!session.userId) return;
 
     try {
-        await setTenantContext('platform');
-        await db.insert(platformAuditLogs).values({
-            actorId: session.userId,
-            targetCompanyId: targetCompanyId || null,
-            targetTenantId: targetTenantId || null,
-            actionType,
-            metadata: metadata,
-            ipAddress: '127.0.0.1' // Ideally read from headers
-        });
+        await ('platform');
+        await pool.query(
+            `INSERT INTO platform_audit_logs (actor_id, target_company_id, target_tenant_id, action_type, metadata, ip_address) 
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [session.userId, targetCompanyId || null, targetTenantId || null, actionType, metadata, '127.0.0.1']
+        );
     } catch(e) {
         console.error('Audit Log Failed', e);
     }
@@ -380,19 +407,22 @@ export async function fetchActiveBroadcasts() {
     const session = await getSession();
     if (!session.isLoggedIn) return [];
 
-    await setTenantContext('platform');
+    await ('platform');
     
     // Natively queries active broadcasts targeting the current node's tier
     const userTier = session.subscriptionTier || 'CORE';
 
-    const broadcasts = await db.select().from(platformBroadcasts)
-        .where(and(
-            eq(platformBroadcasts.isActive, true),
-            // Match tiers if targeted, otherwise assume public broadcast
-            sql`(${platformBroadcasts.targetTiers} IS NULL OR ${userTier} = ANY(${platformBroadcasts.targetTiers}))`
-        ))
-        .orderBy(desc(platformBroadcasts.createdAt))
-        .limit(3);
+    const { rows: broadcasts } = await pool.query(
+        `SELECT 
+            id, title, message, type, is_active AS "isActive", 
+            target_tiers AS "targetTiers", created_at AS "createdAt" 
+         FROM platform_broadcasts 
+         WHERE is_active = true 
+         AND (target_tiers IS NULL OR $1 = ANY(target_tiers)) 
+         ORDER BY created_at DESC 
+         LIMIT 3`,
+        [userTier]
+    );
 
     return broadcasts;
 }
@@ -401,25 +431,28 @@ export async function fetchActiveBroadcasts() {
  * Stage 1: AI Metering
  */
 export async function logAITokenUsage(companyId: string, tenantId: string, agentType: string, model: string, tokensUsed: number, costCostMs: number) {
-    await setTenantContext('platform');
+    await ('platform');
     const queryCostUsd = (tokensUsed / 1000) * 0.002; // Assuming $0.002 per 1k tokens
 
-    await db.insert(aiTokenLogs).values({
-        companyId,
-        tenantId,
-        agentType,
-        model,
-        tokensUsed,
-        computeCostMs: costCostMs,
-        queryCostUsd: queryCostUsd.toString(),
-    });
+    await pool.query(
+        `INSERT INTO ai_token_logs (company_id, tenant_id, agent_type, model, tokens_used, compute_cost_ms, query_cost_usd) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [companyId, tenantId, agentType, model, tokensUsed, costCostMs, queryCostUsd.toString()]
+    );
 }
 
 export async function getPlatformAIAnalytics() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await setTenantContext('platform');
+    await ('platform');
 
-    const logs = await db.select().from(aiTokenLogs);
+    const { rows: logs } = await pool.query(
+        `SELECT 
+            id, company_id AS "companyId", tenant_id AS "tenantId", 
+            agent_type AS "agentType", model, tokens_used AS "tokensUsed", 
+            compute_cost_ms AS "computeCostMs", query_cost_usd AS "queryCostUsd", 
+            created_at AS "createdAt" 
+         FROM ai_token_logs`
+    );
     
     // Aggregation logic
     let totalTokens = 0;
@@ -427,7 +460,7 @@ export async function getPlatformAIAnalytics() {
     const modelStats: Record<string, number> = {};
     const agentStats: Record<string, { queries: number, cost: number }> = {};
 
-    logs.forEach(log => {
+    logs.forEach((log: any) => {
         totalTokens += log.tokensUsed;
         const cost = Number(log.queryCostUsd);
         totalCostUsd += cost;

@@ -53,7 +53,7 @@ export const invoices = pgTable('invoices', {
     lineItems: text('line_items'), // JSON string of fee components breakdown
     embedding: customType<{ data: number[]; driverData: string }>({
         dataType() {
-            return 'vector(768)';
+            return 'text';
         },
     })('embedding'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

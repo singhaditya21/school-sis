@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { getSubstitutionTeachers, getSubstitutionRequests } from '@/lib/actions/scaffolding-bridge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { getSubstitutionTeachers, getSubstitutionRequests } from '@/lib/services/timetable/timetable.service';
+import { createSubstitutionRequest } from '@/lib/actions/timetable';
 
 const periods = [1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -19,6 +21,22 @@ export default function SubstitutionPage() {
         getSubstitutionTeachers().then(setTeachers);
         getSubstitutionRequests().then(setSubstitutions);
     }, []);
+
+    const handleCreate = async () => {
+        if (!formData.absentTeacher || !formData.subject) return;
+        try {
+            await createSubstitutionRequest({
+                date: formData.date,
+                absentTeacherName: formData.absentTeacher,
+                subject: formData.subject,
+                period: formData.period
+            });
+            setShowCreateDialog(false);
+            getSubstitutionRequests().then(setSubstitutions);
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
     const absentTeachers = teachers.filter((t: any) => !t.available);
     const availableTeachers = teachers.filter((t: any) => t.available);
@@ -66,28 +84,33 @@ export default function SubstitutionPage() {
                 <CardHeader><CardTitle className="text-lg">Substitution Requests</CardTitle></CardHeader>
                 <CardContent>
                     {substitutions.length === 0 ? <p className="text-gray-500 text-center py-8">No substitution requests yet.</p> : (
-                        <table className="w-full">
-                            <thead className="bg-gray-50"><tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Absent Teacher</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Substitute</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                            </tr></thead>
-                            <tbody className="divide-y">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Absent Teacher</TableHead>
+                                    <TableHead>Substitute</TableHead>
+                                    <TableHead>Class</TableHead>
+                                    <TableHead>Period</TableHead>
+                                    <TableHead>Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
                                 {substitutions.map((sub: any) => (
-                                    <tr key={sub.id} className="hover:bg-gray-50">
-                                        <td className="px-4 py-3">{sub.date}</td>
-                                        <td className="px-4 py-3 font-medium text-red-600">{sub.originalTeacher}</td>
-                                        <td className="px-4 py-3 text-green-600">{sub.substitute || 'TBD'}</td>
-                                        <td className="px-4 py-3"><Badge variant="outline">{sub.class}</Badge></td>
-                                        <td className="px-4 py-3">Period {sub.period}</td>
-                                        <td className="px-4 py-3">{getStatusBadge(sub.status)}</td>
-                                    </tr>
+                                    <TableRow key={sub.id}>
+                                        <TableCell>{sub.date}</TableCell>
+                                        <TableCell className="font-medium text-red-600">
+                                            {sub.originalTeacher}
+                                            {sub.reason && <span className="text-xs text-gray-500 block font-normal">({sub.reason})</span>}
+                                        </TableCell>
+                                        <TableCell className="text-green-600">{sub.substitute || 'TBD'}</TableCell>
+                                        <TableCell><Badge variant="outline">{sub.class}</Badge></TableCell>
+                                        <TableCell>Period {sub.period}</TableCell>
+                                        <TableCell>{getStatusBadge(sub.status)}</TableCell>
+                                    </TableRow>
                                 ))}
-                            </tbody>
-                        </table>
+                            </TableBody>
+                        </Table>
                     )}
                 </CardContent>
             </Card>
@@ -115,9 +138,9 @@ export default function SubstitutionPage() {
                             <div className="flex flex-wrap gap-2">{availableTeachers.map((t: any) => (<Badge key={t.id} variant="outline" className="bg-green-50">{t.name}</Badge>))}</div>
                         </div>
                         <div className="flex justify-end gap-3 pt-4">
-                            <button onClick={() => setShowCreateDialog(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-                            <button onClick={() => setShowCreateDialog(false)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Create Request</button>
-                        </div>
+                                <button onClick={() => setShowCreateDialog(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+                                <button onClick={handleCreate} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Create Request</button>
+                            </div>
                     </div>
                 </DialogContent>
             </Dialog>

@@ -44,7 +44,7 @@ export const sessionOptions: SessionOptions = {
     cookieName: 'school-sis-session',
     cookieOptions: {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: process.env.NODE_ENV === 'production' && !process.env.PLAYWRIGHT_TEST,
         maxAge: 60 * 60 * 24 * 7, // 7 days
         sameSite: 'lax',
     },

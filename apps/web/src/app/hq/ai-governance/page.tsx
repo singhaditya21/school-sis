@@ -1,9 +1,7 @@
 import React from 'react';
 import { requireRole } from '@/lib/auth/middleware';
 import { UserRole } from '@/lib/rbac/permissions';
-import { db, setTenantContext } from '@/lib/db';
-import { aiTokenLogs } from '@/lib/db/schema/platform';
-import { sql, sum, count } from 'drizzle-orm';
+import { pool, } from '@/lib/db';
 import AIGovernanceClient from './client-page';
 
 export const metadata = {
@@ -13,10 +11,10 @@ export const metadata = {
 export default async function AIGovernancePage() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
     // Note: platform queries use platform context (where applicable) but aiTokenLogs is cross-tenant globally
-    await setTenantContext('platform');
+    await ('platform');
 
     // Aggregate by Model
-    const modelAggregates = await db.execute(sql`
+    const { rows: modelAggregates } = await pool.query(`
         SELECT 
             model, 
             SUM(tokens_used)::int as total_tokens, 
@@ -26,7 +24,7 @@ export default async function AIGovernancePage() {
     `);
 
     // Aggregate by Agent Type
-    const agentAggregates = await db.execute(sql`
+    const { rows: agentAggregates } = await pool.query(`
         SELECT 
             agent_type, 
             SUM(tokens_used)::int as total_tokens,

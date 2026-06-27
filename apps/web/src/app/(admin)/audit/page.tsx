@@ -1,34 +1,32 @@
-import { db } from '@/lib/db';
-import { auditLogs, users } from '@/lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { pool, } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
-import { setTenantContext } from '@/lib/db';
 import { AuditClientView } from './AuditClient';
 
 export default async function AuditPage() {
     const { tenantId, role } = await requireAuth(); // Ideally 'admin' check, but let's just make sure they are auth'd
-    await setTenantContext(tenantId);
+    await (tenantId);
     
     // Fetch live audit logs mapped to the Client View interface
-    const rawEvents = await db
-        .select({
-            id: auditLogs.id,
-            timestamp: auditLogs.createdAt,
-            userId: auditLogs.userId,
-            userName: users.firstName,
-            userLastName: users.lastName,
-            userRole: users.role,
-            action: auditLogs.action,
-            resource: auditLogs.resource,
-            resourceId: auditLogs.resourceId,
-            details: auditLogs.details,
-            ipAddress: auditLogs.ipAddress,
-        })
-        .from(auditLogs)
-        .leftJoin(users, eq(auditLogs.userId, users.id))
-        .where(eq(auditLogs.tenantId, tenantId))
-        .orderBy(desc(auditLogs.createdAt))
-        .limit(1000); // Prevent crashing browser, pagination would be better but this is sufficient.
+    const rawEventsRes = await pool.query(`
+        SELECT 
+            al.id, 
+            al.created_at AS "timestamp", 
+            al.user_id AS "userId", 
+            u.first_name AS "userName", 
+            u.last_name AS "userLastName", 
+            u.role AS "userRole", 
+            al.action, 
+            al.resource, 
+            al.resource_id AS "resourceId", 
+            al.details, 
+            al.ip_address AS "ipAddress"
+        FROM audit_logs al
+        LEFT JOIN users u ON al.user_id = u.id
+        WHERE al.tenant_id = $1
+        ORDER BY al.created_at DESC
+        LIMIT 1000
+    `, [tenantId]); // Prevent crashing browser, pagination would be better but this is sufficient.
+    const rawEvents = rawEventsRes.rows;
 
     const mappedEvents = rawEvents.map(e => ({
         id: e.id,

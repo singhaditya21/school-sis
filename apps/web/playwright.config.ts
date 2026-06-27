@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
     testDir: './e2e',
+    timeout: 120_000,
     fullyParallel: false,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,
@@ -19,9 +20,10 @@ export default defineConfig({
         },
     ],
     webServer: {
-        command: 'npm run dev',
+        command: 'pnpm run start',
+        cwd: '/Users/adityasingh/PersonalWork/school-sis/apps/web',
         url: 'http://localhost:3000',
-        reuseExistingServer: !process.env.CI,
-        timeout: 30_000,
+        reuseExistingServer: true,
+        timeout: 120_000,
     },
 });

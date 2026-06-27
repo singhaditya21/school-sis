@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
-import { db } from '@/lib/db';
-import { companies } from '@/lib/db/schema/core';
-import { eq } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import Stripe from 'stripe';
 
 export const dynamic = "force-dynamic";
@@ -42,14 +40,14 @@ export async function POST(req: NextRequest) {
                 }
 
                 // Activate the company immediately upon successful checkout
-                await db.update(companies)
-                    .set({
-                        stripeSubscriptionId: subscriptionId,
-                        subscriptionTier: (planType || 'CORE') as any,
-                        billingStatus: 'ACTIVE',
-                        isActive: true // Company is fully provisioned and unlocked
-                    })
-                    .where(eq(companies.id, companyId));
+                await pool.query(`
+                    UPDATE companies 
+                    SET stripe_subscription_id = $1, 
+                        subscription_tier = $2, 
+                        billing_status = 'ACTIVE', 
+                        is_active = true 
+                    WHERE id = $3
+                `, [subscriptionId, planType || 'CORE', companyId]);
                 
                 console.log(`✅ Company ${companyId} successfully provisioned and paid for tier: ${planType}`);
                 break;
@@ -63,13 +61,13 @@ export async function POST(req: NextRequest) {
                                subscription.status === 'canceled' ? 'CANCELED' : 'UNPAID';
 
                 // Find the company by their subscription ID
-                await db.update(companies)
-                    .set({
-                        billingStatus: status,
-                        isActive: status === 'ACTIVE', // Suspend company access if canceled or unpaid
-                        stripeCurrentPeriodEnd: new Date((subscription as any).current_period_end * 1000)
-                    })
-                    .where(eq(companies.stripeSubscriptionId, subscription.id));
+                await pool.query(`
+                    UPDATE companies 
+                    SET billing_status = $1, 
+                        is_active = $2, 
+                        stripe_current_period_end = $3 
+                    WHERE stripe_subscription_id = $4
+                `, [status, status === 'ACTIVE', new Date((subscription as any).current_period_end * 1000), subscription.id]);
 
                 console.log(`🔄 Subscription ${subscription.id} status updated to: ${status}`);
                 break;
@@ -79,12 +77,12 @@ export async function POST(req: NextRequest) {
                 const subscription = event.data.object as Stripe.Subscription;
 
                 // Deactivate the company completely
-                await db.update(companies)
-                    .set({
-                        billingStatus: 'CANCELED',
-                        isActive: false
-                    })
-                    .where(eq(companies.stripeSubscriptionId, subscription.id));
+                await pool.query(`
+                    UPDATE companies 
+                    SET billing_status = 'CANCELED', 
+                        is_active = false 
+                    WHERE stripe_subscription_id = $1
+                `, [subscription.id]);
                 
                 console.log(`❌ Subscription ${subscription.id} canceled. Company access revoked.`);
                 break;

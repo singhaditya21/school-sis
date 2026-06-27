@@ -5,9 +5,7 @@
  * All mutations are tenant-scoped and audit-logged.
  */
 
-import { db } from '@/lib/db';
-import * as schema from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 
@@ -17,36 +15,48 @@ export async function createStudent(formData: FormData) {
 
     const admissionNumber = `ADM-${Date.now().toString(36).toUpperCase()}`;
 
-    const [student] = await db.insert(schema.students).values({
-        id: randomUUID(),
-        tenantId,
-        admissionNumber,
-        firstName: formData.get('firstName') as string,
-        lastName: formData.get('lastName') as string,
-        dateOfBirth: formData.get('dateOfBirth') as string,
-        gender: (formData.get('gender') as string) as any,
-        bloodGroup: (formData.get('bloodGroup') as string as any) || null,
-        gradeId: formData.get('gradeId') as string,
-        sectionId: formData.get('sectionId') as string,
-        rollNumber: formData.get('rollNumber') ? parseInt(formData.get('rollNumber') as string) : null,
-        admissionDate: (formData.get('admissionDate') as string) || new Date().toISOString().split('T')[0],
-        address: (formData.get('address') as string) || null,
-        city: (formData.get('city') as string) || null,
-        state: (formData.get('state') as string) || null,
-        pincode: (formData.get('pincode') as string) || null,
-        status: 'ACTIVE',
-    }).returning({ id: schema.students.id });
+    const insertRes = await pool.query(
+        `INSERT INTO students (
+            id, tenant_id, admission_number, first_name, last_name, date_of_birth, gender, blood_group, grade_id, section_id, roll_number, admission_date, address, city, state, pincode, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        RETURNING id`,
+        [
+            randomUUID(),
+            tenantId,
+            admissionNumber,
+            formData.get('firstName') as string,
+            formData.get('lastName') as string,
+            formData.get('dateOfBirth') as string,
+            formData.get('gender') as string,
+            (formData.get('bloodGroup') as string) || null,
+            formData.get('gradeId') as string,
+            formData.get('sectionId') as string,
+            formData.get('rollNumber') ? parseInt(formData.get('rollNumber') as string) : null,
+            (formData.get('admissionDate') as string) || new Date().toISOString().split('T')[0],
+            (formData.get('address') as string) || null,
+            (formData.get('city') as string) || null,
+            (formData.get('state') as string) || null,
+            (formData.get('pincode') as string) || null,
+            'ACTIVE'
+        ]
+    );
+    const student = insertRes.rows[0];
 
     // Audit log
-    await db.insert(schema.auditLogs).values({
-        id: randomUUID(),
-        tenantId,
-        userId,
-        action: 'CREATE',
-        entityType: 'students',
-        entityId: student.id,
-        afterState: { firstName: formData.get('firstName'), lastName: formData.get('lastName') },
-    });
+    await pool.query(
+        `INSERT INTO audit_logs (
+            id, tenant_id, user_id, action, entity_type, entity_id, after_state
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+            randomUUID(),
+            tenantId,
+            userId,
+            'CREATE',
+            'students',
+            student.id,
+            JSON.stringify({ firstName: formData.get('firstName'), lastName: formData.get('lastName') })
+        ]
+    );
 
     return { success: true, studentId: student.id };
 }
@@ -61,7 +71,7 @@ export async function saveAttendance(formData: FormData) {
     // Extract status entries from form
     const entries: { studentId: string; status: string }[] = [];
     for (const [key, value] of formData.entries()) {
-        const match = key.match(/^status\[(.+)\]$/);
+        const match = key.match(/^status\\[(.+)\\]$/);
         if (match) {
             entries.push({ studentId: match[1], status: value as string });
         }
@@ -69,29 +79,22 @@ export async function saveAttendance(formData: FormData) {
 
     // Upsert attendance records
     for (const entry of entries) {
-        const existing = await db
-            .select({ id: schema.attendanceRecords.id })
-            .from(schema.attendanceRecords)
-            .where(and(
-                eq(schema.attendanceRecords.studentId, entry.studentId),
-                eq(schema.attendanceRecords.date, date),
-                eq(schema.attendanceRecords.tenantId, tenantId)
-            ));
+        const existingRes = await pool.query(
+            `SELECT id FROM attendance_records WHERE student_id = $1 AND date = $2 AND tenant_id = $3`,
+            [entry.studentId, date, tenantId]
+        );
 
-        if (existing.length > 0) {
-            await db.update(schema.attendanceRecords)
-                .set({ status: entry.status as any, markedBy: userId })
-                .where(eq(schema.attendanceRecords.id, existing[0].id));
+        if (existingRes.rows.length > 0) {
+            await pool.query(
+                `UPDATE attendance_records SET status = $1, marked_by = $2 WHERE id = $3`,
+                [entry.status, userId, existingRes.rows[0].id]
+            );
         } else {
-            await db.insert(schema.attendanceRecords).values({
-                id: randomUUID(),
-                tenantId,
-                studentId: entry.studentId,
-                sectionId,
-                date,
-                status: entry.status as any,
-                markedBy: userId,
-            });
+            await pool.query(
+                `INSERT INTO attendance_records (id, tenant_id, student_id, section_id, date, status, marked_by)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                [randomUUID(), tenantId, entry.studentId, sectionId, date, entry.status, userId]
+            );
         }
     }
 
@@ -120,51 +123,46 @@ export async function recordPayment(formData: FormData) {
     }
 
     // Look up the invoice — tenant-scoped
-    const [invoice] = await db
-        .select({ studentId: schema.invoices.studentId, paidAmount: schema.invoices.paidAmount, totalAmount: schema.invoices.totalAmount })
-        .from(schema.invoices)
-        .where(and(eq(schema.invoices.id, invoiceId), eq(schema.invoices.tenantId, tenantId)));
+    const invoiceRes = await pool.query(
+        `SELECT student_id AS "studentId", paid_amount AS "paidAmount", total_amount AS "totalAmount"
+         FROM invoices WHERE id = $1 AND tenant_id = $2`,
+        [invoiceId, tenantId]
+    );
+    const invoice = invoiceRes.rows[0];
 
     if (!invoice) throw new Error('Invoice not found');
 
     // Create payment
-    const [payment] = await db.insert(schema.payments).values({
-        id: randomUUID(),
-        tenantId,
-        invoiceId,
-        studentId: invoice.studentId,
-        amount: String(amount),
-        method: method as any,
-        status: 'COMPLETED',
-    }).returning({ id: schema.payments.id });
+    const paymentRes = await pool.query(
+        `INSERT INTO payments (id, tenant_id, invoice_id, student_id, amount, method, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id`,
+        [randomUUID(), tenantId, invoiceId, invoice.studentId, String(amount), method, 'COMPLETED']
+    );
+    const payment = paymentRes.rows[0];
 
     // Update invoice paid amount
     const newPaid = Number(invoice.paidAmount) + amount;
     const newStatus = newPaid >= Number(invoice.totalAmount) ? 'PAID' : 'PARTIAL';
 
-    await db.update(schema.invoices)
-        .set({ paidAmount: String(newPaid), status: newStatus as any })
-        .where(eq(schema.invoices.id, invoiceId));
+    await pool.query(
+        `UPDATE invoices SET paid_amount = $1, status = $2 WHERE id = $3`,
+        [String(newPaid), newStatus, invoiceId]
+    );
 
     // Create receipt
     const receiptNumber = `RCP-${Date.now().toString(36).toUpperCase()}`;
-    await db.insert(schema.receipts).values({
-        id: randomUUID(),
-        tenantId,
-        paymentId: payment.id,
-        receiptNumber,
-    });
+    await pool.query(
+        `INSERT INTO receipts (id, tenant_id, payment_id, receipt_number) VALUES ($1, $2, $3, $4)`,
+        [randomUUID(), tenantId, payment.id, receiptNumber]
+    );
 
     // Audit
-    await db.insert(schema.auditLogs).values({
-        id: randomUUID(),
-        tenantId,
-        userId,
-        action: 'PAYMENT',
-        entityType: 'payments',
-        entityId: payment.id,
-        afterState: { amount, method, invoiceId },
-    });
+    await pool.query(
+        `INSERT INTO audit_logs (id, tenant_id, user_id, action, entity_type, entity_id, after_state)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [randomUUID(), tenantId, userId, 'PAYMENT', 'payments', payment.id, JSON.stringify({ amount, method, invoiceId })]
+    );
 
     return { success: true, paymentId: payment.id };
 }
@@ -173,33 +171,43 @@ export async function recordPayment(formData: FormData) {
 export async function createFeePlan(formData: FormData) {
     const { tenantId } = await requireAuth('fees:write');
 
-    const [plan] = await db.insert(schema.feePlans).values({
-        id: randomUUID(),
-        tenantId,
-        name: formData.get('name') as string,
-        academicYearId: formData.get('academicYearId') as string,
-        description: (formData.get('description') as string) || null,
-    }).returning({ id: schema.feePlans.id });
+    const planRes = await pool.query(
+        `INSERT INTO fee_plans (id, tenant_id, name, academic_year_id, description)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        [
+            randomUUID(),
+            tenantId,
+            formData.get('name') as string,
+            formData.get('academicYearId') as string,
+            (formData.get('description') as string) || null
+        ]
+    );
 
-    return { success: true, feePlanId: plan.id };
+    return { success: true, feePlanId: planRes.rows[0].id };
 }
 
 // ─── Create Exam ──────────────────────────────────────────
 export async function createExam(formData: FormData) {
     const { tenantId } = await requireAuth('exams:write');
 
-    const [exam] = await db.insert(schema.exams).values({
-        id: randomUUID(),
-        tenantId,
-        name: formData.get('name') as string,
-        type: (formData.get('type') as string) as any,
-        academicYearId: formData.get('academicYearId') as string,
-        startDate: formData.get('startDate') as string,
-        endDate: formData.get('endDate') as string,
-        description: (formData.get('description') as string) || null,
-    }).returning({ id: schema.exams.id });
+    const examRes = await pool.query(
+        `INSERT INTO exams (id, tenant_id, name, type, academic_year_id, start_date, end_date, description)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id`,
+        [
+            randomUUID(),
+            tenantId,
+            formData.get('name') as string,
+            formData.get('type') as string,
+            formData.get('academicYearId') as string,
+            formData.get('startDate') as string,
+            formData.get('endDate') as string,
+            (formData.get('description') as string) || null
+        ]
+    );
 
-    return { success: true, examId: exam.id };
+    return { success: true, examId: examRes.rows[0].id };
 }
 
 // ─── Mark Class Attendance (for attendance-form.tsx) ──────
@@ -212,29 +220,22 @@ export async function markClassAttendance(
     const dateStr = date.toISOString().split('T')[0];
 
     for (const entry of attendanceData) {
-        const existing = await db
-            .select({ id: schema.attendanceRecords.id })
-            .from(schema.attendanceRecords)
-            .where(and(
-                eq(schema.attendanceRecords.studentId, entry.studentId),
-                eq(schema.attendanceRecords.date, dateStr),
-                eq(schema.attendanceRecords.tenantId, tenantId)
-            ));
+        const existingRes = await pool.query(
+            `SELECT id FROM attendance_records WHERE student_id = $1 AND date = $2 AND tenant_id = $3`,
+            [entry.studentId, dateStr, tenantId]
+        );
 
-        if (existing.length > 0) {
-            await db.update(schema.attendanceRecords)
-                .set({ status: entry.status as any, markedBy: userId })
-                .where(eq(schema.attendanceRecords.id, existing[0].id));
+        if (existingRes.rows.length > 0) {
+            await pool.query(
+                `UPDATE attendance_records SET status = $1, marked_by = $2 WHERE id = $3`,
+                [entry.status, userId, existingRes.rows[0].id]
+            );
         } else {
-            await db.insert(schema.attendanceRecords).values({
-                id: randomUUID(),
-                tenantId,
-                studentId: entry.studentId,
-                sectionId,
-                date: dateStr,
-                status: entry.status as any,
-                markedBy: userId,
-            });
+            await pool.query(
+                `INSERT INTO attendance_records (id, tenant_id, student_id, section_id, date, status, marked_by)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                [randomUUID(), tenantId, entry.studentId, sectionId, dateStr, entry.status, userId]
+            );
         }
     }
 
@@ -251,39 +252,31 @@ export async function enterMarks(
     // Look up exam schedules for this exam
     for (const entry of marksData) {
         // Find schedule for this subject
-        const [schedule] = await db
-            .select({ id: schema.examSchedules.id })
-            .from(schema.examSchedules)
-            .where(and(
-                eq(schema.examSchedules.examId, examId),
-                eq(schema.examSchedules.subjectId, entry.subjectId)
-            ));
+        const scheduleRes = await pool.query(
+            `SELECT id FROM exam_schedules WHERE exam_id = $1 AND subject_id = $2`,
+            [examId, entry.subjectId]
+        );
+        const schedule = scheduleRes.rows[0];
 
         if (!schedule) continue;
 
         // Upsert result
-        const existing = await db
-            .select({ id: schema.studentResults.id })
-            .from(schema.studentResults)
-            .where(and(
-                eq(schema.studentResults.examScheduleId, schedule.id),
-                eq(schema.studentResults.studentId, entry.studentId),
-                eq(schema.studentResults.tenantId, tenantId)
-            ));
+        const existingRes = await pool.query(
+            `SELECT id FROM student_results WHERE exam_schedule_id = $1 AND student_id = $2 AND tenant_id = $3`,
+            [schedule.id, entry.studentId, tenantId]
+        );
 
-        if (existing.length > 0) {
-            await db.update(schema.studentResults)
-                .set({ marksObtained: String(entry.marksObtained), isAbsent: entry.isAbsent })
-                .where(eq(schema.studentResults.id, existing[0].id));
+        if (existingRes.rows.length > 0) {
+            await pool.query(
+                `UPDATE student_results SET marks_obtained = $1, is_absent = $2 WHERE id = $3`,
+                [String(entry.marksObtained), entry.isAbsent, existingRes.rows[0].id]
+            );
         } else {
-            await db.insert(schema.studentResults).values({
-                id: randomUUID(),
-                tenantId,
-                examScheduleId: schedule.id,
-                studentId: entry.studentId,
-                marksObtained: String(entry.marksObtained),
-                isAbsent: entry.isAbsent,
-            });
+            await pool.query(
+                `INSERT INTO student_results (id, tenant_id, exam_schedule_id, student_id, marks_obtained, is_absent)
+                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                [randomUUID(), tenantId, schedule.id, entry.studentId, String(entry.marksObtained), entry.isAbsent]
+            );
         }
     }
 

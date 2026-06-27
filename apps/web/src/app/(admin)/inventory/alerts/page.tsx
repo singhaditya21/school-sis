@@ -1,11 +1,8 @@
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { db } from '@/lib/db';
-import { stockAlerts, consumables } from '@/lib/db/schema';
-import { eq, and, desc, lte } from 'drizzle-orm';
+import { pool, } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
-import { setTenantContext } from '@/lib/db';
 
 interface PageProps {
     searchParams: Promise<{ filter?: string }>;
@@ -13,32 +10,28 @@ interface PageProps {
 
 export default async function InventoryAlertsPage({ searchParams }: PageProps) {
     const { tenantId } = await requireAuth('inventory:read');
-    await setTenantContext(tenantId);
+    await (tenantId);
     
     // Unroll search parameters
     const params = await searchParams;
     const filter = params.filter || 'ALL';
 
     // Fetch alerts joined with item names
-    const rawAlerts = await db
-        .select({
-            id: stockAlerts.id,
-            itemId: stockAlerts.itemId,
-            itemName: consumables.name,
-            type: stockAlerts.alertType,
-            severity: stockAlerts.severity,
-            message: stockAlerts.message,
-            createdAt: stockAlerts.createdAt,
-        })
-        .from(stockAlerts)
-        .leftJoin(consumables, eq(stockAlerts.itemId, consumables.id))
-        .where(
-            and(
-                eq(stockAlerts.tenantId, tenantId),
-                eq(stockAlerts.isResolved, false)
-            )
-        )
-        .orderBy(desc(stockAlerts.createdAt));
+    const rawAlertsRes = await pool.query(`
+        SELECT 
+            sa.id, 
+            sa.item_id AS "itemId", 
+            c.name AS "itemName", 
+            sa.alert_type AS "type", 
+            sa.severity, 
+            sa.message, 
+            sa.created_at AS "createdAt"
+        FROM stock_alerts sa
+        LEFT JOIN consumables c ON sa.item_id = c.id
+        WHERE sa.tenant_id = $1 AND sa.is_resolved = false
+        ORDER BY sa.created_at DESC
+    `, [tenantId]);
+    const rawAlerts = rawAlertsRes.rows;
 
     const alerts = rawAlerts.map(a => ({
         ...a,
@@ -69,16 +62,12 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
     // Fetch items that need reordering
     // Unfortunately drizzle `lte` doesn't natively compare two columns inline without `sql` fragment. 
     // We can just fetch them all and array filter for simplicity, or use SQL fragment.
-    const { sql } = await import('drizzle-orm');
-    const reorderItems = await db
-        .select()
-        .from(consumables)
-        .where(
-            and(
-                eq(consumables.tenantId, tenantId),
-                sql`${consumables.currentStock} <= ${consumables.reorderLevel}`
-            )
-        );
+    const reorderItemsRes = await pool.query(`
+        SELECT id, name, current_stock AS "currentStock", reorder_level AS "reorderLevel", minimum_stock AS "minimumStock", unit
+        FROM consumables
+        WHERE tenant_id = $1 AND current_stock <= reorder_level
+    `, [tenantId]);
+    const reorderItems = reorderItemsRes.rows;
 
     return (
         <div className="space-y-6">

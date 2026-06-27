@@ -1,12 +1,9 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { attendanceRecords, students, grades, sections, guardians } from '@/lib/db/schema';
-import { eq, and, count, sql, asc, gte, lte, ne } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getSmsProvider } from '@/lib/providers/sms';
 import { getEmailProvider } from '@/lib/providers/email';
-import { randomUUID } from 'crypto';
 
 export interface ClassAttendanceSummary {
     gradeName: string;
@@ -29,52 +26,36 @@ export async function getClassAttendanceSummary(date?: string): Promise<ClassAtt
     const { tenantId } = await requireAuth('attendance:read');
     const targetDate = date || new Date().toISOString().split('T')[0];
 
-    // Get all sections with grade info and student counts
-    const sectionRows = await db
-        .select({
-            sectionId: sections.id,
-            sectionName: sections.name,
-            gradeId: grades.id,
-            gradeName: grades.name,
-            gradeOrder: grades.displayOrder,
-        })
-        .from(sections)
-        .innerJoin(grades, eq(sections.gradeId, grades.id))
-        .where(eq(sections.tenantId, tenantId))
-        .orderBy(asc(grades.displayOrder), asc(sections.name));
+    const { rows: sectionRows } = await pool.query(`
+        SELECT s.id AS "sectionId", s.name AS "sectionName", g.id AS "gradeId", g.name AS "gradeName", g.display_order AS "gradeOrder"
+        FROM sections s
+        INNER JOIN grades g ON s.grade_id = g.id
+        WHERE s.tenant_id = $1
+        ORDER BY g.display_order ASC, s.name ASC
+    `, [tenantId]);
 
     const result: ClassAttendanceSummary[] = [];
 
     for (const sec of sectionRows) {
-        // Count students in this section
-        const [studentCountRow] = await db
-            .select({ count: count() })
-            .from(students)
-            .where(and(
-                eq(students.sectionId, sec.sectionId),
-                eq(students.tenantId, tenantId),
-                eq(students.status, 'ACTIVE')
-            ));
+        const { rows: studentCountRows } = await pool.query(`
+            SELECT COUNT(*) AS count
+            FROM students
+            WHERE section_id = $1 AND tenant_id = $2 AND status = 'ACTIVE'
+        `, [sec.sectionId, tenantId]);
 
-        // Get attendance for this section today
-        const attendanceRows = await db
-            .select({
-                status: attendanceRecords.status,
-                count: count(),
-            })
-            .from(attendanceRecords)
-            .where(and(
-                eq(attendanceRecords.sectionId, sec.sectionId),
-                eq(attendanceRecords.tenantId, tenantId),
-                eq(attendanceRecords.date, targetDate)
-            ))
-            .groupBy(attendanceRecords.status);
+        const { rows: attendanceRows } = await pool.query(`
+            SELECT status, COUNT(*) AS count
+            FROM attendance_records
+            WHERE section_id = $1 AND tenant_id = $2 AND date = $3
+            GROUP BY status
+        `, [sec.sectionId, tenantId, targetDate]);
 
         const statMap: Record<string, number> = {};
         let totalMarked = 0;
         for (const row of attendanceRows) {
-            statMap[row.status] = row.count;
-            totalMarked += row.count;
+            const countVal = parseInt(row.count, 10);
+            statMap[row.status] = countVal;
+            totalMarked += countVal;
         }
 
         result.push({
@@ -82,7 +63,7 @@ export async function getClassAttendanceSummary(date?: string): Promise<ClassAtt
             sectionName: sec.sectionName,
             sectionId: sec.sectionId,
             gradeId: sec.gradeId,
-            studentCount: studentCountRow.count,
+            studentCount: parseInt(studentCountRows[0].count, 10),
             presentToday: statMap['PRESENT'] || 0,
             absentToday: statMap['ABSENT'] || 0,
             lateToday: statMap['LATE'] || 0,
@@ -96,30 +77,22 @@ export async function getClassAttendanceSummary(date?: string): Promise<ClassAtt
 export async function getAttendanceWeeklyStats(): Promise<AttendanceWeeklyStats[]> {
     const { tenantId } = await requireAuth('attendance:read');
 
-    // Get stats for the last 7 days
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const startDate = sevenDaysAgo.toISOString().split('T')[0];
 
-    const rows = await db
-        .select({
-            status: attendanceRecords.status,
-            count: count(),
-        })
-        .from(attendanceRecords)
-        .where(and(
-            eq(attendanceRecords.tenantId, tenantId),
-            sql`${attendanceRecords.date} >= ${startDate}`
-        ))
-        .groupBy(attendanceRecords.status);
+    const { rows } = await pool.query(`
+        SELECT status, COUNT(*) AS count
+        FROM attendance_records
+        WHERE tenant_id = $1 AND date >= $2
+        GROUP BY status
+    `, [tenantId, startDate]);
 
-    return rows.map(r => ({
+    return rows.map((r: any) => ({
         status: r.status,
-        count: r.count,
+        count: parseInt(r.count, 10),
     }));
 }
-
-// ─── Attendance Report ───────────────────────────────────────
 
 export interface AttendanceReportRow {
     gradeName: string;
@@ -138,68 +111,51 @@ export async function getAttendanceReport(
 ): Promise<AttendanceReportRow[]> {
     const { tenantId } = await requireAuth('attendance:read');
 
-    const sectionRows = await db
-        .select({
-            sectionId: sections.id,
-            sectionName: sections.name,
-            gradeName: grades.name,
-            gradeOrder: grades.displayOrder,
-        })
-        .from(sections)
-        .innerJoin(grades, eq(sections.gradeId, grades.id))
-        .where(eq(sections.tenantId, tenantId))
-        .orderBy(asc(grades.displayOrder), asc(sections.name));
+    const { rows: sectionRows } = await pool.query(`
+        SELECT s.id AS "sectionId", s.name AS "sectionName", g.name AS "gradeName", g.display_order AS "gradeOrder"
+        FROM sections s
+        INNER JOIN grades g ON s.grade_id = g.id
+        WHERE s.tenant_id = $1
+        ORDER BY g.display_order ASC, s.name ASC
+    `, [tenantId]);
 
     const report: AttendanceReportRow[] = [];
 
     for (const sec of sectionRows) {
-        const [studentCount] = await db
-            .select({ count: count() })
-            .from(students)
-            .where(and(
-                eq(students.sectionId, sec.sectionId),
-                eq(students.tenantId, tenantId),
-                eq(students.status, 'ACTIVE'),
-            ));
+        const { rows: studentCountRow } = await pool.query(`
+            SELECT COUNT(*) AS count
+            FROM students
+            WHERE section_id = $1 AND tenant_id = $2 AND status = 'ACTIVE'
+        `, [sec.sectionId, tenantId]);
 
-        // Get attendance stats for date range
-        const statusRows = await db
-            .select({
-                status: attendanceRecords.status,
-                count: count(),
-            })
-            .from(attendanceRecords)
-            .where(and(
-                eq(attendanceRecords.sectionId, sec.sectionId),
-                eq(attendanceRecords.tenantId, tenantId),
-                gte(attendanceRecords.date, startDate),
-                lte(attendanceRecords.date, endDate),
-            ))
-            .groupBy(attendanceRecords.status);
+        const { rows: statusRows } = await pool.query(`
+            SELECT status, COUNT(*) AS count
+            FROM attendance_records
+            WHERE section_id = $1 AND tenant_id = $2 AND date >= $3 AND date <= $4
+            GROUP BY status
+        `, [sec.sectionId, tenantId, startDate, endDate]);
 
         const stats: Record<string, number> = {};
         let total = 0;
         for (const row of statusRows) {
-            stats[row.status] = row.count;
-            total += row.count;
+            const countVal = parseInt(row.count, 10);
+            stats[row.status] = countVal;
+            total += countVal;
         }
 
         const presentCount = (stats['PRESENT'] || 0) + (stats['LATE'] || 0);
-        const uniqueDays = await db
-            .select({ date: attendanceRecords.date })
-            .from(attendanceRecords)
-            .where(and(
-                eq(attendanceRecords.sectionId, sec.sectionId),
-                eq(attendanceRecords.tenantId, tenantId),
-                gte(attendanceRecords.date, startDate),
-                lte(attendanceRecords.date, endDate),
-            ))
-            .groupBy(attendanceRecords.date);
+        
+        const { rows: uniqueDays } = await pool.query(`
+            SELECT date
+            FROM attendance_records
+            WHERE section_id = $1 AND tenant_id = $2 AND date >= $3 AND date <= $4
+            GROUP BY date
+        `, [sec.sectionId, tenantId, startDate, endDate]);
 
         report.push({
             gradeName: sec.gradeName,
             sectionName: sec.sectionName,
-            totalStudents: studentCount.count,
+            totalStudents: parseInt(studentCountRow[0].count, 10),
             workingDays: uniqueDays.length,
             presentCount,
             absentCount: stats['ABSENT'] || 0,
@@ -210,8 +166,6 @@ export async function getAttendanceReport(
 
     return report;
 }
-
-// ─── Student Attendance Detail ───────────────────────────────
 
 export interface StudentAttendanceDetail {
     studentName: string;
@@ -234,34 +188,23 @@ export async function getStudentAttendanceDetail(
     const start = startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
     const end = endDate || new Date().toISOString().split('T')[0];
 
-    const [student] = await db
-        .select({
-            firstName: students.firstName,
-            lastName: students.lastName,
-            gradeName: grades.name,
-            sectionName: sections.name,
-        })
-        .from(students)
-        .innerJoin(grades, eq(students.gradeId, grades.id))
-        .innerJoin(sections, eq(students.sectionId, sections.id))
-        .where(and(eq(students.id, studentId), eq(students.tenantId, tenantId)));
+    const { rows: studentRows } = await pool.query(`
+        SELECT st.first_name AS "firstName", st.last_name AS "lastName", g.name AS "gradeName", s.name AS "sectionName"
+        FROM students st
+        INNER JOIN grades g ON st.grade_id = g.id
+        INNER JOIN sections s ON st.section_id = s.id
+        WHERE st.id = $1 AND st.tenant_id = $2
+    `, [studentId, tenantId]);
 
-    if (!student) return null;
+    if (!studentRows.length) return null;
+    const student = studentRows[0];
 
-    const records = await db
-        .select({
-            date: attendanceRecords.date,
-            status: attendanceRecords.status,
-            remarks: attendanceRecords.remarks,
-        })
-        .from(attendanceRecords)
-        .where(and(
-            eq(attendanceRecords.studentId, studentId),
-            eq(attendanceRecords.tenantId, tenantId),
-            gte(attendanceRecords.date, start),
-            lte(attendanceRecords.date, end),
-        ))
-        .orderBy(sql`${attendanceRecords.date} DESC`);
+    const { rows: records } = await pool.query(`
+        SELECT date, status, remarks
+        FROM attendance_records
+        WHERE student_id = $1 AND tenant_id = $2 AND date >= $3 AND date <= $4
+        ORDER BY date DESC
+    `, [studentId, tenantId, start, end]);
 
     const stats: Record<string, number> = {};
     for (const r of records) {
@@ -278,7 +221,7 @@ export async function getStudentAttendanceDetail(
         absentDays: stats['ABSENT'] || 0,
         lateDays: stats['LATE'] || 0,
         attendanceRate: records.length > 0 ? Math.round((present / records.length) * 100) : 0,
-        recentRecords: records.slice(0, 30).map(r => ({
+        recentRecords: records.slice(0, 30).map((r: any) => ({
             date: r.date,
             status: r.status,
             remarks: r.remarks,
@@ -286,25 +229,15 @@ export async function getStudentAttendanceDetail(
     };
 }
 
-// ─── Absence Notification ────────────────────────────────────
-
 export async function notifyAbsentParents(date?: string): Promise<{ sent: number; failed: number; errors: string[] }> {
     const { tenantId, userId } = await requireAuth('attendance:write');
     const targetDate = date || new Date().toISOString().split('T')[0];
 
-    // Get absent students not yet notified
-    const absentRows = await db
-        .select({
-            recordId: attendanceRecords.id,
-            studentId: attendanceRecords.studentId,
-        })
-        .from(attendanceRecords)
-        .where(and(
-            eq(attendanceRecords.tenantId, tenantId),
-            eq(attendanceRecords.date, targetDate),
-            eq(attendanceRecords.status, 'ABSENT'),
-            eq(attendanceRecords.isNotified, false),
-        ));
+    const { rows: absentRows } = await pool.query(`
+        SELECT id AS "recordId", student_id AS "studentId"
+        FROM attendance_records
+        WHERE tenant_id = $1 AND date = $2 AND status = 'ABSENT' AND is_notified = false
+    `, [tenantId, targetDate]);
 
     if (absentRows.length === 0) return { sent: 0, failed: 0, errors: [] };
 
@@ -316,20 +249,25 @@ export async function notifyAbsentParents(date?: string): Promise<{ sent: number
 
     for (const row of absentRows) {
         try {
-            const [student] = await db
-                .select({ firstName: students.firstName, lastName: students.lastName })
-                .from(students)
-                .where(eq(students.id, row.studentId));
+            const { rows: studentRows } = await pool.query(`
+                SELECT first_name AS "firstName", last_name AS "lastName"
+                FROM students
+                WHERE id = $1
+            `, [row.studentId]);
 
-            const [guardian] = await db
-                .select({ firstName: guardians.firstName, phone: guardians.phone, email: guardians.email })
-                .from(guardians)
-                .where(and(eq(guardians.studentId, row.studentId), eq(guardians.isPrimary, true)));
+            const { rows: guardianRows } = await pool.query(`
+                SELECT first_name AS "firstName", phone, email
+                FROM guardians
+                WHERE student_id = $1 AND is_primary = true
+            `, [row.studentId]);
 
-            if (!guardian) {
+            if (!guardianRows.length || !studentRows.length) {
                 failed++;
                 continue;
             }
+
+            const student = studentRows[0];
+            const guardian = guardianRows[0];
 
             const studentName = `${student.firstName} ${student.lastName}`;
             const dateFormatted = new Date(targetDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
@@ -346,10 +284,11 @@ export async function notifyAbsentParents(date?: string): Promise<{ sent: number
                 });
             }
 
-            // Mark as notified
-            await db.update(attendanceRecords)
-                .set({ isNotified: true })
-                .where(eq(attendanceRecords.id, row.recordId));
+            await pool.query(`
+                UPDATE attendance_records
+                SET is_notified = true
+                WHERE id = $1
+            `, [row.recordId]);
 
             sent++;
         } catch (err: any) {

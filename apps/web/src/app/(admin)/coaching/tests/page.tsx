@@ -1,7 +1,5 @@
-import { db } from '@/lib/db';
-import { testSeries, testSeriesResults, coachingBatches } from '@/lib/db/schema/coaching';
+import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
-import { eq, desc } from 'drizzle-orm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,18 +9,19 @@ export default async function TestSeriesDashboard() {
     if (!session.tenantId) return <div>Unauthorized</div>;
 
     // Fetch tests with their batch mappings
-    const tests = await db
-        .select({
-            id: testSeries.id,
-            testName: testSeries.testName,
-            totalMarks: testSeries.totalMarks,
-            scheduledAt: testSeries.scheduledAt,
-            batchName: coachingBatches.name,
-        })
-        .from(testSeries)
-        .leftJoin(coachingBatches, eq(testSeries.batchId, coachingBatches.id))
-        .where(eq(testSeries.tenantId, session.tenantId))
-        .orderBy(desc(testSeries.scheduledAt));
+    const testsRes = await pool.query(`
+        SELECT 
+            ts.id, 
+            ts.test_name AS "testName", 
+            ts.total_marks AS "totalMarks", 
+            ts.scheduled_at AS "scheduledAt", 
+            cb.name AS "batchName"
+        FROM test_series ts
+        LEFT JOIN coaching_batches cb ON ts.batch_id = cb.id
+        WHERE ts.tenant_id = $1
+        ORDER BY ts.scheduled_at DESC
+    `, [session.tenantId]);
+    const tests = testsRes.rows;
 
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 bg-gray-50/20 min-h-screen">

@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, setTenantContext } from '@/lib/db';
-import { tenants, users, students, grades, sections } from '@/lib/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { pool, } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 
 export const dynamic = "force-dynamic";
@@ -51,12 +49,13 @@ export async function GET(
 
     const { entity } = await params;
     const tenantId = session.tenantId;
-    await setTenantContext(tenantId);
+    await (tenantId);
 
     try {
         switch (entity) {
             case 'orgs': {
-                const orgs = await db.select().from(tenants).where(eq(tenants.id, tenantId));
+                const orgsRes = await pool.query(`SELECT id, is_active AS "isActive", name, code FROM tenants WHERE id = $1`, [tenantId]);
+                const orgs = orgsRes.rows;
                 const result: OneRosterOrg[] = orgs.map(t => ({
                     sourcedId: t.id,
                     status: t.isActive ? 'active' : 'tobedeleted',
@@ -68,8 +67,10 @@ export async function GET(
             }
 
             case 'users': {
-                const allUsers = await db.select().from(users).where(eq(users.tenantId, tenantId));
-                const allStudents = await db.select().from(students).where(eq(students.tenantId, tenantId));
+                const allUsersRes = await pool.query(`SELECT id, is_active AS "isActive", first_name AS "firstName", last_name AS "lastName", email, role FROM users WHERE tenant_id = $1`, [tenantId]);
+                const allUsers = allUsersRes.rows;
+                const allStudentsRes = await pool.query(`SELECT id, status, first_name AS "firstName", last_name AS "lastName" FROM students WHERE tenant_id = $1`, [tenantId]);
+                const allStudents = allStudentsRes.rows;
 
                 const mappedUsers: OneRosterUser[] = allUsers.map(u => ({
                     sourcedId: u.id,
@@ -95,11 +96,8 @@ export async function GET(
             }
 
             case 'classes': {
-                const allSections = await db.select({
-                    id: sections.id,
-                    name: sections.name,
-                    gradeId: sections.gradeId,
-                }).from(sections).where(eq(sections.tenantId, tenantId));
+                const classesRes = await pool.query(`SELECT id, name, grade_id AS "gradeId" FROM sections WHERE tenant_id = $1`, [tenantId]);
+                const allSections = classesRes.rows;
 
                 return NextResponse.json({
                     classes: allSections.map(s => ({
@@ -113,9 +111,8 @@ export async function GET(
             }
 
             case 'courses': {
-                const allGrades = await db.select()
-                    .from(grades)
-                    .where(eq(grades.tenantId, tenantId));
+                const coursesRes = await pool.query(`SELECT id, name FROM grades WHERE tenant_id = $1`, [tenantId]);
+                const allGrades = coursesRes.rows;
 
                 return NextResponse.json({
                     courses: allGrades.map(g => ({

@@ -21,6 +21,10 @@ export const groupPolicies = pgTable('group_policies', {
     id: uuid('id').primaryKey().defaultRandom(),
     groupId: uuid('group_id').references(() => hqGroups.id, { onDelete: 'cascade' }).notNull(),
     policyName: varchar('policy_name', { length: 255 }).notNull(),
+    policyKey: varchar('policy_key', { length: 100 }).notNull(),
+    policyValue: varchar('policy_value', { length: 255 }).notNull(),
+    isHardBlock: boolean('is_hard_block').default(true).notNull(),
     documentUrl: varchar('document_url', { length: 500 }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

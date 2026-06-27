@@ -1,12 +1,12 @@
-# Graph Report - /Users/adityasingh/Personal/School-sis/apps/web/src  (2026-04-20)
+# Graph Report - /Users/adityasingh/PersonalWork/school-sis/apps/web/src  (2026-06-27)
 
 ## Corpus Check
-- 366 files · ~135,397 words
+- 367 files · ~199,119 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 894 nodes · 1119 edges · 221 communities detected
-- Extraction: 60% EXTRACTED · 40% INFERRED · 0% AMBIGUOUS · INFERRED: 443 edges (avg confidence: 0.8)
+- 902 nodes · 1131 edges · 221 communities detected
+- Extraction: 61% EXTRACTED · 39% INFERRED · 0% AMBIGUOUS · INFERRED: 446 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -245,16 +245,16 @@
 10. `tid()` - 12 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `getMessageTemplates()` --calls--> `requireAuth()`  [INFERRED]
-  /Users/adityasingh/Personal/School-sis/apps/web/src/lib/actions/messaging.ts → /Users/adityasingh/Personal/School-sis/apps/web/src/lib/auth/middleware.ts
-- `createMessageTemplate()` --calls--> `requireAuth()`  [INFERRED]
-  /Users/adityasingh/Personal/School-sis/apps/web/src/lib/actions/messaging.ts → /Users/adityasingh/Personal/School-sis/apps/web/src/lib/auth/middleware.ts
-- `sendMessageAction()` --calls--> `requireAuth()`  [INFERRED]
-  /Users/adityasingh/Personal/School-sis/apps/web/src/lib/actions/messaging.ts → /Users/adityasingh/Personal/School-sis/apps/web/src/lib/auth/middleware.ts
-- `registerAlumni()` --calls--> `requireAuth()`  [INFERRED]
-  /Users/adityasingh/Personal/School-sis/apps/web/src/lib/actions/alumni.ts → /Users/adityasingh/Personal/School-sis/apps/web/src/lib/auth/middleware.ts
-- `verifyAlumni()` --calls--> `requireAuth()`  [INFERRED]
-  /Users/adityasingh/Personal/School-sis/apps/web/src/lib/actions/alumni.ts → /Users/adityasingh/Personal/School-sis/apps/web/src/lib/auth/middleware.ts
+- `requireAuth()` --calls--> `getMessageTemplates()`  [INFERRED]
+  /Users/adityasingh/Personal/School-sis/apps/web/src/lib/auth/middleware.ts → /Users/adityasingh/Personal/School-sis/apps/web/src/lib/actions/messaging.ts
+- `requireAuth()` --calls--> `createMessageTemplate()`  [INFERRED]
+  /Users/adityasingh/Personal/School-sis/apps/web/src/lib/auth/middleware.ts → /Users/adityasingh/Personal/School-sis/apps/web/src/lib/actions/messaging.ts
+- `requireAuth()` --calls--> `sendMessageAction()`  [INFERRED]
+  /Users/adityasingh/Personal/School-sis/apps/web/src/lib/auth/middleware.ts → /Users/adityasingh/Personal/School-sis/apps/web/src/lib/actions/messaging.ts
+- `requireAuth()` --calls--> `registerAlumni()`  [INFERRED]
+  /Users/adityasingh/Personal/School-sis/apps/web/src/lib/auth/middleware.ts → /Users/adityasingh/Personal/School-sis/apps/web/src/lib/actions/alumni.ts
+- `requireAuth()` --calls--> `verifyAlumni()`  [INFERRED]
+  /Users/adityasingh/Personal/School-sis/apps/web/src/lib/auth/middleware.ts → /Users/adityasingh/Personal/School-sis/apps/web/src/lib/actions/alumni.ts
 
 ## Communities
 
@@ -263,16 +263,16 @@ Cohesion: 0.02
 Nodes (114): convertLeadToStudent(), createLead(), getAdmissionLeads(), getAdmissionPipelineCounts(), getAdmissionsAnalytics(), getDocumentChecklist(), getLeadById(), getWaitlist() (+106 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.04
-Nodes (63): getAnalyticsSummary(), getClassWiseAttendance(), getClassWiseFees(), getClassWiseSummary(), getDailyAttendance(), getExamClassPerformance(), getFeeCollectionData(), getSubjectPerformance() (+55 more)
+Cohesion: 0.05
+Nodes (61): getAnalyticsSummary(), getClassWiseAttendance(), getClassWiseFees(), getClassWiseSummary(), getDailyAttendance(), getExamClassPerformance(), getFeeCollectionData(), getSubjectPerformance() (+53 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.05
-Nodes (37): logAudit(), loginActionV2(), createCoachingBatch(), formAction(), getDashboardStats(), getRecentActivity(), getTenantInfo(), getDefaulters() (+29 more)
+Cohesion: 0.03
+Nodes (40): logoutAction(), getCashflowForecast(), getActiveBatchesAction(), getCoachingDashboardSummaryAction(), getUniversityCoursesAction(), getUniversityDashboardSummaryAction(), getUniversityProgramsAction(), getHQOverviewAction() (+32 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.04
-Nodes (32): logoutAction(), getCashflowForecast(), getActiveBatchesAction(), getCoachingDashboardSummaryAction(), getUniversityCoursesAction(), getUniversityDashboardSummaryAction(), getUniversityProgramsAction(), getHQOverviewAction() (+24 more)
+Nodes (35): logAudit(), loginActionV2(), createCoachingBatch(), formAction(), getDashboardStats(), getRecentActivity(), getTenantInfo(), getDefaulters() (+27 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.07
@@ -295,12 +295,12 @@ Cohesion: 0.16
 Nodes (7): getSeverityBadge(), getStatusBadge(), getTypeBadge(), handlePush(), handleVerifyAPAAR(), pushToDigiLocker(), verifyAPAARId()
 
 ### Community 9 - "Community 9"
-Cohesion: 0.17
-Nodes (2): MockPaymentProvider, RazorpayProvider
+Cohesion: 0.23
+Nodes (8): decrypt(), encrypt(), encryptEmail(), encryptPhone(), getKey(), activateMFA(), generateMFAEnrollment(), verifyMFACode()
 
 ### Community 10 - "Community 10"
-Cohesion: 0.21
-Nodes (9): TeacherSchedulePage(), TimetablePage(), bulkCreateEntries(), checkConflicts(), createTimetableEntry(), getPeriods(), getSectionsForTimetable(), getSubstitutionSuggestions() (+1 more)
+Cohesion: 0.17
+Nodes (2): MockPaymentProvider, RazorpayProvider
 
 ### Community 11 - "Community 11"
 Cohesion: 0.2
@@ -327,24 +327,24 @@ Cohesion: 0.38
 Nodes (5): generateBulkInvoices(), generateInvoices(), getInvoiceGenerationPreview(), handleGenerate(), handlePreview()
 
 ### Community 17 - "Community 17"
+Cohesion: 0.57
+Nodes (5): deleteFile(), getEndpoint(), getR2Config(), uploadFile(), validateObjectKey()
+
+### Community 18 - "Community 18"
 Cohesion: 0.52
 Nodes (6): calculateLiveRankings(), calculateStatistics(), computeFullRanks(), computeRanks(), computeSectionRanks(), getTopPerformers()
 
-### Community 18 - "Community 18"
+### Community 19 - "Community 19"
 Cohesion: 0.4
 Nodes (2): initializeAndLoad(), loadUsers()
 
-### Community 19 - "Community 19"
+### Community 20 - "Community 20"
 Cohesion: 0.4
 Nodes (2): getDashboardType(), isAdminRole()
 
-### Community 20 - "Community 20"
+### Community 21 - "Community 21"
 Cohesion: 0.4
 Nodes (4): getDocumentStats(), getStudentDocuments(), verifyDocument(), DocumentsPage()
-
-### Community 21 - "Community 21"
-Cohesion: 0.6
-Nodes (4): deleteFile(), getEndpoint(), getR2Config(), uploadFile()
 
 ### Community 22 - "Community 22"
 Cohesion: 0.5
@@ -1517,12 +1517,12 @@ Nodes (0):
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `requireAuth()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 5`, `Community 6`, `Community 7`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 15`, `Community 16`, `Community 17`, `Community 20`, `Community 22`?**
-  _High betweenness centrality (0.288) - this node is a cross-community bridge._
-- **Why does `getSession()` connect `Community 3` to `Community 0`, `Community 1`, `Community 2`, `Community 4`, `Community 5`, `Community 10`, `Community 11`?**
-  _High betweenness centrality (0.116) - this node is a cross-community bridge._
-- **Why does `Error()` connect `Community 2` to `Community 1`, `Community 3`, `Community 4`, `Community 5`?**
-  _High betweenness centrality (0.069) - this node is a cross-community bridge._
+- **Why does `requireAuth()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 5`, `Community 6`, `Community 7`, `Community 11`, `Community 12`, `Community 13`, `Community 15`, `Community 16`, `Community 18`, `Community 21`, `Community 22`?**
+  _High betweenness centrality (0.287) - this node is a cross-community bridge._
+- **Why does `getSession()` connect `Community 2` to `Community 0`, `Community 1`, `Community 3`, `Community 4`, `Community 5`, `Community 11`?**
+  _High betweenness centrality (0.115) - this node is a cross-community bridge._
+- **Why does `Error()` connect `Community 3` to `Community 9`, `Community 4`, `Community 5`, `Community 1`?**
+  _High betweenness centrality (0.078) - this node is a cross-community bridge._
 - **Are the 175 inferred relationships involving `requireAuth()` (e.g. with `LibraryHistoryPage()` and `AuditPage()`) actually correct?**
   _`requireAuth()` has 175 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 57 inferred relationships involving `setTenantContext()` (e.g. with `SettingsPage()` and `BroadcastsPage()`) actually correct?**

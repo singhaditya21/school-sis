@@ -7,9 +7,7 @@
  * Tracks reminder history for audit purposes.
  */
 
-import { db } from '@/lib/db';
-import { invoices, students, guardians, auditLogs } from '@/lib/db/schema';
-import { eq, and, lt, ne } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getSmsProvider } from '@/lib/providers/sms';
 import { getEmailProvider } from '@/lib/providers/email';
@@ -55,10 +53,10 @@ export async function sendFeeReminders(
     for (const studentId of studentIds) {
         try {
             // Get student info
-            const [student] = await db
-                .select({ firstName: students.firstName, lastName: students.lastName })
-                .from(students)
-                .where(and(eq(students.id, studentId), eq(students.tenantId, tenantId)));
+            const { rows: [student] } = await pool.query(
+                `SELECT first_name AS "firstName", last_name AS "lastName" FROM students WHERE id = $1 AND tenant_id = $2`,
+                [studentId, tenantId]
+            );
 
             if (!student) {
                 failed++;
@@ -67,20 +65,13 @@ export async function sendFeeReminders(
             }
 
             // Get overdue invoice total
-            const overdueInvoices = await db
-                .select({
-                    totalAmount: invoices.totalAmount,
-                    paidAmount: invoices.paidAmount,
-                })
-                .from(invoices)
-                .where(and(
-                    eq(invoices.tenantId, tenantId),
-                    eq(invoices.studentId, studentId),
-                    lt(invoices.dueDate, todayStr),
-                    ne(invoices.status, 'PAID'),
-                    ne(invoices.status, 'CANCELLED'),
-                    ne(invoices.status, 'WAIVED'),
-                ));
+            const { rows: overdueInvoices } = await pool.query(
+                `SELECT total_amount AS "totalAmount", paid_amount AS "paidAmount" 
+                 FROM invoices 
+                 WHERE tenant_id = $1 AND student_id = $2 AND due_date < $3 
+                 AND status NOT IN ('PAID', 'CANCELLED', 'WAIVED')`,
+                [tenantId, studentId, todayStr]
+            );
 
             if (overdueInvoices.length === 0) {
                 continue; // No overdue invoices for this student
@@ -92,19 +83,12 @@ export async function sendFeeReminders(
             );
 
             // Get primary guardian contact
-            const [guardian] = await db
-                .select({
-                    firstName: guardians.firstName,
-                    lastName: guardians.lastName,
-                    phone: guardians.phone,
-                    email: guardians.email,
-                })
-                .from(guardians)
-                .where(and(
-                    eq(guardians.studentId, studentId),
-                    eq(guardians.tenantId, tenantId),
-                    eq(guardians.isPrimary, true),
-                ));
+            const { rows: [guardian] } = await pool.query(
+                `SELECT first_name AS "firstName", last_name AS "lastName", phone, email 
+                 FROM guardians 
+                 WHERE student_id = $1 AND tenant_id = $2 AND is_primary = true`,
+                [studentId, tenantId]
+            );
 
             if (!guardian) {
                 failed++;
@@ -155,15 +139,11 @@ export async function sendFeeReminders(
             sent++;
 
             // Log the reminder
-            await db.insert(auditLogs).values({
-                id: randomUUID(),
-                tenantId,
-                userId,
-                action: 'UPDATE',
-                entityType: 'students',
-                entityId: studentId,
-                afterState: { channel, totalDue, invoiceCount: overdueInvoices.length },
-            });
+            await pool.query(
+                `INSERT INTO audit_logs (id, tenant_id, user_id, action, entity_type, entity_id, after_state)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                [randomUUID(), tenantId, userId, 'UPDATE', 'students', studentId, JSON.stringify({ channel, totalDue, invoiceCount: overdueInvoices.length })]
+            );
         } catch (err: any) {
             failed++;
             errors.push(`Error for ${studentId}: ${err.message}`);
@@ -181,21 +161,12 @@ export async function getReminderPreview(): Promise<ReminderPreview[]> {
     const today = new Date();
 
     // Get overdue invoices grouped by student
-    const overdueRows = await db
-        .select({
-            studentId: invoices.studentId,
-            totalAmount: invoices.totalAmount,
-            paidAmount: invoices.paidAmount,
-            dueDate: invoices.dueDate,
-        })
-        .from(invoices)
-        .where(and(
-            eq(invoices.tenantId, tenantId),
-            lt(invoices.dueDate, todayStr),
-            ne(invoices.status, 'PAID'),
-            ne(invoices.status, 'CANCELLED'),
-            ne(invoices.status, 'WAIVED'),
-        ));
+    const { rows: overdueRows } = await pool.query(
+        `SELECT student_id AS "studentId", total_amount AS "totalAmount", paid_amount AS "paidAmount", due_date AS "dueDate"
+         FROM invoices
+         WHERE tenant_id = $1 AND due_date < $2 AND status NOT IN ('PAID', 'CANCELLED', 'WAIVED')`,
+        [tenantId, todayStr]
+    );
 
     if (overdueRows.length === 0) return [];
 
@@ -218,23 +189,17 @@ export async function getReminderPreview(): Promise<ReminderPreview[]> {
     const previews: ReminderPreview[] = [];
 
     for (const [studentId, data] of studentMap) {
-        const [student] = await db
-            .select({ firstName: students.firstName, lastName: students.lastName })
-            .from(students)
-            .where(eq(students.id, studentId));
+        const { rows: [student] } = await pool.query(
+            `SELECT first_name AS "firstName", last_name AS "lastName" FROM students WHERE id = $1`,
+            [studentId]
+        );
 
-        const [guardian] = await db
-            .select({
-                firstName: guardians.firstName,
-                lastName: guardians.lastName,
-                phone: guardians.phone,
-                email: guardians.email,
-            })
-            .from(guardians)
-            .where(and(
-                eq(guardians.studentId, studentId),
-                eq(guardians.isPrimary, true),
-            ));
+        const { rows: [guardian] } = await pool.query(
+            `SELECT first_name AS "firstName", last_name AS "lastName", phone, email 
+             FROM guardians 
+             WHERE student_id = $1 AND is_primary = true`,
+            [studentId]
+        );
 
         if (student) {
             previews.push({
@@ -253,3 +218,4 @@ export async function getReminderPreview(): Promise<ReminderPreview[]> {
     previews.sort((a, b) => b.totalDue - a.totalDue);
     return previews;
 }
+

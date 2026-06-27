@@ -12,7 +12,7 @@
  */
 
 import crypto from 'crypto';
-import { db, setTenantContext } from '@/lib/db';
+import { db, } from '@/lib/db';
 import { students, guardians, users, healthRecords, consentRecords } from '@/lib/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 
@@ -90,7 +90,7 @@ export async function anonymizeStudent(
     tenantId: string,
     studentId: string,
 ): Promise<ErasureResult> {
-    await setTenantContext(tenantId);
+    await (tenantId);
 
     const anonymizedName = `REDACTED_${studentId.slice(-8)}`;
     const tablesAnonymized: string[] = [];
@@ -175,7 +175,7 @@ export async function exportStudentData(
     tenantId: string,
     studentId: string,
 ): Promise<PortabilityExport> {
-    await setTenantContext(tenantId);
+    await (tenantId);
 
     // Fetch all student data across tables
     const [studentData] = await db.select()
@@ -235,7 +235,7 @@ export async function verifyConsent(
     userId: string,
     purpose: string,
 ): Promise<boolean> {
-    await setTenantContext(tenantId);
+    await (tenantId);
 
     const result = await db.execute(sql`
         SELECT id FROM consent_records
@@ -259,7 +259,7 @@ export async function recordConsent(
     purpose: string,
     ipAddress: string,
 ): Promise<void> {
-    await setTenantContext(tenantId);
+    await (tenantId);
 
     await db.execute(sql`
         INSERT INTO consent_records (tenant_id, user_id, purpose, is_active, consented_at, ip_address, created_at)

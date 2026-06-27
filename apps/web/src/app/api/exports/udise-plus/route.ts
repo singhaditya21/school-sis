@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, setTenantContext } from '@/lib/db';
-import { tenants, students, grades, sections, users } from '@/lib/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { pool, } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 
 export const dynamic = "force-dynamic";
@@ -22,17 +20,20 @@ export async function GET(request: NextRequest) {
     }
 
     const tenantId = session.tenantId;
-    await setTenantContext(tenantId);
+    await (tenantId);
 
     try {
         // Get school info
-        const [school] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+        const { rows: [school] } = await pool.query(
+            `SELECT *, udise_code AS "udiseCode", affiliation_board AS "affiliationBoard" FROM tenants WHERE id = $1 LIMIT 1`,
+            [tenantId]
+        );
         if (!school) {
             return NextResponse.json({ error: 'School not found' }, { status: 404 });
         }
 
         // Get student counts by grade and gender
-        const studentData = await db.execute(sql`
+        const { rows: studentData } = await pool.query(`
             SELECT
                 g.name AS grade_name,
                 g.numeric_value AS grade_number,
@@ -44,19 +45,19 @@ export async function GET(request: NextRequest) {
                 COUNT(*) FILTER (WHERE s.category = 'GENERAL') AS general_count,
                 COUNT(*) AS total
             FROM students s
-            JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = ${tenantId}
-            JOIN grades g ON g.id = sec.grade_id AND g.tenant_id = ${tenantId}
-            WHERE s.tenant_id = ${tenantId} AND s.status = 'ACTIVE'
+            JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = $1
+            JOIN grades g ON g.id = sec.grade_id AND g.tenant_id = $1
+            WHERE s.tenant_id = $1 AND s.status = 'ACTIVE'
             GROUP BY g.name, g.numeric_value, g.display_order
             ORDER BY g.display_order ASC
-        `);
+        `, [tenantId]);
 
         // Get teacher count
-        const [teacherData] = await db.execute(sql`
+        const { rows: [teacherData] } = await pool.query(`
             SELECT COUNT(*) AS total_teachers
             FROM users
-            WHERE tenant_id = ${tenantId} AND role = 'TEACHER' AND is_active = true
-        `);
+            WHERE tenant_id = $1 AND role = 'TEACHER' AND is_active = true
+        `, [tenantId]);
 
         // Build CSV
         const rows: string[] = [];

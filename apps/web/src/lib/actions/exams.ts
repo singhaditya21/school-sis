@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { exams, examSchedules, studentResults, academicYears, grades, subjects, students, sections } from '@/lib/db/schema';
-import { eq, and, count, asc, desc, sql, avg } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 import { redirect } from 'next/navigation';
@@ -34,86 +32,91 @@ export interface ExamScheduleItem {
 export async function getExams(): Promise<ExamListItem[]> {
     const { tenantId } = await requireAuth('exams:read');
 
-    const rows = await db
-        .select({
-            id: exams.id,
-            name: exams.name,
-            type: exams.type,
-            startDate: exams.startDate,
-            endDate: exams.endDate,
-            description: exams.description,
-            academicYearName: academicYears.name,
-        })
-        .from(exams)
-        .innerJoin(academicYears, eq(exams.academicYearId, academicYears.id))
-        .where(eq(exams.tenantId, tenantId))
-        .orderBy(desc(exams.startDate));
+    const { rows } = await pool.query(`
+        SELECT 
+            e.id, 
+            e.name, 
+            e.type, 
+            e.start_date AS "startDate", 
+            e.end_date AS "endDate", 
+            e.description, 
+            ay.name AS "academicYearName"
+        FROM exams e
+        INNER JOIN academic_years ay ON e.academic_year_id = ay.id
+        WHERE e.tenant_id = $1
+        ORDER BY e.start_date DESC
+    `, [tenantId]);
 
     const result: ExamListItem[] = [];
     for (const exam of rows) {
-        const [schedCount] = await db
-            .select({ count: count() })
-            .from(examSchedules)
-            .where(eq(examSchedules.examId, exam.id));
+        const schedCountRes = await pool.query(`
+            SELECT COUNT(*) AS count
+            FROM exam_schedules
+            WHERE exam_id = $1
+        `, [exam.id]);
 
-        result.push({ ...exam, scheduleCount: schedCount.count });
+        result.push({ ...exam, scheduleCount: parseInt(schedCountRes.rows[0].count, 10) });
     }
 
     return result;
 }
 
 export async function getExamSchedules(examId: string): Promise<ExamScheduleItem[]> {
-    await requireAuth('exams:read');
+    const { tenantId } = await requireAuth('exams:read');
 
-    const rows = await db
-        .select({
-            id: examSchedules.id,
-            gradeName: grades.name,
-            subjectName: subjects.name,
-            examDate: examSchedules.examDate,
-            startTime: examSchedules.startTime,
-            endTime: examSchedules.endTime,
-            maxMarks: examSchedules.maxMarks,
-            passingMarks: examSchedules.passingMarks,
-            roomNumber: examSchedules.roomNumber,
-        })
-        .from(examSchedules)
-        .innerJoin(grades, eq(examSchedules.gradeId, grades.id))
-        .innerJoin(subjects, eq(examSchedules.subjectId, subjects.id))
-        .where(eq(examSchedules.examId, examId))
-        .orderBy(asc(examSchedules.examDate), asc(grades.displayOrder));
+    const { rows } = await pool.query(`
+        SELECT 
+            es.id,
+            g.name AS "gradeName",
+            s.name AS "subjectName",
+            es.exam_date AS "examDate",
+            es.start_time AS "startTime",
+            es.end_time AS "endTime",
+            es.max_marks AS "maxMarks",
+            es.passing_marks AS "passingMarks",
+            es.room_number AS "roomNumber"
+        FROM exam_schedules es
+        INNER JOIN exams e ON es.exam_id = e.id
+        INNER JOIN grades g ON es.grade_id = g.id
+        INNER JOIN subjects s ON es.subject_id = s.id
+        WHERE es.exam_id = $1 AND e.tenant_id = $2
+        ORDER BY es.exam_date ASC, g.display_order ASC
+    `, [examId, tenantId]);
 
     const result: ExamScheduleItem[] = [];
     for (const sched of rows) {
-        const [resultCount] = await db
-            .select({ count: count() })
-            .from(studentResults)
-            .where(eq(studentResults.examScheduleId, sched.id));
+        const resultCountRes = await pool.query(`
+            SELECT COUNT(*) AS count
+            FROM student_results
+            WHERE exam_schedule_id = $1
+        `, [sched.id]);
 
-        result.push({ ...sched, resultCount: resultCount.count });
+        result.push({ ...sched, resultCount: parseInt(resultCountRes.rows[0].count, 10) });
     }
 
     return result;
 }
 
 export async function getExamResults(examScheduleId: string) {
-    await requireAuth('exams:read');
+    const { tenantId } = await requireAuth('exams:read');
 
-    return db
-        .select({
-            id: studentResults.id,
-            studentFirstName: students.firstName,
-            studentLastName: students.lastName,
-            admissionNumber: students.admissionNumber,
-            marksObtained: studentResults.marksObtained,
-            grade: studentResults.grade,
-            remarks: studentResults.remarks,
-            isAbsent: studentResults.isAbsent,
-        })
-        .from(studentResults)
-        .innerJoin(students, eq(studentResults.studentId, students.id))
-        .where(eq(studentResults.examScheduleId, examScheduleId))
-        .orderBy(asc(students.firstName));
+    const { rows } = await pool.query(`
+        SELECT 
+            sr.id,
+            s.first_name AS "studentFirstName",
+            s.last_name AS "studentLastName",
+            s.admission_number AS "admissionNumber",
+            sr.marks_obtained AS "marksObtained",
+            sr.grade,
+            sr.remarks,
+            sr.is_absent AS "isAbsent"
+        FROM student_results sr
+        INNER JOIN students s ON sr.student_id = s.id
+        WHERE sr.exam_schedule_id = $1 AND sr.tenant_id = $2
+        ORDER BY s.first_name ASC
+    `, [examScheduleId, tenantId]);
+
+    return rows;
 }
 
 // ─── Create Exam ─────────────────────────────────────────────
@@ -133,16 +136,11 @@ export async function createExam(formData: FormData): Promise<void> {
     }
 
     const examId = randomUUID();
-    await db.insert(exams).values({
-        id: examId,
-        tenantId,
-        academicYearId,
-        name,
-        type: type as any,
-        startDate,
-        endDate,
-        description,
-    });
+    await pool.query(`
+        INSERT INTO exams (
+            id, tenant_id, academic_year_id, name, type, start_date, end_date, description
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [examId, tenantId, academicYearId, name, type, startDate, endDate, description]);
 
     redirect(`/exams/${examId}`);
 }
@@ -160,20 +158,51 @@ export async function addExamSchedule(data: {
     passingMarks: number;
     roomNumber?: string;
 }) {
-    await requireAuth('exams:write');
+    const { tenantId } = await requireAuth('exams:write');
 
-    await db.insert(examSchedules).values({
-        id: randomUUID(),
-        examId: data.examId,
-        gradeId: data.gradeId,
-        subjectId: data.subjectId,
-        examDate: data.examDate,
-        startTime: data.startTime,
-        endTime: data.endTime,
-        maxMarks: String(data.maxMarks),
-        passingMarks: String(data.passingMarks),
-        roomNumber: data.roomNumber,
-    });
+    // Verify exam belongs to tenant
+    const examCheck = await pool.query(
+        `SELECT id FROM exams WHERE id = $1 AND tenant_id = $2`,
+        [data.examId, tenantId]
+    );
+    if (examCheck.rows.length === 0) {
+        throw new Error('Exam not found or unauthorized');
+    }
+
+    // Verify grade belongs to tenant
+    const gradeCheck = await pool.query(
+        `SELECT id FROM grades WHERE id = $1 AND tenant_id = $2`,
+        [data.gradeId, tenantId]
+    );
+    if (gradeCheck.rows.length === 0) {
+        throw new Error('Grade not found or unauthorized');
+    }
+
+    // Verify subject belongs to tenant
+    const subjectCheck = await pool.query(
+        `SELECT id FROM subjects WHERE id = $1 AND tenant_id = $2`,
+        [data.subjectId, tenantId]
+    );
+    if (subjectCheck.rows.length === 0) {
+        throw new Error('Subject not found or unauthorized');
+    }
+
+    await pool.query(`
+        INSERT INTO exam_schedules (
+            id, exam_id, grade_id, subject_id, exam_date, start_time, end_time, max_marks, passing_marks, room_number
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `, [
+        randomUUID(),
+        data.examId,
+        data.gradeId,
+        data.subjectId,
+        data.examDate,
+        data.startTime,
+        data.endTime,
+        String(data.maxMarks),
+        String(data.passingMarks),
+        data.roomNumber || null
+    ]);
 
     return { success: true };
 }
@@ -196,12 +225,18 @@ export async function saveMarks(
 ) {
     const { tenantId, userId } = await requireAuth('exams:write');
 
-    // Get max marks for this schedule
-    const [schedule] = await db
-        .select({ maxMarks: examSchedules.maxMarks })
-        .from(examSchedules)
-        .where(eq(examSchedules.id, examScheduleId));
-
+    // Verify schedule belongs to tenant via its exam
+    const scheduleRes = await pool.query(`
+        SELECT es.max_marks AS "maxMarks"
+        FROM exam_schedules es
+        INNER JOIN exams e ON es.exam_id = e.id
+        WHERE es.id = $1 AND e.tenant_id = $2
+    `, [examScheduleId, tenantId]);
+    
+    const schedule = scheduleRes.rows[0];
+    if (!schedule) {
+        throw new Error('Exam schedule not found or unauthorized');
+    }
     const maxMarks = Number(schedule?.maxMarks || 100);
 
     for (const entry of marks) {
@@ -209,37 +244,49 @@ export async function saveMarks(
         const grade = entry.isAbsent ? 'AB' : calculateGrade(percentage);
 
         // Check if result already exists
-        const [existing] = await db
-            .select({ id: studentResults.id })
-            .from(studentResults)
-            .where(and(
-                eq(studentResults.examScheduleId, examScheduleId),
-                eq(studentResults.studentId, entry.studentId),
-            ));
+        const existingRes = await pool.query(`
+            SELECT id
+            FROM student_results
+            WHERE exam_schedule_id = $1 AND student_id = $2 AND tenant_id = $3
+        `, [examScheduleId, entry.studentId, tenantId]);
+
+        const existing = existingRes.rows[0];
 
         if (existing) {
-            await db.update(studentResults)
-                .set({
-                    marksObtained: entry.marksObtained !== null ? String(entry.marksObtained) : null,
-                    grade,
-                    isAbsent: entry.isAbsent,
-                    remarks: entry.remarks,
-                    enteredBy: userId,
-                    updatedAt: new Date(),
-                })
-                .where(eq(studentResults.id, existing.id));
+            await pool.query(`
+                UPDATE student_results
+                SET marks_obtained = $1,
+                    grade = $2,
+                    is_absent = $3,
+                    remarks = $4,
+                    entered_by = $5,
+                    updated_at = NOW()
+                WHERE id = $6 AND tenant_id = $7
+            `, [
+                entry.marksObtained !== null ? String(entry.marksObtained) : null,
+                grade,
+                entry.isAbsent,
+                entry.remarks || null,
+                userId,
+                existing.id,
+                tenantId
+            ]);
         } else {
-            await db.insert(studentResults).values({
-                id: randomUUID(),
+            await pool.query(`
+                INSERT INTO student_results (
+                    id, tenant_id, exam_schedule_id, student_id, marks_obtained, grade, is_absent, remarks, entered_by
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            `, [
+                randomUUID(),
                 tenantId,
                 examScheduleId,
-                studentId: entry.studentId,
-                marksObtained: entry.marksObtained !== null ? String(entry.marksObtained) : null,
+                entry.studentId,
+                entry.marksObtained !== null ? String(entry.marksObtained) : null,
                 grade,
-                isAbsent: entry.isAbsent,
-                remarks: entry.remarks,
-                enteredBy: userId,
-            });
+                entry.isAbsent,
+                entry.remarks || null,
+                userId
+            ]);
         }
     }
 
@@ -270,25 +317,29 @@ export interface ExamAnalytics {
 export async function getExamAnalytics(examId: string): Promise<ExamAnalytics | null> {
     const { tenantId } = await requireAuth('exams:read');
 
-    const [exam] = await db
-        .select({ name: exams.name })
-        .from(exams)
-        .where(and(eq(exams.id, examId), eq(exams.tenantId, tenantId)));
+    const examRes = await pool.query(`
+        SELECT name
+        FROM exams
+        WHERE id = $1 AND tenant_id = $2
+    `, [examId, tenantId]);
 
+    const exam = examRes.rows[0];
     if (!exam) return null;
 
-    const schedules = await db
-        .select({
-            id: examSchedules.id,
-            gradeName: grades.name,
-            subjectName: subjects.name,
-            maxMarks: examSchedules.maxMarks,
-            passingMarks: examSchedules.passingMarks,
-        })
-        .from(examSchedules)
-        .innerJoin(grades, eq(examSchedules.gradeId, grades.id))
-        .innerJoin(subjects, eq(examSchedules.subjectId, subjects.id))
-        .where(eq(examSchedules.examId, examId));
+    const schedulesRes = await pool.query(`
+        SELECT 
+            es.id,
+            g.name AS "gradeName",
+            s.name AS "subjectName",
+            es.max_marks AS "maxMarks",
+            es.passing_marks AS "passingMarks"
+        FROM exam_schedules es
+        INNER JOIN grades g ON es.grade_id = g.id
+        INNER JOIN subjects s ON es.subject_id = s.id
+        WHERE es.exam_id = $1
+    `, [examId]);
+    
+    const schedules = schedulesRes.rows;
 
     let totalStudents = 0;
     let appeared = 0;
@@ -297,13 +348,15 @@ export async function getExamAnalytics(examId: string): Promise<ExamAnalytics | 
     const subjectBreakdown: ExamAnalytics['subjectBreakdown'] = [];
 
     for (const sched of schedules) {
-        const results = await db
-            .select({
-                marksObtained: studentResults.marksObtained,
-                isAbsent: studentResults.isAbsent,
-            })
-            .from(studentResults)
-            .where(eq(studentResults.examScheduleId, sched.id));
+        const resultsRes = await pool.query(`
+            SELECT 
+                marks_obtained AS "marksObtained",
+                is_absent AS "isAbsent"
+            FROM student_results
+            WHERE exam_schedule_id = $1
+        `, [sched.id]);
+        
+        const results = resultsRes.rows;
 
         totalStudents += results.length;
         const schedAppeared = results.filter(r => !r.isAbsent);
@@ -345,3 +398,125 @@ export async function getExamAnalytics(examId: string): Promise<ExamAnalytics | 
     };
 }
 
+export async function getAdvancedGradebook(subjectId: string, gradeId: string) {
+    let auth;
+    try {
+        auth = await requireAuth('exams:read');
+    } catch {
+        auth = await requireAuth('gradebook:read');
+    }
+    const { tenantId } = auth;
+
+    // Verify grade belongs to tenant
+    const gradeCheck = await pool.query(
+        `SELECT id FROM grades WHERE id = $1 AND tenant_id = $2`,
+        [gradeId, tenantId]
+    );
+    if (gradeCheck.rows.length === 0) {
+        throw new Error('Grade not found or unauthorized');
+    }
+
+    // Verify subject belongs to tenant
+    const subjectCheck = await pool.query(
+        `SELECT id FROM subjects WHERE id = $1 AND tenant_id = $2`,
+        [subjectId, tenantId]
+    );
+    if (subjectCheck.rows.length === 0) {
+        throw new Error('Subject not found or unauthorized');
+    }
+
+    // 1. Get all students in the grade
+    const classStudentsRes = await pool.query(`
+        SELECT 
+            id,
+            first_name AS "firstName",
+            last_name AS "lastName",
+            admission_number AS "admissionNumber"
+        FROM students
+        WHERE grade_id = $1 AND tenant_id = $2
+    `, [gradeId, tenantId]);
+    const classStudents = classStudentsRes.rows;
+
+    // 2. Get all exam schedules for this subject and grade
+    const schedulesRes = await pool.query(`
+        SELECT 
+            es.id,
+            e.name AS "examName",
+            e.type AS "examType",
+            es.max_marks AS "maxMarks"
+        FROM exam_schedules es
+        INNER JOIN exams e ON es.exam_id = e.id
+        WHERE es.subject_id = $1 AND es.grade_id = $2 AND e.tenant_id = $3
+    `, [subjectId, gradeId, tenantId]);
+    const schedules = schedulesRes.rows;
+
+    // 3. Get all results for these schedules
+    const resultsByStudent: Record<string, Record<string, number>> = {};
+    for (const s of classStudents) {
+        resultsByStudent[s.id] = {};
+    }
+
+    for (const sched of schedules) {
+        const schedResultsRes = await pool.query(`
+            SELECT 
+                student_id AS "studentId",
+                marks_obtained AS "marksObtained"
+            FROM student_results
+            WHERE exam_schedule_id = $1 AND tenant_id = $2
+        `, [sched.id, tenantId]);
+        
+        for (const r of schedResultsRes.rows) {
+            if (resultsByStudent[r.studentId]) {
+                resultsByStudent[r.studentId][sched.id] = Number(r.marksObtained || 0);
+            }
+        }
+    }
+
+    // 4. Compute totals, average, standard deviation
+    const rows = classStudents.map(student => {
+        let total = 0;
+        const examScores: Record<string, number> = {};
+        for (const sched of schedules) {
+            const score = resultsByStudent[student.id]?.[sched.id] || 0;
+            examScores[sched.examType] = score; // Map by examType for simplicity in UI
+            total += score;
+        }
+        return {
+            student,
+            examScores,
+            total,
+            absoluteGrade: calculateGrade((total / (schedules.reduce((acc, s) => acc + Number(s.maxMarks), 0) || 100)) * 100),
+            zScore: 0,
+            relativeGrade: '',
+        };
+    });
+
+    const totals = rows.map(r => r.total);
+    const average = totals.length > 0 ? totals.reduce((a, b) => a + b, 0) / totals.length : 0;
+    const variance = totals.length > 0 ? totals.reduce((a, b) => a + Math.pow(b - average, 2), 0) / totals.length : 0;
+    const stdDev = Math.sqrt(variance);
+
+    for (const row of rows) {
+        row.zScore = stdDev > 0 ? Math.round(((row.total - average) / stdDev) * 100) / 100 : 0;
+        row.relativeGrade = getRelativeGrade(row.zScore);
+    }
+
+    return {
+        schedules,
+        rows,
+        stats: {
+            average: Math.round(average * 10) / 10,
+            stdDev: Math.round(stdDev * 10) / 10,
+            highest: totals.length > 0 ? Math.max(...totals) : 0,
+            failing: rows.filter(r => r.absoluteGrade === 'F' || r.absoluteGrade === 'D').length,
+        }
+    };
+}
+
+function getRelativeGrade(z: number): string {
+    if (z >= 1.5) return 'A+';
+    if (z >= 0.5) return 'A';
+    if (z >= -0.5) return 'B';
+    if (z >= -1.5) return 'C';
+    return 'D';
+}

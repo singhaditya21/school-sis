@@ -7,9 +7,7 @@
  * Supports both individual student invoices and bulk class-wide generation.
  */
 
-import { db } from '@/lib/db';
-import { invoices, feePlans, feeComponents, students, grades, sections, concessions } from '@/lib/db/schema';
-import { eq, and, count, inArray } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 
@@ -43,26 +41,23 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
     const { tenantId, userId } = await requireAuth('fees:write');
 
     // Validate fee plan
-    const [plan] = await db
-        .select({ id: feePlans.id, name: feePlans.name })
-        .from(feePlans)
-        .where(and(eq(feePlans.id, options.feePlanId), eq(feePlans.tenantId, tenantId)));
+    const { rows: planRows } = await pool.query(`
+        SELECT id, name
+        FROM fee_plans
+        WHERE id = $1 AND tenant_id = $2
+    `, [options.feePlanId, tenantId]);
+    const plan = planRows[0];
 
     if (!plan) {
         return { success: false, generated: 0, skipped: 0, errors: ['Fee plan not found'] };
     }
 
     // Get fee components for this plan
-    const components = await db
-        .select({
-            id: feeComponents.id,
-            name: feeComponents.name,
-            amount: feeComponents.amount,
-            frequency: feeComponents.frequency,
-            isOptional: feeComponents.isOptional,
-        })
-        .from(feeComponents)
-        .where(eq(feeComponents.feePlanId, plan.id));
+    const { rows: components } = await pool.query(`
+        SELECT id, name, amount, frequency, is_optional AS "isOptional"
+        FROM fee_components
+        WHERE fee_plan_id = $1
+    `, [plan.id]);
 
     if (components.length === 0) {
         return { success: false, generated: 0, skipped: 0, errors: ['Fee plan has no components'] };
@@ -79,10 +74,12 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
     for (const studentId of options.studentIds) {
         try {
             // Verify student belongs to tenant
-            const [student] = await db
-                .select({ id: students.id, firstName: students.firstName, lastName: students.lastName })
-                .from(students)
-                .where(and(eq(students.id, studentId), eq(students.tenantId, tenantId)));
+            const { rows: studentRows } = await pool.query(`
+                SELECT id, first_name AS "firstName", last_name AS "lastName"
+                FROM students
+                WHERE id = $1 AND tenant_id = $2
+            `, [studentId, tenantId]);
+            const student = studentRows[0];
 
             if (!student) {
                 skipped++;
@@ -91,14 +88,11 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
             }
 
             // Check for concessions
-            const studentConcessions = await db
-                .select({ type: concessions.type, value: concessions.value })
-                .from(concessions)
-                .where(and(
-                    eq(concessions.studentId, studentId),
-                    eq(concessions.feePlanId, plan.id),
-                    eq(concessions.isActive, true),
-                ));
+            const { rows: studentConcessions } = await pool.query(`
+                SELECT type, value
+                FROM concessions
+                WHERE student_id = $1 AND fee_plan_id = $2 AND is_active = true
+            `, [studentId, plan.id]);
 
             // Apply concession
             let finalAmount = totalAmount;
@@ -124,19 +118,18 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
                 }))
             );
 
-            await db.insert(invoices).values({
-                id: randomUUID(),
-                tenantId,
-                studentId,
-                feePlanId: plan.id,
-                invoiceNumber,
-                totalAmount: String(finalAmount),
-                paidAmount: '0',
-                dueDate: options.dueDate,
-                status: 'PENDING',
-                description: options.description || `${plan.name} - Invoice`,
-                lineItems,
-            });
+            await pool.query(`
+                INSERT INTO invoices (
+                    id, tenant_id, student_id, fee_plan_id, invoice_number,
+                    total_amount, paid_amount, due_date, status, description, line_items
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+                )
+            `, [
+                randomUUID(), tenantId, studentId, plan.id, invoiceNumber,
+                String(finalAmount), '0', options.dueDate, 'PENDING',
+                options.description || `${plan.name} - Invoice`, lineItems
+            ]);
 
             generated++;
         } catch (err: any) {
@@ -153,29 +146,29 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
 export async function generateBulkInvoices(options: BulkGenerateOptions): Promise<GenerationResult> {
     const { tenantId } = await requireAuth('fees:write');
 
-    // Find all active students matching the criteria
-    const conditions = [
-        eq(students.tenantId, tenantId),
-        eq(students.status, 'ACTIVE' as any),
-    ];
+    let query = `
+        SELECT id 
+        FROM students
+        WHERE tenant_id = $1 AND status = 'ACTIVE'
+    `;
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
 
     if (options.gradeId) {
-        conditions.push(eq(students.gradeId, options.gradeId));
+        query += ` AND grade_id = $${paramIndex++}`;
+        params.push(options.gradeId);
     }
     if (options.sectionId) {
-        conditions.push(eq(students.sectionId, options.sectionId));
+        query += ` AND section_id = $${paramIndex++}`;
+        params.push(options.sectionId);
     }
 
-    const studentRows = await db
-        .select({ id: students.id })
-        .from(students)
-        .where(and(...conditions));
+    const { rows: studentRows } = await pool.query(query, params);
 
     if (studentRows.length === 0) {
         return { success: false, generated: 0, skipped: 0, errors: ['No matching students found'] };
     }
 
-    // Delegate to the individual generator
     return generateInvoices({
         feePlanId: options.feePlanId,
         studentIds: studentRows.map(s => s.id),
@@ -201,48 +194,53 @@ export async function getInvoiceGenerationPreview(
 ): Promise<InvoicePreview | null> {
     const { tenantId } = await requireAuth('fees:read');
 
-    const [plan] = await db
-        .select({ id: feePlans.id, name: feePlans.name })
-        .from(feePlans)
-        .where(and(eq(feePlans.id, feePlanId), eq(feePlans.tenantId, tenantId)));
+    const { rows: planRows } = await pool.query(`
+        SELECT id, name
+        FROM fee_plans
+        WHERE id = $1 AND tenant_id = $2
+    `, [feePlanId, tenantId]);
+    const plan = planRows[0];
 
     if (!plan) return null;
 
-    const components = await db
-        .select({
-            name: feeComponents.name,
-            amount: feeComponents.amount,
-            frequency: feeComponents.frequency,
-            isOptional: feeComponents.isOptional,
-        })
-        .from(feeComponents)
-        .where(eq(feeComponents.feePlanId, feePlanId));
+    const { rows: components } = await pool.query(`
+        SELECT name, amount, frequency, is_optional AS "isOptional"
+        FROM fee_components
+        WHERE fee_plan_id = $1
+    `, [feePlanId]);
 
     const mandatory = components.filter(c => !c.isOptional);
     const totalPerStudent = mandatory.reduce((sum, c) => sum + Number(c.amount), 0);
 
-    // Count matching students
-    const studentConditions = [
-        eq(students.tenantId, tenantId),
-        eq(students.status, 'ACTIVE' as any),
-    ];
-    if (gradeId) studentConditions.push(eq(students.gradeId, gradeId));
-    if (sectionId) studentConditions.push(eq(students.sectionId, sectionId));
+    let countQuery = `
+        SELECT COUNT(*) AS count
+        FROM students
+        WHERE tenant_id = $1 AND status = 'ACTIVE'
+    `;
+    const countParams: any[] = [tenantId];
+    let paramIndex = 2;
 
-    const [studentCount] = await db
-        .select({ count: count() })
-        .from(students)
-        .where(and(...studentConditions));
+    if (gradeId) {
+        countQuery += ` AND grade_id = $${paramIndex++}`;
+        countParams.push(gradeId);
+    }
+    if (sectionId) {
+        countQuery += ` AND section_id = $${paramIndex++}`;
+        countParams.push(sectionId);
+    }
+
+    const { rows: studentCountRows } = await pool.query(countQuery, countParams);
+    const studentCount = Number(studentCountRows[0].count);
 
     return {
         feePlanName: plan.name,
-        studentCount: studentCount.count,
+        studentCount: studentCount,
         totalPerStudent,
         components: mandatory.map(c => ({
             name: c.name,
             amount: Number(c.amount),
             frequency: c.frequency,
         })),
-        estimatedTotal: totalPerStudent * studentCount.count,
+        estimatedTotal: totalPerStudent * studentCount,
     };
 }

@@ -1,11 +1,16 @@
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { db } from '@/lib/db';
-import { bookIssues, books, students, users } from '@/lib/db/schema';
-import { eq, desc, and } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth/middleware';
-import { setTenantContext } from '@/lib/db';
+import { getLibraryHistory } from '@/lib/services/library/library.service';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 
 interface PageProps {
     searchParams: Promise<{ filter?: string, q?: string }>;
@@ -22,37 +27,15 @@ const calculateFine = (dueDate: string, returnDate?: string) => {
 
 export default async function LibraryHistoryPage({ searchParams }: PageProps) {
     const { tenantId } = await requireAuth('library:read');
-    await setTenantContext(tenantId);
+    await (tenantId);
     
     // Unroll search parameters
     const params = await searchParams;
     const filter = params.filter || 'ALL';
     const searchQuery = params.q?.toLowerCase() || '';
 
-    // Fetch live issues joined with books and users/students
-    const rawIssues = await db
-        .select({
-            id: bookIssues.id,
-            bookId: bookIssues.bookId,
-            bookTitle: books.title,
-            studentId: bookIssues.issuedToStudentId,
-            studentName: students.firstName,
-            studentLastName: students.lastName,
-            userName: users.firstName,
-            userLastName: users.lastName,
-            issueDate: bookIssues.issueDate,
-            dueDate: bookIssues.dueDate,
-            returnDate: bookIssues.returnDate,
-            status: bookIssues.status,
-            fineAmount: bookIssues.fineAmount,
-            finePaid: bookIssues.isFinePaid,
-        })
-        .from(bookIssues)
-        .leftJoin(books, eq(bookIssues.bookId, books.id))
-        .leftJoin(students, eq(bookIssues.issuedToStudentId, students.id))
-        .leftJoin(users, eq(bookIssues.issuedToUserId, users.id))
-        .where(eq(bookIssues.tenantId, tenantId))
-        .orderBy(desc(bookIssues.issueDate));
+    // Fetch live issues joined with books and users/students from library service
+    const rawIssues = await getLibraryHistory();
 
     // Process raw issues and auto-calculate dynamic overdue fines
     const processedIssues = rawIssues.map(issue => {
@@ -147,34 +130,38 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
 
             <Card>
                 <CardContent className="p-0">
-                    <table className="w-full">
-                        <thead className="bg-gray-50 border-b">
-                            <tr>
-                                <th className="px-4 py-3 text-left">Book</th><th className="px-4 py-3 text-left">Borrower</th><th className="px-4 py-3 text-left">Dates</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-right">Fine</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Book</TableHead>
+                                <TableHead>Borrower</TableHead>
+                                <TableHead>Dates</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Fine</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {filteredIssues.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="py-8 text-center text-gray-500">No borrowing records found.</td>
-                                </tr>
+                                <TableRow>
+                                    <TableCell colSpan={5} className="py-8 text-center text-gray-500">No borrowing records found.</TableCell>
+                                </TableRow>
                             ) : (
                                 filteredIssues.map(issue => (
-                                    <tr key={issue.id} className="hover:bg-gray-50">
-                                        <td className="px-4 py-3 font-medium">{issue.bookTitle}</td>
-                                        <td className="px-4 py-3">{issue.studentName}</td>
-                                        <td className="px-4 py-3 text-xs text-gray-500">Out: {issue.issueDate}<br/>Due: {issue.dueDate}</td>
-                                        <td className="px-4 py-3">{getStatusBadge(issue.status)}</td>
-                                        <td className="px-4 py-3 text-right">
+                                    <TableRow key={issue.id}>
+                                        <TableCell className="font-medium">{issue.bookTitle}</TableCell>
+                                        <TableCell>{issue.studentName}</TableCell>
+                                        <TableCell className="text-xs text-gray-500">Out: {issue.issueDate}<br/>Due: {issue.dueDate}</TableCell>
+                                        <TableCell>{getStatusBadge(issue.status)}</TableCell>
+                                        <TableCell className="text-right">
                                             {issue.fineAmount > 0 
                                                 ? <span className={`font-semibold ${issue.finePaid ? 'text-green-600' : 'text-red-600'}`}>₹{issue.fineAmount} {issue.finePaid && '(Paid)'}</span> 
                                                 : '-'}
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
                                 ))
                             )}
-                        </tbody>
-                    </table>
+                        </TableBody>
+                    </Table>
                 </CardContent>
             </Card>
         </div>

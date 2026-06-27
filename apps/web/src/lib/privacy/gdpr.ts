@@ -11,7 +11,7 @@
  * - Cross-border transfer controls
  */
 
-import { db, setTenantContext } from '@/lib/db';
+import { db, } from '@/lib/db';
 import { sql } from 'drizzle-orm';
 import { encryptPII, decryptPII, anonymizeStudent, exportStudentData } from './dpdpa';
 
@@ -30,7 +30,7 @@ export async function recordLawfulBasis(
     processingPurpose: string,
     basis: LawfulBasis,
 ): Promise<void> {
-    await setTenantContext(tenantId);
+    await (tenantId);
 
     await db.execute(sql`
         INSERT INTO gdpr_processing_records (
@@ -53,7 +53,7 @@ export async function getProcessingRecords(tenantId: string): Promise<{
     records: any[];
     generatedAt: string;
 }> {
-    await setTenantContext(tenantId);
+    await (tenantId);
 
     const [tenant] = await db.execute(sql`
         SELECT name, email, address FROM tenants WHERE id = ${tenantId}
@@ -85,7 +85,7 @@ export async function recordObjection(
     processingPurpose: string,
     reason: string,
 ): Promise<void> {
-    await setTenantContext(tenantId);
+    await (tenantId);
 
     await db.execute(sql`
         INSERT INTO gdpr_objections (
@@ -107,7 +107,7 @@ export async function logDataBreach(
     discoveredAt: Date,
     reportedBy: string,
 ): Promise<{ breachId: string; deadlineHours: number }> {
-    await setTenantContext(tenantId);
+    await (tenantId);
 
     const result = await db.execute(sql`
         INSERT INTO data_breach_log (

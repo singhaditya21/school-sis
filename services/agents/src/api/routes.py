@@ -251,7 +251,10 @@ async def full_reindex(request: IndexRequest):
         raise HTTPException(status_code=503, detail="Indexing pipeline not initialized")
 
     result = await _indexer.full_reindex(request.tenant_id)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
     return IndexResponse(**result)
+
 
 
 class SingleIndexRequest(BaseModel):

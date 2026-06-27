@@ -1,6 +1,15 @@
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { getHostels, getHostelStats, getAllocations } from '@/lib/actions/hostel';
+import { Badge } from '@/components/ui/badge';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 
 export default async function HostelPage() {
     const [hostelList, stats, allocations] = await Promise.all([
@@ -38,7 +47,7 @@ export default async function HostelPage() {
                                     <h3 className="text-lg font-bold">{hostel.name}</h3>
                                     <p className="text-sm text-gray-500">{hostel.address}</p>
                                 </div>
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${hostel.type === 'BOYS' ? 'bg-blue-100 text-blue-700' : hostel.type === 'GIRLS' ? 'bg-pink-100 text-pink-700' : 'bg-gray-100 text-gray-700'}`}>{hostel.type}</span>
+                                <Badge variant="outline" className={`border-transparent ${hostel.type === 'BOYS' ? 'bg-blue-100 text-blue-700' : hostel.type === 'GIRLS' ? 'bg-pink-100 text-pink-700' : 'bg-gray-100 text-gray-700'}`}>{hostel.type}</Badge>
                             </div>
                             <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                                 <div className="bg-gray-50 p-2 rounded"><div className="text-xs text-gray-500">Rooms</div><div className="font-bold">{hostel.totalRooms}</div></div>
@@ -56,31 +65,33 @@ export default async function HostelPage() {
             <Card>
                 <CardContent className="p-0">
                     <div className="p-4 border-b"><h3 className="font-bold">Active Allocations</h3></div>
-                    <table className="w-full">
-                        <thead className="bg-gray-50 border-b">
-                            <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hostel</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Room</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bed</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y">
+                    <Table>
+                        <TableHeader className="bg-gray-50">
+                            <TableRow>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Student</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Hostel</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Room</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Bed</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Period</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {allocations.map(a => (
-                                <tr key={a.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3 font-medium">{a.studentName}</td>
-                                    <td className="px-4 py-3">{a.hostelName}</td>
-                                    <td className="px-4 py-3">{a.roomNumber}</td>
-                                    <td className="px-4 py-3">{a.bedNumber}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-500">{a.allocatedFrom} → {a.allocatedTo}</td>
-                                </tr>
+                                <TableRow key={a.id}>
+                                    <TableCell className="px-4 py-3 font-medium">{a.studentName}</TableCell>
+                                    <TableCell className="px-4 py-3">{a.hostelName}</TableCell>
+                                    <TableCell className="px-4 py-3">{a.roomNumber}</TableCell>
+                                    <TableCell className="px-4 py-3">{a.bedNumber}</TableCell>
+                                    <TableCell className="px-4 py-3 text-sm text-gray-500">{a.allocatedFrom} → {a.allocatedTo}</TableCell>
+                                </TableRow>
                             ))}
                             {allocations.length === 0 && (
-                                <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">No active allocations.</td></tr>
+                                <TableRow>
+                                    <TableCell colSpan={5} className="px-4 py-12 text-center text-gray-400">No active allocations.</TableCell>
+                                </TableRow>
                             )}
-                        </tbody>
-                    </table>
+                        </TableBody>
+                    </Table>
                 </CardContent>
             </Card>
         </div>

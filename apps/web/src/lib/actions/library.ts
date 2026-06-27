@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { books, bookIssues, bookReservations, users, students } from '@/lib/db/schema';
-import { eq, and, count, asc, desc, sql, lt, ne } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 
@@ -11,28 +9,33 @@ import { randomUUID } from 'crypto';
 export async function getBooks(categoryFilter?: string) {
     const { tenantId } = await requireAuth('library:read');
 
-    const conditions = [eq(books.tenantId, tenantId), eq(books.isActive, true)];
+    let query = `
+        SELECT 
+            id,
+            title,
+            author,
+            isbn,
+            publisher,
+            edition,
+            year,
+            category,
+            location,
+            total_copies AS "totalCopies",
+            available_copies AS "availableCopies"
+        FROM books
+        WHERE tenant_id = $1 AND is_active = true
+    `;
+    const params: any[] = [tenantId];
+
     if (categoryFilter && categoryFilter !== 'ALL') {
-        conditions.push(eq(books.category, categoryFilter as any));
+        params.push(categoryFilter);
+        query += ` AND category = $2`;
     }
 
-    return db
-        .select({
-            id: books.id,
-            title: books.title,
-            author: books.author,
-            isbn: books.isbn,
-            publisher: books.publisher,
-            edition: books.edition,
-            year: books.year,
-            category: books.category,
-            location: books.location,
-            totalCopies: books.totalCopies,
-            availableCopies: books.availableCopies,
-        })
-        .from(books)
-        .where(and(...conditions))
-        .orderBy(asc(books.title));
+    query += ` ORDER BY title ASC`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
 }
 
 export async function addBook(formData: FormData) {
@@ -52,20 +55,14 @@ export async function addBook(formData: FormData) {
         return { success: false, error: 'Title and Author are required' };
     }
 
-    await db.insert(books).values({
-        id: randomUUID(),
-        tenantId,
-        title,
-        author,
-        isbn,
-        publisher,
-        edition,
-        year,
-        category: category as any,
-        location,
-        totalCopies,
-        availableCopies: totalCopies,
-    });
+    await pool.query(
+        `INSERT INTO books (
+            id, tenant_id, title, author, isbn, publisher, edition, year, category, location, total_copies, available_copies
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+        )`,
+        [randomUUID(), tenantId, title, author, isbn, publisher, edition, year, category, location, totalCopies, totalCopies]
+    );
 
     return { success: true };
 }
@@ -75,42 +72,43 @@ export async function addBook(formData: FormData) {
 export async function getLibraryStats() {
     const { tenantId } = await requireAuth('library:read');
 
-    const [bookCount] = await db
-        .select({ count: count(), totalCopies: sql<string>`SUM(${books.totalCopies})`, availableCopies: sql<string>`SUM(${books.availableCopies})` })
-        .from(books)
-        .where(and(eq(books.tenantId, tenantId), eq(books.isActive, true)));
+    const bookCountRes = await pool.query(`
+        SELECT 
+            COUNT(*)::int AS count, 
+            SUM(total_copies)::text AS "totalCopies", 
+            SUM(available_copies)::text AS "availableCopies" 
+        FROM books 
+        WHERE tenant_id = $1 AND is_active = true
+    `, [tenantId]);
+    const bookCount = bookCountRes.rows[0];
 
     const today = new Date().toISOString().split('T')[0];
-    const [overdueCount] = await db
-        .select({ count: count() })
-        .from(bookIssues)
-        .where(and(
-            eq(bookIssues.tenantId, tenantId),
-            eq(bookIssues.status, 'ISSUED'),
-            lt(bookIssues.dueDate, today),
-        ));
+    
+    const overdueRes = await pool.query(`
+        SELECT COUNT(*)::int AS count 
+        FROM book_issues 
+        WHERE tenant_id = $1 AND status = 'ISSUED' AND due_date < $2
+    `, [tenantId, today]);
+    
+    const issuedTodayRes = await pool.query(`
+        SELECT COUNT(*)::int AS count 
+        FROM book_issues 
+        WHERE tenant_id = $1 AND issue_date = $2
+    `, [tenantId, today]);
 
-    const [issuedToday] = await db
-        .select({ count: count() })
-        .from(bookIssues)
-        .where(and(eq(bookIssues.tenantId, tenantId), eq(bookIssues.issueDate, today)));
-
-    const finesResult = await db
-        .select({ total: sql<string>`COALESCE(SUM(${bookIssues.fineAmount}::numeric), 0)` })
-        .from(bookIssues)
-        .where(and(
-            eq(bookIssues.tenantId, tenantId),
-            eq(bookIssues.isFinePaid, false),
-            ne(bookIssues.fineAmount, '0'),
-        ));
+    const finesRes = await pool.query(`
+        SELECT COALESCE(SUM(fine_amount::numeric), 0)::text AS total 
+        FROM book_issues 
+        WHERE tenant_id = $1 AND is_fine_paid = false AND fine_amount != '0'
+    `, [tenantId]);
 
     return {
         totalBooks: bookCount.count,
         totalCopies: Number(bookCount.totalCopies || 0),
         availableCopies: Number(bookCount.availableCopies || 0),
-        overdueBooks: overdueCount.count,
-        issuedToday: issuedToday.count,
-        totalFinesPending: Number(finesResult[0]?.total || 0),
+        overdueBooks: overdueRes.rows[0].count,
+        issuedToday: issuedTodayRes.rows[0].count,
+        totalFinesPending: Number(finesRes.rows[0]?.total || 0),
     };
 }
 
@@ -126,32 +124,39 @@ export async function issueBook(data: {
     const { tenantId, userId } = await requireAuth('library:write');
 
     // Check availability
-    const [book] = await db
-        .select({ availableCopies: books.availableCopies })
-        .from(books)
-        .where(and(eq(books.id, data.bookId), eq(books.tenantId, tenantId)));
+    const bookRes = await pool.query(
+        `SELECT available_copies AS "availableCopies" FROM books WHERE id = $1 AND tenant_id = $2`,
+        [data.bookId, tenantId]
+    );
+    const book = bookRes.rows[0];
 
     if (!book || book.availableCopies <= 0) {
         return { success: false, error: 'No copies available' };
     }
 
     // Create issue record
-    await db.insert(bookIssues).values({
-        id: randomUUID(),
-        tenantId,
-        bookId: data.bookId,
-        issuedToUserId: data.issuedToUserId,
-        issuedToStudentId: data.issuedToStudentId,
-        issueDate: new Date().toISOString().split('T')[0],
-        dueDate: data.dueDate,
-        issuedBy: userId,
-        remarks: data.remarks,
-    });
+    await pool.query(
+        `INSERT INTO book_issues (
+            id, tenant_id, book_id, issued_to_user_id, issued_to_student_id, issue_date, due_date, issued_by, remarks
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+            randomUUID(),
+            tenantId,
+            data.bookId,
+            data.issuedToUserId,
+            data.issuedToStudentId || null,
+            new Date().toISOString().split('T')[0],
+            data.dueDate,
+            userId,
+            data.remarks || null
+        ]
+    );
 
     // Decrement available copies
-    await db.update(books)
-        .set({ availableCopies: sql`${books.availableCopies} - 1` })
-        .where(eq(books.id, data.bookId));
+    await pool.query(
+        `UPDATE books SET available_copies = available_copies - 1 WHERE id = $1`,
+        [data.bookId]
+    );
 
     return { success: true };
 }
@@ -159,29 +164,37 @@ export async function issueBook(data: {
 export async function returnBook(issueId: string, fineAmount?: number) {
     const { tenantId, userId } = await requireAuth('library:write');
 
-    const [issue] = await db
-        .select({ bookId: bookIssues.bookId, status: bookIssues.status })
-        .from(bookIssues)
-        .where(and(eq(bookIssues.id, issueId), eq(bookIssues.tenantId, tenantId)));
+    const issueRes = await pool.query(
+        `SELECT book_id AS "bookId", status FROM book_issues WHERE id = $1 AND tenant_id = $2`,
+        [issueId, tenantId]
+    );
+    const issue = issueRes.rows[0];
 
     if (!issue || issue.status !== 'ISSUED') {
         return { success: false, error: 'Invalid issue or already returned' };
     }
 
     // Mark as returned
-    await db.update(bookIssues)
-        .set({
-            status: 'RETURNED',
-            returnDate: new Date().toISOString().split('T')[0],
-            returnedTo: userId,
-            fineAmount: fineAmount ? String(fineAmount) : '0',
-        })
-        .where(eq(bookIssues.id, issueId));
+    await pool.query(
+        `UPDATE book_issues 
+         SET status = 'RETURNED', 
+             return_date = $1, 
+             returned_to = $2, 
+             fine_amount = $3 
+         WHERE id = $4`,
+        [
+            new Date().toISOString().split('T')[0],
+            userId,
+            fineAmount ? String(fineAmount) : '0',
+            issueId
+        ]
+    );
 
     // Increment available copies
-    await db.update(books)
-        .set({ availableCopies: sql`${books.availableCopies} + 1` })
-        .where(eq(books.id, issue.bookId));
+    await pool.query(
+        `UPDATE books SET available_copies = available_copies + 1 WHERE id = $1`,
+        [issue.bookId]
+    );
 
     return { success: true };
 }
@@ -190,24 +203,22 @@ export async function getOverdueList() {
     const { tenantId } = await requireAuth('library:read');
     const today = new Date().toISOString().split('T')[0];
 
-    return db
-        .select({
-            id: bookIssues.id,
-            bookTitle: books.title,
-            bookAuthor: books.author,
-            borrowerFirstName: users.firstName,
-            borrowerLastName: users.lastName,
-            issueDate: bookIssues.issueDate,
-            dueDate: bookIssues.dueDate,
-            fineAmount: bookIssues.fineAmount,
-        })
-        .from(bookIssues)
-        .innerJoin(books, eq(bookIssues.bookId, books.id))
-        .innerJoin(users, eq(bookIssues.issuedToUserId, users.id))
-        .where(and(
-            eq(bookIssues.tenantId, tenantId),
-            eq(bookIssues.status, 'ISSUED'),
-            lt(bookIssues.dueDate, today),
-        ))
-        .orderBy(asc(bookIssues.dueDate));
+    const { rows } = await pool.query(`
+        SELECT 
+            bi.id,
+            b.title AS "bookTitle",
+            b.author AS "bookAuthor",
+            u.first_name AS "borrowerFirstName",
+            u.last_name AS "borrowerLastName",
+            bi.issue_date AS "issueDate",
+            bi.due_date AS "dueDate",
+            bi.fine_amount AS "fineAmount"
+        FROM book_issues bi
+        INNER JOIN books b ON bi.book_id = b.id
+        INNER JOIN users u ON bi.issued_to_user_id = u.id
+        WHERE bi.tenant_id = $1 AND bi.status = 'ISSUED' AND bi.due_date < $2
+        ORDER BY bi.due_date ASC
+    `, [tenantId, today]);
+
+    return rows;
 }

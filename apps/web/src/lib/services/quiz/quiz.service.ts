@@ -1,5 +1,5 @@
 // Quiz/Assessment Service — Production (Real DB)
-import { db, setTenantContext } from '@/lib/db';
+import { db, } from '@/lib/db';
 import { sql } from 'drizzle-orm';
 
 export type QuestionType = 'mcq' | 'true_false' | 'short_answer';
@@ -9,7 +9,7 @@ export interface QuizAttempt { id: string; quizId: string; studentId: string; st
 
 export const QuizService = {
     async getQuizzes(tenantId: string, filters?: { subject?: string; class?: string; status?: string }): Promise<Quiz[]> {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const rows = await db.execute(sql`
             SELECT q.id, q.title, sub.name AS subject, g.name AS class, sec.name AS section,
                    u.first_name || ' ' || u.last_name AS "createdBy", q.duration, q.total_marks AS "totalMarks",
@@ -25,7 +25,7 @@ export const QuizService = {
     },
 
     async getQuizById(tenantId: string, id: string): Promise<Quiz | undefined> {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const [row] = await db.execute(sql`
             SELECT q.id, q.title, sub.name AS subject, g.name AS class, sec.name AS section,
                    u.first_name || ' ' || u.last_name AS "createdBy", q.duration, q.total_marks AS "totalMarks",
@@ -37,7 +37,7 @@ export const QuizService = {
     },
 
     async getQuizStats(tenantId: string) {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const [s] = await db.execute(sql`SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE status='published') AS published,
             COUNT(*) FILTER (WHERE status='draft') AS draft, COUNT(*) FILTER (WHERE status='closed') AS closed
             FROM quizzes WHERE tenant_id = ${tenantId}`) as any[];
@@ -45,7 +45,7 @@ export const QuizService = {
     },
 
     async getQuizAttempts(tenantId: string, quizId: string): Promise<QuizAttempt[]> {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const rows = await db.execute(sql`
             SELECT qa.id, qa.quiz_id AS "quizId", qa.student_id AS "studentId",
                    s.first_name || ' ' || s.last_name AS "studentName", qa.answers, qa.score,
@@ -57,7 +57,7 @@ export const QuizService = {
     },
 
     async getQuizAnalytics(tenantId: string, quizId: string) {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const [s] = await db.execute(sql`
             SELECT COUNT(*) AS total, ROUND(AVG(score::numeric / NULLIF(total_marks, 0) * 100)) AS avg_pct,
                    MAX(score::numeric / NULLIF(total_marks, 0) * 100) AS max_pct, MIN(score::numeric / NULLIF(total_marks, 0) * 100) AS min_pct,
@@ -80,13 +80,13 @@ export const QuizService = {
     },
 
     async getSubjects(tenantId: string): Promise<string[]> {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const rows = await db.execute(sql`SELECT name FROM subjects WHERE tenant_id = ${tenantId} ORDER BY name`);
         return (rows as any[]).map(r => r.name);
     },
 
     async getClasses(tenantId: string): Promise<string[]> {
-        await setTenantContext(tenantId);
+        await (tenantId);
         const rows = await db.execute(sql`SELECT name FROM grades WHERE tenant_id = ${tenantId} ORDER BY display_order`);
         return (rows as any[]).map(r => r.name);
     },

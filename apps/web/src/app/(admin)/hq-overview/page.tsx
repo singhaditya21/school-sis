@@ -2,6 +2,7 @@ import { getHQOverviewAction } from '@/lib/actions/hq';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import DeployPolicyForm from './DeployPolicyForm';
 
 export default async function HQDashboard() {
     const { group, campuses, policies } = await getHQOverviewAction();
@@ -69,9 +70,7 @@ export default async function HQDashboard() {
                                 ))
                             )}
                         </div>
-                        <Button className="w-full py-6 mt-auto bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 transition-colors text-md active:scale-95">
-                            Deploy New Policy
-                        </Button>
+                        <DeployPolicyForm groupId={group.id} />
                     </CardContent>
                 </Card>
             </div>

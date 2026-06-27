@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { type School } from '@/components/school-switcher';
-import { getTenantId } from '@/lib/actions/scaffolding-bridge';
 
 export default function SchoolsPage() {
     const [schools, setSchools] = useState<(School & { createdAt: string; email: string; phone: string })[]>([]);

@@ -4,9 +4,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { returnToHQAction } from '@/lib/actions/platform';
 import PlatformBroadcastTicker from '@/components/platform/PlatformBroadcastTicker';
-import { db } from '@/lib/db';
-import { tenants } from '@/lib/db/schema/core';
-import { eq } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 
 export default async function AdminLayout({
     children,
@@ -29,7 +27,8 @@ export default async function AdminLayout({
     // Safe DB fetch to prevent UUID parsing errors for Platform Admins without immediate tenants
     let institutionType = 'K12';
     if (session.tenantId && session.tenantId.trim() !== '') {
-        const tenantRows = await db.select({ type: tenants.institutionType }).from(tenants).where(eq(tenants.id, session.tenantId)).limit(1);
+        const tenantRes = await pool.query(`SELECT institution_type AS type FROM tenants WHERE id = $1 LIMIT 1`, [session.tenantId]);
+        const tenantRows = tenantRes.rows;
         if (tenantRows.length > 0) {
             institutionType = tenantRows[0].type;
         }
@@ -96,7 +95,7 @@ export default async function AdminLayout({
 
             <div className="flex">
                 {/* Sidebar Navigation */}
-                <aside className="w-64 bg-white border-r border-gray-200 min-h-screen sticky top-16">
+                <aside data-testid="sidebar" className="w-64 bg-white border-r border-gray-200 min-h-screen sticky top-16">
                     <nav className="p-4 space-y-1">
                         {/* --- CORE / SHARED MODULES --- */}
                         <NavLink href="/dashboard" icon="📊">
@@ -140,6 +139,9 @@ export default async function AdminLayout({
                         </NavLink>
                         <NavLink href="/credentials" icon="📜">
                             Trust Registry
+                        </NavLink>
+                        <NavLink href="/integrations/tally" icon="📈">
+                            Tally ERP Sync
                         </NavLink>
 
                         {/* --- K-12 SPECIFIC MODULES --- */}

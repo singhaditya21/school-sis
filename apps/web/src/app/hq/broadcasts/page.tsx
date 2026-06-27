@@ -1,9 +1,7 @@
 import React from 'react';
 import { requireRole } from '@/lib/auth/middleware';
 import { UserRole } from '@/lib/rbac/permissions';
-import { db, setTenantContext } from '@/lib/db';
-import { platformBroadcasts } from '@/lib/db/schema/platform';
-import { desc } from 'drizzle-orm';
+import { pool, } from '@/lib/db';
 import BroadcastsClient from './client-page';
 
 export const metadata = {
@@ -12,14 +10,12 @@ export const metadata = {
 
 export default async function BroadcastsPage() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await setTenantContext('platform');
+    await ('platform');
 
     // Fetch active broadcasts
-    const broadcastsList = await db
-        .select()
-        .from(platformBroadcasts)
-        .orderBy(desc(platformBroadcasts.createdAt))
-        .limit(20);
+    const { rows: broadcastsList } = await pool.query(
+        `SELECT *, created_at AS "createdAt", updated_at AS "updatedAt" FROM platform_broadcasts ORDER BY created_at DESC LIMIT 20`
+    );
 
     return <BroadcastsClient broadcastsData={broadcastsList} />;
 }

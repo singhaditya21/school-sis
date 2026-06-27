@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
-import { db } from '@/lib/db';
-import { companies } from '@/lib/db/schema/core';
-import { eq } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 
 export const dynamic = "force-dynamic";
@@ -24,7 +22,10 @@ export async function POST(req: NextRequest) {
         }
 
         // Fetch the company from the DB
-        const [company] = await db.select().from(companies).where(eq(companies.id, session.companyId));
+        const { rows: [company] } = await pool.query(
+            `SELECT *, stripe_customer_id AS "stripeCustomerId" FROM companies WHERE id = $1`,
+            [session.companyId]
+        );
         
         if (!company) {
             return NextResponse.json({ error: 'Company not found' }, { status: 404 });
@@ -42,9 +43,10 @@ export async function POST(req: NextRequest) {
             });
             stripeCustomerId = customer.id;
 
-            await db.update(companies)
-                .set({ stripeCustomerId, subscriptionTier: planType as any })
-                .where(eq(companies.id, company.id));
+            await pool.query(
+                `UPDATE companies SET stripe_customer_id = $1, subscription_tier = $2 WHERE id = $3`,
+                [stripeCustomerId, planType, company.id]
+            );
         }
 
         // Create the Stripe Checkout Session

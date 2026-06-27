@@ -1,6 +1,15 @@
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { getBooks, getLibraryStats } from '@/lib/actions/library';
+import { Badge } from '@/components/ui/badge';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 
 export default async function LibraryPage() {
     const [bookList, stats] = await Promise.all([
@@ -19,9 +28,9 @@ export default async function LibraryPage() {
             JOURNAL: 'bg-teal-100 text-teal-700',
         };
         return (
-            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[category] || 'bg-gray-100 text-gray-700'}`}>
+            <Badge variant="outline" className={`border-transparent ${colors[category] || 'bg-gray-100 text-gray-700'}`}>
                 {category}
-            </span>
+            </Badge>
         );
     };
 
@@ -86,21 +95,21 @@ export default async function LibraryPage() {
             {/* Books Table */}
             <Card>
                 <CardContent className="p-0">
-                    <table className="w-full">
-                        <thead className="bg-gray-50 border-b">
-                            <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Author</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ISBN</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
-                                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Available</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y">
+                    <Table>
+                        <TableHeader className="bg-gray-50">
+                            <TableRow>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Title</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Author</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">ISBN</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Category</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Location</TableHead>
+                                <TableHead className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Available</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {bookList.map(book => (
-                                <tr key={book.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3">
+                                <TableRow key={book.id}>
+                                    <TableCell className="px-4 py-3">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-14 bg-gradient-to-br from-blue-100 to-purple-100 rounded flex items-center justify-center text-lg">
                                                 📚
@@ -110,27 +119,27 @@ export default async function LibraryPage() {
                                                 {book.publisher && <div className="text-xs text-gray-500">{book.publisher} {book.edition && `· ${book.edition}`}</div>}
                                             </div>
                                         </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-sm">{book.author}</td>
-                                    <td className="px-4 py-3 text-sm font-mono text-gray-500">{book.isbn || '—'}</td>
-                                    <td className="px-4 py-3">{getCategoryBadge(book.category)}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-500">{book.location || '—'}</td>
-                                    <td className="px-4 py-3 text-center">
+                                    </TableCell>
+                                    <TableCell className="px-4 py-3 text-sm">{book.author}</TableCell>
+                                    <TableCell className="px-4 py-3 text-sm font-mono text-gray-500">{book.isbn || '—'}</TableCell>
+                                    <TableCell className="px-4 py-3">{getCategoryBadge(book.category)}</TableCell>
+                                    <TableCell className="px-4 py-3 text-sm text-gray-500">{book.location || '—'}</TableCell>
+                                    <TableCell className="px-4 py-3 text-center">
                                         <span className={`font-semibold ${book.availableCopies > 0 ? 'text-green-600' : 'text-red-600'}`}>
                                             {book.availableCopies}/{book.totalCopies}
                                         </span>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ))}
                             {bookList.length === 0 && (
-                                <tr>
-                                    <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                                <TableRow>
+                                    <TableCell colSpan={6} className="px-4 py-12 text-center text-gray-400">
                                         No books in the catalogue. Add your first book to get started.
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             )}
-                        </tbody>
-                    </table>
+                        </TableBody>
+                    </Table>
                 </CardContent>
             </Card>
         </div>

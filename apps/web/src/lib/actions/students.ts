@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { students, guardians, grades, sections } from '@/lib/db/schema';
-import { eq, and, ilike, or, count, asc, desc } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
 export interface StudentListItem {
@@ -31,72 +29,81 @@ export async function getStudents(options?: {
     const limit = options?.limit || 100;
     const offset = options?.offset || 0;
 
-    // Build where conditions
-    const conditions = [eq(students.tenantId, tenantId)];
+    const conditions: string[] = ['s.tenant_id = $1'];
+    const params: any[] = [tenantId];
+    let paramIndex = 2;
 
     if (options?.gradeId) {
-        conditions.push(eq(students.gradeId, options.gradeId));
+        conditions.push(`s.grade_id = $${paramIndex}`);
+        params.push(options.gradeId);
+        paramIndex++;
     }
 
     if (options?.status) {
-        conditions.push(eq(students.status, options.status as any));
+        conditions.push(`s.status = $${paramIndex}`);
+        params.push(options.status);
+        paramIndex++;
     }
 
     if (options?.search) {
         conditions.push(
-            or(
-                ilike(students.firstName, `%${options.search}%`),
-                ilike(students.lastName, `%${options.search}%`),
-                ilike(students.admissionNumber, `%${options.search}%`)
-            )!
+            `(s.first_name ILIKE $${paramIndex} OR s.last_name ILIKE $${paramIndex} OR s.admission_number ILIKE $${paramIndex})`
         );
+        params.push(`%${options.search}%`);
+        paramIndex++;
     }
 
-    const whereClause = and(...conditions);
+    const whereClause = conditions.join(' AND ');
 
     // Get total count
-    const [countResult] = await db
-        .select({ count: count() })
-        .from(students)
-        .where(whereClause);
+    const countQuery = `
+        SELECT count(*) as count
+        FROM students s
+        WHERE ${whereClause}
+    `;
+    const countResult = await pool.query(countQuery, params);
+    const total = parseInt(countResult.rows[0].count, 10);
 
     // Get students with grade/section info
-    const rows = await db
-        .select({
-            id: students.id,
-            admissionNumber: students.admissionNumber,
-            firstName: students.firstName,
-            lastName: students.lastName,
-            dateOfBirth: students.dateOfBirth,
-            gender: students.gender,
-            status: students.status,
-            gradeName: grades.name,
-            sectionName: sections.name,
-        })
-        .from(students)
-        .innerJoin(grades, eq(students.gradeId, grades.id))
-        .innerJoin(sections, eq(students.sectionId, sections.id))
-        .where(whereClause)
-        .orderBy(asc(grades.displayOrder), asc(sections.name), asc(students.firstName))
-        .limit(limit)
-        .offset(offset);
+    const studentsQuery = `
+        SELECT 
+            s.id,
+            s.admission_number AS "admissionNumber",
+            s.first_name AS "firstName",
+            s.last_name AS "lastName",
+            s.date_of_birth AS "dateOfBirth",
+            s.gender,
+            s.status,
+            g.name AS "gradeName",
+            sec.name AS "sectionName"
+        FROM students s
+        INNER JOIN grades g ON s.grade_id = g.id
+        INNER JOIN sections sec ON s.section_id = sec.id
+        WHERE ${whereClause}
+        ORDER BY g.display_order ASC, sec.name ASC, s.first_name ASC
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+    const studentsParams = [...params, limit, offset];
+    
+    const { rows } = await pool.query(studentsQuery, studentsParams);
 
     // Get guardian counts for these students
     const studentIds = rows.map(r => r.id);
     const guardianCounts: Record<string, number> = {};
 
     if (studentIds.length > 0) {
-        const gcRows = await db
-            .select({
-                studentId: guardians.studentId,
-                count: count(),
-            })
-            .from(guardians)
-            .where(eq(guardians.tenantId, tenantId))
-            .groupBy(guardians.studentId);
+        const idParams = studentIds.map((_, i) => `$${i + 2}`).join(', ');
+        const gcQuery = `
+            SELECT student_id AS "studentId", count(*) as count
+            FROM guardians
+            WHERE tenant_id = $1 AND student_id IN (${idParams})
+            GROUP BY student_id
+        `;
+        const gcParams = [tenantId, ...studentIds];
+        const gcRows = await pool.query(gcQuery, gcParams);
 
-        for (const gc of gcRows) {
-            guardianCounts[gc.studentId] = gc.count;
+        for (const gc of gcRows.rows) {
+            guardianCounts[gc.studentId] = parseInt(gc.count, 10);
         }
     }
 
@@ -116,16 +123,19 @@ export async function getStudents(options?: {
 
     return {
         students: studentList,
-        total: countResult.count,
+        total,
     };
 }
 
 export async function getGradesList() {
     const { tenantId } = await requireAuth('students:read');
 
-    return db
-        .select({ id: grades.id, name: grades.name, displayOrder: grades.displayOrder })
-        .from(grades)
-        .where(eq(grades.tenantId, tenantId))
-        .orderBy(asc(grades.displayOrder));
+    const query = `
+        SELECT id, name, display_order AS "displayOrder"
+        FROM grades
+        WHERE tenant_id = $1
+        ORDER BY display_order ASC
+    `;
+    const { rows } = await pool.query(query, [tenantId]);
+    return rows;
 }

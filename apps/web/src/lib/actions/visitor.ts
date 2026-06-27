@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { visitors } from '@/lib/db/schema';
-import { eq, and, count, sql, asc, desc } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
 // ─── Get Visitors ────────────────────────────────────────────
@@ -10,11 +8,32 @@ import { requireAuth } from '@/lib/auth/middleware';
 export async function getVisitors(filters?: { status?: string; purpose?: string }) {
     const { tenantId } = await requireAuth('visitor:read');
 
-    const conditions = [eq(visitors.tenantId, tenantId)];
-    if (filters?.status) conditions.push(eq(visitors.status, filters.status as any));
-    if (filters?.purpose) conditions.push(eq(visitors.purpose, filters.purpose as any));
+    let query = `
+        SELECT id, tenant_id AS "tenantId", name, phone, email, company, purpose, 
+               purpose_details AS "purposeDetails", host_name AS "hostName", 
+               host_department AS "hostDepartment", id_proof AS "idProof", 
+               id_number AS "idNumber", vehicle_number AS "vehicleNumber", 
+               status, visitor_pass AS "visitorPass", check_in_time AS "checkInTime", 
+               check_out_time AS "checkOutTime", pre_approved_by AS "preApprovedBy", 
+               pre_approved_date AS "preApprovedDate"
+        FROM visitors
+        WHERE tenant_id = $1
+    `;
+    const params: any[] = [tenantId];
 
-    return db.select().from(visitors).where(and(...conditions)).orderBy(desc(visitors.checkInTime));
+    if (filters?.status) {
+        params.push(filters.status);
+        query += ` AND status = $${params.length}`;
+    }
+    if (filters?.purpose) {
+        params.push(filters.purpose);
+        query += ` AND purpose = $${params.length}`;
+    }
+
+    query += ` ORDER BY check_in_time DESC`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
 }
 
 // ─── Check In Visitor ────────────────────────────────────────
@@ -38,24 +57,27 @@ export async function checkInVisitor(data: {
     const passNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     const visitorPass = `VP-${passNum}`;
 
-    const [visitor] = await db.insert(visitors).values({
-        tenantId,
-        name: data.name,
-        phone: data.phone,
-        email: data.email,
-        company: data.company,
-        purpose: data.purpose as any,
-        purposeDetails: data.purposeDetails,
-        hostName: data.hostName,
-        hostDepartment: data.hostDepartment,
-        idProof: data.idProof,
-        idNumber: data.idNumber,
-        vehicleNumber: data.vehicleNumber,
-        status: 'CHECKED_IN',
-        visitorPass,
-    }).returning();
+    const { rows } = await pool.query(`
+        INSERT INTO visitors (
+            tenant_id, name, phone, email, company, purpose, purpose_details, 
+            host_name, host_department, id_proof, id_number, vehicle_number, 
+            status, visitor_pass
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        RETURNING id, tenant_id AS "tenantId", name, phone, email, company, purpose, 
+                  purpose_details AS "purposeDetails", host_name AS "hostName", 
+                  host_department AS "hostDepartment", id_proof AS "idProof", 
+                  id_number AS "idNumber", vehicle_number AS "vehicleNumber", 
+                  status, visitor_pass AS "visitorPass", check_in_time AS "checkInTime", 
+                  check_out_time AS "checkOutTime", pre_approved_by AS "preApprovedBy", 
+                  pre_approved_date AS "preApprovedDate"
+    `, [
+        tenantId, data.name, data.phone, data.email, data.company, data.purpose, 
+        data.purposeDetails, data.hostName, data.hostDepartment, data.idProof, 
+        data.idNumber, data.vehicleNumber, 'CHECKED_IN', visitorPass
+    ]);
 
-    return { success: true, visitor };
+    return { success: true, visitor: rows[0] };
 }
 
 // ─── Check Out Visitor ───────────────────────────────────────
@@ -63,9 +85,11 @@ export async function checkInVisitor(data: {
 export async function checkOutVisitor(visitorId: string) {
     const { tenantId } = await requireAuth('visitor:write');
 
-    await db.update(visitors)
-        .set({ status: 'CHECKED_OUT', checkOutTime: new Date() })
-        .where(and(eq(visitors.id, visitorId), eq(visitors.tenantId, tenantId)));
+    await pool.query(`
+        UPDATE visitors
+        SET status = 'CHECKED_OUT', check_out_time = NOW()
+        WHERE id = $1 AND tenant_id = $2
+    `, [visitorId, tenantId]);
 
     return { success: true };
 }
@@ -87,24 +111,27 @@ export async function preApproveVisitor(data: {
 }) {
     const { tenantId, userId } = await requireAuth('visitor:write');
 
-    const [visitor] = await db.insert(visitors).values({
-        tenantId,
-        name: data.name,
-        phone: data.phone,
-        email: data.email,
-        company: data.company,
-        purpose: data.purpose as any,
-        purposeDetails: data.purposeDetails,
-        hostName: data.hostName,
-        hostDepartment: data.hostDepartment,
-        idProof: data.idProof,
-        idNumber: data.idNumber,
-        status: 'PRE_APPROVED',
-        preApprovedBy: userId,
-        preApprovedDate: new Date(),
-    }).returning();
+    const { rows } = await pool.query(`
+        INSERT INTO visitors (
+            tenant_id, name, phone, email, company, purpose, purpose_details, 
+            host_name, host_department, id_proof, id_number, status, 
+            pre_approved_by, pre_approved_date
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+        RETURNING id, tenant_id AS "tenantId", name, phone, email, company, purpose, 
+                  purpose_details AS "purposeDetails", host_name AS "hostName", 
+                  host_department AS "hostDepartment", id_proof AS "idProof", 
+                  id_number AS "idNumber", vehicle_number AS "vehicleNumber", 
+                  status, visitor_pass AS "visitorPass", check_in_time AS "checkInTime", 
+                  check_out_time AS "checkOutTime", pre_approved_by AS "preApprovedBy", 
+                  pre_approved_date AS "preApprovedDate"
+    `, [
+        tenantId, data.name, data.phone, data.email, data.company, data.purpose, 
+        data.purposeDetails, data.hostName, data.hostDepartment, data.idProof, 
+        data.idNumber, 'PRE_APPROVED', userId
+    ]);
 
-    return { success: true, visitor };
+    return { success: true, visitor: rows[0] };
 }
 
 // ─── Get Visitor Stats ───────────────────────────────────────
@@ -115,8 +142,11 @@ export async function getVisitorStats() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const allToday = await db.select().from(visitors)
-        .where(and(eq(visitors.tenantId, tenantId), sql`${visitors.checkInTime} >= ${today}`));
+    const { rows: allToday } = await pool.query(`
+        SELECT status
+        FROM visitors
+        WHERE tenant_id = $1 AND check_in_time >= $2
+    `, [tenantId, today]);
 
     return {
         todayTotal: allToday.length,

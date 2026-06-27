@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, setTenantContext } from '@/lib/db';
-import { sql } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 
 export const dynamic = "force-dynamic";
@@ -32,20 +31,21 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action');
     const entityType = searchParams.get('entityType');
 
-    await setTenantContext(tenantId);
-
     try {
-        let actionClause = sql``;
+        const params: any[] = [tenantId, days];
+        let actionClause = '';
         if (action) {
-            actionClause = sql`AND al.action = ${action}`;
+            params.push(action);
+            actionClause = `AND al.action = $${params.length}`;
         }
 
-        let entityClause = sql``;
+        let entityClause = '';
         if (entityType) {
-            entityClause = sql`AND al.entity_type = ${entityType}`;
+            params.push(entityType);
+            entityClause = `AND al.entity_type = $${params.length}`;
         }
 
-        const data = await db.execute(sql`
+        const { rows: data } = await pool.query(`
             SELECT al.id, al.action, al.entity_type AS "entityType",
                    al.entity_id AS "entityId", al.user_id AS "userId",
                    COALESCE(u.first_name || ' ' || u.last_name, 'System') AS "userName",
@@ -55,15 +55,15 @@ export async function GET(request: NextRequest) {
                    al.metadata
             FROM audit_logs al
             LEFT JOIN users u ON u.id = al.user_id
-            WHERE al.tenant_id = ${tenantId}
-              AND al.created_at >= CURRENT_DATE - ${days}::integer
+            WHERE al.tenant_id = $1
+              AND al.created_at >= CURRENT_DATE - $2::integer
               ${actionClause}
               ${entityClause}
             ORDER BY al.created_at DESC
             LIMIT 500
-        `);
+        `, params);
 
-        return NextResponse.json({ logs: data, total: (data as any[]).length });
+        return NextResponse.json({ logs: data, total: data.length });
     } catch (error: any) {
         console.error('[Audit Trail] Error:', error.message);
         return NextResponse.json({ logs: [], total: 0, error: 'Failed to fetch audit logs' });

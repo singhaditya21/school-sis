@@ -1,8 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { quizzes, quizQuestions, quizAttempts, students } from '@/lib/db/schema';
-import { eq, and, count, sql, asc, desc } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
 // ─── Get Quizzes ─────────────────────────────────────────────
@@ -10,10 +8,35 @@ import { requireAuth } from '@/lib/auth/middleware';
 export async function getQuizzes(filters?: { status?: string }) {
     const { tenantId } = await requireAuth('quiz:read');
 
-    const conditions = [eq(quizzes.tenantId, tenantId)];
-    if (filters?.status) conditions.push(eq(quizzes.status, filters.status as any));
+    let query = `
+        SELECT 
+            id,
+            tenant_id AS "tenantId",
+            title,
+            subject_id AS "subjectId",
+            grade_id AS "gradeId",
+            section_id AS "sectionId",
+            created_by AS "createdBy",
+            duration,
+            total_marks AS "totalMarks",
+            instructions,
+            status,
+            created_at AS "createdAt",
+            updated_at AS "updatedAt"
+        FROM quizzes 
+        WHERE tenant_id = $1
+    `;
+    const params: any[] = [tenantId];
 
-    return db.select().from(quizzes).where(and(...conditions)).orderBy(desc(quizzes.createdAt));
+    if (filters?.status) {
+        query += ` AND status = $2`;
+        params.push(filters.status);
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
 }
 
 // ─── Create Quiz ─────────────────────────────────────────────
@@ -29,19 +52,23 @@ export async function createQuiz(data: {
 }) {
     const { tenantId, userId } = await requireAuth('quiz:write');
 
-    const [quiz] = await db.insert(quizzes).values({
-        tenantId,
-        title: data.title,
-        subjectId: data.subjectId,
-        gradeId: data.gradeId,
-        sectionId: data.sectionId,
-        createdBy: userId,
-        duration: data.duration,
-        totalMarks: data.totalMarks,
-        instructions: data.instructions,
-    }).returning();
+    const { rows } = await pool.query(
+        `INSERT INTO quizzes (
+            tenant_id, title, subject_id, grade_id, section_id, 
+            created_by, duration, total_marks, instructions
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+        RETURNING 
+            id, tenant_id AS "tenantId", title, subject_id AS "subjectId", 
+            grade_id AS "gradeId", section_id AS "sectionId", created_by AS "createdBy", 
+            duration, total_marks AS "totalMarks", instructions, status, 
+            created_at AS "createdAt", updated_at AS "updatedAt"`,
+        [
+            tenantId, data.title, data.subjectId || null, data.gradeId || null, 
+            data.sectionId || null, userId, data.duration, data.totalMarks, data.instructions || null
+        ]
+    );
 
-    return { success: true, quiz };
+    return { success: true, quiz: rows[0] };
 }
 
 // ─── Add Question ────────────────────────────────────────────
@@ -55,21 +82,28 @@ export async function addQuestion(quizId: string, data: {
 }) {
     const { tenantId } = await requireAuth('quiz:write');
 
-    const [maxOrder] = await db.select({ m: sql<number>`COALESCE(MAX(${quizQuestions.ordering}), 0)` })
-        .from(quizQuestions).where(eq(quizQuestions.quizId, quizId));
+    const { rows: maxRows } = await pool.query(
+        `SELECT COALESCE(MAX(ordering), 0) AS m FROM quiz_questions WHERE quiz_id = $1`,
+        [quizId]
+    );
+    const maxOrder = maxRows[0]?.m || 0;
 
-    const [q] = await db.insert(quizQuestions).values({
-        tenantId,
-        quizId,
-        text: data.text,
-        type: data.type as any,
-        options: data.options || [],
-        correctAnswer: data.correctAnswer,
-        marks: data.marks,
-        ordering: (maxOrder?.m || 0) + 1,
-    }).returning();
+    const { rows } = await pool.query(
+        `INSERT INTO quiz_questions (
+            tenant_id, quiz_id, text, type, options, correct_answer, marks, ordering
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+        RETURNING 
+            id, tenant_id AS "tenantId", quiz_id AS "quizId", text, type, 
+            options, correct_answer AS "correctAnswer", marks, ordering, 
+            created_at AS "createdAt", updated_at AS "updatedAt"`,
+        [
+            tenantId, quizId, data.text, data.type, 
+            data.options ? JSON.stringify(data.options) : '[]', 
+            data.correctAnswer, data.marks, maxOrder + 1
+        ]
+    );
 
-    return { success: true, question: q };
+    return { success: true, question: rows[0] };
 }
 
 // ─── Get Quiz By ID ──────────────────────────────────────────
@@ -77,16 +111,31 @@ export async function addQuestion(quizId: string, data: {
 export async function getQuizById(quizId: string) {
     const { tenantId } = await requireAuth('quiz:read');
 
-    const [quiz] = await db.select().from(quizzes)
-        .where(and(eq(quizzes.id, quizId), eq(quizzes.tenantId, tenantId)));
+    const { rows: quizzes } = await pool.query(
+        `SELECT 
+            id, tenant_id AS "tenantId", title, subject_id AS "subjectId", 
+            grade_id AS "gradeId", section_id AS "sectionId", created_by AS "createdBy", 
+            duration, total_marks AS "totalMarks", instructions, status, 
+            created_at AS "createdAt", updated_at AS "updatedAt"
+        FROM quizzes 
+        WHERE id = $1 AND tenant_id = $2`,
+        [quizId, tenantId]
+    );
 
-    if (!quiz) return null;
+    if (quizzes.length === 0) return null;
 
-    const questions = await db.select().from(quizQuestions)
-        .where(eq(quizQuestions.quizId, quizId))
-        .orderBy(asc(quizQuestions.ordering));
+    const { rows: questions } = await pool.query(
+        `SELECT 
+            id, tenant_id AS "tenantId", quiz_id AS "quizId", text, type, 
+            options, correct_answer AS "correctAnswer", marks, ordering, 
+            created_at AS "createdAt", updated_at AS "updatedAt"
+        FROM quiz_questions 
+        WHERE quiz_id = $1 
+        ORDER BY ordering ASC`,
+        [quizId]
+    );
 
-    return { ...quiz, questions };
+    return { ...quizzes[0], questions };
 }
 
 // ─── Publish Quiz ────────────────────────────────────────────
@@ -94,9 +143,10 @@ export async function getQuizById(quizId: string) {
 export async function publishQuiz(quizId: string) {
     const { tenantId } = await requireAuth('quiz:write');
 
-    await db.update(quizzes)
-        .set({ status: 'PUBLISHED', updatedAt: new Date() })
-        .where(and(eq(quizzes.id, quizId), eq(quizzes.tenantId, tenantId)));
+    await pool.query(
+        `UPDATE quizzes SET status = 'PUBLISHED', updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
+        [quizId, tenantId]
+    );
 
     return { success: true };
 }
@@ -106,9 +156,15 @@ export async function publishQuiz(quizId: string) {
 export async function submitAttempt(quizId: string, studentId: string, answers: Record<string, string | number>) {
     const { tenantId } = await requireAuth('quiz:write');
 
-    // Get quiz questions to auto-grade
-    const questions = await db.select().from(quizQuestions).where(eq(quizQuestions.quizId, quizId));
-    const [quiz] = await db.select().from(quizzes).where(eq(quizzes.id, quizId));
+    const { rows: questions } = await pool.query(
+        `SELECT id, type, correct_answer AS "correctAnswer", marks FROM quiz_questions WHERE quiz_id = $1`,
+        [quizId]
+    );
+    
+    const { rows: quizzes } = await pool.query(
+        `SELECT total_marks AS "totalMarks" FROM quizzes WHERE id = $1`,
+        [quizId]
+    );
 
     let score = 0;
     for (const q of questions) {
@@ -120,22 +176,24 @@ export async function submitAttempt(quizId: string, studentId: string, answers: 
         }
     }
 
-    const totalMarks = quiz?.totalMarks || questions.reduce((s, q) => s + q.marks, 0);
+    let totalMarks = quizzes[0]?.totalMarks;
+    if (!totalMarks) {
+        totalMarks = questions.reduce((s: number, q: any) => s + q.marks, 0);
+    }
     const percentage = totalMarks > 0 ? Math.round((score / totalMarks) * 100) : 0;
 
-    const [attempt] = await db.insert(quizAttempts).values({
-        tenantId,
-        quizId,
-        studentId,
-        answers,
-        score,
-        totalMarks,
-        percentage,
-        submittedAt: new Date(),
-        status: 'GRADED',
-    }).returning();
+    const { rows: attempts } = await pool.query(
+        `INSERT INTO quiz_attempts (
+            tenant_id, quiz_id, student_id, answers, score, total_marks, percentage, submitted_at, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 'GRADED') 
+        RETURNING 
+            id, tenant_id AS "tenantId", quiz_id AS "quizId", student_id AS "studentId", 
+            answers, score, total_marks AS "totalMarks", percentage, 
+            submitted_at AS "submittedAt", status`,
+        [tenantId, quizId, studentId, JSON.stringify(answers), score, totalMarks, percentage]
+    );
 
-    return { success: true, attempt };
+    return { success: true, attempt: attempts[0] };
 }
 
 // ─── Get Quiz Analytics ──────────────────────────────────────
@@ -143,20 +201,22 @@ export async function submitAttempt(quizId: string, studentId: string, answers: 
 export async function getQuizAnalytics(quizId: string) {
     const { tenantId } = await requireAuth('quiz:read');
 
-    const attempts = await db.select().from(quizAttempts)
-        .where(and(eq(quizAttempts.quizId, quizId), eq(quizAttempts.tenantId, tenantId)));
+    const { rows: attempts } = await pool.query(
+        `SELECT percentage FROM quiz_attempts WHERE quiz_id = $1 AND tenant_id = $2`,
+        [quizId, tenantId]
+    );
 
     if (attempts.length === 0) return { totalAttempts: 0, averageScore: 0, highestScore: 0, lowestScore: 0, passed: 0, failed: 0 };
 
-    const percentages = attempts.map(a => a.percentage || 0);
+    const percentages = attempts.map(a => Number(a.percentage) || 0);
 
     return {
         totalAttempts: attempts.length,
         averageScore: Math.round(percentages.reduce((a, b) => a + b, 0) / percentages.length),
         highestScore: Math.max(...percentages),
         lowestScore: Math.min(...percentages),
-        passed: attempts.filter(a => (a.percentage || 0) >= 40).length,
-        failed: attempts.filter(a => (a.percentage || 0) < 40).length,
+        passed: attempts.filter(a => a >= 40).length,
+        failed: attempts.filter(a => a < 40).length,
     };
 }
 
@@ -165,7 +225,10 @@ export async function getQuizAnalytics(quizId: string) {
 export async function getQuizStats() {
     const { tenantId } = await requireAuth('quiz:read');
 
-    const all = await db.select().from(quizzes).where(eq(quizzes.tenantId, tenantId));
+    const { rows: all } = await pool.query(
+        `SELECT status FROM quizzes WHERE tenant_id = $1`,
+        [tenantId]
+    );
 
     return {
         total: all.length,
