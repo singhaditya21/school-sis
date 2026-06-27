@@ -2,6 +2,5 @@
   "buildCommand": "pnpm --filter @school-sis/web run build",
   "installCommand": "pnpm install",
   "outputDirectory": ".next",
-  "framework": "nextjs",
-  "rootDirectory": "apps/web"
+  "framework": "nextjs"
 }
