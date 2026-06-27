@@ -1,8 +1,6 @@
 'use server';
 
-import { db, setTenantContext } from '@/lib/db';
-import { users, tenants } from '@/lib/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { hash } from 'bcryptjs';
 import crypto from 'crypto';
 import { sendPasswordResetEmail } from '@/lib/services/email';
@@ -32,10 +30,11 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
 
     try {
         // Find user (don't reveal if email exists)
-        const [user] = await db.select({ id: users.id, tenantId: users.tenantId })
-            .from(users)
-            .where(eq(users.email, email.toLowerCase()))
-            .limit(1);
+        const { rows } = await pool.query(
+            'SELECT id, tenant_id AS "tenantId" FROM users WHERE email = $1 LIMIT 1',
+            [email.toLowerCase()]
+        );
+        const user = rows[0];
 
         if (user) {
             // Generate token
@@ -44,20 +43,22 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
             const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
             // Store hashed token in DB
-            await db.execute(sql`
-                INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, created_at)
-                VALUES (${user.id}, ${hashedToken}, ${expiresAt.toISOString()}, NOW())
-                ON CONFLICT (user_id) DO UPDATE SET
-                    token_hash = ${hashedToken},
-                    expires_at = ${expiresAt.toISOString()},
-                    created_at = NOW()
-            `);
+            await pool.query(
+                `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, created_at)
+                 VALUES ($1, $2, $3, NOW())
+                 ON CONFLICT (user_id) DO UPDATE SET
+                     token_hash = $2,
+                     expires_at = $3,
+                     created_at = NOW()`,
+                [user.id, hashedToken, expiresAt.toISOString()]
+            );
 
             // Get school name for email
-            const [tenant] = await db.select({ name: tenants.name })
-                .from(tenants)
-                .where(eq(tenants.id, user.tenantId))
-                .limit(1);
+            const { rows: tenantRows } = await pool.query(
+                'SELECT name FROM tenants WHERE id = $1 LIMIT 1',
+                [user.tenantId]
+            );
+            const tenant = tenantRows[0];
 
             // Send email with raw token
             await sendPasswordResetEmail(email, rawToken, tenant?.name || 'ScholarMind');
@@ -83,14 +84,14 @@ export async function validateResetToken(token: string): Promise<{ valid: boolea
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
     try {
-        const result = await db.execute(sql`
-            SELECT user_id FROM password_reset_tokens
-            WHERE token_hash = ${hashedToken}
-            AND expires_at > NOW()
-            LIMIT 1
-        `);
+        const { rows } = await pool.query(
+            `SELECT user_id FROM password_reset_tokens
+             WHERE token_hash = $1
+             AND expires_at > NOW()
+             LIMIT 1`,
+            [hashedToken]
+        );
 
-        const rows = result as any[];
         if (rows.length === 0) return { valid: false };
 
         return { valid: true, userId: rows[0].user_id };
@@ -124,18 +125,17 @@ export async function resetPassword(
         const hashedPassword = await hash(newPassword, 12);
 
         // Update password
-        await db.update(users)
-            .set({
-                passwordHash: hashedPassword,
-                updatedAt: new Date(),
-            })
-            .where(eq(users.id, userId));
+        await pool.query(
+            'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+            [hashedPassword, userId]
+        );
 
         // Delete used token
         const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-        await db.execute(sql`
-            DELETE FROM password_reset_tokens WHERE token_hash = ${hashedToken}
-        `);
+        await pool.query(
+            'DELETE FROM password_reset_tokens WHERE token_hash = $1',
+            [hashedToken]
+        );
 
         return { success: true, message: 'Password updated successfully. You can now log in.' };
     } catch (error) {

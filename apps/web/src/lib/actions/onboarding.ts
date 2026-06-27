@@ -1,12 +1,10 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { tenants, users } from '@/lib/db/schema/core';
+import { pool } from '@/lib/db';
 import { hash } from 'bcryptjs';
 import { cookies } from 'next/headers';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, SessionData } from '@/lib/auth/session';
-import { eq } from 'drizzle-orm';
 
 export async function setupSchoolWorkspace(formData: FormData) {
     try {
@@ -24,40 +22,37 @@ export async function setupSchoolWorkspace(formData: FormData) {
         const domainUrl = `${domain}.scholarmind.app`.toLowerCase();
 
         // Ensure email isn't already used
-        const existingUser = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+        const { rows: existingUser } = await pool.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
         if (existingUser.length > 0) {
             return { error: 'An administrator with this email already exists.' };
         }
 
-        const existingDomain = await db.select().from(tenants).where(eq(tenants.code, domain.toLowerCase()));
+        const { rows: existingDomain } = await pool.query('SELECT * FROM tenants WHERE code = $1', [domain.toLowerCase()]);
         if (existingDomain.length > 0) {
             return { error: 'This workspace subdomain is already taken. Please choose another.' };
         }
 
         // Generate tenant record. Defaults to 'TRIALING' billing status and 'isActive=true' for now
         // so they can log in, or we can make it false and let Stripe activate it.
-        const [tenant] = await db.insert(tenants).values({
-            name: schoolName,
-            code: domain.toLowerCase(),
-            domain: domainUrl,
-            email: email.toLowerCase(),
-            billingStatus: 'INCOMPLETE',
-            isActive: false // Will be activated via Stripe Webhook
-        }).returning();
+        const { rows: tenantRows } = await pool.query(
+            `INSERT INTO tenants (name, code, domain, email, billing_status, is_active) 
+             VALUES ($1, $2, $3, $4, $5, $6) 
+             RETURNING id, name, code, domain, email, billing_status AS "billingStatus", is_active AS "isActive"`,
+            [schoolName, domain.toLowerCase(), domainUrl, email.toLowerCase(), 'INCOMPLETE', false]
+        );
+        const tenant = tenantRows[0];
 
         // Hash admin password
         const passwordHash = await hash(password, 12);
 
         // Create the founding administrator user
-        const [adminUser] = await db.insert(users).values({
-            tenantId: tenant.id,
-            email: email.toLowerCase(),
-            passwordHash,
-            firstName,
-            lastName,
-            role: 'SCHOOL_ADMIN',
-            isActive: true
-        }).returning();
+        const { rows: adminUserRows } = await pool.query(
+            `INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role, is_active) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7) 
+             RETURNING id, tenant_id AS "tenantId", email, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", role, is_active AS "isActive"`,
+            [tenant.id, email.toLowerCase(), passwordHash, firstName, lastName, 'SCHOOL_ADMIN', true]
+        );
+        const adminUser = adminUserRows[0];
 
         // Automatically log them in immediately so the checkout API route succeeds
         const c = await cookies();

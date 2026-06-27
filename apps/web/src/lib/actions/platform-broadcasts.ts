@@ -1,15 +1,13 @@
 'use server';
 
 import { requireRole } from '@/lib/auth/middleware';
-import { db, setTenantContext } from '@/lib/db';
+import { pool } from '@/lib/db';
 import { UserRole } from '@/lib/rbac/permissions';
-import { platformBroadcasts } from '@/lib/db/schema/platform';
 import { getSession } from '@/lib/auth/session';
 import { revalidatePath } from 'next/cache';
 
 export async function createBroadcastAction(formData: FormData) {
     await requireRole(UserRole.PLATFORM_ADMIN);
-    await setTenantContext('platform');
 
     const title = formData.get('title') as string;
     const message = formData.get('message') as string;
@@ -22,13 +20,11 @@ export async function createBroadcastAction(formData: FormData) {
     const session = await getSession();
 
     try {
-        await db.insert(platformBroadcasts).values({
-            title,
-            message,
-            type,
-            isActive: true,
-            createdBy: session.userId,
-        });
+        await pool.query(
+            `INSERT INTO platform_broadcasts (title, message, type, is_active, created_by)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [title, message, type, true, session.userId]
+        );
 
         revalidatePath('/hq/broadcasts');
         return { success: true };
