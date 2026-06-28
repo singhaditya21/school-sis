@@ -34,6 +34,49 @@ export async function POST(req: NextRequest) {
                 const companyId = session.client_reference_id;
                 const subscriptionId = session.subscription as string;
                 const planType = session.metadata?.planType;
+                
+                const invoiceId = session.metadata?.invoiceId;
+
+                if (invoiceId) {
+                    const client = await pool.connect();
+                    try {
+                        await client.query('BEGIN');
+                        const invoiceRes = await client.query('SELECT * FROM invoices WHERE id = $1', [invoiceId]);
+                        if (invoiceRes.rows.length > 0) {
+                            const invoice = invoiceRes.rows[0];
+                            const amountPaid = (session.amount_total || 0) / 100;
+                            
+                            await client.query(
+                                'UPDATE invoices SET paid_amount = paid_amount + $1, status = $2, updated_at = NOW() WHERE id = $3',
+                                [amountPaid, 'PAID', invoiceId]
+                            );
+                            
+                            await client.query(
+                                `INSERT INTO payments (
+                                    tenant_id, invoice_id, student_id, amount, method, status, transaction_id, created_at, paid_at
+                                ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())`,
+                                [
+                                    invoice.tenant_id,
+                                    invoiceId,
+                                    invoice.student_id,
+                                    amountPaid,
+                                    'ONLINE',
+                                    'COMPLETED',
+                                    session.payment_intent || session.id
+                                ]
+                            );
+                        }
+                        await client.query('COMMIT');
+                        console.log(`✅ Invoice ${invoiceId} marked as PAID`);
+                    } catch (err: any) {
+                        await client.query('ROLLBACK');
+                        console.error('Invoice Webhook DB Error:', err);
+                        throw err;
+                    } finally {
+                        client.release();
+                    }
+                    break;
+                }
 
                 if (!companyId) {
                     throw new Error('No client_reference_id found in session');

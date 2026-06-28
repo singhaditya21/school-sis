@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getMyFees, ParentFeeResponse } from '@/lib/services/parent/parent.service';
+import { createCheckoutSession } from '@/lib/actions/payments';
 
 export default function MyFeesPage() {
     const [data, setData] = useState<ParentFeeResponse>({ invoices: [], payments: [] });
@@ -23,6 +25,16 @@ export default function MyFeesPage() {
     
     const totalDue = invoices.filter(i => i.status !== 'PAID').reduce((sum, i) => sum + i.amount - i.paidAmount, 0);
     const getStatusColor = (s: string) => ({ PAID: 'bg-green-100 text-green-700', PENDING: 'bg-yellow-100 text-yellow-700', OVERDUE: 'bg-red-100 text-red-700' }[s] || 'bg-gray-100 text-gray-700');
+
+    const handlePay = async (invoiceId: string) => {
+        try {
+            const { url } = await createCheckoutSession(invoiceId);
+            if (url) window.location.href = url;
+        } catch (error) {
+            console.error('Payment error', error);
+            alert('Failed to initiate payment. Please try again later.');
+        }
+    };
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -60,6 +72,7 @@ export default function MyFeesPage() {
                                         <TableHead className="text-right">Paid</TableHead>
                                         <TableHead>Due Date</TableHead>
                                         <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Action</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -73,6 +86,13 @@ export default function MyFeesPage() {
                                             <TableCell>{inv.dueDate}</TableCell>
                                             <TableCell>
                                                 <Badge className={`${getStatusColor(inv.status)} hover:bg-opacity-80`}>{inv.status}</Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                {inv.status !== 'PAID' && (
+                                                    <Button size="sm" onClick={() => handlePay(inv.id)} className="bg-slate-900 text-white hover:bg-slate-800">
+                                                        Pay Now
+                                                    </Button>
+                                                )}
                                             </TableCell>
                                         </TableRow>
                                     ))}
