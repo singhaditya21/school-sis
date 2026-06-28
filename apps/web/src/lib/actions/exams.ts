@@ -2,7 +2,7 @@
 
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { redirect } from 'next/navigation';
 
 export interface ExamListItem {
@@ -520,3 +520,127 @@ function getRelativeGrade(z: number): string {
     if (z >= -1.5) return 'C';
     return 'D';
 }
+
+// ─── Exam Verification & Compliance ──────────────────────────
+
+export async function getPendingVerifications() {
+    const { tenantId } = await requireAuth('exams:read');
+    
+    const { rows } = await pool.query(`
+        SELECT 
+            sr.id AS "markId",
+            s.first_name || ' ' || s.last_name AS "studentName",
+            sub.name AS "subject",
+            sr.marks_obtained AS "marksObtained",
+            es.max_marks AS "maxMarks",
+            u.first_name || ' ' || u.last_name AS "enteredBy",
+            sr.created_at AS "enteredAt"
+        FROM student_results sr
+        INNER JOIN students s ON sr.student_id = s.id
+        INNER JOIN exam_schedules es ON sr.exam_schedule_id = es.id
+        INNER JOIN subjects sub ON es.subject_id = sub.id
+        LEFT JOIN users u ON sr.entered_by = u.id
+        LEFT JOIN exam_result_hashes erh ON sr.id = erh.result_id
+        WHERE sr.tenant_id = $1 AND erh.id IS NULL
+        ORDER BY sr.created_at ASC
+    `, [tenantId]);
+    
+    // Convert Dates to strings for Client Component
+    return rows.map(r => ({
+        ...r,
+        enteredAt: r.enteredAt ? new Date(r.enteredAt).toISOString().split('T')[0] : null
+    }));
+}
+
+export async function getVerificationStats() {
+    const { tenantId } = await requireAuth('exams:read');
+    
+    const pendingRes = await pool.query(`
+        SELECT COUNT(*) as count 
+        FROM student_results sr
+        LEFT JOIN exam_result_hashes erh ON sr.id = erh.result_id
+        WHERE sr.tenant_id = $1 AND erh.id IS NULL
+    `, [tenantId]);
+    
+    const verifiedRes = await pool.query(`
+        SELECT COUNT(*) as count 
+        FROM exam_result_hashes
+        WHERE tenant_id = $1
+    `, [tenantId]);
+    
+    return {
+        pending: parseInt(pendingRes.rows[0].count, 10),
+        verified: parseInt(verifiedRes.rows[0].count, 10),
+        rejected: 0 // Mocked since we don't track rejections formally yet
+    };
+}
+
+export async function verifyExamResults(resultIds: string[]) {
+    const { tenantId, userId } = await requireAuth('exams:write');
+    
+    for (const resultId of resultIds) {
+        const res = await pool.query(`
+            SELECT * FROM student_results WHERE id = $1 AND tenant_id = $2
+        `, [resultId, tenantId]);
+        
+        const result = res.rows[0];
+        if (!result) continue;
+        
+        const payload = JSON.stringify({
+            studentId: result.student_id,
+            examScheduleId: result.exam_schedule_id,
+            marksObtained: result.marks_obtained,
+            grade: result.grade,
+            isAbsent: result.is_absent
+        });
+        const hash = createHash('sha256').update(payload).digest('hex');
+        
+        await pool.query(`
+            INSERT INTO exam_result_hashes (
+                id, tenant_id, result_id, hash, locked_at, locked_by
+            ) VALUES ($1, $2, $3, $4, NOW(), $5)
+        `, [randomUUID(), tenantId, resultId, hash, userId]);
+    }
+    
+    return { success: true };
+}
+
+export async function rejectExamResults(resultIds: string[]) {
+    const { tenantId } = await requireAuth('exams:write');
+    // For now we just delete rejected results to force re-entry
+    for (const resultId of resultIds) {
+        await pool.query(`
+            DELETE FROM student_results WHERE id = $1 AND tenant_id = $2
+        `, [resultId, tenantId]);
+    }
+    return { success: true };
+}
+
+export async function getProctoringLogs() {
+    const { tenantId } = await requireAuth('exams:read');
+    
+    const { rows } = await pool.query(`
+        SELECT 
+            epl.id,
+            s.first_name || ' ' || s.last_name AS "studentName",
+            e.name AS "examName",
+            sub.name AS "subject",
+            epl.flag_type AS "flagType",
+            epl.description,
+            epl.timestamp
+        FROM exam_proctoring_logs epl
+        INNER JOIN students s ON epl.student_id = s.id
+        INNER JOIN exam_schedules es ON epl.exam_schedule_id = es.id
+        INNER JOIN exams e ON es.exam_id = e.id
+        INNER JOIN subjects sub ON es.subject_id = sub.id
+        WHERE epl.tenant_id = $1
+        ORDER BY epl.timestamp DESC
+        LIMIT 50
+    `, [tenantId]);
+    
+    return rows.map(r => ({
+        ...r,
+        timestamp: r.timestamp ? new Date(r.timestamp).toLocaleString() : null
+    }));
+}
+

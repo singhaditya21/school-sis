@@ -54,6 +54,27 @@ export const studentResults = pgTable('student_results', {
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ─── Exam Compliance & Verification ──────────────────────────
+
+export const examResultHashes = pgTable('exam_result_hashes', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+    resultId: uuid('result_id').references(() => studentResults.id, { onDelete: 'cascade' }).notNull(),
+    hash: text('hash').notNull(), // Cryptographic hash of the result payload to detect tampering
+    lockedAt: timestamp('locked_at', { withTimezone: true }).defaultNow().notNull(),
+    lockedBy: uuid('locked_by').references(() => users.id),
+});
+
+export const examProctoringLogs = pgTable('exam_proctoring_logs', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+    examScheduleId: uuid('exam_schedule_id').references(() => examSchedules.id, { onDelete: 'cascade' }).notNull(),
+    studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),
+    flagType: varchar('flag_type', { length: 50 }).notNull(), // e.g. TAB_SWITCH, MULTIPLE_FACES, NO_FACE
+    description: text('description'),
+    timestamp: timestamp('timestamp', { withTimezone: true }).defaultNow().notNull(),
+});
+
 // ─── Relations ───────────────────────────────────────────────
 
 export const examsRelations = relations(exams, ({ one, many }) => ({
@@ -74,4 +95,13 @@ export const studentResultsRelations = relations(studentResults, ({ one }) => ({
     examSchedule: one(examSchedules, { fields: [studentResults.examScheduleId], references: [examSchedules.id] }),
     student: one(students, { fields: [studentResults.studentId], references: [students.id] }),
     enteredByUser: one(users, { fields: [studentResults.enteredBy], references: [users.id] }),
+}));
+
+export const examResultHashesRelations = relations(examResultHashes, ({ one }) => ({
+    result: one(studentResults, { fields: [examResultHashes.resultId], references: [studentResults.id] }),
+}));
+
+export const examProctoringLogsRelations = relations(examProctoringLogs, ({ one }) => ({
+    student: one(students, { fields: [examProctoringLogs.studentId], references: [students.id] }),
+    schedule: one(examSchedules, { fields: [examProctoringLogs.examScheduleId], references: [examSchedules.id] }),
 }));

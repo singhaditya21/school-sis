@@ -5,32 +5,40 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
-// Inline mock data to fix missing imports
-const mockQuiz = {
-    id: 'q1', title: 'Mid-term Mathematics', subject: 'Math', class: '10-A', duration: 30, totalMarks: 10,
-    questions: [
-        { id: 'q1', type: 'multiple_choice', marks: 5, text: 'What is 2+2?', options: ['3', '4', '5'], correctAnswer: 1 },
-        { id: 'q2', type: 'short_answer', marks: 5, text: 'What is the capital of France?', correctAnswer: 'Paris' }
-    ]
-};
-
-const QuizService = {
-    getQuizById: (id: string) => mockQuiz,
-    getQuizAttempts: (id: string) => [
-        { id: 'a1', studentId: 'stu1', studentName: 'Aarav Kumar', percentage: 90, score: 9, totalMarks: 10, submittedAt: new Date().toISOString(), answers: { q1: 1, q2: 'Paris' } },
-        { id: 'a2', studentId: 'stu2', studentName: 'Neha Sharma', percentage: 40, score: 4, totalMarks: 10, submittedAt: new Date().toISOString(), answers: { q1: 1, q2: 'Rome' } }
-    ],
-    getQuizAnalytics: (id: string) => ({
-        totalAttempts: 2, averageScore: 65, highestScore: 90, lowestScore: 40, passed: 1, failed: 1
-    })
-};
+import { useEffect, useState } from 'react';
+import { getQuizById, getQuizAttemptsByQuizId, getQuizAnalytics } from '@/lib/actions/quiz';
 
 export default function QuizResultsPage() {
     const params = useParams();
     const router = useRouter();
-    const quiz = QuizService.getQuizById(params.id as string);
-    const attempts = QuizService.getQuizAttempts(params.id as string);
-    const analytics = QuizService.getQuizAnalytics(params.id as string);
+    
+    const [quiz, setQuiz] = useState<any>(null);
+    const [attempts, setAttempts] = useState<any[]>([]);
+    const [analytics, setAnalytics] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const id = params.id as string;
+        if (!id) return;
+        
+        Promise.all([
+            getQuizById(id),
+            getQuizAttemptsByQuizId(id),
+            getQuizAnalytics(id)
+        ]).then(([q, a, stats]) => {
+            setQuiz(q);
+            setAttempts(a || []);
+            setAnalytics(stats);
+            setLoading(false);
+        }).catch(err => {
+            console.error(err);
+            setLoading(false);
+        });
+    }, [params.id]);
+
+    if (loading) {
+        return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading quiz results...</div>;
+    }
 
     if (!quiz) {
         return (
@@ -50,7 +58,7 @@ export default function QuizResultsPage() {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <div><h1 className="text-3xl font-bold tracking-tight">{quiz.title}</h1><p className="text-muted-foreground">{quiz.subject} | {quiz.class} | {quiz.questions.length} Questions | {quiz.totalMarks} Marks</p></div>
+                <div><h1 className="text-3xl font-bold tracking-tight">{quiz.title}</h1><p className="text-muted-foreground">{quiz.questions?.length || 0} Questions | {quiz.totalMarks} Marks</p></div>
                 <Button variant="outline" onClick={() => router.push('/quiz')}>← Back to Quizzes</Button>
             </div>
 
@@ -111,18 +119,18 @@ export default function QuizResultsPage() {
                 <CardHeader><CardTitle>Question-wise Analysis</CardTitle><CardDescription>Performance breakdown by question</CardDescription></CardHeader>
                 <CardContent>
                     <div className="space-y-4">
-                        {quiz.questions.map((q, i) => {
+                        {quiz.questions?.map((q: any, i: number) => {
                             const correctCount = attempts.filter((a) => {
-                                const ans = a.answers[q.id as keyof typeof a.answers];
-                                if (q.type === 'short_answer') return String(ans).toLowerCase().trim() === String(q.correctAnswer).toLowerCase();
-                                return ans === q.correctAnswer;
+                                const ans = (a.answers || {})[q.id];
+                                if (q.type === 'SHORT_ANSWER') return String(ans).toLowerCase().trim() === String(q.correctAnswer).toLowerCase().trim();
+                                return String(ans) === String(q.correctAnswer);
                             }).length;
                             const accuracy = attempts.length > 0 ? Math.round((correctCount / attempts.length) * 100) : 0;
 
                             return (
                                 <div key={q.id} className="flex items-center gap-4 p-3 border rounded-lg">
                                     <Badge variant="outline">Q{i + 1}</Badge>
-                                    <div className="flex-1"><p className="font-medium truncate">{q.text}</p><p className="text-sm text-muted-foreground">{q.type.replace('_', ' ').toUpperCase()} | {q.marks} marks</p></div>
+                                    <div className="flex-1"><p className="font-medium truncate">{q.text}</p><p className="text-sm text-muted-foreground">{q.type.replace('_', ' ').toUpperCase()} | {q.marks} marks {q.negativeMarks ? `(-${q.negativeMarks})` : ''} {q.section ? `| ${q.section}` : ''}</p></div>
                                     <div className="w-32">
                                         <div className="flex justify-between text-sm mb-1"><span>Accuracy</span><span>{accuracy}%</span></div>
                                         <div className="h-2 bg-gray-200 rounded-full overflow-hidden"><div className={`h-full rounded-full ${accuracy >= 70 ? 'bg-green-500' : accuracy >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${accuracy}%` }} /></div>

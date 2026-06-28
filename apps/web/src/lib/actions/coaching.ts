@@ -49,3 +49,26 @@ export async function getCoachingDashboardSummaryAction() {
         liveDoubts: 14, // Mocked pending NLP insights integration
     };
 }
+
+/**
+ * Fetch test series with their batch mappings
+ */
+export async function getTestSeriesAction() {
+    const session = await getSession();
+    if (!session.tenantId) throw new Error('Unauthorized');
+
+    const testsRes = await pool.query(`
+        SELECT 
+            ts.id, 
+            ts.test_name AS "testName", 
+            ts.total_marks AS "totalMarks", 
+            ts.scheduled_at AS "scheduledAt", 
+            cb.name AS "batchName"
+        FROM test_series ts
+        LEFT JOIN coaching_batches cb ON ts.batch_id = cb.id
+        WHERE ts.tenant_id = $1
+        ORDER BY ts.scheduled_at DESC
+    `, [session.tenantId]);
+    return testsRes.rows;
+}
+

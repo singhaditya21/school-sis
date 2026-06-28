@@ -8,6 +8,7 @@ import { students } from './students';
 export const certificateTypeEnum = pgEnum('certificate_type', ['TRANSFER', 'CHARACTER', 'BONAFIDE', 'MIGRATION', 'REPORT_CARD', 'MARKSHEET', 'CUSTOM']);
 export const certificateStatusEnum = pgEnum('certificate_status', ['DRAFT', 'ISSUED', 'REVOKED']);
 export const idCardStatusEnum = pgEnum('id_card_status', ['PENDING', 'PRINTED', 'ISSUED']);
+export const digilockerSyncStatusEnum = pgEnum('digilocker_sync_status', ['PENDING', 'SUCCESS', 'FAILED']);
 
 // ─── Certificate Templates ──────────────────────────────────
 
@@ -56,6 +57,21 @@ export const idCards = pgTable('id_cards', {
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ─── DigiLocker Sync Logs ────────────────────────────────────
+
+export const digilockerSyncLogs = pgTable('digilocker_sync_logs', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+    documentType: varchar('document_type', { length: 50 }).notNull(), // 'ID_CARD', 'CERTIFICATE', 'MARKSHEET'
+    studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),
+    referenceId: uuid('reference_id'), // ID of the issued certificate or ID card
+    xmlPayload: text('xml_payload').notNull(),
+    responseHash: text('response_hash'),
+    status: digilockerSyncStatusEnum('status').default('PENDING').notNull(),
+    syncAttemptedAt: timestamp('sync_attempted_at', { withTimezone: true }).defaultNow().notNull(),
+    errorMessage: text('error_message'),
+});
+
 // ─── Relations ───────────────────────────────────────────────
 
 export const certificateTemplatesRelations = relations(certificateTemplates, ({ one, many }) => ({
@@ -72,4 +88,9 @@ export const issuedCertificatesRelations = relations(issuedCertificates, ({ one 
 
 export const idCardsRelations = relations(idCards, ({ one }) => ({
     tenant: one(tenants, { fields: [idCards.tenantId], references: [tenants.id] }),
+}));
+
+export const digilockerSyncLogsRelations = relations(digilockerSyncLogs, ({ one }) => ({
+    tenant: one(tenants, { fields: [digilockerSyncLogs.tenantId], references: [tenants.id] }),
+    student: one(students, { fields: [digilockerSyncLogs.studentId], references: [students.id] }),
 }));

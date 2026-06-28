@@ -41,6 +41,8 @@ export const quizQuestions = pgTable('quiz_questions', {
     options: jsonb('options').$type<string[]>().default([]),
     correctAnswer: text('correct_answer').notNull(),
     marks: integer('marks').notNull(),
+    negativeMarks: integer('negative_marks').default(0).notNull(),
+    section: varchar('section', { length: 100 }), // e.g. Physics, Math
     ordering: integer('ordering').default(0).notNull(),
 });
 
@@ -55,6 +57,8 @@ export const quizAttempts = pgTable('quiz_attempts', {
     score: integer('score'),
     totalMarks: integer('total_marks'),
     percentage: integer('percentage'),
+    percentile: integer('percentile'), // Advanced percentile leaderboard
+    sectionScores: jsonb('section_scores').$type<Record<string, number>>().default({}), // e.g. { "Physics": 20 }
     startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
     status: attemptStatusEnum('status').default('IN_PROGRESS').notNull(),

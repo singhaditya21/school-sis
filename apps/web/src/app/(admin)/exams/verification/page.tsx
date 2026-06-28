@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+const toast = (...args: any[]) => console.log(...args);
 import {
     Table,
     TableBody,
@@ -20,6 +21,7 @@ import {
     Filter,
     RefreshCw
 } from 'lucide-react';
+import { getPendingVerifications, getVerificationStats, verifyExamResults, rejectExamResults } from '@/lib/actions/exams';
 
 interface PendingMark {
     markId: string;
@@ -37,15 +39,24 @@ export default function MarksVerificationPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [stats, setStats] = useState({ pending: 0, verified: 0, rejected: 0 });
 
-    // Mock data
+    // Fetch data
+    const loadData = async () => {
+        try {
+            const [marks, st] = await Promise.all([
+                getPendingVerifications(),
+                getVerificationStats()
+            ]);
+            // @ts-ignore
+            setPendingMarks(marks);
+            setStats(st);
+        } catch (error) {
+            console.error('Failed to load verification data:', error);
+            alert('Failed to load verification data');
+        }
+    };
+
     useEffect(() => {
-        setPendingMarks([
-            { markId: '1', studentName: 'Rahul Sharma', subject: 'Mathematics', marksObtained: 85, maxMarks: 100, enteredBy: 'Mr. Verma', enteredAt: '2026-01-20' },
-            { markId: '2', studentName: 'Priya Patel', subject: 'Mathematics', marksObtained: 92, maxMarks: 100, enteredBy: 'Mr. Verma', enteredAt: '2026-01-20' },
-            { markId: '3', studentName: 'Amit Kumar', subject: 'Science', marksObtained: 78, maxMarks: 100, enteredBy: 'Mrs. Gupta', enteredAt: '2026-01-20' },
-            { markId: '4', studentName: 'Sneha Reddy', subject: 'Science', marksObtained: 88, maxMarks: 100, enteredBy: 'Mrs. Gupta', enteredAt: '2026-01-20' },
-        ]);
-        setStats({ pending: 156, verified: 892, rejected: 12 });
+        loadData();
     }, []);
 
     const toggleMarkSelection = (markId: string) => {
@@ -60,20 +71,34 @@ export default function MarksVerificationPage() {
 
     const handleVerify = async () => {
         setIsLoading(true);
-        // In production, call API
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setPendingMarks(prev => prev.filter(m => !selectedMarks.has(m.markId)));
-        setSelectedMarks(new Set());
-        setIsLoading(false);
+        try {
+            const ids = Array.from(selectedMarks);
+            await verifyExamResults(ids);
+            alert(`Successfully verified ${ids.length} marks`);
+            setSelectedMarks(new Set());
+            await loadData();
+        } catch (error) {
+            console.error(error);
+            alert('Failed to verify marks');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleReject = async () => {
         setIsLoading(true);
-        // In production, call API with rejection reason
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setPendingMarks(prev => prev.filter(m => !selectedMarks.has(m.markId)));
-        setSelectedMarks(new Set());
-        setIsLoading(false);
+        try {
+            const ids = Array.from(selectedMarks);
+            await rejectExamResults(ids);
+            alert(`Successfully rejected ${ids.length} marks`);
+            setSelectedMarks(new Set());
+            await loadData();
+        } catch (error) {
+            console.error(error);
+            alert('Failed to reject marks');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (

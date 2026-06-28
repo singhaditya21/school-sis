@@ -157,7 +157,7 @@ export async function submitAttempt(quizId: string, studentId: string, answers: 
     const { tenantId } = await requireAuth('quiz:write');
 
     const { rows: questions } = await pool.query(
-        `SELECT id, type, correct_answer AS "correctAnswer", marks FROM quiz_questions WHERE quiz_id = $1`,
+        `SELECT id, type, correct_answer AS "correctAnswer", marks, negative_marks AS "negativeMarks", section FROM quiz_questions WHERE quiz_id = $1`,
         [quizId]
     );
     
@@ -167,12 +167,30 @@ export async function submitAttempt(quizId: string, studentId: string, answers: 
     );
 
     let score = 0;
+    const sectionScores: Record<string, number> = {};
+
     for (const q of questions) {
         const answer = answers[q.id];
-        if (q.type === 'SHORT_ANSWER') {
-            if (String(answer).toLowerCase().trim() === q.correctAnswer.toLowerCase().trim()) score += q.marks;
-        } else {
-            if (String(answer) === q.correctAnswer) score += q.marks;
+        const section = q.section || 'General';
+        
+        if (!sectionScores[section]) sectionScores[section] = 0;
+
+        if (answer !== undefined && answer !== null && answer !== '') {
+            let isCorrect = false;
+            if (q.type === 'SHORT_ANSWER') {
+                if (String(answer).toLowerCase().trim() === q.correctAnswer.toLowerCase().trim()) isCorrect = true;
+            } else {
+                if (String(answer) === q.correctAnswer) isCorrect = true;
+            }
+            
+            if (isCorrect) {
+                score += q.marks;
+                sectionScores[section] += q.marks;
+            } else {
+                const neg = q.negativeMarks || 0;
+                score -= neg;
+                sectionScores[section] -= neg;
+            }
         }
     }
 
@@ -180,17 +198,17 @@ export async function submitAttempt(quizId: string, studentId: string, answers: 
     if (!totalMarks) {
         totalMarks = questions.reduce((s: number, q: any) => s + q.marks, 0);
     }
-    const percentage = totalMarks > 0 ? Math.round((score / totalMarks) * 100) : 0;
+    const percentage = totalMarks > 0 ? Math.round((Math.max(score, 0) / totalMarks) * 100) : 0;
 
     const { rows: attempts } = await pool.query(
         `INSERT INTO quiz_attempts (
-            tenant_id, quiz_id, student_id, answers, score, total_marks, percentage, submitted_at, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 'GRADED') 
+            tenant_id, quiz_id, student_id, answers, score, total_marks, percentage, section_scores, submitted_at, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), 'GRADED') 
         RETURNING 
             id, tenant_id AS "tenantId", quiz_id AS "quizId", student_id AS "studentId", 
-            answers, score, total_marks AS "totalMarks", percentage, 
+            answers, score, total_marks AS "totalMarks", percentage, section_scores AS "sectionScores",
             submitted_at AS "submittedAt", status`,
-        [tenantId, quizId, studentId, JSON.stringify(answers), score, totalMarks, percentage]
+        [tenantId, quizId, studentId, JSON.stringify(answers), score, totalMarks, percentage, JSON.stringify(sectionScores)]
     );
 
     return { success: true, attempt: attempts[0] };
@@ -237,3 +255,23 @@ export async function getQuizStats() {
         closed: all.filter(q => q.status === 'CLOSED').length,
     };
 }
+
+// ─── Get Quiz Attempts ───────────────────────────────────────
+
+export async function getQuizAttemptsByQuizId(quizId: string) {
+    const { tenantId } = await requireAuth('quiz:read');
+    
+    const { rows } = await pool.query(`
+        SELECT 
+            qa.id, qa.tenant_id AS "tenantId", qa.quiz_id AS "quizId", qa.student_id AS "studentId", 
+            qa.answers, qa.score, qa.total_marks AS "totalMarks", qa.percentage, qa.percentile, qa.section_scores AS "sectionScores",
+            qa.submitted_at AS "submittedAt", qa.status,
+            s.first_name || ' ' || s.last_name AS "studentName"
+        FROM quiz_attempts qa
+        LEFT JOIN students s ON qa.student_id = s.id
+        WHERE qa.quiz_id = $1 AND qa.tenant_id = $2
+        ORDER BY qa.percentage DESC NULLS LAST
+    `, [quizId, tenantId]);
+    return rows;
+}
+

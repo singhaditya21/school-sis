@@ -1,7 +1,9 @@
 'use server';
 
-import { pool } from '@/lib/db';
+import { pool, db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { idCards, students, users } from '@/lib/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 
 // ─── Get Templates ───────────────────────────────────────────
 
@@ -163,23 +165,33 @@ export async function getCertificateStats() {
 export async function getIDCards(personType?: string) {
     const { tenantId } = await requireAuth('certificate:read');
 
-    let query = `
-        SELECT 
-            id, tenant_id AS "tenantId", person_type AS "personType", 
-            person_id AS "personId", card_number AS "cardNumber", 
-            status, valid_until AS "validUntil", created_at AS "createdAt", updated_at AS "updatedAt"
-        FROM id_cards
-        WHERE tenant_id = $1
-    `;
-    const params: any[] = [tenantId];
+    const rows = await db.select({
+        id: idCards.id,
+        tenantId: idCards.tenantId,
+        personType: idCards.personType,
+        personId: idCards.personId,
+        validFrom: idCards.validFrom,
+        validTo: idCards.validTo,
+        qrCode: idCards.qrCode,
+        templateName: idCards.templateName,
+        status: idCards.status,
+        printedAt: idCards.printedAt,
+        issuedAt: idCards.issuedAt,
+        createdAt: idCards.createdAt,
+        studentFirstName: students.firstName,
+        studentLastName: students.lastName,
+        studentRollNo: students.rollNumber,
+        staffFirstName: users.firstName,
+        staffLastName: users.lastName,
+    })
+    .from(idCards)
+    .leftJoin(students, and(eq(idCards.personType, 'STUDENT'), eq(idCards.personId, students.id)))
+    .leftJoin(users, and(eq(idCards.personType, 'STAFF'), eq(idCards.personId, users.id)))
+    .where(and(
+        eq(idCards.tenantId, tenantId),
+        personType ? eq(idCards.personType, personType) : undefined
+    ))
+    .orderBy(desc(idCards.createdAt));
 
-    if (personType) {
-        params.push(personType);
-        query += ` AND person_type = $${params.length}`;
-    }
-
-    query += ` ORDER BY created_at DESC`;
-
-    const { rows } = await pool.query(query, params);
     return rows;
 }

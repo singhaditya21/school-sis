@@ -1,14 +1,38 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+const toast = (...args: any[]) => console.log(...args);
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow
+} from '@/components/ui/table';
+import { getProctoringLogs } from '@/lib/actions/exams';
 
 export default function CompliancePage() {
     const [activeTab, setActiveTab] = useState('udise');
     const [isExporting, setIsExporting] = useState(false);
+    const [proctoringLogs, setProctoringLogs] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchLogs = async () => {
+            try {
+                const logs = await getProctoringLogs();
+                setProctoringLogs(logs);
+            } catch (err) {
+                console.error(err);
+                alert('Failed to fetch proctoring logs');
+            }
+        };
+        fetchLogs();
+    }, []);
 
     const handleUdiseExport = async () => {
         setIsExporting(true);
@@ -31,10 +55,11 @@ export default function CompliancePage() {
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-8">
-                <TabsList className="grid w-full grid-cols-3 max-w-2xl bg-white shadow-sm border border-gray-100 p-1 rounded-xl h-14">
+                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 max-w-4xl bg-white shadow-sm border border-gray-100 p-1 rounded-xl h-auto md:h-14 gap-1">
                     <TabsTrigger value="udise" className="rounded-lg font-semibold data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:shadow-sm">UDISE+ Export</TabsTrigger>
                     <TabsTrigger value="apaar" className="rounded-lg font-semibold data-[state=active]:bg-purple-50 data-[state=active]:text-purple-700 data-[state=active]:shadow-sm">APAAR Management</TabsTrigger>
                     <TabsTrigger value="dpdp" className="rounded-lg font-semibold data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700 data-[state=active]:shadow-sm">DPDPA 2023</TabsTrigger>
+                    <TabsTrigger value="proctoring" className="rounded-lg font-semibold data-[state=active]:bg-red-50 data-[state=active]:text-red-700 data-[state=active]:shadow-sm">Proctoring Logs</TabsTrigger>
                 </TabsList>
 
                 {/* UDISE+ Tab */}
@@ -189,6 +214,61 @@ export default function CompliancePage() {
                                     Privacy Impact Assessment (PIA)
                                 </Button>
                             </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* Proctoring Logs Tab */}
+                <TabsContent value="proctoring" className="mt-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                     <Card className="border-0 shadow-xl shadow-red-900/5 bg-white overflow-hidden">
+                        <CardHeader className="bg-gradient-to-r from-red-50 to-white border-b border-red-100 pb-8">
+                            <CardTitle className="flex items-center gap-3 text-2xl text-red-900">
+                                <div className="p-2 bg-red-100 rounded-lg text-red-600">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                </div>
+                                AI Proctoring Audit Logs
+                            </CardTitle>
+                            <CardDescription className="text-red-700/70 text-base mt-2">
+                                Review flagged anomalies and suspicious activities automatically detected by the AI Proctoring engine during online exams.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <Table>
+                                <TableHeader className="bg-gray-50/50">
+                                    <TableRow>
+                                        <TableHead className="pl-8">Student</TableHead>
+                                        <TableHead>Exam (Subject)</TableHead>
+                                        <TableHead>Flag Type</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead className="pr-8">Timestamp</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {proctoringLogs.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="text-center py-12 text-gray-500">
+                                                No proctoring violations detected.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        proctoringLogs.map((log) => (
+                                            <TableRow key={log.id} className="hover:bg-red-50/20 transition-colors">
+                                                <TableCell className="pl-8 font-medium">{log.studentName}</TableCell>
+                                                <TableCell>{log.examName} ({log.subject})</TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                                        {log.flagType}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-gray-600 text-sm max-w-[300px] truncate" title={log.description || ''}>
+                                                    {log.description || 'N/A'}
+                                                </TableCell>
+                                                <TableCell className="pr-8 text-gray-500 text-sm">{log.timestamp}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
                         </CardContent>
                     </Card>
                 </TabsContent>

@@ -2,9 +2,8 @@ import { inngest } from "./client";
 import { pool } from '@/lib/db';
 
 export const handleObjectUpserted = inngest.createFunction(
-  { id: "handle-object-upserted", name: "Handle Object Upserted" },
-  { event: "object.record.upserted" },
-  async ({ event, step }) => {
+  { id: "handle-object-upserted", name: "Handle Object Upserted", triggers: [{ event: "object.record.upserted" }] } as any,
+  async ({ event, step }: any) => {
     const { tenantId, objectName, recordId, payload } = event.data;
 
     await step.run("log-event", async () => {

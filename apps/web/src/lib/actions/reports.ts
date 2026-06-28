@@ -2,11 +2,11 @@
 
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getObjectMetadata, getMetadataObjects } from './metadata-engine';
+import { getObjectMetadata, getAllMetadataObjects } from './metadata-engine';
 
 export async function getReportSources() {
     // Fetch all available objects dynamically from the metadata engine
-    const objects = await getMetadataObjects();
+    const objects = await getAllMetadataObjects();
     return objects;
 }
 

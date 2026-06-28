@@ -1,4 +1,4 @@
-import { pool } from '@/lib/db';
+import { getTestSeriesAction } from '@/lib/actions/coaching';
 import { getSession } from '@/lib/auth/session';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,20 +8,8 @@ export default async function TestSeriesDashboard() {
     const session = await getSession();
     if (!session.tenantId) return <div>Unauthorized</div>;
 
-    // Fetch tests with their batch mappings
-    const testsRes = await pool.query(`
-        SELECT 
-            ts.id, 
-            ts.test_name AS "testName", 
-            ts.total_marks AS "totalMarks", 
-            ts.scheduled_at AS "scheduledAt", 
-            cb.name AS "batchName"
-        FROM test_series ts
-        LEFT JOIN coaching_batches cb ON ts.batch_id = cb.id
-        WHERE ts.tenant_id = $1
-        ORDER BY ts.scheduled_at DESC
-    `, [session.tenantId]);
-    const tests = testsRes.rows;
+    const tests = await getTestSeriesAction();
+
 
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 bg-gray-50/20 min-h-screen">
