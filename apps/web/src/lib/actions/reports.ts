@@ -2,69 +2,54 @@
 
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { getObjectMetadata, getMetadataObjects } from './metadata-engine';
 
-export async function runReportQuery(dataSource: string): Promise<{ success: boolean; data?: any[]; error?: string; columns?: string[] }> {
+export async function getReportSources() {
+    // Fetch all available objects dynamically from the metadata engine
+    const objects = await getMetadataObjects();
+    return objects;
+}
+
+export async function runDynamicReport(apiName: string): Promise<{ success: boolean; data?: any[]; error?: string; columns?: string[] }> {
     try {
         const { tenantId } = await requireAuth();
 
-        let query = '';
-        const params: any[] = [tenantId];
+        // 1. Fetch object definition and fields
+        const { objectDef, fields } = await getObjectMetadata(apiName);
 
-        switch (dataSource) {
-            case 'Students':
-                query = `
-                    SELECT 
-                        admission_number as "Admission No", 
-                        first_name as "First Name", 
-                        last_name as "Last Name", 
-                        gender as "Gender", 
-                        status as "Status"
-                    FROM students
-                    WHERE tenant_id = $1
-                    ORDER BY first_name ASC
-                    LIMIT 500
-                `;
-                break;
-            case 'Fees':
-                query = `
-                    SELECT 
-                        invoice_number as "Invoice No",
-                        total_amount as "Total Amount",
-                        status as "Status",
-                        due_date as "Due Date"
-                    FROM invoices
-                    WHERE tenant_id = $1
-                    ORDER BY created_at DESC
-                    LIMIT 500
-                `;
-                break;
-            case 'Attendance':
-                query = `
-                    SELECT 
-                        a.date as "Date",
-                        a.status as "Status",
-                        s.first_name as "First Name",
-                        s.last_name as "Last Name",
-                        s.admission_number as "Admission No"
-                    FROM attendance_records a
-                    LEFT JOIN students s ON a.student_id = s.id
-                    WHERE a.tenant_id = $1
-                    ORDER BY a.date DESC
-                    LIMIT 500
-                `;
-                break;
-            default:
-                return { success: false, error: 'Invalid data source selected' };
+        // 2. Construct dynamic SQL selecting standard columns and extracting JSONB custom fields
+        const selectClauses: string[] = [];
+        const columns: string[] = [];
+
+        for (const field of fields) {
+            columns.push(field.label);
+            if (field.isCustom) {
+                // Extract custom fields from the JSONB column
+                selectClauses.push(`custom_data->>'${field.apiName}' as "${field.label}"`);
+            } else {
+                // Select standard fields natively
+                selectClauses.push(`"${field.apiName}" as "${field.label}"`);
+            }
         }
 
-        const result = await pool.query(query, params);
-        
-        // Extract column names from the first row or result.fields if we want
-        const columns = result.fields ? result.fields.map(f => f.name) : [];
-        
-        return { success: true, data: result.rows, columns };
+        if (selectClauses.length === 0) {
+             return { success: false, error: 'No fields configured for this object.' };
+        }
+
+        // 3. Assemble and execute the query
+        const query = `
+            SELECT ${selectClauses.join(', ')}
+            FROM ${objectDef.tableName}
+            WHERE tenant_id = $1
+            ORDER BY created_at DESC
+            LIMIT 1000
+        `;
+
+        const { rows } = await pool.query(query, [tenantId]);
+
+        return { success: true, data: rows, columns };
     } catch (error: any) {
-        console.error('Report Generation Error:', error);
-        return { success: false, error: error.message || 'An error occurred while generating the report' };
+        console.error('Report execution failed:', error);
+        return { success: false, error: error.message || 'Failed to generate dynamic report' };
     }
 }
