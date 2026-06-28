@@ -6,8 +6,10 @@ scrape_configs:
     static_configs:
       - targets: ['host.docker.internal:3000'] # Assuming running locally on port 3000
 
-# To set up alerting back to our Webhook
-# alerting:
-#   alertmanagers:
-#     - static_configs:
-#         - targets: ['host.docker.internal:9093']
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+rule_files:
+  - "alert.rules"
