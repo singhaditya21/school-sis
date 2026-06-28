@@ -137,6 +137,9 @@ export default async function AdminLayout({
                         <NavLink href="/analytics" icon="📊">
                             Analytics
                         </NavLink>
+                        <NavLink href="/reports" icon="📑">
+                            Reports Engine
+                        </NavLink>
                         <NavLink href="/credentials" icon="📜">
                             Trust Registry
                         </NavLink>
