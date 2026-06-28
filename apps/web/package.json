@@ -42,6 +42,7 @@
         "csv-parse": "^6.2.1",
         "date-fns": "^3.6.0",
         "framer-motion": "^12.38.0",
+        "inngest": "^4.11.0",
         "iron-session": "^8.0.4",
         "jose": "^6.2.2",
         "jspdf": "^4.2.1",

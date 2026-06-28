@@ -2,6 +2,7 @@
 
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { inngest } from '@/inngest/client';
 
 export interface MetadataObject {
     id: string;
@@ -160,6 +161,12 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
             RETURNING id
         `;
         const { rows } = await pool.query(query, values);
+        
+        await inngest.send({
+            name: "object.record.upserted",
+            data: { tenantId, objectName: apiName, recordId: id, payload: data }
+        });
+        
         return rows[0];
     } else {
         // INSERT
@@ -186,6 +193,13 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
             RETURNING id
         `;
         const { rows } = await pool.query(query, values);
+        const recordId = rows[0].id;
+        
+        await inngest.send({
+            name: "object.record.upserted",
+            data: { tenantId, objectName: apiName, recordId, payload: data }
+        });
+
         return rows[0];
     }
 }
