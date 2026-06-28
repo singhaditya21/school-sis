@@ -189,3 +189,82 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
         return rows[0];
     }
 }
+
+/**
+ * Fetches all metadata objects for the Object Manager
+ */
+export async function getAllMetadataObjects() {
+    const { tenantId } = await requireAuth();
+    const { rows } = await pool.query(`
+        SELECT * FROM metadata_objects 
+        WHERE tenant_id = $1 OR tenant_id IS NULL
+        ORDER BY name ASC
+    `, [tenantId]);
+    return rows;
+}
+
+/**
+ * Creates a new custom field for an object
+ */
+export async function createCustomField(objectId: string, fieldData: any) {
+    const { tenantId } = await requireAuth();
+    
+    // Ensure the object belongs to the tenant or is a system object
+    const { rows: objRows } = await pool.query(`
+        SELECT id FROM metadata_objects WHERE id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)
+    `, [objectId, tenantId]);
+
+    if (objRows.length === 0) throw new Error("Object not found or unauthorized");
+
+    const query = `
+        INSERT INTO metadata_fields (object_id, label, api_name, data_type, is_custom, is_required, picklist_options)
+        VALUES ($1, $2, $3, $4, true, $5, $6)
+        RETURNING *
+    `;
+    const values = [
+        objectId,
+        fieldData.label,
+        fieldData.apiName,
+        fieldData.dataType,
+        fieldData.isRequired || false,
+        fieldData.picklistOptions ? JSON.stringify(fieldData.picklistOptions) : null
+    ];
+
+    const { rows } = await pool.query(query, values);
+    return rows[0];
+}
+
+/**
+ * Fetches object and fields by its UUID
+ */
+export async function getObjectMetadataById(objectId: string) {
+    const { tenantId } = await requireAuth();
+
+    const { rows: objRows } = await pool.query(`
+        SELECT * FROM metadata_objects 
+        WHERE id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)
+    `, [objectId, tenantId]);
+
+    if (objRows.length === 0) throw new Error("Object not found");
+
+    const objectDef = objRows[0];
+
+    const { rows: fieldRows } = await pool.query(`
+        SELECT * FROM metadata_fields 
+        WHERE object_id = $1 
+        ORDER BY is_custom ASC, label ASC
+    `, [objectDef.id]);
+
+    return {
+        objectDef,
+        fields: fieldRows.map(row => ({
+            id: row.id,
+            label: row.label,
+            apiName: row.api_name,
+            dataType: row.data_type,
+            isCustom: row.is_custom,
+            isRequired: row.is_required,
+            picklistOptions: row.picklist_options
+        } as MetadataField))
+    };
+}

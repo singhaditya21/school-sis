@@ -181,6 +181,14 @@ export default async function AdminLayout({
                             </div>
                         )}
 
+                        {/* --- SYSTEM SETTINGS --- */}
+                        <div className="pt-2 mt-2 border-t border-gray-100">
+                            <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Settings</p>
+                            <NavLink href="/settings/objects" icon="⚙️">Object Manager</NavLink>
+                            <NavLink href="/automation" icon="⚡">Automations</NavLink>
+                            <NavLink href="/marketplace" icon="🧩">Marketplace</NavLink>
+                        </div>
+
                         {/* --- HQ COMMAND CENTER --- */}
                         {session.role === 'PLATFORM_ADMIN' || session.role === 'SUPER_ADMIN' || session.role === 'GROUP_EXECUTIVE' ? (
                             <div className="pt-2 mt-2 border-t border-gray-100">
