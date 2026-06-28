@@ -67,6 +67,7 @@ export const tenants = pgTable('tenants', {
     affiliationNumber: varchar('affiliation_number', { length: 100 }),
     udiseCode: varchar('udise_code', { length: 20 }),
     isActive: boolean('is_active').default(true).notNull(),
+    stripeConnectAccountId: varchar('stripe_connect_account_id', { length: 255 }), // Used for accepting parent payments via Stripe Connect
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
