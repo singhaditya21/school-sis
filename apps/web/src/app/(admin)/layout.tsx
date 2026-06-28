@@ -110,7 +110,7 @@ export default async function AdminLayout({
                         <NavLink href="/fees" icon="💰">
                             Fee Collections
                         </NavLink>
-                        <NavLink href="/invoices" icon="🧾">
+                        <NavLink href="/app/invoice" icon="🧾">
                             Invoices
                         </NavLink>
                         <NavLink href="/treasury" icon="🏦">
@@ -131,8 +131,8 @@ export default async function AdminLayout({
                         <NavLink href="/messages/templates" icon="✉️">
                             Messages
                         </NavLink>
-                        <NavLink href="/hr" icon="👥">
-                            HR & Payroll
+                        <NavLink href="/app/staff" icon="👥">
+                            Faculty & Staff
                         </NavLink>
                         <NavLink href="/analytics" icon="📊">
                             Analytics
