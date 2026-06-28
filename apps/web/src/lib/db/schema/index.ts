@@ -28,6 +28,7 @@ export * from './certificate';
 export * from './alumni';
 export * from './messaging';
 export * from './consent';
+export * from './automation';
 export * from './documents';
 
 // Phase 4 Expansions (Advanced Education Sectors)
