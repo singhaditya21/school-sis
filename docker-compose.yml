@@ -1,113 +1,26 @@
 version: '3.8'
 
-# ─── THE NATIVE CLOUD-SPLIT ARCHITECTURE ───────────────
-# Note: Since Docker Desktop Windows VMs are failing on the 
-# host machine, the `web` (Next.js) and `agents` (FastAPI) 
-# microservices have been moved to Native Execution.
-# Use `npm run dev` and `fastapi dev` to boot them instead!
-# ────────────────────────────────────────────────────────
 services:
-  # ─── PostgreSQL + pgvector ─────────────────────────────
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: scholarmind-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: school_sis
-      POSTGRES_USER: school_admin
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-school_sis_dev_2026}
-    read_only: true
-    security_opt:
-      - "no-new-privileges:true"
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
     ports:
-      - "5432:5432"
+      - "9090:9090"
     volumes:
-      - ./postgres_data:/var/lib/postgresql/data
-      - ./services/agents/sql:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U school_admin -d school_sis" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
-  # ─── Redis Cache ───────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    container_name: scholarmind-redis
-    restart: unless-stopped
-    read_only: true
-    security_opt:
-      - "no-new-privileges:true"
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
     ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  # ─── Next.js Frontend (MOVED TO NATIVE NVM) ──────────
-  # web:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #     args:
-  #       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-  #   container_name: scholarmind-web
-  #   restart: unless-stopped
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     DATABASE_URL: postgresql://school_admin:${DB_PASSWORD:-school_sis_dev_2026}@postgres:5432/school_sis
-  #     SESSION_SECRET: ${SESSION_SECRET}
-  #     ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-  #     NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-  #     STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
-  #     UPLOAD_DIR: /app/uploads
-  #     JOB_QUEUE_MODE: ${JOB_QUEUE_MODE:-sync}
-  #   volumes:
-  #     - uploads:/app/uploads
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-
-  # ─── Python Agent Service (MOVED TO NATIVE VENV) ─────
-  # agents:
-  #   build:
-  #     context: ./services/agents
-  #     dockerfile: Dockerfile
-  #   container_name: scholarmind-agents
-  #   restart: unless-stopped
-  #   ports:
-  #     - "8083:8083"
-  #   environment:
-  #     AGENT_DATABASE_URL: postgresql://school_admin:${DB_PASSWORD:-school_sis_dev_2026}@postgres:5432/school_sis
-  #     AGENT_INFERENCE_URL: http://inference:8081
-  #     AGENT_PORT: 8083
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-
-
-
-  # ─── Go API Gateway ────────────────────────────────────
-  # gateway:
-  #   build:
-  #     context: ./services/gateway
-  #     dockerfile: Dockerfile
-  #   container_name: scholarmind-gateway
-  #   restart: unless-stopped
-  #   ports:
-  #     - "8080:8080"
-  #   environment:
-  #     GATEWAY_PORT: 8080
-  #     WEB_URL: http://web:3000
-  #     AGENTS_URL: http://agents:8083
-  #     INFERENCE_URL: http://inference:8081
-  #   depends_on:
-  #     - web
-  #     - agents
-
-volumes:
-  pgdata:
-  uploads:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
