@@ -47,6 +47,10 @@ export default async function DashboardPage() {
     try {
         const tenantInfo = await getTenantInfo();
         tenant = { name: tenantInfo.name, slug: tenantInfo.code };
+        
+        if (isAdminRole(role) && !tenantInfo.hasAcademicYear) {
+            redirect('/onboarding');
+        }
     } catch (error) {
         console.error('[Dashboard] Tenant error:', error);
     }

@@ -21,6 +21,7 @@ export interface DashboardStats {
 export interface TenantInfo {
     name: string;
     code: string;
+    hasAcademicYear: boolean;
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -78,12 +79,15 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 export async function getTenantInfo(): Promise<TenantInfo> {
     const { tenantId } = await requireAuth();
 
-    const { rows } = await pool.query(
-        `SELECT name, code FROM tenants WHERE id = $1 LIMIT 1`,
-        [tenantId]
-    );
+    const [tenantRes, yearRes] = await Promise.all([
+        pool.query(`SELECT name, code FROM tenants WHERE id = $1 LIMIT 1`, [tenantId]),
+        pool.query(`SELECT id FROM academic_years WHERE tenant_id = $1 LIMIT 1`, [tenantId])
+    ]);
 
-    return rows[0] || { name: 'Unknown School', code: '???' };
+    const tenant = tenantRes.rows[0] || { name: 'Unknown School', code: '???' };
+    const hasAcademicYear = yearRes.rows.length > 0;
+
+    return { ...tenant, hasAcademicYear };
 }
 
 export interface ActivityLogItem {
