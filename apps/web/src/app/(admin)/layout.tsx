@@ -116,7 +116,7 @@ export default async function AdminLayout({
                         <NavLink href="/treasury" icon="🏦">
                             Treasury
                         </NavLink>
-                        <NavLink href="/students" icon="👥">
+                        <NavLink href="/app/student" icon="👥">
                             Students
                         </NavLink>
                         <NavLink href="/attendance" icon="✅">
