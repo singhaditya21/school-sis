@@ -67,3 +67,22 @@ export const substitutionsRelations = relations(substitutions, ({ one }) => ({
     originalTeacher: one(users, { fields: [substitutions.originalTeacherId], references: [users.id] }),
     substituteTeacher: one(users, { fields: [substitutions.substituteTeacherId], references: [users.id] }),
 }));
+
+export const substitutionRequests = pgTable('substitution_requests', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+    teacherId: uuid('teacher_id').references(() => users.id).notNull(),
+    substituteId: uuid('substitute_id').references(() => users.id),
+    sectionId: uuid('section_id').references(() => sections.id),
+    period: integer('period').notNull(),
+    date: varchar('date', { length: 10 }).notNull(), // "2026-02-26"
+    reason: varchar('reason', { length: 255 }),
+    status: varchar('status', { length: 50 }).default('pending'),
+});
+
+export const substitutionRequestsRelations = relations(substitutionRequests, ({ one }) => ({
+    tenant: one(tenants, { fields: [substitutionRequests.tenantId], references: [tenants.id] }),
+    teacher: one(users, { fields: [substitutionRequests.teacherId], references: [users.id] }),
+    substitute: one(users, { fields: [substitutionRequests.substituteId], references: [users.id] }),
+    section: one(sections, { fields: [substitutionRequests.sectionId], references: [sections.id] }),
+}));

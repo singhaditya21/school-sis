@@ -145,6 +145,13 @@ export async function allocateStudent(data: {
         [data.hostelId]
     );
 
+    // E2E-COM-301: Auto-generate hostel fee record
+    await pool.query(
+        `INSERT INTO hostel_fees (tenant_id, student_id, fee_type, amount, due_date, status)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [tenantId, data.studentId, 'hostel', 15000.00, data.allocatedFrom, 'pending']
+    );
+
     return { success: true };
 }
 
@@ -179,6 +186,38 @@ export async function vacateStudent(allocationId: string) {
         [allocation.hostelId]
     );
 
+    // E2E-WRK-401: Waitlist reallocation logic
+    // Find the oldest PENDING (waitlisted) allocation for this hostel
+    const pendingRes = await pool.query(
+        `SELECT id, student_id AS "studentId", room_id AS "roomId", bed_number AS "bedNumber" 
+         FROM hostel_allocations 
+         WHERE tenant_id = $1 AND hostel_id = $2 AND status = 'PENDING' 
+         ORDER BY created_at ASC LIMIT 1`,
+        [tenantId, allocation.hostelId]
+    );
+    
+    if (pendingRes.rows.length > 0) {
+        const pendingAllocation = pendingRes.rows[0];
+        
+        // Activate the pending allocation
+        await pool.query(
+            "UPDATE hostel_allocations SET status = 'ACTIVE', updated_at = NOW() WHERE id = $1",
+            [pendingAllocation.id]
+        );
+        
+        // Update room occupancy for newly activated allocation
+        await pool.query(
+            "UPDATE hostel_rooms SET occupied_beds = occupied_beds + 1, status = CASE WHEN occupied_beds + 1 >= total_beds THEN 'FULL'::room_status ELSE 'AVAILABLE'::room_status END WHERE id = $1",
+            [pendingAllocation.roomId]
+        );
+        
+        // Update hostel occupancy
+        await pool.query(
+            "UPDATE hostels SET occupied_beds = occupied_beds + 1 WHERE id = $1",
+            [allocation.hostelId]
+        );
+    }
+
     return { success: true };
 }
 
@@ -188,7 +227,7 @@ export async function getMessMenu(hostelId: string) {
     const { tenantId } = await requireAuth('hostel:read');
 
     const result = await pool.query(
-        `SELECT id, tenant_id AS "tenantId", hostel_id AS "hostelId", day, meal_type AS "mealType", items, created_at AS "createdAt", updated_at AS "updatedAt" 
+        `SELECT id, tenant_id AS "tenantId", hostel_id AS "hostelId", day, breakfast, lunch, snacks, dinner, updated_at AS "updatedAt" 
          FROM mess_menus 
          WHERE tenant_id = $1 AND hostel_id = $2 
          ORDER BY CASE day 

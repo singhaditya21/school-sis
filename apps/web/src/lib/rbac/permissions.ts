@@ -142,6 +142,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
         'receipts:read:own',
         'transport:read:own',
         'student:read:own',
+        'parent:read',
     ],
 
     STUDENT: [

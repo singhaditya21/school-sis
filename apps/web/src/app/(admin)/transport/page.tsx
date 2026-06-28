@@ -3,10 +3,17 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getRoutes } from '@/lib/actions/transport';
 import { formatCurrency } from '@/lib/utils';
+import { requireAuth } from '@/lib/auth/middleware';
 
 export default async function TransportPage() {
     const session = await getSession();
     if (!session.isLoggedIn) redirect('/login');
+
+    try {
+        await requireAuth('transport:read');
+    } catch (e) {
+        redirect('/unauthorized');
+    }
 
     const routes = await getRoutes();
 

@@ -35,8 +35,13 @@ if (process.env.NODE_ENV === 'production' && !connectionString.includes('sslmode
     );
 }
 
+declare global {
+    var pgPool: Pool | undefined;
+    var drizzleDb: any | undefined;
+}
+
 // Connection pool — optimized for serverless (Vercel + Neon.tech free tier)
-export const pool = new Pool({
+export const pool = globalThis.pgPool || new Pool({
     connectionString,
     max: getLimit('DB_POOL_MAX'),
     idleTimeoutMillis: 30000,
@@ -44,7 +49,15 @@ export const pool = new Pool({
     ssl: process.env.NODE_ENV === 'production' && !connectionString.includes('localhost') ? { rejectUnauthorized: false } : undefined,
 });
 
-export const db = drizzle(pool, { schema });
+if (process.env.NODE_ENV !== 'production') {
+    globalThis.pgPool = pool;
+}
+
+export const db = globalThis.drizzleDb || drizzle(pool, { schema });
+
+if (process.env.NODE_ENV !== 'production') {
+    globalThis.drizzleDb = db;
+}
 
 /**
  * Wrapper for executing raw queries within a specific tenant context (RLS).

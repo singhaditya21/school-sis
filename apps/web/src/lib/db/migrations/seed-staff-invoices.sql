@@ -12,8 +12,8 @@ VALUES (
 -- Seed Standard Fields for Staff
 INSERT INTO metadata_fields (object_id, label, api_name, data_type, is_custom, is_required)
 VALUES 
-    ('00000000-0000-0000-0000-000000000002', 'First Name', 'first_name', 'TEXT', false, true),
-    ('00000000-0000-0000-0000-000000000002', 'Last Name', 'last_name', 'TEXT', false, true),
+    ('00000000-0000-0000-0000-000000000002', 'First Name', 'first_name', 'TEXT', true, true),
+    ('00000000-0000-0000-0000-000000000002', 'Last Name', 'last_name', 'TEXT', true, true),
     ('00000000-0000-0000-0000-000000000002', 'Employee ID', 'employee_id', 'TEXT', false, true),
     ('00000000-0000-0000-0000-000000000002', 'Designation ID', 'designation_id', 'TEXT', false, true),
     ('00000000-0000-0000-0000-000000000002', 'Joining Date', 'joining_date', 'DATE', false, true)

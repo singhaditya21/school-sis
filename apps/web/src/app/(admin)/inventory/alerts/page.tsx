@@ -21,13 +21,14 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
         SELECT 
             sa.id, 
             sa.item_id AS "itemId", 
-            c.name AS "itemName", 
+            COALESCE(c.name, a.name) AS "itemName", 
             sa.alert_type AS "type", 
             sa.severity, 
             sa.message, 
             sa.created_at AS "createdAt"
         FROM stock_alerts sa
-        LEFT JOIN consumables c ON sa.item_id = c.id
+        LEFT JOIN consumables c ON sa.item_id = c.id AND sa.item_type = 'CONSUMABLE'
+        LEFT JOIN assets a ON sa.item_id = a.id AND sa.item_type = 'ASSET'
         WHERE sa.tenant_id = $1 AND sa.is_resolved = false
         ORDER BY sa.created_at DESC
     `, [tenantId]);
@@ -40,14 +41,14 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
 
     const filteredAlerts = alerts.filter(a => filter === 'ALL' || a.severity === filter);
 
-    const getSeverityBadge = (severity: string) => {
+    const getSeverityBadge = (severity: string, id: string) => {
         const config: Record<string, { color: string; icon: string }> = {
             critical: { color: 'bg-red-500 text-white', icon: '🚨' },
             warning: { color: 'bg-orange-500 text-white', icon: '⚠️' },
             info: { color: 'bg-blue-100 text-blue-700', icon: 'ℹ️' },
         };
         const active = config[severity] || config.info;
-        return <Badge className={active.color}>{active.icon} {severity.toUpperCase()}</Badge>;
+        return <Badge className={active.color} data-testid={`alert-severity-${id}`}>{active.icon} {severity.toUpperCase()}</Badge>;
     };
 
     const getTypeBadge = (type: string) => {
@@ -60,8 +61,6 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
     const infoCount = alerts.filter(a => a.severity === 'info').length;
 
     // Fetch items that need reordering
-    // Unfortunately drizzle `lte` doesn't natively compare two columns inline without `sql` fragment. 
-    // We can just fetch them all and array filter for simplicity, or use SQL fragment.
     const reorderItemsRes = await pool.query(`
         SELECT id, name, current_stock AS "currentStock", reorder_level AS "reorderLevel", minimum_stock AS "minimumStock", unit
         FROM consumables
@@ -77,24 +76,24 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Link href="?filter=critical">
+                <Link href="?filter=critical" data-testid="filter-critical">
                     <Card className="cursor-pointer border-2 border-red-200 hover:bg-red-50 transition-colors">
-                        <CardContent className="pt-4"><div className="text-sm text-gray-500">Critical</div><div className="text-3xl font-bold text-red-600">{criticalCount}</div></CardContent>
+                        <CardContent className="pt-4"><div className="text-sm text-gray-500">Critical</div><div className="text-3xl font-bold text-red-600" data-testid="kpi-critical-count">{criticalCount}</div></CardContent>
                     </Card>
                 </Link>
-                <Link href="?filter=warning">
+                <Link href="?filter=warning" data-testid="filter-warning">
                     <Card className="cursor-pointer border-2 border-orange-200 hover:bg-orange-50 transition-colors">
-                        <CardContent className="pt-4"><div className="text-sm text-gray-500">Warning</div><div className="text-3xl font-bold text-orange-600">{warningCount}</div></CardContent>
+                        <CardContent className="pt-4"><div className="text-sm text-gray-500">Warning</div><div className="text-3xl font-bold text-orange-600" data-testid="kpi-warning-count">{warningCount}</div></CardContent>
                     </Card>
                 </Link>
-                <Link href="?filter=info">
+                <Link href="?filter=info" data-testid="filter-info">
                     <Card className="cursor-pointer border-2 border-blue-200 hover:bg-blue-50 transition-colors">
-                        <CardContent className="pt-4"><div className="text-sm text-gray-500">Info</div><div className="text-3xl font-bold text-blue-600">{infoCount}</div></CardContent>
+                        <CardContent className="pt-4"><div className="text-sm text-gray-500">Info</div><div className="text-3xl font-bold text-blue-600" data-testid="kpi-info-count">{infoCount}</div></CardContent>
                     </Card>
                 </Link>
-                <Link href="?filter=ALL">
+                <Link href="?filter=ALL" data-testid="filter-all">
                     <Card className="cursor-pointer hover:bg-gray-50 transition-colors">
-                        <CardContent className="pt-4"><div className="text-sm text-gray-500">Total</div><div className="text-3xl font-bold text-purple-600">{alerts.length}</div></CardContent>
+                        <CardContent className="pt-4"><div className="text-sm text-gray-500">Total</div><div className="text-3xl font-bold text-purple-600" data-testid="kpi-total-alerts">{alerts.length}</div></CardContent>
                     </Card>
                 </Link>
             </div>
@@ -102,13 +101,13 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
             <Card>
                 <CardHeader><CardTitle>Active Alerts {filter !== 'ALL' && `(${filter.toUpperCase()})`}</CardTitle></CardHeader>
                 <CardContent>
-                    {filteredAlerts.length === 0 ? <div className="text-center py-8 text-gray-500">✅ No alerts</div> : (
-                        <div className="space-y-3">
+                    {filteredAlerts.length === 0 ? <div className="text-center py-8 text-gray-500" data-testid="no-alerts-placeholder">✅ No alerts</div> : (
+                        <div className="space-y-3" data-testid="active-alerts-list">
                             {filteredAlerts.map(alert => (
-                                <div key={alert.id} className={`p-4 rounded-lg border-l-4 ${alert.severity === 'critical' ? 'bg-red-50 border-red-500' : alert.severity === 'warning' ? 'bg-orange-50 border-orange-500' : 'bg-blue-50 border-blue-500'}`}>
-                                    <div className="flex items-center justify-between"><div className="flex items-center gap-3">{getSeverityBadge(alert.severity)}{getTypeBadge(alert.type || '')}</div></div>
-                                    <p className="mt-2 font-medium">{alert.itemName || 'Unknown Item'}</p>
-                                    <p className="text-sm text-gray-600">{alert.message}</p>
+                                <div key={alert.id} data-testid="alert-item" className={`p-4 rounded-lg border-l-4 ${alert.severity === 'critical' ? 'bg-red-50 border-red-500' : alert.severity === 'warning' ? 'bg-orange-50 border-orange-500' : 'bg-blue-50 border-blue-500'}`}>
+                                    <div className="flex items-center justify-between"><div className="flex items-center gap-3">{getSeverityBadge(alert.severity, alert.id)}{getTypeBadge(alert.type || '')}</div></div>
+                                    <p className="mt-2 font-medium" data-testid={`alert-name-${alert.id}`}>{alert.itemName || 'Unknown Item'}</p>
+                                    <p className="text-sm text-gray-600" data-testid={`alert-message-${alert.id}`}>{alert.message}</p>
                                 </div>
                             ))}
                         </div>
@@ -128,20 +127,20 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
                                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Suggested</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y">
+                        <tbody className="divide-y" data-testid="reorder-suggestions-list">
                             {reorderItems.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="py-4 text-center text-gray-500">No items need reordering.</td>
+                                    <td colSpan={4} className="py-4 text-center text-gray-500" data-testid="no-suggestions-placeholder">No items need reordering.</td>
                                 </tr>
                             ) : (
                                 reorderItems.map(item => {
                                     const suggestedQty = Math.max((item.reorderLevel || 0) * 2 - (item.currentStock || 0), item.minimumStock || 0);
                                     return (
-                                        <tr key={item.id} className="hover:bg-gray-50">
-                                            <td className="px-4 py-3 font-medium">{item.name}</td>
-                                            <td className="px-4 py-3 text-right text-red-600 font-semibold">{item.currentStock} {item.unit}</td>
-                                            <td className="px-4 py-3 text-right text-gray-500">{item.reorderLevel} {item.unit}</td>
-                                            <td className="px-4 py-3 text-right font-semibold text-blue-600">{suggestedQty} {item.unit}</td>
+                                        <tr key={item.id} className="hover:bg-gray-50" data-testid={`reorder-row-${item.id}`}>
+                                            <td className="px-4 py-3 font-medium" data-testid={`reorder-item-name-${item.id}`}>{item.name}</td>
+                                            <td className="px-4 py-3 text-right text-red-600 font-semibold" data-testid={`reorder-current-stock-${item.id}`}>{item.currentStock} {item.unit}</td>
+                                            <td className="px-4 py-3 text-right text-gray-500" data-testid={`reorder-level-${item.id}`}>{item.reorderLevel} {item.unit}</td>
+                                            <td className="px-4 py-3 text-right font-semibold text-blue-600" data-testid={`reorder-suggested-qty-${item.id}`}>{suggestedQty} {item.unit}</td>
                                         </tr>
                                     );
                                 })

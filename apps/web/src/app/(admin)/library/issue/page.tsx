@@ -129,11 +129,11 @@ export default function IssueBookPage() {
                 <Link href="/library" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">← Back to Library</Link>
             </div>
 
-            {message && (<div className={`p-4 rounded-lg ${message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{message.text}</div>)}
+            {message && (<div data-testid="message-banner" className={`p-4 rounded-lg ${message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{message.text}</div>)}
 
             <div className="flex gap-2">
-                <button onClick={() => setMode('issue')} className={`px-6 py-3 rounded-lg font-medium ${mode === 'issue' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>📖 Issue Book</button>
-                <button onClick={() => setMode('return')} className={`px-6 py-3 rounded-lg font-medium ${mode === 'return' ? 'bg-green-600 text-white' : 'bg-gray-100'}`}>↩️ Return Book</button>
+                <button data-testid="mode-issue" onClick={() => setMode('issue')} className={`px-6 py-3 rounded-lg font-medium ${mode === 'issue' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>📖 Issue Book</button>
+                <button data-testid="mode-return" onClick={() => setMode('return')} className={`px-6 py-3 rounded-lg font-medium ${mode === 'return' ? 'bg-green-600 text-white' : 'bg-gray-100'}`}>↩️ Return Book</button>
             </div>
 
             {mode === 'issue' ? (
@@ -142,8 +142,8 @@ export default function IssueBookPage() {
                     <CardContent className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium mb-2">Search & Select Book</label>
-                            <input type="text" placeholder="Search by title or ISBN..." value={bookSearch} onChange={(e) => setBookSearch(e.target.value)} className="w-full px-4 py-2 border rounded-lg mb-2" />
-                            <select value={selectedBook} onChange={(e) => setSelectedBook(e.target.value)} className="w-full px-4 py-2 border rounded-lg">
+                            <input data-testid="book-search-input" type="text" placeholder="Search by title or ISBN..." value={bookSearch} onChange={(e) => setBookSearch(e.target.value)} className="w-full px-4 py-2 border rounded-lg mb-2" />
+                            <select data-testid="book-select" value={selectedBook} onChange={(e) => setSelectedBook(e.target.value)} className="w-full px-4 py-2 border rounded-lg">
                                 <option value="">Select a book...</option>
                                 {books
                                     .filter(b => b.availableCopies > 0 && (!bookSearch || b.title.toLowerCase().includes(bookSearch.toLowerCase()) || (b.isbn && b.isbn.includes(bookSearch))))
@@ -156,13 +156,13 @@ export default function IssueBookPage() {
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-2">Select Student</label>
-                            <select value={selectedStudent} onChange={(e) => setSelectedStudent(e.target.value)} className="w-full px-4 py-2 border rounded-lg">
+                            <select data-testid="student-select" value={selectedStudent} onChange={(e) => setSelectedStudent(e.target.value)} className="w-full px-4 py-2 border rounded-lg">
                                 <option value="">Select a student...</option>
                                 {students.map((student: any) => (<option key={student.id} value={student.id}>{student.name} - Class {student.class} ({student.admissionNo})</option>))}
                             </select>
                         </div>
                         <div className="bg-gray-50 p-4 rounded-lg text-sm"><p><strong>Loan Period:</strong> 14 days</p><p><strong>Fine Rate:</strong> ₹2 per day after due date</p></div>
-                        <button onClick={handleIssue} className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">Issue Book</button>
+                        <button data-testid="issue-submit-btn" onClick={handleIssue} className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">Issue Book</button>
                     </CardContent>
                 </Card>
             ) : (

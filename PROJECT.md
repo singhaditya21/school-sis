@@ -1,54 +1,63 @@
-# Project: School SIS Scaffolding Bridge Deprecation and Module Migration
+# Project: School SIS Core Operations Implementation
 
 ## Architecture
-- **Backend Services**: Located in `apps/web/src/lib/services/[module]/[module].service.ts`. They use `pool.query` to execute parameterized PostgreSQL queries directly. Access control is managed in each action via `requireAuth(permission)`.
+- **Backend Services**: Located in `apps/web/src/lib/services/[module]/[module].service.ts` or similar path. They use Drizzle ORM queries directly, replacing raw SQL where appropriate. Access control is managed in each action via `requireAuth(permission)`.
 - **Frontend Pages**: React server/client components in `apps/web/src/app/(admin)/[module]/...`. They consume the backend service methods, using shadcn UI `<Table>` and `<Badge>` components for consistent formatting and presentation.
-- **Scaffolding Cleanup**: The legacy `apps/web/src/lib/actions/scaffolding-bridge.ts` will have functions for Gradebook, Hostel, Timetable Substitution, Library, and Diary/Appointments removed, leaving only templates or generic operations if needed.
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | E2E Testing Track | Design and establish baseline E2E test cases to verify the pages | None | PLANNED |
-| M2 | Migrate Gradebook | Create `gradebook.service.ts` with pg queries, delete legacy function | M1 | PLANNED |
-| M3 | Migrate Hostel | Implement `hostel.service.ts` with `getHostelFees`, refactor `hostel/fees/page.tsx` table/badge | M1 | PLANNED |
-| M4 | Migrate Timetable Substitution | Implement `timetable.service.ts` with substitution queries, refactor `timetable/substitution/page.tsx` table/badge | M1 | PLANNED |
-| M5 | Migrate Library | Update `library.service.ts` with borrow queries, refactor `library/issue/page.tsx` and `library/history/page.tsx` table/badge | M1 | PLANNED |
-| M6 | Migrate Diary/Appointments | Create `diary.service.ts` and `appointments.service.ts` queries, refactor `diary/page.tsx` and `appointments/page.tsx` table/badge | M1 | PLANNED |
-| M7 | Scaffolding Cleanup & Verification | Remove migrated functions from `scaffolding-bridge.ts`, run final builds and tests | M2, M3, M4, M5, M6 | PLANNED |
+| M1 | E2E Testing Track | Design and establish baseline E2E test cases to verify the pages | None | DONE (Conv ID: 5842a9f6-c89a-4e06-ae0c-01eaa5796f9b) |
+| M2 | Implement Hostel Module | Implement drizzle schema, backend service, and UI wiring for Hostel. | M1 | DONE (Conv ID: 6d34308d-5f38-4392-ba6e-df2fb1c2966e) |
+| M3 | Implement Transport Module | Implement drizzle schema, backend service with GPS routing mapping logic, and UI wiring for Transport. | M1 | DONE (Conv ID: 6d34308d-5f38-4392-ba6e-df2fb1c2966e) |
+| M4 | Implement Timetable Module | Implement drizzle schema, backend service with teacher collision prevention logic, and UI wiring for Timetable. | M1 | DONE (Conv ID: 6d34308d-5f38-4392-ba6e-df2fb1c2966e) |
+| M5 | Implement Library Module | Implement drizzle schema, backend service with barcode/ISBN processing logic, and UI wiring for Library. | M1 | DONE (Conv ID: 6d34308d-5f38-4392-ba6e-df2fb1c2966e) |
+| M6 | Implement Inventory Module | Implement drizzle schema, backend service, and UI wiring for Inventory. | M1 | DONE (Conv ID: 6d34308d-5f38-4392-ba6e-df2fb1c2966e) |
+| M7 | Integration & Verification | Run final builds, unit/E2E tests, and execute Forensic Auditor validation. | M2, M3, M4, M5, M6 | DONE (Conv ID: 6d34308d-5f38-4392-ba6e-df2fb1c2966e) |
 
 ## Interface Contracts
-### Gradebook Service
-- `getGradebookData(classId?: string): Promise<{ classes: any[], exams: any[], students: any[] }>`
-
 ### Hostel Service
-- `getHostelFees(status?: string, feeType?: string): Promise<any[]>`
+- `getHostelOverview(tenantId: string)`
+- `getHostelFees(tenantId: string, filters: { status?: string, feeType?: string })`
+- `sendPaymentReminder(tenantId: string, feeId: string)`
 
-### Timetable Substitution Service
-- `getSubstitutionTeachers(): Promise<any[]>`
-- `getSubstitutionRequests(): Promise<any[]>`
+### Transport Service
+- `getRoutes(tenantId: string)`
+- `createRoute(tenantId: string, data: any)`
+- `getGPSPing(tenantId: string, vehicleId: string)` (returns latitude/longitude)
+
+### Timetable Service
+- `getTimetableGrid(tenantId: string, sectionId: string)`
+- `createTimetableEntry(tenantId: string, data: any)` (with conflict-resolution logic checking teacher and room collisions)
+- `getSubstitutions(tenantId: string)`
+- `createSubstitutionRequest(tenantId: string, data: any)`
 
 ### Library Service
-- `getLibraryStudents(): Promise<any[]>`
-- `getOverdueBooks(tenantId: string): Promise<any[]>` (optional/if needed)
+- `getBooks(tenantId: string)`
+- `issueBook(tenantId: string, data: { bookId: string, studentId: string, isbnOrBarcode?: string })` (with barcode/ISBN processing/validation logic)
+- `getBorrowHistory(tenantId: string)`
 
-### Diary Service
-- `getDiaryEntries(): Promise<any[]>`
-
-### Appointments Service
-- `getAppointments(): Promise<any[]>`
+### Inventory Service
+- `getAssets(tenantId: string)`
+- `getConsumables(tenantId: string)`
+- `getStockAlerts(tenantId: string)`
 
 ## Code Layout
 - Backend Services: `apps/web/src/lib/services/`
-  - Gradebook: `gradebook/gradebook.service.ts`
   - Hostel: `hostel/hostel.service.ts`
+  - Transport: `transport/transport.service.ts`
   - Timetable: `timetable/timetable.service.ts`
   - Library: `library/library.service.ts`
-  - Diary: `diary/diary.service.ts`
-  - Appointments: `appointments/appointments.service.ts`
+  - Inventory: `inventory/inventory.service.ts`
 - Frontend Pages:
+  - Hostel Overview: `apps/web/src/app/(admin)/hostel/page.tsx`
   - Hostel Fees: `apps/web/src/app/(admin)/hostel/fees/page.tsx`
+  - Transport routes: `apps/web/src/app/(admin)/transport/page.tsx`
+  - Transport new route: `apps/web/src/app/(admin)/transport/new/page.tsx`
+  - Timetable Grid: `apps/web/src/app/(admin)/timetable/grid/page.tsx`
+  - Timetable Substitution: `apps/web/src/app/(admin)/timetable/substitution/page.tsx`
+  - Library Catalog: `apps/web/src/app/(admin)/library/page.tsx`
   - Library Issue: `apps/web/src/app/(admin)/library/issue/page.tsx`
   - Library History: `apps/web/src/app/(admin)/library/history/page.tsx`
-  - Substitution: `apps/web/src/app/(admin)/timetable/substitution/page.tsx`
-  - Diary: `apps/web/src/app/(admin)/diary/page.tsx`
-  - Appointments: `apps/web/src/app/(admin)/appointments/page.tsx`
+  - Inventory: `apps/web/src/app/(admin)/inventory/page.tsx`
+  - Inventory Alerts: `apps/web/src/app/(admin)/inventory/alerts/page.tsx`

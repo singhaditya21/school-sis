@@ -1,23 +1,20 @@
-# Scope: E2E Testing for Migrated Modules
+# Scope: E2E Testing of 5 Core Operations modules
 
 ## Architecture
-- **E2E Testing Framework**: Playwright (configured in `apps/web/playwright.config.ts`)
-- **Target Modules**:
-  1. Gradebook: Route `/teacher/gradebook` (inputs, CBCS matrix, analytics, automated grading curve)
-  2. Hostel Fees: Route `/hostel/fees` (fees table, status badges, filters)
-  3. Timetable Substitution: Route `/timetable/substitution` (substitution requests, teacher assignments)
-  4. Library Management: Route `/library/issue` & `/library/history` (issue books, search, borrow history)
-  5. Diary/Appointments: Routes `/diary` & `/appointments` (diary entries, parent-teacher appointments)
+- Testing targets: 5 Core Operations modules (Hostel, Transport, Timetable, Library, Inventory) in Next.js web app.
+- Execution runner: Playwright, with tests located under `apps/web/e2e/`.
+- Backend state control: Direct DB queries via helper to verify or mock state.
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Plan & Infra Setup | Formulate 4-tier E2E plan and document in TEST_INFRA.md | None | DONE |
-| M2 | Verify Baseline E2E | Run existing Playwright E2E tests and verify environment is clean | M1 | DONE |
-| M3.1 | Gradebook E2E | Implement E2E test for `/teacher/gradebook` (relative curves, inputs) | M2 | DONE |
-| M3.2 | Hostel Fees E2E | Implement E2E test for `/hostel/fees` (status badges, filtering) | M2 | DONE |
-| M3.3 | Timetable Sub E2E | Implement E2E test for `/timetable/substitution` (teacher list, requests) | M2 | DONE |
-| M3.4 | Library E2E | Implement E2E test for library issue/history | M2 | DONE |
-| M3.5 | Diary & Appointments E2E | Implement E2E test for `/diary` and `/appointments` | M2 | DONE |
-| M4 | Verify and Run All Tests | Run the full Playwright test suite to ensure all tests pass | M3.1 - M3.5 | DONE |
-| M5 | Publish TEST_READY.md | Synthesize test counts, command summary, and checklist in TEST_READY.md | M4 | DONE |
+| 1 | Test Plan & Setup | Design test cases list and write TEST_INFRA.md | none | DONE |
+| 2 | Hostel E2E | Implement 12 E2E tests for Hostel (Tiers 1-4) in `apps/web/e2e/hostel-core.spec.ts` | M1 | DONE |
+| 3 | Transport E2E | Implement 12 E2E tests for Transport (Tiers 1-4) in `apps/web/e2e/transport-core.spec.ts` | M2 | DONE |
+| 4 | Timetable E2E | Implement 12 E2E tests for Timetable (Tiers 1-4) in `apps/web/e2e/timetable-core.spec.ts` | M3 | DONE |
+| 5 | Library E2E | Implement 12 E2E tests for Library (Tiers 1-4) in `apps/web/e2e/library-core.spec.ts` | M4 | DONE |
+| 6 | Inventory E2E | Implement 12 E2E tests for Inventory (Tiers 1-4) in `apps/web/e2e/inventory-core.spec.ts` | M5 | DONE |
+| 7 | Verification & Ready | Run all tests and publish TEST_READY.md at project root | M6 | DONE |
+
+## Interface Contracts
+- None (E2E testing uses Playwright UI selectors and DB queries, no new backend/frontend interfaces are created).

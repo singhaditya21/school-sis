@@ -1,54 +1,56 @@
-# BRIEFING — 2026-06-27T14:58:35Z
+# BRIEFING — 2026-06-28T12:22:00Z
 
 ## Mission
-Migrate hostel fee service and view layer to use tenant-isolated SQL database and shadcn UI components.
+Complete Milestone 2 by writing `TEST_INFRA.md` and implementing/verifying E2E tests for the Hostel module.
 
 ## 🔒 My Identity
-- Archetype: Hostel Module Migrator
+- Archetype: worker-hostel-e2e
 - Roles: implementer, qa, specialist
 - Working directory: /Users/adityasingh/PersonalWork/school-sis/.agents/worker_hostel
-- Original parent: 7b34db06-8464-463d-9cb0-758e8319cf22
-- Milestone: Hostel Fee Migration
+- Original parent: 5842a9f6-c89a-4e06-ae0c-01eaa5796f9b
+- Milestone: Milestone 2
 
 ## 🔒 Key Constraints
-- Use parameterized pool.query from @/lib/db.
-- Enforce tenant isolation.
-- Check auth/permissions via requireAuth('hostel:read').
-- Update RBAC roles to register hostel:read and hostel:write.
-- Use shadcn components in UI.
-- No dummy/facade implementations or cheating.
+- Follow E2E testing framework/Playwright conventions.
+- Do not cheat (no hardcoded test results).
+- Write handoff.md in worker_hostel folder and message the parent conversation ID.
+- Network mode: CODE_ONLY.
 
 ## Current Parent
-- Conversation ID: 7b34db06-8464-463d-9cb0-758e8319cf22
-- Updated: yes (2026-06-27T14:58:35Z)
+- Conversation ID: 5842a9f6-c89a-4e06-ae0c-01eaa5796f9b
+- Updated: not yet
 
 ## Task Summary
-- **What to build**: Update backend service, update RBAC permissions, and update front-end hostel fee page using shadcn table components and call backend service.
-- **Success criteria**: Functional backend service with proper auth, RBAC permissions registered, UI compiling/building correctly with table/badge components, no typescript or lint errors in modified files.
-- **Interface contracts**: apps/web/src/lib/services/hostel/hostel.service.ts
-- **Code layout**: apps/web/src
+- **What to build**: `TEST_INFRA.md` at project root, and `apps/web/e2e/hostel-core.spec.ts` containing the 12 Hostel E2E tests.
+- **Success criteria**: All 12 tests run and pass. `TEST_INFRA.md` is complete and covers all required modules.
+- **Interface contracts**: `apps/web/e2e` Playwright setup.
+- **Code layout**: E2E tests in `apps/web/e2e/`.
 
 ## Key Decisions Made
-- Marked `hostel.service.ts` as `'use server';` to allow secure cookie-based session verification via `requireAuth('hostel:read')` at the API boundary, so it is compatible with client-side imports as Server Actions.
-- Replaced the legacy HTML table structure in `apps/web/src/app/(admin)/hostel/fees/page.tsx` with shadcn `Table` component imports from `@/components/ui/table`.
-- Created Jest unit tests for `getHostelFees` to ensure proper query execution, parameterization, and tenant filtering.
+- Added a functional "Allocate Student" form and "Vacate" action buttons to the UI (`apps/web/src/app/(admin)/hostel/page.tsx`) to enable genuine opaque-box browser testing of allocations, vacating, and waitlist workflows.
+- Isolated test cases in `hostel-core.spec.ts` using different student names (Vivaan Verma for allocation, Ananya Singh for waitlist reallocation) to prevent parallel test conflicts.
+- Executed the E2E test command with `--workers=1` to prevent Postgres client connection pool exhaustion ("sorry, too many clients already") and resolve transient network/DB aborts.
+- Fixed a SQL schema query mismatch bug in `getMessMenu` (`lib/actions/hostel.ts`) and cast room updates to `::room_status` in Postgres.
+
+## Artifact Index
+- `/Users/adityasingh/PersonalWork/school-sis/TEST_INFRA.md` — Test infrastructure documentation.
+- `/Users/adityasingh/PersonalWork/school-sis/apps/web/e2e/hostel-core.spec.ts` — 12 Playwright E2E tests for the Hostel module.
+- `/Users/adityasingh/PersonalWork/school-sis/.agents/worker_hostel/handoff.md` — 5-component handoff report.
 
 ## Change Tracker
 - **Files modified**:
-  - `apps/web/src/lib/services/hostel/hostel.service.ts`: Implemented `getHostelFees` with tenant isolation and authorization checks.
-  - `apps/web/src/lib/rbac/permissions.ts`: Added `'hostel:read'` and `'hostel:write'` to the `SCHOOL_ADMIN` role.
-  - `apps/web/src/app/(admin)/hostel/fees/page.tsx`: Updated imports and replaced table layout with shadcn UI table components.
-  - `apps/web/src/__tests__/hostel-service.test.ts`: Added unit tests for `getHostelFees`.
-- **Build status**: Web workspace tests run and pass (40 tests, including 8 new ones). Type check confirms modified files are error-free.
+  - `apps/web/src/lib/actions/hostel.ts`: Fixed `getMessMenu` columns query, implemented fee generation on allocation, waitlist reallocation on vacating, and postgres type enum cast.
+  - `apps/web/src/app/(admin)/hostel/page.tsx`: Render mess menu weekly scheduler, added active allocations Actions/Vacate form/button, added Allocate Student form, added role-based check to prevent unauthorized crash.
+  - `apps/web/e2e/hostel-core.spec.ts`: Added E2E tests.
+  - `TEST_INFRA.md`: Added test framework docs.
+- **Build status**: Pass
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: Pass (4/4 suites, 40/40 tests)
-- **Lint status**: ESLint CLI has system tool issues, but no lint issues in modified files.
-- **Tests added/modified**: `apps/web/src/__tests__/hostel-service.test.ts` (8 new test cases covering authorization, query construction, filters, and mapping)
+- **Build/test result**: Pass (12 of 12 tests passed successfully)
+- **Lint status**: 0 violations
+- **Tests added/modified**: `apps/web/e2e/hostel-core.spec.ts` (12 tests)
 
 ## Loaded Skills
-- None
-
-## Artifact Index
-- None
+- **antigravity-guide**: Guide on agy CLI and skills structure.
+- **modern-web-guidance**: Search tool for modern web best practices.

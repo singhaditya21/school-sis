@@ -6,7 +6,8 @@ import GenericFormClient from './generic-form';
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
-export default async function GenericObjectFormPage({ params }: { params: { object: string, id: string } }) {
+export default async function GenericObjectFormPage({ params }: { params: Promise<{ object: string, id: string }> }) {
+    const resolvedParams = await params;
     const session = await getSession();
 
     if (!session.isLoggedIn) {
@@ -14,11 +15,11 @@ export default async function GenericObjectFormPage({ params }: { params: { obje
     }
 
     try {
-        const { objectDef, fields, layouts } = await getObjectMetadata(params.object);
+        const { objectDef, fields, layouts } = await getObjectMetadata(resolvedParams.object);
         
         let initialData = {};
-        if (params.id !== 'new') {
-            const records = await queryRecords(params.object, { id: params.id }, 1, 0);
+        if (resolvedParams.id !== 'new') {
+            const records = await queryRecords(resolvedParams.object, { id: resolvedParams.id }, 1, 0);
             if (records.length > 0) {
                 initialData = records[0];
             } else {
@@ -34,14 +35,14 @@ export default async function GenericObjectFormPage({ params }: { params: { obje
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900 dark:text-white capitalize">
-                            {params.id === 'new' ? `New ${objectDef.name}` : `Edit ${objectDef.name}`}
+                            {resolvedParams.id === 'new' ? `New ${objectDef.name}` : `Edit ${objectDef.name}`}
                         </h1>
                     </div>
                 </div>
 
                 <GenericFormClient 
-                    objectName={params.object}
-                    recordId={params.id === 'new' ? undefined : params.id}
+                    objectName={resolvedParams.object}
+                    recordId={resolvedParams.id === 'new' ? undefined : resolvedParams.id}
                     fields={fields}
                     initialData={initialData}
                     layout={formLayout?.schema}

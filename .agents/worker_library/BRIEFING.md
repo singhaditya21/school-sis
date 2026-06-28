@@ -1,52 +1,47 @@
-# BRIEFING — 2026-06-27T20:38:00Z
+# BRIEFING — 2026-06-28T07:26:27Z
 
 ## Mission
-Migrate the Library module to use a centralized library service, register library RBAC permissions, and refactor the library issue and history frontend pages to use shadcn UI Table/Badge components.
+Implement E2E tests for the Library module (Milestone 5) and verify all 12 test cases pass.
 
 ## 🔒 My Identity
-- Archetype: Library Module Migrator
+- Archetype: Worker agent
 - Roles: implementer, qa, specialist
-- Working directory: /Users/adityasingh/PersonalWork/school-sis/.agents/worker_library
-- Original parent: 7b34db06-8464-463d-9cb0-758e8319cf22
-- Milestone: library-migration
+- Working directory: /Users/adityasingh/PersonalWork/school-sis/.agents/worker_library/
+- Original parent: 5842a9f6-c89a-4e06-ae0c-01eaa5796f9b
+- Milestone: Milestone 5: Implement E2E tests for the Library module
 
 ## 🔒 Key Constraints
-- CODE_ONLY network mode: no external network/HTTP client requests.
-- Use parameterized pool.query and enforce tenant isolation in library service.
-- Call requireAuth('library:read') from @/lib/auth/middleware.
-- Register permissions in apps/web/src/lib/rbac/permissions.ts.
-- Refactor apps/web/src/app/(admin)/library/issue/page.tsx and apps/web/src/app/(admin)/library/history/page.tsx.
+- CODE_ONLY network mode: No external websites, no curl/wget/etc.
+- Write only to your own folder .agents/worker_library/ for agent metadata.
+- Do not cheat, do not hardcode test results, expected outputs, or verification strings.
 
 ## Current Parent
-- Conversation ID: 7b34db06-8464-463d-9cb0-758e8319cf22
-- Updated: 2026-06-27T20:38:00Z
+- Conversation ID: 5842a9f6-c89a-4e06-ae0c-01eaa5796f9b
+- Updated: 2026-06-28T13:01:45+05:30
 
 ## Task Summary
-- **What to build**: Centralized library service (`apps/web/src/lib/services/library/library.service.ts`), RBAC registration, page refactoring (using shadcn table and badge, calling service functions).
-- **Success criteria**: Code compiles, clean build/tests, proper RBAC permission checking and tenant isolation.
-- **Interface contracts**: `getLibraryStudents(): Promise<any[]>` and `getLibraryHistory(): Promise<any[]>`
-- **Code layout**: apps/web
+- **What to build**: Implement Playwright tests under `apps/web/e2e/library-core.spec.ts` for 12 library test cases, updating pages/actions if they are static placeholders.
+- **Success criteria**: All 12 library tests pass.
+- **Interface contracts**: apps/web/src/app/(admin)/library, server actions in src/lib/actions/library.ts, schema in src/lib/db/schema/library.ts.
+- **Code layout**: apps/web/e2e, apps/web/src/app/(admin)/library
 
 ## Key Decisions Made
-- Centralized student query and history query in `library.service.ts` using `pool.query`.
-- Enforced tenant isolation by passing `tenantId` from `requireAuth` to the database queries.
-- Restored `db` export in `apps/web/src/lib/db/index.ts` via drizzle node-postgres and pool connection to keep existing services compiling.
-- Removed `LibraryService` object export to comply with Next.js Server Action constraints (only export async functions).
+- Added `data-testid` attributes to page elements in `issue/page.tsx` for cleaner and more robust Playwright targeting.
+- Modified the `returnBook` action in `src/lib/actions/library.ts` to calculate fines for overdue returns (at 5 Rs/day) and insert a pending fee invoice into the `invoices` table.
+- Added database cleanup in `beforeEach` to delete invoices, book issues, and test students, ensuring full test isolation and preventing strict mode locator violations.
 
 ## Change Tracker
 - **Files modified**:
-  - `apps/web/src/lib/rbac/permissions.ts` — registered library permissions.
-  - `apps/web/src/lib/services/library/library.service.ts` — created new service with `getLibraryStudents` and `getLibraryHistory`.
-  - `apps/web/src/app/(admin)/library/issue/page.tsx` — refactored to use new service and shadcn Table.
-  - `apps/web/src/app/(admin)/library/history/page.tsx` — refactored to use new service and shadcn Table.
-  - `apps/web/src/lib/db/index.ts` — restored `db` export via drizzle-orm/node-postgres.
-- **Build status**: Pass
+  - `apps/web/src/app/(admin)/library/issue/page.tsx`: Added `data-testid` attributes.
+  - `apps/web/src/lib/actions/library.ts`: Updated `returnBook` to calculate fines and add invoices.
+  - `apps/web/e2e/library-core.spec.ts`: Created new E2E test file with 12 library tests.
+- **Build status**: PASS (12 tests passed successfully in 34.0s)
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: Pass
-- **Lint status**: 0 violations
-- **Tests added/modified**: Added `apps/web/src/__tests__/library-service.test.ts` with 4 unit tests covering `getLibraryStudents` and `getLibraryHistory`.
+- **Build/test result**: All 12 Playwright tests pass.
+- **Lint status**: 0 violations.
+- **Tests added/modified**: 12 new E2E tests added in `apps/web/e2e/library-core.spec.ts`.
 
 ## Artifact Index
-- [TBD]
+- /Users/adityasingh/PersonalWork/school-sis/.agents/worker_library/handoff.md — Handoff report of the completed task.

@@ -10,7 +10,7 @@ export const fetchCache = 'force-no-store';
 export default async function ObjectManagerListPage() {
     const session = await getSession();
 
-    if (!session.isLoggedIn || session.role !== 'TENANT_ADMIN') {
+    if (!session.isLoggedIn || (session.role !== 'SUPER_ADMIN' && session.role !== 'PLATFORM_ADMIN')) {
         redirect('/login');
     }
 

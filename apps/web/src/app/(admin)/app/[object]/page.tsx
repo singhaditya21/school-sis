@@ -6,7 +6,8 @@ import GenericListClient from './generic-list';
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
-export default async function GenericObjectListPage({ params }: { params: { object: string } }) {
+export default async function GenericObjectListPage({ params }: { params: Promise<{ object: string }> }) {
+    const resolvedParams = await params;
     const session = await getSession();
 
     if (!session.isLoggedIn) {
@@ -14,8 +15,8 @@ export default async function GenericObjectListPage({ params }: { params: { obje
     }
 
     try {
-        const { objectDef, fields, layouts } = await getObjectMetadata(params.object);
-        const records = await queryRecords(params.object, {}, 50, 0);
+        const { objectDef, fields, layouts } = await getObjectMetadata(resolvedParams.object);
+        const records = await queryRecords(resolvedParams.object, {}, 50, 0);
 
         // Find the LIST layout if it exists
         const listLayout = layouts.find(l => l.layoutType === 'LIST');
@@ -34,7 +35,7 @@ export default async function GenericObjectListPage({ params }: { params: { obje
                 </div>
 
                 <GenericListClient 
-                    objectName={params.object}
+                    objectName={resolvedParams.object}
                     fields={fields} 
                     records={records} 
                     layout={listLayout?.schema}

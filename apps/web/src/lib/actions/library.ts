@@ -165,13 +165,28 @@ export async function returnBook(issueId: string, fineAmount?: number) {
     const { tenantId, userId } = await requireAuth('library:write');
 
     const issueRes = await pool.query(
-        `SELECT book_id AS "bookId", status FROM book_issues WHERE id = $1 AND tenant_id = $2`,
+        `SELECT book_id AS "bookId", status, due_date AS "dueDate", issued_to_student_id AS "studentId" FROM book_issues WHERE id = $1 AND tenant_id = $2`,
         [issueId, tenantId]
     );
     const issue = issueRes.rows[0];
 
     if (!issue || issue.status !== 'ISSUED') {
         return { success: false, error: 'Invalid issue or already returned' };
+    }
+
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const dueDateObj = new Date(issue.dueDate);
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const dueStart = new Date(dueDateObj.getFullYear(), dueDateObj.getMonth(), dueDateObj.getDate());
+    
+    let finalFine = fineAmount || 0;
+    if (!fineAmount && todayStart > dueStart) {
+        const diffTime = todayStart.getTime() - dueStart.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays > 0) {
+            finalFine = diffDays * 5; // 5 Rs per day
+        }
     }
 
     // Mark as returned
@@ -183,9 +198,9 @@ export async function returnBook(issueId: string, fineAmount?: number) {
              fine_amount = $3 
          WHERE id = $4`,
         [
-            new Date().toISOString().split('T')[0],
+            todayStr,
             userId,
-            fineAmount ? String(fineAmount) : '0',
+            String(finalFine),
             issueId
         ]
     );
@@ -195,6 +210,24 @@ export async function returnBook(issueId: string, fineAmount?: number) {
         `UPDATE books SET available_copies = available_copies + 1 WHERE id = $1`,
         [issue.bookId]
     );
+
+    // If there is a fine, insert it as an invoice for the student's outstanding fees
+    if (finalFine > 0 && issue.studentId) {
+        // Fetch fee plan ID
+        const fpRes = await pool.query(
+            `SELECT id FROM fee_plans WHERE tenant_id = $1 LIMIT 1`,
+            [tenantId]
+        );
+        const feePlanId = fpRes.rows[0]?.id;
+        if (feePlanId) {
+            const invoiceNo = `INV-LI-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 100)}`;
+            await pool.query(
+                `INSERT INTO invoices (tenant_id, student_id, fee_plan_id, invoice_number, total_amount, paid_amount, due_date, status, description)
+                 VALUES ($1, $2, $3, $4, $5, '0', $6, 'PENDING', $7)`,
+                [tenantId, issue.studentId, feePlanId, invoiceNo, String(finalFine), todayStr, 'Library Fine - Overdue Book']
+            );
+        }
+    }
 
     return { success: true };
 }

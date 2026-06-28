@@ -49,6 +49,13 @@ CREATE TABLE IF NOT EXISTS hostel_fees (
 );
 
 -- Delete existing E2E data to prevent foreign key errors (ordered by dependencies)
+DELETE FROM substitution_requests WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35';
+DELETE FROM diary_entries WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35';
+DELETE FROM appointments WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35';
+DELETE FROM hostel_allocations WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35';
+DELETE FROM hostel_rooms WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35';
+DELETE FROM hostels WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35';
+DELETE FROM hostel_fees WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35';
 DELETE FROM book_issues WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35';
 DELETE FROM books WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35';
 DELETE FROM receipts WHERE receipt_number = 'PAY-2025-089';

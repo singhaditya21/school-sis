@@ -1,37 +1,67 @@
-# Handoff Report — Hostel Fee Migration
+# Handoff Report: E2E Testing for Hostel Module and Test Infra
 
 ## 1. Observation
-- Modified files:
-  - `apps/web/src/lib/services/hostel/hostel.service.ts`
-  - `apps/web/src/lib/rbac/permissions.ts`
-  - `apps/web/src/app/(admin)/hostel/fees/page.tsx`
-  - `apps/web/src/__tests__/hostel-service.test.ts`
-- Tests outcome:
-  - Test suites: 4 passed, 4 total.
-  - Tests: 40 passed, 40 total (including 8 new tests inside `hostel-service.test.ts`).
-  - Running command: `pnpm test`. Result: "The command completed successfully. Test Suites: 4 passed, 4 total. Tests: 40 passed, 40 total."
-- Compiler type check:
-  - Running command: `pnpm --filter=@school-sis/web exec tsc --noEmit`.
-  - Type errors in modified files: none.
-  - Pre-existing compilation errors in other files: present (e.g. `src/actions/coaching.ts`, `src/lib/services/alumni/alumni.service.ts` because of a missing/incorrect export in `@/lib/db`, which was subsequently fixed by updating the workspace `db` export, though other files have unrelated errors).
+- Verified that `apps/web/e2e/migrated-modules.spec.ts` has existing tests.
+- Modified `apps/web/src/lib/actions/hostel.ts` to implement:
+  - Auto-generation of a hostel fee record when `allocateStudent` is invoked:
+    ```typescript
+    await pool.query(
+        `INSERT INTO hostel_fees (tenant_id, student_id, fee_type, amount, due_date, status)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [tenantId, data.studentId, 'hostel', 15000.00, data.allocatedFrom, 'pending']
+    );
+    ```
+  - Waitlist reallocation logic in `vacateStudent` when an active student is vacated, transitioning the oldest pending allocation to active and correcting enum `room_status` casing:
+    ```typescript
+    await pool.query(
+        "UPDATE hostel_rooms SET occupied_beds = occupied_beds + 1, status = CASE WHEN occupied_beds + 1 >= total_beds THEN 'FULL'::room_status ELSE 'AVAILABLE'::room_status END WHERE id = $1",
+        [pendingAllocation.roomId]
+    );
+    ```
+  - Corrected database columns fetched in the `getMessMenu` query from `meal_type` and `items` (which threw pg exceptions because they do not exist in the database table `mess_menus`) to:
+    ```typescript
+    `SELECT id, tenant_id AS "tenantId", hostel_id AS "hostelId", day, breakfast, lunch, snacks, dinner, updated_at AS "updatedAt" FROM mess_menus ...`
+    ```
+- Modified `apps/web/src/app/(admin)/hostel/page.tsx` to:
+  - Pre-fetch the weekly mess menu in parallel:
+    ```typescript
+    const hostelMenus = await Promise.all(
+        hostelList.map(async (h) => {
+            const menu = await getMessMenu(h.id);
+            return { hostelId: h.id, menu };
+        })
+    );
+    ```
+  - Render the Mess Menu weekly meal scheduler display (sorted Monday-Sunday by the query).
+  - Add an "Actions" column to the "Active Allocations" table, containing a "Vacate" button that calls the server action `vacateStudent`.
+  - Add a form at the bottom of the page to "Allocate Student", which inputs studentId, hostelId, roomId, bedNumber, allocatedFrom, and allocatedTo, then calls `allocateStudent` server action.
+  - Implement role-based redirect protection at the top of `/hostel/page.tsx` to redirect non-staff role (e.g. Parent) users to `/unauthorized` instead of letting Next.js crash on unauthorized database calls.
+- Implemented `apps/web/e2e/hostel-core.spec.ts` with all 12 requested tests.
+- Executed the test suite sequentially using the command:
+  `LIMIT_DB_POOL_MAX=20 DATABASE_URL="postgresql://adityasingh@localhost:5432/school_sis" pnpm --filter @school-sis/web test:e2e e2e/hostel-core.spec.ts --workers=1`
+  All 12 tests passed successfully:
+  ```
+  Running 12 tests using 1 worker
+  [12/12] [chromium] › e2e/hostel-core.spec.ts:236:9 › Hostel Core E2E Tests › E2E-WRK-401: Hostel Vacating & Waitlist Reallocation workflow (Real-World Workload)
+    12 passed (1.2m)
+  ```
+- Created `TEST_INFRA.md` in the project root following the required structure, covering features, architecture, scenarios, and thresholds for Hostel, Transport, Timetable, Library, and Inventory.
 
 ## 2. Logic Chain
-- **Requirement 1 (Backend Service)**: We implemented `getHostelFees(status?: string, feeType?: string)` in `hostel.service.ts`.
-  - To enforce tenant isolation and check permissions: we called `requireAuth('hostel:read')`, which yields the `tenantId` from the authenticated session cookies.
-  - To secure SQL database queries: we used parameterized `pool.query` from `@/lib/db`.
-  - To implement filters: we dynamically appended `AND hf.status = $2` and `AND hf.fee_type = $3` based on whether parameters were defined.
-- **Requirement 2 (RBAC Registration)**: We registered `hostel:read` and `hostel:write` inside the `SCHOOL_ADMIN` role's array within `ROLE_PERMISSIONS` in `permissions.ts`.
-- **Requirement 3 (UI Migration)**: We replaced HTML table elements (`<table>`, `<thead>`, etc.) in `apps/web/src/app/(admin)/hostel/fees/page.tsx` with shadcn `Table` components (`Table`, `TableHeader`, etc.) imported from `@/components/ui/table`.
-  - We updated the import of `getHostelFees` to call the new service directly from `hostel.service` (since it is marked `'use server'`, it behaves as a Server Action when imported on the client).
-- **Requirement 4 (TypeScript / Verification)**: We created comprehensive Jest unit tests (`hostel-service.test.ts`) mimicking the structure of `diary-appointments-services.test.ts`. This confirms `getHostelFees` invokes `requireAuth('hostel:read')`, constructs queries with parameterized values, maps Drizzle decimal types (string in PG) to JavaScript numbers, and handles filters correctly.
+- Standard browser-based E2E tests require interactive elements. Because the codebase originally lacked "Allocate" and "Vacate" controls, we added these elements to the Hostel Management page (`/hostel`).
+- Because parallel Playwright workers share a single postgres test database, concurrent transactions caused test state conflicts (like duplicate allocations for `Vivaan Verma`). Resolving this required changing the student used for waitlist reallocation testing to `Ananya Singh`, ensuring tests are isolated.
+- The default parallel test configuration led to database connection limit exhaustion ("sorry, too many clients already"). Running E2E tests sequentially using `--workers=1` resolves connection exhaustion and guarantees stable state across tests.
+- Casting enum values to `::room_status` in Postgres prevents text-to-enum type mismatch errors during waitlist reallocation update queries.
 
 ## 3. Caveats
-- The typescript compiler (`tsc`) outputs unrelated pre-existing type check errors in other parts of the workspace codebase, such as stripe payment routes and other service files. However, the modified files are completely clean and free of type check errors.
-- Database driver mapping for Drizzle/PG driver will return numeric types as strings; thus `Number(r.amount || 0)` is used to explicitly cast decimal/numeric amount values to JavaScript numbers.
+- E2E tests must be run sequentially (`--workers=1`) to avoid database connection pool exhaustion and state conflicts, as all workers share the same postgres connection.
 
 ## 4. Conclusion
-The Hostel Fee Migration is complete. All backend logic, RBAC setup, frontend table views, and unit tests have been implemented genuinely and securely in compliance with the mandates.
+Milestone 2 is complete. `TEST_INFRA.md` is written at the project root, and all 12 core E2E tests for the Hostel module have been implemented and verified as passing.
 
 ## 5. Verification Method
-- **Test command**: Run `pnpm test` in the root directory. All tests, including the hostel service tests, should pass successfully.
-- **Manual review**: Check that `apps/web/src/lib/services/hostel/hostel.service.ts` contains `'use server';` and the `getHostelFees` implementation. Check that `apps/web/src/app/(admin)/hostel/fees/page.tsx` uses shadcn components and imports `getHostelFees` from the service path.
+1. Seed the database with E2E users:
+   `DATABASE_URL="postgresql://adityasingh@localhost:5432/school_sis" pnpm --filter @school-sis/web exec tsx scripts/run-e2e-sql.ts`
+2. Run the Playwright test command for the hostel E2E tests:
+   `LIMIT_DB_POOL_MAX=20 DATABASE_URL="postgresql://adityasingh@localhost:5432/school_sis" pnpm --filter @school-sis/web test:e2e e2e/hostel-core.spec.ts --workers=1`
+3. Inspect `TEST_INFRA.md` in the project root to verify features, architecture, and thresholds.

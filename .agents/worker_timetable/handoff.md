@@ -1,36 +1,40 @@
-# Handoff Report - Timetable Substitution Migration
+# Handoff Report - Timetable Module E2E Tests Implementation (Milestone 4)
 
 ## 1. Observation
-- The legacy timetable substitution page `apps/web/src/app/(admin)/timetable/substitution/page.tsx` relied on mock queries via `@/lib/actions/scaffolding-bridge`.
-- The `SCHOOL_ADMIN` role did not have the `substitution` resource permissions registered in `apps/web/src/lib/rbac/permissions.ts`.
-- The new service `apps/web/src/lib/services/timetable/timetable.service.ts` was missing.
-- Verification command `pnpm --filter @school-sis/web exec tsc --noEmit` initially reported missing dynamically generated Next.js dev types under `.next/dev/types/` and syntax errors in `.next/dev/types/routes.d.ts` due to aborted builds.
-- Running `rm -rf apps/web/.next` cleared the corrupted compiler cache files. Subsequent type checking runs of `tsc --noEmit` showed zero errors under the modified/created files:
-  - `apps/web/src/lib/services/timetable/timetable.service.ts`
-  - `apps/web/src/lib/rbac/permissions.ts`
-  - `apps/web/src/app/(admin)/timetable/substitution/page.tsx`
+- E2E tests command executed successfully:
+  `LIMIT_DB_POOL_MAX=20 DATABASE_URL="postgresql://adityasingh@localhost:5432/school_sis" pnpm --filter @school-sis/web test:e2e e2e/timetable-core.spec.ts --workers=1`
+- Verbatim output showed:
+  ```
+  Running 13 tests using 1 worker
+  ...
+  13 passed (52.4s)
+  ```
+- Stale server processes on port `3000` were identified using `lsof -i :3000` and terminated to prevent stale routing.
+- Next.js dynamic routing warning resolved:
+  `Route "/timetable/[sectionId]" used params.sectionId. params is a Promise and must be unwrapped with await...`
+  Awaited the `params` object in dynamic routes (`/timetable/[sectionId]` and `/timetable/substitution/detail/[id]`).
 
 ## 2. Logic Chain
-- To implement database access with tenant isolation, we created `apps/web/src/lib/services/timetable/timetable.service.ts`.
-- We imported `pool` from `@/lib/db` and called `pool.query` parameterized with `tenantId` to query the database.
-- We fetched the `tenantId` via `requireAuth(...)` from `@/lib/auth/middleware`. To support either `timetable:read` or `substitution:read` permissions, we checked `requireAuth('timetable:read')` and caught any failure to fallback to `requireAuth('substitution:read')`.
-- To register the required permissions under `SCHOOL_ADMIN`, we appended `substitution:*` to the role's permission array in `apps/web/src/lib/rbac/permissions.ts`.
-- We updated the legacy HTML table structure in `apps/web/src/app/(admin)/timetable/substitution/page.tsx` with standard shadcn Table components imported from `@/components/ui/table` and changed the service functions import from the scaffolding bridge to the new service file.
+- To implement all 13 E2E test scenarios, the underlying UI and backend forms had to be fully functional.
+- Static layout placeholders in `/timetable/new` and `/timetable/substitution` were replaced with fully interactive and testable forms linked to server actions in `src/lib/actions/timetable.ts`.
+- Added actions `getTeachersForTimetable` and `getSubjectsForTimetable` in `src/lib/actions/timetable.ts` to supply dynamic data to the period assignment form.
+- Resolved double-booking conflict warnings by surfacing details array from the `checkConflicts` utility onto the UI alert banner (`[data-testid="error-message"]`).
+- Implemented `/timetable/bulk` and integrated it with `bulkCreateEntries` server action to support bulk schedule uploads, rendering conflict lists, and allowing the test to verify and skip conflicts.
+- Integrated substitutions into `/teacher/schedule` page by querying the approved `substitution_requests` table for the logged-in teacher and the current date.
+- Formulated `apps/web/e2e/timetable-core.spec.ts` matching the 13 required test specifications using Playwright.
+- Executed E2E tests against a fresh instance of the server and verified that all 13 test scenarios pass cleanly.
 
 ## 3. Caveats
-- There are pre-existing, unrelated compilation errors in other modules of the project (e.g. `dpdpa.ts`, `gdpr.ts`, `visitor.service.ts`, `stripe/client.ts` etc.). None of these are inside the timetable or substitution modules or files modified.
-- Next.js development type generation requires a clean `.next` state to not cause compiler errors on missing dynamically generated routing files.
+- No caveats. The database tables are correctly isolated per tenant using the test suite's `TENANT_ID` (`0c413c23-6f0f-40ab-bd41-73e6e996ff35`).
 
 ## 4. Conclusion
-- The migration is successfully complete. The new database service is fully functional, secure, enforces tenant isolation, and is wired into the UI page. The UI page now properly uses shadcn Table components and the Badge component.
+- Milestone 4 is fully completed. All 13 E2E test cases (**E2E-TT-101** through **E2E-WRK-405**) are successfully implemented, compile-clean, and passing.
 
 ## 5. Verification Method
-- **Files to Inspect**:
-  - `apps/web/src/lib/services/timetable/timetable.service.ts`
-  - `apps/web/src/app/(admin)/timetable/substitution/page.tsx`
-  - `apps/web/src/lib/rbac/permissions.ts`
-- **Command to Run**:
-  - To confirm type safety on the affected files, run:
-    ```bash
-    npx tsc apps/web/src/app/\(admin\)/timetable/substitution/page.tsx apps/web/src/lib/services/timetable/timetable.service.ts --noEmit --skipLibCheck --target esnext --moduleResolution bundler --module esnext --jsx react-jsx --esModuleInterop
-    ```
+- Execute the Playwright E2E command in the root folder:
+  `LIMIT_DB_POOL_MAX=20 DATABASE_URL="postgresql://adityasingh@localhost:5432/school_sis" pnpm --filter @school-sis/web test:e2e e2e/timetable-core.spec.ts --workers=1`
+- Inspect files:
+  - Tests: `apps/web/e2e/timetable-core.spec.ts`
+  - Routes: `apps/web/src/app/(admin)/timetable/[sectionId]/page.tsx`, `apps/web/src/app/(admin)/timetable/bulk/page.tsx`, `apps/web/src/app/(admin)/timetable/substitution/detail/[id]/page.tsx`
+  - Components: `apps/web/src/app/(admin)/timetable/new/page.tsx`, `apps/web/src/app/(admin)/timetable/substitution/page.tsx`
+  - Actions: `apps/web/src/lib/actions/timetable.ts`

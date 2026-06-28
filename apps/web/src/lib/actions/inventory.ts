@@ -278,3 +278,70 @@ export async function getInventoryStats() {
         activeAlerts: Number(unresolvedAlerts[0]?.c || 0),
     };
 }
+
+// ─── Update Asset Condition ─────────────────────────────────
+
+export async function updateAssetCondition(assetId: string, condition: string) {
+    const { tenantId } = await requireAuth('inventory:write');
+
+    const updateQuery = `
+        UPDATE assets
+        SET condition = $1, updated_at = NOW()
+        WHERE id = $2 AND tenant_id = $3
+        RETURNING name
+    `;
+    const { rows } = await pool.query(updateQuery, [condition, assetId, tenantId]);
+    if (rows.length === 0) {
+        throw new Error('Asset not found or unauthorized');
+    }
+    const assetName = rows[0].name;
+
+    if (condition === 'NEEDS_REPAIR') {
+        const checkAlertQuery = `
+            SELECT id FROM stock_alerts
+            WHERE item_id = $1 AND tenant_id = $2 AND item_type = 'ASSET' AND is_resolved = false
+            LIMIT 1
+        `;
+        const { rows: existingAlerts } = await pool.query(checkAlertQuery, [assetId, tenantId]);
+        if (existingAlerts.length === 0) {
+            const insertAlertQuery = `
+                INSERT INTO stock_alerts (
+                    tenant_id, item_id, item_type, alert_type, severity, message, is_resolved
+                ) VALUES (
+                    $1, $2, 'ASSET', 'MAINTENANCE_DUE', 'WARNING', $3, false
+                )
+            `;
+            await pool.query(insertAlertQuery, [
+                tenantId, assetId, `Asset ${assetName} needs repair!`
+            ]);
+        }
+    } else {
+        const resolveAlertQuery = `
+            UPDATE stock_alerts
+            SET is_resolved = true, resolved_at = NOW()
+            WHERE item_id = $1 AND tenant_id = $2 AND item_type = 'ASSET' AND is_resolved = false
+        `;
+        await pool.query(resolveAlertQuery, [assetId, tenantId]);
+    }
+
+    return { success: true };
+}
+
+export async function updateAssetConditionForm(formData: FormData) {
+    const assetId = formData.get('assetId') as string;
+    const condition = formData.get('condition') as string;
+    await updateAssetCondition(assetId, condition);
+    const { revalidatePath } = require('next/cache');
+    revalidatePath('/inventory');
+    revalidatePath('/inventory/alerts');
+}
+
+export async function restockConsumableForm(formData: FormData) {
+    const consumableId = formData.get('consumableId') as string;
+    const quantity = Number(formData.get('quantity'));
+    await restockConsumable(consumableId, quantity);
+    const { revalidatePath } = require('next/cache');
+    revalidatePath('/inventory');
+    revalidatePath('/inventory/alerts');
+}
+

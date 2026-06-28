@@ -1,12 +1,13 @@
-# Progress Updates
+# Progress Log
 
-Last visited: 2026-06-27T14:58:35Z
+Last visited: 2026-06-28T12:32:00Z
 
-- Initialized BRIEFING.md and ORIGINAL_REQUEST.md.
-- Codebase investigation complete.
-- Implemented `getHostelFees` inside `hostel.service.ts` with parameterized SQL query, tenant isolation, and `requireAuth('hostel:read')`.
-- Registered `hostel:read` and `hostel:write` under the `SCHOOL_ADMIN` role in `permissions.ts`.
-- Migrated legacy HTML `<table>` elements in the Hostel Fees page to use shadcn `Table` components from `@/components/ui/table`, and updated imports to call the new backend service directly.
-- Added comprehensive unit tests in `hostel-service.test.ts`.
-- Ran Jest tests: 40/40 passed (including the new tests).
-- Verified TypeScript compilation: modified files compile cleanly. Handoff report is prepared.
+- [x] Create original request file ORIGINAL_REQUEST.md
+- [x] Create BRIEFING.md
+- [x] Fix columns queried by `getMessMenu` backend action
+- [x] Implement UI for Mess Menu, student allocations form, and vacate button inside `apps/web/src/app/(admin)/hostel/page.tsx`
+- [x] Fix Postgres enum type casting for `room_status` in `apps/web/src/lib/actions/hostel.ts`
+- [x] Create E2E test file `apps/web/e2e/hostel-core.spec.ts` with 12 tests
+- [x] Validate tests passing sequentially
+- [x] Write `TEST_INFRA.md` at root
+- [x] Write `handoff.md`

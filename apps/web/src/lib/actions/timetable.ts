@@ -124,6 +124,33 @@ export async function getSectionsForTimetable() {
         .orderBy(asc(grades.displayOrder), asc(sections.name));
 }
 
+export async function getTeachersForTimetable() {
+    const { tenantId } = await requireAuth('timetable:read');
+    return db
+        .select({
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+        })
+        .from(users)
+        .where(and(eq(users.tenantId, tenantId), eq(users.role, 'TEACHER'), eq(users.isActive, true)))
+        .orderBy(asc(users.firstName));
+}
+
+export async function getSubjectsForTimetable() {
+    const { tenantId } = await requireAuth('timetable:read');
+    return db
+        .select({
+            id: subjects.id,
+            name: subjects.name,
+            code: subjects.code,
+        })
+        .from(subjects)
+        .where(eq(subjects.tenantId, tenantId))
+        .orderBy(asc(subjects.name));
+}
+
+
 // ─── Conflict Detection ─────────────────────────────────────
 
 export interface TimetableConflict {
@@ -348,6 +375,7 @@ export async function createSubstitutionRequest(data: {
     absentTeacherName: string;
     subject: string;
     period: number;
+    substituteTeacherName?: string;
 }) {
     const { tenantId } = await requireAuth('timetable:read');
 
@@ -361,18 +389,29 @@ export async function createSubstitutionRequest(data: {
         throw new Error('Teacher not found');
     }
 
-    // Resolve a default section and substitute teacher for the request
+    // Resolve a default section for the request
     const sectionRes = await pool.query(
         `SELECT id FROM sections WHERE tenant_id = $1 LIMIT 1`,
         [tenantId]
     );
     const sectionId = sectionRes.rows[0]?.id;
 
-    const substituteRes = await pool.query(
-        `SELECT id FROM users WHERE tenant_id = $1 AND role = 'TEACHER' AND id != $2 LIMIT 1`,
-        [tenantId, teacherId]
-    );
-    const substituteId = substituteRes.rows[0]?.id;
+    // Resolve substitute
+    let substituteId = null;
+    if (data.substituteTeacherName) {
+        const subRes = await pool.query(
+            `SELECT id FROM users WHERE tenant_id = $1 AND role = 'TEACHER' AND (first_name || ' ' || last_name) = $2 LIMIT 1`,
+            [tenantId, data.substituteTeacherName]
+        );
+        substituteId = subRes.rows[0]?.id;
+    }
+    if (!substituteId) {
+        const substituteRes = await pool.query(
+            `SELECT id FROM users WHERE tenant_id = $1 AND role = 'TEACHER' AND id != $2 LIMIT 1`,
+            [tenantId, teacherId]
+        );
+        substituteId = substituteRes.rows[0]?.id;
+    }
 
     await pool.query(
         `INSERT INTO substitution_requests (tenant_id, teacher_id, substitute_id, section_id, period, date, reason, status)
@@ -382,4 +421,16 @@ export async function createSubstitutionRequest(data: {
 
     return { success: true };
 }
+
+export async function approveSubstitutionRequest(id: string) {
+    const { tenantId } = await requireAuth('timetable:write');
+    await pool.query(
+        `UPDATE substitution_requests
+         SET status = 'approved'
+         WHERE id = $1 AND tenant_id = $2`,
+        [id, tenantId]
+    );
+    return { success: true };
+}
+
 

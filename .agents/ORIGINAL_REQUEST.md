@@ -1,26 +1,35 @@
 # Original User Request
 
-## Initial Request — 2026-06-27T06:50:16Z
+## Initial Request — 2026-06-28T06:41:22Z
 
-Migrate the remaining 5 scaffolded modules (Gradebook, Hostel, Timetable Substitution, Library, Diary/Appointments) off the legacy `scaffolding-bridge.ts`. For each module, implement a dedicated backend `service.ts` using parameterized `pg.Pool` queries and upgrade the frontend generic tables to fully interactive Radix/shadcn UI components matching the reference implementation in the Parent Portal.
+# Teamwork Project Prompt — Draft
+
+> Status: Launched
+> Goal: Craft prompt → get user approval → delegate to teamwork_preview
+
+Implement the 5 remaining Core Operations modules (Hostel, Transport, Timetable, Library, Inventory) for the School SIS web application to move them from scaffolding to full comprehensive production features.
 
 Working directory: /Users/adityasingh/PersonalWork/school-sis/apps/web
-Integrity mode: benchmark
+Integrity mode: development
 
 ## Requirements
 
-### R1. Backend Service Implementation
-For each of the 5 modules, create a dedicated `lib/services/[module]/[module].service.ts` file. Replace the legacy `scaffolding-bridge.ts` exports with strictly typed, paginated, and parameterized raw PostgreSQL (`pg.Pool`) queries.
+### R1. Full Comprehensive Implementation
+Build all 5 modules (Hostel, Transport, Timetable, Library, Inventory) to a deep feature set. This includes advanced logic such as barcode scanning systems for the Library, GPS routing mapping for Transport, and conflict-resolution algorithms for the Timetable.
 
-### R2. Frontend UI Overhaul
-Replace the native HTML `<table>` elements in the respective UI routes with the `shadcn/Radix` UI `<Table>` and `<Badge>` components. Ensure the new backend service is imported and integrated seamlessly.
+### R2. Database Migrations
+For every schema file modified or created (`hostel.ts`, `transport.ts`, etc.), the agent must execute `npx drizzle-kit push` to synchronize the changes directly to the database.
 
-### R3. Scaffolding Cleanup
-Remove the legacy functions for these 5 modules from `src/lib/actions/scaffolding-bridge.ts` entirely.
+### R3. UI Wiring
+Replace all hardcoded mock arrays and `useState` client data with live Drizzle ORM server actions fetching directly from the database.
 
 ## Acceptance Criteria
 
-### Verification
-- [ ] `npm run build` compiles successfully with zero TypeScript or import errors.
-- [ ] A text search confirms `scaffolding-bridge.ts` no longer contains any functions related to these 5 modules.
-- [ ] A UI scan confirms the targeted module pages (`src/app/(admin)/hostel/fees/page.tsx`, etc.) import `Table` from `@/components/ui/table`.
+### Technical Validation
+- [ ] TypeScript compilation (`npm run build`) completes with zero errors.
+- [ ] Database schema push (`npx drizzle-kit push`) completes without errors for all 5 schema files.
+
+### Feature Validation
+- [ ] The Timetable engine contains programmatic logic to prevent assigning the same teacher to two different classes simultaneously.
+- [ ] The Library module contains logic designed to process barcodes or ISBN numbers.
+- [ ] All 5 module dashboard URLs load without throwing 500 server errors when provided with valid tenant IDs.

@@ -27,6 +27,9 @@ export default async function TimetablePage() {
                     <Link href="/timetable/grid" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                         📅 Grid View
                     </Link>
+                    <Link href="/timetable/bulk" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700" data-testid="bulk-upload-link">
+                        📤 Bulk Upload
+                    </Link>
                     <Link href="/timetable/new" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                         + Add Period
                     </Link>

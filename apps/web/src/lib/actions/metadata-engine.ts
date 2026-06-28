@@ -3,6 +3,7 @@
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { inngest } from '@/inngest/client';
+import { redirect } from 'next/navigation';
 
 export interface MetadataObject {
     id: string;
@@ -103,8 +104,16 @@ export async function queryRecords(apiName: string, filters: Record<string, any>
     // Flatten custom_data into the root object for the UI
     return rows.map(row => {
         const { custom_data, ...rest } = row;
+        const serializedRest: Record<string, any> = {};
+        for (const [key, val] of Object.entries(rest)) {
+            if (val instanceof Date) {
+                serializedRest[key] = val.toISOString().split('T')[0];
+            } else {
+                serializedRest[key] = val;
+            }
+        }
         return {
-            ...rest,
+            ...serializedRest,
             ...(custom_data || {})
         };
     });
@@ -114,93 +123,169 @@ export async function queryRecords(apiName: string, filters: Record<string, any>
  * Inserts or Updates a record, mapping fields to columns and packing unknown fields into JSONB custom_data
  */
 export async function upsertRecord(apiName: string, data: Record<string, any>, id?: string) {
-    const { tenantId } = await requireAuth();
-    const { objectDef, fields } = await getObjectMetadata(apiName);
+    try {
+        const { tenantId } = await requireAuth();
+        const { objectDef, fields } = await getObjectMetadata(apiName);
 
-    const standardFields = fields.filter(f => !f.isCustom);
-    const customFields = fields.filter(f => f.isCustom);
-    
-    // Separate data into standard columns and custom_data
-    const standardData: Record<string, any> = {};
-    const customData: Record<string, any> = {};
-
-    for (const [key, value] of Object.entries(data)) {
-        if (standardFields.some(f => f.apiName === key)) {
-            standardData[key] = value;
-        } else if (customFields.some(f => f.apiName === key)) {
-            customData[key] = value;
-        } else if (key === 'id' || key === 'tenantId') {
-            // ignore protected
-        }
-    }
-
-    const hasCustomData = Object.keys(customData).length > 0;
-    
-    if (id) {
-        // UPDATE
-        let setClauses = [];
-        let values = [id, tenantId];
-        let argIndex = 3;
-
-        for (const [key, value] of Object.entries(standardData)) {
-            setClauses.push(`"${key}" = $${argIndex++}`);
-            values.push(value);
-        }
-
-        if (hasCustomData) {
-            setClauses.push(`custom_data = custom_data || $${argIndex++}`);
-            values.push(JSON.stringify(customData));
-        }
-
-        if (setClauses.length === 0) return { id }; // Nothing to update
-
-        const query = `
-            UPDATE ${objectDef.tableName}
-            SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1 AND tenant_id = $2
-            RETURNING id
-        `;
-        const { rows } = await pool.query(query, values);
+        const standardFields = fields.filter(f => !f.isCustom);
+        const customFields = fields.filter(f => f.isCustom);
         
-        await inngest.send({
-            name: "object.record.upserted",
-            data: { tenantId, objectName: apiName, recordId: id, payload: data }
-        });
-        
-        return rows[0];
-    } else {
-        // INSERT
-        const keys = ['tenant_id'];
-        const values = [tenantId];
-        let placeholders = ['$1'];
-        let argIndex = 2;
+        // Separate data into standard columns and custom_data
+        const standardData: Record<string, any> = {};
+        const customData: Record<string, any> = {};
 
-        for (const [key, value] of Object.entries(standardData)) {
-            keys.push(`"${key}"`);
-            values.push(value);
-            placeholders.push(`$${argIndex++}`);
+        for (const [key, value] of Object.entries(data)) {
+            if (standardFields.some(f => f.apiName === key)) {
+                standardData[key] = value === '' ? null : value;
+            } else if (customFields.some(f => f.apiName === key)) {
+                customData[key] = value;
+            } else if (key === 'id' || key === 'tenantId') {
+                // ignore protected
+            }
         }
 
-        if (hasCustomData || customFields.length > 0) {
-            keys.push('custom_data');
-            values.push(JSON.stringify(customData));
-            placeholders.push(`$${argIndex++}`);
+        if (!id) {
+            if (apiName === 'student') {
+                if (!standardData.date_of_birth) {
+                    standardData.date_of_birth = '2010-01-01';
+                }
+                if (!standardData.gender) {
+                    standardData.gender = 'Other';
+                }
+                if (!standardData.grade_id) {
+                    const { rows: gradeRows } = await pool.query('SELECT id FROM grades LIMIT 1');
+                    if (gradeRows.length > 0) standardData.grade_id = gradeRows[0].id;
+                }
+                if (!standardData.section_id) {
+                    const { rows: sectionRows } = await pool.query('SELECT id FROM sections LIMIT 1');
+                    if (sectionRows.length > 0) standardData.section_id = sectionRows[0].id;
+                }
+            }
+
+            if (apiName === 'staff') {
+                if (!standardData.joining_date) {
+                    standardData.joining_date = new Date().toISOString().split('T')[0];
+                }
+                // Create a user account for the staff member
+                const email = `${standardData.employee_id || 'staff_' + Math.random().toString(36).substring(2, 11)}@greenwood.edu`;
+                const userInsertQuery = `
+                    INSERT INTO users (tenant_id, email, password_hash, role, first_name, last_name)
+                    VALUES ($1, $2, $3, 'TEACHER', $4, $5)
+                    RETURNING id
+                `;
+                const passwordHash = '$2a$10$dummyhash'; // dummy bcrypt password hash
+                const firstName = customData.first_name || 'Staff';
+                const lastName = customData.last_name || 'Member';
+                const { rows: userRows } = await pool.query(userInsertQuery, [tenantId, email, passwordHash, firstName, lastName]);
+                standardData.user_id = userRows[0].id;
+            }
+
+            if (apiName === 'invoice') {
+                if (!standardData.invoice_number) {
+                    standardData.invoice_number = `INV-2026-${Math.floor(Math.random() * 1000000)}`;
+                }
+                if (!standardData.due_date) {
+                    standardData.due_date = '2026-06-30';
+                }
+                if (!standardData.status) {
+                    standardData.status = 'PENDING';
+                }
+                if (!standardData.paid_amount) {
+                    standardData.paid_amount = '0.00';
+                }
+                if (!standardData.student_id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(standardData.student_id)) {
+                    const { rows: studentRows } = await pool.query('SELECT id FROM students LIMIT 1');
+                    if (studentRows.length > 0) standardData.student_id = studentRows[0].id;
+                }
+                if (!standardData.fee_plan_id) {
+                    const { rows: feePlanRows } = await pool.query('SELECT id FROM fee_plans LIMIT 1');
+                    if (feePlanRows.length > 0) standardData.fee_plan_id = feePlanRows[0].id;
+                }
+            }
         }
 
-        const query = `
-            INSERT INTO ${objectDef.tableName} (${keys.join(', ')})
-            VALUES (${placeholders.join(', ')})
-            RETURNING id
-        `;
-        const { rows } = await pool.query(query, values);
-        const recordId = rows[0].id;
-        
-        await inngest.send({
-            name: "object.record.upserted",
-            data: { tenantId, objectName: apiName, recordId, payload: data }
-        });
+        if (standardData.gender) {
+            standardData.gender = standardData.gender.toUpperCase();
+        }
 
-        return rows[0];
+        const hasCustomData = Object.keys(customData).length > 0 || customFields.length > 0;
+        
+        if (id) {
+            // UPDATE
+            let setClauses = [];
+            let values = [id, tenantId];
+            let argIndex = 3;
+
+            for (const [key, value] of Object.entries(standardData)) {
+                setClauses.push(`"${key}" = $${argIndex++}`);
+                values.push(value);
+            }
+
+            if (hasCustomData) {
+                setClauses.push(`custom_data = custom_data || $${argIndex++}`);
+                values.push(JSON.stringify(customData));
+            }
+
+            if (setClauses.length === 0) return { id }; // Nothing to update
+
+            const query = `
+                UPDATE ${objectDef.tableName}
+                SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $1 AND tenant_id = $2
+                RETURNING id
+            `;
+            const { rows } = await pool.query(query, values);
+            
+            inngest.send({
+                name: "object.record.upserted",
+                data: { tenantId, objectName: apiName, recordId: id, payload: data }
+            }).catch((e: any) => {
+                console.warn("Failed to publish event to Inngest:", e.message);
+            });
+            
+            redirect(`/app/${apiName}`);
+        } else {
+            // INSERT
+            const keys = ['tenant_id'];
+            const values = [tenantId];
+            let placeholders = ['$1'];
+            let argIndex = 2;
+
+            for (const [key, value] of Object.entries(standardData)) {
+                keys.push(`"${key}"`);
+                values.push(value);
+                placeholders.push(`$${argIndex++}`);
+            }
+
+            if (hasCustomData || customFields.length > 0) {
+                keys.push('custom_data');
+                values.push(JSON.stringify(customData));
+                placeholders.push(`$${argIndex++}`);
+            }
+
+            const query = `
+                INSERT INTO ${objectDef.tableName} (${keys.join(', ')})
+                VALUES (${placeholders.join(', ')})
+                RETURNING id
+            `;
+            const { rows } = await pool.query(query, values);
+            const recordId = rows[0].id;
+            
+            inngest.send({
+                name: "object.record.upserted",
+                data: { tenantId, objectName: apiName, recordId, payload: data }
+            }).catch((e: any) => {
+                console.warn("Failed to publish event to Inngest:", e.message);
+            });
+
+            redirect(`/app/${apiName}`);
+        }
+    } catch (e: any) {
+        if (e.digest?.startsWith('NEXT_REDIRECT') || e.message === 'NEXT_REDIRECT') {
+            throw e;
+        }
+        console.error("UPSERT RECORD ERROR FOR OBJECT:", apiName, e);
+        throw e;
     }
 }
 

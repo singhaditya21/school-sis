@@ -1,26 +1,33 @@
 # Original User Request
 
-## 2026-06-27T14:41:01Z
+## Initial Request — 2026-06-28T12:17:14+05:30
 
-You are the Implementation Sub-Orchestrator for the School SIS migration.
-Your working directory is: /Users/adityasingh/PersonalWork/school-sis/.agents/sub_orch_impl
-Your parent conversation ID is: 641d0ba7-2e9e-4d26-83de-a6076b38cbd7
+You are sub_orch_impl, the Implementation Orchestrator.
+Your working directory is /Users/adityasingh/PersonalWork/school-sis/.agents/sub_orch_impl.
+Your parent is d3846d77-1626-4544-84bd-725bcaff6d7e (Project Orchestrator).
 
-Your mission:
-1. Decompose the implementation track into milestones for migrating the 5 modules: Gradebook, Hostel, Timetable Substitution, Library, Diary/Appointments.
-2. For each module:
-   a. Create a dedicated backend service using parameterized pg.Pool queries in `apps/web/src/lib/services/[module]/[module].service.ts` (e.g. `apps/web/src/lib/services/hostel/hostel.service.ts`). Make sure they use `pool.query` and enforce tenant isolation.
-   b. Ensure appropriate permissions are registered in `apps/web/src/lib/rbac/permissions.ts`.
-   c. Replace legacy HTML table elements in the frontend pages with shadcn/Radix UI Table and Badge components:
-      - Gradebook: `apps/web/src/app/teacher/gradebook/page.tsx`
-      - Hostel Fees: `apps/web/src/app/(admin)/hostel/fees/page.tsx`
-      - Timetable Substitution: `apps/web/src/app/(admin)/timetable/substitution/page.tsx`
-      - Library Issue: `apps/web/src/app/(admin)/library/issue/page.tsx`
-      - Library History: `apps/web/src/app/(admin)/library/history/page.tsx` (also migrate inline query to service)
-      - Diary: `apps/web/src/app/(admin)/diary/page.tsx`
-      - Appointments: `apps/web/src/app/(admin)/appointments/page.tsx`
-3. Clean up legacy functions for these modules in `apps/web/src/lib/actions/scaffolding-bridge.ts`.
-4. Once E2E Testing Track publishes TEST_READY.md at root, run all E2E tests and verify they pass.
-5. Report progress and completion back to parent conversation ID: 641d0ba7-2e9e-4d26-83de-a6076b38cbd7.
+Task:
+Coordinate the implementation of the 5 Core Operations modules (Hostel, Transport, Timetable, Library, Inventory) for the School SIS web application to move them from scaffolding to full comprehensive production features.
 
-You are a teamwork_preview_self sub-orchestrator. You must delegate coding and verification tasks to subagents. Do not modify source code directly.
+Key Requirements:
+1. Full Comprehensive Implementation:
+   - Implement the Drizzle schemas for Hostel, Transport, Timetable, Library, Inventory. Avoid raw database creation bypassing Drizzle.
+   - Synchronize database schemas directly by executing `npx drizzle-kit push` (or `pnpm db:push`).
+   - Implement all backend services (in `apps/web/src/lib/services/`) and wire the frontend pages (in `apps/web/src/app/(admin)/[module]/...`) using live Drizzle ORM server actions fetching directly from the database instead of hardcoded mock arrays/useState data.
+2. Specific Logic Features:
+   - Timetable module must contain conflict-resolution logic to prevent assigning the same teacher to two different classes/periods/days simultaneously.
+   - Library module must contain logic designed to process barcodes or ISBN numbers.
+   - Transport module should implement routing mapping/GPS coordination logic.
+3. Fix Monorepo Build:
+   - The Turborepo build fails due to a wrong import path in the `website` package: `@/components/ui/card` in `apps/website/src/app/(public)/apply-online/apply/page.tsx`. Correct this import path so that the monorepo builds successfully.
+4. E2E Verification:
+   - Poll for `TEST_READY.md` to be published at project root.
+   - Once ready, run the E2E tests:
+     `LIMIT_DB_POOL_MAX=20 DATABASE_URL="postgresql://adityasingh@localhost:5432/school_sis" pnpm --filter @school-sis/web test:e2e`
+     and make sure they pass 100%.
+5. Hardening (Phase 2):
+   - Perform white-box adversarial testing (Tier 5) on the implemented code, generating additional tests for gaps/bugs and fixing them.
+6. Verification Gating:
+   - Ensure the Forensic Auditor runs on the codebase and the verdict is CLEAN with no integrity violations or cheating.
+
+Use the Project Pattern to decompose this work into milestones (e.g. per module, and final verification), spawning workers, reviewers, and challengers. Update your progress.md regularly. When finished, write a handoff.md and send a message back to parent (d3846d77-1626-4544-84bd-725bcaff6d7e) with the path to your handoff.

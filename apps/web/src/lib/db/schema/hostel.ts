@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, integer, pgEnum, jsonb, date, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, integer, pgEnum, jsonb, date, boolean, numeric } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { tenants, users } from './core';
 import { students } from './students';
@@ -74,6 +74,19 @@ export const messMenus = pgTable('mess_menus', {
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ─── Hostel Fees ──────────────────────────────────────────────
+
+export const hostelFees = pgTable('hostel_fees', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+    studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),
+    feeType: varchar('fee_type', { length: 50 }).notNull(),
+    amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+    dueDate: date('due_date').notNull(),
+    status: varchar('status', { length: 50 }).notNull(),
+    paidDate: date('paid_date'),
+});
+
 // ─── Relations ───────────────────────────────────────────────
 
 export const hostelsRelations = relations(hostels, ({ one, many }) => ({
@@ -99,4 +112,9 @@ export const hostelAllocationsRelations = relations(hostelAllocations, ({ one })
 export const messMenusRelations = relations(messMenus, ({ one }) => ({
     tenant: one(tenants, { fields: [messMenus.tenantId], references: [tenants.id] }),
     hostel: one(hostels, { fields: [messMenus.hostelId], references: [hostels.id] }),
+}));
+
+export const hostelFeesRelations = relations(hostelFees, ({ one }) => ({
+    tenant: one(tenants, { fields: [hostelFees.tenantId], references: [tenants.id] }),
+    student: one(students, { fields: [hostelFees.studentId], references: [students.id] }),
 }));

@@ -8,15 +8,16 @@ import { ChevronLeft } from 'lucide-react';
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
-export default async function ObjectDetailsPage({ params }: { params: { id: string } }) {
+export default async function ObjectDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+    const resolvedParams = await params;
     const session = await getSession();
 
-    if (!session.isLoggedIn || session.role !== 'TENANT_ADMIN') {
+    if (!session.isLoggedIn || (session.role !== 'SUPER_ADMIN' && session.role !== 'PLATFORM_ADMIN')) {
         redirect('/login');
     }
 
     try {
-        const { objectDef, fields } = await getObjectMetadataById(params.id);
+        const { objectDef, fields } = await getObjectMetadataById(resolvedParams.id);
 
         return (
             <div className="space-y-6">
@@ -37,7 +38,7 @@ export default async function ObjectDetailsPage({ params }: { params: { id: stri
                     </p>
                 </div>
 
-                <FieldManagerClient objectId={params.id} initialFields={fields} />
+                <FieldManagerClient objectId={resolvedParams.id} initialFields={fields} />
             </div>
         );
     } catch (e: any) {

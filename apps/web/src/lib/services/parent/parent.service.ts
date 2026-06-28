@@ -81,8 +81,17 @@ export async function getMyFees(params?: ParentFeeParams): Promise<ParentFeeResp
     `, [tenantId, userId, limit, offset]);
 
     return { 
-        invoices: invoices.map(i => ({ ...i, amount: Number(i.amount), paidAmount: Number(i.paidAmount) })),
-        payments: payments.map(p => ({ ...p, amount: Number(p.amount) }))
+        invoices: invoices.map(i => ({
+            ...i,
+            amount: Number(i.amount),
+            paidAmount: Number(i.paidAmount),
+            dueDate: i.dueDate instanceof Date ? i.dueDate.toISOString().split('T')[0] : String(i.dueDate)
+        })),
+        payments: payments.map(p => ({
+            ...p,
+            amount: Number(p.amount),
+            paidAt: p.paidAt instanceof Date ? p.paidAt.toISOString().split('T')[0] : String(p.paidAt)
+        }))
     };
 }
 

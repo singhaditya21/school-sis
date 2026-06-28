@@ -33,9 +33,12 @@ export default function GenericFormClient({
         setIsSaving(true);
         try {
             await upsertRecord(objectName, data, recordId);
-            router.push(`/app/${objectName}`);
-            router.refresh();
         } catch (error) {
+            // Check if the error is actually a redirect signal caught by client
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            if (errorMsg.includes('NEXT_REDIRECT') || errorMsg.includes('redirect')) {
+                return;
+            }
             console.error('Save failed:', error);
             alert('Failed to save record.');
             setIsSaving(false);
@@ -56,13 +59,14 @@ export default function GenericFormClient({
                             
                             return (
                                 <div key={field.apiName} className="space-y-2">
-                                    <Label className="flex gap-1">
+                                    <Label className="flex gap-1" htmlFor={field.apiName}>
                                         {field.label} {field.isRequired && <span className="text-red-500">*</span>}
                                         {field.isCustom && <span className="text-xs text-blue-500 ml-2">(Custom)</span>}
                                     </Label>
                                     
                                     {field.dataType === 'PICKLIST' ? (
                                         <select 
+                                            id={field.apiName}
                                             className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                             {...register(field.apiName, { required: field.isRequired })}
                                         >
@@ -73,6 +77,7 @@ export default function GenericFormClient({
                                         </select>
                                     ) : (
                                         <Input 
+                                            id={field.apiName}
                                             type={field.dataType === 'NUMBER' ? 'number' : field.dataType === 'DATE' ? 'date' : 'text'}
                                             {...register(field.apiName, { required: field.isRequired })}
                                         />

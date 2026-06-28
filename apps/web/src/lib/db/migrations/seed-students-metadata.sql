@@ -15,7 +15,7 @@ VALUES
     ('00000000-0000-0000-0000-000000000001', 'First Name', 'first_name', 'TEXT', false, true),
     ('00000000-0000-0000-0000-000000000001', 'Last Name', 'last_name', 'TEXT', false, true),
     ('00000000-0000-0000-0000-000000000001', 'Admission Number', 'admission_number', 'TEXT', false, true),
-    ('00000000-0000-0000-0000-000000000001', 'Enrollment Date', 'enrollment_date', 'DATE', false, true),
+    ('00000000-0000-0000-0000-000000000001', 'Enrollment Date', 'admission_date', 'DATE', false, true),
     ('00000000-0000-0000-0000-000000000001', 'Gender', 'gender', 'PICKLIST', false, false),
     ('00000000-0000-0000-0000-000000000001', 'Date of Birth', 'date_of_birth', 'DATE', false, false)
 ON CONFLICT (object_id, api_name) DO NOTHING;
