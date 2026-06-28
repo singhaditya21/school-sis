@@ -15,3 +15,7 @@ Based on our database audit, adhere to the following rules when creating or modi
 ## 3. Targeted Soft Deletes
 - **Rule:** Do NOT apply soft deletes globally. Add `deletedAt: timestamp('deleted_at', { withTimezone: true })` ONLY to high-value domain entities (e.g., `students`, `users`, `invoices`).
 - **Rationale:** Enables data recovery for critical records while allowing child/join tables to remain performant and simple by using `onDelete: 'cascade'`.
+
+## 4. Strict CI/CD Deployment Protocol
+- **Rule:** EVERY code change must be committed to GitHub. Before ending your turn, you MUST run `git push origin main` and explicitly verify that the GitHub Actions CI/CD pipeline (tests and Neon migrations) completes successfully, ensuring Vercel triggers its deployment.
+- **Rationale:** Enforces rigorous QA and deployment standards, guaranteeing all changes are tested and deployed safely.
