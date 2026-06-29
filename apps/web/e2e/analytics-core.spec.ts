@@ -147,10 +147,10 @@ test.describe('Advanced Analytics E2E Tests', () => {
             // Restore attendance
             for (const att of backupAttendance.rows) {
                 await runQuery(`
-                    INSERT INTO attendance_records (id, tenant_id, student_id, section_id, academic_year_id, date, status, remarks, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    INSERT INTO attendance_records (id, tenant_id, student_id, section_id, date, status, remarks, marked_by, is_notified, created_at, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                     ON CONFLICT (id) DO NOTHING
-                `, [att.id, att.tenant_id, att.student_id, att.section_id, att.academic_year_id, att.date, att.status, att.remarks, att.created_at, att.updated_at]);
+                `, [att.id, att.tenant_id, att.student_id, att.section_id, att.date, att.status, att.remarks, att.marked_by, att.is_notified, att.created_at, att.updated_at]);
             }
         }
     });
@@ -158,12 +158,18 @@ test.describe('Advanced Analytics E2E Tests', () => {
     test('E2E-AN-204: Zero fee collected state shows 0% collection or handles empty array', async ({ page }) => {
         const tenantId = '0c413c23-6f0f-40ab-bd41-73e6e996ff35';
         
-        // Backup payments
+        // Backup receipts and payments
+        const backupReceipts = await runQuery(`
+            SELECT * FROM receipts WHERE tenant_id = $1
+        `, [tenantId]);
         const backupPayments = await runQuery(`
             SELECT * FROM payments WHERE tenant_id = $1
         `, [tenantId]);
         
         try {
+            await runQuery(`
+                DELETE FROM receipts WHERE tenant_id = $1
+            `, [tenantId]);
             await runQuery(`
                 DELETE FROM payments WHERE tenant_id = $1
             `, [tenantId]);
@@ -181,6 +187,14 @@ test.describe('Advanced Analytics E2E Tests', () => {
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                     ON CONFLICT (id) DO NOTHING
                 `, [p.id, p.tenant_id, p.invoice_id, p.student_id, p.amount, p.paid_at, p.method, p.status, p.transaction_id, p.razorpay_payment_id, p.cheque_number, p.bank_name, p.notes, p.created_at]);
+            }
+            // Restore receipts
+            for (const r of backupReceipts.rows) {
+                await runQuery(`
+                    INSERT INTO receipts (id, tenant_id, payment_id, receipt_number, pdf_url, issued_at, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (id) DO NOTHING
+                `, [r.id, r.tenant_id, r.payment_id, r.receipt_number, r.pdf_url, r.issued_at, r.created_at]);
             }
         }
     });

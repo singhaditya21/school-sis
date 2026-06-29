@@ -47,8 +47,8 @@ test.describe('Daily Utilities E2E Tests', () => {
         
         await expect(page.locator('h1')).toContainText('Student Documents');
         await expect(page.getByText('Total Documents')).toBeVisible();
-        await expect(page.getByText('Verified')).toBeVisible();
-        await expect(page.getByText('Pending')).toBeVisible();
+        await expect(page.getByText('Verified').first()).toBeVisible();
+        await expect(page.getByText('Pending').first()).toBeVisible();
     });
 
     test('E2E-UT-102: View Documents registry table', async ({ page }) => {

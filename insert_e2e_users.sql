@@ -67,7 +67,7 @@ DELETE FROM users WHERE email IN ('admin@schoolsis.com', 'teacher@schoolsis.com'
 -- Insert E2E test users
 INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, is_active)
 VALUES 
-('d5b5c928-867c-473d-88f5-1bdf3a4bc031', '0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'admin@schoolsis.com', '$2a$12$uMRUbyaFm4ydwR8aZSiCgO1iVdTIS8YRBU0tahbwmqHmgkcB.nN.i', 'Admin', 'User', 'SUPER_ADMIN', true),
+('d5b5c928-867c-473d-88f5-1bdf3a4bc031', '0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'admin@schoolsis.com', '$2a$12$uMRUbyaFm4ydwR8aZSiCgO1iVdTIS8YRBU0tahbwmqHmgkcB.nN.i', 'Admin', 'User', 'PLATFORM_ADMIN', true),
 ('d5b5c928-867c-473d-88f5-1bdf3a4bc032', '0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'teacher@schoolsis.com', '$2a$12$4Sz8yWaKHctdsx3XYYnBZ.UonZkV8MuEXxp784YFzqsD7cwp1rK5e', 'Teacher', 'User', 'TEACHER', true),
 ('d5b5c928-867c-473d-88f5-1bdf3a4bc033', '0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'parent@schoolsis.com', '$2a$12$2qzKSR9GWIQF5cPEtgbCxOpJqUmhssS/U2cwK9i7uHAZjcrIDeF2y', 'Parent', 'User', 'PARENT', true);
 

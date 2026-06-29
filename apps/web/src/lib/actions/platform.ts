@@ -140,6 +140,24 @@ export async function createTenantAction(formData: FormData) {
     }
 
     try {
+        // Check for duplicate school name
+        const { rows: existingCompany } = await pool.query(
+            `SELECT id FROM companies WHERE name = $1 LIMIT 1`,
+            [`${name} Org`]
+        );
+        if (existingCompany.length > 0) {
+            return { error: 'A school with this name already exists.' };
+        }
+
+        // Check for duplicate admin email
+        const { rows: existingUser } = await pool.query(
+            `SELECT id FROM users WHERE email = $1 LIMIT 1`,
+            [adminEmail]
+        );
+        if (existingUser.length > 0) {
+            return { error: 'A user with this email address already exists.' };
+        }
+
         const baseCode = name.replace(/[^a-zA-Z0-9]/g, '').substring(0, 5).toUpperCase();
         const randSuffix = Math.floor(Math.random() * 900) + 100;
         const tenantCode = `${baseCode}${randSuffix}`;

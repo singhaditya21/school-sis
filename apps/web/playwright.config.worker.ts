@@ -3,9 +3,9 @@ import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
 
-// Dynamically populate .env.test with the test database name before Playwright starts the webServer
+// Dynamically populate .env.test.worker with the test database name before Playwright starts the webServer
 const envPath = path.resolve(__dirname, '.env');
-const envTestPath = path.resolve(__dirname, '.env.test');
+const envTestPath = path.resolve(__dirname, '.env.test.worker');
 
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf8');
@@ -13,11 +13,10 @@ if (fs.existsSync(envPath)) {
   if (match) {
     const originalUrl = match[1].trim();
     const urlObj = new URL(originalUrl);
-    urlObj.pathname = '/school_sis_test';
+    urlObj.pathname = '/school_sis_test_worker';
     const testDbUrl = urlObj.toString();
     fs.writeFileSync(envTestPath, `DATABASE_URL="${testDbUrl}"\n`);
     process.env.DATABASE_URL = testDbUrl;
-    fs.appendFileSync('/Users/adityasingh/PersonalWork/school-sis/debug_url.txt', `CONFIG_OVERRIDE: ${process.env.DATABASE_URL}\n`);
     
     // Ensure the database exists before the WebServer is spawned
     try {
@@ -36,8 +35,8 @@ if (fs.existsSync(envPath)) {
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  globalSetup: require.resolve('./e2e/global-setup'),
-  globalTeardown: require.resolve('./e2e/global-teardown'),
+  globalSetup: require.resolve('./e2e/global-setup-worker'),
+  globalTeardown: require.resolve('./e2e/global-teardown-worker'),
   testDir: './e2e',
   /* Run tests in files in parallel */
   fullyParallel: false,
@@ -56,7 +55,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://localhost:3001',
     actionTimeout: 30 * 1000,
     navigationTimeout: 45 * 1000,
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
@@ -73,9 +72,9 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'node --env-file=.env.test ./node_modules/next/dist/bin/next start',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
+    command: 'node --env-file=.env.test.worker ./node_modules/next/dist/bin/next start -p 3001',
+    url: 'http://localhost:3001',
+    reuseExistingServer: false,
     timeout: 120 * 1000,
   },
 });

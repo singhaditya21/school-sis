@@ -45,7 +45,7 @@ test.describe('HQ & Multi-Tenant Management E2E Tests', () => {
         await loginAsAdmin(page);
         await page.goto('/hq');
         
-        await expect(page.locator('h1')).toContainText('Global Command Center');
+        await expect(page.locator('main h1')).toContainText('Global Command Center');
         await expect(page.getByText('Platform ARR')).toBeVisible();
         await expect(page.getByText('Active Tenants')).toBeVisible();
         await expect(page.getByText('Total Enrolment')).toBeVisible();
@@ -70,7 +70,7 @@ test.describe('HQ & Multi-Tenant Management E2E Tests', () => {
         
         // Click + Provision New Campus or go directly to the page
         await page.goto('/platform/tenants/new');
-        await expect(page.locator('h1')).toContainText('Onboard New School');
+        await expect(page.locator('main h1')).toContainText('Onboard New School');
         await expect(page.locator('input[name="name"]')).toBeVisible();
         await expect(page.locator('input[name="adminEmail"]')).toBeVisible();
     });
@@ -84,7 +84,7 @@ test.describe('HQ & Multi-Tenant Management E2E Tests', () => {
             const company = compRes.rows[0];
             await page.goto(`/platform/tenants/${company.id}`);
             
-            await expect(page.locator('h1')).toContainText(company.name);
+            await expect(page.locator('main h1')).toContainText(company.name);
             await expect(page.getByText('Provisioning Toggles')).toBeVisible();
             await expect(page.getByText('Attached Tenants')).toBeVisible();
             await expect(page.getByText('Stripe Billing Context')).toBeVisible();
@@ -95,7 +95,7 @@ test.describe('HQ & Multi-Tenant Management E2E Tests', () => {
         await loginAsAdmin(page);
         await page.goto('/platform/billing');
         
-        await expect(page.locator('h1')).toContainText('Platform Billing');
+        await expect(page.locator('main h1')).toContainText('Platform Billing');
         await expect(page.getByText('Platform MRR (Est)')).toBeVisible();
         await expect(page.locator('h2:has-text("Recent Invoices")')).toBeVisible();
         await expect(page.locator('table th:has-text("Invoice")')).toBeVisible();
@@ -184,7 +184,7 @@ test.describe('HQ & Multi-Tenant Management E2E Tests', () => {
             
             // Find Suspend/Reactivate button for this tenant card
             // Let's toggle it
-            const toggleForm = page.locator(`div.bg-white:has(form button:has-text("Manage Config"))`);
+            const toggleForm = page.locator(`div.bg-white:has(a:has-text("Manage Config"))`);
             const btn = toggleForm.locator('button:has-text("Suspend"), button:has-text("Reactivate")').first();
             
             await btn.click();

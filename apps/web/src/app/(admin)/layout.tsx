@@ -66,9 +66,9 @@ export default async function AdminLayout({
                                 <span className="text-white text-xl">🎓</span>
                             </div>
                             <div>
-                                <h1 className="text-xl font-bold text-gray-900">
+                                <div className="text-xl font-bold text-gray-900">
                                     School SIS
-                                </h1>
+                                </div>
                                 <p className="text-sm text-gray-500">
                                     Administration Portal
                                 </p>

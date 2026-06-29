@@ -1,8 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
 import { Pool } from 'pg';
 
+console.log('--- SPEC DATABASE_URL:', process.env.DATABASE_URL);
+
 // Helper function to execute a database query and immediately close the pool to prevent connection leaks
 async function runQuery(text: string, params?: any[]) {
+    require('fs').appendFileSync('/Users/adityasingh/PersonalWork/school-sis/debug_url.txt', `RUN_QUERY: db=${process.env.DATABASE_URL} query=${text.trim().substring(0, 80)}\n`);
     const pool = new Pool({
         connectionString: process.env.DATABASE_URL,
         max: 1,
