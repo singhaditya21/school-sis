@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { pool } from '../../../lib/db/client';
 import { z } from 'zod';
-import { inngest } from '../../../lib/inngest/client';
+import { enqueueJob } from '../../../lib/worker/client';
 
 // Schema for incoming IoT streams from physical hardware (RFID, Biometrics, GPS)
 const IoTEventSchema = z.object({
@@ -42,8 +42,16 @@ export async function POST(req: Request) {
       [parsedEvent.tenantId, studentId]
     );
 
-    // 4. Trigger Event Bus (Inngest) to send a Push Notification to the Parent's Mobile App
-    await inngest.send({ name: 'iot.attendance.scanned', data: { studentId, timestamp: parsedEvent.timestamp, hardwareType: parsedEvent.hardwareType } });
+    // 4. Trigger Worker to send a Push Notification to the Parent's Mobile App
+    await enqueueJob(
+      'process-iot-attendance-scan',
+      {
+        studentId,
+        timestamp: parsedEvent.timestamp,
+        hardwareType: parsedEvent.hardwareType,
+        deviceId: parsedEvent.deviceId
+      }
+    );
 
     return NextResponse.json({ success: true, message: 'IoT Event Processed' }, { status: 202 });
 

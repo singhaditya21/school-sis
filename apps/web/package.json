@@ -48,7 +48,7 @@
         "date-fns": "^3.6.0",
         "firebase-admin": "^14.1.0",
         "framer-motion": "^12.38.0",
-        "inngest": "^4.11.0",
+        "graphile-worker": "^0.17.2",
         "iron-session": "^8.0.4",
         "jose": "^6.2.2",
         "jspdf": "^4.2.1",
