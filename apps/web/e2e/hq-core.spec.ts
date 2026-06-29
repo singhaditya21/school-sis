@@ -188,7 +188,13 @@ test.describe('HQ & Multi-Tenant Management E2E Tests', () => {
             const btn = toggleForm.locator('button:has-text("Suspend"), button:has-text("Reactivate")').first();
             
             await btn.click();
-            await page.waitForTimeout(1000);
+            
+            // Wait for the button text to toggle in the UI (confirming server action and revalidation are complete)
+            if (originalStatus) {
+                await expect(toggleForm.locator('button:has-text("Reactivate")').first()).toBeVisible();
+            } else {
+                await expect(toggleForm.locator('button:has-text("Suspend")').first()).toBeVisible();
+            }
             
             // Verify state is changed in DB
             const checkRes = await runQuery("SELECT is_active FROM tenants WHERE id = $1", [tenantId]);
@@ -232,25 +238,26 @@ test.describe('HQ & Multi-Tenant Management E2E Tests', () => {
         
         // Verify in database
         const tenantRes = await runQuery(`
-            SELECT t.id, t.company_id, u.id as user_id 
+            SELECT t.id, t.company_id, t.code, u.id as user_id 
             FROM tenants t 
             JOIN users u ON u.tenant_id = t.id
             WHERE u.email = $1
         `, [newEmail]);
         
         expect(tenantRes.rows.length).toBe(1);
-        const { id: tenantId, company_id: companyId } = tenantRes.rows[0];
+        const { id: tenantId, company_id: companyId, code: tenantCode } = tenantRes.rows[0];
         
         try {
             // Attempt to login as the new tenant admin
             await page.context().clearCookies();
             await page.goto('/login');
+            await page.fill('input[name="schoolCode"]', tenantCode);
             await page.fill('[data-testid="email-input"]', newEmail);
             await page.fill('[data-testid="password-input"]', 'password');
             await page.click('[data-testid="login-button"]');
             
-            // Should redirect to dashboard
-            await page.waitForURL('/dashboard');
+            // Should redirect to dashboard or onboarding wizard
+            await page.waitForURL(url => url.pathname === '/dashboard' || url.pathname.startsWith('/onboarding'));
         } finally {
             // Clean up newly created tenant
             await runQuery("DELETE FROM users WHERE tenant_id = $1", [tenantId]);

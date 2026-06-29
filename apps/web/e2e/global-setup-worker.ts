@@ -91,5 +91,27 @@ export default async function globalSetup() {
         cwd: path.resolve(__dirname, '..')
     });
 
+    console.log('🏢 Setting up Greenwood International School Company Context (Worker)...');
+    const greenwoodClient = new Client({ connectionString: testDbUrl });
+    await greenwoodClient.connect();
+    try {
+        const { rows: companyRows } = await greenwoodClient.query(`
+            INSERT INTO companies (name, subscription_tier, is_active, active_modules) 
+            VALUES ('Greenwood International School Org', 'ENTERPRISE', true, '{"ATTENDANCE","FEES","COMMUNICATION","AI_AGENTS"}') 
+            RETURNING id
+        `);
+        const companyId = companyRows[0].id;
+        await greenwoodClient.query(`
+            UPDATE tenants 
+            SET company_id = $1 
+            WHERE id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+        `, [companyId]);
+        console.log('✅ Greenwood Company Context bound successfully!');
+    } catch (err) {
+        console.error('❌ Failed to setup Greenwood Company Context:', err);
+    } finally {
+        await greenwoodClient.end();
+    }
+
     console.log('✅ Global setup complete!\n');
 }

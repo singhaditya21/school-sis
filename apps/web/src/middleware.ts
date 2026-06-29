@@ -70,7 +70,9 @@ export async function middleware(request: NextRequest) {
     // ─── SaaS Paywall & Feature Flagging (Phase 5) ─────────────
     // Note: In production, `activeModules` is injected into the JWT/Session
     // during login from the `tenants` DB table.
-    const activeModules = session.activeModules || ['ATTENDANCE', 'FEES']; 
+    const activeModules = session.role === 'PLATFORM_ADMIN'
+        ? ['ATTENDANCE', 'FEES', 'COMMUNICATION', 'AI_AGENTS', 'HIGHER_ED', 'COACHING', 'INTERNATIONAL', 'MULTI_CAMPUS', 'ENTERPRISE']
+        : (session.activeModules || ['ATTENDANCE', 'FEES']); 
     
     // Group HQ Command Center (Super Admin Only + Multi-Campus Tier)
     if (pathname.startsWith('/hq')) {

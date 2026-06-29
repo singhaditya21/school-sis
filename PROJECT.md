@@ -8,12 +8,12 @@
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
 | M1 | E2E Test Suite Expansion | Expand Playwright E2E tests for the final 5 remaining scaffolding buckets under `apps/web/e2e/`. | None | DONE (Conv ID: f139dbd6-91fb-4454-a8fa-7ef58b17466e) |
-| M2 | Financial & Treasury | Wire `/treasury` ledgers and `/integrations/tally` export logic, enforce tenant isolation, fix tally vouchers API column bugs. | M1 | IN_PROGRESS (Conv ID: b6a7a708-ec44-45dd-b914-af456a367a95) |
-| M3 | HQ & Multi-Tenant Management | Wire `/hq` and `/platform` routes, fix updated_at / casing bugs, wire leads and settings config table. | M1 | IN_PROGRESS (Conv ID: b6a7a708-ec44-45dd-b914-af456a367a95) |
-| M4 | Advanced Analytics | Wire `/analytics` and `/calendar` events, pre-render data on server components. | M1 | IN_PROGRESS (Conv ID: b6a7a708-ec44-45dd-b914-af456a367a95) |
-| M5 | Student Success | Wire `/university` (placements), `/alumni` tracking, and `/international` host family/visa compliance. | M1 | IN_PROGRESS (Conv ID: b6a7a708-ec44-45dd-b914-af456a367a95) |
-| M6 | Daily Utilities | Implement Drizzle schemas for `diary_entries` and `appointments`, wire `/documents` and `/diary` logs. | M1 | IN_PROGRESS (Conv ID: b6a7a708-ec44-45dd-b914-af456a367a95) |
-| M7 | Integration & Verification | Run TypeScript builds, sync Drizzle schemas, pass full E2E test suite, and run Forensic Auditor. | M2, M3, M4, M5, M6 | PLANNED |
+| M2 | Financial & Treasury | Wire `/treasury` ledgers and `/integrations/tally` export logic, enforce tenant isolation, fix tally vouchers API column bugs. | M1 | DONE (Conv ID: b6a7a708-ec44-45dd-b914-af456a367a95) |
+| M3 | HQ & Multi-Tenant Management | Wire `/hq` and `/platform` routes, fix updated_at / casing bugs, wire leads and settings config table. | M1 | DONE (Conv ID: b6a7a708-ec44-45dd-b914-af456a367a95) |
+| M4 | Advanced Analytics | Wire `/analytics` and `/calendar` events, pre-render data on server components. | M1 | DONE (Conv ID: b6a7a708-ec44-45dd-b914-af456a367a95) |
+| M5 | Student Success | Wire `/university` (placements), `/alumni` tracking, and `/international` host family/visa compliance. | M1 | DONE (Conv ID: b6a7a708-ec44-45dd-b914-af456a367a95) |
+| M6 | Daily Utilities | Implement Drizzle schemas for `diary_entries` and `appointments`, wire `/documents` and `/diary` logs. | M1 | DONE (Conv ID: b6a7a708-ec44-45dd-b914-af456a367a95) |
+| M7 | Integration & Verification | Run TypeScript builds, sync Drizzle schemas, pass full E2E test suite, and run Forensic Auditor. | M2, M3, M4, M5, M6 | DONE (Conv ID: b6a7a708-ec44-45dd-b914-af456a367a95) |
 
 ## Interface Contracts
 ### Financial & Treasury

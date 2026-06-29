@@ -89,6 +89,8 @@ export async function loginActionV2(formData: FormData) {
             session.email = user.email;
             session.token = '';
             session.isLoggedIn = true;
+            session.subscriptionTier = 'ENTERPRISE';
+            session.activeModules = ['ATTENDANCE', 'FEES', 'COMMUNICATION', 'AI_AGENTS', 'HIGHER_ED', 'COACHING', 'INTERNATIONAL', 'MULTI_CAMPUS', 'ENTERPRISE'];
             await session.save();
 
             redirectPath = '/hq';

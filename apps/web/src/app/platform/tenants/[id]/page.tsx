@@ -6,9 +6,10 @@ import { ShieldAlert, Building2, Users } from 'lucide-react';
 export default async function CompanyDetailsPage({
     params
 }: {
-    params: { id: string }
+    params: Promise<{ id: string }>
 }) {
-    const { company, tenants } = await getCompanyDetailsWithTenants(params.id);
+    const { id } = await params;
+    const { company, tenants } = await getCompanyDetailsWithTenants(id);
 
     if (!company) {
         return (

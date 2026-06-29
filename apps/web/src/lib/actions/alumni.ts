@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 
 export async function getAlumni(filters?: { batch?: string; verified?: boolean }) {
     const { tenantId } = await requireAuth('alumni:read');
-    let query = 'SELECT id, tenant_id AS "tenantId", name, email, phone, batch, current_company AS "currentCompany", designation, location, linked_in AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt" FROM alumni_profiles WHERE tenant_id = $1';
+    let query = 'SELECT id, tenant_id AS "tenantId", name, email, phone, batch, current_company AS "currentCompany", designation, location, linkedin AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt" FROM alumni_profiles WHERE tenant_id = $1';
     const params: any[] = [tenantId];
     if (filters?.batch) {
         params.push(filters.batch);
@@ -26,8 +26,8 @@ export async function registerAlumni(data: {
 }) {
     const { tenantId } = await requireAuth('alumni:write');
     const { rows } = await pool.query(
-        `INSERT INTO alumni_profiles (tenant_id, name, email, phone, batch, current_company, designation, location, linked_in) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, tenant_id AS "tenantId", name, email, phone, batch, current_company AS "currentCompany", designation, location, linked_in AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt"`,
+        `INSERT INTO alumni_profiles (tenant_id, name, email, phone, batch, current_company, designation, location, linkedin) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, tenant_id AS "tenantId", name, email, phone, batch, current_company AS "currentCompany", designation, location, linkedin AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt"`,
         [tenantId, data.name, data.email, data.phone || null, data.batch, data.currentCompany || null, data.designation || null, data.location || null, data.linkedIn || null]
     );
     return { success: true, alumni: rows[0] };

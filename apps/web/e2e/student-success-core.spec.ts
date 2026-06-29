@@ -46,7 +46,7 @@ test.describe('Student Success E2E Tests', () => {
         await page.goto('/alumni');
         
         await expect(page.locator('h1')).toContainText('Alumni Network');
-        await expect(page.getByText('Alumni Directory')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Alumni Directory' })).toBeVisible();
         await expect(page.locator('table th:has-text("Name")')).toBeVisible();
     });
 
@@ -55,7 +55,7 @@ test.describe('Student Success E2E Tests', () => {
         await page.goto('/international');
         
         await expect(page.locator('h1')).toContainText('International Operations & Visas');
-        await expect(page.locator('h3:has-text("Visa Compliance")')).toBeVisible();
+        await expect(page.locator('h3:has-text("Visa Compliance")').first()).toBeVisible();
     });
 
     test('E2E-SS-104: Placements courses page loads mapping list', async ({ page }) => {
@@ -71,7 +71,7 @@ test.describe('Student Success E2E Tests', () => {
         await loginAsAdmin(page);
         await page.goto('/alumni');
         
-        await expect(page.getByText('Events')).toBeVisible();
+        await expect(page.getByText('Events', { exact: true })).toBeVisible();
     });
 
     // TIER 2: Boundary & Corner Cases (5 tests)
@@ -119,7 +119,7 @@ test.describe('Student Success E2E Tests', () => {
         await page.goto('/international');
         
         // The visa compliance card should load regardless of DB alerts
-        await expect(page.locator('h3:has-text("Visa Compliance")')).toBeVisible();
+        await expect(page.locator('h3:has-text("Visa Compliance")').first()).toBeVisible();
     });
 
     test('E2E-SS-204: Student success pages block unauthenticated users', async ({ page }) => {
@@ -172,7 +172,7 @@ test.describe('Student Success E2E Tests', () => {
         
         // Step 3: Cross-reference visa compliance for international students
         await page.goto('/international');
-        await expect(page.locator('h3:has-text("Visa Compliance")')).toBeVisible();
+        await expect(page.locator('h3:has-text("Visa Compliance")').first()).toBeVisible();
     });
 
 });

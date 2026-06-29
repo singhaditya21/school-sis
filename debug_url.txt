@@ -226,3 +226,355 @@ CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
 CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
 CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
 CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e9
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 0 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 0, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO mess_menus (id, tenant_id, hostel_id, day, breakfast, lunch, snacks,
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM students WHERE first_name = 'Vivaan' LIMIT 1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM hostel_allocations WHERE student_id = $1 AND status = 'ACTIVE'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, amount, status FROM hostel_fees WHERE student_id = $1 AND fee_type = 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, first_name || ' ' || last_name AS name FROM students WHERE first_name
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_allocations SET status = 'ACTIVE' WHERE id = 'd5b5c928-867c-473d-8
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e9
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 0 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 0, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO mess_menus (id, tenant_id, hostel_id, day, breakfast, lunch, snacks,
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM students WHERE first_name = 'Vivaan' LIMIT 1
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM hostel_allocations WHERE student_id = $1 AND status = 'ACTIVE'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, amount, status FROM hostel_fees WHERE student_id = $1 AND fee_type = 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, first_name || ' ' || last_name AS name FROM students WHERE first_name
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_allocations SET status = 'ACTIVE' WHERE id = 'd5b5c928-867c-473d-8
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e9
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 0 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 0, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO mess_menus (id, tenant_id, hostel_id, day, breakfast, lunch, snacks,
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM students WHERE first_name = 'Vivaan' LIMIT 1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM hostel_allocations WHERE student_id = $1 AND status = 'ACTIVE'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, amount, status FROM hostel_fees WHERE student_id = $1 AND fee_type = 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, first_name || ' ' || last_name AS name FROM students WHERE first_name
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_allocations SET status = 'ACTIVE' WHERE id = 'd5b5c928-867c-473d-8
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e9
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 0 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 0, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO mess_menus (id, tenant_id, hostel_id, day, breakfast, lunch, snacks,
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM students WHERE first_name = 'Vivaan' LIMIT 1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM hostel_allocations WHERE student_id = $1 AND status = 'ACTIVE'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, amount, status FROM hostel_fees WHERE student_id = $1 AND fee_type = 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, first_name || ' ' || last_name AS name FROM students WHERE first_name
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_allocations SET status = 'ACTIVE' WHERE id = 'd5b5c928-867c-473d-8
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e9
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 0 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 0, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO mess_menus (id, tenant_id, hostel_id, day, breakfast, lunch, snacks,
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM students WHERE first_name = 'Vivaan' LIMIT 1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM hostel_allocations WHERE student_id = $1 AND status = 'ACTIVE'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, amount, status FROM hostel_fees WHERE student_id = $1 AND fee_type = 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, first_name || ' ' || last_name AS name FROM students WHERE first_name
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_allocations SET status = 'ACTIVE' WHERE id = 'd5b5c928-867c-473d-8
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e9
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 0 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 0, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO mess_menus (id, tenant_id, hostel_id, day, breakfast, lunch, snacks,
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM students WHERE first_name = 'Vivaan' LIMIT 1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM hostel_allocations WHERE student_id = $1 AND status = 'ACTIVE'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, amount, status FROM hostel_fees WHERE student_id = $1 AND fee_type = 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, first_name || ' ' || last_name AS name FROM students WHERE first_name
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_allocations SET status = 'ACTIVE' WHERE id = 'd5b5c928-867c-473d-8
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e9
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 0 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 0, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO mess_menus (id, tenant_id, hostel_id, day, breakfast, lunch, snacks,
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM students WHERE first_name = 'Vivaan' LIMIT 1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM hostel_allocations WHERE student_id = $1 AND status = 'ACTIVE'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, amount, status FROM hostel_fees WHERE student_id = $1 AND fee_type = 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, first_name || ' ' || last_name AS name FROM students WHERE first_name
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_allocations SET status = 'ACTIVE' WHERE id = 'd5b5c928-867c-473d-8
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+CONFIG_OVERRIDE: postgresql://adityasingh@localhost:5432/school_sis_test
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e9
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 0 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 0, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE' WHERE tenant_id 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO mess_menus (id, tenant_id, hostel_id, day, breakfast, lunch, snacks,
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM mess_menus WHERE tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM students WHERE first_name = 'Vivaan' LIMIT 1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id FROM hostel_allocations WHERE student_id = $1 AND status = 'ACTIVE'
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, amount, status FROM hostel_fees WHERE student_id = $1 AND fee_type = 
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT id, first_name || ' ' || last_name AS name FROM students WHERE first_name
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=INSERT INTO hostel_allocations (id, tenant_id, student_id, hostel_id, room_id, b
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=SELECT status FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_allocations WHERE id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=DELETE FROM hostel_fees WHERE student_id = $1
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_allocations SET status = 'ACTIVE' WHERE id = 'd5b5c928-867c-473d-8
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostels SET occupied_beds = 1 WHERE id = 'd5b5c928-867c-473d-88f5-1bdf3a4
+RUN_QUERY: db=postgresql://adityasingh@localhost:5432/school_sis_test_worker query=UPDATE hostel_rooms SET occupied_beds = 1, status = 'AVAILABLE'::room_status WHE

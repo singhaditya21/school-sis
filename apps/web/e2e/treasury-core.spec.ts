@@ -58,9 +58,9 @@ test.describe('Financial & Treasury E2E Tests', () => {
         await page.goto('/treasury');
         
         await expect(page.locator('h3:has-text("Reconciliation Exceptions")')).toBeVisible();
-        await expect(page.locator('table th:has-text("Transaction ID")')).toBeVisible();
+        await expect(page.locator('table th:has-text("Transaction ID")').first()).toBeVisible();
         await expect(page.locator('table th:has-text("Gateway")')).toBeVisible();
-        await expect(page.locator('table th:has-text("Amount")')).toBeVisible();
+        await expect(page.locator('table th:has-text("Amount")').first()).toBeVisible();
         
         // Assert the seeded exceptions exist in the view
         await expect(page.locator('table td:has-text("txn_74h284jf")')).toBeVisible();
@@ -135,7 +135,7 @@ test.describe('Financial & Treasury E2E Tests', () => {
         await fromDateInput.fill('');
         
         // Click download tally XML button
-        const submitBtn = page.locator('button[type="submit"]');
+        const submitBtn = page.locator('button:has-text("Download Tally XML")');
         await submitBtn.click();
         
         // The input has the required attribute, verify validity state
@@ -161,8 +161,8 @@ test.describe('Financial & Treasury E2E Tests', () => {
             await page.goto('/treasury');
             
             // Check that outstanding receivables and high risk overdue shows 0 or $0
-            await expect(page.locator('div.text-4xl:near(:text("Outstanding Receivables"))').first()).toContainText('0');
-            await expect(page.locator('div.text-4xl:near(:text("High Risk Overdue"))').first()).toContainText('0');
+            await expect(page.locator('.text-4xl:near(:text("Outstanding Receivables"))').first()).toContainText('0');
+            await expect(page.locator('.text-4xl:near(:text("High Risk Overdue"))').first()).toContainText('0');
         } finally {
             // Restore database invoices
             for (const inv of originalInvoices.rows) {
@@ -187,7 +187,7 @@ test.describe('Financial & Treasury E2E Tests', () => {
             await dialog.dismiss();
         });
         
-        await page.click('button[type="submit"]');
+        await page.click('button:has-text("Download Tally XML")');
     });
 
     test('E2E-TR-205: View mappings configuration empty state or backup mappings', async ({ page }) => {
@@ -234,7 +234,7 @@ test.describe('Financial & Treasury E2E Tests', () => {
         
         // Submitting download triggers request to API which handles generation
         // (Just click the button to verify the frontend submission runs)
-        await page.click('button[type="submit"]');
+        await page.click('button:has-text("Download Tally XML")');
     });
 
 });

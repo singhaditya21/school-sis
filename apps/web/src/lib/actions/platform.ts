@@ -186,6 +186,7 @@ export async function createTenantAction(formData: FormData) {
             [newTenant.id, adminEmail, adminFirstName, adminLastName, 'SUPER_ADMIN', defaultPassword]
         );
 
+        revalidatePath('/platform/tenants');
         revalidatePath('/hq/tenants');
         revalidatePath('/hq');
 
@@ -206,6 +207,7 @@ export async function toggleTenantStatusAction(tenantId: string, isActive: boole
     
     await logPlatformAudit('TOGGLE_TENANT_STATUS', `Status changed to ${isActive}`, undefined, tenantId);
     
+    revalidatePath('/platform/tenants');
     revalidatePath('/hq/tenants');
     
     return { success: true };
