@@ -351,6 +351,61 @@ async function seed() {
         });
     }
 
+    // ─── 10. Attendance ──────────────────────────────────────
+    console.log('📅 Creating attendance records...');
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    for (let i = 0; i < 5; i++) {
+        await db.insert(schema.attendanceRecords).values({
+            tenantId: tenant.id,
+            studentId: createdStudents[i].id,
+            sectionId: createdStudents[i].sectionId,
+            date: yesterday.toISOString().split('T')[0],
+            status: randEl(['PRESENT', 'PRESENT', 'PRESENT', 'ABSENT'] as const),
+            markedBy: createdUsers['TEACHER']?.id,
+        });
+    }
+
+    // ─── 11. Grading Scales & Rubrics ─────────────────────────
+    console.log('📊 Creating grading scales...');
+    const [gpaScale] = await db.insert(schema.gradingScales).values({
+        tenantId: tenant.id,
+        name: 'Standard GPA (4.0)',
+        type: 'GPA',
+    }).returning();
+
+    await db.insert(schema.gradingRubrics).values([
+        { scaleId: gpaScale.id, label: 'A', minScore: '90', maxScore: '100', gpaValue: '4.0' },
+        { scaleId: gpaScale.id, label: 'B', minScore: '80', maxScore: '89.9', gpaValue: '3.0' },
+        { scaleId: gpaScale.id, label: 'C', minScore: '70', maxScore: '79.9', gpaValue: '2.0' },
+        { scaleId: gpaScale.id, label: 'F', minScore: '0', maxScore: '69.9', gpaValue: '0.0' },
+    ]);
+
+    // ─── 12. Homework ─────────────────────────────────────────
+    console.log('📝 Creating homework assignments...');
+    const mathSubjects = await db.select().from(schema.subjects).where(and(eq(schema.subjects.code, 'MAT'), eq(schema.subjects.tenantId, tenant.id))).limit(1);
+    if (mathSubjects.length > 0) {
+        const [homework] = await db.insert(schema.homeworkAssignments).values({
+            tenantId: tenant.id,
+            title: 'Fractions Worksheet',
+            description: 'Complete questions 1-20 in the textbook.',
+            subjectId: mathSubjects[0].id,
+            dueDate: new Date(today.getTime() + 86400000).toISOString(),
+            assignedBy: createdUsers['TEACHER']?.id,
+            maxMarks: '20',
+        }).returning();
+
+        await db.insert(schema.homeworkSubmissions).values({
+            tenantId: tenant.id,
+            assignmentId: homework.id,
+            studentId: createdStudents[0].id,
+            status: 'SUBMITTED',
+            submittedAt: today,
+        });
+    }
+
     console.log('\n✅ Seed complete!');
     console.log(`   📦 1 tenant (${tenant.name})`);
     console.log(`   👤 ${Object.keys(createdUsers).length + 20} users (${Object.keys(createdUsers).length} staff + 20 parents)`);

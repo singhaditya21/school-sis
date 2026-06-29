@@ -1,9 +1,18 @@
-## 2026-06-27T06:51:05Z
-Analyze the school-sis codebase to prepare for the migration of 5 modules (Gradebook, Hostel, Timetable Substitution, Library, Diary/Appointments) off scaffolding-bridge.ts.
-Specifically:
-1. Locate scaffolding-bridge.ts and check the current functions/exports for these 5 modules.
-2. Find the database schema/tables or pg.Pool configuration used in the application.
-3. Locate the UI pages and code for each of the 5 modules in the frontend.
-4. Locate the Parent Portal reference implementation that uses Radix/shadcn UI Table and Badge components. Analyze how it queries the backend, structures data fetching, and renders the UI.
-5. Write your findings to /Users/adityasingh/PersonalWork/school-sis/.agents/explorer_investigate/analysis.md.
-6. Once complete, send a message to conversation ID f2e12d51-d8a7-4cfb-ac09-5106009afaa7 pointing to your report.
+## 2026-06-29T04:43:25Z
+You are the Codebase Investigator explorer agent.
+Your working directory is `/Users/adityasingh/PersonalWork/school-sis/.agents/explorer_investigate`.
+Please perform a detailed investigation of the codebase for the final 5 remaining scaffolding buckets:
+1. Financial & Treasury: `/treasury` and `/integrations/tally`
+2. HQ & Multi-Tenant Management: `/hq` and `/platform`
+3. Advanced Analytics: `/analytics` and `/calendar`
+4. Student Success: `/university`, `/alumni`, `/international`
+5. Daily Utilities: `/documents` and `/diary`
+
+For each domain:
+- Identify all page components, layout components, and server/client components.
+- Locate all mock data, hardcoded arrays, and client-side useState mock data that need to be replaced with Drizzle ORM queries and backend server actions.
+- Identify relevant Drizzle schema files (e.g. `hq.ts`, `platform.ts`, `calendar.ts`, `alumni.ts`, `international.ts`, `documents.ts`, `higher_ed.ts`) and check if they map to existing tables.
+- Detail the existing actions or services for these modules and identify where new actions/services need to be added.
+- Highlight any potential bugs, missing fields, or incorrect columns in the existing API endpoints or files (such as `apps/web/src/app/api/integrations/tally/vouchers/route.ts`).
+
+Please save your detailed report at `/Users/adityasingh/PersonalWork/school-sis/.agents/explorer_investigate/investigation_report.md` and send a message back with the completion status.

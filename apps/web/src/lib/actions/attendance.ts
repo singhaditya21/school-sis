@@ -4,6 +4,7 @@ import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getSmsProvider } from '@/lib/providers/sms';
 import { getEmailProvider } from '@/lib/providers/email';
+import { pusher } from '@/lib/pusher';
 
 export interface ClassAttendanceSummary {
     gradeName: string;
@@ -296,6 +297,13 @@ export async function notifyAbsentParents(date?: string): Promise<{ sent: number
             errors.push(err.message);
         }
     }
+
+    await pusher.trigger('attendance-channel', 'attendance-marked', {
+        tenantId,
+        date: targetDate,
+        sent,
+        failed
+    });
 
     return { sent, failed, errors };
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,10 @@ const ALLOWED_MIME_TYPES = new Set([
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
+
+const s3Client = new S3Client({
+    region: process.env.AWS_REGION || 'us-east-1',
+});
 
 export async function POST(request: NextRequest) {
     try {
@@ -42,10 +47,23 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid folder name' }, { status: 400 });
         }
 
-        // MOCK STORAGE: Return success since the actual getStorage is missing
+        const buffer = Buffer.from(await file.arrayBuffer());
+        const key = `${folder}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+
+        const command = new PutObjectCommand({
+            Bucket: process.env.AWS_S3_BUCKET!,
+            Key: key,
+            Body: buffer,
+            ContentType: file.type,
+        });
+
+        await s3Client.send(command);
+
+        const url = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+
         return NextResponse.json({
             success: true,
-            data: { url: `/placeholder-url/${file.name}`, key: `mock-key-${Date.now()}` }
+            data: { url, key }
         });
     } catch (error: any) {
         console.error('[API/upload] Error:', error);

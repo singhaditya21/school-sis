@@ -68,7 +68,18 @@ ScholarMind V6 aggressively enforces the **Section 8.2 Persona Matrix**:
 
 ---
 
-## 🛠️ Quick Links
+## 📚 Documentation
+
+The complete documentation suite for ScholarMind is broken down by persona. Whether you are an end-user, developer, devops engineer, or sales executive, refer to the guides below:
+
+- **[End-User Guide](./docs/user-guide/README.md)**: For School Admins & Teachers. Learn about the Metadata Engine, Workflows, Fees, Attendance, and AI Integrations.
+- **[Developer & API Guide](./docs/api/README.md)**: For Integrators. Discover how to build on top of our Metadata Architecture, consume Webhooks, and integrate third-party tools (Stripe, Twilio, MSG91).
+- **[DevOps & Deployment Guide](./docs/devops/README.md)**: For Internal DevOps. Read about local environments, database migrations (Neon/Drizzle), Vercel deployments, and environment configuration.
+- **[Sales & Marketing Enablement](./docs/sales/README.md)**: For the GTM Team. Access pitches for the "True Vertical OS for Education", value propositions, and strategies against monolithic competitors.
+
+---
+
+## 🛠️ Internal / Legacy Links
 
 - [Setup Guide](./docs/SETUP_GUIDE.md) — For developer onboarding and environment mapping.
 - [Database Security Checks](./docs/SECURITY_REPORT.md) — RLS policies and SQL injection testing details.

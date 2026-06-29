@@ -9,6 +9,7 @@ import { z } from 'zod';
 import type Users from '@/lib/db/types/public/Users';
 import type Tenants from '@/lib/db/types/public/Tenants';
 import type Companies from '@/lib/db/types/public/Companies';
+import { generateSSOAuthorizationUrl, handleSSOCallback } from '@/lib/auth/enterprise';
 
 /**
  * Login action — production-ready authentication.
@@ -195,3 +196,43 @@ export async function logoutAction() {
     redirect('/login');
 }
 
+export async function initiateSSOLogin(provider: string, redirectUri: string) {
+    let url = '';
+    try {
+        url = await generateSSOAuthorizationUrl(provider, redirectUri);
+    } catch (error) {
+        console.error('[SSO] Error initiating login:', error);
+        return { error: 'Failed to initiate SSO login' };
+    }
+    
+    if (url) {
+        redirect(url);
+    }
+}
+
+export async function processSSOCallback(code: string, provider: string) {
+    let redirectPath = '';
+    try {
+        const ssoResult = await handleSSOCallback(code, provider);
+        if (!ssoResult.success) {
+            return { error: 'SSO Login failed' };
+        }
+        
+        const session = await getSession();
+        session.userId = ssoResult.userId as any;
+        session.tenantId = ssoResult.tenantId;
+        session.role = ssoResult.role as any;
+        session.email = ssoResult.email;
+        session.isLoggedIn = true;
+        await session.save();
+        
+        redirectPath = '/dashboard';
+    } catch (error: any) {
+        console.error('[SSO] Error processing callback:', error);
+        return { error: 'Failed to process SSO callback' };
+    }
+
+    if (redirectPath) {
+        redirect(redirectPath);
+    }
+}

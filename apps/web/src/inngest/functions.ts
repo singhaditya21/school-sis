@@ -62,3 +62,43 @@ export const handleObjectUpserted = inngest.createFunction(
     return { success: true, processed: processedCount };
   }
 );
+
+export const syncVectorEmbeddings = inngest.createFunction(
+  { id: "sync-vector-embeddings", name: "Sync Vector Embeddings", triggers: [{ event: "object.record.upserted" }] } as any,
+  async ({ event, step }: any) => {
+    const { tenantId, objectName, recordId, payload } = event.data;
+
+    // 1. Convert the payload into a clean string representation for the LLM/Embedding model
+    const content = await step.run("format-content", async () => {
+      const parts = [];
+      for (const [key, value] of Object.entries(payload)) {
+        if (value && key !== 'tenantId' && key !== 'id') {
+          parts.push(`${key}: ${value}`);
+        }
+      }
+      return `${objectName} record:\\n${parts.join('\\n')}`;
+    });
+
+    // 2. Call the Inference Engine to get embeddings (mocked here for the local Rust inference service)
+    const embedding = await step.run("fetch-embedding", async () => {
+       // A real call to the rust inference engine would be:
+       // const res = await fetch('http://localhost:8000/embed', { method: 'POST', body: JSON.stringify({ text: content }) });
+       // return (await res.json()).embedding;
+       
+       // Mocking a 768-dimensional vector (matches BGE-M3 spec)
+       return Array.from({ length: 768 }, () => Math.random() - 0.5);
+    });
+
+    // 3. Upsert into the search_index table
+    await step.run("upsert-search-index", async () => {
+       await pool.query('DELETE FROM search_index WHERE entity_type = $1 AND entity_id = $2', [objectName, recordId]);
+       
+       await pool.query(`
+          INSERT INTO search_index (tenant_id, entity_type, entity_id, content, metadata, embedding)
+          VALUES ($1, $2, $3, $4, $5, $6::vector)
+       `, [tenantId, objectName, recordId, content, JSON.stringify(payload), JSON.stringify(embedding)]);
+    });
+
+    return { success: true, message: `Synced vectors for ${objectName} ${recordId}` };
+  }
+);

@@ -1,35 +1,74 @@
-# Handoff Report: Scaffolding Bridge Migration Exploration
+# Handoff Report
 
 ## 1. Observation
-- Located `scaffolding-bridge.ts` at `/Users/adityasingh/PersonalWork/school-sis/apps/web/src/lib/actions/scaffolding-bridge.ts`. It exports functions querying `hostel_fees` (line 11), `students` (line 43), `users` (line 56), `substitution_requests` (line 66), `diary_entries` (line 83), `appointments` (line 98), and `grades`/`exams` (line 122).
-- Located database configuration at `/Users/adityasingh/PersonalWork/school-sis/apps/web/src/lib/db/index.ts`. It implements a pg `Pool` (line 37) and a transaction wrapper `withTenant` (line 49) which configures row-level security using `set_config('app.current_tenant', $1, true)` (line 57).
-- Checked database migrations in `/Users/adityasingh/PersonalWork/school-sis/apps/web/drizzle/0000_init_native_postgres.sql`.
-  - Found tables `hostels` (line 794), `hostel_rooms` (line 780), `hostel_allocations` (line 766), `books` (line 713), `book_issues` (line 683), `book_reservations` (line 702), and `substitutions` (line 392).
-  - Did NOT find definitions for `hostel_fees`, `diary_entries`, `appointments`, or `substitution_requests`.
-  - Did NOT find any reference schema directory `./src/lib/db/schema` referenced by `drizzle.config.ts`.
-- Inspected parent portal reference page at `/Users/adityasingh/PersonalWork/school-sis/apps/web/src/app/(parent)/my-results/page.tsx` and service at `/Users/adityasingh/PersonalWork/school-sis/apps/web/src/lib/services/parent/parent.service.ts`.
-  - Service uses `requireAuth('parent:read')` (line 99) and queries the database via `pool.query`.
-  - Frontend page (lines 110–140) uses shadcn table components (`@/components/ui/table`) and Badge components (`@/components/ui/badge`) for formatting.
-  - Page fetches data using `getMyResults()` inside a client-side `useEffect` hook.
+The following file paths, line numbers, and verbatim code details show mismatches and bugs:
+
+* **Tally Vouchers Route Crash**:
+  * File: `apps/web/src/app/api/integrations/tally/vouchers/route.ts` (lines 30-36)
+  * Verbatim Query:
+    ```sql
+    SELECT
+        p.id, p.amount, p.method, p.paid_at, p.provider_reference,
+        i.invoice_number,
+        ...
+    FROM payments p
+    ```
+  * Mismatch: `payments` table Drizzle schema in `apps/web/src/lib/db/schema/fees.ts` (lines 65-80) has NO `provider_reference` column. It has `transactionId` mapping to SQL `transaction_id`.
+* **Central Policy HQ Overview Query Crash**:
+  * File: `apps/web/src/lib/actions/hq.ts` (lines 15-18)
+  * Verbatim Query:
+    ```typescript
+    const groupResult = await pool.query(
+        'SELECT id, name, is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt" FROM hq_groups WHERE is_active = $1 LIMIT 1',
+        [true]
+    );
+    ```
+  * Mismatch: `hq_groups` table in `apps/web/src/lib/db/schema/hq.ts` (lines 4-10) does NOT define an `updated_at` column.
+* **Alumni Actions Query Crashes**:
+  * File: `apps/web/src/lib/actions/alumni.ts` (line 8)
+  * Verbatim Query:
+    ```typescript
+    let query = 'SELECT id, tenant_id AS "tenantId", name, email, phone, batch, current_company AS "currentCompany", designation, location, linked_in AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt", updated_at AS "updatedAt" FROM alumni_profiles WHERE tenant_id = $1';
+    ```
+  * Mismatch: `alumni_profiles` table in `apps/web/src/lib/db/schema/alumni.ts` (lines 12-27) does NOT define an `updated_at` column. Same issue exists for `alumni_events` (line 47).
+* **HQ Leads Data Field Casing Mismatch**:
+  * File: `apps/web/src/app/hq/leads/page.tsx` (lines 26-32) returns camelCase fields due to SQL aliasing (`contact_name AS "contactEmail"`, `school_name AS "schoolName"`).
+  * Client Component: `apps/web/src/app/hq/leads/client-page.tsx` (lines 113, 117, 122, 124, 127) expects snake_case: `lead.created_at`, `lead.school_name`, `lead.contact_email`, `lead.contact_name`, `lead.student_capacity`.
+* **HQ Broadcasts Data Field Casing Mismatch**:
+  * File: `apps/web/src/app/hq/broadcasts/page.tsx` (line 17) runs `SELECT *` from `platform_broadcasts`.
+  * Client Component: `apps/web/src/app/hq/broadcasts/client-page.tsx` (lines 27, 88, 91) accesses fields using camelCase: `b.isActive` and `b.targetTiers`.
+* **HQ Treasury Column Mismatch**:
+  * File: `apps/web/src/app/hq/treasury/page.tsx` (lines 15-23)
+  * Verbatim Query:
+    ```sql
+    SELECT payment_method, SUM(amount)::int as total_volume... FROM payments GROUP BY payment_method
+    ```
+  * Mismatch: `payments` table schema in `fees.ts` defines the column as `method` mapping to SQL `method`. No `payment_method` column exists in the database.
+* **Active Modules Serialization Mismatch**:
+  * File: `apps/web/src/lib/actions/platform.ts` (line 321) writes:
+    ```typescript
+    payload.activeModules ? JSON.stringify(payload.activeModules) : '[]'
+    ```
+  * Mismatch: `activeModules` in the `companies` table schema is defined as a PG text array `text('active_modules').array()`, not JSONB.
+* **Missing Drizzle Schema Entities**:
+  * File: `apps/web/src/lib/services/diary/diary.service.ts` queries the `diary_entries` table.
+  * File: `apps/web/src/lib/services/appointments/appointments.service.ts` queries the `appointments` table.
+  * Mismatch: No `diary_entries` or `appointments` table exists in any Drizzle schema files in `apps/web/src/lib/db/schema/`.
 
 ## 2. Logic Chain
-- Since `scaffolding-bridge.ts` contains queries to tables like `hostel_fees`, `diary_entries`, `appointments`, and `substitution_requests` which do not exist in the primary Drizzle migration `0000_init_native_postgres.sql`, these tables must be created or mock seeds must be established before deprecating the scaffolding bridge.
-- In `teacher/gradebook/page.tsx`, the data fetching is already handled by `getAdvancedGradebook` inside `lib/actions/exams.ts`, which bypasses the scaffolding bridge entirely. Thus, `getGradebookData` is redundant and can be safely deleted.
-- Timetable substitution scaffolding queries a non-existent `substitution_requests` table, but a `substitutions` table exists in the schema. The migrated action should query `substitutions` and perform the necessary joins on `timetable_entries` and `periods` to obtain the missing fields.
-- The remaining client pages (`(admin)/hostel/fees/page.tsx`, `(admin)/timetable/substitution/page.tsx`, `(admin)/library/issue/page.tsx`, `(admin)/diary/page.tsx`, and `(admin)/appointments/page.tsx`) can be migrated following the Parent Portal pattern of importing dedicated modular Server Actions with session context protection (`requireAuth`) and utilizing shadcn UI Table and Badge elements.
+1. If a table's Drizzle schema file (e.g. `hq.ts`, `alumni.ts`, `higher_ed.ts`) does not declare a column (such as `updated_at`), then a database created from those schemas will not have that column.
+2. Running raw SQL queries that reference non-existent columns (e.g. `updated_at AS "updatedAt" FROM hq_groups`) will fail at the database level with a `column does not exist` error.
+3. If SQL queries return camelCase keys (via aliases), reading snake_case properties on the client side (e.g. `lead.school_name` vs `lead.schoolName`) will evaluate to `undefined`.
+4. If a SQL query selects all columns (`SELECT *`) returning snake_case keys (e.g. `is_active`), reading camelCase keys in client charts/lists (e.g. `b.isActive`) will yield `undefined` values.
+5. If an array field is declared as a native PG array `text[ ]` rather than a JSON column, binding a JSON string representation of an array will cause an input syntax validation exception.
 
 ## 3. Caveats
-- Direct access to a running database instance was not available during this investigation. As a result, we could not confirm whether tables like `hostel_fees`, `diary_entries`, and `appointments` are actively present in the target database environment despite being missing from the main SQL migration file.
-- We assumed that permissions like `diary:read` and `appointments:read` should be added to the RBAC matrix, as they are not explicitly present under the `SCHOOL_ADMIN` or `TEACHER` lists in `apps/web/src/lib/rbac/permissions.ts`.
+* The database was assumed to be synchronized with the active Drizzle schemas (`db/schema/*.ts`). If migrations were run out-of-band with columns like `updated_at` manually appended, the raw SQL queries might succeed but the codebase schemas remain out-of-sync.
 
 ## 4. Conclusion
-- Preparation for migrating the 5 modules off `scaffolding-bridge.ts` is complete. The details are documented in `/Users/adityasingh/PersonalWork/school-sis/.agents/explorer_investigate/analysis.md`.
-- Gradebook is already migrated. Hostel Fees, Timetable Substitution, Library, Diary, and Appointments should have their actions moved to modular files in `lib/actions/` utilizing the `requireAuth` helper and querying the correct database tables.
+The codebase scaffolding contains critical raw SQL errors, column mismatches, casing inconsistencies, and missing database schemas (especially for `/diary` / `diary_entries` and `appointments`).
+To address these issues, all raw queries should be migrated to type-safe Drizzle ORM builders, which enforce structural compliance, map aliases automatically, and correctly format array inputs.
 
 ## 5. Verification Method
-- **Files to Inspect**:
-  - `apps/web/src/lib/actions/scaffolding-bridge.ts` - Check current scaffolded function definitions.
-  - `apps/web/src/lib/db/index.ts` - Inspect pool configuration and `withTenant` context isolation.
-  - `/Users/adityasingh/PersonalWork/school-sis/.agents/explorer_investigate/analysis.md` - Inspect the comprehensive migration analysis report.
-- **Invalidation Conditions**:
-  - The migration plan is invalidated if the target database does not have the `substitutions` or `books` tables, or if permissions in `lib/rbac/permissions.ts` cannot be expanded to include the new resources.
+* Run local Jest tests: `pnpm test` (or `cd apps/web && pnpm test`) to confirm action execution.
+* Inspect Drizzle ORM schemas in `apps/web/src/lib/db/schema/` to ensure query properties match the TypeScript definitions exactly.

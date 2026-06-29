@@ -4,6 +4,7 @@ import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { inngest } from '@/inngest/client';
 import { redirect } from 'next/navigation';
+import { unstable_cache, revalidateTag } from 'next/cache';
 
 export interface MetadataObject {
     id: string;
@@ -34,43 +35,52 @@ export interface MetadataLayout {
     isDefault: boolean;
 }
 
+const getCachedObjectMetadata = unstable_cache(
+    async (apiName: string, tenantId: string) => {
+        // Get Object
+        const objQuery = `
+            SELECT id, tenant_id as "tenantId", name, api_name as "apiName", table_name as "tableName", is_custom as "isCustom"
+            FROM metadata_objects
+            WHERE api_name = $1 AND (tenant_id = $2 OR tenant_id IS NULL)
+            LIMIT 1
+        `;
+        const { rows: objRows } = await pool.query(objQuery, [apiName, tenantId]);
+        if (objRows.length === 0) throw new Error(`Object ${apiName} not found`);
+        const objectDef: MetadataObject = objRows[0];
+
+        // Get Fields
+        const fieldsQuery = `
+            SELECT id, object_id as "objectId", label, api_name as "apiName", data_type as "dataType", 
+                   is_custom as "isCustom", is_required as "isRequired", default_value as "defaultValue", picklist_options as "picklistOptions"
+            FROM metadata_fields
+            WHERE object_id = $1
+        `;
+        const { rows: fieldRows } = await pool.query(fieldsQuery, [objectDef.id]);
+        const fields: MetadataField[] = fieldRows;
+
+        // Get Layouts
+        const layoutQuery = `
+            SELECT id, object_id as "objectId", layout_type as "layoutType", schema, is_default as "isDefault"
+            FROM metadata_layouts
+            WHERE object_id = $1 AND is_default = true
+        `;
+        const { rows: layoutRows } = await pool.query(layoutQuery, [objectDef.id]);
+        const layouts: MetadataLayout[] = layoutRows;
+
+        return { objectDef, fields, layouts };
+    },
+    ['object-metadata'],
+    {
+        tags: ['metadata']
+    }
+);
+
 /**
  * Fetches the object definition including all its fields and layout schemas
  */
 export async function getObjectMetadata(apiName: string) {
     const { tenantId } = await requireAuth();
-
-    // Get Object
-    const objQuery = `
-        SELECT id, tenant_id as "tenantId", name, api_name as "apiName", table_name as "tableName", is_custom as "isCustom"
-        FROM metadata_objects
-        WHERE api_name = $1 AND (tenant_id = $2 OR tenant_id IS NULL)
-        LIMIT 1
-    `;
-    const { rows: objRows } = await pool.query(objQuery, [apiName, tenantId]);
-    if (objRows.length === 0) throw new Error(`Object ${apiName} not found`);
-    const objectDef: MetadataObject = objRows[0];
-
-    // Get Fields
-    const fieldsQuery = `
-        SELECT id, object_id as "objectId", label, api_name as "apiName", data_type as "dataType", 
-               is_custom as "isCustom", is_required as "isRequired", default_value as "defaultValue", picklist_options as "picklistOptions"
-        FROM metadata_fields
-        WHERE object_id = $1
-    `;
-    const { rows: fieldRows } = await pool.query(fieldsQuery, [objectDef.id]);
-    const fields: MetadataField[] = fieldRows;
-
-    // Get Layouts
-    const layoutQuery = `
-        SELECT id, object_id as "objectId", layout_type as "layoutType", schema, is_default as "isDefault"
-        FROM metadata_layouts
-        WHERE object_id = $1 AND is_default = true
-    `;
-    const { rows: layoutRows } = await pool.query(layoutQuery, [objectDef.id]);
-    const layouts: MetadataLayout[] = layoutRows;
-
-    return { objectDef, fields, layouts };
+    return getCachedObjectMetadata(apiName, tenantId);
 }
 
 /**
@@ -330,6 +340,10 @@ export async function createCustomField(objectId: string, fieldData: any) {
     ];
 
     const { rows } = await pool.query(query, values);
+    
+    // Invalidate the cache when a new field is added
+    revalidateTag('metadata');
+    
     return rows[0];
 }
 

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { returnToHQAction } from '@/lib/actions/platform';
 import PlatformBroadcastTicker from '@/components/platform/PlatformBroadcastTicker';
 import { pool } from '@/lib/db';
+import { AICopilot } from '@/components/ui/ai-copilot';
 
 export default async function AdminLayout({
     children,
@@ -208,6 +209,7 @@ export default async function AdminLayout({
                     <div suppressHydrationWarning>{children}</div>
                 </main>
             </div>
+            <AICopilot />
         </div>
     );
 }

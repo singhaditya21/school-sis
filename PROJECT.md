@@ -1,63 +1,70 @@
-# Project: School SIS Core Operations Implementation
+# Project: School SIS Phase 4 Remaining Scaffolding Implementation
 
 ## Architecture
-- **Backend Services**: Located in `apps/web/src/lib/services/[module]/[module].service.ts` or similar path. They use Drizzle ORM queries directly, replacing raw SQL where appropriate. Access control is managed in each action via `requireAuth(permission)`.
-- **Frontend Pages**: React server/client components in `apps/web/src/app/(admin)/[module]/...`. They consume the backend service methods, using shadcn UI `<Table>` and `<Badge>` components for consistent formatting and presentation.
+- **Backend Services & Actions**: Located in `apps/web/src/lib/actions/` and `apps/web/src/lib/services/`. Server actions interact with the database using Drizzle ORM, replacing direct pg `pool` queries where appropriate, and verifying tenant isolation by checking `session.tenantId`.
+- **Frontend Pages**: Next.js App Router components under `apps/web/src/app/`. They consume server actions or services directly, replacing hardcoded mock states and useState client data with dynamic data.
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | E2E Testing Track | Design and establish baseline E2E test cases to verify the pages | None | DONE (Conv ID: 5842a9f6-c89a-4e06-ae0c-01eaa5796f9b) |
-| M2 | Implement Hostel Module | Implement drizzle schema, backend service, and UI wiring for Hostel. | M1 | DONE (Conv ID: 6d34308d-5f38-4392-ba6e-df2fb1c2966e) |
-| M3 | Implement Transport Module | Implement drizzle schema, backend service with GPS routing mapping logic, and UI wiring for Transport. | M1 | DONE (Conv ID: 6d34308d-5f38-4392-ba6e-df2fb1c2966e) |
-| M4 | Implement Timetable Module | Implement drizzle schema, backend service with teacher collision prevention logic, and UI wiring for Timetable. | M1 | DONE (Conv ID: 6d34308d-5f38-4392-ba6e-df2fb1c2966e) |
-| M5 | Implement Library Module | Implement drizzle schema, backend service with barcode/ISBN processing logic, and UI wiring for Library. | M1 | DONE (Conv ID: 6d34308d-5f38-4392-ba6e-df2fb1c2966e) |
-| M6 | Implement Inventory Module | Implement drizzle schema, backend service, and UI wiring for Inventory. | M1 | DONE (Conv ID: 6d34308d-5f38-4392-ba6e-df2fb1c2966e) |
-| M7 | Integration & Verification | Run final builds, unit/E2E tests, and execute Forensic Auditor validation. | M2, M3, M4, M5, M6 | DONE (Conv ID: 6d34308d-5f38-4392-ba6e-df2fb1c2966e) |
+| M1 | E2E Test Suite Expansion | Expand Playwright E2E tests for the final 5 remaining scaffolding buckets under `apps/web/e2e/`. | None | PLANNED |
+| M2 | Financial & Treasury | Wire `/treasury` ledgers and `/integrations/tally` export logic, enforce tenant isolation, fix tally vouchers API column bugs. | M1 | PLANNED |
+| M3 | HQ & Multi-Tenant Management | Wire `/hq` and `/platform` routes, fix updated_at / casing bugs, wire leads and settings config table. | M1 | PLANNED |
+| M4 | Advanced Analytics | Wire `/analytics` and `/calendar` events, pre-render data on server components. | M1 | PLANNED |
+| M5 | Student Success | Wire `/university` (placements), `/alumni` tracking, and `/international` host family/visa compliance. | M1 | PLANNED |
+| M6 | Daily Utilities | Implement Drizzle schemas for `diary_entries` and `appointments`, wire `/documents` and `/diary` logs. | M1 | PLANNED |
+| M7 | Integration & Verification | Run TypeScript builds, sync Drizzle schemas, pass full E2E test suite, and run Forensic Auditor. | M2, M3, M4, M5, M6 | PLANNED |
 
 ## Interface Contracts
-### Hostel Service
-- `getHostelOverview(tenantId: string)`
-- `getHostelFees(tenantId: string, filters: { status?: string, feeType?: string })`
-- `sendPaymentReminder(tenantId: string, feeId: string)`
+### Financial & Treasury
+- `getTreasurySummaryAction()`: Returns dynamic collected, outstanding, and overdue metrics.
+- `getPaymentsLedgerAction(limit)`: Returns payment ledger entries.
+- `/api/integrations/tally/vouchers`: POST API returning tally-compatible XML vouchers.
 
-### Transport Service
-- `getRoutes(tenantId: string)`
-- `createRoute(tenantId: string, data: any)`
-- `getGPSPing(tenantId: string, vehicleId: string)` (returns latitude/longitude)
+### HQ & Multi-Tenant
+- `getGlobalMetricsAction()`: Aggregates global ARR, active tenants, enrollment, and churn.
+- `impersonateTenantAction(tenantId)`: SaaS tech-support impersonation loops.
+- `updateCompanySettingsAction(companyId, settings)`: Saves tenant tier and active modules configuration.
+- `createBroadcastAction(data)`: Publishes system-wide alerts.
 
-### Timetable Service
-- `getTimetableGrid(tenantId: string, sectionId: string)`
-- `createTimetableEntry(tenantId: string, data: any)` (with conflict-resolution logic checking teacher and room collisions)
-- `getSubstitutions(tenantId: string)`
-- `createSubstitutionRequest(tenantId: string, data: any)`
+### Advanced Analytics
+- `getAnalyticsSummary()`: Computes attendance, exam grades, and fee collection rates.
+- `getAcademicEvents()`: Fetches central calendar logs.
 
-### Library Service
-- `getBooks(tenantId: string)`
-- `issueBook(tenantId: string, data: { bookId: string, studentId: string, isbnOrBarcode?: string })` (with barcode/ISBN processing/validation logic)
-- `getBorrowHistory(tenantId: string)`
+### Student Success
+- `getUniversityDashboardSummaryAction()`: Higher ed degree programs and faculty workload statistics.
+- `getAlumniProfiles()` & `getAlumniEvents()`: Alumni logs and event registrations.
+- `getStudentVisasAction()` & `getHostFamiliesAction()`: International student operations.
 
-### Inventory Service
-- `getAssets(tenantId: string)`
-- `getConsumables(tenantId: string)`
-- `getStockAlerts(tenantId: string)`
+### Daily Utilities
+- `getDiaryEntries()`: Returns class homework and announcements.
+- `getAppointments()`: Returns student/teacher appointments.
+- `studentDocuments`: Verification status updates.
 
 ## Code Layout
-- Backend Services: `apps/web/src/lib/services/`
-  - Hostel: `hostel/hostel.service.ts`
-  - Transport: `transport/transport.service.ts`
-  - Timetable: `timetable/timetable.service.ts`
-  - Library: `library/library.service.ts`
-  - Inventory: `inventory/inventory.service.ts`
+- Backend Services & Actions:
+  - Treasury & Tally: `apps/web/src/lib/actions/treasury.ts`
+  - HQ & Platform: `apps/web/src/lib/actions/hq.ts`, `platform.ts`, `platform-broadcasts.ts`
+  - Analytics: `apps/web/src/lib/actions/analytics.ts`, `apps/web/src/lib/services/analytics/`
+  - Student Success: `apps/web/src/lib/actions/higher_ed.ts`, `alumni.ts`, `international.ts`
+  - Daily Utilities: `apps/web/src/lib/actions/document.ts`, `apps/web/src/lib/services/diary/`, `apps/web/src/lib/services/appointments/`
+- DB Schemas: `apps/web/src/lib/db/schema/`
+  - HQ: `hq.ts`
+  - Platform: `platform.ts`
+  - Alumni: `alumni.ts`
+  - International: `international.ts`
+  - Higher Ed: `higher_ed.ts`
+  - Documents: `documents.ts`
+  - Calendar: `calendar.ts`
+  - Diary & Appointments: `diary.ts` (newly created)
 - Frontend Pages:
-  - Hostel Overview: `apps/web/src/app/(admin)/hostel/page.tsx`
-  - Hostel Fees: `apps/web/src/app/(admin)/hostel/fees/page.tsx`
-  - Transport routes: `apps/web/src/app/(admin)/transport/page.tsx`
-  - Transport new route: `apps/web/src/app/(admin)/transport/new/page.tsx`
-  - Timetable Grid: `apps/web/src/app/(admin)/timetable/grid/page.tsx`
-  - Timetable Substitution: `apps/web/src/app/(admin)/timetable/substitution/page.tsx`
-  - Library Catalog: `apps/web/src/app/(admin)/library/page.tsx`
-  - Library Issue: `apps/web/src/app/(admin)/library/issue/page.tsx`
-  - Library History: `apps/web/src/app/(admin)/library/history/page.tsx`
-  - Inventory: `apps/web/src/app/(admin)/inventory/page.tsx`
-  - Inventory Alerts: `apps/web/src/app/(admin)/inventory/alerts/page.tsx`
+  - Treasury: `apps/web/src/app/(admin)/treasury/`
+  - Tally: `apps/web/src/app/(admin)/integrations/tally/`
+  - HQ & Platform: `apps/web/src/app/hq/`, `apps/web/src/app/platform/`, `apps/web/src/app/(admin)/hq-overview/`, `apps/web/src/app/(admin)/hq-policies/`
+  - Analytics: `apps/web/src/app/(admin)/analytics/`
+  - Calendar: `apps/web/src/app/(admin)/calendar/`
+  - University Placements: `apps/web/src/app/(admin)/university/`
+  - Alumni: `apps/web/src/app/(admin)/alumni/`
+  - International: `apps/web/src/app/(admin)/international/`
+  - Documents: `apps/web/src/app/(admin)/documents/`
+  - Diary: `apps/web/src/app/(admin)/diary/`

@@ -1,31 +1,31 @@
-# BRIEFING — 2026-06-27T12:21:05+05:30
+# BRIEFING — 2026-06-29T10:18:10Z
 
 ## Mission
-Analyze school-sis codebase to prepare for the migration of 5 modules off scaffolding-bridge.ts.
+Investigate the codebase for 5 scaffolding buckets (Financial, HQ, Analytics, Student Success, Utilities) to identify components, mock data, schema files, actions/services, and bugs.
 
 ## 🔒 My Identity
-- Archetype: Teamwork explorer
-- Roles: Read-only investigator, analyzer
+- Archetype: Codebase Investigator Explorer
+- Roles: Reader, Investigator, Reporter
 - Working directory: /Users/adityasingh/PersonalWork/school-sis/.agents/explorer_investigate
-- Original parent: f2e12d51-d8a7-4cfb-ac09-5106009afaa7
-- Milestone: Migration preparation
+- Original parent: abf14994-ea52-432d-8f2d-2acb2894dc87
+- Milestone: Scaffolding Analysis
 
 ## 🔒 Key Constraints
 - Read-only investigation — do NOT implement
-- CODE_ONLY network mode — no external network requests
+- Analyze components, mock data, schemas, actions, and bugs for the 5 buckets.
 
 ## Current Parent
-- Conversation ID: f2e12d51-d8a7-4cfb-ac09-5106009afaa7
-- Updated: 2026-06-27T12:26:20+05:30
+- Conversation ID: abf14994-ea52-432d-8f2d-2acb2894dc87
+- Updated: 2026-06-29T10:18:10+05:30
 
 ## Investigation State
-- **Explored paths**: `apps/web/src/lib/actions/scaffolding-bridge.ts`, `apps/web/src/lib/db/index.ts`, `apps/web/drizzle/0000_init_native_postgres.sql`, `apps/web/src/app/(admin)/`, `apps/web/src/app/(parent)/`, `apps/web/src/lib/services/parent/parent.service.ts`
-- **Key findings**: Identified all scaffolded functions, schema definition discrepancies, client vs server component UI page structures, and analysed Parent Portal template implementation.
-- **Unexplored areas**: None, task completed.
+- **Explored paths**: `apps/web/src/app/(admin)/`, `apps/web/src/app/hq/`, `apps/web/src/lib/actions/`, `apps/web/src/lib/db/schema/`
+- **Key findings**: Identified all components, layout styles, schemas, mock configurations, and critical query bugs (e.g. non-existent columns selected in SQL queries, array serialization errors, field casing mismatches, lack of tenant isolation filters).
+- **Unexplored areas**: None. Detailed codebase mapping for all 5 scaffolding buckets is complete.
 
 ## Key Decisions Made
-- Analysed migration pathways and recommended separate action files for Diary/Appointments, and merging others with existing module action files.
+- Wrote detailed investigation report in `investigation_report.md` and compiled findings in `handoff.md`.
 
 ## Artifact Index
-- /Users/adityasingh/PersonalWork/school-sis/.agents/explorer_investigate/analysis.md — Report detailing the migration investigation findings
-- /Users/adityasingh/PersonalWork/school-sis/.agents/explorer_investigate/handoff.md — Handoff report containing the 5-component analysis findings
+- /Users/adityasingh/PersonalWork/school-sis/.agents/explorer_investigate/investigation_report.md — Detailed investigation report of the 5 scaffolding buckets.
+- /Users/adityasingh/PersonalWork/school-sis/.agents/explorer_investigate/handoff.md — Handoff report mapping findings and verification method.
