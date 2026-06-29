@@ -2,9 +2,7 @@ import { openai } from '@ai-sdk/openai';
 import { generateText, streamText, tool } from 'ai';
 import { z } from 'zod';
 import { NextResponse } from 'next/server';
-
-// This is the core engine for the AI Copilot that integrates deeply with our Metadata Engine.
-// It exposes tools to the LLM allowing it to parse natural language into structured AST/JSON for our Custom Reports.
+import { pool } from '../../../lib/db/client';
 
 export async function POST(req: Request) {
   try {
@@ -14,17 +12,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
     }
 
-    // In a production environment, we would query the `metadata_objects` and `metadata_fields` 
-    // tables here for this specific tenantId to build the context schema.
+    // Dynamically query the tenant's exact metadata schema from Postgres
+    const schemaRes = await pool.query(
+      `SELECT o.name as object_name, json_agg(f.name) as fields
+       FROM metadata_objects o
+       LEFT JOIN metadata_fields f ON f.object_id = o.id
+       WHERE o.tenant_id = $1
+       GROUP BY o.id, o.name`,
+      [tenantId]
+    );
+
+    // Build the dynamic LLM context string
+    let schemaContext = 'Available Objects:\n';
+    if (schemaRes.rowCount > 0) {
+      schemaRes.rows.forEach(row => {
+        schemaContext += `- '${row.object_name}' (Fields: ${row.fields ? row.fields.join(', ') : 'none'})\n`;
+      });
+    } else {
+      schemaContext += 'No custom objects defined yet.\n';
+    }
+
     const systemPrompt = `You are an intelligent Copilot for School SIS, an enterprise vertical OS for education.
-You are tasked with helping administrators generate reports and insights. 
+You are tasked with helping administrators generate reports and insights based strictly on their custom data model. 
 Translate the user's natural language request into a structured JSON configuration that our Custom Report Builder can understand.
 
-Available Objects: 
-- 'students' (Fields: id, first_name, last_name, enrollment_date, status)
-- 'fees' (Fields: id, student_id, amount, status, due_date)
-- 'attendance' (Fields: id, student_id, date, status)
-`;
+${schemaContext}`;
 
     const result = await streamText({
       model: openai('gpt-4o'),
