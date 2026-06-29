@@ -54,6 +54,9 @@ importers:
       '@react-navigation/native-stack':
         specifier: ^7.17.6
         version: 7.17.6(@react-navigation/native@7.3.4(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3))(react@19.2.3))(react-native-safe-area-context@5.8.0(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3))(react@19.2.3))(react-native-screens@4.25.2(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3))(react@19.2.3))(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3))(react@19.2.3)
+      '@stripe/stripe-react-native':
+        specifier: ^0.67.0
+        version: 0.67.0(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3))(react@19.2.3)
       expo:
         specifier: ~56.0.12
         version: 56.0.12(@babel/core@7.29.0)(@expo/dom-webview@56.0.5)(react-dom@19.2.5(react@19.2.3))(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)
@@ -4106,6 +4109,19 @@ packages:
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
+  '@stripe/stripe-react-native@0.67.0':
+    resolution: {integrity: sha512-eEV48WE7Z6H8xE60sA6R7TZkCz/Y/jRBZxDJ/Fjw+PB09TeiCBaY1bC/K9oXrrEZhWc4ksqwG0q4uFDly3FKBQ==}
+    peerDependencies:
+      expo: '>=46.0.9'
+      react: '*'
+      react-native: '*'
+      react-native-webview: '*'
+    peerDependenciesMeta:
+      expo:
+        optional: true
+      react-native-webview:
+        optional: true
 
   '@supabase/auth-js@2.108.2':
     resolution: {integrity: sha512-tNaQmBgodDZwgB40mRwVbxFy8IDYwjdpcZ0BYrWiwlULCSQoJj4QoG4zgJT7QRPXcqipefNOzvO/qAu4dF98ag==}
@@ -14572,6 +14588,13 @@ snapshots:
       tslib: 2.8.1
 
   '@standard-schema/spec@1.1.0': {}
+
+  '@stripe/stripe-react-native@0.67.0(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3))(react@19.2.3)':
+    dependencies:
+      react: 19.2.3
+      react-native: 0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3)
+    optionalDependencies:
+      expo: 56.0.12(@babel/core@7.29.0)(@expo/dom-webview@56.0.5)(react-dom@19.2.5(react@19.2.3))(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)
 
   '@supabase/auth-js@2.108.2':
     dependencies:
