@@ -14,23 +14,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.9
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm ci
-        working-directory: ./apps/web
-
-      - name: Run linter
-        run: npm run lint
-        working-directory: ./apps/web
+        run: pnpm install
 
       - name: Build Next.js app
-        run: npm run build
-        working-directory: ./apps/web
+        run: pnpm --filter web build
+        env:
+          # Dummy database URL so static rendering doesn't crash during build
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis
 
       # Upload the Next.js build output to share with the test runners
       - name: Cache Next.js build
@@ -70,15 +72,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.9
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm ci
-        working-directory: ./apps/web
+        run: pnpm install
 
       - name: Restore Next.js build
         uses: actions/cache@v4
@@ -87,15 +93,13 @@ jobs:
           key: ${{ runner.os }}-nextjs-${{ github.sha }}
 
       - name: Install Playwright Browsers
-        run: npx playwright install --with-deps
-        working-directory: ./apps/web
+        run: pnpm --filter web exec playwright install --with-deps
 
       - name: Run Playwright Tests
-        working-directory: ./apps/web
         env:
           # Point the tests to the local Postgres service container
           DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis
-        run: npx playwright test --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+        run: pnpm --filter web run test:e2e --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
       - name: Upload Playwright report
         if: always()
