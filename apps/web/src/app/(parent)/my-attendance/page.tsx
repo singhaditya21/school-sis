@@ -25,7 +25,7 @@ export default function MyAttendancePage() {
 
     useEffect(() => {
         setLoading(true);
-        getMyAttendance(month, year).then(r => {
+        getMyAttendance({ month, year }).then(r => {
             setAttendance(r);
             setLoading(false);
         });

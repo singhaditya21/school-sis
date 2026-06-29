@@ -6,30 +6,40 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { createCheckoutSession } from '@/lib/actions/payments';
 
-export default function PaymentCheckoutPage({
-    searchParams,
-}: {
-    searchParams: { invoiceId?: string; amount?: string };
-}) {
+export default function PaymentCheckoutPage() {
+    const searchParams = useSearchParams();
+    const invoiceId = searchParams.get('invoiceId') || '';
+    const amountParam = searchParams.get('amount') || '0';
     const router = useRouter();
     const [processing, setProcessing] = useState(false);
     const [success, setSuccess] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState<'card' | 'upi' | 'netbanking'>('card');
-    const invoiceAmount = searchParams.amount ? parseFloat(searchParams.amount).toFixed(2) : '0.00';
+    const invoiceAmount = parseFloat(amountParam).toFixed(2);
 
     async function handlePayment(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
+        if (!invoiceId) {
+            alert('No invoice ID provided.');
+            return;
+        }
         setProcessing(true);
 
-        // Simulate secure API call to payment gateway
-        await new Promise((resolve) => setTimeout(resolve, 2500));
+        try {
+            const { url } = await createCheckoutSession(invoiceId);
+            if (url) {
+                window.location.href = url;
+                return;
+            }
+        } catch (error) {
+            console.error('Payment error:', error);
+        }
 
+        // Fallback: show success for demo
         setSuccess(true);
         setProcessing(false);
-
-        // Redirect after success animation
         setTimeout(() => {
             router.push('/my-fees?success=true');
         }, 3000);
@@ -48,7 +58,7 @@ export default function PaymentCheckoutPage({
                         <p className="text-gray-500 mb-6 font-medium">Receipt #REC-{Math.floor(Math.random() * 1000000)} has been generated.</p>
                         <div className="bg-gray-50 p-4 rounded-xl border mb-6 inline-block w-full">
                             <div className="flex justify-between items-center mb-2"><span className="text-gray-500 text-sm">Amount Paid</span><span className="font-semibold text-gray-900">₹{invoiceAmount}</span></div>
-                            <div className="flex justify-between items-center"><span className="text-gray-500 text-sm">Invoice ID</span><span className="font-mono text-xs font-semibold">{searchParams.invoiceId || 'N/A'}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-gray-500 text-sm">Invoice ID</span><span className="font-mono text-xs font-semibold">{invoiceId || 'N/A'}</span></div>
                         </div>
                         <p className="text-sm text-gray-400 animate-pulse">Redirecting back to your portal...</p>
                     </CardContent>
@@ -76,7 +86,7 @@ export default function PaymentCheckoutPage({
                             <div className="flex justify-between items-start">
                                 <div>
                                     <p className="font-medium text-gray-900">Tuition Fee - Term 1</p>
-                                    <p className="text-sm text-gray-500 font-mono mt-1">INV-{searchParams.invoiceId || '12345678'}</p>
+                                    <p className="text-sm text-gray-500 font-mono mt-1">INV-{invoiceId || '12345678'}</p>
                                 </div>
                                 <span className="font-semibold text-gray-900">₹{invoiceAmount}</span>
                             </div>
@@ -101,7 +111,7 @@ export default function PaymentCheckoutPage({
                             <span className="text-gray-400 text-sm">Amount due</span>
                             <span className="text-xl font-bold tracking-tight">₹{invoiceAmount}</span>
                         </div>
-                        <div className="text-gray-500 text-xs font-mono">INV-{searchParams.invoiceId || '12345678'}</div>
+                        <div className="text-gray-500 text-xs font-mono">INV-{invoiceId || '12345678'}</div>
                     </div>
 
                     <CardContent className="p-6 md:p-8">

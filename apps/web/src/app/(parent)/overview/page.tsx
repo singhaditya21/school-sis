@@ -1,25 +1,18 @@
-import { getSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import { formatCurrency } from '@/lib/utils';
+import { getParentOverview } from '@/lib/services/parent/parent.service';
 
 export default async function ParentOverviewPage() {
-    const session = await getSession();
-
-    if (!session.isLoggedIn) {
+    let data;
+    try {
+        data = await getParentOverview();
+    } catch {
         redirect('/login');
     }
 
-    // Placeholder data - will be fetched from Java API once parent endpoints are implemented
-    const studentInfo = {
-        name: 'Student Name',
-        class: 'Grade 8 - Section A',
-        attendanceRate: 95,
-    };
-
-    const pendingFees = {
-        amount: 12500,
-        dueDate: '2026-02-15',
-    };
+    const studentDisplay = data.students.length > 0
+        ? data.students[0]
+        : { name: 'No student linked', class: '' };
 
     return (
         <div className="space-y-6">
@@ -33,20 +26,27 @@ export default async function ParentOverviewPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white rounded-xl shadow-sm border p-6">
                     <h3 className="font-semibold text-gray-900 mb-2">Student Info</h3>
-                    <p className="text-xl font-bold">{studentInfo.name}</p>
-                    <p className="text-sm text-gray-500">{studentInfo.class}</p>
+                    <p className="text-xl font-bold">{studentDisplay.name}</p>
+                    <p className="text-sm text-gray-500">{studentDisplay.class}</p>
+                    {data.students.length > 1 && (
+                        <p className="text-xs text-blue-600 mt-2">+{data.students.length - 1} more</p>
+                    )}
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border p-6">
                     <h3 className="font-semibold text-gray-900 mb-2">Attendance</h3>
-                    <p className="text-3xl font-bold text-green-600">{studentInfo.attendanceRate}%</p>
+                    <p className="text-3xl font-bold text-green-600">{data.attendanceRate}%</p>
                     <p className="text-sm text-gray-500">This month</p>
                 </div>
 
                 <div className="bg-amber-50 rounded-xl border border-amber-200 p-6">
                     <h3 className="font-semibold text-amber-900 mb-2">Pending Fees</h3>
-                    <p className="text-3xl font-bold text-amber-700">{formatCurrency(pendingFees.amount)}</p>
-                    <p className="text-sm text-amber-600">Due by {pendingFees.dueDate}</p>
+                    <p className="text-3xl font-bold text-amber-700">{formatCurrency(data.pendingFees.totalAmount)}</p>
+                    <p className="text-sm text-amber-600">
+                        {data.pendingFees.nearestDueDate
+                            ? `Due by ${data.pendingFees.nearestDueDate}`
+                            : 'No pending fees'}
+                    </p>
                 </div>
             </div>
 

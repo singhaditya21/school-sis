@@ -166,5 +166,136 @@ export async function getMyAttendance(params: ParentAttendanceParams): Promise<M
         ORDER BY s.first_name, ar.date
     `, [tenantId, userId, params.month, params.year]);
 
-    return rows;
+    return rows.map((r: any) => ({
+        ...r,
+        date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date)
+    }));
+}
+
+export interface ParentOverviewData {
+    students: { name: string; class: string; }[];
+    pendingFees: { totalAmount: number; nearestDueDate: string | null; };
+    attendanceRate: number;
+}
+
+export async function getParentOverview(): Promise<ParentOverviewData> {
+    const { tenantId, userId } = await requireAuth('parent:read');
+
+    const { rows: students } = await pool.query(`
+        SELECT s.first_name || ' ' || s.last_name AS name,
+               g.name || ' - ' || sec.name AS class
+        FROM students s
+        JOIN guardians gd ON gd.student_id = s.id
+        JOIN grades g ON g.id = s.grade_id
+        JOIN sections sec ON sec.id = s.section_id
+        WHERE s.tenant_id = $1 AND gd.user_id = $2
+        ORDER BY s.first_name
+    `, [tenantId, userId]);
+
+    const { rows: feeRows } = await pool.query(`
+        SELECT COALESCE(SUM(i.total_amount - i.paid_amount), 0) AS "totalAmount",
+               MIN(i.due_date) AS "nearestDueDate"
+        FROM invoices i
+        JOIN students s ON s.id = i.student_id
+        JOIN guardians gd ON gd.student_id = s.id
+        WHERE i.tenant_id = $1 AND gd.user_id = $2 AND i.status != 'PAID'
+    `, [tenantId, userId]);
+
+    const now = new Date();
+    const { rows: attRows } = await pool.query(`
+        SELECT 
+            COUNT(*) FILTER (WHERE ar.status IN ('PRESENT', 'LATE')) AS present,
+            COUNT(*) FILTER (WHERE ar.status != 'HOLIDAY') AS total
+        FROM attendance_records ar
+        JOIN students s ON s.id = ar.student_id
+        JOIN guardians gd ON gd.student_id = s.id
+        WHERE ar.tenant_id = $1 AND gd.user_id = $2
+          AND EXTRACT(MONTH FROM ar.date) = $3
+          AND EXTRACT(YEAR FROM ar.date) = $4
+    `, [tenantId, userId, now.getMonth() + 1, now.getFullYear()]);
+
+    const present = Number(attRows[0]?.present || 0);
+    const total = Number(attRows[0]?.total || 0);
+
+    return {
+        students,
+        pendingFees: {
+            totalAmount: Number(feeRows[0]?.totalAmount || 0),
+            nearestDueDate: feeRows[0]?.nearestDueDate
+                ? (feeRows[0].nearestDueDate instanceof Date
+                    ? feeRows[0].nearestDueDate.toISOString().split('T')[0]
+                    : String(feeRows[0].nearestDueDate))
+                : null
+        },
+        attendanceRate: total > 0 ? Math.round((present / total) * 100) : 0
+    };
+}
+
+export interface ParentAlert {
+    id: string;
+    channel: string;
+    subject: string;
+    body: string;
+    status: string;
+    sentAt: string | null;
+    createdAt: string;
+}
+
+export async function getParentAlerts(): Promise<ParentAlert[]> {
+    const { tenantId, userId } = await requireAuth('parent:read');
+
+    const { rows } = await pool.query(`
+        SELECT id, channel, subject, body, status,
+               sent_at AS "sentAt", created_at AS "createdAt"
+        FROM messages
+        WHERE tenant_id = $1 AND recipient_id = $2
+        ORDER BY created_at DESC
+        LIMIT 50
+    `, [tenantId, userId]);
+
+    return rows.map((r: any) => ({
+        ...r,
+        sentAt: r.sentAt ? (r.sentAt instanceof Date ? r.sentAt.toISOString() : String(r.sentAt)) : null,
+        createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt)
+    }));
+}
+
+export interface ConsentFormForParent {
+    id: string;
+    title: string;
+    description: string | null;
+    formType: string;
+    dueDate: string | null;
+    isActive: boolean;
+    studentName: string;
+    response: string | null;
+    respondedAt: string | null;
+}
+
+export async function getParentConsentData(): Promise<ConsentFormForParent[]> {
+    const { tenantId, userId } = await requireAuth('parent:read');
+
+    const { rows } = await pool.query(`
+        SELECT cf.id, cf.title, cf.description, cf.form_type AS "formType",
+               cf.due_date AS "dueDate", cf.is_active AS "isActive",
+               s.first_name || ' ' || s.last_name AS "studentName",
+               cr.response, cr.responded_at AS "respondedAt"
+        FROM consent_forms cf
+        CROSS JOIN (
+            SELECT DISTINCT s2.id, s2.first_name, s2.last_name
+            FROM students s2
+            JOIN guardians gd ON gd.student_id = s2.id
+            WHERE s2.tenant_id = $1 AND gd.user_id = $2
+        ) s
+        LEFT JOIN consent_responses cr ON cr.form_id = cf.id AND cr.student_id = s.id AND cr.tenant_id = $1
+        WHERE cf.tenant_id = $1
+          AND (cf.audience = 'ALL' OR cf.audience = 'PARENTS')
+        ORDER BY cf.created_at DESC
+    `, [tenantId, userId]);
+
+    return rows.map((r: any) => ({
+        ...r,
+        dueDate: r.dueDate ? (r.dueDate instanceof Date ? r.dueDate.toISOString().split('T')[0] : String(r.dueDate)) : null,
+        respondedAt: r.respondedAt ? (r.respondedAt instanceof Date ? r.respondedAt.toISOString() : String(r.respondedAt)) : null
+    }));
 }
