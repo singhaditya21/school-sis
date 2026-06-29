@@ -1,16 +1,7 @@
 import { http, HttpResponse } from 'msw';
 
 export const handlers = [
-  // Mock Twilio SMS API
-  http.post('https://api.twilio.com/2010-04-01/Accounts/*/Messages.json', () => {
-    return HttpResponse.json({
-      sid: 'SMmocked_twilio_message_sid',
-      status: 'queued',
-      error_code: null,
-      error_message: null
-    });
-  }),
-  
+
   // Mock Stripe API
   http.post('https://api.stripe.com/v1/charges', () => {
     return HttpResponse.json({
