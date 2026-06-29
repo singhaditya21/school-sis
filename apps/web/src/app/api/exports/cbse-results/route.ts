@@ -40,12 +40,12 @@ export async function GET(request: NextRequest) {
                 s.category AS "Category",
                 g.name AS "Class",
                 sub.name AS "Subject",
-                es.subject_code AS "Subject Code",
+                sub.code AS "Subject Code",
                 er.marks_obtained AS "Marks Obtained",
-                er.total_marks AS "Total Marks",
+                es.max_marks AS "Total Marks",
                 er.grade AS "Grade"
-            FROM exam_results er
-            JOIN exam_subjects es ON es.id = er.exam_subject_id
+            FROM student_results er
+            JOIN exam_schedules es ON es.id = er.exam_schedule_id
             JOIN subjects sub ON sub.id = es.subject_id
             JOIN exams e ON e.id = es.exam_id
             JOIN students s ON s.id = er.student_id

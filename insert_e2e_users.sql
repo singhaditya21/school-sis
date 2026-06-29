@@ -67,9 +67,9 @@ DELETE FROM users WHERE email IN ('admin@schoolsis.com', 'teacher@schoolsis.com'
 -- Insert E2E test users
 INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, is_active)
 VALUES 
-('d5b5c928-867c-473d-88f5-1bdf3a4bc031', '0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'admin@schoolsis.com', '$2a$12$XTr0MBk7Hs/EvUloLtta3.FpSAs0awe9RpmIDe2e0HdN9on8xWoxa', 'Admin', 'User', 'SUPER_ADMIN', true),
-('d5b5c928-867c-473d-88f5-1bdf3a4bc032', '0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'teacher@schoolsis.com', '$2a$12$uDesYHq8O3X4ys6T0e5zDexPYGF4gppPgX.yZDyffG3Fv2HjYa6BS', 'Teacher', 'User', 'TEACHER', true),
-('d5b5c928-867c-473d-88f5-1bdf3a4bc033', '0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'parent@schoolsis.com', '$2a$12$e5XRMFLB/J2T2Yr0O8xQ2unEm3V3xsbKqbM/1AS1lklwrD3kSWJCa', 'Parent', 'User', 'PARENT', true);
+('d5b5c928-867c-473d-88f5-1bdf3a4bc031', '0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'admin@schoolsis.com', '$2a$12$uMRUbyaFm4ydwR8aZSiCgO1iVdTIS8YRBU0tahbwmqHmgkcB.nN.i', 'Admin', 'User', 'SUPER_ADMIN', true),
+('d5b5c928-867c-473d-88f5-1bdf3a4bc032', '0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'teacher@schoolsis.com', '$2a$12$4Sz8yWaKHctdsx3XYYnBZ.UonZkV8MuEXxp784YFzqsD7cwp1rK5e', 'Teacher', 'User', 'TEACHER', true),
+('d5b5c928-867c-473d-88f5-1bdf3a4bc033', '0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'parent@schoolsis.com', '$2a$12$2qzKSR9GWIQF5cPEtgbCxOpJqUmhssS/U2cwK9i7uHAZjcrIDeF2y', 'Parent', 'User', 'PARENT', true);
 
 -- Link parent to Aarav Sharma
 INSERT INTO guardians (id, tenant_id, user_id, student_id, relation, first_name, last_name, email, phone, is_emergency_contact, is_primary)

@@ -21,15 +21,15 @@ export async function getTreasurySummaryAction() {
     const { rows: overdueQuery } = await pool.query(`
         SELECT sum(total_amount) AS "totalOverdue"
         FROM invoices
-        WHERE status = $1
-    `, ['OVERDUE']);
+        WHERE status = $1 AND tenant_id = $2
+    `, ['OVERDUE', session.tenantId]);
 
     // Aggregate total outstanding
     const { rows: outstandingQuery } = await pool.query(`
         SELECT sum(total_amount) AS "totalOutstanding"
         FROM invoices
-        WHERE status = $1
-    `, ['PENDING']);
+        WHERE status = $1 AND tenant_id = $2
+    `, ['PENDING', session.tenantId]);
 
     return {
         totalCollected: collectedQuery[0]?.totalCollected || 0,
@@ -52,4 +52,22 @@ export async function getPaymentsLedgerAction(limit = 50) {
     `, [session.tenantId, limit]);
 
     return ledger;
+}
+
+export async function getTreasuryExceptionsAction() {
+    const session = await getSession();
+    if (!session.tenantId) throw new Error('Unauthorized');
+
+    const { rows: exceptions } = await pool.query(`
+        SELECT p.id, p.amount, p.method, p.status, p.paid_at AS "paidAt", p.transaction_id AS "transactionId",
+               s.first_name || ' ' || s.last_name AS "studentName", s.admission_number AS "admissionNumber"
+        FROM payments p
+        JOIN invoices i ON i.id = p.invoice_id
+        JOIN students s ON s.id = i.student_id
+        WHERE p.tenant_id = $1 AND (s.admission_number IS NULL OR s.admission_number = '')
+        ORDER BY p.paid_at DESC
+        LIMIT 10
+    `, [session.tenantId]);
+
+    return exceptions;
 }

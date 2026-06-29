@@ -1,5 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card';
-import { getStudentDocuments, getDocumentStats } from '@/lib/actions/document';
+import { getStudentDocuments, getDocumentStats, verifyDocument } from '@/lib/actions/document';
+import { revalidatePath } from 'next/cache';
+import { Badge } from '@/components/ui/badge';
 
 export default async function DocumentsPage() {
     const [docs, stats] = await Promise.all([getStudentDocuments(), getDocumentStats()]);
@@ -32,7 +34,21 @@ export default async function DocumentsPage() {
                                     <td className="px-4 py-3 text-sm">{d.fileName}</td>
                                     <td className="px-4 py-3"><span className="px-2 py-0.5 rounded text-xs bg-gray-100">{d.documentType}</span></td>
                                     <td className="px-4 py-3 text-right text-sm">{d.fileSize ? `${(d.fileSize / 1024).toFixed(0)} KB` : '—'}</td>
-                                    <td className="px-4 py-3 text-center">{d.isVerified ? '✅' : '⏳'}</td>
+                                    <td className="px-4 py-3 text-center flex justify-center items-center">
+                                        {d.isVerified ? (
+                                            <span className="text-green-600 text-sm font-semibold flex items-center gap-1">✅ Yes</span>
+                                        ) : (
+                                            <form action={async () => {
+                                                'use server';
+                                                await verifyDocument(d.id);
+                                                revalidatePath('/documents');
+                                            }}>
+                                                <button type="submit" className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-2.5 py-1 rounded font-semibold border border-blue-200 transition-colors">
+                                                    Verify Now
+                                                </button>
+                                            </form>
+                                        )}
+                                    </td>
                                     <td className="px-4 py-3 text-sm text-gray-500">{new Date(d.createdAt).toLocaleDateString('en-IN')}</td>
                                 </tr>
                             ))}

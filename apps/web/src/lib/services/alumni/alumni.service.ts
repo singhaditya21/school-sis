@@ -1,18 +1,57 @@
-// Alumni Management Service — Production (Real DB)
-import { db, } from '@/lib/db';
+import { db } from '@/lib/db';
 import { sql } from 'drizzle-orm';
 
-export interface Alumni { id: string; name: string; graduationYear: number; email: string; phone: string; currentOrg: string; designation: string; city: string; isActive: boolean; donationAmount: number; }
+export interface Alumni { 
+    id: string; 
+    name: string; 
+    graduationYear: number | null; 
+    email: string; 
+    phone: string | null; 
+    currentOrg: string | null; 
+    designation: string | null; 
+    city: string | null; 
+    isActive: boolean; 
+    donationAmount: number; 
+}
 
 export const AlumniService = {
     async getAlumni(tenantId: string, filters?: { year?: number; search?: string }): Promise<Alumni[]> {
-        await (tenantId);
-        const rows = await db.execute(sql`SELECT a.id,a.first_name||' '||a.last_name AS name,a.graduation_year AS "graduationYear",a.email,a.phone,a.current_org AS "currentOrg",a.designation,a.city,a.is_active AS "isActive",COALESCE(a.donation_amount,0) AS "donationAmount" FROM alumni a WHERE a.tenant_id=${tenantId} ${filters?.year?sql`AND a.graduation_year=${filters.year}`:sql``} ${filters?.search?sql`AND (a.first_name||' '||a.last_name) ILIKE ${'%'+filters.search+'%'}`:sql``} ORDER BY a.graduation_year DESC,a.first_name LIMIT 200`);
-        return rows as Alumni[];
+        const rows = await db.execute(sql`
+            SELECT 
+                id, 
+                name, 
+                graduation_year AS "graduationYear", 
+                email, 
+                phone, 
+                current_company AS "currentOrg", 
+                designation, 
+                location AS "city", 
+                is_verified AS "isActive",
+                0 AS "donationAmount"
+            FROM alumni_profiles 
+            WHERE tenant_id = ${tenantId} 
+            ${filters?.year ? sql`AND graduation_year = ${filters.year}` : sql``} 
+            ${filters?.search ? sql`AND name ILIKE ${'%' + filters.search + '%'}` : sql``} 
+            ORDER BY graduation_year DESC, name LIMIT 200
+        `);
+        return rows as unknown as Alumni[];
     },
+
     async getStats(tenantId: string) {
-        await (tenantId);
-        const [s] = await db.execute(sql`SELECT COUNT(*) AS total,COUNT(*) FILTER(WHERE is_active=true) AS active,SUM(COALESCE(donation_amount,0)) AS "totalDonations",COUNT(DISTINCT graduation_year) AS batches FROM alumni WHERE tenant_id=${tenantId}`) as any[];
-        return { totalAlumni: Number(s?.total||0), activeAlumni: Number(s?.active||0), totalDonations: Number(s?.totalDonations||0), batches: Number(s?.batches||0) };
+        const [s] = await db.execute(sql`
+            SELECT 
+                COUNT(*) AS total, 
+                COUNT(*) FILTER(WHERE is_verified = true) AS active, 
+                0 AS "totalDonations", 
+                COUNT(DISTINCT graduation_year) AS batches 
+            FROM alumni_profiles 
+            WHERE tenant_id = ${tenantId}
+        `) as any[];
+        return { 
+            totalAlumni: Number(s?.total || 0), 
+            activeAlumni: Number(s?.active || 0), 
+            totalDonations: Number(s?.totalDonations || 0), 
+            batches: Number(s?.batches || 0) 
+        };
     },
 };

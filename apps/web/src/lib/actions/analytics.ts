@@ -21,7 +21,7 @@ export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
             (SELECT COALESCE(SUM(amount),0) FROM payments WHERE tenant_id=$1 AND status='COMPLETED') AS collected,
             (SELECT COALESCE(SUM(total_amount - paid_amount),0) FROM invoices WHERE tenant_id=$1 AND status IN('PENDING','OVERDUE')) AS pending,
             (SELECT ROUND(COUNT(*) FILTER(WHERE status='PRESENT')::numeric / NULLIF(COUNT(*),0) * 100, 1) FROM attendance_records WHERE tenant_id=$1 AND date >= CURRENT_DATE - 30) AS attendance,
-            (SELECT ROUND(AVG(marks_obtained::numeric / NULLIF(total_marks,0) * 100), 1) FROM exam_results er JOIN exam_subjects es ON es.id=er.exam_subject_id JOIN exams e ON e.id=es.exam_id WHERE e.tenant_id=$1) AS exam_avg
+            (SELECT ROUND(AVG(marks_obtained::numeric / NULLIF(es.max_marks,0) * 100), 1) FROM student_results er JOIN exam_schedules es ON es.id=er.exam_schedule_id JOIN exams e ON e.id=es.exam_id WHERE e.tenant_id=$1) AS exam_avg
     `, [tenantId]);
     const s = rows[0];
     return {
@@ -37,13 +37,19 @@ export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
 export async function getFeeCollectionData() {
     const tenantId = await tid();
     const { rows } = await pool.query(`
-        SELECT TO_CHAR(DATE_TRUNC('month', p.paid_at), 'Mon') AS month,
-               SUM(p.amount) AS collected,
-               (SELECT COALESCE(SUM(i.total_amount),0) FROM invoices i WHERE i.tenant_id=$1 AND DATE_TRUNC('month',i.due_date)=DATE_TRUNC('month',p.paid_at)) AS target,
-               (SELECT COALESCE(SUM(i.total_amount - i.paid_amount),0) FROM invoices i WHERE i.tenant_id=$1 AND DATE_TRUNC('month',i.due_date)=DATE_TRUNC('month',p.paid_at) AND i.status IN('PENDING','OVERDUE')) AS pending
-        FROM payments p WHERE p.tenant_id=$1 AND p.status='COMPLETED' AND p.paid_at >= NOW() - INTERVAL '12 months'
-        GROUP BY DATE_TRUNC('month', p.paid_at), TO_CHAR(DATE_TRUNC('month', p.paid_at), 'Mon')
-        ORDER BY DATE_TRUNC('month', p.paid_at)
+        WITH monthly_payments AS (
+            SELECT DATE_TRUNC('month', paid_at) AS month_date,
+                   SUM(amount) AS collected
+            FROM payments
+            WHERE tenant_id = $1 AND status = 'COMPLETED' AND paid_at >= NOW() - INTERVAL '12 months'
+            GROUP BY DATE_TRUNC('month', paid_at)
+        )
+        SELECT TO_CHAR(month_date, 'Mon') AS month,
+               collected,
+               (SELECT COALESCE(SUM(i.total_amount),0) FROM invoices i WHERE i.tenant_id = $1 AND DATE_TRUNC('month', i.due_date) = month_date) AS target,
+               (SELECT COALESCE(SUM(i.total_amount - i.paid_amount),0) FROM invoices i WHERE i.tenant_id = $1 AND DATE_TRUNC('month', i.due_date) = month_date AND i.status IN('PENDING','OVERDUE')) AS pending
+        FROM monthly_payments
+        ORDER BY month_date
     `, [tenantId]);
     return rows.map((r: any) => ({
         month: r.month, collected: Number(r.collected || 0),
@@ -55,9 +61,9 @@ export async function getClassWiseSummary() {
     const tenantId = await tid();
     const { rows } = await pool.query(`
         SELECT g.name AS label,
-               ROUND(AVG(er.marks_obtained::numeric / NULLIF(er.total_marks,0) * 100),0) AS value
-        FROM exam_results er
-        JOIN exam_subjects es ON es.id = er.exam_subject_id
+               ROUND(AVG(er.marks_obtained::numeric / NULLIF(es.max_marks,0) * 100),0) AS value
+        FROM student_results er
+        JOIN exam_schedules es ON es.id = er.exam_schedule_id
         JOIN exams e ON e.id = es.exam_id
         JOIN students s ON s.id = er.student_id
         LEFT JOIN sections sec ON sec.id = s.section_id
@@ -73,10 +79,10 @@ export async function getTopPerformers() {
     const { rows } = await pool.query(`
         SELECT s.first_name || ' ' || s.last_name AS name,
                g.name AS class,
-               ROUND(AVG(er.marks_obtained::numeric / NULLIF(er.total_marks,0) * 100),1) AS percentage
-        FROM exam_results er
+               ROUND(AVG(er.marks_obtained::numeric / NULLIF(es.max_marks,0) * 100),1) AS percentage
+        FROM student_results er
         JOIN students s ON s.id = er.student_id
-        JOIN exam_subjects es ON es.id = er.exam_subject_id
+        JOIN exam_schedules es ON es.id = er.exam_schedule_id
         JOIN exams e ON e.id = es.exam_id
         LEFT JOIN sections sec ON sec.id = s.section_id
         LEFT JOIN grades g ON g.id = sec.grade_id
@@ -118,9 +124,9 @@ export async function getSubjectPerformance() {
     const tenantId = await tid();
     const { rows } = await pool.query(`
         SELECT sub.name AS label,
-               ROUND(AVG(er.marks_obtained::numeric / NULLIF(er.total_marks,0) * 100),0) AS value
-        FROM exam_results er
-        JOIN exam_subjects es ON es.id = er.exam_subject_id
+               ROUND(AVG(er.marks_obtained::numeric / NULLIF(es.max_marks,0) * 100),0) AS value
+        FROM student_results er
+        JOIN exam_schedules es ON es.id = er.exam_schedule_id
         JOIN subjects sub ON sub.id = es.subject_id
         JOIN exams e ON e.id = es.exam_id
         WHERE e.tenant_id=$1
@@ -133,11 +139,11 @@ export async function getExamClassPerformance() {
     const tenantId = await tid();
     const { rows } = await pool.query(`
         SELECT g.name AS class, sec.name AS section,
-               ROUND(AVG(er.marks_obtained::numeric / NULLIF(er.total_marks,0) * 100),1) AS "averagePercent",
-               ROUND(COUNT(*) FILTER(WHERE er.marks_obtained::numeric / NULLIF(er.total_marks,0) * 100 >= 40)::numeric / NULLIF(COUNT(*),0) * 100, 1) AS "passPercent"
-        FROM exam_results er
+               ROUND(AVG(er.marks_obtained::numeric / NULLIF(es.max_marks,0) * 100),1) AS "averagePercent",
+               ROUND(COUNT(*) FILTER(WHERE er.marks_obtained::numeric / NULLIF(es.max_marks,0) * 100 >= 40)::numeric / NULLIF(COUNT(*),0) * 100, 1) AS "passPercent"
+        FROM student_results er
         JOIN students s ON s.id = er.student_id
-        JOIN exam_subjects es ON es.id = er.exam_subject_id
+        JOIN exam_schedules es ON es.id = er.exam_schedule_id
         JOIN exams e ON e.id = es.exam_id
         LEFT JOIN sections sec ON sec.id = s.section_id
         LEFT JOIN grades g ON g.id = sec.grade_id

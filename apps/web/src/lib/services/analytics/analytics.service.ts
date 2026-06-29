@@ -10,7 +10,22 @@ export const AnalyticsService = {
     },
     async getExamPerformance(tenantId: string) {
         await (tenantId);
-        const rows = await db.execute(sql`SELECT e.name AS "examName",sub.name AS subject,ROUND(AVG(er.marks_obtained::numeric/NULLIF(er.total_marks,0)*100),1) AS "avgPct",COUNT(DISTINCT er.student_id) AS students,COUNT(*) FILTER(WHERE er.marks_obtained::numeric/NULLIF(er.total_marks,0)*100>=90) AS "above90",COUNT(*) FILTER(WHERE er.marks_obtained::numeric/NULLIF(er.total_marks,0)*100<40) AS "below40" FROM exam_results er JOIN exam_subjects es ON es.id=er.exam_subject_id JOIN subjects sub ON sub.id=es.subject_id JOIN exams e ON e.id=es.exam_id WHERE e.tenant_id=${tenantId} GROUP BY e.name,sub.name ORDER BY e.name,sub.name`);
+        const rows = await db.execute(sql`
+            SELECT 
+                e.name AS "examName",
+                sub.name AS subject,
+                ROUND(AVG(er.marks_obtained::numeric / NULLIF(es.max_marks, 0) * 100), 1) AS "avgPct",
+                COUNT(DISTINCT er.student_id) AS students,
+                COUNT(*) FILTER(WHERE er.marks_obtained::numeric / NULLIF(es.max_marks, 0) * 100 >= 90) AS "above90",
+                COUNT(*) FILTER(WHERE er.marks_obtained::numeric / NULLIF(es.max_marks, 0) * 100 < 40) AS "below40" 
+            FROM student_results er 
+            JOIN exam_schedules es ON es.id = er.exam_schedule_id 
+            JOIN subjects sub ON sub.id = es.subject_id 
+            JOIN exams e ON e.id = es.exam_id 
+            WHERE e.tenant_id = ${tenantId} 
+            GROUP BY e.name, sub.name 
+            ORDER BY e.name, sub.name
+        `);
         return rows;
     },
     async getFeeCollectionTrends(tenantId: string, months: number = 6) {

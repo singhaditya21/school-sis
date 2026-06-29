@@ -31,7 +31,6 @@ export interface PlatformStats {
  */
 export async function getGlobalPlatformStats(): Promise<PlatformStats> {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await ('platform');
 
     const { rows: schoolRows } = await pool.query(
         `SELECT COUNT(*) AS value FROM tenants WHERE is_active = true`
@@ -85,7 +84,6 @@ export async function getGlobalPlatformStats(): Promise<PlatformStats> {
  */
 export async function getAllPlatformTenants(): Promise<PlatformTenant[]> {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await ('platform');
 
     const { rows } = await pool.query(
         `SELECT
@@ -130,7 +128,6 @@ export async function getAllPlatformTenants(): Promise<PlatformTenant[]> {
  */
 export async function createTenantAction(formData: FormData) {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await ('platform');
 
     const name = formData.get('name') as string;
     const adminEmail = formData.get('adminEmail') as string;
@@ -186,7 +183,6 @@ export async function createTenantAction(formData: FormData) {
  */
 export async function toggleTenantStatusAction(tenantId: string, isActive: boolean) {
     await requireRole(UserRole.PLATFORM_ADMIN);
-    await ('platform');
 
     await pool.query(`UPDATE tenants SET is_active = $1 WHERE id = $2`, [isActive, tenantId]);
     
@@ -205,8 +201,6 @@ export async function impersonateTenantAction(tenantId: string) {
     
     const session = await getSession();
     if (session.role !== 'PLATFORM_ADMIN') return { error: 'Unauthorized' };
-
-    await ('platform');
 
     // Find the super admin of the target tenant
     const { rows: admins } = await pool.query(
@@ -257,8 +251,6 @@ export async function returnToHQAction() {
     }
 
     const originalUserId = session.token.split(':')[1];
-    
-    await ('platform');
     const { rows: usersList } = await pool.query(
         `SELECT id, tenant_id AS "tenantId", email FROM users WHERE id = $1 LIMIT 1`,
         [originalUserId]
@@ -284,7 +276,6 @@ export async function returnToHQAction() {
 
 export async function getCompanyDetailsWithTenants(companyId: string) {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await ('platform');
 
     const { rows: companyRows } = await pool.query(
         `SELECT 
@@ -316,7 +307,6 @@ export async function updateCompanySettingsAction(companyId: string, payload: {
     domainMask?: string;
 }) {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await ('platform');
 
     await pool.query(
         `UPDATE companies SET 
@@ -328,7 +318,7 @@ export async function updateCompanySettingsAction(companyId: string, payload: {
          WHERE id = $6`,
         [
             payload.subscriptionTier, 
-            payload.activeModules ? JSON.stringify(payload.activeModules) : '[]', 
+            payload.activeModules || [], 
             payload.isActive, 
             payload.themeColor || null, 
             payload.domainMask || null, 
@@ -346,7 +336,6 @@ export async function updateCompanySettingsAction(companyId: string, payload: {
 
 export async function getPlatformBillingStats() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await ('platform');
 
     const { rows } = await pool.query(
         `SELECT
@@ -389,7 +378,6 @@ export async function logPlatformAudit(actionType: string, metadata: string, tar
     if (!session.userId) return;
 
     try {
-        await ('platform');
         await pool.query(
             `INSERT INTO platform_audit_logs (actor_id, target_company_id, target_tenant_id, action_type, metadata, ip_address) 
              VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -406,8 +394,6 @@ export async function logPlatformAudit(actionType: string, metadata: string, tar
 export async function fetchActiveBroadcasts() {
     const session = await getSession();
     if (!session.isLoggedIn) return [];
-
-    await ('platform');
     
     // Natively queries active broadcasts targeting the current node's tier
     const userTier = session.subscriptionTier || 'CORE';
@@ -431,7 +417,6 @@ export async function fetchActiveBroadcasts() {
  * Stage 1: AI Metering
  */
 export async function logAITokenUsage(companyId: string, tenantId: string, agentType: string, model: string, tokensUsed: number, costCostMs: number) {
-    await ('platform');
     const queryCostUsd = (tokensUsed / 1000) * 0.002; // Assuming $0.002 per 1k tokens
 
     await pool.query(
@@ -443,7 +428,6 @@ export async function logAITokenUsage(companyId: string, tenantId: string, agent
 
 export async function getPlatformAIAnalytics() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await ('platform');
 
     const { rows: logs } = await pool.query(
         `SELECT 

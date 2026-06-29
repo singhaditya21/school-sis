@@ -3,6 +3,7 @@
 import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 import { requireRole } from '@/lib/auth/middleware';
+import { UserRole } from '@/lib/rbac/permissions';
 
 /**
  * Fetch the global HQ group assigned to the current user (typically Super Admins)
@@ -13,7 +14,7 @@ export async function getHQOverviewAction() {
     // In a fully developed RBAC, we would check if they are mapped to an HQ directly.
     // For MVP prototyping, we fetch the first Active HQ Group
     const groupResult = await pool.query(
-        'SELECT id, name, is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt" FROM hq_groups WHERE is_active = $1 LIMIT 1',
+        'SELECT id, name, is_active AS "isActive", created_at AS "createdAt" FROM hq_groups WHERE is_active = $1 LIMIT 1',
         [true]
     );
 
@@ -48,7 +49,7 @@ export async function getHQOverviewAction() {
 }
 
 export async function createGroupPolicyAction(data: { groupId: string, policyName: string, policyKey: string, policyValue: string, isHardBlock: boolean, documentUrl?: string }) {
-    await requireRole('PLATFORM_ADMIN', 'SUPER_ADMIN', 'GROUP_EXECUTIVE');
+    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN, UserRole.GROUP_EXECUTIVE);
     
     const result = await pool.query(
         `INSERT INTO group_policies (group_id, policy_name, policy_key, policy_value, is_hard_block, document_url) 
@@ -61,7 +62,7 @@ export async function createGroupPolicyAction(data: { groupId: string, policyNam
 }
 
 export async function deleteGroupPolicyAction(policyId: string) {
-    await requireRole('PLATFORM_ADMIN', 'SUPER_ADMIN', 'GROUP_EXECUTIVE');
+    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN, UserRole.GROUP_EXECUTIVE);
     
     await pool.query('DELETE FROM group_policies WHERE id = $1', [policyId]);
     return true;

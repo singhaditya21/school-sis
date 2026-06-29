@@ -13,7 +13,7 @@
 
 import crypto from 'crypto';
 import { db, } from '@/lib/db';
-import { students, guardians, users, healthRecords, consentRecords } from '@/lib/db/schema';
+import { students, guardians, users, healthRecords } from '@/lib/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 
 // ═══════════════════════════════════════════════════════════
@@ -203,9 +203,10 @@ export async function exportStudentData(
     `);
 
     const examData = await db.execute(sql`
-        SELECT e.name as exam_name, es.name as subject, er.marks_obtained, er.total_marks, er.grade
-        FROM exam_results er
-        JOIN exam_subjects es ON es.id = er.exam_subject_id
+        SELECT e.name as exam_name, sub.name as subject, er.marks_obtained, es.max_marks as total_marks, er.grade
+        FROM student_results er
+        JOIN exam_schedules es ON es.id = er.exam_schedule_id
+        JOIN subjects sub ON sub.id = es.subject_id
         JOIN exams e ON e.id = es.exam_id
         WHERE er.student_id = ${studentId}
         ORDER BY e.created_at DESC

@@ -11,7 +11,7 @@ export async function getUniversityProgramsAction() {
     if (!session.tenantId) throw new Error('Unauthorized');
 
     const result = await pool.query(
-        'SELECT id, tenant_id AS "tenantId", name, degree_type AS "degreeType", created_at AS "createdAt", updated_at AS "updatedAt" FROM university_programs WHERE tenant_id = $1',
+        'SELECT id, tenant_id AS "tenantId", name, degree_type AS "degreeType", duration_years AS "durationYears", total_credits AS "totalCredits", created_at AS "createdAt" FROM university_programs WHERE tenant_id = $1',
         [session.tenantId]
     );
     

@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
         const { rows: payments } = await pool.query(`
             SELECT
-                p.id, p.amount, p.method, p.paid_at, p.provider_reference,
+                p.id, p.amount, p.method, p.paid_at, p.transaction_id AS "provider_reference",
                 i.invoice_number,
                 s.first_name || ' ' || s.last_name AS student_name,
                 s.admission_number,

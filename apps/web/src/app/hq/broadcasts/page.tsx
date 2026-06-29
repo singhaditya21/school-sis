@@ -10,11 +10,10 @@ export const metadata = {
 
 export default async function BroadcastsPage() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await ('platform');
 
     // Fetch active broadcasts
     const { rows: broadcastsList } = await pool.query(
-        `SELECT *, created_at AS "createdAt", updated_at AS "updatedAt" FROM platform_broadcasts ORDER BY created_at DESC LIMIT 20`
+        `SELECT id, title, message, target_tiers AS "targetTiers", target_modules AS "targetModules", is_active AS "isActive", type, expires_at AS "expiresAt", created_at AS "createdAt", created_by AS "createdBy" FROM platform_broadcasts ORDER BY created_at DESC LIMIT 20`
     );
 
     return <BroadcastsClient broadcastsData={broadcastsList} />;

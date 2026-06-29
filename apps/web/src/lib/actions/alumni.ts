@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 
 export async function getAlumni(filters?: { batch?: string; verified?: boolean }) {
     const { tenantId } = await requireAuth('alumni:read');
-    let query = 'SELECT id, tenant_id AS "tenantId", name, email, phone, batch, current_company AS "currentCompany", designation, location, linked_in AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt", updated_at AS "updatedAt" FROM alumni_profiles WHERE tenant_id = $1';
+    let query = 'SELECT id, tenant_id AS "tenantId", name, email, phone, batch, current_company AS "currentCompany", designation, location, linked_in AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt" FROM alumni_profiles WHERE tenant_id = $1';
     const params: any[] = [tenantId];
     if (filters?.batch) {
         params.push(filters.batch);
@@ -27,7 +27,7 @@ export async function registerAlumni(data: {
     const { tenantId } = await requireAuth('alumni:write');
     const { rows } = await pool.query(
         `INSERT INTO alumni_profiles (tenant_id, name, email, phone, batch, current_company, designation, location, linked_in) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, tenant_id AS "tenantId", name, email, phone, batch, current_company AS "currentCompany", designation, location, linked_in AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt", updated_at AS "updatedAt"`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, tenant_id AS "tenantId", name, email, phone, batch, current_company AS "currentCompany", designation, location, linked_in AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt"`,
         [tenantId, data.name, data.email, data.phone || null, data.batch, data.currentCompany || null, data.designation || null, data.location || null, data.linkedIn || null]
     );
     return { success: true, alumni: rows[0] };
@@ -44,7 +44,7 @@ export async function verifyAlumni(alumniId: string) {
 
 export async function getAlumniEvents(status?: string) {
     const { tenantId } = await requireAuth('alumni:read');
-    let query = 'SELECT id, tenant_id AS "tenantId", title, description, date, time, venue, type, organizer_id AS "organizerId", max_capacity AS "maxCapacity", status, created_at AS "createdAt", updated_at AS "updatedAt" FROM alumni_events WHERE tenant_id = $1';
+    let query = 'SELECT id, tenant_id AS "tenantId", title, description, date, time, venue, type, organizer_id AS "organizerId", max_capacity AS "maxCapacity", status, created_at AS "createdAt" FROM alumni_events WHERE tenant_id = $1';
     const params: any[] = [tenantId];
     if (status) {
         params.push(status);
@@ -62,7 +62,7 @@ export async function createAlumniEvent(data: {
     const { tenantId, userId } = await requireAuth('alumni:write');
     const { rows } = await pool.query(
         `INSERT INTO alumni_events (tenant_id, title, description, date, time, venue, type, organizer_id, max_capacity) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, tenant_id AS "tenantId", title, description, date, time, venue, type, organizer_id AS "organizerId", max_capacity AS "maxCapacity", status, created_at AS "createdAt", updated_at AS "updatedAt"`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, tenant_id AS "tenantId", title, description, date, time, venue, type, organizer_id AS "organizerId", max_capacity AS "maxCapacity", status, created_at AS "createdAt"`,
         [tenantId, data.title, data.description || null, data.date, data.time || null, data.venue || null, data.type, userId, data.maxCapacity || null]
     );
     return { success: true, event: rows[0] };

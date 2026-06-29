@@ -99,13 +99,13 @@ test.describe('Advanced Analytics E2E Tests', () => {
         
         // Backup exam results
         const backupResults = await runQuery(`
-            SELECT * FROM exam_results WHERE student_id IN (SELECT id FROM students WHERE tenant_id = $1)
+            SELECT * FROM student_results WHERE tenant_id = $1
         `, [tenantId]);
         
         try {
             // Delete exam results for this tenant to check empty state
             await runQuery(`
-                DELETE FROM exam_results WHERE student_id IN (SELECT id FROM students WHERE tenant_id = $1)
+                DELETE FROM student_results WHERE tenant_id = $1
             `, [tenantId]);
             
             await loginAsAdmin(page);
@@ -117,10 +117,10 @@ test.describe('Advanced Analytics E2E Tests', () => {
             // Restore exam results
             for (const r of backupResults.rows) {
                 await runQuery(`
-                    INSERT INTO exam_results (id, student_id, exam_subject_id, marks_obtained, total_marks, grade, remarks, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    INSERT INTO student_results (id, tenant_id, exam_schedule_id, student_id, marks_obtained, grade, remarks, is_absent, entered_by, created_at, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                     ON CONFLICT (id) DO NOTHING
-                `, [r.id, r.student_id, r.exam_subject_id, r.marks_obtained, r.total_marks, r.grade, r.remarks, r.created_at, r.updated_at]);
+                `, [r.id, r.tenant_id, r.exam_schedule_id, r.student_id, r.marks_obtained, r.grade, r.remarks, r.is_absent, r.entered_by, r.created_at, r.updated_at]);
             }
         }
     });
@@ -177,10 +177,10 @@ test.describe('Advanced Analytics E2E Tests', () => {
             // Restore payments
             for (const p of backupPayments.rows) {
                 await runQuery(`
-                    INSERT INTO payments (id, tenant_id, invoice_id, student_id, amount, paid_at, method, reference_number, remarks, status, transaction_id, provider_reference, failure_reason, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                    INSERT INTO payments (id, tenant_id, invoice_id, student_id, amount, paid_at, method, status, transaction_id, razorpay_payment_id, cheque_number, bank_name, notes, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                     ON CONFLICT (id) DO NOTHING
-                `, [p.id, p.tenant_id, p.invoice_id, p.student_id, p.amount, p.paid_at, p.method, p.reference_number, p.remarks, p.status, p.transaction_id, p.provider_reference, p.failure_reason, p.created_at, p.updated_at]);
+                `, [p.id, p.tenant_id, p.invoice_id, p.student_id, p.amount, p.paid_at, p.method, p.status, p.transaction_id, p.razorpay_payment_id, p.cheque_number, p.bank_name, p.notes, p.created_at]);
             }
         }
     });

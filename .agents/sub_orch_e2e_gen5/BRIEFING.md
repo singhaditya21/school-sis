@@ -28,11 +28,11 @@ Coordinate the E2E Testing Track for the final 5 remaining scaffolding buckets t
   1. Initialize scope, briefing, and progress [done]
   2. Perform investigation of existing codebase and E2E setup [done]
   3. Create SCOPE.md and write TEST_INFRA.md updates [done]
-  4. Dispatch Worker to implement the new E2E tests [in-progress]
-  5. Verify tests via Playwright runner [pending]
-  6. Finalize TEST_READY.md and write handoff.md [pending]
-- **Current phase**: 2
-- **Current focus**: 4. Dispatch Worker to implement the new E2E tests
+  4. Dispatch Worker to implement the new E2E tests [done]
+  5. Verify tests via Playwright runner [done]
+  6. Finalize TEST_READY.md and write handoff.md [done]
+- **Current phase**: 3
+- **Current focus**: 6. Finalize TEST_READY.md and write handoff.md
 
 ## 🔒 Key Constraints
 - Opaque-box, requirement-driven E2E test suite.
@@ -53,17 +53,17 @@ Coordinate the E2E Testing Track for the final 5 remaining scaffolding buckets t
 ## Team Roster
 | Agent | Type | Work Item | Status | Conv ID |
 |-------|------|-----------|--------|---------|
-| worker_e2e_scaffolding | teamwork_preview_worker | Write E2E spec files and update docs | in-progress | 44da044b-4e60-47f6-b29d-665f7c32c27e |
+| worker_e2e_scaffolding | teamwork_preview_worker | Write E2E spec files and update docs | completed | 44da044b-4e60-47f6-b29d-665f7c32c27e |
 
 ## Succession Status
 - Succession required: no
 - Spawn count: 1 / 16
-- Pending subagents: [44da044b-4e60-47f6-b29d-665f7c32c27e]
+- Pending subagents: none
 - Predecessor: none
 - Successor: not yet spawned
 
 ## Active Timers
-- Heartbeat cron: task-9
+- Heartbeat cron: none
 - Safety timer: none
 
 ## Artifact Index

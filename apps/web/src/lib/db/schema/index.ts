@@ -39,3 +39,4 @@ export * from './international';
 export * from './platform';
 // export * from './search';
 export * from './grading';
+export * from './diary';

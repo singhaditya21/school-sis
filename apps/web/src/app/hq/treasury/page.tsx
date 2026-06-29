@@ -14,12 +14,12 @@ export default async function TreasuryPage() {
     // Fetch Global Payment Trends by Method
     const { rows: methodAggregates } = await pool.query(`
         SELECT 
-            payment_method, 
+            method AS payment_method, 
             SUM(amount)::int as total_volume,
             COUNT(*)::int as txn_count
         FROM payments 
         WHERE status = 'COMPLETED'
-        GROUP BY payment_method
+        GROUP BY method
     `);
 
     // Fetch Highest Grossing Nodes (Tenants)

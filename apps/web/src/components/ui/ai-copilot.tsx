@@ -6,9 +6,16 @@ import { MessageSquare, X, Send, Loader2, Sparkles } from 'lucide-react';
 
 export function AICopilot() {
   const [isOpen, setIsOpen] = useState(false);
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-    api: '/api/chat',
-  });
+  const { messages, sendMessage, status } = useChat();
+  const [input, setInput] = useState('');
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+    sendMessage({ text: input });
+    setInput('');
+  };
+  const isLoading = status === 'submitted' || status === 'streaming';
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -57,7 +64,7 @@ export function AICopilot() {
             </div>
           )}
           
-          {messages.map(m => (
+          {messages.map((m: any) => (
             <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div
                 className={`max-w-[80%] rounded-2xl px-4 py-2 ${
@@ -66,7 +73,7 @@ export function AICopilot() {
                     : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm'
                 }`}
               >
-                {m.content}
+                {m.parts ? m.parts.filter((part: any) => part.type === 'text').map((part: any) => part.text).join('') : ''}
               </div>
             </div>
           ))}

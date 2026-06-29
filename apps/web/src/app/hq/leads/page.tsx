@@ -10,7 +10,6 @@ export const metadata = {
 
 export default async function LeadsPage() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
-    await ('platform');
 
     // Aggregate by Status
     const { rows: statusAggregates } = await pool.query(`
@@ -25,7 +24,7 @@ export default async function LeadsPage() {
     // Get Raw Leads
     const { rows: leadsList } = await pool.query(`
         SELECT 
-            id, contact_name AS "contactName", contact_email AS "contactEmail", school_name AS "schoolName", student_capacity AS "studentCapacity", status, created_at AS "createdAt"
+            id, contact_name, contact_email, school_name, student_capacity, status, created_at
         FROM marketing_leads
         ORDER BY created_at DESC
         LIMIT 50
