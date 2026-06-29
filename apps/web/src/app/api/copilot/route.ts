@@ -1,8 +1,14 @@
-import { openai } from '@ai-sdk/openai';
+import { createOpenAI } from '@ai-sdk/openai';
 import { generateText, streamText, tool } from 'ai';
 import { z } from 'zod';
 import { NextResponse } from 'next/server';
 import { pool } from '../../../lib/db/client';
+
+// Initialize the Cerebras provider (OpenAI-compatible) for ultra-fast, cheap Llama 3 inference
+const cerebras = createOpenAI({
+  apiKey: 'csk-vfrek62k49v6c6eytt2tn6e6mvt9t95c2hfrwd2vvdw4e2ff',
+  baseURL: 'https://api.cerebras.ai/v1',
+});
 
 export async function POST(req: Request) {
   try {
@@ -39,7 +45,7 @@ Translate the user's natural language request into a structured JSON configurati
 ${schemaContext}`;
 
     const result = await streamText({
-      model: openai('gpt-4o'),
+      model: cerebras('llama3.1-8b'),
       system: systemPrompt,
       prompt: prompt,
       tools: {
