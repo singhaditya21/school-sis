@@ -1,9 +1,7 @@
 'use server';
 
-import { pool, db } from '@/lib/db';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
-import { messageLogs } from '@/lib/db/schema/messaging';
-import { eq, desc } from 'drizzle-orm';
 
 export async function getMessageTemplates(channel?: string) {
     const { tenantId } = await requireAuth('messaging:read');
@@ -62,11 +60,11 @@ export async function sendMessageAction(data: {
 
 export async function getMessageLogs() {
     const { tenantId } = await requireAuth('messaging:read');
-    return db
-        .select()
-        .from(messageLogs)
-        .where(eq(messageLogs.tenantId, tenantId))
-        .orderBy(desc(messageLogs.sentAt));
+    const { rows } = await pool.query(
+        `SELECT * FROM message_logs WHERE tenant_id = $1 ORDER BY sent_at DESC`,
+        [tenantId]
+    );
+    return rows;
 }
 
 export async function getMessagingStats() {

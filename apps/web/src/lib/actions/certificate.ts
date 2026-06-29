@@ -1,9 +1,7 @@
 'use server';
 
-import { pool, db } from '@/lib/db';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
-import { idCards, students, users } from '@/lib/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
 
 // ─── Get Templates ───────────────────────────────────────────
 
@@ -165,33 +163,39 @@ export async function getCertificateStats() {
 export async function getIDCards(personType?: string) {
     const { tenantId } = await requireAuth('certificate:read');
 
-    const rows = await db.select({
-        id: idCards.id,
-        tenantId: idCards.tenantId,
-        personType: idCards.personType,
-        personId: idCards.personId,
-        validFrom: idCards.validFrom,
-        validTo: idCards.validTo,
-        qrCode: idCards.qrCode,
-        templateName: idCards.templateName,
-        status: idCards.status,
-        printedAt: idCards.printedAt,
-        issuedAt: idCards.issuedAt,
-        createdAt: idCards.createdAt,
-        studentFirstName: students.firstName,
-        studentLastName: students.lastName,
-        studentRollNo: students.rollNumber,
-        staffFirstName: users.firstName,
-        staffLastName: users.lastName,
-    })
-    .from(idCards)
-    .leftJoin(students, and(eq(idCards.personType, 'STUDENT'), eq(idCards.personId, students.id)))
-    .leftJoin(users, and(eq(idCards.personType, 'STAFF'), eq(idCards.personId, users.id)))
-    .where(and(
-        eq(idCards.tenantId, tenantId),
-        personType ? eq(idCards.personType, personType) : undefined
-    ))
-    .orderBy(desc(idCards.createdAt));
+    let query = `
+        SELECT 
+            ic.id,
+            ic.tenant_id AS "tenantId",
+            ic.person_type AS "personType",
+            ic.person_id AS "personId",
+            ic.valid_from AS "validFrom",
+            ic.valid_to AS "validTo",
+            ic.qr_code AS "qrCode",
+            ic.template_name AS "templateName",
+            ic.status,
+            ic.printed_at AS "printedAt",
+            ic.issued_at AS "issuedAt",
+            ic.created_at AS "createdAt",
+            s.first_name AS "studentFirstName",
+            s.last_name AS "studentLastName",
+            s.roll_number AS "studentRollNo",
+            u.first_name AS "staffFirstName",
+            u.last_name AS "staffLastName"
+        FROM id_cards ic
+        LEFT JOIN students s ON ic.person_type = 'STUDENT' AND ic.person_id = s.id
+        LEFT JOIN users u ON ic.person_type = 'STAFF' AND ic.person_id = u.id
+        WHERE ic.tenant_id = $1
+    `;
+    const params: any[] = [tenantId];
 
+    if (personType) {
+        params.push(personType);
+        query += ` AND ic.person_type = $${params.length}`;
+    }
+
+    query += ` ORDER BY ic.created_at DESC`;
+
+    const { rows } = await pool.query(query, params);
     return rows;
 }

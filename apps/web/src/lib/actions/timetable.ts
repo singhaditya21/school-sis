@@ -1,8 +1,6 @@
 'use server';
 
-import { db, pool } from '@/lib/db';
-import { periods, timetableEntries, subjects, sections, grades, users } from '@/lib/db/schema';
-import { eq, and, asc, ne } from 'drizzle-orm';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 
@@ -37,22 +35,15 @@ export interface TimetableCell {
 export async function getPeriods(): Promise<PeriodItem[]> {
     const { tenantId } = await requireAuth('timetable:read');
 
-    const rows = await db
-        .select({
-            id: periods.id,
-            name: periods.name,
-            startTime: periods.startTime,
-            endTime: periods.endTime,
-            displayOrder: periods.displayOrder,
-            isBreak: periods.isBreak,
-        })
-        .from(periods)
-        .where(eq(periods.tenantId, tenantId))
-        .orderBy(asc(periods.displayOrder));
+    const { rows } = await pool.query(
+        `SELECT id, name, start_time AS "startTime", end_time AS "endTime", display_order AS "displayOrder", is_break AS "isBreak" 
+         FROM periods WHERE tenant_id = $1 ORDER BY display_order ASC`,
+        [tenantId]
+    );
 
     return rows.map(r => ({
         ...r,
-        isBreak: r.isBreak === 1,
+        isBreak: r.isBreak === 1 || r.isBreak === true,
     }));
 }
 
@@ -63,23 +54,21 @@ export async function getTimetableForSection(sectionId: string): Promise<Timetab
     const allPeriods = await getPeriods();
 
     // Get all entries for this section
-    const entries = await db
-        .select({
-            periodId: timetableEntries.periodId,
-            dayOfWeek: timetableEntries.dayOfWeek,
-            subjectName: subjects.name,
-            subjectCode: subjects.code,
-            teacherFirstName: users.firstName,
-            teacherLastName: users.lastName,
-            roomNumber: timetableEntries.roomNumber,
-        })
-        .from(timetableEntries)
-        .innerJoin(subjects, eq(timetableEntries.subjectId, subjects.id))
-        .innerJoin(users, eq(timetableEntries.teacherId, users.id))
-        .where(and(
-            eq(timetableEntries.sectionId, sectionId),
-            eq(timetableEntries.tenantId, tenantId)
-        ));
+    const { rows: entries } = await pool.query(
+        `SELECT 
+            te.period_id AS "periodId", 
+            te.day_of_week AS "dayOfWeek", 
+            s.name AS "subjectName", 
+            s.code AS "subjectCode", 
+            u.first_name AS "teacherFirstName", 
+            u.last_name AS "teacherLastName", 
+            te.room_number AS "roomNumber"
+         FROM timetable_entries te
+         INNER JOIN subjects s ON te.subject_id = s.id
+         INNER JOIN users u ON te.teacher_id = u.id
+         WHERE te.section_id = $1 AND te.tenant_id = $2`,
+        [sectionId, tenantId]
+    );
 
     // Build timetable grid
     const entryMap = new Map<string, TimetableCell>();
@@ -92,8 +81,6 @@ export async function getTimetableForSection(sectionId: string): Promise<Timetab
             roomNumber: e.roomNumber,
         });
     }
-
-    const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
 
     return allPeriods.map(period => ({
         periodName: period.name,
@@ -111,45 +98,42 @@ export async function getTimetableForSection(sectionId: string): Promise<Timetab
 export async function getSectionsForTimetable() {
     const { tenantId } = await requireAuth('timetable:read');
 
-    return db
-        .select({
-            id: sections.id,
-            sectionName: sections.name,
-            gradeName: grades.name,
-            gradeOrder: grades.displayOrder,
-        })
-        .from(sections)
-        .innerJoin(grades, eq(sections.gradeId, grades.id))
-        .where(eq(sections.tenantId, tenantId))
-        .orderBy(asc(grades.displayOrder), asc(sections.name));
+    const { rows } = await pool.query(
+        `SELECT s.id, s.name AS "sectionName", g.name AS "gradeName", g.display_order AS "gradeOrder"
+         FROM sections s
+         INNER JOIN grades g ON s.grade_id = g.id
+         WHERE s.tenant_id = $1
+         ORDER BY g.display_order ASC, s.name ASC`,
+        [tenantId]
+    );
+    return rows;
 }
 
 export async function getTeachersForTimetable() {
     const { tenantId } = await requireAuth('timetable:read');
-    return db
-        .select({
-            id: users.id,
-            firstName: users.firstName,
-            lastName: users.lastName,
-        })
-        .from(users)
-        .where(and(eq(users.tenantId, tenantId), eq(users.role, 'TEACHER'), eq(users.isActive, true)))
-        .orderBy(asc(users.firstName));
+    
+    const { rows } = await pool.query(
+        `SELECT id, first_name AS "firstName", last_name AS "lastName"
+         FROM users
+         WHERE tenant_id = $1 AND role = 'TEACHER' AND is_active = true
+         ORDER BY first_name ASC`,
+        [tenantId]
+    );
+    return rows;
 }
 
 export async function getSubjectsForTimetable() {
     const { tenantId } = await requireAuth('timetable:read');
-    return db
-        .select({
-            id: subjects.id,
-            name: subjects.name,
-            code: subjects.code,
-        })
-        .from(subjects)
-        .where(eq(subjects.tenantId, tenantId))
-        .orderBy(asc(subjects.name));
+    
+    const { rows } = await pool.query(
+        `SELECT id, name, code
+         FROM subjects
+         WHERE tenant_id = $1
+         ORDER BY name ASC`,
+        [tenantId]
+    );
+    return rows;
 }
-
 
 // ─── Conflict Detection ─────────────────────────────────────
 
@@ -173,24 +157,21 @@ export async function checkConflicts(data: {
     const conflicts: TimetableConflict[] = [];
 
     // Check teacher double-booking
-    const teacherEntries = await db
-        .select({
-            id: timetableEntries.id,
-            sectionId: timetableEntries.sectionId,
-            sectionName: sections.name,
-            gradeName: grades.name,
-        })
-        .from(timetableEntries)
-        .innerJoin(sections, eq(timetableEntries.sectionId, sections.id))
-        .innerJoin(grades, eq(sections.gradeId, grades.id))
-        .where(and(
-            eq(timetableEntries.tenantId, tenantId),
-            eq(timetableEntries.periodId, data.periodId),
-            eq(timetableEntries.dayOfWeek, data.dayOfWeek as any),
-            eq(timetableEntries.teacherId, data.teacherId),
-            ne(timetableEntries.sectionId, data.sectionId),
-            ...(data.excludeEntryId ? [ne(timetableEntries.id, data.excludeEntryId)] : []),
-        ));
+    const teacherParams: any[] = [tenantId, data.periodId, data.dayOfWeek, data.teacherId, data.sectionId];
+    let teacherQuery = `
+        SELECT te.id, te.section_id AS "sectionId", s.name AS "sectionName", g.name AS "gradeName"
+        FROM timetable_entries te
+        INNER JOIN sections s ON te.section_id = s.id
+        INNER JOIN grades g ON s.grade_id = g.id
+        WHERE te.tenant_id = $1 AND te.period_id = $2 AND te.day_of_week = $3 
+          AND te.teacher_id = $4 AND te.section_id != $5
+    `;
+    if (data.excludeEntryId) {
+        teacherParams.push(data.excludeEntryId);
+        teacherQuery += ` AND te.id != $6`;
+    }
+
+    const { rows: teacherEntries } = await pool.query(teacherQuery, teacherParams);
 
     for (const entry of teacherEntries) {
         conflicts.push({
@@ -204,23 +185,21 @@ export async function checkConflicts(data: {
 
     // Check room double-booking
     if (data.roomNumber) {
-        const roomEntries = await db
-            .select({
-                id: timetableEntries.id,
-                sectionName: sections.name,
-                gradeName: grades.name,
-            })
-            .from(timetableEntries)
-            .innerJoin(sections, eq(timetableEntries.sectionId, sections.id))
-            .innerJoin(grades, eq(sections.gradeId, grades.id))
-            .where(and(
-                eq(timetableEntries.tenantId, tenantId),
-                eq(timetableEntries.periodId, data.periodId),
-                eq(timetableEntries.dayOfWeek, data.dayOfWeek as any),
-                eq(timetableEntries.roomNumber, data.roomNumber),
-                ne(timetableEntries.sectionId, data.sectionId),
-                ...(data.excludeEntryId ? [ne(timetableEntries.id, data.excludeEntryId)] : []),
-            ));
+        const roomParams: any[] = [tenantId, data.periodId, data.dayOfWeek, data.roomNumber, data.sectionId];
+        let roomQuery = `
+            SELECT te.id, s.name AS "sectionName", g.name AS "gradeName"
+            FROM timetable_entries te
+            INNER JOIN sections s ON te.section_id = s.id
+            INNER JOIN grades g ON s.grade_id = g.id
+            WHERE te.tenant_id = $1 AND te.period_id = $2 AND te.day_of_week = $3 
+              AND te.room_number = $4 AND te.section_id != $5
+        `;
+        if (data.excludeEntryId) {
+            roomParams.push(data.excludeEntryId);
+            roomQuery += ` AND te.id != $6`;
+        }
+
+        const { rows: roomEntries } = await pool.query(roomQuery, roomParams);
 
         for (const entry of roomEntries) {
             conflicts.push({
@@ -261,16 +240,11 @@ export async function createTimetableEntry(data: {
         return { success: false, conflicts };
     }
 
-    await db.insert(timetableEntries).values({
-        id: randomUUID(),
-        tenantId,
-        sectionId: data.sectionId,
-        periodId: data.periodId,
-        dayOfWeek: data.dayOfWeek as any,
-        subjectId: data.subjectId,
-        teacherId: data.teacherId,
-        roomNumber: data.roomNumber,
-    });
+    await pool.query(
+        `INSERT INTO timetable_entries (id, tenant_id, section_id, period_id, day_of_week, subject_id, teacher_id, room_number)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [randomUUID(), tenantId, data.sectionId, data.periodId, data.dayOfWeek, data.subjectId, data.teacherId, data.roomNumber || null]
+    );
 
     return { success: true, conflicts: [] };
 }
@@ -308,17 +282,19 @@ export async function bulkCreateEntries(entries: {
 
     // Insert valid entries
     if (validEntries.length > 0) {
-        await db.insert(timetableEntries).values(
-            validEntries.map(e => ({
-                id: randomUUID(),
-                tenantId,
-                sectionId: e.sectionId,
-                periodId: e.periodId,
-                dayOfWeek: e.dayOfWeek as any,
-                subjectId: e.subjectId,
-                teacherId: e.teacherId,
-                roomNumber: e.roomNumber,
-            }))
+        const values: any[] = [];
+        const placeholders: string[] = [];
+        let index = 1;
+        for (const e of validEntries) {
+            placeholders.push(`($${index}, $${index+1}, $${index+2}, $${index+3}, $${index+4}, $${index+5}, $${index+6}, $${index+7})`);
+            values.push(randomUUID(), tenantId, e.sectionId, e.periodId, e.dayOfWeek, e.subjectId, e.teacherId, e.roomNumber || null);
+            index += 8;
+        }
+
+        await pool.query(
+            `INSERT INTO timetable_entries (id, tenant_id, section_id, period_id, day_of_week, subject_id, teacher_id, room_number)
+             VALUES ${placeholders.join(', ')}`,
+            values
         );
     }
 
@@ -340,26 +316,20 @@ export async function getSubstitutionSuggestions(data: {
     const { tenantId } = await requireAuth('timetable:read');
 
     // Find all teachers who teach this subject and are NOT busy during this period+day
-    const busyTeachers = await db
-        .select({ teacherId: timetableEntries.teacherId })
-        .from(timetableEntries)
-        .where(and(
-            eq(timetableEntries.tenantId, tenantId),
-            eq(timetableEntries.periodId, data.periodId),
-            eq(timetableEntries.dayOfWeek, data.dayOfWeek as any),
-        ));
+    const { rows: busyTeachers } = await pool.query(
+        `SELECT teacher_id AS "teacherId" FROM timetable_entries 
+         WHERE tenant_id = $1 AND period_id = $2 AND day_of_week = $3`,
+        [tenantId, data.periodId, data.dayOfWeek]
+    );
 
     const busyIds = new Set(busyTeachers.map(t => t.teacherId));
 
-    // Get all teachers (simple approach — could be refined with subject-teacher mapping)
-    const allTeachers = await db
-        .select({
-            id: users.id,
-            firstName: users.firstName,
-            lastName: users.lastName,
-        })
-        .from(users)
-        .where(and(eq(users.tenantId, tenantId), eq(users.role, 'TEACHER'), eq(users.isActive, true)));
+    const { rows: allTeachers } = await pool.query(
+        `SELECT id, first_name AS "firstName", last_name AS "lastName"
+         FROM users
+         WHERE tenant_id = $1 AND role = 'TEACHER' AND is_active = true`,
+        [tenantId]
+    );
 
     return allTeachers
         .filter(t => !busyIds.has(t.id))
@@ -432,5 +402,3 @@ export async function approveSubstitutionRequest(id: string) {
     );
     return { success: true };
 }
-
-

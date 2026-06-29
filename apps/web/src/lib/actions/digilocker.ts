@@ -1,34 +1,34 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { digilockerSyncLogs, students, issuedCertificates } from '@/lib/db/schema';
+import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
-import { eq, and, desc } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
 export async function getDigilockerSyncLogs() {
     const { tenantId } = await requireAuth('certificate:read');
 
-    const rows = await db.select({
-        id: digilockerSyncLogs.id,
-        documentType: digilockerSyncLogs.documentType,
-        studentId: digilockerSyncLogs.studentId,
-        studentName: students.firstName,
-        studentLastName: students.lastName,
-        apaarId: students.apaarId,
-        referenceId: digilockerSyncLogs.referenceId,
-        status: digilockerSyncLogs.status,
-        syncAttemptedAt: digilockerSyncLogs.syncAttemptedAt,
-        errorMessage: digilockerSyncLogs.errorMessage,
-        digiLockerUri: digilockerSyncLogs.responseHash,
-        documentNumber: issuedCertificates.certificateNumber,
-        issueDate: issuedCertificates.issuedDate,
-    })
-    .from(digilockerSyncLogs)
-    .leftJoin(students, eq(digilockerSyncLogs.studentId, students.id))
-    .leftJoin(issuedCertificates, eq(digilockerSyncLogs.referenceId, issuedCertificates.id))
-    .where(eq(digilockerSyncLogs.tenantId, tenantId))
-    .orderBy(desc(digilockerSyncLogs.syncAttemptedAt));
+    const { rows } = await pool.query(
+        `SELECT 
+            dsl.id,
+            dsl.document_type AS "documentType",
+            dsl.student_id AS "studentId",
+            s.first_name AS "studentName",
+            s.last_name AS "studentLastName",
+            s.apaar_id AS "apaarId",
+            dsl.reference_id AS "referenceId",
+            dsl.status,
+            dsl.sync_attempted_at AS "syncAttemptedAt",
+            dsl.error_message AS "errorMessage",
+            dsl.response_hash AS "digiLockerUri",
+            ic.certificate_number AS "documentNumber",
+            ic.issued_date AS "issueDate"
+         FROM digilocker_sync_logs dsl
+         LEFT JOIN students s ON dsl.student_id = s.id
+         LEFT JOIN issued_certificates ic ON dsl.reference_id = ic.id
+         WHERE dsl.tenant_id = $1
+         ORDER BY dsl.sync_attempted_at DESC`,
+        [tenantId]
+    );
 
     return rows;
 }
@@ -38,16 +38,15 @@ export async function pushToDigilocker(studentId: string, documentType: string) 
 
     const mockXmlPayload = `<Certificate><StudentId>${studentId}</StudentId><Type>${documentType}</Type><Data>Mock Digilocker Content</Data></Certificate>`;
 
-    const [log] = await db.insert(digilockerSyncLogs)
-        .values({
-            tenantId,
-            studentId,
-            documentType,
-            xmlPayload: mockXmlPayload,
-            status: 'SUCCESS',
-            responseHash: `dl://${documentType.toLowerCase()}/${randomUUID()}`,
-        })
-        .returning();
+    const responseHash = `dl://${documentType.toLowerCase()}/${randomUUID()}`;
+    const { rows } = await pool.query(
+        `INSERT INTO digilocker_sync_logs 
+         (tenant_id, student_id, document_type, xml_payload, status, response_hash)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING response_hash AS "responseHash"`,
+        [tenantId, studentId, documentType, mockXmlPayload, 'SUCCESS', responseHash]
+    );
+    const log = rows[0];
 
     return { success: true, uri: log.responseHash };
 }
@@ -55,15 +54,18 @@ export async function pushToDigilocker(studentId: string, documentType: string) 
 export async function getStudentsWithApaar() {
     const { tenantId } = await requireAuth('certificate:read');
     
-    return db.select({
-        studentId: students.id,
-        firstName: students.firstName,
-        lastName: students.lastName,
-        apaarId: students.apaarId,
-    })
-    .from(students)
-    .where(eq(students.tenantId, tenantId))
-    .orderBy(students.firstName);
+    const { rows } = await pool.query(
+        `SELECT 
+            id AS "studentId",
+            first_name AS "firstName",
+            last_name AS "lastName",
+            apaar_id AS "apaarId"
+         FROM students
+         WHERE tenant_id = $1
+         ORDER BY first_name ASC`,
+        [tenantId]
+    );
+    return rows;
 }
 
 export async function verifyAPAARId(studentId: string, apaarId: string) {
@@ -74,9 +76,12 @@ export async function verifyAPAARId(studentId: string, apaarId: string) {
         return { success: false, message: 'Invalid APAAR ID format.' };
     }
 
-    await db.update(students)
-        .set({ apaarId })
-        .where(and(eq(students.id, studentId), eq(students.tenantId, tenantId)));
+    await pool.query(
+        `UPDATE students 
+         SET apaar_id = $1
+         WHERE id = $2 AND tenant_id = $3`,
+        [apaarId, studentId, tenantId]
+    );
         
     return { success: true, message: 'APAAR ID verified and linked successfully.' };
 }
