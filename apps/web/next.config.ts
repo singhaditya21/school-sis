@@ -52,6 +52,7 @@ const nextConfig: NextConfig = {
         // redundant checks that may fail in Docker environments
         ignoreBuildErrors: true,
     },
+    transpilePackages: ['@school-sis/api'],
     experimental: {
         serverActions: {
             bodySizeLimit: '10mb',

@@ -23,6 +23,21 @@
       }
     ],
     "paths": {
+      "@/lib/db": [
+        "../../packages/api/src/db/index.ts"
+      ],
+      "@/lib/db/*": [
+        "../../packages/api/src/db/*"
+      ],
+      "@/lib/services/*": [
+        "../../packages/api/src/services/*"
+      ],
+      "@/lib/validations": [
+        "../../packages/api/src/validations.ts"
+      ],
+      "@/lib/config/limits": [
+        "../../packages/api/src/config/limits.ts"
+      ],
       "@/*": [
         "./src/*"
       ]

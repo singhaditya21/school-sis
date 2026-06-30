@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["esnext"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/lib/db": ["./src/db/index.ts"],
+      "@/lib/db/*": ["./src/db/*"],
+      "@/lib/services/*": ["./src/services/*"],
+      "@/lib/validations": ["./src/validations.ts"],
+      "@/lib/config/limits": ["./src/config/limits.ts"],
+      "@/*": ["../../apps/web/src/*"]
+    }
+  },
+  "include": ["src/**/*"]
+}

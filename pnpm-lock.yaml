@@ -19,7 +19,7 @@ importers:
     devDependencies:
       '@fission-ai/openspec':
         specifier: ^1.4.1
-        version: 1.4.1(@types/node@22.20.0)(rxjs@7.8.2)
+        version: 1.4.1(@types/node@20.19.39)(rxjs@7.8.2)
       '@typescript-eslint/eslint-plugin':
         specifier: ^7.0.0
         version: 7.18.0(@typescript-eslint/parser@7.18.0(eslint@8.57.1)(typescript@6.0.3))(eslint@8.57.1)(typescript@6.0.3)
@@ -37,7 +37,7 @@ importers:
         version: 9.1.7
       jest:
         specifier: ^29.7.0
-        version: 29.7.0(@types/node@22.20.0)
+        version: 29.7.0(@types/node@20.19.39)
       next:
         specifier: '>=16.2.4'
         version: 16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.59.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -46,10 +46,10 @@ importers:
         version: 3.8.0
       ruflo:
         specifier: ^3.14.4
-        version: 3.14.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(@ruvector/core@0.1.31)(@ruvector/ruvllm@2.5.6)(@ruvector/tiny-dancer@0.1.22)(@types/node@22.20.0)(zod@3.25.76)
+        version: 3.14.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(@ruvector/core@0.1.31)(@ruvector/ruvllm@2.5.6)(@ruvector/tiny-dancer@0.1.22)(@types/node@20.19.39)(zod@3.25.76)
       ts-jest:
         specifier: ^29.4.9
-        version: 29.4.9(@babel/core@7.29.0)(@jest/transform@30.3.0)(@jest/types@30.3.0)(babel-jest@29.7.0(@babel/core@7.29.0))(jest-util@30.3.0)(jest@29.7.0(@types/node@22.20.0))(typescript@6.0.3)
+        version: 29.4.9(@babel/core@7.29.0)(@jest/transform@30.3.0)(@jest/types@30.3.0)(babel-jest@29.7.0(@babel/core@7.29.0))(jest-util@30.3.0)(jest@29.7.0(@types/node@20.19.39))(typescript@6.0.3)
       turbo:
         specifier: ^2.0.0
         version: 2.7.5
@@ -144,6 +144,9 @@ importers:
       '@remixicon/react':
         specifier: ^4.9.0
         version: 4.9.0(react@19.2.5)
+      '@school-sis/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@tanstack/react-table':
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -306,7 +309,7 @@ importers:
         version: 0.31.10
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@electric-sql/pglite@0.5.3)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.37.0)(better-sqlite3@12.11.1)(knex@3.1.0(better-sqlite3@12.11.1)(pg@8.17.2))(pg@8.22.0)(postgres@3.4.9)(sql.js@1.14.1)
+        version: 0.45.2(@electric-sql/pglite@0.5.3)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.37.0)(better-sqlite3@12.11.1)(knex@3.1.0(better-sqlite3@12.11.1)(pg@8.22.0))(pg@8.22.0)(postgres@3.4.9)(sql.js@1.14.1)
       eslint:
         specifier: ^8.57.1
         version: 8.57.1
@@ -389,6 +392,27 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
+
+  packages/api:
+    dependencies:
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@electric-sql/pglite@0.5.3)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(better-sqlite3@12.11.1)(knex@3.1.0(better-sqlite3@12.11.1)(pg@8.22.0))(pg@8.22.0)(postgres@3.4.9)(sql.js@1.14.1)
+      firebase-admin:
+        specifier: ^14.1.0
+        version: 14.1.0
+      jspdf:
+        specifier: ^4.2.1
+        version: 4.2.1
+      pg:
+        specifier: ^8.22.0
+        version: 8.22.0
+      stripe:
+        specifier: ^20.4.1
+        version: 20.4.1(@types/node@22.20.0)
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
 
 packages:
 
@@ -11287,30 +11311,30 @@ snapshots:
   '@borewit/text-codec@0.2.2':
     optional: true
 
-  '@claude-flow/aidefence@3.0.3(agentdb@3.0.0-alpha.17(@types/node@22.20.0)(zod@3.25.76))':
+  '@claude-flow/aidefence@3.0.3(agentdb@3.0.0-alpha.17(@types/node@20.19.39)(zod@3.25.76))':
     optionalDependencies:
-      agentdb: 3.0.0-alpha.17(@types/node@22.20.0)(zod@3.25.76)
+      agentdb: 3.0.0-alpha.17(@types/node@20.19.39)(zod@3.25.76)
     optional: true
 
   '@claude-flow/cli-core@3.7.0-alpha.5': {}
 
-  '@claude-flow/cli@3.14.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(@ruvector/core@0.1.31)(@ruvector/ruvllm@2.5.6)(@types/node@22.20.0)(zod@3.25.76)':
+  '@claude-flow/cli@3.14.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(@ruvector/core@0.1.31)(@ruvector/ruvllm@2.5.6)(@types/node@20.19.39)(zod@3.25.76)':
     dependencies:
       '@claude-flow/cli-core': 3.7.0-alpha.5
       '@claude-flow/mcp': 3.0.0-alpha.8
-      '@claude-flow/neural': 3.0.0-alpha.9(@types/node@22.20.0)(zod@3.25.76)
+      '@claude-flow/neural': 3.0.0-alpha.9(@types/node@20.19.39)(zod@3.25.76)
       '@claude-flow/shared': 3.0.0-alpha.7
       '@noble/ed25519': 2.3.0
       '@ruvector/rabitq-wasm': 0.1.0
       semver: 7.7.3
       yaml: 2.9.0
     optionalDependencies:
-      '@claude-flow/aidefence': 3.0.3(agentdb@3.0.0-alpha.17(@types/node@22.20.0)(zod@3.25.76))
-      '@claude-flow/codex': 3.0.0-alpha.12(@claude-flow/cli@3.14.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(@ruvector/core@0.1.31)(@ruvector/ruvllm@2.5.6)(@types/node@22.20.0)(zod@3.25.76))(@types/node@22.20.0)
+      '@claude-flow/aidefence': 3.0.3(agentdb@3.0.0-alpha.17(@types/node@20.19.39)(zod@3.25.76))
+      '@claude-flow/codex': 3.0.0-alpha.12(@claude-flow/cli@3.14.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(@ruvector/core@0.1.31)(@ruvector/ruvllm@2.5.6)(@types/node@20.19.39)(zod@3.25.76))(@types/node@20.19.39)
       '@claude-flow/embeddings': 3.0.0-alpha.45(@claude-flow/shared@3.0.0-alpha.7)(@ruvector/attention@0.1.32)(@ruvector/core@0.1.31)(@ruvector/diskann@0.1.1)(@ruvector/rabitq-wasm@0.1.0)(agentic-flow@3.0.0-alpha.2(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76)))
-      '@claude-flow/guidance': 3.0.0-alpha.3(@types/node@22.20.0)(zod@3.25.76)
-      '@claude-flow/memory': 3.0.0-alpha.21(@types/node@22.20.0)(zod@3.25.76)
-      '@claude-flow/plugin-gastown-bridge': 0.1.4(@claude-flow/memory@3.0.0-alpha.21(@types/node@22.20.0)(zod@3.25.76))
+      '@claude-flow/guidance': 3.0.0-alpha.3(@types/node@20.19.39)(zod@3.25.76)
+      '@claude-flow/memory': 3.0.0-alpha.21(@types/node@20.19.39)(zod@3.25.76)
+      '@claude-flow/plugin-gastown-bridge': 0.1.4(@claude-flow/memory@3.0.0-alpha.21(@types/node@20.19.39)(zod@3.25.76))
       '@claude-flow/security': 3.0.0-alpha.10
       '@metaharness/darwin': 0.3.1
       '@metaharness/kernel': 0.1.2
@@ -11324,7 +11348,7 @@ snapshots:
       '@ruvector/rvagent-wasm': 0.1.0
       '@ruvector/sona': 0.1.7
       '@ruvector/tiny-dancer': 0.1.22
-      agentdb: 3.0.0-alpha.17(@types/node@22.20.0)(zod@3.25.76)
+      agentdb: 3.0.0-alpha.17(@types/node@20.19.39)(zod@3.25.76)
       agentic-flow: 3.0.0-alpha.2(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))
       metaharness: 0.2.7(@metaharness/kernel@0.1.2)
       ruvector: 0.2.32(@ruvector/diskann@0.1.1)(@ruvector/router@0.1.30)(@ruvector/ruvllm@2.5.6)(zod@3.25.76)
@@ -11352,17 +11376,17 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@claude-flow/codex@3.0.0-alpha.12(@claude-flow/cli@3.14.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(@ruvector/core@0.1.31)(@ruvector/ruvllm@2.5.6)(@types/node@22.20.0)(zod@3.25.76))(@types/node@22.20.0)':
+  '@claude-flow/codex@3.0.0-alpha.12(@claude-flow/cli@3.14.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(@ruvector/core@0.1.31)(@ruvector/ruvllm@2.5.6)(@types/node@20.19.39)(zod@3.25.76))(@types/node@20.19.39)':
     dependencies:
       '@iarna/toml': 2.2.5
       chalk: 5.6.2
       commander: 12.1.0
       fs-extra: 11.3.5
-      inquirer: 9.3.8(@types/node@22.20.0)
+      inquirer: 9.3.8(@types/node@20.19.39)
       toml: 3.0.0
       yaml: 2.9.0
     optionalDependencies:
-      '@claude-flow/cli': 3.14.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(@ruvector/core@0.1.31)(@ruvector/ruvllm@2.5.6)(@types/node@22.20.0)(zod@3.25.76)
+      '@claude-flow/cli': 3.14.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(@ruvector/core@0.1.31)(@ruvector/ruvllm@2.5.6)(@types/node@20.19.39)(zod@3.25.76)
     transitivePeerDependencies:
       - '@types/node'
     optional: true
@@ -11384,10 +11408,10 @@ snapshots:
       - react-native-b4a
     optional: true
 
-  '@claude-flow/guidance@3.0.0-alpha.3(@types/node@22.20.0)(zod@3.25.76)':
+  '@claude-flow/guidance@3.0.0-alpha.3(@types/node@20.19.39)(zod@3.25.76)':
     dependencies:
-      '@claude-flow/hooks': 3.0.0-alpha.7(@claude-flow/shared@3.0.0-alpha.7)(@types/node@22.20.0)
-      '@claude-flow/memory': 3.0.0-alpha.21(@types/node@22.20.0)(zod@3.25.76)
+      '@claude-flow/hooks': 3.0.0-alpha.7(@claude-flow/shared@3.0.0-alpha.7)(@types/node@20.19.39)
+      '@claude-flow/memory': 3.0.0-alpha.21(@types/node@20.19.39)(zod@3.25.76)
       '@claude-flow/shared': 3.0.0-alpha.7
     transitivePeerDependencies:
       - '@cfworker/json-schema'
@@ -11399,10 +11423,10 @@ snapshots:
       - zod
     optional: true
 
-  '@claude-flow/hooks@3.0.0-alpha.7(@claude-flow/shared@3.0.0-alpha.7)(@types/node@22.20.0)':
+  '@claude-flow/hooks@3.0.0-alpha.7(@claude-flow/shared@3.0.0-alpha.7)(@types/node@20.19.39)':
     dependencies:
-      '@claude-flow/memory': 3.0.0-alpha.21(@types/node@22.20.0)(zod@3.25.76)
-      '@claude-flow/neural': 3.0.0-alpha.9(@types/node@22.20.0)(zod@3.25.76)
+      '@claude-flow/memory': 3.0.0-alpha.21(@types/node@20.19.39)(zod@3.25.76)
+      '@claude-flow/neural': 3.0.0-alpha.9(@types/node@20.19.39)(zod@3.25.76)
       '@claude-flow/shared': 3.0.0-alpha.7
       zod: 3.25.76
     optionalDependencies:
@@ -11428,9 +11452,9 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@claude-flow/memory@3.0.0-alpha.21(@types/node@22.20.0)(zod@3.25.76)':
+  '@claude-flow/memory@3.0.0-alpha.21(@types/node@20.19.39)(zod@3.25.76)':
     dependencies:
-      agentdb: 3.0.0-alpha.17(@types/node@22.20.0)(zod@3.25.76)
+      agentdb: 3.0.0-alpha.17(@types/node@20.19.39)(zod@3.25.76)
       sql.js: 1.14.1
     optionalDependencies:
       better-sqlite3: 12.11.1
@@ -11443,12 +11467,12 @@ snapshots:
       - supports-color
       - zod
 
-  '@claude-flow/neural@3.0.0-alpha.9(@types/node@22.20.0)(zod@3.25.76)':
+  '@claude-flow/neural@3.0.0-alpha.9(@types/node@20.19.39)(zod@3.25.76)':
     dependencies:
-      '@claude-flow/memory': 3.0.0-alpha.21(@types/node@22.20.0)(zod@3.25.76)
+      '@claude-flow/memory': 3.0.0-alpha.21(@types/node@20.19.39)(zod@3.25.76)
       '@ruvector/sona': 0.1.5
     optionalDependencies:
-      agentdb: 3.0.0-alpha.17(@types/node@22.20.0)(zod@3.25.76)
+      agentdb: 3.0.0-alpha.17(@types/node@20.19.39)(zod@3.25.76)
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - '@types/node'
@@ -11458,13 +11482,13 @@ snapshots:
       - supports-color
       - zod
 
-  '@claude-flow/plugin-gastown-bridge@0.1.4(@claude-flow/memory@3.0.0-alpha.21(@types/node@22.20.0)(zod@3.25.76))':
+  '@claude-flow/plugin-gastown-bridge@0.1.4(@claude-flow/memory@3.0.0-alpha.21(@types/node@20.19.39)(zod@3.25.76))':
     dependencies:
       '@iarna/toml': 2.2.5
       uuid: 9.0.1
       zod: 3.25.76
     optionalDependencies:
-      '@claude-flow/memory': 3.0.0-alpha.21(@types/node@22.20.0)(zod@3.25.76)
+      '@claude-flow/memory': 3.0.0-alpha.21(@types/node@20.19.39)(zod@3.25.76)
     optional: true
 
   '@claude-flow/security@3.0.0-alpha.10':
@@ -12199,10 +12223,10 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@fission-ai/openspec@1.4.1(@types/node@22.20.0)(rxjs@7.8.2)':
+  '@fission-ai/openspec@1.4.1(@types/node@20.19.39)(rxjs@7.8.2)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@22.20.0)
-      '@inquirer/prompts': 7.10.1(@types/node@22.20.0)
+      '@inquirer/core': 10.3.2(@types/node@20.19.39)
+      '@inquirer/prompts': 7.10.1(@types/node@20.19.39)
       chalk: 5.6.2
       commander: 14.0.3
       cross-spawn: 7.0.6
@@ -12528,22 +12552,22 @@ snapshots:
 
   '@inquirer/ansi@2.0.7': {}
 
-  '@inquirer/checkbox@4.3.2(@types/node@22.20.0)':
+  '@inquirer/checkbox@4.3.2(@types/node@20.19.39)':
     dependencies:
       '@inquirer/ansi': 1.0.2
-      '@inquirer/core': 10.3.2(@types/node@22.20.0)
+      '@inquirer/core': 10.3.2(@types/node@20.19.39)
       '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@22.20.0)
+      '@inquirer/type': 3.0.10(@types/node@20.19.39)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 22.20.0
+      '@types/node': 20.19.39
 
-  '@inquirer/confirm@5.1.21(@types/node@22.20.0)':
+  '@inquirer/confirm@5.1.21(@types/node@20.19.39)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@22.20.0)
-      '@inquirer/type': 3.0.10(@types/node@22.20.0)
+      '@inquirer/core': 10.3.2(@types/node@20.19.39)
+      '@inquirer/type': 3.0.10(@types/node@20.19.39)
     optionalDependencies:
-      '@types/node': 22.20.0
+      '@types/node': 20.19.39
 
   '@inquirer/confirm@6.1.1(@types/node@20.19.39)':
     dependencies:
@@ -12552,18 +12576,18 @@ snapshots:
     optionalDependencies:
       '@types/node': 20.19.39
 
-  '@inquirer/core@10.3.2(@types/node@22.20.0)':
+  '@inquirer/core@10.3.2(@types/node@20.19.39)':
     dependencies:
       '@inquirer/ansi': 1.0.2
       '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@22.20.0)
+      '@inquirer/type': 3.0.10(@types/node@20.19.39)
       cli-width: 4.1.0
       mute-stream: 2.0.0
       signal-exit: 4.1.0
       wrap-ansi: 6.2.0
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 22.20.0
+      '@types/node': 20.19.39
 
   '@inquirer/core@11.2.1(@types/node@20.19.39)':
     dependencies:
@@ -12577,100 +12601,100 @@ snapshots:
     optionalDependencies:
       '@types/node': 20.19.39
 
-  '@inquirer/editor@4.2.23(@types/node@22.20.0)':
+  '@inquirer/editor@4.2.23(@types/node@20.19.39)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@22.20.0)
-      '@inquirer/external-editor': 1.0.3(@types/node@22.20.0)
-      '@inquirer/type': 3.0.10(@types/node@22.20.0)
+      '@inquirer/core': 10.3.2(@types/node@20.19.39)
+      '@inquirer/external-editor': 1.0.3(@types/node@20.19.39)
+      '@inquirer/type': 3.0.10(@types/node@20.19.39)
     optionalDependencies:
-      '@types/node': 22.20.0
+      '@types/node': 20.19.39
 
-  '@inquirer/expand@4.0.23(@types/node@22.20.0)':
+  '@inquirer/expand@4.0.23(@types/node@20.19.39)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@22.20.0)
-      '@inquirer/type': 3.0.10(@types/node@22.20.0)
+      '@inquirer/core': 10.3.2(@types/node@20.19.39)
+      '@inquirer/type': 3.0.10(@types/node@20.19.39)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 22.20.0
+      '@types/node': 20.19.39
 
-  '@inquirer/external-editor@1.0.3(@types/node@22.20.0)':
+  '@inquirer/external-editor@1.0.3(@types/node@20.19.39)':
     dependencies:
       chardet: 2.2.0
       iconv-lite: 0.7.2
     optionalDependencies:
-      '@types/node': 22.20.0
+      '@types/node': 20.19.39
 
   '@inquirer/figures@1.0.15': {}
 
   '@inquirer/figures@2.0.7': {}
 
-  '@inquirer/input@4.3.1(@types/node@22.20.0)':
+  '@inquirer/input@4.3.1(@types/node@20.19.39)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@22.20.0)
-      '@inquirer/type': 3.0.10(@types/node@22.20.0)
+      '@inquirer/core': 10.3.2(@types/node@20.19.39)
+      '@inquirer/type': 3.0.10(@types/node@20.19.39)
     optionalDependencies:
-      '@types/node': 22.20.0
+      '@types/node': 20.19.39
 
-  '@inquirer/number@3.0.23(@types/node@22.20.0)':
+  '@inquirer/number@3.0.23(@types/node@20.19.39)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@22.20.0)
-      '@inquirer/type': 3.0.10(@types/node@22.20.0)
+      '@inquirer/core': 10.3.2(@types/node@20.19.39)
+      '@inquirer/type': 3.0.10(@types/node@20.19.39)
     optionalDependencies:
-      '@types/node': 22.20.0
+      '@types/node': 20.19.39
 
-  '@inquirer/password@4.0.23(@types/node@22.20.0)':
-    dependencies:
-      '@inquirer/ansi': 1.0.2
-      '@inquirer/core': 10.3.2(@types/node@22.20.0)
-      '@inquirer/type': 3.0.10(@types/node@22.20.0)
-    optionalDependencies:
-      '@types/node': 22.20.0
-
-  '@inquirer/prompts@7.10.1(@types/node@22.20.0)':
-    dependencies:
-      '@inquirer/checkbox': 4.3.2(@types/node@22.20.0)
-      '@inquirer/confirm': 5.1.21(@types/node@22.20.0)
-      '@inquirer/editor': 4.2.23(@types/node@22.20.0)
-      '@inquirer/expand': 4.0.23(@types/node@22.20.0)
-      '@inquirer/input': 4.3.1(@types/node@22.20.0)
-      '@inquirer/number': 3.0.23(@types/node@22.20.0)
-      '@inquirer/password': 4.0.23(@types/node@22.20.0)
-      '@inquirer/rawlist': 4.1.11(@types/node@22.20.0)
-      '@inquirer/search': 3.2.2(@types/node@22.20.0)
-      '@inquirer/select': 4.4.2(@types/node@22.20.0)
-    optionalDependencies:
-      '@types/node': 22.20.0
-
-  '@inquirer/rawlist@4.1.11(@types/node@22.20.0)':
-    dependencies:
-      '@inquirer/core': 10.3.2(@types/node@22.20.0)
-      '@inquirer/type': 3.0.10(@types/node@22.20.0)
-      yoctocolors-cjs: 2.1.3
-    optionalDependencies:
-      '@types/node': 22.20.0
-
-  '@inquirer/search@3.2.2(@types/node@22.20.0)':
-    dependencies:
-      '@inquirer/core': 10.3.2(@types/node@22.20.0)
-      '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@22.20.0)
-      yoctocolors-cjs: 2.1.3
-    optionalDependencies:
-      '@types/node': 22.20.0
-
-  '@inquirer/select@4.4.2(@types/node@22.20.0)':
+  '@inquirer/password@4.0.23(@types/node@20.19.39)':
     dependencies:
       '@inquirer/ansi': 1.0.2
-      '@inquirer/core': 10.3.2(@types/node@22.20.0)
-      '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@22.20.0)
+      '@inquirer/core': 10.3.2(@types/node@20.19.39)
+      '@inquirer/type': 3.0.10(@types/node@20.19.39)
+    optionalDependencies:
+      '@types/node': 20.19.39
+
+  '@inquirer/prompts@7.10.1(@types/node@20.19.39)':
+    dependencies:
+      '@inquirer/checkbox': 4.3.2(@types/node@20.19.39)
+      '@inquirer/confirm': 5.1.21(@types/node@20.19.39)
+      '@inquirer/editor': 4.2.23(@types/node@20.19.39)
+      '@inquirer/expand': 4.0.23(@types/node@20.19.39)
+      '@inquirer/input': 4.3.1(@types/node@20.19.39)
+      '@inquirer/number': 3.0.23(@types/node@20.19.39)
+      '@inquirer/password': 4.0.23(@types/node@20.19.39)
+      '@inquirer/rawlist': 4.1.11(@types/node@20.19.39)
+      '@inquirer/search': 3.2.2(@types/node@20.19.39)
+      '@inquirer/select': 4.4.2(@types/node@20.19.39)
+    optionalDependencies:
+      '@types/node': 20.19.39
+
+  '@inquirer/rawlist@4.1.11(@types/node@20.19.39)':
+    dependencies:
+      '@inquirer/core': 10.3.2(@types/node@20.19.39)
+      '@inquirer/type': 3.0.10(@types/node@20.19.39)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 22.20.0
+      '@types/node': 20.19.39
 
-  '@inquirer/type@3.0.10(@types/node@22.20.0)':
+  '@inquirer/search@3.2.2(@types/node@20.19.39)':
+    dependencies:
+      '@inquirer/core': 10.3.2(@types/node@20.19.39)
+      '@inquirer/figures': 1.0.15
+      '@inquirer/type': 3.0.10(@types/node@20.19.39)
+      yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 22.20.0
+      '@types/node': 20.19.39
+
+  '@inquirer/select@4.4.2(@types/node@20.19.39)':
+    dependencies:
+      '@inquirer/ansi': 1.0.2
+      '@inquirer/core': 10.3.2(@types/node@20.19.39)
+      '@inquirer/figures': 1.0.15
+      '@inquirer/type': 3.0.10(@types/node@20.19.39)
+      yoctocolors-cjs: 2.1.3
+    optionalDependencies:
+      '@types/node': 20.19.39
+
+  '@inquirer/type@3.0.10(@types/node@20.19.39)':
+    optionalDependencies:
+      '@types/node': 20.19.39
 
   '@inquirer/type@4.0.7(@types/node@20.19.39)':
     optionalDependencies:
@@ -15473,7 +15497,7 @@ snapshots:
       - supports-color
     optional: true
 
-  agentdb@3.0.0-alpha.17(@types/node@22.20.0)(zod@3.25.76):
+  agentdb@3.0.0-alpha.17(@types/node@20.19.39)(zod@3.25.76):
     dependencies:
       '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
       '@opentelemetry/api': 1.9.1
@@ -15501,7 +15525,7 @@ snapshots:
       chalk: 5.6.2
       commander: 12.1.0
       hnswlib-node: 3.0.0
-      inquirer: 9.3.8(@types/node@22.20.0)
+      inquirer: 9.3.8(@types/node@20.19.39)
       ruvector: 0.1.100(zod@3.25.76)
       ruvector-attention-wasm: 0.1.32
       ruvector-graph-transformer-wasm: 2.0.4
@@ -16384,21 +16408,6 @@ snapshots:
       - supports-color
       - ts-node
 
-  create-jest@29.7.0(@types/node@22.20.0):
-    dependencies:
-      '@jest/types': 29.6.3
-      chalk: 4.1.2
-      exit: 0.1.2
-      graceful-fs: 4.2.11
-      jest-config: 29.7.0(@types/node@22.20.0)
-      jest-util: 29.7.0
-      prompts: 2.4.2
-    transitivePeerDependencies:
-      - '@types/node'
-      - babel-plugin-macros
-      - supports-color
-      - ts-node
-
   cross-env@10.1.0:
     dependencies:
       '@epic-web/invariant': 1.0.0
@@ -16628,12 +16637,24 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.21.0
 
-  drizzle-orm@0.45.2(@electric-sql/pglite@0.5.3)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.37.0)(better-sqlite3@12.11.1)(knex@3.1.0(better-sqlite3@12.11.1)(pg@8.17.2))(pg@8.22.0)(postgres@3.4.9)(sql.js@1.14.1):
+  drizzle-orm@0.45.2(@electric-sql/pglite@0.5.3)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.37.0)(better-sqlite3@12.11.1)(knex@3.1.0(better-sqlite3@12.11.1)(pg@8.22.0))(pg@8.22.0)(postgres@3.4.9)(sql.js@1.14.1):
     optionalDependencies:
       '@electric-sql/pglite': 0.5.3
       '@opentelemetry/api': 1.9.1
       '@types/pg': 8.20.0
       '@upstash/redis': 1.37.0
+      better-sqlite3: 12.11.1
+      knex: 3.1.0(better-sqlite3@12.11.1)(pg@8.17.2)
+      pg: 8.22.0
+      postgres: 3.4.9
+      sql.js: 1.14.1
+
+  drizzle-orm@0.45.2(@electric-sql/pglite@0.5.3)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(better-sqlite3@12.11.1)(knex@3.1.0(better-sqlite3@12.11.1)(pg@8.22.0))(pg@8.22.0)(postgres@3.4.9)(sql.js@1.14.1):
+    optionalDependencies:
+      '@electric-sql/pglite': 0.5.3
+      '@opentelemetry/api': 1.9.1
+      '@types/pg': 8.20.0
+      '@upstash/redis': 1.38.0
       better-sqlite3: 12.11.1
       knex: 3.1.0(better-sqlite3@12.11.1)(pg@8.22.0)
       pg: 8.22.0
@@ -17555,7 +17576,7 @@ snapshots:
 
   extract-pg-schema@5.8.2(@electric-sql/pglite@0.5.3)(better-sqlite3@12.11.1):
     dependencies:
-      knex: 3.1.0(better-sqlite3@12.11.1)(pg@8.22.0)
+      knex: 3.1.0(better-sqlite3@12.11.1)(pg@8.17.2)
       knex-pglite: 0.12.1(@electric-sql/pglite@0.5.3)(knex@3.1.0(better-sqlite3@12.11.1)(pg@8.17.2))
       pg: 8.17.2
       pg-query-emscripten: 5.1.0
@@ -17648,7 +17669,7 @@ snapshots:
       strict-event-emitter-types: 2.0.0
       undici: 7.28.0
       uri-templates: 0.2.0
-      xsschema: 0.4.4(zod-to-json-schema@3.25.2(zod@3.25.76))(zod@4.4.3)
+      xsschema: 0.4.4(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       yargs: 18.0.0
       zod: 4.4.3
       zod-to-json-schema: 3.25.2(zod@4.4.3)
@@ -18397,9 +18418,9 @@ snapshots:
   ini@1.3.8:
     optional: true
 
-  inquirer@9.3.8(@types/node@22.20.0):
+  inquirer@9.3.8(@types/node@20.19.39):
     dependencies:
-      '@inquirer/external-editor': 1.0.3(@types/node@22.20.0)
+      '@inquirer/external-editor': 1.0.3(@types/node@20.19.39)
       '@inquirer/figures': 1.0.15
       ansi-escapes: 4.3.2
       cli-width: 4.1.0
@@ -18730,25 +18751,6 @@ snapshots:
       - supports-color
       - ts-node
 
-  jest-cli@29.7.0(@types/node@22.20.0):
-    dependencies:
-      '@jest/core': 29.7.0
-      '@jest/test-result': 29.7.0
-      '@jest/types': 29.6.3
-      chalk: 4.1.2
-      create-jest: 29.7.0(@types/node@22.20.0)
-      exit: 0.1.2
-      import-local: 3.2.0
-      jest-config: 29.7.0(@types/node@22.20.0)
-      jest-util: 29.7.0
-      jest-validate: 29.7.0
-      yargs: 17.7.2
-    transitivePeerDependencies:
-      - '@types/node'
-      - babel-plugin-macros
-      - supports-color
-      - ts-node
-
   jest-config@29.7.0(@types/node@20.19.39):
     dependencies:
       '@babel/core': 7.29.0
@@ -18775,36 +18777,6 @@ snapshots:
       strip-json-comments: 3.1.1
     optionalDependencies:
       '@types/node': 20.19.39
-    transitivePeerDependencies:
-      - babel-plugin-macros
-      - supports-color
-
-  jest-config@29.7.0(@types/node@22.20.0):
-    dependencies:
-      '@babel/core': 7.29.0
-      '@jest/test-sequencer': 29.7.0
-      '@jest/types': 29.6.3
-      babel-jest: 29.7.0(@babel/core@7.29.0)
-      chalk: 4.1.2
-      ci-info: 3.9.0
-      deepmerge: 4.3.1
-      glob: 7.2.3
-      graceful-fs: 4.2.11
-      jest-circus: 29.7.0
-      jest-environment-node: 29.7.0
-      jest-get-type: 29.6.3
-      jest-regex-util: 29.6.3
-      jest-resolve: 29.7.0
-      jest-runner: 29.7.0
-      jest-util: 29.7.0
-      jest-validate: 29.7.0
-      micromatch: 4.0.8
-      parse-json: 5.2.0
-      pretty-format: 29.7.0
-      slash: 3.0.0
-      strip-json-comments: 3.1.1
-    optionalDependencies:
-      '@types/node': 22.20.0
     transitivePeerDependencies:
       - babel-plugin-macros
       - supports-color
@@ -19128,18 +19100,6 @@ snapshots:
       - supports-color
       - ts-node
 
-  jest@29.7.0(@types/node@22.20.0):
-    dependencies:
-      '@jest/core': 29.7.0
-      '@jest/types': 29.6.3
-      import-local: 3.2.0
-      jest-cli: 29.7.0(@types/node@22.20.0)
-    transitivePeerDependencies:
-      - '@types/node'
-      - babel-plugin-macros
-      - supports-color
-      - ts-node
-
   jimp-compact@0.16.1: {}
 
   jiti@1.21.7: {}
@@ -19305,7 +19265,29 @@ snapshots:
   knex-pglite@0.12.1(@electric-sql/pglite@0.5.3)(knex@3.1.0(better-sqlite3@12.11.1)(pg@8.17.2)):
     dependencies:
       '@electric-sql/pglite': 0.5.3
-      knex: 3.1.0(better-sqlite3@12.11.1)(pg@8.22.0)
+      knex: 3.1.0(better-sqlite3@12.11.1)(pg@8.17.2)
+
+  knex@3.1.0(better-sqlite3@12.11.1)(pg@8.17.2):
+    dependencies:
+      colorette: 2.0.19
+      commander: 10.0.1
+      debug: 4.3.4
+      escalade: 3.2.0
+      esm: 3.2.25
+      get-package-type: 0.1.0
+      getopts: 2.3.0
+      interpret: 2.2.0
+      lodash: 4.18.1
+      pg-connection-string: 2.6.2
+      rechoir: 0.8.0
+      resolve-from: 5.0.0
+      tarn: 3.1.0
+      tildify: 2.0.0
+    optionalDependencies:
+      better-sqlite3: 12.11.1
+      pg: 8.17.2
+    transitivePeerDependencies:
+      - supports-color
 
   knex@3.1.0(better-sqlite3@12.11.1)(pg@8.22.0):
     dependencies:
@@ -19328,6 +19310,7 @@ snapshots:
       pg: 8.22.0
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   knuth-shuffle@1.0.8:
     optional: true
@@ -21069,9 +21052,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  ruflo@3.14.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(@ruvector/core@0.1.31)(@ruvector/ruvllm@2.5.6)(@ruvector/tiny-dancer@0.1.22)(@types/node@22.20.0)(zod@3.25.76):
+  ruflo@3.14.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(@ruvector/core@0.1.31)(@ruvector/ruvllm@2.5.6)(@ruvector/tiny-dancer@0.1.22)(@types/node@20.19.39)(zod@3.25.76):
     dependencies:
-      '@claude-flow/cli': 3.14.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(@ruvector/core@0.1.31)(@ruvector/ruvllm@2.5.6)(@types/node@22.20.0)(zod@3.25.76)
+      '@claude-flow/cli': 3.14.4(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(@ruvector/core@0.1.31)(@ruvector/ruvllm@2.5.6)(@types/node@20.19.39)(zod@3.25.76)
     optionalDependencies:
       '@metaharness/darwin': 0.3.1
       '@metaharness/kernel': 0.1.2
@@ -21617,6 +21600,10 @@ snapshots:
     optionalDependencies:
       '@types/node': 20.19.39
 
+  stripe@20.4.1(@types/node@22.20.0):
+    optionalDependencies:
+      '@types/node': 22.20.0
+
   strnum@2.4.1:
     dependencies:
       anynum: 1.0.1
@@ -21938,12 +21925,12 @@ snapshots:
       babel-jest: 29.7.0(@babel/core@7.29.0)
       jest-util: 30.3.0
 
-  ts-jest@29.4.9(@babel/core@7.29.0)(@jest/transform@30.3.0)(@jest/types@30.3.0)(babel-jest@29.7.0(@babel/core@7.29.0))(jest-util@30.3.0)(jest@29.7.0(@types/node@22.20.0))(typescript@6.0.3):
+  ts-jest@29.4.9(@babel/core@7.29.0)(@jest/transform@30.3.0)(@jest/types@30.3.0)(babel-jest@29.7.0(@babel/core@7.29.0))(jest-util@30.3.0)(jest@29.7.0(@types/node@20.19.39))(typescript@6.0.3):
     dependencies:
       bs-logger: 0.2.6
       fast-json-stable-stringify: 2.1.0
       handlebars: 4.7.9
-      jest: 29.7.0(@types/node@22.20.0)
+      jest: 29.7.0(@types/node@20.19.39)
       json5: 2.2.3
       lodash.memoize: 4.1.2
       make-error: 1.3.6
@@ -22394,7 +22381,7 @@ snapshots:
 
   xmlbuilder@15.1.1: {}
 
-  xsschema@0.4.4(zod-to-json-schema@3.25.2(zod@3.25.76))(zod@4.4.3):
+  xsschema@0.4.4(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3):
     optionalDependencies:
       zod: 4.4.3
       zod-to-json-schema: 3.25.2(zod@4.4.3)

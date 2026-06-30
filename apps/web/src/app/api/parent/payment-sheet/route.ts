@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PaymentRoutingService } from '../../../../lib/services/payments';
+import { PaymentRoutingService } from '@/lib/services/payments';
 
 export async function POST(req: Request) {
   try {
