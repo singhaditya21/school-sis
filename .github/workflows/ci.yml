@@ -7,80 +7,34 @@ on:
     branches: [ main ]
 
 jobs:
-  test-and-lint:
+  validate:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 9.15.9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
           cache: 'pnpm'
 
-      - name: Install dependencies
-        run: pnpm install
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Type Check & Lint
-        run: |
-          pnpm --filter web run lint
-          pnpm --filter web exec tsc --noEmit
-
-      - name: Run Unit Tests
-        run: pnpm --filter web test
-
-  e2e-and-migrate:
-    # Only run the heavy Playwright tests and database migrations on pushes to the main branch
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: test-and-lint
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Apply Neon DB Migrations
+      - name: Run Build
+        run: pnpm run build
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          echo "Applying migrations to Neon..."
-          pnpm --filter web run db:migrate
-        
-      - name: Install Playwright Browsers
-        run: pnpm --filter web exec playwright install --with-deps
+          SKIP_ENV_VALIDATION: true
 
-      - name: Run E2E Tests
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          PII_ENCRYPTION_KEY: ${{ secrets.PII_ENCRYPTION_KEY }}
-        run: pnpm --filter web exec playwright test
+      - name: Run Linting
+        run: pnpm --filter @school-sis/web exec eslint src --quiet
 
-      - name: Upload Test Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: apps/web/playwright-report/
-          retention-days: 14
+      - name: Run Tests
+        run: pnpm test

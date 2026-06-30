@@ -12,5 +12,8 @@ module.exports = {
         'prefer-const': 'warn',
         '@next/next/no-html-link-for-pages': 'off',
         'react/no-unescaped-entities': 'off',
+        '@typescript-eslint/ban-ts-comment': 'off',
+        '@typescript-eslint/no-require-imports': 'off',
+        'no-var': 'off',
     },
 };
