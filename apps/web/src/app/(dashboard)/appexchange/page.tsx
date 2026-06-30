@@ -1,6 +1,6 @@
 import React from 'react';
 import { Store, Star, Download, Search, LayoutGrid, CheckCircle } from 'lucide-react';
-import { pool } from '../../../lib/db';
+import { pool } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 

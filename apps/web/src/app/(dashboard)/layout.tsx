@@ -10,7 +10,7 @@ import {
 
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]/route";
-import { pool } from "../../lib/db";
+import { pool } from "@/lib/db";
 
 export default async function DashboardLayout({
   children,

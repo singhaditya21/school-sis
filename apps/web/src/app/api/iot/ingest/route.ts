@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { pool } from '../../../lib/db';
+import { pool } from '@/lib/db';
 import { z } from 'zod';
-import { enqueueJob } from '../../../lib/worker/client';
+import { enqueueJob } from '@/lib/worker/client';
 
 // Schema for incoming IoT streams from physical hardware (RFID, Biometrics, GPS)
 const IoTEventSchema = z.object({

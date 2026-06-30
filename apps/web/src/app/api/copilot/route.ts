@@ -2,7 +2,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { generateText, streamText, tool } from 'ai';
 import { z } from 'zod';
 import { NextResponse } from 'next/server';
-import { pool } from '../../../lib/db';
+import { pool } from '@/lib/db';
 
 // Initialize the Cerebras provider (OpenAI-compatible) for ultra-fast, cheap Llama 3 inference
 const cerebras = createOpenAI({

@@ -1,6 +1,6 @@
 'use server';
 
-import { pool } from '../db';
+import { pool } from '@/lib/db';
 
 export interface ExecutiveFinancialMetrics {
   totalExpectedFees: number;
