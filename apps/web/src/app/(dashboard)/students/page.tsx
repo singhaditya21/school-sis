@@ -2,13 +2,22 @@ import React from 'react';
 import { pool } from '../../../../lib/db/client';
 import { Search, Plus, Filter, MoreVertical } from 'lucide-react';
 
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../../api/auth/[...nextauth]/route";
+import { redirect } from "next/navigation";
+
 // Force dynamic rendering since we are fetching from the live database
 export const dynamic = 'force-dynamic';
 
 export default async function StudentDirectoryPage() {
-  // In a real app, grab the tenantId from the NextAuth session.
-  // Using a mock uuid for structural completeness here.
-  const mockTenantId = '00000000-0000-0000-0000-000000000000';
+  const session = await getServerSession(authOptions);
+  
+  if (!session || !session.user) {
+    redirect('/api/auth/signin');
+  }
+
+  // @ts-ignore
+  const tenantId = session.user.tenantId;
 
   let students = [];
   try {
@@ -27,7 +36,7 @@ export default async function StudentDirectoryPage() {
       WHERE s.tenant_id = $1
       ORDER BY s.first_name ASC
       LIMIT 100`,
-      [mockTenantId]
+      [tenantId]
     );
     students = res.rows;
   } catch (error) {

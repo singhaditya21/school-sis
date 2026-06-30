@@ -1,8 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 
-// Mock data representing IoT events pushed from Graphile Worker via Firebase
-const NOTIFICATIONS = [
+const FALLBACK_NOTIFICATIONS = [
   {
     id: 'n1',
     title: 'Student Checked In',
@@ -38,6 +37,38 @@ const NOTIFICATIONS = [
 ];
 
 export function NotificationCenterScreen({ navigation }: any) {
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch('http://10.0.2.2:3000/api/parent/notifications?parentId=00000000-0000-0000-0000-000000000000');
+        const data = await res.json();
+        if (data.notifications && data.notifications.length > 0) {
+          setNotifications(data.notifications);
+        } else {
+          setNotifications(FALLBACK_NOTIFICATIONS);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch live notifications from server, using fallbacks:", err);
+        setNotifications(FALLBACK_NOTIFICATIONS);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#4F46E5" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -48,11 +79,11 @@ export function NotificationCenterScreen({ navigation }: any) {
         </View>
 
         <View style={styles.timeline}>
-          {NOTIFICATIONS.map((item, index) => (
+          {notifications.map((item, index) => (
             <View key={item.id} style={styles.notificationCard}>
               
               {/* Timeline Connector */}
-              {index !== NOTIFICATIONS.length - 1 && (
+              {index !== notifications.length - 1 && (
                 <View style={styles.timelineLine} />
               )}
               

@@ -1,9 +1,9 @@
-import NextAuth from "next-auth";
+import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { pool } from "../../../../lib/db/client";
 
 // Free, open-source Enterprise Authentication replacing Clerk/WorkOS
-const handler = NextAuth({
+export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "mock-google-id",
@@ -44,6 +44,8 @@ const handler = NextAuth({
   pages: {
     signIn: '/auth/signin',
   }
-});
+};
+
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };

@@ -2,17 +2,28 @@ import React from 'react';
 import { pool } from '../../../../lib/db/client';
 import { Plus, Database, Columns, Filter, MoreHorizontal, Save } from 'lucide-react';
 
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../../api/auth/[...nextauth]/route";
+import { redirect } from "next/navigation";
+
 export const dynamic = 'force-dynamic';
 
 export default async function MetadataEnginePage() {
-  const mockTenantId = '00000000-0000-0000-0000-000000000000';
+  const session = await getServerSession(authOptions);
+  
+  if (!session || !session.user) {
+    redirect('/api/auth/signin');
+  }
+
+  // @ts-ignore
+  const tenantId = session.user.tenantId;
 
   // Fetch all custom objects for this school
   let objects = [];
   try {
     const objRes = await pool.query(
       `SELECT id, name, label FROM metadata_objects WHERE tenant_id = $1 ORDER BY created_at ASC`,
-      [mockTenantId]
+      [tenantId]
     );
     objects = objRes.rows;
   } catch (error) {

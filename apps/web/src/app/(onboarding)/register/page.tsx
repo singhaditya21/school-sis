@@ -1,34 +1,56 @@
 import React from 'react';
 import { pool } from '../../../../lib/db/client';
-import { Building2, Globe, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Building2, Globe, User, CheckCircle2, ArrowRight } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
 export default function SchoolRegistrationPage() {
 
-  // Server Action to handle the PLG registration
+  // Server Action to handle the PLG registration and provision initial Admin user
   async function registerSchool(formData: FormData) {
     'use server';
     const name = formData.get('schoolName') as string;
     const domain = formData.get('emailDomain') as string;
+    const adminEmail = formData.get('adminEmail') as string;
+    const firstName = formData.get('firstName') as string;
+    const lastName = formData.get('lastName') as string;
     
-    if (!name || !domain) return;
+    if (!name || !domain || !adminEmail || !firstName || !lastName) return;
 
+    // Generate a unique code from the school name
+    const code = name.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 50);
+
+    const client = await pool.connect();
     try {
-      // Create the tenant
-      const res = await pool.query(
-        \`INSERT INTO tenants (name, domain) VALUES ($1, $2) RETURNING id\`,
-        [name, domain]
+      await client.query('BEGIN');
+
+      // 1. Provision the Tenant
+      const tenantRes = await client.query(
+        `INSERT INTO tenants (name, code, domain, is_active, created_at, updated_at) 
+         VALUES ($1, $2, $3, true, NOW(), NOW()) RETURNING id`,
+        [name, code, domain]
       );
-      
-      // Auto-unlock the NextAuth security for this domain
-      // Now anyone with @domain can login and will be assigned this tenant_id
-      
+      const tenantId = tenantRes.rows[0].id;
+
+      // 2. Provision the Admin User account
+      // Google Provider handles SSO logins, but next-auth needs the user record to exist
+      // We pass a dummy hash since Google SSO will be used to authenticate
+      const dummyPasswordHash = '$2b$10$dummyhashplaceholderfordevelopmentonly';
+      await client.query(
+        `INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role, is_active, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, 'SCHOOL_ADMIN', true, NOW(), NOW())`,
+        [tenantId, adminEmail, dummyPasswordHash, firstName, lastName]
+      );
+
+      await client.query('COMMIT');
     } catch (err) {
-      console.error("Failed to register tenant:", err);
-      return; // Could handle unique constraint errors here
+      await client.query('ROLLBACK');
+      console.error("Failed to register tenant and admin user:", err);
+      return;
+    } finally {
+      client.release();
     }
 
-    // Redirect to the login page
+    // Redirect to the login page so they can sign in with Google SSO
     redirect('/api/auth/signin');
   }
 
@@ -75,9 +97,6 @@ export default function SchoolRegistrationPage() {
               <label htmlFor="emailDomain" className="block text-sm font-medium text-slate-700">
                 Official Email Domain
               </label>
-              <p className="text-xs text-slate-500 mb-2 mt-1">
-                Anyone logging in with this Google domain will automatically join your school.
-              </p>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Globe className="h-5 w-5 text-slate-400" />
@@ -88,6 +107,54 @@ export default function SchoolRegistrationPage() {
                   id="emailDomain"
                   required
                   placeholder="springfield.edu"
+                  className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-lg py-3 bg-slate-50 border"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="firstName" className="block text-sm font-medium text-slate-700">
+                  First Name
+                </label>
+                <input
+                  type="text"
+                  name="firstName"
+                  id="firstName"
+                  required
+                  placeholder="Jane"
+                  className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-slate-300 rounded-lg py-3 bg-slate-50 border px-3"
+                />
+              </div>
+              <div>
+                <label htmlFor="lastName" className="block text-sm font-medium text-slate-700">
+                  Last Name
+                </label>
+                <input
+                  type="text"
+                  name="lastName"
+                  id="lastName"
+                  required
+                  placeholder="Doe"
+                  className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-slate-300 rounded-lg py-3 bg-slate-50 border px-3"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="adminEmail" className="block text-sm font-medium text-slate-700">
+                Administrator Email Address
+              </label>
+              <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User className="h-5 w-5 text-slate-400" />
+                </div>
+                <input
+                  type="email"
+                  name="adminEmail"
+                  id="adminEmail"
+                  required
+                  placeholder="jane.doe@springfield.edu"
                   className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-slate-300 rounded-lg py-3 bg-slate-50 border"
                 />
               </div>

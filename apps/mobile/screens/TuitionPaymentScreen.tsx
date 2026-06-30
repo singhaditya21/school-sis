@@ -11,14 +11,32 @@ export function TuitionPaymentScreen() {
   const platformFee = invoiceAmount * 0.015; // 1.5% take rate = $75.00
 
   const fetchPaymentSheetParams = async () => {
-    // In production, this hits our Next.js backend, which calls `PaymentRoutingService.processTuitionPayment`
-    // to generate a client_secret for the PaymentIntent.
-    // Here we mock the response to represent the returned parameters.
-    return {
-      paymentIntent: 'mock_pi_secret_123',
-      ephemeralKey: 'mock_ek_secret_123',
-      customer: 'mock_cus_123',
-    };
+    try {
+      const response = await fetch('http://10.0.2.2:3000/api/parent/payment-sheet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          parentCustomerId: 'cus_JaneDoeMock',
+          schoolAccountId: 'acct_SchoolMock',
+          amountInCents: invoiceAmount * 100,
+        }),
+      });
+      const data = await response.json();
+      return {
+        paymentIntent: data.paymentIntent,
+        ephemeralKey: data.ephemeralKey,
+        customer: data.customer,
+      };
+    } catch (err) {
+      console.warn("Failed to contact payment backend, falling back to mock payment sheet parameters:", err);
+      return {
+        paymentIntent: 'mock_pi_secret_123',
+        ephemeralKey: 'mock_ek_secret_123',
+        customer: 'mock_cus_123',
+      };
+    }
   };
 
   const initializePaymentSheet = async () => {
