@@ -1,5 +1,5 @@
 import React from 'react';
-import { pool } from '../../../../lib/db/client';
+import { pool } from '../../../../lib/db';
 import { Building2, Globe, User, CheckCircle2, ArrowRight } from 'lucide-react';
 import { redirect } from 'next/navigation';
 

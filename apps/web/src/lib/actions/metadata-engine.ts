@@ -2,7 +2,6 @@
 
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
-import { inngest } from '@/inngest/client';
 import { redirect } from 'next/navigation';
 import { unstable_cache, revalidateTag } from 'next/cache';
 
@@ -251,14 +250,7 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
                 WHERE id = $1 AND tenant_id = $2
                 RETURNING id
             `;
-            const { rows } = await pool.query(query, values);
-            
-            inngest.send({
-                name: "object.record.upserted",
-                data: { tenantId, objectName: apiName, recordId: id, payload: data }
-            }).catch((e: any) => {
-                console.warn("Failed to publish event to Inngest:", e.message);
-            });
+             const { rows } = await pool.query(query, values);
             
             redirect(`/app/${apiName}`);
         } else {
@@ -287,13 +279,6 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
             `;
             const { rows } = await pool.query(query, values);
             const recordId = rows[0].id;
-            
-            inngest.send({
-                name: "object.record.upserted",
-                data: { tenantId, objectName: apiName, recordId, payload: data }
-            }).catch((e: any) => {
-                console.warn("Failed to publish event to Inngest:", e.message);
-            });
 
             redirect(`/app/${apiName}`);
         }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { pool } from '../../../lib/db/client';
+import { pool } from '../../../lib/db';
 import { z } from 'zod';
 import { enqueueJob } from '../../../lib/worker/client';
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { pool } from '../../../../lib/db/client';
+import { pool } from '../../../../lib/db';
 import { Search, Plus, Filter, MoreVertical } from 'lucide-react';
 
 import { getServerSession } from "next-auth/next";

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { pool } from '../../../../lib/db/client';
+import { pool } from '../../../../lib/db';
 
 /**
  * Core Data Router for the No-Code Engine.

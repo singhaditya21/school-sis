@@ -1,6 +1,6 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import { pool } from "../../../../lib/db/client";
+import { pool } from "../../../../lib/db";
 
 // Free, open-source Enterprise Authentication replacing Clerk/WorkOS
 export const authOptions: NextAuthOptions = {
