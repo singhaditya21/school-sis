@@ -14,14 +14,39 @@ const envSchema = z.object({
   CEREBRAS_API_KEY: z.string().min(1),
 });
 
-const _env = envSchema.safeParse(process.env);
+const isBuildPhase = 
+  process.env.npm_lifecycle_event === 'build' || 
+  process.env.NEXT_PHASE === 'phase-production-build' ||
+  process.env.SKIP_ENV_VALIDATION === 'true';
 
-if (!_env.success) {
-  console.error(
-    "❌ Invalid or missing environment variables:\n",
-    _env.error.format()
-  );
-  throw new Error("Invalid environment variables. The server will not boot in mock mode.");
+let envData: z.infer<typeof envSchema>;
+
+if (isBuildPhase) {
+  // Bypass validation during NextJS compilation/build phase
+  envData = {
+    DATABASE_URL: 'postgres://dummy:dummy@dummy:5432/dummy',
+    GOOGLE_CLIENT_ID: 'dummy',
+    GOOGLE_CLIENT_SECRET: 'dummy',
+    NEXTAUTH_SECRET: 'dummy',
+    FIREBASE_PROJECT_ID: 'dummy',
+    FIREBASE_CLIENT_EMAIL: 'dummy@dummy.com',
+    FIREBASE_PRIVATE_KEY: 'dummy',
+    STRIPE_SECRET_KEY: 'sk_dummy',
+    AWS_KMS_KEY_ID: 'arn:aws:kms:us-east-1:123456789012:key/dummy',
+    AWS_REGION: 'us-east-1',
+    CEREBRAS_API_KEY: 'dummy',
+  };
+} else {
+  const _env = envSchema.safeParse(process.env);
+
+  if (!_env.success) {
+    console.error(
+      "❌ Invalid or missing environment variables:\n",
+      _env.error.format()
+    );
+    throw new Error("Invalid environment variables. The server will not boot in mock mode.");
+  }
+  envData = _env.data;
 }
 
-export const env = _env.data;
+export const env = envData;
