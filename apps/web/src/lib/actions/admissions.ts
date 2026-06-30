@@ -392,7 +392,15 @@ export async function getDocumentChecklist(applicationId: string) {
         WHERE application_id = $1 AND tenant_id = $2
     `, [applicationId, tenantId]);
 
-    const uploadedMap = new Map(uploaded.map((d: any) => [d.documentType, d]));
+    type UploadedAdmissionDocument = {
+        documentType: string;
+        fileName: string | null;
+        fileUrl: string | null;
+        isVerified: boolean;
+    };
+    const uploadedMap = new Map<string, UploadedAdmissionDocument>(
+        uploaded.map((d: UploadedAdmissionDocument) => [d.documentType, d])
+    );
 
     return REQUIRED_DOCUMENTS.map(docType => ({
         documentType: docType,

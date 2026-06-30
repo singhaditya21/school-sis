@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
 from src.agents.fee_agent import FeeAgent
@@ -24,9 +24,10 @@ from src.agents.future_agents import (
 )
 from src.core.agent import AgentContext
 from src.core.rag import RAGPipeline
+from src.core.security import require_agent_auth, require_tenant_match
 from src.indexing.pipeline import IndexingPipeline
 
-router = APIRouter(prefix="/api/v1", tags=["agents"])
+router = APIRouter(prefix="/api/v1", tags=["agents"], dependencies=[Depends(require_agent_auth)])
 
 # Module-level state — initialised at startup
 _rag: RAGPipeline | None = None
@@ -106,7 +107,7 @@ class QueryResponse(BaseModel):
 
 
 @router.post("/agents/{agent_name}/query", response_model=QueryResponse)
-async def query_agent(agent_name: str, request: QueryRequest):
+async def query_agent(agent_name: str, request: QueryRequest, x_tenant_id: str | None = Header(default=None)):
     """Send a natural language query to a specific agent.
 
     The agent will:
@@ -117,6 +118,8 @@ async def query_agent(agent_name: str, request: QueryRequest):
     5. Return a structured answer with sources and audit trail
     """
     from src.core.security import sanitize_prompt, check_rate_limit, track_token_usage, check_subscription_tier
+
+    require_tenant_match(request.tenant_id, x_tenant_id)
 
     # 1. Prompt Injection Defense
     sanitize_prompt(request.query)
@@ -157,13 +160,15 @@ class AsyncJobResponse(BaseModel):
 
 
 @router.post("/agents/{agent_name}/query_async", response_model=AsyncJobResponse)
-async def query_agent_async(agent_name: str, request: QueryRequest):
+async def query_agent_async(agent_name: str, request: QueryRequest, x_tenant_id: str | None = Header(default=None)):
     """
     Queue an agent query for background processing to avoid frontend timeouts.
     Client receives a job_id and polls `/agents/jobs/{job_id}`.
     """
     from src.core.security import sanitize_prompt, check_rate_limit, check_subscription_tier
     from src.core.queue import get_redis_pool
+
+    require_tenant_match(request.tenant_id, x_tenant_id)
 
     sanitize_prompt(request.query)
     await check_subscription_tier(request.tenant_id)
@@ -241,7 +246,7 @@ class IndexResponse(BaseModel):
 
 
 @router.post("/indexing/full-reindex", response_model=IndexResponse)
-async def full_reindex(request: IndexRequest):
+async def full_reindex(request: IndexRequest, x_tenant_id: str | None = Header(default=None)):
     """Trigger a full reindex of all data for a tenant.
 
     This indexes all students, invoices, and grade collections into pgvector.
@@ -249,6 +254,8 @@ async def full_reindex(request: IndexRequest):
     """
     if not _indexer:
         raise HTTPException(status_code=503, detail="Indexing pipeline not initialized")
+
+    require_tenant_match(request.tenant_id, x_tenant_id)
 
     result = await _indexer.full_reindex(request.tenant_id)
     if "error" in result:
@@ -263,19 +270,21 @@ class SingleIndexRequest(BaseModel):
 
 
 @router.post("/indexing/student")
-async def index_student(request: SingleIndexRequest):
+async def index_student(request: SingleIndexRequest, x_tenant_id: str | None = Header(default=None)):
     """Incrementally index a single student (after create/update)."""
     if not _indexer:
         raise HTTPException(status_code=503, detail="Indexing pipeline not initialized")
+    require_tenant_match(request.tenant_id, x_tenant_id)
     await _indexer.index_single_student(request.tenant_id, request.entity_id)
     return {"status": "indexed", "entity_type": "student", "entity_id": str(request.entity_id)}
 
 
 @router.post("/indexing/invoice")
-async def index_invoice(request: SingleIndexRequest):
+async def index_invoice(request: SingleIndexRequest, x_tenant_id: str | None = Header(default=None)):
     """Incrementally index a single invoice (after payment/create/update)."""
     if not _indexer:
         raise HTTPException(status_code=503, detail="Indexing pipeline not initialized")
+    require_tenant_match(request.tenant_id, x_tenant_id)
     await _indexer.index_single_invoice(request.tenant_id, request.entity_id)
     return {"status": "indexed", "entity_type": "invoice", "entity_id": str(request.entity_id)}
 
@@ -286,8 +295,9 @@ from src.core.approvals import list_approvals, review_approval
 
 
 @router.get("/approvals/{tenant_id}")
-async def get_pending_approvals(tenant_id: UUID, limit: int = 50):
+async def get_pending_approvals(tenant_id: UUID, limit: int = 50, x_tenant_id: str | None = Header(default=None)):
     """List pending actions recommended by agents that require human review."""
+    require_tenant_match(tenant_id, x_tenant_id)
     approvals = await list_approvals(tenant_id, status="PENDING", limit=limit)
     return approvals
 
@@ -298,8 +308,14 @@ class ReviewRequest(BaseModel):
 
 
 @router.post("/approvals/{tenant_id}/{approval_id}/review")
-async def process_approval(tenant_id: UUID, approval_id: UUID, request: ReviewRequest):
+async def process_approval(
+    tenant_id: UUID,
+    approval_id: UUID,
+    request: ReviewRequest,
+    x_tenant_id: str | None = Header(default=None),
+):
     """Approve or reject a queued agent action. If approved, the action should ideally be executed here."""
+    require_tenant_match(tenant_id, x_tenant_id)
     result = await review_approval(
         tenant_id=tenant_id,
         approval_id=approval_id,

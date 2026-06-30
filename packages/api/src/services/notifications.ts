@@ -1,16 +1,27 @@
-import admin from 'firebase-admin';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
 
 // Zero-Cost Push Notifications replacing expensive Twilio SMS infrastructure.
-// Initialize Firebase Admin SDK
-if (!admin.apps.length) {
-  admin.initializeApp({
-    // In production, load this securely from environment variables or KMS
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID || "mock-project-id",
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL || "mock-email@mock.iam.gserviceaccount.com",
-      privateKey: (process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, '\n'),
-    }),
-  });
+function getFirebaseMessaging() {
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error('Firebase push notifications are not configured.');
+  }
+
+  if (!getApps().length) {
+    initializeApp({
+      credential: cert({
+        projectId,
+        clientEmail,
+        privateKey,
+      }),
+    });
+  }
+
+  return getMessaging();
 }
 
 export class NotificationService {
@@ -39,7 +50,7 @@ export class NotificationService {
         },
       };
 
-      const response = await admin.messaging().send(message);
+      const response = await getFirebaseMessaging().send(message);
       console.log('Successfully sent Firebase Push Notification:', response);
       return { success: true, messageId: response };
     } catch (error) {

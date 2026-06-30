@@ -23,7 +23,7 @@ export default async function AdminLayout({
         redirect('/unauthorized');
     }
 
-    const isImpersonating = session.token?.startsWith('impersonating:');
+    const isImpersonating = Boolean(session.impersonation?.actorUserId) || session.token?.startsWith('impersonating:');
 
     // Safe DB fetch to prevent UUID parsing errors for Platform Admins without immediate tenants
     let institutionType = 'K12';

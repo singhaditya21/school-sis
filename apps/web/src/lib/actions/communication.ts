@@ -89,6 +89,7 @@ export async function sendMessage(data: {
             : 'send-email';
 
     await enqueueJob(jobType as any, {
+        tenantId,
         messageId,
         channel: data.channel,
         subject: data.subject,
@@ -99,9 +100,9 @@ export async function sendMessage(data: {
     const updateQuery = `
         UPDATE messages
         SET status = 'SENT', sent_at = $1
-        WHERE id = $2
+        WHERE id = $2 AND tenant_id = $3
     `;
-    await pool.query(updateQuery, [new Date(), messageId]);
+    await pool.query(updateQuery, [new Date(), messageId, tenantId]);
 
     return { success: true, messageId };
 }

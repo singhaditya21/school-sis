@@ -2,7 +2,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq, and } from 'drizzle-orm';
 import postgres from 'postgres';
 import { hash } from 'bcryptjs';
-import * as schema from '../src/lib/db/schema';
+import * as schema from '../../../packages/api/src/db/schema';
 
 /**
  * Seed script — populates the database with realistic initial data.
@@ -54,7 +54,11 @@ async function seed() {
 
     // ─── 2. Users ────────────────────────────────────────────
     console.log('👤 Creating users...');
-    const defaultPassword = await hash('password', 12);
+    const seedPassword = process.env.SEED_USER_PASSWORD;
+    if (!seedPassword || seedPassword.length < 12) {
+        throw new Error('SEED_USER_PASSWORD is required and must be at least 12 characters.');
+    }
+    const defaultPassword = await hash(seedPassword, 12);
 
     const userSeeds = [
         { email: 'admin@greenwood.edu', firstName: 'Rajesh', lastName: 'Sharma', role: 'SUPER_ADMIN' as const },

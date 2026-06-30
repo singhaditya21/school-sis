@@ -4,6 +4,8 @@ import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { redirect } from 'next/navigation';
 import { unstable_cache, revalidateTag } from 'next/cache';
+import { hash } from 'bcryptjs';
+import crypto from 'crypto';
 
 export interface MetadataObject {
     id: string;
@@ -33,6 +35,8 @@ export interface MetadataLayout {
     schema: any;
     isDefault: boolean;
 }
+
+const PROTECTED_DATA_FIELDS = new Set(['id', 'tenantId', 'tenant_id']);
 
 async function fetchObjectMetadata(apiName: string, tenantId: string) {
     // Get Object
@@ -151,12 +155,14 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
         const customData: Record<string, any> = {};
 
         for (const [key, value] of Object.entries(data)) {
+            if (PROTECTED_DATA_FIELDS.has(key)) {
+                // Tenant ownership is derived from the authenticated session only.
+                continue;
+            }
             if (standardFields.some(f => f.apiName === key)) {
                 standardData[key] = value === '' ? null : value;
             } else if (customFields.some(f => f.apiName === key)) {
                 customData[key] = value;
-            } else if (key === 'id' || key === 'tenantId') {
-                // ignore protected
             }
         }
 
@@ -169,12 +175,24 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
                     standardData.gender = 'Other';
                 }
                 if (!standardData.grade_id) {
-                    const { rows: gradeRows } = await pool.query('SELECT id FROM grades LIMIT 1');
+                    const { rows: gradeRows } = await pool.query('SELECT id FROM grades WHERE tenant_id = $1 LIMIT 1', [tenantId]);
                     if (gradeRows.length > 0) standardData.grade_id = gradeRows[0].id;
+                } else {
+                    const { rowCount } = await pool.query(
+                        'SELECT 1 FROM grades WHERE id = $1 AND tenant_id = $2 LIMIT 1',
+                        [standardData.grade_id, tenantId]
+                    );
+                    if (rowCount === 0) throw new Error('Grade not found for tenant');
                 }
                 if (!standardData.section_id) {
-                    const { rows: sectionRows } = await pool.query('SELECT id FROM sections LIMIT 1');
+                    const { rows: sectionRows } = await pool.query('SELECT id FROM sections WHERE tenant_id = $1 LIMIT 1', [tenantId]);
                     if (sectionRows.length > 0) standardData.section_id = sectionRows[0].id;
+                } else {
+                    const { rowCount } = await pool.query(
+                        'SELECT 1 FROM sections WHERE id = $1 AND tenant_id = $2 LIMIT 1',
+                        [standardData.section_id, tenantId]
+                    );
+                    if (rowCount === 0) throw new Error('Section not found for tenant');
                 }
             }
 
@@ -189,7 +207,7 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
                     VALUES ($1, $2, $3, 'TEACHER', $4, $5)
                     RETURNING id
                 `;
-                const passwordHash = '$2a$10$dummyhash'; // dummy bcrypt password hash
+                const passwordHash = await hash(crypto.randomBytes(18).toString('base64url'), 12);
                 const firstName = customData.first_name || 'Staff';
                 const lastName = customData.last_name || 'Member';
                 const { rows: userRows } = await pool.query(userInsertQuery, [tenantId, email, passwordHash, firstName, lastName]);
@@ -210,12 +228,24 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
                     standardData.paid_amount = '0.00';
                 }
                 if (!standardData.student_id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(standardData.student_id)) {
-                    const { rows: studentRows } = await pool.query('SELECT id FROM students LIMIT 1');
+                    const { rows: studentRows } = await pool.query('SELECT id FROM students WHERE tenant_id = $1 LIMIT 1', [tenantId]);
                     if (studentRows.length > 0) standardData.student_id = studentRows[0].id;
+                } else {
+                    const { rowCount } = await pool.query(
+                        'SELECT 1 FROM students WHERE id = $1 AND tenant_id = $2 LIMIT 1',
+                        [standardData.student_id, tenantId]
+                    );
+                    if (rowCount === 0) throw new Error('Student not found for tenant');
                 }
                 if (!standardData.fee_plan_id) {
-                    const { rows: feePlanRows } = await pool.query('SELECT id FROM fee_plans LIMIT 1');
+                    const { rows: feePlanRows } = await pool.query('SELECT id FROM fee_plans WHERE tenant_id = $1 LIMIT 1', [tenantId]);
                     if (feePlanRows.length > 0) standardData.fee_plan_id = feePlanRows[0].id;
+                } else {
+                    const { rowCount } = await pool.query(
+                        'SELECT 1 FROM fee_plans WHERE id = $1 AND tenant_id = $2 LIMIT 1',
+                        [standardData.fee_plan_id, tenantId]
+                    );
+                    if (rowCount === 0) throw new Error('Fee plan not found for tenant');
                 }
             }
         }
@@ -334,7 +364,7 @@ export async function createCustomField(objectId: string, fieldData: any) {
     const { rows } = await pool.query(query, values);
     
     // Invalidate the cache when a new field is added
-    revalidateTag('metadata');
+    revalidateTag('metadata', 'max');
     
     return rows[0];
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool, } from '@/lib/db';
-import { getSession } from '@/lib/auth/session';
+import { requireApiPermission } from '@/lib/auth/api';
 import { parse } from 'csv-parse/sync';
 import { getLimit } from '@/lib/config/limits';
 
@@ -16,15 +16,23 @@ export const dynamic = "force-dynamic";
 // ─── EXPORT ──────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
-    const session = await getSession();
-    if (!session.isLoggedIn) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
     const entity = searchParams.get('entity');
-    const tenantId = session.tenantId;
-    await (tenantId);
+    const permissionByEntity: Record<string, string> = {
+        students: 'students:read',
+        fees: 'fees:read',
+        attendance: 'attendance:read',
+    };
+    const permission = entity ? permissionByEntity[entity] : undefined;
+    if (!permission) {
+        return NextResponse.json(
+            { error: 'Invalid entity. Valid: students, fees, attendance' },
+            { status: 400 }
+        );
+    }
+    const auth = await requireApiPermission(permission);
+    if (auth.ok === false) return auth.response;
+    const tenantId = auth.context.tenantId;
 
     try {
         let csvContent: string;
@@ -123,13 +131,9 @@ export async function GET(request: NextRequest) {
 // ─── IMPORT ──────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
-    const session = await getSession();
-    if (!session.isLoggedIn) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const tenantId = session.tenantId;
-    await (tenantId);
+    const auth = await requireApiPermission('students:write');
+    if (auth.ok === false) return auth.response;
+    const tenantId = auth.context.tenantId;
 
     try {
         const formData = await request.formData();
@@ -155,7 +159,7 @@ export async function POST(request: NextRequest) {
             columns: true,
             skip_empty_lines: true,
             trim: true,
-        });
+        }) as Array<Record<string, string>>;
 
         // FREE TIER: Cap import rows
         const maxRows = getLimit('CSV_IMPORT_MAX_ROWS');

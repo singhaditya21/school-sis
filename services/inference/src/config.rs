@@ -14,6 +14,8 @@ pub struct Config {
     pub model_name: String,
     #[serde(default = "default_embed_model")]
     pub embed_model_name: String,
+    #[serde(default)]
+    pub api_token: String,
 }
 
 fn default_host() -> String { "0.0.0.0".to_string() }
@@ -35,6 +37,7 @@ impl Config {
             embed_server_url: std::env::var("EMBED_SERVER_URL").unwrap_or_else(|_| default_embed_url()),
             model_name: std::env::var("MODEL_NAME").unwrap_or_else(|_| default_model_name()),
             embed_model_name: std::env::var("EMBED_MODEL_NAME").unwrap_or_else(|_| default_embed_model()),
+            api_token: std::env::var("INFERENCE_API_TOKEN").unwrap_or_default(),
         }
     }
 }

@@ -1,15 +1,26 @@
 import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || '';
 
-if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
-    console.warn('[Encryption] ENCRYPTION_KEY not set or too short. Using insecure default.');
+function getEncryptionSecret(): string {
+    const secret = process.env.PII_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY;
+    if (secret && secret.length >= 32) {
+        return secret;
+    }
+
+    if (process.env.npm_lifecycle_event === 'build' || process.env.NEXT_PHASE === 'phase-production-build') {
+        return 'dummy-secret-for-build-time-only-32-chars-long-x';
+    }
+
+    throw new Error(
+        'PII_ENCRYPTION_KEY environment variable is required and must be at least 32 characters. ' +
+        'ENCRYPTION_KEY is supported only as a legacy fallback.'
+    );
 }
 
 // Derive a proper 32-byte key from the env variable
 function getKey(): Buffer {
-    return crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
+    return crypto.createHash('sha256').update(getEncryptionSecret()).digest();
 }
 
 /**

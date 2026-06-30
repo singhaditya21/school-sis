@@ -4,12 +4,30 @@ services:
     env: node
     region: singapore # Closest to your ap-southeast-2 Supabase database for lightning-fast speeds!
     plan: free
-    buildCommand: npm install -g pnpm && pnpm install && cd apps/web && pnpm run db:push && pnpm run build
-    startCommand: cd apps/web && pnpm start
+    buildCommand: npm install -g pnpm && pnpm install --frozen-lockfile && pnpm --filter @school-sis/web run db:push && pnpm --filter @school-sis/web run build
+    startCommand: pnpm --filter @school-sis/web run start
     envVars:
       - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
         sync: false
       - key: SESSION_SECRET
         sync: false
       - key: PII_ENCRYPTION_KEY
+        sync: false
+      - key: CEREBRAS_API_KEY
+        sync: false
+      - key: AGENT_WEBHOOK_SECRET
+        sync: false
+      - key: IOT_INGEST_SECRET
+        sync: false
+      - key: IOT_SYSTEM_USER_ID
+        sync: false
+      - key: METRICS_TOKEN
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
         sync: false

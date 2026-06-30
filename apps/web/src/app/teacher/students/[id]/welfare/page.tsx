@@ -1,9 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import Link from 'next/link';
 
-export default async function StudentWelfarePage({ params }: { params: { id: string } }) {
+export default async function StudentWelfarePage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
     // Generate mock student ID using params or fallback
-    const studentId = params.id || '2023CS001';
+    const studentId = id || '2023CS001';
     
     return (
         <div className="space-y-6 max-w-6xl mx-auto">

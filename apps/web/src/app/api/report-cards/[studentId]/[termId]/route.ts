@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
+import { requireApiAuth } from '@/lib/auth/api';
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,8 @@ export async function GET(
     { params }: { params: Promise<{ studentId: string; termId: string }> }
 ) {
     const { studentId, termId } = await params;
+    const auth = await requireApiAuth();
+    if (auth.ok === false) return auth.response;
     const session = await getSession();
 
     try {
@@ -17,6 +20,7 @@ export async function GET(
             {
                 headers: {
                     'Authorization': `Bearer ${session.token}`,
+                    'X-Tenant-Id': auth.context.tenantId,
                 },
             }
         );

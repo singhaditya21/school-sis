@@ -20,17 +20,15 @@ import { eq, and, sql } from 'drizzle-orm';
 // PII Encryption (AES-256-GCM)
 // ═══════════════════════════════════════════════════════════
 
-const ENCRYPTION_KEY = process.env.PII_ENCRYPTION_KEY;
-
 function getEncryptionKey(): Buffer {
-    if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length < 32) {
+    const secret = process.env.PII_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY;
+    if (!secret || secret.length < 32) {
         throw new Error(
             'PII_ENCRYPTION_KEY environment variable is required (min 32 chars). ' +
-            'Generate with: openssl rand -hex 32'
+            'ENCRYPTION_KEY is supported only as a legacy fallback.'
         );
     }
-    // Use first 32 bytes (256 bits) for AES-256
-    return Buffer.from(ENCRYPTION_KEY.slice(0, 64), 'hex');
+    return crypto.createHash('sha256').update(secret).digest();
 }
 
 /**

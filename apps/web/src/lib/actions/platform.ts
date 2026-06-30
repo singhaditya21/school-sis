@@ -6,6 +6,8 @@ import { UserRole } from '@/lib/rbac/permissions';
 import { hash } from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
 import { getSession } from '@/lib/auth/session';
+import { establishSession, impersonationExpiresAt, legacyImpersonationActorId } from '@/lib/auth/identity';
+import crypto from 'crypto';
 
 export interface PlatformTenant {
     id: string;
@@ -178,8 +180,9 @@ export async function createTenantAction(formData: FormData) {
         );
         const newTenant = tenantRows[0];
 
-        // 3. Create SUPER_ADMIN
-        const defaultPassword = await hash('password', 12);
+        // 3. Create SUPER_ADMIN with a one-time temporary password.
+        const temporaryPassword = crypto.randomBytes(18).toString('base64url');
+        const defaultPassword = await hash(temporaryPassword, 12);
         await pool.query(
             `INSERT INTO users (tenant_id, email, first_name, last_name, role, password_hash) 
              VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -190,7 +193,7 @@ export async function createTenantAction(formData: FormData) {
         revalidatePath('/hq/tenants');
         revalidatePath('/hq');
 
-        return { success: true, tenantId: newTenant.id, code: tenantCode };
+        return { success: true, tenantId: newTenant.id, code: tenantCode, temporaryPassword };
     } catch (e: any) {
         console.error('Error creating tenant:', e);
         return { error: 'An unexpected error occurred while creating the tenant.' };
@@ -224,7 +227,10 @@ export async function impersonateTenantAction(tenantId: string) {
 
     // Find the super admin of the target tenant
     const { rows: admins } = await pool.query(
-        `SELECT id, email FROM users WHERE tenant_id = $1 AND role = 'SUPER_ADMIN' LIMIT 1`,
+        `SELECT id, email, first_name AS "firstName", last_name AS "lastName"
+         FROM users
+         WHERE tenant_id = $1 AND role = 'SUPER_ADMIN' AND is_active = true
+         LIMIT 1`,
         [tenantId]
     );
     if (admins.length === 0) return { error: 'Target tenant does not have an active admin to impersonate.' };
@@ -242,51 +248,82 @@ export async function impersonateTenantAction(tenantId: string) {
     );
     const targetCompany = tenantsData[0];
 
-    // Save Founder State & Mount Target State
     const originalId = session.userId;
-    session.userId = targetAdmin.id;
-    session.tenantId = tenantId;
-    session.role = 'SUPER_ADMIN'; // Lowered god privileges to just super admin of this node
-    session.email = targetAdmin.email;
-    if (targetCompany && targetCompany.companyId) {
-        session.companyId = targetCompany.companyId;
-        session.subscriptionTier = targetCompany.subscriptionTier;
-        session.activeModules = targetCompany.activeModules || [];
-    }
+    const originalTenantId = session.tenantId;
+    const originalEmail = session.email;
+    const startedAt = new Date().toISOString();
+    const expiresAt = impersonationExpiresAt();
 
-    // Set Impersonation Origin Pointer (using token as a hacky transport since it's "kept for backward compatibility, not used" in session)
-    session.token = `impersonating:${originalId}`;
+    await logPlatformAudit('IMPERSONATE_TENANT', `Founder requested impersonation of tenant ${tenantId}`, targetCompany?.companyId, tenantId);
+
+    establishSession(session, {
+        userId: targetAdmin.id,
+        tenantId,
+        role: 'SUPER_ADMIN',
+        email: targetAdmin.email,
+        provider: 'impersonation',
+        displayName: [targetAdmin.firstName, targetAdmin.lastName].filter(Boolean).join(' ') || targetAdmin.email,
+        companyId: targetCompany?.companyId,
+        subscriptionTier: targetCompany?.subscriptionTier,
+        activeModules: targetCompany?.activeModules || [],
+        mfaEnabled: true,
+        mfaVerified: true,
+        token: `impersonating:${originalId}`,
+        impersonation: {
+            actorUserId: originalId,
+            actorTenantId: originalTenantId,
+            actorEmail: originalEmail,
+            startedAt,
+            expiresAt,
+        },
+    });
 
     await session.save();
-    
-    await logPlatformAudit('IMPERSONATE_TENANT', `Founder requested impersonation of tenant ${tenantId}`, session.companyId, tenantId);
 
     return { success: true };
 }
 
 export async function returnToHQAction() {
     const session = await getSession();
-    if (!session.token.startsWith('impersonating:')) {
+    const originalUserId = session.impersonation?.actorUserId || legacyImpersonationActorId(session);
+    if (!originalUserId) {
         return { error: 'Not currently impersonating a session.' };
     }
 
-    const originalUserId = session.token.split(':')[1];
     const { rows: usersList } = await pool.query(
-        `SELECT id, tenant_id AS "tenantId", email FROM users WHERE id = $1 LIMIT 1`,
+        `SELECT
+            id,
+            tenant_id AS "tenantId",
+            email,
+            first_name AS "firstName",
+            last_name AS "lastName",
+            mfa_enabled AS "mfaEnabled"
+         FROM users
+         WHERE id = $1 AND role = 'PLATFORM_ADMIN' AND is_active = true
+         LIMIT 1`,
         [originalUserId]
     );
     const founder = usersList[0];
+    if (!founder) {
+        session.destroy();
+        return { error: 'Original platform session can no longer be restored.' };
+    }
     
-    session.userId = founder.id;
-    session.tenantId = founder.tenantId;
-    session.role = 'PLATFORM_ADMIN';
-    session.email = founder.email;
-    session.token = '';
-    // Strip company tier payload from local node mapping to prevent logic pollution. Platform routing doesn't require activeModules directly.
-    session.subscriptionTier = undefined;
-    session.activeModules = [];
+    establishSession(session, {
+        userId: founder.id,
+        tenantId: founder.tenantId,
+        role: 'PLATFORM_ADMIN',
+        email: founder.email,
+        provider: 'system',
+        displayName: [founder.firstName, founder.lastName].filter(Boolean).join(' ') || founder.email,
+        subscriptionTier: 'ENTERPRISE',
+        activeModules: ['ATTENDANCE', 'FEES', 'COMMUNICATION', 'AI_AGENTS', 'HIGHER_ED', 'COACHING', 'INTERNATIONAL', 'MULTI_CAMPUS', 'ENTERPRISE'],
+        mfaEnabled: Boolean(founder.mfaEnabled),
+        mfaVerified: Boolean(founder.mfaEnabled),
+    });
 
     await session.save();
+    await logPlatformAudit('RETURN_FROM_IMPERSONATION', 'Founder returned from tenant impersonation');
     return { success: true };
 }
 

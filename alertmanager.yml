@@ -13,4 +13,4 @@ receivers:
     webhook_configs:
       - url: 'http://host.docker.internal:3000/api/agent-webhook'
         http_config:
-          bearer_token: 'dev-secret'
+          bearer_token_file: /etc/alertmanager/secrets/agent_webhook_token

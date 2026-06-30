@@ -22,6 +22,7 @@ interface R2Config {
 const ALLOWED_FOLDERS = new Set([
     'documents', 'avatars', 'reports', 'invoices',
     'certificates', 'id-cards', 'attachments', 'exports',
+    'general',
 ]);
 
 /**

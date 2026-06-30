@@ -1,6 +1,6 @@
 'use server';
 
-import { withTenant } from '@/lib/db';
+import { pool, runWithRlsBypass } from '@/lib/db';
 
 export async function captureLeadAction(formData: FormData) {
     try {
@@ -19,8 +19,8 @@ export async function captureLeadAction(formData: FormData) {
             return { error: 'Invalid student capacity.' };
         }
 
-        await withTenant('platform', async (client) => {
-            await client.query(
+        await runWithRlsBypass(async () => {
+            await pool.query(
                 `INSERT INTO marketing_leads (
                     contact_name, contact_email, school_name, student_capacity, pain_points, status
                 ) VALUES ($1, $2, $3, $4, $5, $6)`,

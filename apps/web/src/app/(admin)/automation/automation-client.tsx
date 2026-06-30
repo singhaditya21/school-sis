@@ -36,7 +36,9 @@ export default function AutomationClient({ initialWorkflows }: { initialWorkflow
         
         await createWorkflow({
             name,
+            objectName: 'students',
             triggerEvent,
+            conditions: {},
             actionType,
             actionPayload: payload,
             isActive: true

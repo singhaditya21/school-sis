@@ -3,59 +3,61 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } fr
 import { useStripe } from '@stripe/stripe-react-native';
 import { config } from '../config';
 
-export function TuitionPaymentScreen() {
+export function TuitionPaymentScreen({ route }: any) {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [loading, setLoading] = useState(false);
+  const params = route?.params || {};
+  const invoiceId = params.invoiceId as string | undefined;
+  const parentCustomerId = params.parentCustomerId as string | undefined;
 
-  // Hardcoded for demonstration. In reality, fetch from /api/tuition/outstanding
-  const invoiceAmount = 5000;
-  const platformFee = invoiceAmount * 0.015; // 1.5% take rate = $75.00
+  const invoiceAmount = Number(params.invoiceAmount || 0);
+  const platformFee = invoiceAmount * 0.015;
 
   const fetchPaymentSheetParams = async () => {
-    try {
-      const response = await fetch(`${config.BACKEND_URL}/api/parent/payment-sheet`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          parentCustomerId: 'cus_JaneDoeMock',
-          schoolAccountId: 'acct_SchoolMock',
-          amountInCents: invoiceAmount * 100,
-        }),
-      });
-      const data = await response.json();
-      return {
-        paymentIntent: data.paymentIntent,
-        ephemeralKey: data.ephemeralKey,
-        customer: data.customer,
-      };
-    } catch (err) {
-      console.warn("Failed to contact payment backend, falling back to mock payment sheet parameters:", err);
-      return {
-        paymentIntent: 'mock_pi_secret_123',
-        ephemeralKey: 'mock_ek_secret_123',
-        customer: 'mock_cus_123',
-      };
+    if (!invoiceId || !parentCustomerId) {
+      throw new Error('Missing invoice or customer context.');
     }
+
+    const response = await fetch(`${config.BACKEND_URL}/api/parent/payment-sheet`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        invoiceId,
+        parentCustomerId,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Payment sheet request failed.');
+    }
+
+    return {
+      paymentIntent: data.paymentIntent,
+      ephemeralKey: data.ephemeralKey,
+      customer: data.customer,
+    };
   };
 
   const initializePaymentSheet = async () => {
-    const { paymentIntent, ephemeralKey, customer } = await fetchPaymentSheetParams();
+    try {
+      const { paymentIntent, ephemeralKey, customer } = await fetchPaymentSheetParams();
 
-    const { error } = await initPaymentSheet({
-      merchantDisplayName: "Springfield High School",
-      customerId: customer,
-      customerEphemeralKeySecret: ephemeralKey,
-      paymentIntentClientSecret: paymentIntent,
-      allowsDelayedPaymentMethods: true,
-      defaultBillingDetails: {
-        name: 'Jane Doe',
+      const { error } = await initPaymentSheet({
+        merchantDisplayName: "School SIS",
+        customerId: customer,
+        customerEphemeralKeySecret: ephemeralKey || undefined,
+        paymentIntentClientSecret: paymentIntent,
+        allowsDelayedPaymentMethods: true,
+      });
+      
+      if (!error) {
+        setLoading(true);
       }
-    });
-    
-    if (!error) {
-      setLoading(true);
+    } catch (err: any) {
+      Alert.alert('Payment unavailable', err.message);
     }
   };
 
@@ -72,8 +74,21 @@ export function TuitionPaymentScreen() {
 
   // Run initialization on mount
   React.useEffect(() => {
-    initializePaymentSheet();
-  }, []);
+    if (invoiceId && parentCustomerId) {
+      initializePaymentSheet();
+    }
+  }, [invoiceId, parentCustomerId]);
+
+  if (!invoiceId || !parentCustomerId) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.card}>
+          <Text style={styles.title}>Payment Unavailable</Text>
+          <Text style={styles.term}>Open an authenticated invoice before starting payment.</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -83,7 +98,7 @@ export function TuitionPaymentScreen() {
         
         <View style={styles.amountContainer}>
           <Text style={styles.currency}>$</Text>
-          <Text style={styles.amount}>5,000</Text>
+          <Text style={styles.amount}>{invoiceAmount.toLocaleString()}</Text>
           <Text style={styles.cents}>.00</Text>
         </View>
 

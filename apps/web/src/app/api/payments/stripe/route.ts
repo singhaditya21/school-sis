@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { getSession } from '@/lib/auth/session';
+import { requireApiAuth } from '@/lib/auth/api';
+import { readTenantScopedJson } from '@/lib/tenant/isolation';
 
 export const dynamic = "force-dynamic";
 
@@ -21,21 +22,18 @@ function getStripeClient(): Stripe {
             'Get it from your Stripe Dashboard → Developers → API keys.'
         );
     }
-    return new Stripe(key, { apiVersion: '2024-06-20' });
+    return new Stripe(key, { apiVersion: '2026-02-25.clover' });
 }
 
 export async function POST(req: Request) {
-    // Auth check — no anonymous checkout creation
-    const session = await getSession();
-    if (!session.isLoggedIn) {
-        return NextResponse.json(
-            { error: 'Authentication required' },
-            { status: 401 }
-        );
-    }
+    const auth = await requireApiAuth(['PARENT', 'ACCOUNTANT', 'SCHOOL_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN']);
+    if (auth.ok === false) return auth.response;
 
     try {
-        const body = await req.json();
+        const json = await readTenantScopedJson<Record<string, unknown>>(req, auth.context.tenantId);
+        if (json.ok === false) return json.response;
+
+        const body = json.data as any;
         const { invoiceId, amount, currency = 'USD', studentId, title } = body;
 
         if (!invoiceId || !amount) {
@@ -49,11 +47,16 @@ export async function POST(req: Request) {
         // SECURITY: Server-side invoice ownership + amount verification
         const { pool } = await import('@/lib/db');
 
+        const parentOnlyClause = auth.context.role === 'PARENT'
+            ? 'AND EXISTS (SELECT 1 FROM guardians g WHERE g.student_id = invoices.student_id AND g.tenant_id = invoices.tenant_id AND g.user_id = $3)'
+            : '';
         const { rows } = await pool.query(
             `SELECT total_amount AS "totalAmount", paid_amount AS "paidAmount", status 
              FROM invoices 
-             WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
-            [invoiceId, session.tenantId]
+             WHERE id = $1 AND tenant_id = $2 ${parentOnlyClause} LIMIT 1`,
+            auth.context.role === 'PARENT'
+                ? [invoiceId, auth.context.tenantId, auth.context.userId]
+                : [invoiceId, auth.context.tenantId]
         );
         const invoice = rows[0];
 
@@ -98,7 +101,7 @@ export async function POST(req: Request) {
             metadata: {
                 invoiceId,
                 studentId,
-                tenantId: session.tenantId,
+                tenantId: auth.context.tenantId,
             }
         });
 

@@ -1,24 +1,52 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { generateText, streamText, tool } from 'ai';
+import { streamText, tool } from 'ai';
 import { z } from 'zod';
 import { NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
+import { requireApiAuth } from '@/lib/auth/api';
+import { readTenantScopedJson } from '@/lib/tenant/isolation';
 
-// Initialize the Cerebras provider (OpenAI-compatible) for ultra-fast, cheap Llama 3 inference
-const cerebras = createOpenAI({
-  apiKey: 'csk-vfrek62k49v6c6eytt2tn6e6mvt9t95c2hfrwd2vvdw4e2ff',
-  baseURL: 'https://api.cerebras.ai/v1',
+export const dynamic = 'force-dynamic';
+
+const COPILOT_ROLES = [
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'SCHOOL_ADMIN',
+  'PRINCIPAL',
+  'ACCOUNTANT',
+  'ADMISSION_COUNSELOR',
+  'TEACHER',
+] as const;
+
+const CopilotRequestSchema = z.object({
+  prompt: z.string().trim().min(1).max(4000),
 });
 
 export async function POST(req: Request) {
   try {
-    const { prompt, tenantId } = await req.json();
+    const auth = await requireApiAuth(COPILOT_ROLES);
+    if (auth.ok === false) return auth.response;
 
-    if (!prompt) {
-      return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
+    const apiKey = process.env.CEREBRAS_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Copilot provider is not configured' }, { status: 503 });
     }
 
-    // Dynamically query the tenant's exact metadata schema from Postgres
+    const json = await readTenantScopedJson(req, auth.context.tenantId);
+    if (json.ok === false) return json.response;
+
+    const parsed = CopilotRequestSchema.safeParse(json.data);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid prompt' }, { status: 400 });
+    }
+
+    const cerebras = createOpenAI({
+      apiKey,
+      baseURL: process.env.CEREBRAS_BASE_URL || 'https://api.cerebras.ai/v1',
+    });
+
+    const tenantId = auth.context.tenantId;
+
     const schemaRes = await pool.query(
       `SELECT o.name as object_name, json_agg(f.name) as fields
        FROM metadata_objects o
@@ -47,11 +75,11 @@ ${schemaContext}`;
     const result = await streamText({
       model: cerebras('llama3.1-8b'),
       system: systemPrompt,
-      prompt: prompt,
+      prompt: parsed.data.prompt,
       tools: {
         generateReportAst: tool({
           description: 'Generates a structured Abstract Syntax Tree (AST) for the Report Builder',
-          parameters: z.object({
+          inputSchema: z.object({
             baseObject: z.string().describe('The primary metadata object to query (e.g. students, fees, attendance)'),
             chartType: z.enum(['BAR', 'PIE', 'LINE', 'DATATABLE']).describe('The recommended visualization format'),
             aggregations: z.array(z.object({
@@ -65,8 +93,6 @@ ${schemaContext}`;
             })).optional()
           }),
           execute: async (config) => {
-            // In a real execution, we would save this to the `metadata_reports` table here.
-            console.log('Generated Report Configuration:', config);
             return {
               success: true,
               message: 'Report AST generated successfully. This JSON configuration will be passed to the Recharts frontend component.',
@@ -77,7 +103,7 @@ ${schemaContext}`;
       }
     });
 
-    return result.toDataStreamResponse();
+    return result.toTextStreamResponse();
   } catch (error) {
     console.error('Error in Copilot API:', error);
     return NextResponse.json({ error: 'Failed to process request' }, { status: 500 });

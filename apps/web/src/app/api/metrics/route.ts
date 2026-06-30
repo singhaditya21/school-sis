@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { register, collectDefaultMetrics } from 'prom-client';
+import { requireBearerServiceAuth } from '@/lib/auth/api';
 
 // Only collect default metrics once to prevent memory leaks in dev/hot-reloads
 if (!global.__PROMETHEUS_COLLECTOR_INIT) {
@@ -7,8 +8,14 @@ if (!global.__PROMETHEUS_COLLECTOR_INIT) {
   global.__PROMETHEUS_COLLECTOR_INIT = true;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const authError = requireBearerServiceAuth(request, 'METRICS_TOKEN', {
+      serviceName: 'Metrics endpoint',
+      required: process.env.NODE_ENV === 'production',
+    });
+    if (authError) return authError;
+
     const metrics = await register.metrics();
     
     return new NextResponse(metrics, {

@@ -3,13 +3,36 @@ mod embeddings;
 mod health;
 mod llm;
 
-use actix_web::{web, App, HttpServer, HttpResponse, post};
+use actix_web::{web, App, HttpRequest, HttpServer, HttpResponse, post};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::config::Config;
 use crate::embeddings::EmbeddingClient;
-use crate::llm::{ChatMessage, ChatRequest, LlmClient};
+use crate::llm::{ChatMessage, LlmClient};
+
+fn authorize(req: &HttpRequest, config: &Config) -> Result<(), HttpResponse> {
+    if config.api_token.len() < 32 {
+        return Err(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+            "error": "INFERENCE_API_TOKEN is not configured"
+        })));
+    }
+
+    let expected = format!("Bearer {}", config.api_token);
+    let supplied = req
+        .headers()
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("");
+
+    if supplied != expected {
+        return Err(HttpResponse::Unauthorized().json(serde_json::json!({
+            "error": "Unauthorized"
+        })));
+    }
+
+    Ok(())
+}
 
 /// POST /v1/chat/completions — proxy to llama-server with request validation
 #[derive(Deserialize)]
@@ -22,12 +45,20 @@ struct ProxyChatRequest {
 
 #[post("/v1/chat/completions")]
 async fn chat_completions(
+    req: HttpRequest,
+    config: web::Data<Config>,
     llm: web::Data<LlmClient>,
     body: web::Json<ProxyChatRequest>,
 ) -> HttpResponse {
+    if let Err(response) = authorize(&req, &config) {
+        return response;
+    }
+
     let request = llm.build_request(
         body.messages.clone(),
         body.tools.clone(),
+        body.temperature,
+        body.max_tokens,
     );
 
     match llm.chat(request).await {
@@ -66,10 +97,16 @@ struct EmbedDataItem {
 }
 
 #[post("/v1/embeddings")]
-async fn embeddings(
+async fn embeddings_route(
+    req: HttpRequest,
+    config: web::Data<Config>,
     embed_client: web::Data<EmbeddingClient>,
     body: web::Json<ProxyEmbedRequest>,
 ) -> HttpResponse {
+    if let Err(response) = authorize(&req, &config) {
+        return response;
+    }
+
     let texts = match &body.input {
         EmbedInput::Single(s) => vec![s.clone()],
         EmbedInput::Batch(v) => v.clone(),
@@ -119,16 +156,18 @@ async fn main() -> std::io::Result<()> {
 
     let llm_client = web::Data::new(LlmClient::new(&config));
     let embed_client = web::Data::new(EmbeddingClient::new(&config));
+    let app_config = web::Data::new(config.clone());
 
     let bind_addr = format!("{}:{}", config.host, config.port);
 
     HttpServer::new(move || {
         App::new()
+            .app_data(app_config.clone())
             .app_data(llm_client.clone())
             .app_data(embed_client.clone())
             .service(health::health_check)
             .service(chat_completions)
-            .service(embeddings)
+            .service(embeddings_route)
     })
     .bind(&bind_addr)?
     .run()

@@ -1,8 +1,15 @@
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock_stripe_key', {
-  apiVersion: '2023-10-16', // Ensure you pin an API version
-});
+function getStripeClient(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    throw new Error('STRIPE_SECRET_KEY environment variable is required.');
+  }
+
+  return new Stripe(key, {
+    apiVersion: '2026-02-25.clover',
+  });
+}
 
 // The core engine for the FinTech Business Model
 export class PaymentRoutingService {
@@ -21,6 +28,7 @@ export class PaymentRoutingService {
     amountInCents: number,
     description: string
   ) {
+    const stripe = getStripeClient();
     // Calculate the 1.5% platform fee (take rate)
     const applicationFeeInCents = Math.floor(amountInCents * 0.015);
 
@@ -39,10 +47,9 @@ export class PaymentRoutingService {
         transfer_data: {
           destination: schoolStripeAccountId,
         },
-        // Optionally automatically confirm if a payment method is attached
-        confirm: true,
-        // For tests, use a mocked payment method or standard test cards
-        payment_method: 'pm_card_visa', 
+        automatic_payment_methods: {
+          enabled: true,
+        },
       });
 
       console.log(`Successfully processed $${amountInCents / 100} payment. Platform earned $${applicationFeeInCents / 100}.`);
@@ -63,6 +70,7 @@ export class PaymentRoutingService {
     developerStripeAccountId: string,
     monthlyAmountInCents: number
   ) {
+    const stripe = getStripeClient();
     const applicationFeeInCents = Math.floor(monthlyAmountInCents * 0.30);
 
     // Similar to above, but using a subscription model instead of a one-time charge.

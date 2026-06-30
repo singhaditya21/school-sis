@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/db";
-import { getSession } from "@/lib/auth/session";
+import { pool, runWithRlsBypass } from "@/lib/db";
+import { requireApiAuth, ROLE_GROUPS } from "@/lib/auth/api";
 
 export const dynamic = 'force-dynamic';
 
@@ -14,11 +14,8 @@ export const dynamic = 'force-dynamic';
  */
 
 export async function GET() {
-    // SECURITY: Require PLATFORM_ADMIN authentication
-    const session = await getSession();
-    if (!session.isLoggedIn || session.role !== 'PLATFORM_ADMIN') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await requireApiAuth(ROLE_GROUPS.platform);
+    if (auth.ok === false) return auth.response;
 
     // SECURITY: Block in production unless explicitly allowed
     if (process.env.NODE_ENV === 'production' && process.env.ALLOW_FORCE_MIGRATE !== 'true') {
@@ -28,8 +25,9 @@ export async function GET() {
         );
     }
 
+    return runWithRlsBypass(async () => {
     try {
-        console.log("Starting forced migration (authenticated by", session.email, ")...");
+        console.log("Starting forced migration (authenticated by", auth.context.email, ")...");
 
         // 1. Add missing enum role if not exists
         try {
@@ -71,4 +69,5 @@ export async function GET() {
         console.error('Fatal Migration Error:', error);
         return NextResponse.json({ success: false, error: 'Migration failed' }, { status: 500 });
     }
+    });
 }

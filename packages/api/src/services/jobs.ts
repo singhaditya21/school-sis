@@ -7,9 +7,9 @@
  * 
  * Usage:
  *   import { enqueueJob } from '@/lib/services/jobs';
- *   await enqueueJob('send-sms', { phone: '...', message: '...' });
- *   await enqueueJob('email', { to: '...', subject: '...', body: '...' });
- *   await enqueueJob('generate-report', { type: 'attendance', date: '...' });
+ *   await enqueueJob('send-sms', { tenantId, phone: '...', message: '...' });
+ *   await enqueueJob('email', { tenantId, to: '...', subject: '...', body: '...' });
+ *   await enqueueJob('generate-report', { tenantId, type: 'attendance', date: '...' });
  */
 
 export type JobType =
@@ -23,6 +23,7 @@ export type JobType =
     | 'sync-data';
 
 export interface JobPayload {
+    tenantId?: unknown;
     [key: string]: unknown;
 }
 
@@ -35,6 +36,12 @@ export interface JobResult {
 
 // Job handlers registry
 const handlers: Record<string, (payload: JobPayload) => Promise<unknown>> = {};
+
+function assertTenantJobPayload(type: JobType, payload: JobPayload) {
+    if (typeof payload.tenantId !== 'string' || payload.tenantId.length === 0) {
+        throw new Error(`Job '${type}' requires a tenantId payload field.`);
+    }
+}
 
 export function registerHandler(type: JobType, handler: (payload: JobPayload) => Promise<unknown>) {
     handlers[type] = handler;
@@ -83,6 +90,8 @@ async function executeSyncJob(type: string, payload: JobPayload): Promise<JobRes
 
 // ─── Public API ───────────────────────────────────────────
 export async function enqueueJob(type: JobType, payload: JobPayload): Promise<JobResult> {
+    assertTenantJobPayload(type, payload);
+
     const mode = process.env.JOB_QUEUE_MODE || 'sync';
 
     if (mode === 'bullmq') {

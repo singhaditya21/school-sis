@@ -6,13 +6,13 @@ import { HomeScreen } from './screens/HomeScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { TuitionPaymentScreen } from './screens/TuitionPaymentScreen';
 import { NotificationCenterScreen } from './screens/NotificationCenterScreen';
+import { config } from './config';
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
-    // In production, publishableKey is fetched from environment variables
-    <StripeProvider publishableKey="pk_live_mock_publishable_key">
+    <StripeProvider publishableKey={config.STRIPE_PUBLISHABLE_KEY}>
       <NavigationContainer>
         <Stack.Navigator initialRouteName="Login">
           <Stack.Screen 

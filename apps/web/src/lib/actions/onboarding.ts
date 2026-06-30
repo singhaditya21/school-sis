@@ -1,12 +1,16 @@
 'use server';
 
-import { pool } from '@/lib/db';
+import { pool, runWithRlsBypass } from '@/lib/db';
 import { hash } from 'bcryptjs';
 import { cookies } from 'next/headers';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, SessionData } from '@/lib/auth/session';
 
 export async function setupSchoolWorkspace(formData: FormData) {
+    return runWithRlsBypass(() => setupSchoolWorkspaceWithBypass(formData));
+}
+
+async function setupSchoolWorkspaceWithBypass(formData: FormData) {
     try {
         const schoolName = formData.get('schoolName') as string;
         const firstName = formData.get('adminFirstName') as string;

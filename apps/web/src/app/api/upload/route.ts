@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
+import { requireApiAuth } from '@/lib/auth/api';
+import { createTenantStorageKey, readTenantScopedFormData } from '@/lib/tenant/isolation';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 export const dynamic = "force-dynamic";
@@ -19,14 +20,20 @@ const s3Client = new S3Client({
 
 export async function POST(request: NextRequest) {
     try {
-        const session = await getSession();
-        if (!session.isLoggedIn) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const auth = await requireApiAuth();
+        if (auth.ok === false) return auth.response;
+
+        const bucket = process.env.AWS_S3_BUCKET;
+        if (!bucket) {
+            return NextResponse.json({ error: 'Storage is not configured' }, { status: 503 });
         }
 
-        const formData = await request.formData();
+        const form = await readTenantScopedFormData(request, auth.context.tenantId);
+        if (form.ok === false) return form.response;
+
+        const formData = form.data;
         const file = formData.get('file') as File | null;
-        const folder = (formData.get('folder') as string) || 'general';
+        const folder = (formData.get('folder') as string) || 'documents';
 
         if (!file) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -43,23 +50,27 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        if (folder.includes('..') || folder.includes('~') || folder.startsWith('/')) {
-            return NextResponse.json({ error: 'Invalid folder name' }, { status: 400 });
+        const buffer = Buffer.from(await file.arrayBuffer());
+        let key: string;
+        try {
+            key = createTenantStorageKey(auth.context.tenantId, folder, file.name);
+        } catch (error: any) {
+            return NextResponse.json({ error: error.message || 'Invalid upload path' }, { status: 400 });
         }
 
-        const buffer = Buffer.from(await file.arrayBuffer());
-        const key = `${folder}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-
         const command = new PutObjectCommand({
-            Bucket: process.env.AWS_S3_BUCKET!,
+            Bucket: bucket,
             Key: key,
             Body: buffer,
             ContentType: file.type,
+            Metadata: {
+                tenantId: auth.context.tenantId,
+            },
         });
 
         await s3Client.send(command);
 
-        const url = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+        const url = `https://${bucket}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
 
         return NextResponse.json({
             success: true,

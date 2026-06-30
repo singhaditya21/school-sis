@@ -2,7 +2,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
 import postgres from 'postgres';
 import { hash } from 'bcryptjs';
-import * as schema from '../src/lib/db/schema';
+import * as schema from '../../../packages/api/src/db/schema';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -55,10 +55,14 @@ async function setup() {
     const [existingFounder] = await db.select().from(schema.users).where(eq(schema.users.email, 'founder@scholarmind.com'));
 
     if (existingFounder) {
-        console.log('✅ Founder account already exists: founder@scholarmind.com / password');
+        console.log('✅ Founder account already exists: founder@scholarmind.com');
     } else {
         console.log('👤 Creating founder user...');
-        const defaultPassword = await hash('password', 12);
+        const founderPassword = process.env.FOUNDER_PASSWORD;
+        if (!founderPassword || founderPassword.length < 12) {
+            throw new Error('FOUNDER_PASSWORD is required and must be at least 12 characters.');
+        }
+        const defaultPassword = await hash(founderPassword, 12);
         
         await db.insert(schema.users).values({
             tenantId: hqTenant.id,
@@ -68,7 +72,7 @@ async function setup() {
             lastName: 'Founder',
             role: 'SUPER_ADMIN',
         });
-        console.log('✅ Founder account created: founder@scholarmind.com / password');
+        console.log('✅ Founder account created: founder@scholarmind.com');
     }
 
     await client.end();

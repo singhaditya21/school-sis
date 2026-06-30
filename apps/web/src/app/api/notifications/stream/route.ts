@@ -15,24 +15,22 @@ import { NextRequest, NextResponse } from 'next/server';
  * SECURITY: Requires authenticated session via cookie.
  */
 
-import { getSession } from '@/lib/auth/session';
+import { requireApiAuth } from '@/lib/auth/api';
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-    const session = await getSession();
-    if (!session.isLoggedIn) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireApiAuth();
+    if (auth.ok === false) return auth.response;
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
         start(controller) {
             // Send initial connection event
             const connectEvent = `event: connected\ndata: ${JSON.stringify({
-                userId: session.userId,
-                tenantId: session.tenantId,
-                role: session.role,
+                userId: auth.context.userId,
+                tenantId: auth.context.tenantId,
+                role: auth.context.role,
                 timestamp: new Date().toISOString(),
             })}\n\n`;
             controller.enqueue(encoder.encode(connectEvent));

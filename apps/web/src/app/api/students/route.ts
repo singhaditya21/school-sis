@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createStudent } from '@/lib/actions/mutations';
-import { redirect } from 'next/navigation';
+import { requireApiPermission } from '@/lib/auth/api';
+import { readTenantScopedFormData } from '@/lib/tenant/isolation';
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+    const auth = await requireApiPermission('students:write');
+    if (auth.ok === false) return auth.response;
+
     try {
-        const formData = await request.formData();
+        const form = await readTenantScopedFormData(request, auth.context.tenantId);
+        if (form.ok === false) return form.response;
+
+        const formData = form.data;
         const result = await createStudent(formData);
 
         if (result.success) {

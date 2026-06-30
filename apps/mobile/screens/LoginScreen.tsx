@@ -10,9 +10,13 @@ export function LoginScreen({ navigation }: any) {
         
         <View style={styles.buttonContainer}>
           <Button 
-            title="Login securely" 
-            onPress={() => navigation.navigate('Home')} 
+            title="Mobile login not configured" 
+            disabled
+            onPress={() => undefined} 
           />
+          <Text style={styles.notice}>
+            Use the web portal until a token-based mobile login endpoint is available.
+          </Text>
         </View>
       </View>
     </SafeAreaView>
@@ -43,5 +47,11 @@ const styles = StyleSheet.create({
   buttonContainer: {
     width: '100%',
     maxWidth: 300,
+  },
+  notice: {
+    color: '#666',
+    fontSize: 13,
+    marginTop: 16,
+    textAlign: 'center',
   }
 });

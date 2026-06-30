@@ -30,6 +30,7 @@ export * from './messaging';
 export * from './consent';
 export * from './automation';
 export * from './documents';
+export * from './metadata';
 
 // Phase 4 Expansions (Advanced Education Sectors)
 export * from './higher_ed';

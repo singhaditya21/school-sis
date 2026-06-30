@@ -1,5 +1,7 @@
 import Constants from 'expo-constants';
 
+const extra = (Constants.expoConfig?.extra || {}) as Record<string, string | undefined>;
+
 // Dynamically resolve localhost network IP for iOS simulator, Android emulator, or physical devices
 const getBackendUrl = () => {
   const hostUri = Constants.expoConfig?.hostUri;
@@ -14,5 +16,6 @@ const getBackendUrl = () => {
 };
 
 export const config = {
-  BACKEND_URL: getBackendUrl(),
+  BACKEND_URL: process.env.EXPO_PUBLIC_BACKEND_URL || extra.backendUrl || getBackendUrl(),
+  STRIPE_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || extra.stripePublishableKey || '',
 };

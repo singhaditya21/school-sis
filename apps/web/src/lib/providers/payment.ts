@@ -1,7 +1,7 @@
 /**
  * Payment Provider — mock + Razorpay implementation.
  * 
- * Set PAYMENT_PROVIDER env var to 'mock' (default) or 'razorpay'.
+ * Set PAYMENT_PROVIDER env var to 'razorpay'. Mock is development-only unless explicitly enabled.
  * For Razorpay: Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.
  */
 
@@ -130,7 +130,11 @@ class RazorpayProvider implements PaymentProvider {
                 .update(payload)
                 .digest('hex');
 
-            const verified = expectedSignature === options.signature;
+            const verified = /^[0-9a-f]{64}$/i.test(options.signature)
+                && crypto.timingSafeEqual(
+                    Buffer.from(expectedSignature, 'hex'),
+                    Buffer.from(options.signature, 'hex'),
+                );
             return { success: true, data: { verified } };
         } catch (err: any) {
             return { success: false, error: err.message };
@@ -159,18 +163,22 @@ let _instance: PaymentProvider | null = null;
 
 export function getPaymentProvider(): PaymentProvider {
     if (!_instance) {
-        const provider = process.env.PAYMENT_PROVIDER || 'mock';
+        const provider = process.env.PAYMENT_PROVIDER || (process.env.NODE_ENV === 'production' ? '' : 'mock');
         switch (provider) {
             case 'razorpay':
                 _instance = new RazorpayProvider();
                 break;
             case 'mock':
-            default:
+                if (process.env.NODE_ENV === 'production' && process.env.ENABLE_MOCK_PAYMENTS !== 'true') {
+                    throw new Error('Mock payment provider is disabled in production');
+                }
                 _instance = new MockPaymentProvider();
+                break;
+            default:
+                throw new Error('PAYMENT_PROVIDER must be configured');
                 break;
         }
         console.log(`[Payment] Using ${provider} provider`);
     }
     return _instance;
 }
-

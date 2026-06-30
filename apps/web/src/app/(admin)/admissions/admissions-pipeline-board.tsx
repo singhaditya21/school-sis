@@ -123,7 +123,7 @@ export default function AdmissionsPipelineBoard({
     const columnLeads: Record<string, AdmissionLeadItem[]> = {};
     for (const col of PIPELINE_COLUMNS) {
         columnLeads[col.key] = leads.filter((l) =>
-            col.stages.includes(l.stage as any)
+            col.stages.some((stage) => stage === l.stage)
         );
     }
 

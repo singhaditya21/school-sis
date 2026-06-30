@@ -2,19 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/server';
 import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
+import { requireApiAuth, ROLE_GROUPS } from '@/lib/auth/api';
+import { readTenantScopedJson } from '@/lib/tenant/isolation';
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
     try {
-        // Authenticate request to ensure only logged in "unpaid" users can checkout
-        // Alternatively, maybe they are just created via auth system.
+        const auth = await requireApiAuth(ROLE_GROUPS.tenantAdmins);
+        if (auth.ok === false) return auth.response;
+
         const session = await getSession();
-        if (!session || !session.userId || !session.tenantId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        if (!session.companyId) {
+            return NextResponse.json({ error: 'Company context is required' }, { status: 400 });
         }
 
-        const body = await req.json();
+        const json = await readTenantScopedJson<Record<string, unknown>>(req, auth.context.tenantId);
+        if (json.ok === false) return json.response;
+
+        const body = json.data as any;
         const { priceId, planType } = body;
 
         if (!priceId) {

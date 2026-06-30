@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { pool } from '@/lib/db';
+import { pool, runWithTenantContext } from '@/lib/db';
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 function getStripeClient(): Stripe {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) throw new Error('STRIPE_SECRET_KEY is required');
-    return new Stripe(key, { apiVersion: '2024-06-20' });
+    return new Stripe(key, { apiVersion: '2026-02-25.clover' });
 }
 
 function getWebhookSecret(): string {
@@ -67,29 +67,31 @@ export async function POST(request: NextRequest) {
                 const invoiceId = session.metadata?.invoiceId;
                 const tenantId = session.metadata?.tenantId;
 
-                if (invoiceId) {
-                    // Mark invoice as paid
-                    await pool.query(
-                        `UPDATE invoices SET status = $1, paid_at = $2, paid_amount = $3, updated_at = $4 WHERE id = $5`,
-                        ['PAID', new Date(), String((session.amount_total || 0) / 100), new Date(), invoiceId]
-                    );
-
-                    // Create payment record
+                if (invoiceId && tenantId) {
                     const paymentId = crypto.randomUUID();
-                    await pool.query(
-                        `INSERT INTO payments (id, invoice_id, tenant_id, amount, method, reference_number, paid_at, created_at)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-                        [
-                            paymentId,
-                            invoiceId,
-                            tenantId || '',
-                            String((session.amount_total || 0) / 100),
-                            'STRIPE',
-                            (session.payment_intent as string) || session.id,
-                            new Date(),
-                            new Date(),
-                        ]
-                    );
+                    await runWithTenantContext(tenantId, async () => {
+                        // Mark invoice as paid
+                        await pool.query(
+                            `UPDATE invoices SET status = $1, paid_at = $2, paid_amount = $3, updated_at = $4 WHERE id = $5 AND tenant_id = $6`,
+                            ['PAID', new Date(), String((session.amount_total || 0) / 100), new Date(), invoiceId, tenantId]
+                        );
+
+                        // Create payment record
+                        await pool.query(
+                            `INSERT INTO payments (id, invoice_id, tenant_id, amount, method, reference_number, paid_at, created_at)
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                            [
+                                paymentId,
+                                invoiceId,
+                                tenantId,
+                                String((session.amount_total || 0) / 100),
+                                'STRIPE',
+                                (session.payment_intent as string) || session.id,
+                                new Date(),
+                                new Date(),
+                            ]
+                        );
+                    });
 
                     console.log(`[Stripe Webhook] Invoice ${invoiceId} marked as PAID (payment: ${paymentId})`);
                 }

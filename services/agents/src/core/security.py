@@ -7,12 +7,13 @@ LLM jailbreaks, and enforces SaaS subscription tiers.
 from __future__ import annotations
 
 import re
+import hmac
 from datetime import datetime
 from uuid import UUID
 
 import redis.asyncio as redis
 import structlog
-from fastapi import HTTPException
+from fastapi import Header, HTTPException
 
 from src.config import settings
 
@@ -33,6 +34,32 @@ JAILBREAK_PATTERNS = [
     r"act\s+as\s+.*without\s+restrictions",
 ]
 COMPILED_JAILBREAKS = [re.compile(p, re.IGNORECASE) for p in JAILBREAK_PATTERNS]
+
+
+async def require_agent_auth(authorization: str | None = Header(default=None)) -> None:
+    """Require a service bearer token for agent API routes."""
+    token = settings.api_token
+    if not token or len(token) < 32:
+        raise HTTPException(status_code=503, detail="Agent API token is not configured.")
+
+    supplied = ""
+    if authorization and authorization.startswith("Bearer "):
+        supplied = authorization.removeprefix("Bearer ").strip()
+
+    if not supplied or not hmac.compare_digest(supplied, token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+def require_tenant_match(route_tenant_id: UUID, header_tenant_id: str | None) -> None:
+    """Bind service-token calls to the explicit tenant requested by the web app."""
+    if not header_tenant_id:
+        raise HTTPException(status_code=400, detail="X-Tenant-Id header is required.")
+    try:
+        header_uuid = UUID(header_tenant_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid X-Tenant-Id header.")
+    if header_uuid != route_tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant header does not match request tenant.")
 
 
 async def init_redis(url: str | None = None) -> None:
@@ -79,8 +106,9 @@ async def check_subscription_tier(tenant_id: UUID) -> None:
     A DB blip should not grant free AI access.
     """
     if not settings.database_url:
-        # Bypassed in test environment where database_url is empty
-        return
+        if settings.environment == "test":
+            return
+        raise HTTPException(status_code=503, detail="Database is not configured for subscription checks.")
 
     import psycopg
     try:

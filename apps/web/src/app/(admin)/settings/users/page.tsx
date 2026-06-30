@@ -26,24 +26,9 @@ export default function UserManagementPage() {
     const [newUser, setNewUser] = useState({ email: '', firstName: '', lastName: '', role: 'TEACHER', password: '' });
     const [saving, setSaving] = useState(false);
 
-    // Initialize auth token and fetch users on mount
+    // Load users on mount
     useEffect(() => {
-        const initializeAndLoad = async () => {
-            // Fetch token from session and store in localStorage for API client
-            try {
-                const tokenRes = await fetch('/api/auth/token');
-                if (tokenRes.ok) {
-                    const { token } = await tokenRes.json();
-                    if (token) {
-                        localStorage.setItem('accessToken', token);
-                    }
-                }
-            } catch (e) {
-                // Session not available, will use demo data
-            }
-            loadUsers();
-        };
-        initializeAndLoad();
+        loadUsers();
     }, []);
 
     const loadUsers = async () => {

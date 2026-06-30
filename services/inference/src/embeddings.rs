@@ -65,14 +65,9 @@ impl EmbeddingClient {
         }
 
         let embed_response: EmbeddingResponse = response.json().await?;
-        let mut embeddings: Vec<Vec<f32>> = embed_response
-            .data
-            .into_iter()
-            .map(|d| d.embedding)
-            .collect();
-
-        // Ensure consistent ordering
-        embeddings.sort_by_key(|_| 0); // already ordered by index in response
+        let mut data = embed_response.data;
+        data.sort_by_key(|d| d.index);
+        let embeddings: Vec<Vec<f32>> = data.into_iter().map(|d| d.embedding).collect();
 
         Ok(embeddings)
     }

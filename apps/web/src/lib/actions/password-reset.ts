@@ -1,6 +1,6 @@
 'use server';
 
-import { pool } from '@/lib/db';
+import { pool, runWithRlsBypass } from '@/lib/db';
 import { hash } from 'bcryptjs';
 import crypto from 'crypto';
 import { sendPasswordResetEmail } from '@/lib/services/email';
@@ -24,6 +24,10 @@ import { sendPasswordResetEmail } from '@/lib/services/email';
  * Request a password reset email.
  */
 export async function requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
+    return runWithRlsBypass(() => requestPasswordResetWithBypass(email));
+}
+
+async function requestPasswordResetWithBypass(email: string): Promise<{ success: boolean; message: string }> {
     if (!email || !email.includes('@')) {
         return { success: false, message: 'Please enter a valid email address' };
     }
@@ -79,6 +83,10 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
  * Validate a password reset token.
  */
 export async function validateResetToken(token: string): Promise<{ valid: boolean; userId?: string }> {
+    return runWithRlsBypass(() => validateResetTokenWithBypass(token));
+}
+
+async function validateResetTokenWithBypass(token: string): Promise<{ valid: boolean; userId?: string }> {
     if (!token) return { valid: false };
 
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
@@ -105,6 +113,13 @@ export async function validateResetToken(token: string): Promise<{ valid: boolea
  * Reset the password using a valid token.
  */
 export async function resetPassword(
+    token: string,
+    newPassword: string,
+): Promise<{ success: boolean; message: string }> {
+    return runWithRlsBypass(() => resetPasswordWithBypass(token, newPassword));
+}
+
+async function resetPasswordWithBypass(
     token: string,
     newPassword: string,
 ): Promise<{ success: boolean; message: string }> {

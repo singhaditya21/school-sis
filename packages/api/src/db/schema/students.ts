@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, integer, date, pgEnum, customType } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean, integer, date, pgEnum, customType, jsonb, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { tenants, users } from './core';
 import { grades, sections } from './academic';
@@ -44,9 +44,12 @@ export const students = pgTable('students', {
             return 'text';
         },
     })('embedding'),
+    customData: jsonb('custom_data').$type<Record<string, unknown>>().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+    customDataIdx: index('idx_students_custom_data').using('gin', table.customData),
+}));
 
 // ─── Guardians ───────────────────────────────────────────────
 

@@ -24,6 +24,14 @@ structlog.configure(
 logger = structlog.get_logger()
 
 
+def configured_origins() -> list[str]:
+    if settings.allowed_origins:
+        return [origin.strip() for origin in settings.allowed_origins.split(",") if origin.strip()]
+    if settings.environment == "production":
+        return []
+    return ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
@@ -64,10 +72,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allow all origins for Vercel demo
+    allow_origins=configured_origins(),
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type", "X-Tenant-Id"],
 )
 
 app.include_router(router)

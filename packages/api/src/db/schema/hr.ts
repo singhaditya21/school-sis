@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, integer, numeric, boolean, date, pgEnum, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, integer, numeric, boolean, date, pgEnum, jsonb, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { tenants, users } from './core';
 
@@ -69,9 +69,12 @@ export const staffProfiles = pgTable('staff_profiles', {
     address: text('address'),
     emergencyContact: varchar('emergency_contact', { length: 20 }),
     emergencyContactName: varchar('emergency_contact_name', { length: 100 }),
+    customData: jsonb('custom_data').$type<Record<string, unknown>>().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+    customDataIdx: index('idx_staff_profiles_custom_data').using('gin', table.customData),
+}));
 
 // ─── Leave Policies ──────────────────────────────────────────
 

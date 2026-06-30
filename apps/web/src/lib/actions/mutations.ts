@@ -9,11 +9,118 @@ import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function assertUuid(value: string, label: string) {
+    if (!value || !UUID_RE.test(value)) {
+        throw new Error(`Invalid ${label}`);
+    }
+}
+
+async function assertGradeAndSectionBelongToTenant(tenantId: string, gradeId: string, sectionId: string) {
+    assertUuid(gradeId, 'grade');
+    assertUuid(sectionId, 'section');
+
+    const { rowCount } = await pool.query(
+        `SELECT 1
+         FROM sections sec
+         JOIN grades g ON g.id = sec.grade_id AND g.tenant_id = sec.tenant_id
+         WHERE sec.id = $1
+           AND sec.tenant_id = $2
+           AND g.id = $3
+         LIMIT 1`,
+        [sectionId, tenantId, gradeId],
+    );
+
+    if (rowCount === 0) {
+        throw new Error('Grade or section not found for tenant');
+    }
+}
+
+async function assertSectionBelongsToTenant(tenantId: string, sectionId: string) {
+    assertUuid(sectionId, 'section');
+
+    const { rowCount } = await pool.query(
+        `SELECT 1 FROM sections WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [sectionId, tenantId],
+    );
+
+    if (rowCount === 0) {
+        throw new Error('Section not found for tenant');
+    }
+}
+
+async function assertStudentsBelongToSection(tenantId: string, sectionId: string, studentIds: string[]) {
+    const uniqueStudentIds = Array.from(new Set(studentIds));
+    uniqueStudentIds.forEach((studentId) => assertUuid(studentId, 'student'));
+    if (uniqueStudentIds.length === 0) return;
+
+    const { rows } = await pool.query(
+        `SELECT id
+         FROM students
+         WHERE tenant_id = $1
+           AND section_id = $2
+           AND id = ANY($3::uuid[])`,
+        [tenantId, sectionId, uniqueStudentIds],
+    );
+
+    if (rows.length !== uniqueStudentIds.length) {
+        throw new Error('One or more students do not belong to this tenant section');
+    }
+}
+
+async function assertStudentsBelongToTenant(tenantId: string, studentIds: string[]) {
+    const uniqueStudentIds = Array.from(new Set(studentIds));
+    uniqueStudentIds.forEach((studentId) => assertUuid(studentId, 'student'));
+    if (uniqueStudentIds.length === 0) return;
+
+    const { rows } = await pool.query(
+        `SELECT id
+         FROM students
+         WHERE tenant_id = $1
+           AND id = ANY($2::uuid[])`,
+        [tenantId, uniqueStudentIds],
+    );
+
+    if (rows.length !== uniqueStudentIds.length) {
+        throw new Error('One or more students do not belong to this tenant');
+    }
+}
+
+async function assertAcademicYearBelongsToTenant(tenantId: string, academicYearId: string) {
+    assertUuid(academicYearId, 'academic year');
+
+    const { rowCount } = await pool.query(
+        `SELECT 1 FROM academic_years WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [academicYearId, tenantId],
+    );
+
+    if (rowCount === 0) {
+        throw new Error('Academic year not found for tenant');
+    }
+}
+
+async function assertExamBelongsToTenant(tenantId: string, examId: string) {
+    assertUuid(examId, 'exam');
+
+    const { rowCount } = await pool.query(
+        `SELECT 1 FROM exams WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [examId, tenantId],
+    );
+
+    if (rowCount === 0) {
+        throw new Error('Exam not found for tenant');
+    }
+}
+
 // ─── Create Student ───────────────────────────────────────
 export async function createStudent(formData: FormData) {
     const { tenantId, userId } = await requireAuth('students:write');
 
     const admissionNumber = `ADM-${Date.now().toString(36).toUpperCase()}`;
+    const gradeId = formData.get('gradeId') as string;
+    const sectionId = formData.get('sectionId') as string;
+    await assertGradeAndSectionBelongToTenant(tenantId, gradeId, sectionId);
 
     const insertRes = await pool.query(
         `INSERT INTO students (
@@ -29,8 +136,8 @@ export async function createStudent(formData: FormData) {
             formData.get('dateOfBirth') as string,
             formData.get('gender') as string,
             (formData.get('bloodGroup') as string) || null,
-            formData.get('gradeId') as string,
-            formData.get('sectionId') as string,
+            gradeId,
+            sectionId,
             formData.get('rollNumber') ? parseInt(formData.get('rollNumber') as string) : null,
             (formData.get('admissionDate') as string) || new Date().toISOString().split('T')[0],
             (formData.get('address') as string) || null,
@@ -67,6 +174,7 @@ export async function saveAttendance(formData: FormData) {
 
     const sectionId = formData.get('sectionId') as string;
     const date = formData.get('date') as string;
+    await assertSectionBelongsToTenant(tenantId, sectionId);
 
     // Extract status entries from form
     const entries: { studentId: string; status: string }[] = [];
@@ -76,6 +184,7 @@ export async function saveAttendance(formData: FormData) {
             entries.push({ studentId: match[1], status: value as string });
         }
     }
+    await assertStudentsBelongToSection(tenantId, sectionId, entries.map((entry) => entry.studentId));
 
     // Upsert attendance records
     for (const entry of entries) {
@@ -86,8 +195,8 @@ export async function saveAttendance(formData: FormData) {
 
         if (existingRes.rows.length > 0) {
             await pool.query(
-                `UPDATE attendance_records SET status = $1, marked_by = $2 WHERE id = $3`,
-                [entry.status, userId, existingRes.rows[0].id]
+                `UPDATE attendance_records SET status = $1, marked_by = $2 WHERE id = $3 AND tenant_id = $4`,
+                [entry.status, userId, existingRes.rows[0].id, tenantId]
             );
         } else {
             await pool.query(
@@ -146,8 +255,8 @@ export async function recordPayment(formData: FormData) {
     const newStatus = newPaid >= Number(invoice.totalAmount) ? 'PAID' : 'PARTIAL';
 
     await pool.query(
-        `UPDATE invoices SET paid_amount = $1, status = $2 WHERE id = $3`,
-        [String(newPaid), newStatus, invoiceId]
+        `UPDATE invoices SET paid_amount = $1, status = $2 WHERE id = $3 AND tenant_id = $4`,
+        [String(newPaid), newStatus, invoiceId, tenantId]
     );
 
     // Create receipt
@@ -170,6 +279,8 @@ export async function recordPayment(formData: FormData) {
 // ─── Create Fee Plan ──────────────────────────────────────
 export async function createFeePlan(formData: FormData) {
     const { tenantId } = await requireAuth('fees:write');
+    const academicYearId = formData.get('academicYearId') as string;
+    await assertAcademicYearBelongsToTenant(tenantId, academicYearId);
 
     const planRes = await pool.query(
         `INSERT INTO fee_plans (id, tenant_id, name, academic_year_id, description)
@@ -179,7 +290,7 @@ export async function createFeePlan(formData: FormData) {
             randomUUID(),
             tenantId,
             formData.get('name') as string,
-            formData.get('academicYearId') as string,
+            academicYearId,
             (formData.get('description') as string) || null
         ]
     );
@@ -190,6 +301,8 @@ export async function createFeePlan(formData: FormData) {
 // ─── Create Exam ──────────────────────────────────────────
 export async function createExam(formData: FormData) {
     const { tenantId } = await requireAuth('exams:write');
+    const academicYearId = formData.get('academicYearId') as string;
+    await assertAcademicYearBelongsToTenant(tenantId, academicYearId);
 
     const examRes = await pool.query(
         `INSERT INTO exams (id, tenant_id, name, type, academic_year_id, start_date, end_date, description)
@@ -200,7 +313,7 @@ export async function createExam(formData: FormData) {
             tenantId,
             formData.get('name') as string,
             formData.get('type') as string,
-            formData.get('academicYearId') as string,
+            academicYearId,
             formData.get('startDate') as string,
             formData.get('endDate') as string,
             (formData.get('description') as string) || null
@@ -218,6 +331,8 @@ export async function markClassAttendance(
 ) {
     const { tenantId, userId } = await requireAuth('attendance:write');
     const dateStr = date.toISOString().split('T')[0];
+    await assertSectionBelongsToTenant(tenantId, sectionId);
+    await assertStudentsBelongToSection(tenantId, sectionId, attendanceData.map((entry) => entry.studentId));
 
     for (const entry of attendanceData) {
         const existingRes = await pool.query(
@@ -227,8 +342,8 @@ export async function markClassAttendance(
 
         if (existingRes.rows.length > 0) {
             await pool.query(
-                `UPDATE attendance_records SET status = $1, marked_by = $2 WHERE id = $3`,
-                [entry.status, userId, existingRes.rows[0].id]
+                `UPDATE attendance_records SET status = $1, marked_by = $2 WHERE id = $3 AND tenant_id = $4`,
+                [entry.status, userId, existingRes.rows[0].id, tenantId]
             );
         } else {
             await pool.query(
@@ -248,13 +363,17 @@ export async function enterMarks(
     marksData: { studentId: string; subjectId: string; marksObtained: number; isAbsent: boolean }[]
 ) {
     const { tenantId } = await requireAuth('exams:write');
+    await assertExamBelongsToTenant(tenantId, examId);
+    await assertStudentsBelongToTenant(tenantId, marksData.map((entry) => entry.studentId));
 
     // Look up exam schedules for this exam
     for (const entry of marksData) {
+        assertUuid(entry.subjectId, 'subject');
+
         // Find schedule for this subject
         const scheduleRes = await pool.query(
-            `SELECT id FROM exam_schedules WHERE exam_id = $1 AND subject_id = $2`,
-            [examId, entry.subjectId]
+            `SELECT id FROM exam_schedules WHERE exam_id = $1 AND subject_id = $2 AND tenant_id = $3`,
+            [examId, entry.subjectId, tenantId]
         );
         const schedule = scheduleRes.rows[0];
 
@@ -268,8 +387,8 @@ export async function enterMarks(
 
         if (existingRes.rows.length > 0) {
             await pool.query(
-                `UPDATE student_results SET marks_obtained = $1, is_absent = $2 WHERE id = $3`,
-                [String(entry.marksObtained), entry.isAbsent, existingRes.rows[0].id]
+                `UPDATE student_results SET marks_obtained = $1, is_absent = $2 WHERE id = $3 AND tenant_id = $4`,
+                [String(entry.marksObtained), entry.isAbsent, existingRes.rows[0].id, tenantId]
             );
         } else {
             await pool.query(

@@ -32,6 +32,13 @@ export interface TimetableCell {
     roomNumber: string | null;
 }
 
+export interface TimetableSection {
+    id: string;
+    sectionName: string;
+    gradeName: string;
+    gradeOrder: number;
+}
+
 export async function getPeriods(): Promise<PeriodItem[]> {
     const { tenantId } = await requireAuth('timetable:read');
 
@@ -95,7 +102,7 @@ export async function getTimetableForSection(sectionId: string): Promise<Timetab
     }));
 }
 
-export async function getSectionsForTimetable() {
+export async function getSectionsForTimetable(): Promise<TimetableSection[]> {
     const { tenantId } = await requireAuth('timetable:read');
 
     const { rows } = await pool.query(

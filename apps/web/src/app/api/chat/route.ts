@@ -2,17 +2,26 @@ import { streamText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
-
-// Connect to our local Rust inference engine using the OpenAI compatibility layer
-const localInference = createOpenAI({
-  baseURL: 'http://localhost:8000/v1',
-  apiKey: 'dummy-key-for-local', // local rust inference doesn't need an API key
-});
+import { readTenantScopedJson } from '@/lib/tenant/isolation';
 
 export async function POST(req: Request) {
   try {
     const { tenantId } = await requireAuth();
-    const { messages } = await req.json();
+    const inferenceApiKey = process.env.INFERENCE_API_TOKEN;
+    if (!inferenceApiKey) {
+      return new Response(JSON.stringify({ error: 'Inference provider is not configured' }), { status: 503 });
+    }
+
+    // Connect to the Rust inference engine through its OpenAI compatibility layer.
+    const localInference = createOpenAI({
+      baseURL: process.env.INFERENCE_BASE_URL || 'http://localhost:8000/v1',
+      apiKey: inferenceApiKey,
+    });
+
+    const json = await readTenantScopedJson<Record<string, unknown>>(req, tenantId);
+    if (json.ok === false) return json.response;
+
+    const { messages } = json.data as any;
 
     // Extract the user's latest question
     const latestMessage = messages[messages.length - 1];
@@ -53,7 +62,7 @@ export async function POST(req: Request) {
       messages,
     });
 
-    return result.toDataStreamResponse();
+    return result.toTextStreamResponse();
   } catch (error: any) {
     console.error("AI Chat Error:", error);
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });

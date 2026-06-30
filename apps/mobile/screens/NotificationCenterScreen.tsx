@@ -2,58 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { config } from '../config';
 
-const FALLBACK_NOTIFICATIONS = [
-  {
-    id: 'n1',
-    title: 'Student Checked In',
-    message: 'Sarah tapped her ID card at the Main Gate IoT Turnstile.',
-    time: 'Today, 8:14 AM',
-    type: 'TAP_IN',
-    icon: '✅'
-  },
-  {
-    id: 'n2',
-    title: 'Tuition Payment Processed',
-    message: 'Thank you! Your $5,000 Fall Semester payment was received.',
-    time: 'Yesterday, 2:30 PM',
-    type: 'FINANCE',
-    icon: '💳'
-  },
-  {
-    id: 'n3',
-    title: 'Student Checked Out',
-    message: 'Sarah tapped her ID card at the Library Exit.',
-    time: 'Yesterday, 3:15 PM',
-    type: 'TAP_OUT',
-    icon: '🏃'
-  },
-  {
-    id: 'n4',
-    title: 'Bus Route Alert',
-    message: 'Bus #42 is running 10 minutes late due to traffic.',
-    time: 'Monday, 7:15 AM',
-    type: 'TRANSPORT',
-    icon: '🚌'
-  }
-];
-
 export function NotificationCenterScreen({ navigation }: any) {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const res = await fetch(`${config.BACKEND_URL}/api/parent/notifications?parentId=00000000-0000-0000-0000-000000000000`);
+        const res = await fetch(`${config.BACKEND_URL}/api/parent/notifications`);
         const data = await res.json();
-        if (data.notifications && data.notifications.length > 0) {
-          setNotifications(data.notifications);
-        } else {
-          setNotifications(FALLBACK_NOTIFICATIONS);
+        if (!res.ok) {
+          throw new Error(data.error || 'Unable to load notifications.');
         }
+        setNotifications(data.notifications || []);
       } catch (err) {
-        console.warn("Failed to fetch live notifications from server, using fallbacks:", err);
-        setNotifications(FALLBACK_NOTIFICATIONS);
+        setError(err instanceof Error ? err.message : 'Unable to load notifications.');
       } finally {
         setLoading(false);
       }
@@ -78,6 +42,8 @@ export function NotificationCenterScreen({ navigation }: any) {
           <Text style={styles.headerTitle}>Live Activity</Text>
           <Text style={styles.headerSubtitle}>Real-time updates for Sarah</Text>
         </View>
+
+        {error && <Text style={styles.errorText}>{error}</Text>}
 
         <View style={styles.timeline}>
           {notifications.map((item, index) => (
@@ -110,6 +76,9 @@ export function NotificationCenterScreen({ navigation }: any) {
               </View>
             </View>
           ))}
+          {!error && notifications.length === 0 && (
+            <Text style={styles.emptyText}>No notifications yet.</Text>
+          )}
         </View>
 
       </ScrollView>
@@ -141,6 +110,13 @@ const styles = StyleSheet.create({
   },
   timeline: {
     paddingLeft: 10,
+  },
+  errorText: {
+    color: '#B91C1C',
+    marginBottom: 16,
+  },
+  emptyText: {
+    color: '#64748B',
   },
   notificationCard: {
     flexDirection: 'row',

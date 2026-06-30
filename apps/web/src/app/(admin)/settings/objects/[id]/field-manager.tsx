@@ -38,10 +38,12 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
             setFields([...fields, {
                 id: created.id,
                 label: created.label,
+                objectId,
                 apiName: created.api_name,
                 dataType: created.data_type,
                 isCustom: true,
                 isRequired: created.is_required,
+                defaultValue: created.default_value ?? null,
                 picklistOptions: created.picklist_options
             }]);
             

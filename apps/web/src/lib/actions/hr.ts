@@ -268,14 +268,14 @@ export async function getLeaveBalance(staffId: string) {
         GROUP BY leave_type
     `, [staffId, tenantId, yearStart]);
 
-    const used = new Map(approved.map(a => [a.leaveType, Number(a.totalDays)]));
+    const used = new Map<string, number>(approved.map(a => [a.leaveType, Number(a.totalDays)]));
 
     return policies.map(p => ({
         leaveType: p.leaveType,
         name: p.name,
-        total: p.maxDaysPerYear,
+        total: Number(p.maxDaysPerYear),
         used: used.get(p.leaveType) || 0,
-        remaining: p.maxDaysPerYear - (used.get(p.leaveType) || 0),
+        remaining: Number(p.maxDaysPerYear) - (used.get(p.leaveType) || 0),
     }));
 }
 

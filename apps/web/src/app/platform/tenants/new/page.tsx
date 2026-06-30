@@ -7,7 +7,7 @@ import { createTenantAction } from '@/lib/actions/platform';
 export default function NewTenantPage() {
     const router = useRouter();
     const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<{code: string} | null>(null);
+    const [success, setSuccess] = useState<{code: string; temporaryPassword: string} | null>(null);
     const [loading, setLoading] = useState(false);
 
     async function handleSubmit(formData: FormData) {
@@ -21,11 +21,11 @@ export default function NewTenantPage() {
             setError(result.error);
             setLoading(false);
         } else if (result?.success) {
-            setSuccess({ code: result.code });
+            setSuccess({ code: result.code, temporaryPassword: result.temporaryPassword });
             // Allow them to see the success message before redirecting back
             setTimeout(() => {
                 router.push('/platform/tenants');
-            }, 3000);
+            }, 10000);
         }
     }
 
@@ -45,7 +45,8 @@ export default function NewTenantPage() {
                         <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-xl mb-3">✓</div>
                         <h3 className="text-emerald-800 font-bold text-lg">Tenant Provisioned Successfully!</h3>
                         <p className="text-emerald-700 mt-1">Their unique school code is: <strong className="font-mono bg-emerald-200 px-2 py-0.5 rounded">{success.code}</strong></p>
-                        <p className="text-sm text-emerald-600 mt-2">Default Admin Password: <code>password</code></p>
+                        <p className="text-sm text-emerald-600 mt-2">Temporary Admin Password: <code>{success.temporaryPassword}</code></p>
+                        <p className="text-xs text-emerald-600 mt-1">Share it once through a secure channel and require reset after first login.</p>
                         <p className="text-xs text-emerald-500 mt-4">Redirecting...</p>
                     </div>
                 ) : (

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool, } from '@/lib/db';
-import { getSession } from '@/lib/auth/session';
+import { requireApiAuth, ROLE_GROUPS } from '@/lib/auth/api';
 
 export const dynamic = "force-dynamic";
 
@@ -41,15 +41,11 @@ export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ entity: string }> }
 ) {
-    // Auth check
-    const session = await getSession();
-    if (!session.isLoggedIn) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireApiAuth(ROLE_GROUPS.tenantAdmins);
+    if (auth.ok === false) return auth.response;
 
     const { entity } = await params;
-    const tenantId = session.tenantId;
-    await (tenantId);
+    const tenantId = auth.context.tenantId;
 
     try {
         switch (entity) {

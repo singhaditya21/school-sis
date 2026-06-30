@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 import { AuditClientView } from './AuditClient';
 
 export default async function AuditPage() {
-    const { tenantId, role } = await requireAuth(); // Ideally 'admin' check, but let's just make sure they are auth'd
+    const { tenantId } = await requireAuth(); // Ideally 'admin' check, but let's just make sure they are auth'd
     await (tenantId);
     
     // Fetch live audit logs mapped to the Client View interface

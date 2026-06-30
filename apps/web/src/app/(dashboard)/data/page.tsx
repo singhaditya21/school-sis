@@ -3,7 +3,7 @@ import { pool } from '@/lib/db';
 import { Plus, Database, Columns, Filter, MoreHorizontal, Save } from 'lucide-react';
 
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth/next-auth";
 import { redirect } from "next/navigation";
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +22,7 @@ export default async function MetadataEnginePage() {
   let objects = [];
   try {
     const objRes = await pool.query(
-      `SELECT id, name, label FROM metadata_objects WHERE tenant_id = $1 ORDER BY created_at ASC`,
+      `SELECT id, api_name as name, name as label FROM metadata_objects WHERE tenant_id = $1 OR tenant_id IS NULL ORDER BY created_at ASC`,
       [tenantId]
     );
     objects = objRes.rows;
@@ -38,19 +38,19 @@ export default async function MetadataEnginePage() {
   if (activeObject) {
     // Fetch Columns (Fields)
     const fieldRes = await pool.query(
-      `SELECT id, name, label, type FROM metadata_fields WHERE object_id = $1 ORDER BY created_at ASC`,
+      `SELECT id, api_name as name, label, data_type as type FROM metadata_fields WHERE object_id = $1 ORDER BY created_at ASC`,
       [activeObject.id]
     );
     fields = fieldRes.rows;
 
     // Fetch Rows (Records) and their EAV Values
     const recordRes = await pool.query(
-      `SELECT r.id as record_id, f.name as field_name, v.value_string, v.value_number, v.value_boolean, v.value_date
+      `SELECT r.id as record_id, f.api_name as field_name, v.value_string, v.value_number, v.value_boolean, v.value_date
        FROM metadata_records r
        LEFT JOIN metadata_values v ON v.record_id = r.id
        LEFT JOIN metadata_fields f ON v.field_id = f.id
-       WHERE r.object_id = $1`,
-      [activeObject.id]
+       WHERE r.object_id = $1 AND r.tenant_id = $2`,
+      [activeObject.id, tenantId]
     );
 
     // Pivot EAV into a flat JSON array

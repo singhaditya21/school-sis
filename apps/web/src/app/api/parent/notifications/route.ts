@@ -1,61 +1,49 @@
 import { NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
+import { requireApiAuth } from '@/lib/auth/api';
 
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const parentId = searchParams.get('parentId') || '00000000-0000-0000-0000-000000000000';
+    const auth = await requireApiAuth(['PARENT']);
+    if (auth.ok === false) return auth.response;
 
-    // 1. Find all students belonging to this parent guardian
     const studentRes = await pool.query(
-      `SELECT student_id FROM guardians WHERE id = $1`,
-      [parentId]
+      `SELECT student_id
+       FROM guardians
+       WHERE user_id = $1 AND tenant_id = $2`,
+      [auth.context.userId, auth.context.tenantId]
     );
 
     if (studentRes.rowCount === 0) {
-      // Return beautiful sample notifications if parent has no registered students
-      return NextResponse.json({
-        notifications: [
-          {
-            id: 'demo_1',
-            title: 'Student Checked In',
-            message: 'Sarah checked in at the Main Gate IoT Turnstile.',
-            time: 'Today, 8:14 AM',
-            type: 'TAP_IN',
-            icon: '✅'
-          },
-          {
-            id: 'demo_2',
-            title: 'Tuition Payment Processed',
-            message: 'Thank you! Your tuition payment of $5,000 was processed successfully.',
-            time: 'Yesterday, 2:30 PM',
-            type: 'FINANCE',
-            icon: '💳'
-          }
-        ]
-      });
+      return NextResponse.json({ notifications: [] });
     }
 
-    const studentIds = studentRes.rows.map(r => r.student_id);
+    const studentIds = studentRes.rows.map((r: { student_id: string }) => r.student_id);
 
-    // 2. Fetch the latest attendance check-in logs for those students
     const attendanceRes = await pool.query(
       `SELECT a.id, a.date, a.status, s.first_name, s.last_name 
        FROM attendance_records a
        JOIN students s ON a.student_id = s.id
-       WHERE a.student_id = ANY($1)
+       WHERE a.tenant_id = $2
+         AND a.student_id = ANY($1::uuid[])
        ORDER BY a.created_at DESC
        LIMIT 10`,
-      [studentIds]
+      [studentIds, auth.context.tenantId]
     );
 
-    const notifications = attendanceRes.rows.map(row => ({
+    const notifications = attendanceRes.rows.map((row: {
+      id: string;
+      date: string | Date;
+      status: string;
+      first_name: string;
+      last_name: string;
+    }) => ({
       id: row.id,
       title: row.status === 'PRESENT' ? 'Student Checked In' : 'Attendance Alert',
       message: `${row.first_name} ${row.last_name} was marked ${row.status.toLowerCase()} for school.`,
       time: new Date(row.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }),
       type: row.status === 'PRESENT' ? 'TAP_IN' : 'ALERT',
-      icon: row.status === 'PRESENT' ? '✅' : '⚠️'
+      icon: row.status === 'PRESENT' ? 'CHECK_IN' : 'ALERT'
     }));
 
     return NextResponse.json({ notifications });

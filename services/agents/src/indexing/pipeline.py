@@ -4,9 +4,10 @@ import aiohttp
 import psycopg
 import structlog
 from typing import List, Dict, Any
+from uuid import UUID
 
 # Assuming standard environment variables for configuration
-DATABASE_URL = os.getenv("AGENT_DATABASE_URL", "postgresql://school_admin:school_sis_dev_2026@localhost:5432/school_sis")
+DATABASE_URL = os.getenv("AGENT_DATABASE_URL", "")
 EMBEDDING_API_URL = os.getenv("EMBED_SERVER_URL", "http://localhost:9002/v1/embeddings")
 
 logger = structlog.get_logger()
@@ -48,8 +49,8 @@ class IndexingPipeline:
                 FROM students s
                 LEFT JOIN grades g ON s.grade_id = g.id
                 LEFT JOIN sections sec ON s.section_id = sec.id
-                WHERE s.embedding IS NULL
-            """)
+                WHERE s.tenant_id = %s
+            """, (tenant_id,))
             
             students = await cur.fetchall()
             logger.info("students_fetched", count=len(students))
@@ -61,13 +62,14 @@ class IndexingPipeline:
                 text_representation = f"Student: {first_name} {last_name}. Admission Number: {adm_num}. " \
                                       f"Class: {grade} Section {section}. Status: {status}."
                 
-                embedding = await get_embedding(session, text_representation)
-                
-                if embedding:
-                    # Upsert vector representation into the embedding column
-                    await cur.execute(
-                        "UPDATE students SET embedding = %s WHERE id = %s",
-                        (f"[{','.join(map(str, embedding))}]", student_id)
+                if self.rag:
+                    await self.rag.upsert_embedding(
+                        tenant_id=UUID(str(tenant_id)),
+                        collection="student_profiles",
+                        entity_type="student",
+                        entity_id=student_id,
+                        text_content=text_representation,
+                        metadata={"admission_number": adm_num, "status": status, "grade": grade, "section": section},
                     )
                     rows_updated += 1
                     
@@ -86,8 +88,8 @@ class IndexingPipeline:
                        i.description, s.first_name, s.last_name
                 FROM invoices i
                 JOIN students s ON i.student_id = s.id
-                WHERE i.embedding IS NULL
-            """)
+                WHERE i.tenant_id = %s
+            """, (tenant_id,))
             
             invoices = await cur.fetchall()
             logger.info("invoices_fetched", count=len(invoices))
@@ -99,12 +101,14 @@ class IndexingPipeline:
                                       f"Amount: {total}, Paid: {paid}. Status: {status}. " \
                                       f"Due Date: {due}. Description: {desc or 'Standard Fee'}."
                 
-                embedding = await get_embedding(session, text_representation)
-                
-                if embedding:
-                    await cur.execute(
-                        "UPDATE invoices SET embedding = %s WHERE id = %s",
-                        (f"[{','.join(map(str, embedding))}]", inv_id)
+                if self.rag:
+                    await self.rag.upsert_embedding(
+                        tenant_id=UUID(str(tenant_id)),
+                        collection="fee_records",
+                        entity_type="invoice",
+                        entity_id=inv_id,
+                        text_content=text_representation,
+                        metadata={"invoice_number": inv_num, "status": status, "due_date": str(due)},
                     )
                     rows_updated += 1
                     
@@ -114,10 +118,32 @@ class IndexingPipeline:
 
     async def full_reindex(self, tenant_id):
         """Trigger a full reindex of all data for a tenant."""
+        if not DATABASE_URL:
+            return {"error": "AGENT_DATABASE_URL is required for indexing."}
+
         try:
             async with await psycopg.AsyncConnection.connect(DATABASE_URL) as conn:
                 async with conn.cursor() as cur:
                     await cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+                    await cur.execute("""
+                        CREATE TABLE IF NOT EXISTS embeddings (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            tenant_id UUID NOT NULL,
+                            collection VARCHAR(50) NOT NULL,
+                            entity_type VARCHAR(50) NOT NULL,
+                            entity_id UUID NOT NULL,
+                            text_content TEXT NOT NULL,
+                            embedding vector(1024) NOT NULL,
+                            metadata JSONB DEFAULT '{}',
+                            indexed_at TIMESTAMPTZ DEFAULT NOW(),
+                            updated_at TIMESTAMPTZ DEFAULT NOW(),
+                            UNIQUE(tenant_id, collection, entity_id)
+                        );
+                    """)
+                    await cur.execute("""
+                        CREATE INDEX IF NOT EXISTS idx_embeddings_tenant_collection
+                        ON embeddings(tenant_id, collection);
+                    """)
                     await conn.commit()
                 
                 async with aiohttp.ClientSession() as session:

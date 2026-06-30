@@ -1,68 +1,73 @@
 import { NextResponse } from 'next/server';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { z } from 'zod';
+import { enqueuePlatformJob } from '@/lib/worker/client';
+import { requireBearerServiceAuth } from '@/lib/auth/api';
 
-const execAsync = promisify(exec);
+export const dynamic = 'force-dynamic';
 
-// Secret to ensure only authorized services (Sentry/Posthog) can trigger the agent
-const WEBHOOK_SECRET = process.env.AGENT_WEBHOOK_SECRET || 'dev-secret';
+const WebhookPayloadSchema = z.object({
+    source: z.string().trim().max(100).optional(),
+    description: z.string().trim().max(4000).optional(),
+    data: z.unknown().optional(),
+    alerts: z.array(z.object({
+        labels: z.record(z.unknown()).optional(),
+        annotations: z.record(z.unknown()).optional(),
+    })).max(25).optional(),
+}).passthrough();
+
+function stringifyBounded(value: unknown): string {
+    return JSON.stringify(value ?? {}).slice(0, 4000);
+}
 
 export async function POST(request: Request) {
     try {
-        const authHeader = request.headers.get('authorization');
-        if (authHeader !== `Bearer ${WEBHOOK_SECRET}`) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const authError = requireBearerServiceAuth(request, 'AGENT_WEBHOOK_SECRET', {
+            serviceName: 'Agent webhook',
+        });
+        if (authError) return authError;
+
+        const parsed = WebhookPayloadSchema.safeParse(await request.json());
+        if (!parsed.success) {
+            return NextResponse.json({ error: 'Invalid webhook payload' }, { status: 400 });
         }
 
-        const payload = await request.json();
-        
-        let source = payload.source;
-        let issueDescription = payload.description || JSON.stringify(payload.data);
+        const payload = parsed.data;
+        let source = payload.source?.trim() || 'unknown_source';
+        let issueDescription = payload.description?.trim() || stringifyBounded(payload.data);
 
-        // Detect Grafana Webhook Payload
-        if (payload.alerts && Array.isArray(payload.alerts)) {
+        if (payload.alerts?.length) {
             source = 'grafana';
-            issueDescription = payload.alerts.map((alert: any) => 
-                `Alert: ${alert.labels?.alertname || 'Unknown'}\nDescription: ${alert.annotations?.description || 'No description'}`
-            ).join('\n\n');
+            issueDescription = payload.alerts
+                .map((alert) => {
+                    const labels = alert.labels || {};
+                    const annotations = alert.annotations || {};
+                    const alertName = typeof labels.alertname === 'string' ? labels.alertname : 'Unknown';
+                    const description = typeof annotations.description === 'string'
+                        ? annotations.description
+                        : 'No description';
+                    return `Alert: ${alertName}\nDescription: ${description}`;
+                })
+                .join('\n\n')
+                .slice(0, 4000);
         }
 
-        if (!source && !issueDescription) {
-            return NextResponse.json({ error: 'Missing source or description' }, { status: 400 });
+        if (!issueDescription || issueDescription === '{}') {
+            return NextResponse.json({ error: 'Missing issue description' }, { status: 400 });
         }
-        
-        source = source || 'unknown_source';
-        issueDescription = issueDescription || 'No details provided';
 
-        // Construct the prompt for the Ruflo orchestrator
-        const agentPrompt = `
-You have been summoned via an automated webhook triggered by ${source}.
-Here is the context of the issue:
-${issueDescription}
-
-Please perform Loop Engineering using the Superpowers methodology:
-1. Initialize a new OpenSpec proposal for the fix.
-2. Formulate a plan and get it reviewed by the swarm.
-3. Write tests to reproduce the issue.
-4. Fix the code.
-5. Run 'git add . && git commit -m "fix: Autonomous resolution for ${source} issue" && git push origin main'.
-        `.trim();
-
-        console.log(`[Loop Engineering] Spawning Ruflo swarm for ${source}...`);
-        
-        // Spawn Ruflo orchestrator locally in the background
-        execAsync(`npx ruflo init wizard && npx ruflo run --prompt "${agentPrompt.replace(/"/g, '\\"')}"`)
-            .then(() => console.log(`[Loop Engineering] Ruflo swarm finished successfully for ${source}`))
-            .catch((err) => console.error(`[Loop Engineering] Ruflo swarm failed:`, err));
-
-        return NextResponse.json({ 
-            success: true, 
-            message: 'Agent spawned successfully',
-            source 
+        await enqueuePlatformJob('agent-incident-triage', {
+            source,
+            issueDescription,
+            receivedAt: new Date().toISOString(),
         });
 
-    } catch (error: any) {
-        console.error('Webhook error:', error);
-        return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
+        return NextResponse.json({
+            success: true,
+            message: 'Incident queued for triage',
+            source,
+        }, { status: 202 });
+    } catch (error) {
+        console.error('[agent-webhook] error:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

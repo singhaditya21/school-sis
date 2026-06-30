@@ -7,12 +7,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Separator } from '@/components/ui/separator';
-import { APP_NAME, APP_TAGLINE, VALUE_PROPS, TRUST_BADGES, DEMO_CREDENTIALS } from '@/lib/constants';
+import { APP_NAME, APP_TAGLINE, VALUE_PROPS, TRUST_BADGES } from '@/lib/constants';
 
 function SubmitButton() {
     const { pending } = useFormStatus();
@@ -35,9 +33,11 @@ export default function LoginPage() {
     const [schoolCode, setSchoolCode] = useState('GREENWOOD');
     const [loginMode, setLoginMode] = useState<'school' | 'platform'>('school');
     const [authTab, setAuthTab] = useState<'password' | 'otp'>('password');
+    const [mfaRequired, setMfaRequired] = useState(false);
 
     async function handleSubmit(formData: FormData) {
         setError(null);
+        setMfaRequired(false);
         // Architecturally sound: Manually bind the React state to the FormData payload
         // This guarantees the server action receives the exact active tab state.
         formData.append('loginMode', loginMode);
@@ -45,6 +45,7 @@ export default function LoginPage() {
         const result = await loginActionV2(formData);
         if (result?.error) {
             setError(result.error);
+            setMfaRequired(Boolean(result.mfaRequired));
         }
     }
 
@@ -251,6 +252,21 @@ export default function LoginPage() {
                                                         data-testid="password-input"
                                                     />
                                                 </div>
+                                                {mfaRequired && (
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="mfaCode">Authenticator code</Label>
+                                                        <Input
+                                                            id="mfaCode"
+                                                            name="mfaCode"
+                                                            type="text"
+                                                            inputMode="numeric"
+                                                            autoComplete="one-time-code"
+                                                            maxLength={6}
+                                                            placeholder="123456"
+                                                            required
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 
@@ -305,26 +321,6 @@ export default function LoginPage() {
                                     <SubmitButton />
                                 </form>
 
-                                {/* Demo Credentials (Hidden for immersive demo experience)
-                                <Accordion type="single" collapsible className="mt-6">
-                                    <AccordionItem value="demo" className="border-dashed">
-                                        <AccordionTrigger className="text-sm text-muted-foreground hover:no-underline">
-                                            Demo Credentials
-                                        </AccordionTrigger>
-                                        <AccordionContent>
-                                            <div className="space-y-2 pt-2">
-                                                {DEMO_CREDENTIALS.map((cred, i) => (
-                                                    <div key={i} className="flex items-center justify-between p-2 rounded bg-muted/50 text-xs">
-                                                        <Badge variant="outline" className="text-xs">{cred.role}</Badge>
-                                                        <span className="font-mono">{cred.email}</span>
-                                                        <span className="text-muted-foreground">{cred.password}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                </Accordion>
-                                */}
                             </CardContent>
                             <CardFooter className="flex-col gap-4 pt-0">
                                 <Separator />

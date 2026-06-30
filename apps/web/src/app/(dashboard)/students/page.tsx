@@ -3,7 +3,7 @@ import { pool } from '@/lib/db';
 import { Search, Plus, Filter, MoreVertical } from 'lucide-react';
 
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth/next-auth";
 import { redirect } from "next/navigation";
 
 // Force dynamic rendering since we are fetching from the live database

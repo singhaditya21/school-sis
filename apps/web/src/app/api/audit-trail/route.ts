@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
-import { getSession } from '@/lib/auth/session';
+import { requireApiPermission } from '@/lib/auth/api';
 
 export const dynamic = "force-dynamic";
 
@@ -14,18 +14,10 @@ export const dynamic = "force-dynamic";
  */
 
 export async function GET(request: NextRequest) {
-    const session = await getSession();
-    if (!session.isLoggedIn) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireApiPermission('audit:read');
+    if (auth.ok === false) return auth.response;
 
-    // Only admins can view audit logs
-    const adminRoles = ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'PLATFORM_ADMIN'];
-    if (!adminRoles.includes(session.role)) {
-        return NextResponse.json({ error: 'Forbidden — admin access required' }, { status: 403 });
-    }
-
-    const tenantId = session.tenantId;
+    const tenantId = auth.context.tenantId;
     const { searchParams } = new URL(request.url);
     const days = Math.min(parseInt(searchParams.get('days') || '7'), 90);
     const action = searchParams.get('action');

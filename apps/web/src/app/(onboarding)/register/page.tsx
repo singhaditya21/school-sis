@@ -1,12 +1,19 @@
 import React from 'react';
-import { pool } from '@/lib/db';
+import { pool, runWithRlsBypass } from '@/lib/db';
 import { Building2, Globe, User, CheckCircle2, ArrowRight } from 'lucide-react';
 import { redirect } from 'next/navigation';
+import { hash } from 'bcryptjs';
+import crypto from 'crypto';
 
 export default function SchoolRegistrationPage() {
 
   // Server Action to handle the PLG registration and provision initial Admin user
   async function registerSchool(formData: FormData) {
+    'use server';
+    return runWithRlsBypass(() => registerSchoolWithBypass(formData));
+  }
+
+  async function registerSchoolWithBypass(formData: FormData) {
     'use server';
     const name = formData.get('schoolName') as string;
     const domain = formData.get('emailDomain') as string;
@@ -32,13 +39,11 @@ export default function SchoolRegistrationPage() {
       const tenantId = tenantRes.rows[0].id;
 
       // 2. Provision the Admin User account
-      // Google Provider handles SSO logins, but next-auth needs the user record to exist
-      // We pass a dummy hash since Google SSO will be used to authenticate
-      const dummyPasswordHash = '$2b$10$dummyhashplaceholderfordevelopmentonly';
+      const randomPasswordHash = await hash(crypto.randomBytes(18).toString('base64url'), 12);
       await client.query(
         `INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role, is_active, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, 'SCHOOL_ADMIN', true, NOW(), NOW())`,
-        [tenantId, adminEmail, dummyPasswordHash, firstName, lastName]
+        [tenantId, adminEmail, randomPasswordHash, firstName, lastName]
       );
 
       await client.query('COMMIT');

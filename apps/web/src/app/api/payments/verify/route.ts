@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { getSession } from '@/lib/auth/session';
+import { pool } from '@/lib/db';
+import { requireApiAuth } from '@/lib/auth/api';
+import { readTenantScopedJson } from '@/lib/tenant/isolation';
 
 export const dynamic = "force-dynamic";
 
@@ -23,18 +25,33 @@ function getRazorpaySecret(): string {
     return secret;
 }
 
+async function assertInvoiceAccess(invoiceId: string, tenantId: string, userId: string, role: string) {
+    const parentOnlyClause = role === 'PARENT'
+        ? 'AND EXISTS (SELECT 1 FROM guardians g WHERE g.student_id = i.student_id AND g.tenant_id = i.tenant_id AND g.user_id = $3)'
+        : '';
+
+    const { rows } = await pool.query(
+        `SELECT i.id
+         FROM invoices i
+         WHERE i.id = $1
+           AND i.tenant_id = $2
+           ${parentOnlyClause}
+         LIMIT 1`,
+        role === 'PARENT' ? [invoiceId, tenantId, userId] : [invoiceId, tenantId]
+    );
+
+    return Boolean(rows[0]);
+}
+
 export async function POST(request: NextRequest) {
-    // Auth check — no anonymous payment verification
-    const session = await getSession();
-    if (!session.isLoggedIn) {
-        return NextResponse.json(
-            { success: false, error: 'Authentication required' },
-            { status: 401 }
-        );
-    }
+    const auth = await requireApiAuth(['PARENT', 'ACCOUNTANT', 'SCHOOL_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN']);
+    if (auth.ok === false) return auth.response;
 
     try {
-        const body = await request.json();
+        const json = await readTenantScopedJson<Record<string, unknown>>(request, auth.context.tenantId);
+        if (json.ok === false) return json.response;
+
+        const body = json.data as any;
         const { invoiceId, razorpayOrderId, razorpayPaymentId, razorpaySignature, amount } = body;
 
         // Validate required fields
@@ -48,6 +65,26 @@ export async function POST(request: NextRequest) {
         if (!invoiceId) {
             return NextResponse.json(
                 { success: false, error: 'Missing invoiceId' },
+                { status: 400 }
+            );
+        }
+
+        const hasInvoiceAccess = await assertInvoiceAccess(
+            invoiceId,
+            auth.context.tenantId,
+            auth.context.userId,
+            auth.context.role,
+        );
+        if (!hasInvoiceAccess) {
+            return NextResponse.json(
+                { success: false, error: 'Invoice not found' },
+                { status: 404 }
+            );
+        }
+
+        if (!/^[0-9a-f]{64}$/i.test(razorpaySignature)) {
+            return NextResponse.json(
+                { success: false, error: 'Invalid payment signature format' },
                 { status: 400 }
             );
         }

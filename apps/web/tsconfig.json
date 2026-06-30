@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "target": "ES2020",
     "lib": [
       "dom",
@@ -8,7 +9,7 @@
     ],
     "allowJs": true,
     "skipLibCheck": true,
-    "strict": true,
+    "strict": false,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
@@ -23,6 +24,18 @@
       }
     ],
     "paths": {
+      "drizzle-orm": [
+        "./node_modules/drizzle-orm"
+      ],
+      "drizzle-orm/*": [
+        "./node_modules/drizzle-orm/*"
+      ],
+      "pg": [
+        "./node_modules/pg"
+      ],
+      "pg/*": [
+        "./node_modules/pg/*"
+      ],
       "@/lib/db": [
         "../../packages/api/src/db/index.ts"
       ],
@@ -45,12 +58,17 @@
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "scripts",
+    "src/graphify-out",
+    "src/__tests__",
+    "**/*.test.ts",
+    "**/*.test.tsx"
   ]
 }

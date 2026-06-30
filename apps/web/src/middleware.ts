@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getIronSession } from 'iron-session';
-import { sessionOptions, type SessionData } from './lib/auth/session';
+import {
+    isSessionDataExpired,
+    MFA_REQUIRED_ROLE_NAMES,
+    sessionOptions,
+    type SessionData,
+} from './lib/auth/session-options';
 
 // Public routes that don't require authentication
 const PUBLIC_ROUTES = ['/login', '/'];
+const MFA_REQUIRED_ROLES = new Set<string>(MFA_REQUIRED_ROLE_NAMES);
 
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
@@ -22,6 +28,20 @@ export async function middleware(request: NextRequest) {
     if (!session.isLoggedIn) {
         const loginUrl = new URL('/login', request.url);
         loginUrl.searchParams.set('redirect', pathname);
+        return NextResponse.redirect(loginUrl);
+    }
+
+    if (isSessionDataExpired(session)) {
+        const loginUrl = new URL('/login', request.url);
+        loginUrl.searchParams.set('redirect', pathname);
+        loginUrl.searchParams.set('expired', '1');
+        return NextResponse.redirect(loginUrl);
+    }
+
+    const productionMfaRequired = process.env.NODE_ENV === 'production' && MFA_REQUIRED_ROLES.has(session.role);
+    if ((session.mfaRequired || productionMfaRequired) && !session.mfaVerified && MFA_REQUIRED_ROLES.has(session.role)) {
+        const loginUrl = new URL('/login', request.url);
+        loginUrl.searchParams.set('mfa', 'required');
         return NextResponse.redirect(loginUrl);
     }
 

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { pool, runWithRlsBypass } from '@/lib/db';
 import { hash } from 'bcryptjs';
-import { getSession } from '@/lib/auth/session';
+import { requireApiAuth, ROLE_GROUPS } from '@/lib/auth/api';
 
 /**
  * Seed endpoint — STRICTLY gated.
@@ -15,12 +15,14 @@ import { getSession } from '@/lib/auth/session';
 export async function GET() {
     // SECURITY: Block in production unless called by authenticated PLATFORM_ADMIN
     if (process.env.NODE_ENV === 'production') {
-        const session = await getSession();
-        if (!session.isLoggedIn || session.role !== 'PLATFORM_ADMIN') {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        const auth = await requireApiAuth(ROLE_GROUPS.platform);
+        if (auth.ok === false) return auth.response;
+        if (!process.env.SEED_ADMIN_PASSWORD || process.env.SEED_ADMIN_PASSWORD.length < 16) {
+            return NextResponse.json({ error: 'Seed password is not configured' }, { status: 503 });
         }
     }
 
+    return runWithRlsBypass(async () => {
     try {
         console.log('📦 Seeding Platform Admin account...');
         
@@ -85,4 +87,5 @@ export async function GET() {
         console.error('Seed Error:', error);
         return NextResponse.json({ success: false, error: 'Seed operation failed' }, { status: 500 });
     }
+    });
 }

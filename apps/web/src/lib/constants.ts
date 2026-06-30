@@ -45,14 +45,6 @@ export const ROLE_COLORS: Record<string, string> = {
     STUDENT: 'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-300',
 };
 
-// Demo credentials
-export const DEMO_CREDENTIALS = [
-    { role: 'Platform Owner', email: 'owner@scholarmind.com', password: 'owner123' },
-    { role: 'School Admin', email: 'admin@greenwood.edu', password: 'admin123' },
-    { role: 'Accountant', email: 'accountant@greenwood.edu', password: 'accountant123' },
-    { role: 'Parent', email: 'parent@example.com', password: 'parent123' },
-];
-
 // Value propositions for auth page
 export const VALUE_PROPS = [
     {

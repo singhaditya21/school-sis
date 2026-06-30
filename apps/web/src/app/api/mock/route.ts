@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireBearerServiceAuth } from '@/lib/auth/api';
 import {
     getAllStudents,
     searchStudents,
@@ -15,6 +16,16 @@ export const dynamic = "force-dynamic";
 
 
 export async function GET(request: NextRequest) {
+    if (process.env.NODE_ENV === 'production' && process.env.ENABLE_MOCK_API !== 'true') {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+    if (process.env.NODE_ENV === 'production') {
+        const authError = requireBearerServiceAuth(request, 'MOCK_API_TOKEN', {
+            serviceName: 'Mock API',
+        });
+        if (authError) return authError;
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const type = searchParams.get('type') || 'students';
     const query = searchParams.get('q') || '';

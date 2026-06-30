@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth/next-auth";
 import { pool } from "@/lib/db";
 
 export default async function DashboardLayout({

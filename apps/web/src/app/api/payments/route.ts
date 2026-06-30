@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { recordPayment } from '@/lib/actions/mutations';
+import { requireApiPermission } from '@/lib/auth/api';
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+    const auth = await requireApiPermission('payments:create');
+    if (auth.ok === false) return auth.response;
+
     try {
         const formData = await request.formData();
         const result = await recordPayment(formData);

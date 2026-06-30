@@ -9,20 +9,21 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
-import { getSession } from '@/lib/auth/session';
+import { requireApiPermission } from '@/lib/auth/api';
+import { readTenantScopedJson } from '@/lib/tenant/isolation';
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-    const session = await getSession();
-    if (!session.isLoggedIn) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const tenantId = session.tenantId;
+    const auth = await requireApiPermission('payments:read');
+    if (auth.ok === false) return auth.response;
+    const tenantId = auth.context.tenantId;
 
     try {
-        const body = await request.json();
+        const json = await readTenantScopedJson<Record<string, unknown>>(request, tenantId);
+        if (json.ok === false) return json.response;
+
+        const body = json.data as any;
         const fromDate = body.fromDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const toDate = body.toDate || new Date().toISOString().slice(0, 10);
 

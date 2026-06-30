@@ -1,4 +1,9 @@
 import type { NextConfig } from "next";
+import { createRequire } from "module";
+import { dirname } from "path";
+
+const require = createRequire(import.meta.url);
+const moduleRoot = (specifier: string) => dirname(require.resolve(specifier));
 
 const securityHeaders = [
     {
@@ -43,21 +48,28 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+    output: 'standalone',
     // devIndicators: {
     //     appIsrStatus: false,
     //     buildActivity: false,
     // },
     typescript: {
-        // CI runs tsc --noEmit separately; skip during next build to avoid
-        // redundant checks that may fail in Docker environments
-        ignoreBuildErrors: true,
+        ignoreBuildErrors: process.env.NEXT_IGNORE_TYPE_ERRORS === 'true',
     },
     transpilePackages: ['@school-sis/api'],
+    webpack(config) {
+        config.resolve ??= {};
+        config.resolve.alias = {
+            ...(config.resolve.alias ?? {}),
+            'drizzle-orm': moduleRoot('drizzle-orm'),
+            pg: moduleRoot('pg'),
+        };
+        return config;
+    },
     experimental: {
         serverActions: {
             bodySizeLimit: '10mb',
         },
-        instrumentationHook: true,
     },
     async headers() {
         return [

@@ -20,7 +20,7 @@ services:
     ports:
       - "3001:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD}
     depends_on:
       - prometheus
     extra_hosts:
@@ -33,6 +33,7 @@ services:
       - "9093:9093"
     volumes:
       - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - ./secrets/agent_webhook_token:/etc/alertmanager/secrets/agent_webhook_token:ro
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
     extra_hosts:

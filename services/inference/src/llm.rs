@@ -50,20 +50,20 @@ pub struct FunctionCall {
     pub arguments: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ChatResponse {
     pub id: String,
     pub choices: Vec<Choice>,
     pub usage: Option<Usage>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Choice {
     pub message: ChatMessage,
     pub finish_reason: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Usage {
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
@@ -108,13 +108,15 @@ impl LlmClient {
         &self,
         messages: Vec<ChatMessage>,
         tools: Option<Vec<Value>>,
+        temperature: Option<f32>,
+        max_tokens: Option<u32>,
     ) -> ChatRequest {
         ChatRequest {
             model: self.model_name.clone(),
             messages,
             tools,
-            temperature: Some(0.1),
-            max_tokens: Some(4096),
+            temperature: temperature.or(Some(0.1)),
+            max_tokens: max_tokens.or(Some(4096)),
             stream: Some(false),
         }
     }

@@ -59,6 +59,8 @@ class Agent(ABC):
         self.name = name
         self.tools = ToolRegistry()
         self.rag = rag
+        if not settings.llm_api_key:
+            raise RuntimeError("AGENT_LLM_API_KEY environment variable is required.")
         self._llm_client = AsyncOpenAI(
             api_key=settings.llm_api_key,
             base_url=settings.llm_base_url,
@@ -220,23 +222,17 @@ class Agent(ABC):
             "messages": messages,
             "temperature": settings.default_temperature,
             "max_tokens": settings.max_tokens,
-            "extra_body": {"chat_template_kwargs": {"enable_thinking": True, "clear_thinking": False}}
+            "extra_body": {"chat_template_kwargs": {"enable_thinking": True, "clear_thinking": True}}
         }
         if tools:
             kwargs["tools"] = tools
 
         response = await self._llm_client.chat.completions.create(**kwargs)
         resp_dict = response.model_dump()
-        
-        # glm4.7 exposes reasoning. Let's merge it so the UI displays the agent's internal thought process.
-        choice = resp_dict["choices"][0]
-        msg = choice.get("message", {})
-        reasoning = msg.get("reasoning_content")
-        if reasoning and msg.get("content"):
-            msg["content"] = f"**[Agent Internal Reasoning]**\n<details><summary>Click to view thought process</summary>\n\n```text\n{reasoning}\n```\n</details>\n\n{msg.get('content')}"
-        elif reasoning and not msg.get("content"):
-            msg["content"] = f"**[Agent Internal Reasoning]**\n{reasoning}"
-            
+        for choice in resp_dict.get("choices", []):
+            message = choice.get("message", {})
+            message.pop("reasoning_content", None)
+
         return resp_dict
 
     def _format_rag_context(self, results: list[RetrievalResult]) -> str:
