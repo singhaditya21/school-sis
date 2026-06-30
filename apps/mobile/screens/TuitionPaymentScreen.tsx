@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useStripe } from '@stripe/stripe-react-native';
+import { config } from '../config';
 
 export function TuitionPaymentScreen() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
@@ -12,7 +13,7 @@ export function TuitionPaymentScreen() {
 
   const fetchPaymentSheetParams = async () => {
     try {
-      const response = await fetch('http://10.0.2.2:3000/api/parent/payment-sheet', {
+      const response = await fetch(`${config.BACKEND_URL}/api/parent/payment-sheet`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

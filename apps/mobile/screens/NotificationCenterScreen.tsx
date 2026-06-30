@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { config } from '../config';
 
 const FALLBACK_NOTIFICATIONS = [
   {
@@ -43,7 +44,7 @@ export function NotificationCenterScreen({ navigation }: any) {
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const res = await fetch('http://10.0.2.2:3000/api/parent/notifications?parentId=00000000-0000-0000-0000-000000000000');
+        const res = await fetch(`${config.BACKEND_URL}/api/parent/notifications?parentId=00000000-0000-0000-0000-000000000000`);
         const data = await res.json();
         if (data.notifications && data.notifications.length > 0) {
           setNotifications(data.notifications);

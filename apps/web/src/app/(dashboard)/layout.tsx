@@ -8,11 +8,34 @@ import {
   GraduationCap
 } from 'lucide-react';
 
-export default function DashboardLayout({
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../api/auth/[...nextauth]/route";
+import { pool } from "../../lib/db/client";
+
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await getServerSession(authOptions);
+  let schoolName = "Springfield High School";
+
+  if (session && session.user) {
+    // @ts-ignore
+    const tenantId = session.user.tenantId;
+    try {
+      const res = await pool.query(
+        "SELECT name FROM tenants WHERE id = $1 LIMIT 1",
+        [tenantId]
+      );
+      if (res.rowCount > 0) {
+        schoolName = res.rows[0].name;
+      }
+    } catch (e) {
+      console.error("Failed to resolve tenant name dynamically:", e);
+    }
+  }
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar Navigation */}
@@ -55,7 +78,7 @@ export default function DashboardLayout({
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto">
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8">
-          <h1 className="text-xl font-semibold text-gray-800">Springfield High School</h1>
+          <h1 className="text-xl font-semibold text-gray-800">{schoolName}</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">Admin Portal</span>
             <div className="w-8 h-8 rounded-full bg-blue-100 border border-blue-200"></div>

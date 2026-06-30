@@ -1,7 +1,10 @@
 import React from 'react';
 import { Store, Star, Download, Search, LayoutGrid, CheckCircle } from 'lucide-react';
+import { pool } from '../../../lib/db/client';
 
-const PLUGINS = [
+export const dynamic = 'force-dynamic';
+
+const FALLBACK_PLUGINS = [
   {
     id: 'plug_1',
     name: 'Canvas LMS Sync',
@@ -12,7 +15,6 @@ const PLUGINS = [
     installs: '2.1k',
     installed: false,
     color: 'bg-red-50 text-red-600',
-    icon: LayoutGrid
   },
   {
     id: 'plug_2',
@@ -24,7 +26,6 @@ const PLUGINS = [
     installs: '840',
     installed: true,
     color: 'bg-emerald-50 text-emerald-600',
-    icon: LayoutGrid
   },
   {
     id: 'plug_3',
@@ -36,7 +37,6 @@ const PLUGINS = [
     installs: '4.5k',
     installed: false,
     color: 'bg-blue-50 text-blue-600',
-    icon: LayoutGrid
   },
   {
     id: 'plug_4',
@@ -48,11 +48,47 @@ const PLUGINS = [
     installs: '1.2k',
     installed: false,
     color: 'bg-purple-50 text-purple-600',
-    icon: LayoutGrid
   }
 ];
 
-export default function AppExchangePage() {
+export default async function AppExchangePage() {
+  let plugins = [];
+  try {
+    // 1. Ensure table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS platform_plugins (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        developer VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        price VARCHAR(50) NOT NULL,
+        rating NUMERIC(3,2) NOT NULL,
+        installs VARCHAR(50) NOT NULL,
+        installed BOOLEAN DEFAULT FALSE NOT NULL,
+        color VARCHAR(100) NOT NULL
+      )
+    `);
+
+    // 2. Populate table if empty
+    const countRes = await pool.query('SELECT COUNT(*) FROM platform_plugins');
+    if (parseInt(countRes.rows[0].count) === 0) {
+      for (const p of FALLBACK_PLUGINS) {
+        await pool.query(
+          `INSERT INTO platform_plugins (id, name, developer, description, price, rating, installs, installed, color)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [p.id, p.name, p.developer, p.description, p.price, p.rating, p.installs, p.installed, p.color]
+        );
+      }
+    }
+
+    // 3. Query all platform plugins
+    const res = await pool.query('SELECT * FROM platform_plugins ORDER BY name ASC');
+    plugins = res.rows;
+  } catch (err) {
+    console.error("Database query failed for AppExchange plugins, using static fallbacks:", err);
+    plugins = FALLBACK_PLUGINS;
+  }
+
   return (
     <div className="flex flex-col gap-8 max-w-7xl mx-auto">
       {/* Header */}
@@ -94,11 +130,11 @@ export default function AppExchangePage() {
 
       {/* Plugin Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {PLUGINS.map(app => (
+        {plugins.map(app => (
           <div key={app.id} className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all p-6 flex flex-col">
             <div className="flex items-start justify-between mb-4">
-              <div className={\`w-12 h-12 rounded-lg flex items-center justify-center \${app.color}\`}>
-                <app.icon className="w-6 h-6" />
+              <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${app.color}`}>
+                <LayoutGrid className="w-6 h-6" />
               </div>
               <div className="flex items-center gap-1 text-slate-500 text-sm font-medium">
                 <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
