@@ -1,43 +1,45 @@
 {
-    "name": "school-sis",
-    "version": "0.1.0",
-    "private": true,
-    "packageManager": "pnpm@9.15.9",
-    "scripts": {
-        "dev": "turbo run dev",
-        "build": "turbo run build",
-        "start": "turbo run start",
-        "lint": "turbo run lint",
-        "test": "turbo run test",
-        "test:e2e": "turbo run test:e2e",
-        "db:migrate": "cd apps/web && pnpm prisma migrate dev",
-        "db:seed": "cd apps/web && pnpm prisma db seed",
-        "db:studio": "cd apps/web && pnpm prisma studio",
-        "docker:up": "docker-compose up -d",
-        "docker:down": "docker-compose down",
-        "audit:security": "pnpm audit --audit-level=high"
-    },
-    "devDependencies": {
-        "@fission-ai/openspec": "^1.4.1",
-        "@typescript-eslint/eslint-plugin": "^7.0.0",
-        "@typescript-eslint/parser": "^7.0.0",
-        "@upstash/context7-mcp": "^3.2.2",
-        "eslint": "^8.56.0",
-        "next": "^15.1.0",
-        "prettier": "^3.2.0",
-        "ruflo": "^3.14.4",
-        "turbo": "^2.0.0"
-    },
-    "pnpm": {
-        "overrides": {
-            "minimatch": ">=9.0.7",
-            "ajv": ">=8.17.1",
-            "flatted": ">=3.4.2",
-            "dompurify": ">=3.3.2",
-            "lodash": ">=4.17.23",
-            "jsonwebtoken": ">=9.0.2",
-            "picomatch": ">=4.0.4",
-            "next": ">=16.2.4"
-        }
+  "name": "school-sis",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "db:migrate": "cd apps/web && pnpm prisma migrate dev",
+    "db:seed": "cd apps/web && pnpm prisma db seed",
+    "db:studio": "cd apps/web && pnpm prisma studio",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "audit:security": "pnpm audit --audit-level=high",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@fission-ai/openspec": "^1.4.1",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@upstash/context7-mcp": "^3.2.2",
+    "eslint": "^8.56.0",
+    "husky": "^9.1.7",
+    "next": "^15.1.0",
+    "prettier": "^3.2.0",
+    "ruflo": "^3.14.4",
+    "turbo": "^2.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "minimatch": ">=9.0.7",
+      "ajv": ">=8.17.1",
+      "flatted": ">=3.4.2",
+      "dompurify": ">=3.3.2",
+      "lodash": ">=4.17.23",
+      "jsonwebtoken": ">=9.0.2",
+      "picomatch": ">=4.0.4",
+      "next": ">=16.2.4"
     }
+  }
 }

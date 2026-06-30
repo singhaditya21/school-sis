@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "🔍 Validating codebase prior to push..."
+pnpm run build
