@@ -5,6 +5,7 @@ import { StripeProvider } from '@stripe/stripe-react-native';
 import { HomeScreen } from './screens/HomeScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { TuitionPaymentScreen } from './screens/TuitionPaymentScreen';
+import { NotificationCenterScreen } from './screens/NotificationCenterScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -28,6 +29,11 @@ export default function App() {
             name="Payment" 
             component={TuitionPaymentScreen} 
             options={{ title: 'Pay Tuition' }} 
+          />
+          <Stack.Screen 
+            name="Notifications" 
+            component={NotificationCenterScreen} 
+            options={{ title: 'Live Activity' }} 
           />
         </Stack.Navigator>
       </NavigationContainer>
