@@ -108,10 +108,10 @@ export default async function StudentDirectoryPage() {
                     {student.grade_name || 'N/A'} {student.section_name ? `- ${student.section_name}` : ''}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={\`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium \${
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       student.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 
                       student.status === 'ALUMNI' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-                    }\`}>
+                    }`}>
                       {student.status}
                     </span>
                   </td>

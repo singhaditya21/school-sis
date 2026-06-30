@@ -98,9 +98,9 @@ export default async function MetadataEnginePage() {
             objects.map((obj, i) => (
               <button 
                 key={obj.id}
-                className={\`px-6 py-3 text-sm font-medium border-r border-slate-200 \${
+                className={`px-6 py-3 text-sm font-medium border-r border-slate-200 ${
                   i === 0 ? 'bg-white text-indigo-600 border-b-2 border-b-indigo-600' : 'text-slate-600 hover:bg-slate-100'
-                }\`}
+                }`}
               >
                 {obj.label}
               </button>
