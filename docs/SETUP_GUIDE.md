@@ -21,10 +21,9 @@ cp .env.example apps/web/.env
 docker-compose up -d
 
 # 5. Run migrations & seed
-cd apps/web
-npx prisma generate
-npx prisma migrate dev --name init
-npx tsx prisma/seed.ts
+pnpm db:generate
+pnpm db:migrate
+pnpm db:seed
 
 # 6. Start the app
 npm run dev
@@ -190,13 +189,13 @@ cd apps\web
 **Generate Prisma Client**:
 
 ```powershell
-npx prisma generate
+pnpm db:generate
 ```
 
 **Run Database Migrations**:
 
 ```powershell
-npx prisma migrate dev --name init
+pnpm db:migrate
 ```
 
 This will:
@@ -219,7 +218,7 @@ This will:
 **Run the seed script**:
 
 ```powershell
-npx tsx prisma/seed.ts
+pnpm db:seed
 ```
 
 **Expected output** (takes ~5-10 seconds):
@@ -325,8 +324,7 @@ After logging in as admin, verify:
 **View database in GUI** (Prisma Studio):
 
 ```powershell
-cd apps\web
-npx prisma studio
+pnpm db:studio
 ```
 
 Opens at `http://localhost:5555`
@@ -334,13 +332,14 @@ Opens at `http://localhost:5555`
 **Reset database** (⚠️ Deletes all data):
 
 ```powershell
-npx prisma migrate reset
+# Drop and recreate your local database, then run:
+pnpm db:migrate
 ```
 
 **Re-seed after reset**:
 
 ```powershell
-npx tsx prisma/seed.ts
+pnpm db:seed
 ```
 
 ### Docker Commands
@@ -453,8 +452,7 @@ npm install
 **Solution**: Regenerate client
 
 ```powershell
-cd apps\web
-npx prisma generate
+pnpm db:generate
 ```
 
 ### Problem: Migration fails
@@ -462,10 +460,9 @@ npx prisma generate
 **Solution**: Reset and re-migrate
 
 ```powershell
-cd apps\web
-npx prisma migrate reset --force
-npx prisma migrate dev --name init
-npx tsx prisma/seed.ts
+# Drop and recreate your local database, then run:
+pnpm db:migrate
+pnpm db:seed
 ```
 
 ### Problem: Login not working
@@ -518,12 +515,13 @@ docker-compose down
 **Making database changes**:
 
 ```powershell
-# 1. Edit prisma/schema.prisma
+# 1. Edit packages/api/src/db/schema/
 
 # 2. Create migration
-npx prisma migrate dev --name describe_change
+pnpm db:generate
 
-# 3. Prisma Client auto-regenerates
+# 3. Review and apply the generated Drizzle SQL
+pnpm db:migrate
 ```
 
 ---
@@ -550,7 +548,7 @@ Once the app is running:
 4. **Review Code**:
    - Start with `src/app` for pages
    - Check `src/lib/services` for business logic
-   - Review `prisma/schema.prisma` for data model
+   - Review `packages/api/src/db/schema/` for the data model
 
 5. **Customize**:
    - Update school name in seed data
@@ -566,10 +564,10 @@ Once the app is running:
 | Start app | `cd apps/web && npm run dev` |
 | Start Docker | `docker-compose up -d` |
 | Stop Docker | `docker-compose down` |
-| Seed data | `npx tsx prisma/seed.ts` |
-| Database GUI | `npx prisma studio` |
+| Seed data | `pnpm db:seed` |
+| Database GUI | `pnpm db:studio` |
 | View logs | `docker-compose logs -f postgres` |
-| Reset DB | `npx prisma migrate reset` |
+| Reset DB | Drop/recreate local DB, then `pnpm db:migrate` |
 
 **Default URLs**:
 

@@ -1,106 +1,159 @@
-# ScholarMind V6 — Production Infrastructure
+# School SIS Production Runtime & Infrastructure
 
-> Last updated: 2026-04-21
+Last updated: 2026-07-01
 
----
+This is the production operating contract for the School SIS platform. The active target stack is Vercel + Neon + Drizzle; legacy hosting/database targets are not part of this repository's production path.
 
-## Production URL
+## Production Targets
 
-| Layer | URL |
-|-------|-----|
-| **Primary App URL** | `https://app.scholarmind.io` |
-| **Tenant white-label pattern** | `{tenant-domain}.scholarmind.app` |
-| **Email sender** | `noreply@scholarmind.app` |
-| **Edge CNAME target** | `edge.scholarmind.app` |
+| Layer | Standard |
+| --- | --- |
+| Web runtime | Vercel, deployed from the repository root |
+| App project | `school-sis-web` |
+| Stable URL | `https://school-sis-web.vercel.app` |
+| Database | Neon Postgres with `pgvector` |
+| ORM/migrations | Drizzle from `apps/web/drizzle/` |
+| Object storage | Cloudflare R2 preferred; AWS S3-compatible fallback |
+| File retrieval | Authenticated `/api/files/...` signed retrieval route |
+| Primary serverless region | `iad1` until a different Neon primary region is selected |
 
-### Source references
-- `apps/web/src/lib/services/email.ts` — `EMAIL_FROM` defaults to `noreply@scholarmind.app`
-- `apps/web/src/` — `NEXT_PUBLIC_APP_URL: 'https://app.scholarmind.io'` (used in CI workflow)
-- White-label domain logic: constructs `{domain}.scholarmind.app`
+## Vercel Hardening
 
----
+- Deploy from the repository root only so the root `.vercel` link selects `school-sis-web`.
+- The Vercel project root is `apps/web`; `apps/web/vercel.json` is the source of truth.
+- Do not run `vercel` from `apps/web`; that can bind to the stale local `web` project link.
+- Production builds run `pnpm --filter @school-sis/web run build`.
+- Next.js emits standalone output and suppresses the `X-Powered-By` header.
+- App-wide security headers are defined in `apps/web/next.config.ts`.
+- Static build asset caching is left to Next.js/Vercel defaults.
+- Runtime routes that touch DB or secrets remain Node/serverless routes, not Edge routes.
 
-## Production Database
+## Neon Runtime Contract
 
-| Property | Value |
-|----------|-------|
-| **Provider** | Supabase (managed PostgreSQL) |
-| **Project ID** | `vmysvgehpqfkibqatvfo` |
-| **Region** | `ap-southeast-2` (Sydney, Australia) |
-| **Engine** | PostgreSQL 16 + pgvector extension |
-| **ORM** | Drizzle ORM (`drizzle.config.ts`) |
+Use two database URLs:
 
-### Connection Strings
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Runtime pooled Neon connection for the Vercel app |
+| `DIRECT_URL` | Direct Neon connection for Drizzle migrations and backups |
 
-| Mode | URL | Use for |
-|------|-----|---------|
-| **Direct** | `postgresql://postgres:[PASSWORD]@db.vmysvgehpqfkibqatvfo.supabase.co:5432/postgres` | Drizzle migrations (`DIRECT_URL`) |
-| **Session Pooler** | `postgresql://postgres.vmysvgehpqfkibqatvfo:[PASSWORD]@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres` | App runtime (`DATABASE_URL`) |
-| **Transaction Pooler** | `postgresql://postgres.vmysvgehpqfkibqatvfo:[PASSWORD]@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres` | Serverless / edge (`DATABASE_URL` alternative) |
+Rules:
 
-> [!IMPORTANT]
-> Always use **Direct URL** for `DIRECT_URL` (migrations). Never use the transaction pooler for migrations — it breaks DDL statements.
-> Always use **Session Pooler** for `DATABASE_URL` at runtime on Render (long-lived Node process).
+- Both URLs must include `sslmode=require` or `sslmode=verify-full`.
+- `DIRECT_URL` must not be the Neon pooler host.
+- Runtime code normalizes production `DATABASE_URL` to `sslmode=require` if the setting is missing.
+- `drizzle-kit push` is blocked against production and remote databases unless explicitly allowed for non-production prototyping.
+- Production migrations use `pnpm db:migrate:prod` with `CONFIRM_PRODUCTION_MIGRATION=school-sis`.
 
-### Source references
-- `render.yaml:5` — `region: singapore # Closest to your ap-southeast-2 Supabase database`
-- `apps/web/drizzle.config.ts` — `url: process.env.DIRECT_URL || process.env.DATABASE_URL`
-- `apps/web/.env.example` — `DATABASE_URL=postgresql://user:password@...?sslmode=require`
+## Migration Discipline
 
----
-
-## Deployment Platform
-
-| Service | Platform | Config file |
-|---------|----------|-------------|
-| **Frontend (Next.js)** | Render (primary) + Vercel (alt) | `render.yaml`, `vercel.json` |
-| **Deployment region** | Singapore (`render.yaml`) — closest to Supabase ap-southeast-2 |
-| **Build command** | `npm install -g pnpm && pnpm install && cd apps/web && pnpm run db:push && pnpm run build` |
-| **Start command** | `cd apps/web && pnpm start` |
-| **AI Agent Service** | Python FastAPI (native venv locally, Docker in prod) | `services/agents/Dockerfile` |
-
----
-
-## Source Control
-
-| Property | Value |
-|----------|-------|
-| **Repository** | `git@github.com:singhaditya21/school-sis.git` |
-| **Default branch** | `main` |
-| **CI pipeline** | `.github/workflows/ci.yml` (added Week 1-3) |
-
----
-
-## Required Environment Variables (production)
-
-| Variable | Purpose | Set in |
-|----------|---------|--------|
-| `DATABASE_URL` | Supabase pooler connection string | Render env vars |
-| `DIRECT_URL` | Supabase direct connection (for migrations) | Render env vars |
-| `SESSION_SECRET` | IronSession signing key (≥32 chars) | Render env vars |
-| `PII_ENCRYPTION_KEY` | AES-256-GCM key for PII encryption | Render env vars |
-| `ENCRYPTION_KEY` | Alias used locally | `.env` |
-| `NEXT_PUBLIC_APP_URL` | Public app URL | `https://app.scholarmind.io` |
-| `STRIPE_SECRET_KEY` | Stripe payments | Render env vars |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe frontend | Render env vars |
-| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Razorpay (India) | Render env vars |
-| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Cloudflare R2 storage | Render env vars |
-| `REDIS_URL` | Upstash Redis (job queue) | Render env vars |
-
-> [!CAUTION]
-> None of these values should ever be committed to source control.
-> All secrets must be rotated after any suspected exposure.
-
----
-
-## Migration Notes
-
-- Drizzle migrations live in `apps/web/drizzle/`
-- Currently applied: `0000` through `0007` + `002_rls_policies.sql` + `003_password_reset_tokens.sql`
-- **Week 1-3 addition**: `0008_mfa_columns.sql` — adds `mfa_secret`, `mfa_enabled`, `mfa_backup_codes` to `users`
-- Run migrations against production using `DIRECT_URL` (not the pooler) to avoid transaction conflicts
+1. Change schema in `packages/api/src/db/schema/`.
+2. Generate migration SQL:
 
 ```bash
-# Production migration flow (use direct URL, not pooler)
-DIRECT_URL="postgresql://..." pnpm db:migrate
+pnpm db:generate
 ```
+
+3. Review generated SQL under `apps/web/drizzle/`.
+4. Apply to Neon with the direct URL:
+
+```bash
+DIRECT_URL="postgresql://..." CONFIRM_PRODUCTION_MIGRATION=school-sis pnpm db:migrate:prod
+```
+
+5. Deploy the app after the migration succeeds:
+
+```bash
+pnpm dlx vercel --prod --yes
+```
+
+Do not run `db:push` for production. `db:push` is reserved for local/prototype databases.
+
+## Environment Contract
+
+Minimum production variables:
+
+| Variable | Requirement |
+| --- | --- |
+| `DATABASE_URL` | Neon pooled URL with SSL |
+| `DIRECT_URL` | Neon direct URL with SSL |
+| `SESSION_SECRET` | 32+ random characters |
+| `PII_ENCRYPTION_KEY` or `ENCRYPTION_KEY` | 32+ random characters |
+| `NEXT_PUBLIC_APP_URL` | Production HTTPS URL |
+| `METRICS_TOKEN` | 32+ random characters |
+| `AGENT_API_TOKEN` | 32+ random characters if agent service is enabled |
+| `AGENT_WEBHOOK_SECRET` | 32+ random characters if agent webhook is enabled |
+| `IOT_INGEST_SECRET` | 32+ random characters if IoT ingest is enabled |
+| `CEREBRAS_API_KEY` | Required only when Copilot is enabled |
+
+Validate the runtime contract:
+
+```bash
+pnpm infra:check
+NODE_ENV=production pnpm --filter @school-sis/web run infra:check -- --strict
+```
+
+## Storage and CDN Strategy
+
+Cloudflare R2 is preferred because it is S3-compatible and can sit behind Cloudflare CDN. AWS S3 remains supported.
+
+Preferred R2 variables:
+
+```env
+R2_ACCOUNT_ID=...
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET_NAME=school-sis-uploads
+STORAGE_CDN_BASE_URL=https://cdn.example.com
+```
+
+AWS fallback variables:
+
+```env
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_S3_BUCKET=school-sis-uploads
+```
+
+File keys must remain tenant-prefixed. Uploads return the authenticated `/api/files/{tenantId}/...` retrieval URL rather than a public bucket URL. Sensitive school files should not be served from a public bucket.
+
+## Backup and Restore
+
+Neon managed backups should be enabled in the Neon project. The repository also includes operator scripts for explicit restore drills:
+
+```bash
+DIRECT_URL="postgresql://..." pnpm backup:create
+```
+
+Restore is intentionally destructive and requires an explicit confirmation:
+
+```bash
+DIRECT_URL="postgresql://..." CONFIRM_RESTORE=school-sis pnpm backup:restore -- ./backups/neon/school-sis.dump
+```
+
+Operational policy:
+
+- Keep daily backups for at least `BACKUP_RETENTION_DAYS=30`.
+- Run one restore drill before any major launch or migration wave.
+- Store generated dumps outside the repository for production data.
+- Never commit backup files or raw dumps.
+
+## Region Decision
+
+Current default:
+
+- Vercel serverless region: `iad1`
+- Neon primary region: should be colocated as closely as possible with the Vercel runtime region
+
+If the customer base moves primarily to India/APAC, move both Vercel and Neon runtime regions together. Do not move only one layer; that creates high database latency.
+
+## Production Checklist
+
+- `pnpm infra:check` passes.
+- `pnpm --filter @school-sis/web exec drizzle-kit check` passes.
+- Pending migrations are reviewed and applied with `DIRECT_URL`.
+- `pnpm --filter @school-sis/web build` passes.
+- Vercel production deployment succeeds from repo root.
+- `/login` returns HTTP 200 on the stable production URL.
+- A recent backup or restore drill exists before irreversible schema changes.

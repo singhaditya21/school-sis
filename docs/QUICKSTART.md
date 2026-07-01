@@ -89,13 +89,13 @@ docker ps
 
 ```bash
 cd apps/web
-npx prisma migrate dev --name init
+pnpm db:migrate
 ```
 
 ### 7. Seed Demo Data
 
 ```bash
-npx tsx prisma/seed.ts
+pnpm db:seed
 ```
 
 Expected output:
@@ -143,8 +143,8 @@ docker-compose logs postgres
 
 ```bash
 # Reset database (WARNING: deletes all data)
-cd apps/web
-npx prisma migrate reset
+# Drop and recreate your local database, then run:
+pnpm db:migrate
 ```
 
 ### Port Already in Use
@@ -160,15 +160,14 @@ taskkill /PID <PID> /F
 ## Useful Commands
 
 ```bash
-# Prisma Studio (database GUI)
-cd apps/web
-npx prisma studio
+# Drizzle Studio (database GUI)
+pnpm db:studio
 
-# Generate Prisma Client
-npx prisma generate
+# Generate Drizzle migration SQL
+pnpm db:generate
 
 # View database schema
-npx prisma db pull
+# Review packages/api/src/db/schema/
 
 # Stop Docker services
 docker-compose down

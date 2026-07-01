@@ -26,13 +26,13 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Build Next.js app
-        run: pnpm --filter web build
+        run: pnpm --filter @school-sis/web build
         env:
           # Dummy database URL so static rendering doesn't crash during build
-          DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis?sslmode=require
 
       # Upload the Next.js build output to share with the test runners
       - name: Cache Next.js build
@@ -84,7 +84,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Restore Next.js build
         uses: actions/cache@v4
@@ -93,13 +93,13 @@ jobs:
           key: ${{ runner.os }}-nextjs-${{ github.sha }}
 
       - name: Install Playwright Browsers
-        run: pnpm --filter web exec playwright install --with-deps
+        run: pnpm --filter @school-sis/web exec playwright install --with-deps
 
       - name: Run Playwright Tests
         env:
           # Point the tests to the local Postgres service container
-          DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis
-        run: pnpm --filter web run test:e2e --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis?sslmode=require
+        run: pnpm --filter @school-sis/web run test:e2e --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
       - name: Upload Playwright report
         if: always()

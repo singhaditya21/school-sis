@@ -13,7 +13,7 @@ graph TD
     UserClient([Client Browser]) -->|HTTPS / WSS| Gateway[Go Gateway: services/gateway]
     Gateway -->|HTML / CSS / JS| Web[Next.js App: apps/web]
     Gateway -->|Database Ingestion / GraphQL| Web
-    Web -->|SQL Query / Drizzle| Postgres[(Supabase PostgreSQL + pgvector)]
+    Web -->|SQL Query / Drizzle| Postgres[(Neon Postgres + pgvector)]
     Web -->|HTTP JSON RPC| Agents[FastAPI AI Swarm: services/agents]
     Agents -->|Background Processing| RedisQueue[(Redis Queue / Arq)]
     Agents -->|Embeddings Search| Postgres
@@ -42,7 +42,7 @@ graph TD
    - **Responsibility**: Routing requests, enforcing rate limits, parsing authentication cookies, handling CORS headers, and load balancing traffic.
    
 5. **Data & Storage Layer**:
-   - **Supabase PostgreSQL**: Primary transactional and relational store.
+   - **Neon Postgres**: Primary transactional and relational store.
    - **pgvector**: Cosine and Euclidean vector distance database extension.
    - **Redis**: Persistent background job queue (Arq) and token tracking.
 
@@ -54,11 +54,11 @@ To satisfy institutional policies, local regulations, and performance requiremen
 
 | Deployment Model | Target Segment | Data Residency Posture | Operational Configuration |
 | :--- | :--- | :--- | :--- |
-| **Shared Multi-Tenant SaaS** | Single Schools, Coaching Centers, Standard Colleges | Logical tenant isolation via `tenantId` columns. Single pooled Supabase database instance. | Shared AWS/GCP resources. Automatic scaling. Updates pushed immediately. |
-| **Regional SaaS** | Large school groups spanning multiple states or nations | Regional data clusters (e.g., EU-only, India-only) using dedicated Supabase regional pools. | Common product codebase. Updates regionalized. |
+| **Shared Multi-Tenant SaaS** | Single Schools, Coaching Centers, Standard Colleges | Logical tenant isolation via `tenantId` columns. Single pooled Neon database instance. | Shared Vercel/Neon resources. Automatic scaling. Updates pushed immediately. |
+| **Regional SaaS** | Large school groups spanning multiple states or nations | Regional data clusters (e.g., EU-only, India-only) using dedicated Neon regional databases. | Common product codebase. Updates regionalized. |
 | **Dedicated Single-Tenant** | Large Research Universities, Premium Education Systems | Physical isolation. Dedicated database instances and isolated Kubernetes runtimes. | Customer-managed maintenance windows. Staged release testing. |
 | **Private / Sovereign Cloud** | Public education networks, defense-contracted campuses | Deployments inside sovereign environments (e.g. GovCloud). High change control. | Complete offline/restricted networking. Air-gapped builds. |
-| **Air-gapped Edge Nodes** | Low-connectivity rural schools, crisis zones | Local SQLite database replicating to Supabase when connection is available. | Offline LLM capability. Low-latency edge computing. |
+| **Air-gapped Edge Nodes** | Low-connectivity rural schools, crisis zones | Local SQLite database replicating to Neon when connection is available. | Offline LLM capability. Low-latency edge computing. |
 
 ---
 

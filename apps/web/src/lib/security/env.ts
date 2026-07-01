@@ -35,6 +35,34 @@ function requireValue(name: string): EnvIssue | null {
     return process.env[name] ? null : { name, message: `${name} must be set.` };
 }
 
+function normalizeProductionDatabaseUrl() {
+    const databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl || process.env.NODE_ENV !== 'production') return;
+
+    let parsed: URL;
+    try {
+        parsed = new URL(databaseUrl);
+    } catch {
+        throw new Error('DATABASE_URL must be a valid Postgres URL.');
+    }
+
+    if (!['postgres:', 'postgresql:'].includes(parsed.protocol)) {
+        throw new Error('DATABASE_URL must use postgres:// or postgresql://.');
+    }
+
+    if (parsed.searchParams.get('sslmode') === 'disable') {
+        throw new Error('DATABASE_URL must not disable SSL in production.');
+    }
+
+    if (
+        !['localhost', '127.0.0.1', '::1'].includes(parsed.hostname) &&
+        !parsed.searchParams.has('sslmode')
+    ) {
+        parsed.searchParams.set('sslmode', 'require');
+        process.env.DATABASE_URL = parsed.toString();
+    }
+}
+
 export function validateSecurityEnvironment() {
     if (isBuildPhase()) return;
 
@@ -52,16 +80,7 @@ export function validateSecurityEnvironment() {
         );
     }
 
-    const databaseUrl = process.env.DATABASE_URL || '';
-    if (
-        process.env.NODE_ENV === 'production' &&
-        databaseUrl &&
-        !databaseUrl.includes('sslmode=require') &&
-        !databaseUrl.includes('sslmode=verify-full') &&
-        !databaseUrl.includes('localhost')
-    ) {
-        console.warn('[security/env] DATABASE_URL should include sslmode=require or sslmode=verify-full in production.');
-    }
+    normalizeProductionDatabaseUrl();
 }
 
 export function getSecurityFeatureStatus() {

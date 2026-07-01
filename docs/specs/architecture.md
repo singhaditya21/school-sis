@@ -11,7 +11,7 @@ graph TD
     User([User Client]) -->|HTTP/WebSockets| GW[Go API Gateway: services/gateway]
     GW -->|Web Routing / HTML| FE[Next.js Web: apps/web]
     GW -->|API Operations| BE[Next.js App Core Router: apps/web/src/app/api]
-    BE -->|SQL Query / Drizzle| DB[(Supabase PostgreSQL + pgvector)]
+    BE -->|SQL Query / Drizzle| DB[(Neon Postgres + pgvector)]
     BE -->|JSON HTTP RPC| AG[Python Agents: services/agents]
     AG -->|Background Queue| RD[(Redis / Arq)]
     AG -->|pgvector Embeddings| DB

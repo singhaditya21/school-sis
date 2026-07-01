@@ -16,24 +16,54 @@ import { getLimit } from '@/lib/config/limits';
 
 const isBuildPhase = process.env.npm_lifecycle_event === 'build' || process.env.NEXT_PHASE === 'phase-production-build';
 
-let connectionString = process.env.DATABASE_URL || '';
+function isLocalDatabaseUrl(value: string): boolean {
+    try {
+        const parsed = new URL(value);
+        return ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+    } catch {
+        return false;
+    }
+}
+
+function normalizeRuntimeDatabaseUrl(value: string): string {
+    if (!value || isBuildPhase || process.env.NODE_ENV !== 'production' || isLocalDatabaseUrl(value)) {
+        return value;
+    }
+
+    let parsed: URL;
+    try {
+        parsed = new URL(value);
+    } catch {
+        throw new Error('DATABASE_URL must be a valid Postgres URL.');
+    }
+
+    if (!['postgres:', 'postgresql:'].includes(parsed.protocol)) {
+        throw new Error('DATABASE_URL must use postgres:// or postgresql://.');
+    }
+
+    if (parsed.searchParams.get('sslmode') === 'disable') {
+        throw new Error('DATABASE_URL must not disable SSL in production.');
+    }
+
+    if (!parsed.searchParams.has('sslmode')) {
+        parsed.searchParams.set('sslmode', 'require');
+    }
+
+    return parsed.toString();
+}
+
+let connectionString = normalizeRuntimeDatabaseUrl(process.env.DATABASE_URL || '');
 
 if (isBuildPhase) {
     connectionString = 'postgresql://dummy:dummy@dummy:5432/dummy';
+} else if (connectionString && process.env.DATABASE_URL !== connectionString) {
+    process.env.DATABASE_URL = connectionString;
 }
 
 if (!isBuildPhase && !process.env.DATABASE_URL) {
     throw new Error(
         'DATABASE_URL environment variable is required. ' +
         'Set it in your .env file: DATABASE_URL=postgresql://user:pass@host:5432/dbname?sslmode=require'
-    );
-}
-
-// Warn if SSL is not enforced in production
-if (process.env.NODE_ENV === 'production' && !connectionString.includes('sslmode=require') && !connectionString.includes('localhost')) {
-    console.warn(
-        '[DB] WARNING: DATABASE_URL does not include sslmode=require. ' +
-        'In production, all database connections must be encrypted.'
     );
 }
 
@@ -188,7 +218,7 @@ export const pool = patchPoolForRlsContext(globalThis.pgPool || new Pool({
     max: getLimit('DB_POOL_MAX'),
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
-    ssl: process.env.NODE_ENV === 'production' && !connectionString.includes('localhost') ? { rejectUnauthorized: false } : undefined,
+    ssl: process.env.NODE_ENV === 'production' && !isLocalDatabaseUrl(connectionString) ? { rejectUnauthorized: false } : undefined,
 }));
 
 if (process.env.NODE_ENV !== 'production') {

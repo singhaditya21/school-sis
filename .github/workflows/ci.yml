@@ -28,6 +28,15 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate Infrastructure Contract
+        run: pnpm infra:check
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis?sslmode=require
+          DIRECT_URL: postgresql://postgres:password@localhost:5432/school_sis?sslmode=require
+
+      - name: Validate Drizzle Migrations
+        run: pnpm --filter @school-sis/web exec drizzle-kit check
+
       - name: Run Build
         run: pnpm run build
         env:

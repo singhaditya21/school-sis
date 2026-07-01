@@ -1,133 +1,157 @@
-# School SIS - DevOps & Deployment Documentation
+# School SIS DevOps & Deployment Guide
 
-This document covers the local setup, database management, environment configuration, and Vercel deployment pipeline for the School SIS platform.
+This guide covers local operations, database migrations, environment configuration, and the Vercel deployment workflow for School SIS.
 
-## 1. Local Setup
+## Local Setup
 
-The School SIS platform operates as a monorepo powered by Turborepo and `pnpm`. The web application is built with Next.js, and external observability services are managed via Docker Compose.
+Prerequisites:
 
-### Prerequisites
-- [Node.js](https://nodejs.org/) (LTS recommended)
-- [pnpm](https://pnpm.io/) (v9.15.9+)
-- [Docker & Docker Compose](https://www.docker.com/)
+- Node.js 20+
+- pnpm 9.15.9+
+- Docker and Docker Compose for optional local services
 
-### Starting External Services
-We use Docker Compose to run infrastructure services locally (Prometheus, Grafana, and Alertmanager). 
-From the root directory, start the containers:
-
-```bash
-pnpm run docker:up
-# Or directly: docker-compose up -d
-```
-- **Grafana**: Available at `http://localhost:3001`
-- **Prometheus**: Available at `http://localhost:9090`
-- **Alertmanager**: Available at `http://localhost:9093`
-
-### Starting the Development Server
-Install dependencies and run the development server using Turborepo:
+Install and run:
 
 ```bash
 pnpm install
-pnpm run dev
+pnpm dev
 ```
 
-This will concurrently start all applications and packages specified in the workspace.
+## Database Management
 
-## 2. Database Management
+The production database is Neon Postgres with `pgvector`. The ORM and migration system is Drizzle.
 
-The platform utilizes **Neon Postgres** for a scalable, serverless PostgreSQL database. We use **Drizzle ORM** for schema definition, migrations, and database interactions within the `apps/web` package.
+Schema source:
 
-All database commands should be run from within `apps/web` or using `pnpm --filter web <command>`.
-
-### Key Commands
-
-- **Generate Migrations**:
-  Generates SQL migration files based on schema changes (`./src/lib/db/schema/index.ts`).
-  ```bash
-  pnpm db:generate
-  ```
-
-- **Push Schema**:
-  Directly pushes schema changes to the database without generating migration files. Useful for rapid local prototyping.
-  ```bash
-  pnpm db:push
-  ```
-
-- **Run Migrations**:
-  Applies the generated SQL migration files to the database (recommended for production).
-  ```bash
-  pnpm db:migrate
-  ```
-
-- **Seed Database**:
-  Populates the database with initial/dummy data via `scripts/seed.ts`.
-  ```bash
-  pnpm db:seed
-  ```
-
-- **Drizzle Studio**:
-  Provides a local web-based UI to browse and manage your database records.
-  ```bash
-  pnpm db:studio
-  ```
-
-## 3. Environment Variables
-
-Below are the core environment variables required for the application to function properly. Configure these in your `.env` (or `.env.local`) file during local development, and in your hosting provider's dashboard for production.
-
-### General & Database
-```env
-# Database connection for Neon Postgres
-# Use the pooled connection string for DATABASE_URL and the direct one for DIRECT_URL (required by Drizzle for migrations)
-DATABASE_URL=postgresql://[user]:[password]@[host]/[dbname]?sslmode=require
-DIRECT_URL=postgresql://[user]:[password]@[host]/[dbname]?sslmode=require
-
-# Application Secrets
-SESSION_SECRET=your_32_char_session_secret
-ENCRYPTION_KEY=your_32_char_encryption_key
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+```text
+packages/api/src/db/schema/
 ```
 
-### Third-Party Integrations
-The following variables are required to integrate with external providers as per the requested configuration:
+Migration output:
+
+```text
+apps/web/drizzle/
+```
+
+Common commands from the repository root:
+
+```bash
+pnpm db:generate
+pnpm db:migrate
+pnpm db:seed
+pnpm db:studio
+```
+
+Local/prototype schema push:
+
+```bash
+pnpm db:push
+```
+
+`db:push` is guarded. It is blocked in production and against remote databases unless `ALLOW_REMOTE_DB_PUSH=true` is set intentionally for non-production prototyping.
+
+Production migration:
+
+```bash
+DIRECT_URL="postgresql://..." CONFIRM_PRODUCTION_MIGRATION=school-sis pnpm db:migrate:prod
+```
+
+Rules:
+
+- Use `DATABASE_URL` for app runtime.
+- Use `DIRECT_URL` for migrations, backups, and restore drills.
+- Include `sslmode=require` or `sslmode=verify-full`.
+- Do not use Neon pooler URLs for `DIRECT_URL`.
+
+## Environment Variables
+
+Use `apps/web/.env.example` as the canonical template.
+
+Minimum production variables:
 
 ```env
-# Stripe (Payments)
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
-
-# Twilio (SMS / Voice)
-TWILIO_ACCOUNT_SID=AC...
-TWILIO_AUTH_TOKEN=...
-TWILIO_PHONE_NUMBER=...
-
-# MSG91 (Alternative SMS Provider)
-MSG91_AUTH_KEY=...
-MSG91_TEMPLATE_ID=...
-
-# WorkOS (SSO & Identity)
-WORKOS_API_KEY=sk_...
-WORKOS_CLIENT_ID=client_...
+DATABASE_URL=postgresql://...neon.tech/db?sslmode=require
+DIRECT_URL=postgresql://...neon.tech/db?sslmode=require
+SESSION_SECRET=replace_with_at_least_32_random_characters
+PII_ENCRYPTION_KEY=replace_with_at_least_32_random_characters
+NEXT_PUBLIC_APP_URL=https://school-sis-web.vercel.app
+INTEGRATIONS_MODE=mock
+PAYMENT_PROVIDER_MODE=mock
 ```
 
-## 4. Vercel Deployment Pipeline
+Validate the production contract:
 
-The School SIS web application (`apps/web`) is optimized for deployment on Vercel.
+```bash
+pnpm infra:check
+NODE_ENV=production pnpm --filter @school-sis/web run infra:check -- --strict
+```
 
-### Deployment Steps
+## Vercel Deployment
 
-1. **Import Project**: In the Vercel dashboard, import the connected GitHub repository.
-2. **Framework Preset**: Vercel should automatically detect **Next.js**.
-3. **Root Directory**: Leave the root directory as the default (the repository root). Turborepo integration is handled natively by Vercel.
-4. **Build Settings**: 
-   Vercel will detect Turborepo and use the correct commands automatically. Ensure the settings match:
-   - **Build Command**: `pnpm run build` (or `turbo run build`)
-   - **Install Command**: `pnpm install`
-   - **Output Directory**: Vercel handles this for Next.js (`apps/web/.next`)
-5. **Environment Variables**: Add all the required environment variables listed in section 3. Make sure to use production keys for production deployments.
+Deploy from the repository root only.
 
-### Continuous Integration
-- Every push to a pull request triggers a preview deployment.
-- Pushes to the `main` branch trigger a production build.
-- Database migrations (`pnpm db:migrate`) can be configured to run as a custom build step in the `package.json` or handled manually/via GitHub Actions prior to a Vercel production deployment.
+```bash
+pnpm dlx vercel --prod --yes
+```
+
+The Vercel project root is `apps/web`, so `apps/web/vercel.json` is the deployment source of truth:
+
+- Project: `school-sis-web`
+- Build command: `pnpm --filter @school-sis/web run build`
+- Install command: `pnpm install --frozen-lockfile`
+- Primary region: `iad1`
+
+Run the deploy command from the repository root. Do not run `vercel` from `apps/web`; that can target a stale local project link.
+
+## Storage and CDN
+
+Cloudflare R2 is the preferred S3-compatible store. AWS S3 is a fallback.
+
+R2:
+
+```env
+R2_ACCOUNT_ID=...
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET_NAME=school-sis-uploads
+STORAGE_CDN_BASE_URL=https://cdn.example.com
+```
+
+AWS fallback:
+
+```env
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_S3_BUCKET=school-sis-uploads
+```
+
+Uploads are tenant-prefixed and retrieved through authenticated signed URLs at `/api/files/...`.
+
+## Backups and Restore Drills
+
+Create an operator backup:
+
+```bash
+DIRECT_URL="postgresql://..." pnpm backup:create
+```
+
+Restore drill:
+
+```bash
+DIRECT_URL="postgresql://..." CONFIRM_RESTORE=school-sis pnpm backup:restore -- ./backups/neon/file.dump
+```
+
+Backup files contain sensitive data. Store production dumps outside the repository.
+
+## CI Expectations
+
+CI should pass:
+
+```bash
+pnpm build
+pnpm --filter @school-sis/web exec drizzle-kit check
+pnpm --filter @school-sis/web exec eslint src --quiet
+```
+
+Deployments should occur only after reviewed migrations are applied or confirmed unnecessary.

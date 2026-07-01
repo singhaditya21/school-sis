@@ -76,6 +76,6 @@ When the Registrar initiates "issue_degree"
 Then the CredentialAgent MUST:
   1. Compile the graduation transcript into an W3C Verifiable Credential object.
   2. Request a cryptographic signature from the Credential Officer's key.
-  3. Publish the signed VC metadata hash to the Supabase instance.
+  3. Publish the signed VC metadata hash to the Neon instance.
   4. Send Charles an alert to export the degree to his digital wallet.
 ```

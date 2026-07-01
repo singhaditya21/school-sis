@@ -60,7 +60,7 @@ async function executeSyncJob(type: string, payload: JobPayload): Promise<JobRes
     }
 
     try {
-        // SECURITY PATCH: Floating promises die on Render when the HTTP handler finishes.
+        // SECURITY PATCH: Floating promises can die when the HTTP handler finishes.
         // `after()` natively signals to Next.js / Serverless platforms to keep the lifecycle active
         // until the background task successfully completes.
         after(async () => {

@@ -11,8 +11,8 @@ This repository enforces the **V6 PRD Enterprise Standard**, which radically res
 The ScholarMind framework operates on a hybrid monolith/microservice architecture split distinctly between the Presentation/Core API Layer (Next.js) and the Cognitive Execution Layer (Python FastAPI).
 
 ### 1. Presentation & Core API Layer (`/apps/web`)
-- **Framework**: Next.js 15 (App Router)
-- **Database**: Supabase PostgreSQL (via Pooler)
+- **Framework**: Next.js 16 (App Router)
+- **Database**: Neon Postgres with pgvector
 - **ORM**: Drizzle ORM — Fully typed, zero-abstraction relational querying.
 - **Styling**: Tailwind CSS & Tremor React components for rich dashboards.
 - **Identity**: NextAuth/IronSession tracking multi-tenant boundaries (`tenantId`) explicitly for every query.
@@ -21,7 +21,7 @@ The ScholarMind framework operates on a hybrid monolith/microservice architectur
 - **Framework**: Python FastAPI
 - **LLM Engine**: Cerebras Inference (`llama3.1-70b`)
 - **Memory**: Redis (Arq) for background queue management and cost-tracking.
-- **Embeddings**: `pgvector` stored back in the Supabase instance for instant RAG retreival.
+- **Embeddings**: `pgvector` stored back in Neon for instant RAG retrieval.
 - **Agent Framework**: Custom lightweight framework derived from LangChain principles, built for extreme latency optimization and strict tool execution oversight.
 
 ---

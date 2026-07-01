@@ -4,7 +4,17 @@ import Link from 'next/link';
 import { Database, Server, AppWindow, Cpu, ShieldAlert, ArrowLeft, Terminal, X, Boxes, Network, FileCode2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-const TECH_SPECS: Record<string, any> = {
+type TechSpec = {
+    id: string;
+    title: string;
+    badge: string;
+    iconColor: string;
+    terminalText: string;
+    features: string[];
+    description: string;
+};
+
+const TECH_SPECS: Record<string, TechSpec> = {
     website: {
         id: 'website',
         title: 'apps/website (Marketing)',
@@ -57,18 +67,18 @@ const TECH_SPECS: Record<string, any> = {
         ],
         description: "Vercel's high-performance build system encapsulates the entire project. It allows developer iterations at light-speed by only compiling strictly what changed between the two distinct Next.js micro-frameworks."
     },
-    render: {
-        id: 'render',
-        title: 'Render Node Gateways',
+    runtime: {
+        id: 'runtime',
+        title: 'Vercel Runtime Regions',
         badge: 'CLOUD DEPLOYMENT',
         iconColor: 'indigo',
-        terminalText: `> Deploying container to render-web...\n[SYS] Binding reverse-proxy...\n[OK] TLS 1.3 certificates provisioned.\n[ACT] Rate limiting set to 5000 RPM.\n> Node Cluster globally distributed.`,
+        terminalText: `> Deploying school-sis-web to Vercel...\n[SYS] Binding serverless functions...\n[OK] TLS certificates provisioned.\n[ACT] Runtime region pinned.\n> Edge network globally distributed.`,
         features: [
             "Automatic CI/CD Pipeline tracking Git Commits",
             "DDoS mitigation at the reverse-proxy layer",
-            "Containerized environments mapping pure isolated resources"
+            "Serverless isolation mapping requests to hardened Node runtimes"
         ],
-        description: "The live hardware executing the code. A secure managed container intercepting raw internet requests and parsing them safely down to the Postgres pipeline."
+        description: "The managed runtime executing the app. Vercel receives internet traffic, applies edge protections, and routes requests into tenant-safe serverless handlers backed by Neon."
     },
     db: {
         id: 'db',
@@ -86,20 +96,13 @@ const TECH_SPECS: Record<string, any> = {
 };
 
 export default function ArchitectureDeepDive() {
-    const [mounted, setMounted] = useState(false);
     const [activeNode, setActiveNode] = useState<string | null>(null);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
 
     useEffect(() => {
         if (activeNode) document.body.style.overflow = 'hidden';
         else document.body.style.overflow = 'unset';
         return () => { document.body.style.overflow = 'unset' };
     }, [activeNode]);
-
-    if (!mounted) return null;
 
     const selectedSpec = activeNode ? TECH_SPECS[activeNode] : null;
 
@@ -126,7 +129,7 @@ export default function ArchitectureDeepDive() {
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-indigo-500 animate-gradient-x">Monorepo Engine.</span>
                         </h1>
                         <p className="text-xl text-slate-400 max-w-3xl font-light">
-                            Trace exactly how our complex multi-application workspace is routed. An absolutely seamless dual-node integration ensuring marketing speed without sacrificing the primary codebase's security scope.
+                            Trace exactly how our complex multi-application workspace is routed. An absolutely seamless dual-node integration ensuring marketing speed without sacrificing primary codebase security.
                         </p>
                     </div>
                 </div>
@@ -149,7 +152,7 @@ export default function ArchitectureDeepDive() {
                    apps/website: centered at (270, 150), bottom boundary Y=200
                    apps/web: centered at (630, 150), bottom boundary Y=200
                    API Bridge: centered at (450, 320), top boundary Y=270, bottom Y=370
-                   Render Nodes: centered at (270, 500)
+                   Vercel Runtime: centered at (270, 500)
                    AI Sentinels: centered at (630, 500)
                    DB Enclave: centered at (450, 680)
                 */}
@@ -169,7 +172,7 @@ export default function ArchitectureDeepDive() {
                     <path d="M 630 200 C 630 235, 450 235, 450 270" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
                     <path d="M 630 200 C 630 235, 450 235, 450 270" fill="none" stroke="#eab308" strokeWidth="4" className="animate-[flow-diagonal_2.5s_linear_infinite] delay-[1s]" strokeDasharray="30 250" strokeLinecap="round" filter="url(#glow-connector)"/>
 
-                    {/* Bridge -> Render Cloud */}
+                    {/* Bridge -> Vercel Runtime */}
                     <path d="M 450 370 C 450 410, 270 410, 270 450" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
                     <path d="M 450 370 C 450 410, 270 410, 270 450" fill="none" stroke="#6366f1" strokeWidth="4" className="animate-[flow-diagonal_2s_linear_infinite]" strokeDasharray="20 150" strokeLinecap="round" filter="url(#glow-connector)"/>
 
@@ -177,7 +180,7 @@ export default function ArchitectureDeepDive() {
                     <path d="M 450 370 C 450 410, 630 410, 630 450" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
                     <path d="M 450 370 C 450 410, 630 410, 630 450" fill="none" stroke="#d946ef" strokeWidth="4" className="animate-[flow-diagonal_2.5s_linear_infinite]" strokeDasharray="25 180" strokeLinecap="round" filter="url(#glow-connector)"/>
 
-                    {/* Render Cloud -> Database */}
+                    {/* Vercel Runtime -> Database */}
                     <path d="M 270 550 C 270 590, 450 590, 450 630" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
                     <path d="M 270 550 C 270 590, 450 590, 450 630" fill="none" stroke="#10b981" strokeWidth="4" className="animate-[flow-diagonal_2s_linear_infinite]" strokeDasharray="30 200" strokeLinecap="round" filter="url(#glow-connector)"/>
 
@@ -216,12 +219,12 @@ export default function ArchitectureDeepDive() {
                     </div>
                 </div>
 
-                {/* 4. Render Cloud Node (X:270, Y:500) -> Top:450, Left:150 */}
-                <div onClick={() => setActiveNode('render')} className="absolute top-[450px] left-[150px] w-[240px] h-[100px] bg-black/60 backdrop-blur-xl border border-indigo-500/30 rounded-2xl flex items-center p-4 hover:bg-indigo-900/30 hover:scale-105 hover:shadow-[0_0_30px_rgba(99,102,241,0.3)] transition-all cursor-pointer z-20 group">
+                {/* 4. Vercel Runtime Node (X:270, Y:500) -> Top:450, Left:150 */}
+                <div onClick={() => setActiveNode('runtime')} className="absolute top-[450px] left-[150px] w-[240px] h-[100px] bg-black/60 backdrop-blur-xl border border-indigo-500/30 rounded-2xl flex items-center p-4 hover:bg-indigo-900/30 hover:scale-105 hover:shadow-[0_0_30px_rgba(99,102,241,0.3)] transition-all cursor-pointer z-20 group">
                     <div className="w-12 h-12 flex-shrink-0 bg-indigo-500/20 text-indigo-400 flex items-center justify-center rounded-xl mr-4 border border-indigo-500/40 group-hover:bg-indigo-400 group-hover:text-black transition-colors"><Server size={24}/></div>
                     <div>
-                        <h3 className="font-bold text-white leading-tight">Render Nodes</h3>
-                        <p className="text-[10px] text-indigo-400 uppercase tracking-wider font-mono mt-1">Live Cloud Gateway</p>
+                        <h3 className="font-bold text-white leading-tight">Vercel Runtime</h3>
+                        <p className="text-[10px] text-indigo-400 uppercase tracking-wider font-mono mt-1">Serverless Region</p>
                     </div>
                 </div>
 

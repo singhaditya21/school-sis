@@ -126,7 +126,7 @@ The following pages rely entirely on inline mock data and will not reflect real 
 
 | Issue | Location | Impact |
 |-------|----------|--------|
-| `after()` from `next/server` used for background jobs without retry logic | `jobs.ts` | Jobs fail silently on Render cold starts |
+| `after()` from `next/server` used for background jobs without retry logic | `jobs.ts` | Jobs can fail silently across serverless lifecycle boundaries |
 | No BullMQ fallback activation | `jobs.ts` | Production runs sync-only; no queue durability |
 | Payment verify returns success but does **not** update invoice record | `api/payments/verify/route.ts` | Payment appears successful but invoice stays unpaid in DB |
 | Razorpay order creation is fully mocked | `api/payments/orders/route.ts` | No real payment initiation possible |
@@ -142,7 +142,7 @@ The following pages rely entirely on inline mock data and will not reflect real 
 | ESLint in CI | ✅ Enabled |
 | Jest unit tests | ⚠️ Only 5 test files for 372+ source files |
 | Playwright E2E | ✅ Configured but likely minimal coverage |
-| Prisma references in scripts | ⚠️ `package.json` scripts still reference `prisma` but project uses **Drizzle** — docs need update |
+| Prisma references in scripts | ✅ Resolved | Root scripts now route through Drizzle commands |
 
 ---
 
@@ -153,7 +153,7 @@ The following pages rely entirely on inline mock data and will not reflect real 
 | 1 | **No database indexes audited** | Migrations create tables but index coverage is unknown | Run `EXPLAIN ANALYZE` on high-traffic queries (fee collection, attendance, invoice lists) |
 | 2 | **Synchronous job execution in production path** | `jobs.ts` uses `after()` without queue | Activate BullMQ + Redis for production |
 | 3 | **Potential N+1 in fee defaulter service** | `defaulter.service.ts` iterates students then invoices | Batch query with `JOIN` or Drizzle relational queries |
-| 4 | **No CDN / edge caching configured** | `next.config.js` not audited | Add `stale-while-revalidate` headers for public assets; use Vercel/Render edge caching |
+| 4 | **No CDN / edge caching configured** | `next.config.js` not audited | Add caching headers for public assets and use Vercel/CDN edge caching |
 | 5 | **Large bundle risk from Tremor + Radix** | Multiple `@radix-ui/*` + `@tremor/react` | Audit with `@next/bundle-analyzer`; tree-shake unused Tremor components |
 
 ---
@@ -287,7 +287,6 @@ From `docs/FEE_COLLECTIONS_SUMMARY.md` and code review:
 - `apps/web/package.json` — Next.js app dependencies
 - `pnpm-workspace.yaml` — workspace definition
 - `docker-compose.yml` — local infra (Postgres + Redis)
-- `render.yaml` — Render deployment spec
 - `vercel.json` — Vercel deployment spec
 - `.github/workflows/ci.yml` — CI pipeline
 

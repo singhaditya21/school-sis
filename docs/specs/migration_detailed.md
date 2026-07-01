@@ -11,7 +11,7 @@ To minimize operational disruption during long-term transitions, ScholarMind def
 ```mermaid
 graph TD
     Legacy[(Legacy Database)] -->|Reads / Primary Sync| Sync[Sync Engine Proxy]
-    Sync -->|Dual Writes| Modern[(ScholarMind Supabase DB)]
+    Sync -->|Dual Writes| Modern[(School SIS Neon DB)]
     User[App Client] -->|Read / Write Requests| Sync
 ```
 
@@ -50,7 +50,7 @@ Each migration run must define a rollback window. If operational checks fail pos
 ### 3.1 Rollback Trigger Conditions
 - High API exception rates (P99 latency > 2000ms or error rates > 2.0% within the first 60 minutes).
 - Mismatched multi-tenant isolation logs.
-- Failure to verify database connections or Supabase pooling capacity.
+- Failure to verify database connections or Neon pooling capacity.
 
 ---
 

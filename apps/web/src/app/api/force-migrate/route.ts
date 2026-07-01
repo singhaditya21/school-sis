@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
  *
  * SECURITY:
  * - Only accessible by authenticated PLATFORM_ADMIN
- * - Blocked entirely in production unless ALLOW_FORCE_MIGRATE=true
+ * - Blocked entirely in production
  * - Returns generic errors to prevent schema disclosure
  */
 
@@ -17,10 +17,10 @@ export async function GET() {
     const auth = await requireApiAuth(ROLE_GROUPS.platform);
     if (auth.ok === false) return auth.response;
 
-    // SECURITY: Block in production unless explicitly allowed
-    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_FORCE_MIGRATE !== 'true') {
+    // SECURITY: Block in production. Schema changes must use Drizzle migrations.
+    if (process.env.NODE_ENV === 'production') {
         return NextResponse.json(
-            { error: 'Force migration is disabled in production. Set ALLOW_FORCE_MIGRATE=true to enable.' },
+            { error: 'Force migration is disabled in production. Run reviewed Drizzle migrations instead.' },
             { status: 403 }
         );
     }
