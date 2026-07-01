@@ -1,70 +1,69 @@
-import { streamText } from 'ai';
-import { createOpenAI } from '@ai-sdk/openai';
-import { pool } from '@/lib/db';
-import { requireAuth } from '@/lib/auth/middleware';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireApiAuth } from '@/lib/auth/api';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
+import { agentUnavailableResponse, forwardAgentRequest } from '@/lib/agents/client';
+
+export const dynamic = 'force-dynamic';
+
+const MessageSchema = z.object({
+  role: z.string(),
+  content: z.string().optional(),
+  parts: z.array(z.object({
+    type: z.string(),
+    text: z.string().optional(),
+  })).optional(),
+});
+
+const ChatSchema = z.object({
+  messages: z.array(MessageSchema).min(1).max(50),
+});
+
+function latestUserText(messages: z.infer<typeof ChatSchema>['messages']): string {
+  const latest = [...messages].reverse().find((message) => message.role === 'user') || messages[messages.length - 1];
+  if (latest.content) return latest.content;
+  return latest.parts
+    ?.filter((part) => part.type === 'text' && part.text)
+    .map((part) => part.text)
+    .join('\n')
+    .trim() || '';
+}
 
 export async function POST(req: Request) {
   try {
-    const { tenantId } = await requireAuth();
-    const inferenceApiKey = process.env.INFERENCE_API_TOKEN;
-    if (!inferenceApiKey) {
-      return new Response(JSON.stringify({ error: 'Inference provider is not configured' }), { status: 503 });
-    }
+    const auth = await requireApiAuth([
+      'PLATFORM_ADMIN',
+      'SUPER_ADMIN',
+      'SCHOOL_ADMIN',
+      'PRINCIPAL',
+      'ACCOUNTANT',
+      'ADMISSION_COUNSELOR',
+      'TEACHER',
+    ]);
+    if (auth.ok === false) return auth.response;
 
-    // Connect to the Rust inference engine through its OpenAI compatibility layer.
-    const localInference = createOpenAI({
-      baseURL: process.env.INFERENCE_BASE_URL || 'http://localhost:8000/v1',
-      apiKey: inferenceApiKey,
-    });
-
-    const json = await readTenantScopedJson<Record<string, unknown>>(req, tenantId);
+    const json = await readTenantScopedJson<Record<string, unknown>>(req, auth.context.tenantId);
     if (json.ok === false) return json.response;
 
-    const { messages } = json.data as any;
+    const parsed = ChatSchema.safeParse(json.data);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid chat request' }, { status: 400 });
+    }
 
-    // Extract the user's latest question
-    const latestMessage = messages[messages.length - 1];
-    const userQuery = latestMessage.content;
+    const query = latestUserText(parsed.data.messages);
+    if (!query) {
+      return NextResponse.json({ error: 'Missing chat message' }, { status: 400 });
+    }
 
-    // 1. Generate an embedding for the user's query
-    // Mocking the vector generation for the local environment setup
-    const queryVector = Array.from({ length: 768 }, () => Math.random() - 0.5);
-
-    // 2. Perform a similarity search in our centralized pgvector search_index table
-    const searchSql = `
-      SELECT entity_type, entity_id, content, metadata,
-             1 - (embedding <=> $1::vector) AS similarity
-      FROM search_index
-      WHERE tenant_id = $2
-      ORDER BY embedding <=> $1::vector
-      LIMIT 5
-    `;
-    const { rows: contextRows } = await pool.query(searchSql, [JSON.stringify(queryVector), tenantId]);
-
-    // 3. Construct the RAG context string
-    const systemPrompt = `
-      You are the universal AI Copilot for the School SIS system.
-      Use the following database records to answer the user's question accurately.
-      If the answer is not contained in the context, politely state that you cannot find the information.
-      
-      CONTEXT:
-      ${contextRows.map(row => `---
-      Type: ${row.entity_type} (ID: ${row.entity_id})
-      Data: ${row.content}
-      `).join('\\n')}
-    `;
-
-    // 4. Stream the text response back to the widget using Vercel AI SDK
-    const result = await streamText({
-      model: localInference('meta-llama/Llama-3-8b-instruct'),
-      system: systemPrompt,
-      messages,
+    return await forwardAgentRequest(auth.context, '/api/v1/agents/synthesis/query', {
+      method: 'POST',
+      body: {
+        query,
+        tenant_id: auth.context.tenantId,
+        user_id: auth.context.userId,
+      },
     });
-
-    return result.toTextStreamResponse();
-  } catch (error: any) {
-    console.error("AI Chat Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+  } catch (error) {
+    return agentUnavailableResponse(error);
   }
 }

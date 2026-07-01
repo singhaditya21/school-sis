@@ -15,6 +15,8 @@ from openai import AsyncOpenAI
 from src.config import settings
 from src.core.tool import ToolRegistry
 from src.core.rag import RAGPipeline, RetrievalResult
+from src.core.db import set_tenant_context
+from src.core.security import sanitize_model_output
 
 logger = structlog.get_logger()
 
@@ -177,7 +179,7 @@ class Agent(ABC):
                     })
             else:
                 # Final answer — no more tool calls
-                answer = message.get("content", "I was unable to generate a response.")
+                answer = sanitize_model_output(message.get("content", "I was unable to generate a response."))
                 elapsed_ms = int((time.monotonic() - start_time) * 1000)
 
                 response = AgentResponse(
@@ -252,6 +254,7 @@ class Agent(ABC):
         try:
             import psycopg
             async with await psycopg.AsyncConnection.connect(settings.database_url) as conn:
+                await set_tenant_context(conn, context.tenant_id)
                 async with conn.cursor() as cur:
                     await cur.execute(
                         """

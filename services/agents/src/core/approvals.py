@@ -15,6 +15,7 @@ from pydantic import BaseModel
 import structlog
 
 from src.config import settings
+from src.core.db import set_tenant_context
 
 logger = structlog.get_logger()
 
@@ -46,6 +47,7 @@ async def create_approval(request: ApprovalRequest) -> dict:
 
     try:
         async with await psycopg.AsyncConnection.connect(settings.database_url) as conn:
+            await set_tenant_context(conn, request.tenant_id)
             async with conn.cursor() as cur:
                 await cur.execute(query, params)
                 row = await cur.fetchone()
@@ -81,6 +83,7 @@ async def list_approvals(tenant_id: UUID, status: str = "PENDING", limit: int = 
     """
     try:
         async with await psycopg.AsyncConnection.connect(settings.database_url) as conn:
+            await set_tenant_context(conn, tenant_id)
             async with conn.cursor() as cur:
                 await cur.execute(query, [tenant_id, status, limit])
                 rows = []
@@ -114,6 +117,7 @@ async def get_approval(tenant_id: UUID, approval_id: UUID) -> dict | None:
     """
     try:
         async with await psycopg.AsyncConnection.connect(settings.database_url) as conn:
+            await set_tenant_context(conn, tenant_id)
             async with conn.cursor() as cur:
                 await cur.execute(query, [approval_id, tenant_id])
                 row = await cur.fetchone()
@@ -156,6 +160,7 @@ async def review_approval(
     """
     try:
         async with await psycopg.AsyncConnection.connect(settings.database_url) as conn:
+            await set_tenant_context(conn, tenant_id)
             async with conn.cursor() as cur:
                 await cur.execute(query, [action, user_id, approval_id, tenant_id])
                 row = await cur.fetchone()

@@ -1,21 +1,87 @@
 'use client';
 
-import { useChat } from '@ai-sdk/react';
 import { useState, useRef, useEffect } from 'react';
-import { MessageSquare, X, Send, Loader2, Sparkles } from 'lucide-react';
+import { X, Send, Loader2, Sparkles } from 'lucide-react';
+
+type CopilotMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+};
 
 export function AICopilot() {
   const [isOpen, setIsOpen] = useState(false);
-  const { messages, sendMessage, status } = useChat();
+  const [messages, setMessages] = useState<CopilotMessage[]>([]);
   const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value);
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
-    sendMessage({ text: input });
+    const userMessage: CopilotMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      text: input,
+    };
+    setMessages((current) => [...current, userMessage]);
+    setIsLoading(true);
     setInput('');
+
+    try {
+      const response = await fetch('/api/agents/synthesis/query-async', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: userMessage.text }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.job_id) {
+        throw new Error(data.detail || data.error || 'Agent request failed');
+      }
+
+      let attempts = 0;
+      const poll = async (): Promise<void> => {
+        attempts += 1;
+        if (attempts > 60) throw new Error('Agent request timed out');
+
+        const pollResponse = await fetch(`/api/agents/jobs/${encodeURIComponent(data.job_id)}`);
+        const pollData = await pollResponse.json();
+        if (!pollResponse.ok) {
+          throw new Error(pollData.detail || pollData.error || 'Agent polling failed');
+        }
+        if (pollData.status === 'complete') {
+          setMessages((current) => [
+            ...current,
+            {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              text: pollData.result?.answer || 'No answer was returned.',
+            },
+          ]);
+          return;
+        }
+        if (pollData.status === 'failed') {
+          throw new Error(pollData.error || 'Agent failed to process the request');
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        return poll();
+      };
+
+      await poll();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Agent request failed';
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          text: message,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
   };
-  const isLoading = status === 'submitted' || status === 'streaming';
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -64,7 +130,7 @@ export function AICopilot() {
             </div>
           )}
           
-          {messages.map((m: any) => (
+          {messages.map((m) => (
             <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div
                 className={`max-w-[80%] rounded-2xl px-4 py-2 ${
@@ -73,7 +139,7 @@ export function AICopilot() {
                     : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm'
                 }`}
               >
-                {m.parts ? m.parts.filter((part: any) => part.type === 'text').map((part: any) => part.text).join('') : ''}
+                {m.text}
               </div>
             </div>
           ))}

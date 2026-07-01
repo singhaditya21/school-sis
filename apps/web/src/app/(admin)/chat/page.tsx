@@ -1,41 +1,68 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { getTenantId } from '@/lib/actions/scaffolding-bridge';
+import { useState } from 'react';
+
+type ChatMessage = {
+    role: 'user' | 'agent';
+    content: string;
+    meta?: {
+        tokens?: number;
+        latency?: number;
+    };
+};
+
+type AgentJobResponse = {
+    job_id?: string;
+    error?: string;
+    detail?: string;
+};
+
+type AgentJobStatus = {
+    status: 'queued' | 'deferred' | 'in_progress' | 'complete' | 'failed' | string;
+    result?: {
+        answer?: string;
+        tokens_used?: number;
+        latency_ms?: number;
+    };
+    error?: string;
+    detail?: string;
+};
 
 export default function ChatPage() {
     const [query, setQuery] = useState('');
-    const [messages, setMessages] = useState<any[]>([]);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [agent, setAgent] = useState('synthesis');
     const [loading, setLoading] = useState(false);
-    const [tenantId, setTenantId] = useState('');
-
-    useEffect(() => { getTenantId().then(setTenantId); }, []);
 
     const handleSend = async () => {
         if (!query.trim()) return;
 
-        const newMessages = [...messages, { role: 'user', content: query }];
+        const userMessage: ChatMessage = { role: 'user', content: query };
+        const newMessages: ChatMessage[] = [...messages, userMessage];
         setMessages(newMessages);
         setQuery('');
         setLoading(true);
 
         try {
-            const agentBaseUrl = process.env.NEXT_PUBLIC_AGENT_URL || 'http://localhost:8083';
-            const response = await fetch(`${agentBaseUrl}/api/v1/agents/${agent}/query_async`, {
+            const response = await fetch(`/api/agents/${encodeURIComponent(agent)}/query-async`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: newMessages[newMessages.length - 1].content, tenant_id: tenantId })
+                body: JSON.stringify({ query: userMessage.content }),
             });
-            const data = await response.json();
+            const data = await response.json() as AgentJobResponse;
             
             if (!response.ok) {
-                setMessages([...newMessages, { role: 'agent', content: 'Agent Error: ' + (data.detail || 'Unknown error') }]);
+                setMessages([...newMessages, { role: 'agent', content: 'Agent Error: ' + (data.detail || data.error || 'Unknown error') }]);
                 setLoading(false);
                 return;
             }
 
             const jobId = data.job_id;
+            if (!jobId) {
+                setMessages([...newMessages, { role: 'agent', content: 'Agent Error: Missing job id.' }]);
+                setLoading(false);
+                return;
+            }
             let pollingAttempts = 0;
             const maxAttempts = 60; // 2 minutes with 2s interval
 
@@ -49,8 +76,8 @@ export default function ChatPage() {
                 }
 
                 try {
-                    const pollRes = await fetch(`${agentBaseUrl}/api/v1/agents/jobs/${jobId}`);
-                    const pollData = await pollRes.json();
+                    const pollRes = await fetch(`/api/agents/jobs/${encodeURIComponent(jobId)}`);
+                    const pollData = await pollRes.json() as AgentJobStatus;
 
                     if (pollRes.ok && pollData.status === 'complete') {
                         clearInterval(pollInterval);
@@ -63,23 +90,25 @@ export default function ChatPage() {
                         setLoading(false);
                     } else if (pollRes.ok && pollData.status === 'failed') {
                         clearInterval(pollInterval);
-                        setMessages([...newMessages, { role: 'agent', content: 'Background agent crashed or failed to process the request.' }]);
+                        setMessages([...newMessages, { role: 'agent', content: pollData.error || 'Background agent failed to process the request.' }]);
                         setLoading(false);
                     } else if (!pollRes.ok) {
                         clearInterval(pollInterval);
-                        setMessages([...newMessages, { role: 'agent', content: 'Polling Error: ' + (pollData.detail || 'Unknown error') }]);
+                        setMessages([...newMessages, { role: 'agent', content: 'Polling Error: ' + (pollData.detail || pollData.error || 'Unknown error') }]);
                         setLoading(false);
                     }
                     // If queued or in-progress, just wait for the next iteration
-                } catch (pollError: any) {
+                } catch (pollError) {
                     clearInterval(pollInterval);
-                    setMessages([...newMessages, { role: 'agent', content: 'Polling connection interrupted: ' + pollError.message }]);
+                    const message = pollError instanceof Error ? pollError.message : 'Unknown error';
+                    setMessages([...newMessages, { role: 'agent', content: 'Polling connection interrupted: ' + message }]);
                     setLoading(false);
                 }
             }, 2000);
 
-        } catch (error: any) {
-            setMessages([...newMessages, { role: 'agent', content: 'Connection Error: ' + error.message }]);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            setMessages([...newMessages, { role: 'agent', content: 'Connection Error: ' + message }]);
             setLoading(false);
         }
     };

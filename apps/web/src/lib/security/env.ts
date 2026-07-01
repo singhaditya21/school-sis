@@ -67,6 +67,7 @@ export function validateSecurityEnvironment() {
 export function getSecurityFeatureStatus() {
     return {
         copilot: hasSecret('CEREBRAS_API_KEY', 16),
+        agentService: hasSecret('AGENT_API_TOKEN') && Boolean(process.env.AGENT_SERVICE_URL || process.env.AGENT_BASE_URL),
         agentWebhook: hasSecret('AGENT_WEBHOOK_SECRET'),
         iotIngest: hasSecret('IOT_INGEST_SECRET') && Boolean(process.env.IOT_SYSTEM_USER_ID),
         metrics: hasSecret('METRICS_TOKEN'),

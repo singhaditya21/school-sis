@@ -11,6 +11,7 @@ import structlog
 from openai import AsyncOpenAI
 
 from src.config import settings
+from src.core.db import set_tenant_context
 
 logger = structlog.get_logger()
 
@@ -63,6 +64,7 @@ class RAGPipeline:
         query_embedding = await self.embed_text(query)
 
         async with await psycopg.AsyncConnection.connect(self.db_url) as conn:
+            await set_tenant_context(conn, tenant_id)
             async with conn.cursor() as cur:
                 await cur.execute(
                     """
@@ -114,6 +116,7 @@ class RAGPipeline:
         embedding = await self.embed_text(text_content)
 
         async with await psycopg.AsyncConnection.connect(self.db_url) as conn:
+            await set_tenant_context(conn, tenant_id)
             async with conn.cursor() as cur:
                 await cur.execute(
                     """

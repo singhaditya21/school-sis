@@ -19,6 +19,10 @@ services:
         sync: false
       - key: AGENT_WEBHOOK_SECRET
         sync: false
+      - key: AGENT_SERVICE_URL
+        sync: false
+      - key: AGENT_API_TOKEN
+        sync: false
       - key: IOT_INGEST_SECRET
         sync: false
       - key: IOT_SYSTEM_USER_ID
@@ -30,4 +34,25 @@ services:
       - key: RAZORPAY_KEY_ID
         sync: false
       - key: RAZORPAY_KEY_SECRET
+        sync: false
+  - type: web
+    name: school-sis-agents
+    env: docker
+    rootDir: services/agents
+    region: singapore
+    plan: free
+    envVars:
+      - key: AGENT_ENVIRONMENT
+        value: production
+      - key: AGENT_API_TOKEN
+        sync: false
+      - key: AGENT_DATABASE_URL
+        sync: false
+      - key: AGENT_REDIS_URL
+        sync: false
+      - key: AGENT_LLM_API_KEY
+        sync: false
+      - key: AGENT_NVIDIA_API_KEY
+        sync: false
+      - key: AGENT_ALLOWED_ORIGINS
         sync: false

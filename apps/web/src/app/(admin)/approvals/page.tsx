@@ -2,23 +2,28 @@
 
 import { useState, useEffect } from 'react';
 
+type AgentApproval = {
+    id: string;
+    agent_name: string;
+    title: string;
+    description: string;
+    proposed_action: unknown;
+    priority: 'LOW' | 'NORMAL' | 'HIGH' | 'CRITICAL';
+};
+
 export default function ApprovalsPage() {
-    const [approvals, setApprovals] = useState<any[]>([]);
+    const [approvals, setApprovals] = useState<AgentApproval[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Hardcoded tenant for demonstration
-    const tenantId = '11111111-1111-1111-1111-111111111111';
-
     const fetchApprovals = async () => {
         try {
-            const agentBaseUrl = process.env.NEXT_PUBLIC_AGENT_URL || 'http://localhost:8083';
-            const res = await fetch(`${agentBaseUrl}/api/v1/approvals/${tenantId}`);
+            const res = await fetch('/api/agents/approvals');
             if (!res.ok) throw new Error('Failed to fetch approvals');
-            const data = await res.json();
+            const data = await res.json() as AgentApproval[];
             setApprovals(data);
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to fetch approvals');
         } finally {
             setLoading(false);
         }
@@ -30,21 +35,21 @@ export default function ApprovalsPage() {
 
     const handleReview = async (id: string, action: 'APPROVED' | 'REJECTED') => {
         try {
-            const agentBaseUrl = process.env.NEXT_PUBLIC_AGENT_URL || 'http://localhost:8083';
-            const res = await fetch(`${agentBaseUrl}/api/v1/approvals/${tenantId}/${id}/review`, {
+            const res = await fetch(`/api/agents/approvals/${encodeURIComponent(id)}/review`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action, user_id: '22222222-2222-2222-2222-222222222222' })
+                body: JSON.stringify({ action }),
             });
             if (res.ok) {
                 // Remove from list or refetch
                 setApprovals(approvals.filter(a => a.id !== id));
             } else {
                 const data = await res.json();
-                alert('Error: ' + data.detail);
+                alert('Error: ' + (data.detail || data.error || 'Unknown error'));
             }
-        } catch (err: any) {
-            alert('Failed to process action: ' + err.message);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Unknown error';
+            alert('Failed to process action: ' + message);
         }
     };
 

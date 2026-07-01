@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import hmac
+from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
@@ -34,6 +35,17 @@ JAILBREAK_PATTERNS = [
     r"act\s+as\s+.*without\s+restrictions",
 ]
 COMPILED_JAILBREAKS = [re.compile(p, re.IGNORECASE) for p in JAILBREAK_PATTERNS]
+THINKING_BLOCK_RE = re.compile(r"(?is)<think>.*?</think>")
+REASONING_FENCE_RE = re.compile(r"(?is)```(?:reasoning|thoughts|chain[-_ ]?of[-_ ]?thought).*?```")
+REASONING_LINE_RE = re.compile(r"(?im)^\s*(?:internal\s+reasoning|reasoning|chain[-_ ]?of[-_ ]?thought)\s*:\s*.*$")
+
+
+@dataclass(frozen=True)
+class AgentPrincipal:
+    """Trusted caller identity forwarded by the Next.js server gateway."""
+    tenant_id: UUID
+    user_id: UUID | None
+    role: str | None
 
 
 async def require_agent_auth(authorization: str | None = Header(default=None)) -> None:
@@ -60,6 +72,68 @@ def require_tenant_match(route_tenant_id: UUID, header_tenant_id: str | None) ->
         raise HTTPException(status_code=400, detail="Invalid X-Tenant-Id header.")
     if header_uuid != route_tenant_id:
         raise HTTPException(status_code=403, detail="Tenant header does not match request tenant.")
+
+
+def require_agent_principal(
+    x_tenant_id: str | None = Header(default=None),
+    x_user_id: str | None = Header(default=None),
+    x_user_role: str | None = Header(default=None),
+) -> AgentPrincipal:
+    """Require tenant identity headers from the trusted web gateway."""
+    if not x_tenant_id:
+        raise HTTPException(status_code=400, detail="X-Tenant-Id header is required.")
+    try:
+        tenant_id = UUID(x_tenant_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid X-Tenant-Id header.")
+
+    user_id = None
+    if x_user_id:
+        try:
+            user_id = UUID(x_user_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid X-User-Id header.")
+
+    return AgentPrincipal(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        role=x_user_role,
+    )
+
+
+def require_principal_tenant_match(principal: AgentPrincipal, tenant_id: UUID) -> None:
+    """Ensure a route/body tenant is exactly the trusted caller tenant."""
+    if principal.tenant_id != tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context mismatch.")
+
+
+def require_principal_user_match(principal: AgentPrincipal, user_id: UUID | None) -> UUID | None:
+    """Prevent callers from reviewing or querying on behalf of another user."""
+    if user_id is None:
+        return principal.user_id
+    if principal.user_id and principal.user_id != user_id:
+        raise HTTPException(status_code=403, detail="User context mismatch.")
+    return user_id
+
+
+def sanitize_model_output(text: str) -> str:
+    """Remove internal reasoning artifacts before returning model output."""
+    sanitized = THINKING_BLOCK_RE.sub("", text or "")
+    sanitized = REASONING_FENCE_RE.sub("", sanitized)
+    sanitized = REASONING_LINE_RE.sub("", sanitized)
+    return sanitized.strip()
+
+
+def redact_tool_calls(tool_calls: list[dict]) -> list[dict]:
+    """Return safe tool-call metadata without arguments or result previews."""
+    redacted = []
+    for call in tool_calls:
+        redacted.append({
+            "tool": call.get("tool"),
+            "iteration": call.get("iteration"),
+            "status": call.get("status", "executed"),
+        })
+    return redacted
 
 
 async def init_redis(url: str | None = None) -> None:
@@ -111,8 +185,11 @@ async def check_subscription_tier(tenant_id: UUID) -> None:
         raise HTTPException(status_code=503, detail="Database is not configured for subscription checks.")
 
     import psycopg
+    from src.core.db import set_tenant_context
+
     try:
         async with await psycopg.AsyncConnection.connect(settings.database_url) as conn:
+            await set_tenant_context(conn, tenant_id)
             async with conn.cursor() as cur:
                 # Retrieve subscription tier of the company owning this tenant
                 await cur.execute(

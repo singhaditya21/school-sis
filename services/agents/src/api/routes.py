@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from src.agents.fee_agent import FeeAgent
@@ -24,7 +24,15 @@ from src.agents.future_agents import (
 )
 from src.core.agent import AgentContext
 from src.core.rag import RAGPipeline
-from src.core.security import require_agent_auth, require_tenant_match
+from src.core.security import (
+    AgentPrincipal,
+    redact_tool_calls,
+    require_agent_auth,
+    require_agent_principal,
+    require_principal_tenant_match,
+    require_principal_user_match,
+    sanitize_model_output,
+)
 from src.indexing.pipeline import IndexingPipeline
 
 router = APIRouter(prefix="/api/v1", tags=["agents"], dependencies=[Depends(require_agent_auth)])
@@ -106,8 +114,24 @@ class QueryResponse(BaseModel):
     latency_ms: int = 0
 
 
+def public_query_response(response) -> QueryResponse:
+    """Build a public agent response without internal reasoning or tool payloads."""
+    return QueryResponse(
+        answer=sanitize_model_output(response.answer),
+        agent_name=response.agent_name,
+        sources=response.sources,
+        tool_calls_made=redact_tool_calls(response.tool_calls_made),
+        tokens_used=response.tokens_used,
+        latency_ms=response.latency_ms,
+    )
+
+
 @router.post("/agents/{agent_name}/query", response_model=QueryResponse)
-async def query_agent(agent_name: str, request: QueryRequest, x_tenant_id: str | None = Header(default=None)):
+async def query_agent(
+    agent_name: str,
+    request: QueryRequest,
+    principal: AgentPrincipal = Depends(require_agent_principal),
+):
     """Send a natural language query to a specific agent.
 
     The agent will:
@@ -119,7 +143,8 @@ async def query_agent(agent_name: str, request: QueryRequest, x_tenant_id: str |
     """
     from src.core.security import sanitize_prompt, check_rate_limit, track_token_usage, check_subscription_tier
 
-    require_tenant_match(request.tenant_id, x_tenant_id)
+    require_principal_tenant_match(principal, request.tenant_id)
+    trusted_user_id = require_principal_user_match(principal, request.user_id)
 
     # 1. Prompt Injection Defense
     sanitize_prompt(request.query)
@@ -134,7 +159,7 @@ async def query_agent(agent_name: str, request: QueryRequest, x_tenant_id: str |
 
     context = AgentContext(
         tenant_id=request.tenant_id,
-        user_id=request.user_id,
+        user_id=trusted_user_id,
         query=request.query,
     )
 
@@ -143,14 +168,7 @@ async def query_agent(agent_name: str, request: QueryRequest, x_tenant_id: str |
     # 3. Cost/Token Tracking
     await track_token_usage(request.tenant_id, agent_name, response.tokens_used)
 
-    return QueryResponse(
-        answer=response.answer,
-        agent_name=response.agent_name,
-        sources=response.sources,
-        tool_calls_made=response.tool_calls_made,
-        tokens_used=response.tokens_used,
-        latency_ms=response.latency_ms,
-    )
+    return public_query_response(response)
 
 
 class AsyncJobResponse(BaseModel):
@@ -160,7 +178,11 @@ class AsyncJobResponse(BaseModel):
 
 
 @router.post("/agents/{agent_name}/query_async", response_model=AsyncJobResponse)
-async def query_agent_async(agent_name: str, request: QueryRequest, x_tenant_id: str | None = Header(default=None)):
+async def query_agent_async(
+    agent_name: str,
+    request: QueryRequest,
+    principal: AgentPrincipal = Depends(require_agent_principal),
+):
     """
     Queue an agent query for background processing to avoid frontend timeouts.
     Client receives a job_id and polls `/agents/jobs/{job_id}`.
@@ -168,19 +190,20 @@ async def query_agent_async(agent_name: str, request: QueryRequest, x_tenant_id:
     from src.core.security import sanitize_prompt, check_rate_limit, check_subscription_tier
     from src.core.queue import get_redis_pool
 
-    require_tenant_match(request.tenant_id, x_tenant_id)
+    require_principal_tenant_match(principal, request.tenant_id)
+    trusted_user_id = require_principal_user_match(principal, request.user_id)
 
     sanitize_prompt(request.query)
     await check_subscription_tier(request.tenant_id)
-    await check_rate_limit(request.tenant_id, request.user_id)
+    await check_rate_limit(request.tenant_id, trusted_user_id)
     
     # Validate the agent exists
     get_agent(agent_name)
 
     # Put the context building into a dict
     ctx_dict = {
-        "tenant_id": request.tenant_id,
-        "user_id": request.user_id,
+        "tenant_id": str(request.tenant_id),
+        "user_id": str(trusted_user_id) if trusted_user_id else None,
         "query": request.query
     }
 
@@ -189,19 +212,41 @@ async def query_agent_async(agent_name: str, request: QueryRequest, x_tenant_id:
         job = await redis.enqueue_job("process_agent_query", agent_name, ctx_dict)
         if not job:
             raise HTTPException(status_code=500, detail="Failed to enqueue background job.")
+        await redis.set(
+            f"agent_job_owner:{job.job_id}",
+            __import__("json").dumps({
+                "tenant_id": str(request.tenant_id),
+                "user_id": str(trusted_user_id) if trusted_user_id else None,
+                "agent_name": agent_name,
+            }),
+            ex=86400,
+        )
         return AsyncJobResponse(job_id=job.job_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Redis connection failed: {str(e)}")
 
 
 @router.get("/agents/jobs/{job_id}")
-async def get_job_status(job_id: str):
+async def get_job_status(
+    job_id: str,
+    principal: AgentPrincipal = Depends(require_agent_principal),
+):
     """Poll the status and result of a background agent query."""
     from src.core.queue import get_redis_pool
     from arq.jobs import Job, JobStatus
+    import json
 
     try:
         redis = await get_redis_pool()
+        owner_raw = await redis.get(f"agent_job_owner:{job_id}")
+        if not owner_raw:
+            raise HTTPException(status_code=404, detail="Job not found or expired")
+        owner = json.loads(owner_raw)
+        if owner.get("tenant_id") != str(principal.tenant_id):
+            raise HTTPException(status_code=403, detail="Job does not belong to this tenant")
+        if owner.get("user_id") and principal.user_id and owner["user_id"] != str(principal.user_id):
+            raise HTTPException(status_code=403, detail="Job does not belong to this user")
+
         job = Job(job_id, redis)
         status = await job.status()
         
@@ -219,15 +264,15 @@ async def get_job_status(job_id: str):
 
 
 @router.get("/agents")
-async def list_agents():
-    """List all available agents with their tool registries."""
+async def list_agents(principal: AgentPrincipal = Depends(require_agent_principal)):
+    """List all available agents without exposing internal tool schemas."""
     result = []
     for name, agent in _agents.items():
-        tools = [
-            {"name": t.name, "description": t.description}
-            for t in agent.tools.list_tools()
-        ]
-        result.append({"name": name, "tools": tools, "collections": agent.collections()})
+        result.append({
+            "name": name,
+            "collections": agent.collections(),
+            "tool_count": len(agent.tools.list_tools()),
+        })
     return result
 
 
@@ -246,7 +291,10 @@ class IndexResponse(BaseModel):
 
 
 @router.post("/indexing/full-reindex", response_model=IndexResponse)
-async def full_reindex(request: IndexRequest, x_tenant_id: str | None = Header(default=None)):
+async def full_reindex(
+    request: IndexRequest,
+    principal: AgentPrincipal = Depends(require_agent_principal),
+):
     """Trigger a full reindex of all data for a tenant.
 
     This indexes all students, invoices, and grade collections into pgvector.
@@ -255,7 +303,7 @@ async def full_reindex(request: IndexRequest, x_tenant_id: str | None = Header(d
     if not _indexer:
         raise HTTPException(status_code=503, detail="Indexing pipeline not initialized")
 
-    require_tenant_match(request.tenant_id, x_tenant_id)
+    require_principal_tenant_match(principal, request.tenant_id)
 
     result = await _indexer.full_reindex(request.tenant_id)
     if "error" in result:
@@ -270,21 +318,27 @@ class SingleIndexRequest(BaseModel):
 
 
 @router.post("/indexing/student")
-async def index_student(request: SingleIndexRequest, x_tenant_id: str | None = Header(default=None)):
+async def index_student(
+    request: SingleIndexRequest,
+    principal: AgentPrincipal = Depends(require_agent_principal),
+):
     """Incrementally index a single student (after create/update)."""
     if not _indexer:
         raise HTTPException(status_code=503, detail="Indexing pipeline not initialized")
-    require_tenant_match(request.tenant_id, x_tenant_id)
+    require_principal_tenant_match(principal, request.tenant_id)
     await _indexer.index_single_student(request.tenant_id, request.entity_id)
     return {"status": "indexed", "entity_type": "student", "entity_id": str(request.entity_id)}
 
 
 @router.post("/indexing/invoice")
-async def index_invoice(request: SingleIndexRequest, x_tenant_id: str | None = Header(default=None)):
+async def index_invoice(
+    request: SingleIndexRequest,
+    principal: AgentPrincipal = Depends(require_agent_principal),
+):
     """Incrementally index a single invoice (after payment/create/update)."""
     if not _indexer:
         raise HTTPException(status_code=503, detail="Indexing pipeline not initialized")
-    require_tenant_match(request.tenant_id, x_tenant_id)
+    require_principal_tenant_match(principal, request.tenant_id)
     await _indexer.index_single_invoice(request.tenant_id, request.entity_id)
     return {"status": "indexed", "entity_type": "invoice", "entity_id": str(request.entity_id)}
 
@@ -295,9 +349,13 @@ from src.core.approvals import list_approvals, review_approval
 
 
 @router.get("/approvals/{tenant_id}")
-async def get_pending_approvals(tenant_id: UUID, limit: int = 50, x_tenant_id: str | None = Header(default=None)):
+async def get_pending_approvals(
+    tenant_id: UUID,
+    limit: int = 50,
+    principal: AgentPrincipal = Depends(require_agent_principal),
+):
     """List pending actions recommended by agents that require human review."""
-    require_tenant_match(tenant_id, x_tenant_id)
+    require_principal_tenant_match(principal, tenant_id)
     approvals = await list_approvals(tenant_id, status="PENDING", limit=limit)
     return approvals
 
@@ -312,15 +370,18 @@ async def process_approval(
     tenant_id: UUID,
     approval_id: UUID,
     request: ReviewRequest,
-    x_tenant_id: str | None = Header(default=None),
+    principal: AgentPrincipal = Depends(require_agent_principal),
 ):
     """Approve or reject a queued agent action. If approved, the action should ideally be executed here."""
-    require_tenant_match(tenant_id, x_tenant_id)
+    require_principal_tenant_match(principal, tenant_id)
+    reviewer_id = require_principal_user_match(principal, request.user_id)
+    if not reviewer_id:
+        raise HTTPException(status_code=400, detail="X-User-Id header is required for approval review.")
     result = await review_approval(
         tenant_id=tenant_id,
         approval_id=approval_id,
         action=request.action,
-        user_id=request.user_id,
+        user_id=reviewer_id,
     )
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])

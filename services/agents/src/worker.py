@@ -1,11 +1,13 @@
 import asyncio
 import structlog
 from typing import Dict, Any
+from uuid import UUID
 
 from src.core.queue import redis_settings
 from src.core.rag import RAGPipeline
 from src.core.agent import AgentContext
 from src.api.routes import init_agents, get_agent
+from src.core.security import redact_tool_calls, sanitize_model_output
 
 logger = structlog.get_logger()
 
@@ -35,8 +37,8 @@ async def process_agent_query(ctx, agent_name: str, serialized_context: Dict[str
     
     # Rehydrate context from dict
     agent_ctx = AgentContext(
-        tenant_id=serialized_context["tenant_id"],
-        user_id=serialized_context.get("user_id"),
+        tenant_id=UUID(str(serialized_context["tenant_id"])),
+        user_id=UUID(str(serialized_context["user_id"])) if serialized_context.get("user_id") else None,
         query=serialized_context["query"]
     )
     
@@ -44,10 +46,10 @@ async def process_agent_query(ctx, agent_name: str, serialized_context: Dict[str
         response = await agent.query(agent_ctx)
         logger.info("worker_job_complete", agent_name=agent_name, job_id=ctx.get("job_id"))
         return {
-            "answer": response.answer,
+            "answer": sanitize_model_output(response.answer),
             "agent_name": response.agent_name,
             "sources": response.sources,
-            "tool_calls_made": response.tool_calls_made,
+            "tool_calls_made": redact_tool_calls(response.tool_calls_made),
             "tokens_used": response.tokens_used,
             "latency_ms": response.latency_ms,
             "status": "completed"
@@ -55,7 +57,7 @@ async def process_agent_query(ctx, agent_name: str, serialized_context: Dict[str
     except Exception as e:
         logger.error("worker_job_failed", agent_name=agent_name, error=str(e), job_id=ctx.get("job_id"))
         return {
-            "answer": f"An infrastructure error occurred during background processing: {str(e)}",
+            "answer": "An infrastructure error occurred during background processing.",
             "agent_name": agent_name,
             "status": "failed"
         }
