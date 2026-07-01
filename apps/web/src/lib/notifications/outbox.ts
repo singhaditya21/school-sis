@@ -5,6 +5,7 @@ import { getSmsProvider } from '@/lib/providers/sms';
 import { NotificationService } from '@/lib/services/notifications';
 import { enqueueTenantJob } from '@/lib/worker/client';
 import { isValidTenantId } from '@/lib/tenant/isolation';
+import { recordSreIncident } from '@/lib/observability/logger';
 
 export type NotificationChannel = 'EMAIL' | 'SMS' | 'WHATSAPP' | 'PUSH' | 'IN_APP';
 export type NotificationStatus =
@@ -396,6 +397,22 @@ export async function processNotification(notificationId: string, tenantId: stri
           [tenantId, notificationId],
         );
         await client.query('COMMIT');
+        await recordSreIncident({
+          tenantId,
+          severity: 'ERROR',
+          source: 'notifications',
+          fingerprint: `notification_dead_letter:${notificationId}`,
+          title: `Notification dead-lettered: ${row.channel}`,
+          description: 'Max attempts exhausted',
+          entityType: 'notification_outbox',
+          entityId: notificationId,
+          metadata: {
+            notificationId,
+            channel: row.channel,
+            provider: row.provider,
+            maxAttempts: row.maxAttempts,
+          },
+        });
         return { success: false, provider: row.provider, status: 'DEAD_LETTER', error: 'Max attempts exhausted' };
       }
 
@@ -456,6 +473,27 @@ export async function processNotification(notificationId: string, tenantId: stri
         metadata: result.metadata,
       });
 
+      if (storedStatus === 'DEAD_LETTER') {
+        await recordSreIncident({
+          tenantId,
+          severity: 'ERROR',
+          source: 'notifications',
+          fingerprint: `notification_dead_letter:${notificationId}`,
+          title: `Notification dead-lettered: ${row.channel}`,
+          description: result.error || 'Provider delivery failed',
+          entityType: 'notification_outbox',
+          entityId: notificationId,
+          metadata: {
+            notificationId,
+            jobId: row.jobId,
+            channel: row.channel,
+            provider: result.provider,
+            attemptNumber,
+            maxAttempts: row.maxAttempts,
+          },
+        });
+      }
+
       await updateLinkedMessage({
         tenantId,
         payload: row.payload || {},
@@ -489,6 +527,27 @@ export async function processNotification(notificationId: string, tenantId: stri
         provider: row.provider,
         error: message,
       });
+
+      if (storedStatus === 'DEAD_LETTER') {
+        await recordSreIncident({
+          tenantId,
+          severity: 'ERROR',
+          source: 'notifications',
+          fingerprint: `notification_dead_letter:${notificationId}`,
+          title: `Notification dead-lettered: ${row.channel}`,
+          description: message,
+          entityType: 'notification_outbox',
+          entityId: notificationId,
+          metadata: {
+            notificationId,
+            jobId: row.jobId,
+            channel: row.channel,
+            provider: row.provider,
+            attemptNumber,
+            maxAttempts: row.maxAttempts,
+          },
+        });
+      }
 
       await updateLinkedMessage({
         tenantId,

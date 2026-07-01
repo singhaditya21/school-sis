@@ -1,4 +1,5 @@
 import { pool, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
+import { recordSreIncident } from '@/lib/observability/logger';
 import { tasks } from '@/lib/worker/tasks';
 
 type BackgroundJobRow = {
@@ -194,6 +195,23 @@ export async function dispatchDueJobs(options: DispatchJobsOptions = {}): Promis
       await runWithRlsBypass(() => markAttemptFailed(attemptId, message));
       await runWithRlsBypass(() => markJobFailed(job, attemptNumber, message));
       if (deadLetter) {
+        await recordSreIncident({
+          tenantId: job.tenantId,
+          severity: 'ERROR',
+          source: 'background_jobs',
+          fingerprint: `background_job_dead_letter:${job.taskName}:${job.id}`,
+          title: `Background job dead-lettered: ${job.taskName}`,
+          description: message,
+          entityType: 'background_job',
+          entityId: job.id,
+          metadata: {
+            jobId: job.id,
+            taskName: job.taskName,
+            attemptNumber,
+            maxAttempts: job.maxAttempts,
+            queue: normalized.queue,
+          },
+        });
         result.deadLettered += 1;
         result.jobs.push({ jobId: job.id, taskName: job.taskName, status: 'DEAD_LETTER', error: message });
       } else {

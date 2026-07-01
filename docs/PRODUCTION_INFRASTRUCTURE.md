@@ -17,6 +17,7 @@ This is the production operating contract for the School SIS platform. The activ
 | File retrieval | Authenticated `/api/files/...` signed retrieval route |
 | Background jobs | Durable Postgres job ledger plus authenticated dispatcher |
 | Notifications | Tenant-scoped notification outbox with mock-first providers |
+| Observability | Health/readiness, protected Prometheus metrics, SRE incidents |
 | Primary serverless region | `iad1` until a different Neon primary region is selected |
 
 ## Vercel Hardening
@@ -90,6 +91,12 @@ Minimum production variables:
 | `CEREBRAS_API_KEY` | Required only when Copilot is enabled |
 
 Background jobs default to `JOB_QUEUE_MODE=database`. Notification providers default to mock mode with `EMAIL_PROVIDER=mock`, `SMS_PROVIDER=mock`, `WHATSAPP_PROVIDER=mock`, and `PUSH_PROVIDER=mock`.
+
+Observability endpoints:
+
+- `GET /api/health` is a minimal public liveness check.
+- `GET /api/ready`, `GET /api/metrics`, `GET /api/sre/status`, and `POST /api/sre/incidents` require `Authorization: Bearer $METRICS_TOKEN` in production.
+- `GET /api/sre/incidents` is session-authenticated for tenant admins; incident lifecycle updates require platform admin.
 
 The job dispatcher must be called by Vercel Cron or an external scheduler:
 

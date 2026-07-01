@@ -64,6 +64,13 @@
       "when": 1783209600000,
       "tag": "0008_background_jobs_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783296000000,
+      "tag": "0009_observability_sre_architecture",
+      "breakpoints": true
     }
   ]
 }

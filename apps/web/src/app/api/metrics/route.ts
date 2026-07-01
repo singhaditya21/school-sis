@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import { register, collectDefaultMetrics } from 'prom-client';
 import { requireBearerServiceAuth } from '@/lib/auth/api';
+import { initializeAppMetrics } from '@/lib/observability/metrics';
 
 // Only collect default metrics once to prevent memory leaks in dev/hot-reloads
 if (!global.__PROMETHEUS_COLLECTOR_INIT) {
   collectDefaultMetrics({ prefix: 'school_sis_' });
   global.__PROMETHEUS_COLLECTOR_INIT = true;
 }
+initializeAppMetrics();
 
 export async function GET(request: Request) {
   try {

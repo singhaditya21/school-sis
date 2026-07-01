@@ -34,6 +34,7 @@ export * from './documents';
 export * from './metadata';
 export * from './agents';
 export * from './jobs';
+export * from './observability';
 
 // Phase 4 Expansions (Advanced Education Sectors)
 export * from './higher_ed';

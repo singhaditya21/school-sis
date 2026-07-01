@@ -79,6 +79,7 @@ INTEGRATIONS_MODE=mock
 PAYMENT_PROVIDER_MODE=mock
 JOB_QUEUE_MODE=database
 JOB_DISPATCH_SECRET=replace_with_at_least_32_random_characters
+METRICS_TOKEN=replace_with_at_least_32_random_characters
 EMAIL_PROVIDER=mock
 SMS_PROVIDER=mock
 WHATSAPP_PROVIDER=mock
@@ -174,3 +175,16 @@ curl -X POST "$NEXT_PUBLIC_APP_URL/api/jobs/dispatch" \
 ```
 
 Use `JOB_QUEUE_MODE=database`; the web runtime uses the built-in Postgres dispatcher.
+
+## Observability & SRE
+
+Core checks:
+
+```bash
+curl "$NEXT_PUBLIC_APP_URL/api/health"
+curl "$NEXT_PUBLIC_APP_URL/api/ready" -H "Authorization: Bearer $METRICS_TOKEN"
+curl "$NEXT_PUBLIC_APP_URL/api/metrics" -H "Authorization: Bearer $METRICS_TOKEN"
+curl "$NEXT_PUBLIC_APP_URL/api/sre/status" -H "Authorization: Bearer $METRICS_TOKEN"
+```
+
+Dead-lettered jobs and notifications automatically create SRE incidents. External monitors can create incidents with `POST /api/sre/incidents` using the same bearer token.
