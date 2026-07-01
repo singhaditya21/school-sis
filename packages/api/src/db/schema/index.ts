@@ -16,6 +16,7 @@ export * from './audit';
 export * from './hr';
 export * from './library';
 export * from './webhooks';
+export * from './integrations';
 export * from './hostel';
 export * from './inventory';
 export * from './visitor';

@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
-import { enterTenantContext, pool } from '@/lib/db';
-import { requireBearerServiceAuth } from '@/lib/auth/api';
-import { isValidTenantId } from '@/lib/tenant/isolation';
+import { pool } from '@/lib/db';
+import {
+    authenticateIntegrationRequest,
+    ensureMockIntegrationConnection,
+    type IntegrationAuthContext,
+} from '@/lib/integrations/api-platform';
 
 export const SCIM_CORE_USER_SCHEMA = 'urn:ietf:params:scim:schemas:core:2.0:User';
 export const SCIM_ERROR_SCHEMA = 'urn:ietf:params:scim:api:messages:2.0:Error';
@@ -33,7 +36,7 @@ export type ScimUserRow = {
 };
 
 export type ScimAuthResult =
-    | { ok: true; tenantId: string }
+    | { ok: true; tenantId: string; context: IntegrationAuthContext }
     | { ok: false; response: NextResponse };
 
 export function isValidUuid(value: unknown): value is string {
@@ -53,28 +56,29 @@ export function scimError(detail: string, status = 400, scimType = 'invalidValue
 }
 
 export async function authenticateScimRequest(request: Request): Promise<ScimAuthResult> {
-    const authError = requireBearerServiceAuth(request, 'SCIM_BEARER_TOKEN', {
-        serviceName: 'SCIM',
-        minLength: 32,
+    const auth = await authenticateIntegrationRequest(request, {
+        provider: 'SCIM',
+        scopes: request.method === 'GET' ? ['scim:read'] : ['scim:write'],
+        allowSession: false,
     });
-    if (authError) return { ok: false, response: authError };
-
-    const tenantId = request.headers.get('x-tenant-id') || '';
-    if (!isValidTenantId(tenantId)) {
-        return { ok: false, response: scimError('X-Tenant-Id header is required and must be a valid tenant ID.', 400) };
-    }
-
-    enterTenantContext(tenantId);
+    if (auth.ok === false) return auth;
 
     const { rows } = await pool.query(
         `SELECT id FROM tenants WHERE id = $1 AND is_active = true LIMIT 1`,
-        [tenantId],
+        [auth.context.tenantId],
     );
     if (rows.length === 0) {
         return { ok: false, response: scimError('Tenant is inactive or not found.', 404, 'notFound') };
     }
 
-    return { ok: true, tenantId };
+    await ensureMockIntegrationConnection({
+        tenantId: auth.context.tenantId,
+        provider: 'SCIM',
+        scopes: ['scim:read', 'scim:write'],
+        userId: auth.context.userId,
+    });
+
+    return { ok: true, tenantId: auth.context.tenantId, context: auth.context };
 }
 
 function roleCandidateFrom(value: unknown): string | null {

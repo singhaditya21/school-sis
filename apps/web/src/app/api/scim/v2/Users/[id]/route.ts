@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { pool } from '@/lib/db';
+import { recordIntegrationAudit } from '@/lib/integrations/api-platform';
 import {
     authenticateScimRequest,
     getScimUserById,
@@ -181,6 +182,7 @@ async function updateScimUser(
 }
 
 export async function GET(request: Request, { params }: RouteContext) {
+    const startedAt = Date.now();
     const auth = await authenticateScimRequest(request);
     if (auth.ok === false) return auth.response;
 
@@ -190,10 +192,23 @@ export async function GET(request: Request, { params }: RouteContext) {
     const user = await getScimUserById(auth.tenantId, id);
     if (!user) return scimError('User not found.', 404, 'notFound');
 
+    await recordIntegrationAudit({
+        tenantId: auth.tenantId,
+        provider: 'SCIM',
+        action: 'scim.users.read',
+        status: 'SUCCESS',
+        request,
+        context: auth.context,
+        statusCode: 200,
+        durationMs: Date.now() - startedAt,
+        metadata: { userId: id, mode: 'mock' },
+    });
+
     return NextResponse.json(toScimUser(user, request));
 }
 
 export async function PATCH(request: Request, { params }: RouteContext) {
+    const startedAt = Date.now();
     const auth = await authenticateScimRequest(request);
     if (auth.ok === false) return auth.response;
 
@@ -232,10 +247,23 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     const updated = await updateScimUser(auth.tenantId, id, updateResult.updates);
     if (!updated) return scimError('User not found.', 404, 'notFound');
 
+    await recordIntegrationAudit({
+        tenantId: auth.tenantId,
+        provider: 'SCIM',
+        action: 'scim.users.patch',
+        status: 'SUCCESS',
+        request,
+        context: auth.context,
+        statusCode: 200,
+        durationMs: Date.now() - startedAt,
+        metadata: { userId: id, fields: Object.keys(updateResult.updates), mode: 'mock' },
+    });
+
     return NextResponse.json(toScimUser(updated, request));
 }
 
 export async function DELETE(request: Request, { params }: RouteContext) {
+    const startedAt = Date.now();
     const auth = await authenticateScimRequest(request);
     if (auth.ok === false) return auth.response;
 
@@ -244,6 +272,18 @@ export async function DELETE(request: Request, { params }: RouteContext) {
 
     const updated = await updateScimUser(auth.tenantId, id, { isActive: false });
     if (!updated) return scimError('User not found.', 404, 'notFound');
+
+    await recordIntegrationAudit({
+        tenantId: auth.tenantId,
+        provider: 'SCIM',
+        action: 'scim.users.deactivate',
+        status: 'SUCCESS',
+        request,
+        context: auth.context,
+        statusCode: 204,
+        durationMs: Date.now() - startedAt,
+        metadata: { userId: id, mode: 'mock' },
+    });
 
     return new NextResponse(null, { status: 204 });
 }

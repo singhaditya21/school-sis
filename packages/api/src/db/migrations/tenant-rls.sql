@@ -272,21 +272,59 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR EXISTS (
-                    SELECT 1
-                    FROM public.webhook_subscriptions ws
-                    WHERE ws.id = webhook_deliveries.subscription_id
-                      AND ws.tenant_id = app_private.current_tenant_id()
-                )
+                OR tenant_id = app_private.current_tenant_id()
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR EXISTS (
-                    SELECT 1
-                    FROM public.webhook_subscriptions ws
-                    WHERE ws.id = webhook_deliveries.subscription_id
-                      AND ws.tenant_id = app_private.current_tenant_id()
-                )
+                OR tenant_id = app_private.current_tenant_id()
+            );
+    END IF;
+
+    IF app_private.table_exists('integration_api_keys') THEN
+        ALTER TABLE public.integration_api_keys ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.integration_api_keys FORCE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS tenant_isolation_policy ON public.integration_api_keys;
+        CREATE POLICY tenant_isolation_policy ON public.integration_api_keys
+            AS PERMISSIVE FOR ALL
+            USING (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            )
+            WITH CHECK (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            );
+    END IF;
+
+    IF app_private.table_exists('integration_connections') THEN
+        ALTER TABLE public.integration_connections ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.integration_connections FORCE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS tenant_isolation_policy ON public.integration_connections;
+        CREATE POLICY tenant_isolation_policy ON public.integration_connections
+            AS PERMISSIVE FOR ALL
+            USING (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            )
+            WITH CHECK (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            );
+    END IF;
+
+    IF app_private.table_exists('integration_audit_logs') THEN
+        ALTER TABLE public.integration_audit_logs ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.integration_audit_logs FORCE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS tenant_isolation_policy ON public.integration_audit_logs;
+        CREATE POLICY tenant_isolation_policy ON public.integration_audit_logs
+            AS PERMISSIVE FOR ALL
+            USING (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            )
+            WITH CHECK (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
             );
     END IF;
 

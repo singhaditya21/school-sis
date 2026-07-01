@@ -50,6 +50,13 @@
       "when": 1783036800000,
       "tag": "0006_metadata_platform_architecture",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783123200000,
+      "tag": "0007_integration_api_platform",
+      "breakpoints": true
     }
   ]
 }

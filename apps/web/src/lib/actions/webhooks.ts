@@ -1,9 +1,15 @@
 'use server';
 
-import { pool } from '@/lib/db';
+import { pool, runWithTenantContext } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 import crypto from 'crypto';
+import {
+    ensureMockIntegrationConnection,
+    recordIntegrationAudit,
+} from '@/lib/integrations/api-platform';
+
+const INTEGRATION_MODE = process.env.INTEGRATIONS_MODE === 'live' ? 'LIVE' : 'MOCK';
 
 // ─── Webhook Management ─────────────────────────────────────
 
@@ -13,13 +19,21 @@ export async function registerWebhook(data: {
     events: string[];
     headers?: Record<string, string>;
 }) {
-    const { tenantId } = await requireAuth('webhooks:write');
+    const { tenantId, userId } = await requireAuth('webhooks:write');
 
     const secret = crypto.randomBytes(32).toString('hex');
 
-    await pool.query(`
+    await ensureMockIntegrationConnection({
+        tenantId,
+        provider: 'WEBHOOKS',
+        scopes: ['webhooks:manage', 'webhooks:deliver'],
+        userId,
+    });
+
+    const { rows } = await pool.query(`
         INSERT INTO webhook_subscriptions (id, tenant_id, name, url, secret, events, headers)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id
     `, [
         randomUUID(), 
         tenantId, 
@@ -29,6 +43,16 @@ export async function registerWebhook(data: {
         data.events, 
         data.headers ? JSON.stringify(data.headers) : null 
     ]);
+
+    await recordIntegrationAudit({
+        tenantId,
+        provider: 'WEBHOOKS',
+        action: 'webhooks.subscription.create',
+        direction: 'INTERNAL',
+        status: 'SUCCESS',
+        context: { tenantId, userId, provider: 'WEBHOOKS', subjectType: 'session', scopes: ['session'] },
+        metadata: { subscriptionId: rows[0].id, events: data.events, mode: INTEGRATION_MODE.toLowerCase() },
+    });
 
     return { success: true, secret };
 }
@@ -47,12 +71,22 @@ export async function listWebhooks() {
 }
 
 export async function deleteWebhook(webhookId: string) {
-    const { tenantId } = await requireAuth('webhooks:write');
+    const { tenantId, userId } = await requireAuth('webhooks:write');
 
     await pool.query(`
         DELETE FROM webhook_subscriptions
         WHERE id = $1 AND tenant_id = $2
     `, [webhookId, tenantId]);
+
+    await recordIntegrationAudit({
+        tenantId,
+        provider: 'WEBHOOKS',
+        action: 'webhooks.subscription.delete',
+        direction: 'INTERNAL',
+        status: 'SUCCESS',
+        context: { tenantId, userId, provider: 'WEBHOOKS', subjectType: 'session', scopes: ['session'] },
+        metadata: { subscriptionId: webhookId },
+    });
 
     return { success: true };
 }
@@ -60,59 +94,124 @@ export async function deleteWebhook(webhookId: string) {
 // ─── Event Dispatcher ────────────────────────────────────────
 
 export async function dispatchEvent(tenantId: string, event: string, payload: Record<string, unknown>) {
-    // Find all active subscriptions matching this event
-    const { rows: subs } = await pool.query(`
-        SELECT id, events, url, secret, headers, retry_count AS "retryCount", timeout_ms AS "timeoutMs"
-        FROM webhook_subscriptions
-        WHERE tenant_id = $1 AND status = 'ACTIVE'
-    `, [tenantId]);
+    return runWithTenantContext(tenantId, async () => {
+        await ensureMockIntegrationConnection({
+            tenantId,
+            provider: 'WEBHOOKS',
+            scopes: ['webhooks:manage', 'webhooks:deliver'],
+        });
 
-    // Filter subscriptions by event match
-    const matchingSubs = subs.filter(sub => {
-        const events = sub.events as string[];
-        return events.includes(event) || events.includes('*');
+        const { rows: subs } = await pool.query(`
+            SELECT id, events, url, secret, headers, retry_count AS "retryCount", timeout_ms AS "timeoutMs"
+            FROM webhook_subscriptions
+            WHERE tenant_id = $1 AND status = 'ACTIVE'
+        `, [tenantId]);
+
+        const matchingSubs = subs.filter(sub => {
+            const events = sub.events as string[];
+            return events.includes(event) || events.includes('*');
+        });
+
+        for (const sub of matchingSubs) {
+            const deliveryId = randomUUID();
+            const eventId = randomUUID();
+            const idempotencyKey = `${event}:${eventId}`;
+            const body = JSON.stringify({ event, eventId, payload, timestamp: new Date().toISOString() });
+            const signature = `sha256=${crypto.createHmac('sha256', sub.secret).update(body).digest('hex')}`;
+            const requestHeaders = {
+                'Content-Type': 'application/json',
+                'X-School-SIS-Event': event,
+                'X-School-SIS-Event-Id': eventId,
+                'X-School-SIS-Signature': signature,
+                'Idempotency-Key': idempotencyKey,
+                ...((sub.headers || {}) as Record<string, string>),
+            };
+
+            await pool.query(`
+                INSERT INTO webhook_deliveries (
+                    id, tenant_id, subscription_id, event, event_id, idempotency_key,
+                    payload, request_headers, signature, status
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, 'PENDING')
+                ON CONFLICT (subscription_id, idempotency_key) DO NOTHING
+            `, [
+                deliveryId,
+                tenantId,
+                sub.id,
+                event,
+                eventId,
+                idempotencyKey,
+                JSON.stringify({ event, eventId, payload }),
+                JSON.stringify(requestHeaders),
+                signature,
+            ]);
+
+            await recordIntegrationAudit({
+                tenantId,
+                provider: 'WEBHOOKS',
+                action: 'webhooks.delivery.queued',
+                direction: 'OUTBOUND',
+                status: 'QUEUED',
+                metadata: { deliveryId, subscriptionId: sub.id, event, eventId, idempotencyKey, mode: INTEGRATION_MODE.toLowerCase() },
+            });
+
+            deliverWebhook(deliveryId, sub.url, body, requestHeaders, sub.timeoutMs)
+                .catch(err => console.error({ event: 'webhook.delivery_failed', deliveryId, error: err.message }));
+        }
+
+        return { dispatched: matchingSubs.length };
     });
-
-    // Fire-and-forget delivery for each subscription
-    for (const sub of matchingSubs) {
-        const deliveryId = randomUUID();
-        const body = JSON.stringify({ event, payload, timestamp: new Date().toISOString() });
-        const signature = crypto.createHmac('sha256', sub.secret).update(body).digest('hex');
-
-        // Log delivery attempt
-        await pool.query(`
-            INSERT INTO webhook_deliveries (id, subscription_id, event, payload, status)
-            VALUES ($1, $2, $3, $4, $5)
-        `, [deliveryId, sub.id, event, JSON.stringify({ event, payload }), 'PENDING']);
-
-        // Deliver asynchronously (fire-and-forget)
-        deliverWebhook(deliveryId, sub.url, body, signature, sub.headers as Record<string, string> | null, sub.timeoutMs)
-            .catch(err => console.error({ event: 'webhook.delivery_failed', deliveryId, error: err.message }));
-    }
-
-    return { dispatched: matchingSubs.length };
 }
 
 async function deliverWebhook(
     deliveryId: string,
     url: string,
     body: string,
-    signature: string,
-    customHeaders: Record<string, string> | null,
+    requestHeaders: Record<string, string>,
     timeoutMs: number,
 ) {
+    if (INTEGRATION_MODE !== 'LIVE') {
+        const { rows } = await pool.query(`
+            UPDATE webhook_deliveries
+            SET status = 'SUCCESS',
+                response_code = 202,
+                response_body = $1,
+                attempts = attempts + 1,
+                last_attempt_at = NOW(),
+                next_retry_at = NULL,
+                error = NULL
+            WHERE id = $2
+            RETURNING tenant_id AS "tenantId", event, event_id AS "eventId", subscription_id AS "subscriptionId"
+        `, [JSON.stringify({ mocked: true, targetUrl: url, accepted: true }), deliveryId]);
+        const delivery = rows[0];
+        if (delivery) {
+            await recordIntegrationAudit({
+                tenantId: delivery.tenantId,
+                provider: 'WEBHOOKS',
+                action: 'webhooks.delivery.mocked',
+                direction: 'OUTBOUND',
+                status: 'SUCCESS',
+                statusCode: 202,
+                metadata: {
+                    deliveryId,
+                    subscriptionId: delivery.subscriptionId,
+                    event: delivery.event,
+                    eventId: delivery.eventId,
+                    targetUrl: url,
+                    mode: 'mock',
+                },
+            });
+        }
+        return;
+    }
+
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
         const res = await fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Webhook-Signature': signature,
-                'X-Webhook-Event': 'event',
-                ...(customHeaders || {}),
-            },
+            headers: requestHeaders,
             body,
             signal: controller.signal,
         });
@@ -121,30 +220,58 @@ async function deliverWebhook(
 
         await pool.query(`
             UPDATE webhook_deliveries
-            SET status = $1, response_code = $2, attempts = 1, last_attempt_at = NOW(), error = $3
-            WHERE id = $4
-        `, [res.ok ? 'SUCCESS' : 'FAILED', res.status, res.ok ? null : `HTTP ${res.status}`, deliveryId]);
-    } catch (err: any) {
+            SET status = $1,
+                response_code = $2,
+                response_body = $3,
+                attempts = attempts + 1,
+                last_attempt_at = NOW(),
+                next_retry_at = CASE WHEN $1 = 'RETRYING' THEN NOW() + INTERVAL '5 minutes' ELSE NULL END,
+                error = $4
+            WHERE id = $5
+        `, [
+            res.ok ? 'SUCCESS' : 'RETRYING',
+            res.status,
+            (await res.text()).slice(0, 4000),
+            res.ok ? null : `HTTP ${res.status}`,
+            deliveryId,
+        ]);
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Webhook delivery failed';
         await pool.query(`
             UPDATE webhook_deliveries
-            SET status = 'FAILED', attempts = 1, last_attempt_at = NOW(), error = $1
+            SET status = 'RETRYING',
+                attempts = attempts + 1,
+                last_attempt_at = NOW(),
+                next_retry_at = NOW() + INTERVAL '5 minutes',
+                error = $1
             WHERE id = $2
-        `, [err.message, deliveryId]);
+        `, [message, deliveryId]);
     }
 }
 
 // ─── Delivery Logs ───────────────────────────────────────────
 
 export async function getWebhookDeliveries(webhookId: string) {
-    await requireAuth('webhooks:read');
+    const { tenantId } = await requireAuth('webhooks:read');
 
     const { rows } = await pool.query(`
-        SELECT id, event, status, response_code AS "responseCode", attempts, error, created_at AS "createdAt"
-        FROM webhook_deliveries
-        WHERE subscription_id = $1
-        ORDER BY created_at DESC
+        SELECT d.id,
+               d.event,
+               d.event_id AS "eventId",
+               d.idempotency_key AS "idempotencyKey",
+               d.status,
+               d.response_code AS "responseCode",
+               d.attempts,
+               d.error,
+               d.created_at AS "createdAt"
+        FROM webhook_deliveries d
+        JOIN webhook_subscriptions s ON s.id = d.subscription_id
+        WHERE d.subscription_id = $1
+          AND d.tenant_id = $2
+          AND s.tenant_id = $2
+        ORDER BY d.created_at DESC
         LIMIT 50
-    `, [webhookId]);
+    `, [webhookId, tenantId]);
 
     return rows;
 }

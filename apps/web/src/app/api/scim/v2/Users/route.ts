@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
 import { z } from 'zod';
 import { pool } from '@/lib/db';
+import { recordIntegrationAudit } from '@/lib/integrations/api-platform';
 import {
     authenticateScimRequest,
     parseScimRole,
@@ -46,6 +47,7 @@ function readPaging(request: Request): { startIndex: number; count: number } {
 }
 
 export async function GET(request: Request) {
+    const startedAt = Date.now();
     const auth = await authenticateScimRequest(request);
     if (auth.ok === false) return auth.response;
 
@@ -93,16 +95,31 @@ export async function GET(request: Request) {
         values,
     );
 
-    return NextResponse.json({
+    const responseBody = {
         schemas: [SCIM_LIST_SCHEMA],
         totalResults: Number(totalResult.rows[0]?.total || 0),
         startIndex,
         itemsPerPage: rowsResult.rows.length,
         Resources: rowsResult.rows.map((row) => toScimUser(row, request)),
+    };
+
+    await recordIntegrationAudit({
+        tenantId: auth.tenantId,
+        provider: 'SCIM',
+        action: 'scim.users.list',
+        status: 'SUCCESS',
+        request,
+        context: auth.context,
+        statusCode: 200,
+        durationMs: Date.now() - startedAt,
+        metadata: { totalResults: responseBody.totalResults, filtered: Boolean(filteredEmail), mode: 'mock' },
     });
+
+    return NextResponse.json(responseBody);
 }
 
 export async function POST(request: Request) {
+    const startedAt = Date.now();
     const auth = await authenticateScimRequest(request);
     if (auth.ok === false) return auth.response;
 
@@ -166,6 +183,18 @@ export async function POST(request: Request) {
 
     const body = toScimUser(created.rows[0], request);
     const location = (body.meta as { location: string }).location;
+    await recordIntegrationAudit({
+        tenantId: auth.tenantId,
+        provider: 'SCIM',
+        action: 'scim.users.create',
+        status: 'SUCCESS',
+        request,
+        context: auth.context,
+        statusCode: 201,
+        durationMs: Date.now() - startedAt,
+        metadata: { userId: created.rows[0].id, role: roleResult.role, active, mode: 'mock' },
+    });
+
     return NextResponse.json(body, {
         status: 201,
         headers: { Location: location },
