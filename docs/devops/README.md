@@ -77,6 +77,12 @@ PII_ENCRYPTION_KEY=replace_with_at_least_32_random_characters
 NEXT_PUBLIC_APP_URL=https://school-sis-web.vercel.app
 INTEGRATIONS_MODE=mock
 PAYMENT_PROVIDER_MODE=mock
+JOB_QUEUE_MODE=database
+JOB_DISPATCH_SECRET=replace_with_at_least_32_random_characters
+EMAIL_PROVIDER=mock
+SMS_PROVIDER=mock
+WHATSAPP_PROVIDER=mock
+PUSH_PROVIDER=mock
 ```
 
 Validate the production contract:
@@ -155,3 +161,16 @@ pnpm --filter @school-sis/web exec eslint src --quiet
 ```
 
 Deployments should occur only after reviewed migrations are applied or confirmed unnecessary.
+
+## Background Jobs
+
+Jobs and notifications are persisted in Postgres. Run the dispatcher with a service bearer token:
+
+```bash
+curl -X POST "$NEXT_PUBLIC_APP_URL/api/jobs/dispatch" \
+  -H "Authorization: Bearer $JOB_DISPATCH_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"limit":25,"notificationLimit":50}'
+```
+
+Use `JOB_QUEUE_MODE=database`; the web runtime uses the built-in Postgres dispatcher.

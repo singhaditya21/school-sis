@@ -8,7 +8,7 @@
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
-import { enqueueJob } from '@/lib/services/jobs';
+import { enqueueNotification, type NotificationChannel } from '@/lib/notifications/outbox';
 
 // ─── Get Messages ─────────────────────────────────────────
 export async function getMessages(options?: {
@@ -62,6 +62,7 @@ export async function sendMessage(data: {
     const { tenantId, userId } = await requireAuth('communication:write');
 
     const messageId = randomUUID();
+    const recipient = resolveMessageRecipient(data);
 
     // Create message record
     const insertQuery = `
@@ -83,28 +84,39 @@ export async function sendMessage(data: {
         userId
     ]);
 
-    // Enqueue delivery job
-    const jobType = data.channel === 'SMS' ? 'send-sms'
-        : data.channel === 'WHATSAPP' ? 'send-whatsapp'
-            : 'send-email';
-
-    await enqueueJob(jobType as any, {
+    const notification = await enqueueNotification({
         tenantId,
-        messageId,
-        channel: data.channel,
+        channel: data.channel as NotificationChannel,
+        recipient,
         subject: data.subject,
         body: data.body,
+        recipientUserId: data.recipientId || null,
+        payload: { messageId },
+        idempotencyKey: `message:${messageId}:${data.channel}`,
+        createdBy: userId,
     });
 
-    // Update status to SENT
-    const updateQuery = `
-        UPDATE messages
-        SET status = 'SENT', sent_at = $1
-        WHERE id = $2 AND tenant_id = $3
-    `;
-    await pool.query(updateQuery, [new Date(), messageId, tenantId]);
+    return { success: true, messageId, notificationId: notification.notificationId, jobId: notification.jobId };
+}
 
-    return { success: true, messageId };
+function resolveMessageRecipient(data: {
+    channel: 'SMS' | 'WHATSAPP' | 'EMAIL' | 'IN_APP' | 'PUSH';
+    recipientId?: string;
+    recipientPhone?: string;
+    recipientEmail?: string;
+}): string {
+    if (data.channel === 'EMAIL') {
+        if (!data.recipientEmail) throw new Error('Recipient email is required.');
+        return data.recipientEmail;
+    }
+    if (data.channel === 'SMS' || data.channel === 'WHATSAPP') {
+        if (!data.recipientPhone) throw new Error('Recipient phone is required.');
+        return data.recipientPhone;
+    }
+    if (!data.recipientId) {
+        throw new Error('Recipient user is required.');
+    }
+    return data.recipientId;
 }
 
 // ─── Get Communication Stats ──────────────────────────────

@@ -130,6 +130,7 @@ if (process.env.DIRECT_URL || strict) {
 
 if (strict) {
     requireValue('SESSION_SECRET', 32);
+    requireValue('JOB_DISPATCH_SECRET', 32);
     if (!process.env.PII_ENCRYPTION_KEY && !process.env.ENCRYPTION_KEY) {
         add('error', 'PII_ENCRYPTION_KEY or ENCRYPTION_KEY must be set.');
     }

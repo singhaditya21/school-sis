@@ -33,6 +33,7 @@ export * from './automation';
 export * from './documents';
 export * from './metadata';
 export * from './agents';
+export * from './jobs';
 
 // Phase 4 Expansions (Advanced Education Sectors)
 export * from './higher_ed';

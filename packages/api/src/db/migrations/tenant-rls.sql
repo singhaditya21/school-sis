@@ -328,6 +328,70 @@ BEGIN
             );
     END IF;
 
+    IF app_private.table_exists('background_jobs') THEN
+        ALTER TABLE public.background_jobs ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.background_jobs FORCE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS tenant_isolation_policy ON public.background_jobs;
+        CREATE POLICY tenant_isolation_policy ON public.background_jobs
+            AS PERMISSIVE FOR ALL
+            USING (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            )
+            WITH CHECK (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            );
+    END IF;
+
+    IF app_private.table_exists('background_job_attempts') THEN
+        ALTER TABLE public.background_job_attempts ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.background_job_attempts FORCE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS tenant_isolation_policy ON public.background_job_attempts;
+        CREATE POLICY tenant_isolation_policy ON public.background_job_attempts
+            AS PERMISSIVE FOR ALL
+            USING (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            )
+            WITH CHECK (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            );
+    END IF;
+
+    IF app_private.table_exists('notification_outbox') THEN
+        ALTER TABLE public.notification_outbox ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.notification_outbox FORCE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS tenant_isolation_policy ON public.notification_outbox;
+        CREATE POLICY tenant_isolation_policy ON public.notification_outbox
+            AS PERMISSIVE FOR ALL
+            USING (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            )
+            WITH CHECK (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            );
+    END IF;
+
+    IF app_private.table_exists('notification_delivery_events') THEN
+        ALTER TABLE public.notification_delivery_events ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.notification_delivery_events FORCE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS tenant_isolation_policy ON public.notification_delivery_events;
+        CREATE POLICY tenant_isolation_policy ON public.notification_delivery_events
+            AS PERMISSIVE FOR ALL
+            USING (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            )
+            WITH CHECK (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            );
+    END IF;
+
     IF app_private.table_exists('grading_rubrics') THEN
         ALTER TABLE public.grading_rubrics ENABLE ROW LEVEL SECURITY;
         ALTER TABLE public.grading_rubrics FORCE ROW LEVEL SECURITY;

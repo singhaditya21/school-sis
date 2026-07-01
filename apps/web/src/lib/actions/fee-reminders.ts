@@ -9,8 +9,7 @@
 
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
-import { getSmsProvider } from '@/lib/providers/sms';
-import { getEmailProvider } from '@/lib/providers/email';
+import { enqueueNotification } from '@/lib/notifications/outbox';
 import { randomUUID } from 'crypto';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -46,9 +45,6 @@ export async function sendFeeReminders(
     let sent = 0;
     let failed = 0;
     const errors: string[] = [];
-
-    const smsProvider = getSmsProvider();
-    const emailProvider = getEmailProvider();
 
     for (const studentId of studentIds) {
         try {
@@ -102,22 +98,31 @@ export async function sendFeeReminders(
                 currency: 'INR',
                 maximumFractionDigits: 0,
             }).format(totalDue);
+            let queuedForStudent = 0;
 
-            // Send SMS
+            // Queue SMS
             if ((channel === 'sms' || channel === 'both') && guardian.phone) {
                 const message = `Dear ${guardian.firstName}, a fee payment of ${amountStr} is overdue for ${studentName}. Please make the payment at your earliest convenience. - ScholarMind`;
-                const result = await smsProvider.send(guardian.phone, message);
-                if (!result.success) {
-                    errors.push(`SMS failed for ${studentName}: ${result.data}`);
-                }
+                await enqueueNotification({
+                    tenantId,
+                    channel: 'SMS',
+                    recipient: guardian.phone,
+                    body: message,
+                    payload: { type: 'FEE_REMINDER', studentId, totalDue, invoiceCount: overdueInvoices.length },
+                    idempotencyKey: `fee-reminder:${studentId}:${todayStr}:sms`,
+                    createdBy: userId,
+                });
+                queuedForStudent++;
             }
 
-            // Send Email
+            // Queue Email
             if ((channel === 'email' || channel === 'both') && guardian.email) {
-                const result = await emailProvider.send({
-                    to: guardian.email,
+                await enqueueNotification({
+                    tenantId,
+                    channel: 'EMAIL',
+                    recipient: guardian.email,
                     subject: `Fee Payment Reminder - ${studentName}`,
-                    html: `
+                    body: `
                         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                             <h2 style="color: #1e3a5f;">Fee Payment Reminder</h2>
                             <p>Dear ${guardian.firstName} ${guardian.lastName},</p>
@@ -130,19 +135,26 @@ export async function sendFeeReminders(
                             <p style="color: #666; font-size: 12px;">This is an automated reminder from ScholarMind. If you have already made the payment, please ignore this message.</p>
                         </div>
                     `,
+                    payload: { type: 'FEE_REMINDER', studentId, totalDue, invoiceCount: overdueInvoices.length },
+                    idempotencyKey: `fee-reminder:${studentId}:${todayStr}:email`,
+                    createdBy: userId,
                 });
-                if (!result.success) {
-                    errors.push(`Email failed for ${studentName}: ${result.data}`);
-                }
+                queuedForStudent++;
             }
 
-            sent++;
+            if (queuedForStudent === 0) {
+                failed++;
+                errors.push(`No ${channel} contact for ${studentName}`);
+                continue;
+            }
+
+            sent += queuedForStudent;
 
             // Log the reminder
             await pool.query(
                 `INSERT INTO audit_logs (id, tenant_id, user_id, action, entity_type, entity_id, after_state)
                  VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-                [randomUUID(), tenantId, userId, 'UPDATE', 'students', studentId, JSON.stringify({ channel, totalDue, invoiceCount: overdueInvoices.length })]
+                [randomUUID(), tenantId, userId, 'UPDATE', 'students', studentId, JSON.stringify({ channel, totalDue, invoiceCount: overdueInvoices.length, queued: queuedForStudent })]
             );
         } catch (err: any) {
             failed++;
@@ -218,4 +230,3 @@ export async function getReminderPreview(): Promise<ReminderPreview[]> {
     previews.sort((a, b) => b.totalDue - a.totalDue);
     return previews;
 }
-

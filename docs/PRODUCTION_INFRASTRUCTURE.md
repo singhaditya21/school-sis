@@ -15,6 +15,8 @@ This is the production operating contract for the School SIS platform. The activ
 | ORM/migrations | Drizzle from `apps/web/drizzle/` |
 | Object storage | Cloudflare R2 preferred; AWS S3-compatible fallback |
 | File retrieval | Authenticated `/api/files/...` signed retrieval route |
+| Background jobs | Durable Postgres job ledger plus authenticated dispatcher |
+| Notifications | Tenant-scoped notification outbox with mock-first providers |
 | Primary serverless region | `iad1` until a different Neon primary region is selected |
 
 ## Vercel Hardening
@@ -81,10 +83,22 @@ Minimum production variables:
 | `PII_ENCRYPTION_KEY` or `ENCRYPTION_KEY` | 32+ random characters |
 | `NEXT_PUBLIC_APP_URL` | Production HTTPS URL |
 | `METRICS_TOKEN` | 32+ random characters |
+| `JOB_DISPATCH_SECRET` | 32+ random characters for `/api/jobs/dispatch` |
 | `AGENT_API_TOKEN` | 32+ random characters if agent service is enabled |
 | `AGENT_WEBHOOK_SECRET` | 32+ random characters if agent webhook is enabled |
 | `IOT_INGEST_SECRET` | 32+ random characters if IoT ingest is enabled |
 | `CEREBRAS_API_KEY` | Required only when Copilot is enabled |
+
+Background jobs default to `JOB_QUEUE_MODE=database`. Notification providers default to mock mode with `EMAIL_PROVIDER=mock`, `SMS_PROVIDER=mock`, `WHATSAPP_PROVIDER=mock`, and `PUSH_PROVIDER=mock`.
+
+The job dispatcher must be called by Vercel Cron or an external scheduler:
+
+```bash
+curl -X POST "$NEXT_PUBLIC_APP_URL/api/jobs/dispatch" \
+  -H "Authorization: Bearer $JOB_DISPATCH_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"limit":25,"notificationLimit":50}'
+```
 
 Validate the runtime contract:
 

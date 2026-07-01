@@ -80,6 +80,9 @@ export async function POST(req: Request) {
         timestamp: parsedEvent.timestamp,
         hardwareType: parsedEvent.hardwareType,
         deviceId: parsedEvent.deviceId
+      },
+      {
+        idempotencyKey: `iot-attendance:${parsedEvent.deviceId}:${parsedEvent.scannedToken}:${parsedEvent.timestamp}`,
       }
     );
 
