@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { requireApiAuth } from '@/lib/auth/api';
 import { readTenantScopedJson, stripTenantFields } from '@/lib/tenant/isolation';
+import {
+  assertSafeMetadataIdentifier,
+  eavValueColumnForType,
+  validateMetadataRecordPayload,
+  type MetadataDataType,
+  type RuntimeMetadataField,
+} from '@/lib/metadata/platform';
 
 type RouteContext = {
   params: Promise<{ object_name: string }>;
@@ -21,10 +28,20 @@ export async function GET(
 
     const { object_name: objectName } = await params;
     const tenantId = auth.context.tenantId;
+    assertSafeMetadataIdentifier(objectName, 'object API name');
 
     // 1. Validate the object exists for this tenant
     const objRes = await pool.query(
-      `SELECT id FROM metadata_objects WHERE api_name = $1 AND (tenant_id = $2 OR tenant_id IS NULL)`,
+      `SELECT id
+       FROM metadata_objects
+       WHERE api_name = $1
+         AND status = 'PUBLISHED'
+         AND (
+           tenant_id = $2
+           OR (tenant_id IS NULL AND COALESCE(is_custom, false) = false)
+         )
+       ORDER BY CASE WHEN tenant_id = $2 THEN 0 ELSE 1 END, created_at DESC
+       LIMIT 1`,
       [objectName, tenantId]
     );
 
@@ -39,7 +56,9 @@ export async function GET(
        FROM metadata_records r
        JOIN metadata_values v ON v.record_id = r.id
        JOIN metadata_fields f ON v.field_id = f.id
-       WHERE r.object_id = $1 AND r.tenant_id = $2`,
+       WHERE r.object_id = $1
+         AND r.tenant_id = $2
+         AND f.status = 'ACTIVE'`,
       [objectId, tenantId]
     );
 
@@ -79,13 +98,23 @@ export async function POST(
 
     const { object_name: objectName } = await params;
     const tenantId = auth.context.tenantId;
+    assertSafeMetadataIdentifier(objectName, 'object API name');
     const json = await readTenantScopedJson<Record<string, unknown>>(req, tenantId);
     if (json.ok === false) return json.response;
     const body = stripTenantFields(json.data);
 
     // 1. Validate object
     const objRes = await pool.query(
-      `SELECT id FROM metadata_objects WHERE api_name = $1 AND (tenant_id = $2 OR tenant_id IS NULL)`,
+      `SELECT id
+       FROM metadata_objects
+       WHERE api_name = $1
+         AND status = 'PUBLISHED'
+         AND (
+           tenant_id = $2
+           OR (tenant_id IS NULL AND COALESCE(is_custom, false) = false)
+         )
+       ORDER BY CASE WHEN tenant_id = $2 THEN 0 ELSE 1 END, created_at DESC
+       LIMIT 1`,
       [objectName, tenantId]
     );
 
@@ -93,6 +122,27 @@ export async function POST(
       return NextResponse.json({ error: `Object '${objectName}' not found.` }, { status: 404 });
     }
     const objectId = objRes.rows[0].id;
+
+    const { rows: fieldRows } = await pool.query(
+      `SELECT id,
+              label,
+              api_name as "apiName",
+              data_type as "dataType",
+              is_required as "isRequired",
+              picklist_options as "picklistOptions",
+              validation_rules as "validationRules"
+       FROM metadata_fields
+       WHERE object_id = $1
+         AND status = 'ACTIVE'
+       ORDER BY created_at ASC`,
+      [objectId],
+    );
+    const fields = fieldRows as RuntimeMetadataField[];
+    const validated = validateMetadataRecordPayload(fields, body, { requireAll: true });
+    if (validated.ok === false) {
+      return NextResponse.json({ error: 'Validation failed', details: validated.errors }, { status: 400 });
+    }
+    const fieldByApiName = new Map(fields.map((field) => [field.apiName, field]));
 
     // 2. Begin Transaction to insert Record + Values
     const client = await pool.connect();
@@ -108,27 +158,17 @@ export async function POST(
       const recordId = recordRes.rows[0].id;
 
       // Insert EAV values for each key in the JSON body
-      for (const [key, value] of Object.entries(body)) {
-        // Find the field ID and type
-        const fieldRes = await client.query(
-          `SELECT id, data_type FROM metadata_fields WHERE object_id = $1 AND api_name = $2`,
-          [objectId, key]
-        );
-        
-        if (fieldRes.rowCount > 0) {
-          const field = fieldRes.rows[0];
-          // Determine the correct EAV column based on field type
-          let valCol = 'value_string';
-          if (field.data_type === 'NUMBER' || field.data_type === 'CURRENCY') valCol = 'value_number';
-          else if (field.data_type === 'BOOLEAN') valCol = 'value_boolean';
-          else if (field.data_type === 'DATE') valCol = 'value_date';
+      for (const [key, value] of Object.entries(validated.data)) {
+        if (value == null) continue;
+        const field = fieldByApiName.get(key);
+        if (!field) continue;
+        const valCol = eavValueColumnForType(field.dataType as MetadataDataType);
 
-          await client.query(
-            `INSERT INTO metadata_values (id, record_id, field_id, ${valCol}) 
-             VALUES (gen_random_uuid(), $1, $2, $3)`,
-            [recordId, field.id, value]
-          );
-        }
+        await client.query(
+          `INSERT INTO metadata_values (id, record_id, field_id, ${valCol}) 
+           VALUES (gen_random_uuid(), $1, $2, $3)`,
+          [recordId, field.id, value]
+        );
       }
 
       await client.query('COMMIT');

@@ -43,6 +43,13 @@
       "when": 1782950400000,
       "tag": "0005_ai_agent_architecture",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783036800000,
+      "tag": "0006_metadata_platform_architecture",
+      "breakpoints": true
     }
   ]
 }

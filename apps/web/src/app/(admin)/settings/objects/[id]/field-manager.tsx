@@ -44,7 +44,10 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
                 isCustom: true,
                 isRequired: created.is_required,
                 defaultValue: created.default_value ?? null,
-                picklistOptions: created.picklist_options
+                picklistOptions: created.picklist_options,
+                validationRules: created.validation_rules ?? {},
+                status: created.status,
+                version: created.version ?? 1,
             }]);
             
             setIsAdding(false);
@@ -52,7 +55,11 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
             setNewApiName('');
             setNewType('TEXT');
             setNewOptions('');
-            router.refresh();
+            if (created.object_id && created.object_id !== objectId) {
+                router.replace(`/settings/objects/${created.object_id}`);
+            } else {
+                router.refresh();
+            }
         } catch (e: any) {
             alert(e.message || "Failed to create field");
         }

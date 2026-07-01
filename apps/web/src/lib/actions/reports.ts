@@ -3,6 +3,7 @@
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getObjectMetadata, getAllMetadataObjects } from './metadata-engine';
+import { quoteIdentifier, quoteSqlAlias } from '@/lib/metadata/platform';
 
 export async function getReportSources() {
     // Fetch all available objects dynamically from the metadata engine
@@ -20,15 +21,17 @@ export async function runDynamicReport(apiName: string): Promise<{ success: bool
         // 2. Construct dynamic SQL selecting standard columns and extracting JSONB custom fields
         const selectClauses: string[] = [];
         const columns: string[] = [];
+        const customFieldNames: string[] = [];
 
         for (const field of fields) {
             columns.push(field.label);
             if (field.isCustom) {
                 // Extract custom fields from the JSONB column
-                selectClauses.push(`custom_data->>'${field.apiName}' as "${field.label}"`);
+                customFieldNames.push(field.apiName);
+                selectClauses.push(`${quoteIdentifier('custom_data')}->>$${customFieldNames.length + 1} as ${quoteSqlAlias(field.label)}`);
             } else {
                 // Select standard fields natively
-                selectClauses.push(`"${field.apiName}" as "${field.label}"`);
+                selectClauses.push(`${quoteIdentifier(field.apiName)} as ${quoteSqlAlias(field.label)}`);
             }
         }
 
@@ -39,13 +42,13 @@ export async function runDynamicReport(apiName: string): Promise<{ success: bool
         // 3. Assemble and execute the query
         const query = `
             SELECT ${selectClauses.join(', ')}
-            FROM ${objectDef.tableName}
+            FROM ${quoteIdentifier(objectDef.tableName)}
             WHERE tenant_id = $1
             ORDER BY created_at DESC
             LIMIT 1000
         `;
 
-        const { rows } = await pool.query(query, [tenantId]);
+        const { rows } = await pool.query(query, [tenantId, ...customFieldNames]);
 
         return { success: true, data: rows, columns };
     } catch (error: any) {

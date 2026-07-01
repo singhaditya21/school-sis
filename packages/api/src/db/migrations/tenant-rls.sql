@@ -549,6 +549,23 @@ BEGIN
             );
     END IF;
 
+    IF app_private.table_exists('metadata_records') THEN
+        ALTER TABLE public.metadata_records ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.metadata_records FORCE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS tenant_isolation_policy ON public.metadata_records;
+        DROP POLICY IF EXISTS metadata_records_tenant_isolation_policy ON public.metadata_records;
+        CREATE POLICY metadata_records_tenant_isolation_policy ON public.metadata_records
+            AS PERMISSIVE FOR ALL
+            USING (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            )
+            WITH CHECK (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            );
+    END IF;
+
     IF app_private.table_exists('metadata_values') THEN
         ALTER TABLE public.metadata_values ENABLE ROW LEVEL SECURITY;
         ALTER TABLE public.metadata_values FORCE ROW LEVEL SECURITY;
@@ -572,6 +589,60 @@ BEGIN
                     WHERE mr.id = metadata_values.record_id
                       AND mr.tenant_id = app_private.current_tenant_id()
                 )
+            );
+    END IF;
+
+    IF app_private.table_exists('metadata_schema_versions') THEN
+        ALTER TABLE public.metadata_schema_versions ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.metadata_schema_versions FORCE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS metadata_schema_versions_tenant_select ON public.metadata_schema_versions;
+        DROP POLICY IF EXISTS metadata_schema_versions_tenant_insert ON public.metadata_schema_versions;
+        DROP POLICY IF EXISTS metadata_schema_versions_tenant_update ON public.metadata_schema_versions;
+        DROP POLICY IF EXISTS metadata_schema_versions_tenant_delete ON public.metadata_schema_versions;
+        CREATE POLICY metadata_schema_versions_tenant_select ON public.metadata_schema_versions
+            FOR SELECT
+            USING (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+                OR (tenant_id IS NULL AND status = 'PUBLISHED')
+            );
+        CREATE POLICY metadata_schema_versions_tenant_insert ON public.metadata_schema_versions
+            FOR INSERT
+            WITH CHECK (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            );
+        CREATE POLICY metadata_schema_versions_tenant_update ON public.metadata_schema_versions
+            FOR UPDATE
+            USING (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            )
+            WITH CHECK (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            );
+        CREATE POLICY metadata_schema_versions_tenant_delete ON public.metadata_schema_versions
+            FOR DELETE
+            USING (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            );
+    END IF;
+
+    IF app_private.table_exists('metadata_migration_jobs') THEN
+        ALTER TABLE public.metadata_migration_jobs ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.metadata_migration_jobs FORCE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS tenant_isolation_policy ON public.metadata_migration_jobs;
+        CREATE POLICY tenant_isolation_policy ON public.metadata_migration_jobs
+            AS PERMISSIVE FOR ALL
+            USING (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
+            )
+            WITH CHECK (
+                app_private.rls_bypass()
+                OR tenant_id = app_private.current_tenant_id()
             );
     END IF;
 END $$;

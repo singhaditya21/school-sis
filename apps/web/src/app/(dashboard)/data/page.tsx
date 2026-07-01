@@ -22,7 +22,18 @@ export default async function MetadataEnginePage() {
   let objects = [];
   try {
     const objRes = await pool.query(
-      `SELECT id, api_name as name, name as label FROM metadata_objects WHERE tenant_id = $1 OR tenant_id IS NULL ORDER BY created_at ASC`,
+      `SELECT id, api_name as name, name as label
+       FROM (
+         SELECT DISTINCT ON (api_name) id, api_name, name, created_at, tenant_id
+         FROM metadata_objects
+         WHERE status = 'PUBLISHED'
+           AND (
+             tenant_id = $1
+             OR (tenant_id IS NULL AND COALESCE(is_custom, false) = false)
+           )
+         ORDER BY api_name, CASE WHEN tenant_id = $1 THEN 0 ELSE 1 END, created_at DESC
+       ) resolved_objects
+       ORDER BY created_at ASC`,
       [tenantId]
     );
     objects = objRes.rows;
@@ -38,7 +49,11 @@ export default async function MetadataEnginePage() {
   if (activeObject) {
     // Fetch Columns (Fields)
     const fieldRes = await pool.query(
-      `SELECT id, api_name as name, label, data_type as type FROM metadata_fields WHERE object_id = $1 ORDER BY created_at ASC`,
+      `SELECT id, api_name as name, label, data_type as type
+       FROM metadata_fields
+       WHERE object_id = $1
+         AND status = 'ACTIVE'
+       ORDER BY created_at ASC`,
       [activeObject.id]
     );
     fields = fieldRes.rows;
@@ -49,7 +64,9 @@ export default async function MetadataEnginePage() {
        FROM metadata_records r
        LEFT JOIN metadata_values v ON v.record_id = r.id
        LEFT JOIN metadata_fields f ON v.field_id = f.id
-       WHERE r.object_id = $1 AND r.tenant_id = $2`,
+       WHERE r.object_id = $1
+         AND r.tenant_id = $2
+         AND (f.id IS NULL OR f.status = 'ACTIVE')`,
       [activeObject.id, tenantId]
     );
 
