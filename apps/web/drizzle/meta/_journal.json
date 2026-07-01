@@ -29,6 +29,13 @@
       "when": 1782805759340,
       "tag": "0003_certain_kabuki",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782864000000,
+      "tag": "0004_payment_billing_architecture",
+      "breakpoints": true
     }
   ]
 }

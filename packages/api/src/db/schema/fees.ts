@@ -1,6 +1,6 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, integer, numeric, date, pgEnum, customType, jsonb, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean, integer, numeric, date, pgEnum, customType, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants } from './core';
+import { tenants, users } from './core';
 import { academicYears } from './academic';
 import { students } from './students';
 
@@ -82,6 +82,70 @@ export const payments = pgTable('payments', {
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ─── Payment Provider Orders ────────────────────────────────
+
+export const paymentOrders = pgTable('payment_orders', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+    invoiceId: uuid('invoice_id').references(() => invoices.id, { onDelete: 'cascade' }).notNull(),
+    studentId: uuid('student_id').references(() => students.id).notNull(),
+    provider: varchar('provider', { length: 32 }).notNull(),
+    providerOrderId: varchar('provider_order_id', { length: 255 }),
+    providerPaymentId: varchar('provider_payment_id', { length: 255 }),
+    amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+    amountMinor: integer('amount_minor').notNull(),
+    currency: varchar('currency', { length: 3 }).default('INR').notNull(),
+    status: varchar('status', { length: 32 }).default('CREATED').notNull(),
+    idempotencyKey: varchar('idempotency_key', { length: 255 }).notNull(),
+    createdBy: uuid('created_by').references(() => users.id),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+    tenantInvoiceIdx: index('idx_payment_orders_tenant_invoice').on(table.tenantId, table.invoiceId),
+    providerOrderIdx: uniqueIndex('uq_payment_orders_provider_order').on(table.provider, table.providerOrderId),
+    idempotencyIdx: uniqueIndex('uq_payment_orders_tenant_idempotency').on(table.tenantId, table.idempotencyKey),
+}));
+
+// ─── Payment Provider Webhook Events ────────────────────────
+
+export const paymentProviderEvents = pgTable('payment_provider_events', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+    provider: varchar('provider', { length: 32 }).notNull(),
+    eventId: varchar('event_id', { length: 255 }).notNull(),
+    eventType: varchar('event_type', { length: 255 }).notNull(),
+    status: varchar('status', { length: 32 }).default('PROCESSING').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().default({}),
+    error: text('error'),
+    receivedAt: timestamp('received_at', { withTimezone: true }).defaultNow().notNull(),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+}, (table) => ({
+    providerEventIdx: uniqueIndex('uq_payment_provider_events_provider_event').on(table.provider, table.eventId),
+    tenantIdx: index('idx_payment_provider_events_tenant').on(table.tenantId),
+}));
+
+// ─── Payment Audit Trail ────────────────────────────────────
+
+export const paymentAuditLogs = pgTable('payment_audit_logs', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+    invoiceId: uuid('invoice_id').references(() => invoices.id, { onDelete: 'set null' }),
+    paymentId: uuid('payment_id').references(() => payments.id, { onDelete: 'set null' }),
+    paymentOrderId: uuid('payment_order_id').references(() => paymentOrders.id, { onDelete: 'set null' }),
+    actorUserId: uuid('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
+    providerEventId: uuid('provider_event_id').references(() => paymentProviderEvents.id, { onDelete: 'set null' }),
+    provider: varchar('provider', { length: 32 }).notNull(),
+    action: varchar('action', { length: 64 }).notNull(),
+    amount: numeric('amount', { precision: 12, scale: 2 }),
+    currency: varchar('currency', { length: 3 }).default('INR').notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+    tenantCreatedIdx: index('idx_payment_audit_logs_tenant_created').on(table.tenantId, table.createdAt),
+    invoiceIdx: index('idx_payment_audit_logs_invoice').on(table.invoiceId),
+}));
+
 // ─── Receipts ────────────────────────────────────────────────
 
 export const receipts = pgTable('receipts', {
@@ -153,6 +217,26 @@ export const paymentsRelations = relations(payments, ({ one, many }) => ({
     invoice: one(invoices, { fields: [payments.invoiceId], references: [invoices.id] }),
     student: one(students, { fields: [payments.studentId], references: [students.id] }),
     receipts: many(receipts),
+}));
+
+export const paymentOrdersRelations = relations(paymentOrders, ({ one }) => ({
+    tenant: one(tenants, { fields: [paymentOrders.tenantId], references: [tenants.id] }),
+    invoice: one(invoices, { fields: [paymentOrders.invoiceId], references: [invoices.id] }),
+    student: one(students, { fields: [paymentOrders.studentId], references: [students.id] }),
+    createdByUser: one(users, { fields: [paymentOrders.createdBy], references: [users.id] }),
+}));
+
+export const paymentProviderEventsRelations = relations(paymentProviderEvents, ({ one }) => ({
+    tenant: one(tenants, { fields: [paymentProviderEvents.tenantId], references: [tenants.id] }),
+}));
+
+export const paymentAuditLogsRelations = relations(paymentAuditLogs, ({ one }) => ({
+    tenant: one(tenants, { fields: [paymentAuditLogs.tenantId], references: [tenants.id] }),
+    invoice: one(invoices, { fields: [paymentAuditLogs.invoiceId], references: [invoices.id] }),
+    payment: one(payments, { fields: [paymentAuditLogs.paymentId], references: [payments.id] }),
+    paymentOrder: one(paymentOrders, { fields: [paymentAuditLogs.paymentOrderId], references: [paymentOrders.id] }),
+    actor: one(users, { fields: [paymentAuditLogs.actorUserId], references: [users.id] }),
+    providerEvent: one(paymentProviderEvents, { fields: [paymentAuditLogs.providerEventId], references: [paymentProviderEvents.id] }),
 }));
 
 export const receiptsRelations = relations(receipts, ({ one }) => ({

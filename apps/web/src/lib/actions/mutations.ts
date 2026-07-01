@@ -8,6 +8,7 @@
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
+import { recordManualPayment } from '@/lib/payments/ledger';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -231,49 +232,24 @@ export async function recordPayment(formData: FormData) {
         return { success: false, error: `Invalid payment method. Must be one of: ${validMethods.join(', ')}` };
     }
 
-    // Look up the invoice — tenant-scoped
-    const invoiceRes = await pool.query(
-        `SELECT student_id AS "studentId", paid_amount AS "paidAmount", total_amount AS "totalAmount"
-         FROM invoices WHERE id = $1 AND tenant_id = $2`,
-        [invoiceId, tenantId]
-    );
-    const invoice = invoiceRes.rows[0];
+    const payment = await recordManualPayment({
+        tenantId,
+        invoiceId,
+        amount,
+        method,
+        actorUserId: userId,
+        metadata: {
+            source: 'staff_form',
+        },
+    });
 
-    if (!invoice) throw new Error('Invoice not found');
-
-    // Create payment
-    const paymentRes = await pool.query(
-        `INSERT INTO payments (id, tenant_id, invoice_id, student_id, amount, method, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id`,
-        [randomUUID(), tenantId, invoiceId, invoice.studentId, String(amount), method, 'COMPLETED']
-    );
-    const payment = paymentRes.rows[0];
-
-    // Update invoice paid amount
-    const newPaid = Number(invoice.paidAmount) + amount;
-    const newStatus = newPaid >= Number(invoice.totalAmount) ? 'PAID' : 'PARTIAL';
-
-    await pool.query(
-        `UPDATE invoices SET paid_amount = $1, status = $2 WHERE id = $3 AND tenant_id = $4`,
-        [String(newPaid), newStatus, invoiceId, tenantId]
-    );
-
-    // Create receipt
-    const receiptNumber = `RCP-${Date.now().toString(36).toUpperCase()}`;
-    await pool.query(
-        `INSERT INTO receipts (id, tenant_id, payment_id, receipt_number) VALUES ($1, $2, $3, $4)`,
-        [randomUUID(), tenantId, payment.id, receiptNumber]
-    );
-
-    // Audit
     await pool.query(
         `INSERT INTO audit_logs (id, tenant_id, user_id, action, entity_type, entity_id, after_state)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [randomUUID(), tenantId, userId, 'PAYMENT', 'payments', payment.id, JSON.stringify({ amount, method, invoiceId })]
+        [randomUUID(), tenantId, userId, 'PAYMENT', 'payments', payment.paymentId, JSON.stringify({ amount, method, invoiceId })]
     );
 
-    return { success: true, paymentId: payment.id };
+    return { success: true, paymentId: payment.paymentId };
 }
 
 // ─── Create Fee Plan ──────────────────────────────────────

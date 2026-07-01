@@ -1,19 +1,17 @@
 /**
- * Payment Provider — mock + Razorpay implementation.
- * 
- * Set PAYMENT_PROVIDER env var to 'razorpay'. Mock is development-only unless explicitly enabled.
- * For Razorpay: Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.
+ * Backward-compatible payment provider facade.
+ *
+ * New payment APIs use '@/lib/payments/*' directly. This facade remains for
+ * older imports and delegates to the hardened Razorpay gateway.
  */
 
 import type { ProviderResult } from './index';
-import crypto from 'crypto';
-
-// ─── Interface ───────────────────────────────────────────────
+import { getRazorpayGateway } from '@/lib/payments/providers';
 
 export interface CreateOrderOptions {
-    amount: number;        // in smallest currency unit (paise for INR)
-    currency: string;      // e.g. 'INR'
-    receipt: string;       // internal receipt/invoice ID
+    amount: number;
+    currency: string;
+    receipt: string;
     notes?: Record<string, string>;
 }
 
@@ -21,8 +19,8 @@ export interface PaymentOrder {
     orderId: string;
     amount: number;
     currency: string;
-    status: 'created' | 'attempted' | 'paid';
-    gatewayOrderId?: string;   // Razorpay order_id, etc.
+    status: 'created' | 'attempted' | 'paid' | string;
+    gatewayOrderId?: string;
 }
 
 export interface VerifyPaymentOptions {
@@ -37,148 +35,66 @@ export interface PaymentProvider {
     getPaymentStatus(paymentId: string): Promise<ProviderResult<{ status: string }>>;
 }
 
-// ─── Mock Implementation ─────────────────────────────────────
-
-class MockPaymentProvider implements PaymentProvider {
-    async createOrder(options: CreateOrderOptions): Promise<ProviderResult<PaymentOrder>> {
-        const orderId = `mock_order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        console.log(`[MockPayment] Order created: ${orderId} for ₹${options.amount / 100}`);
-        return {
-            success: true,
-            data: {
-                orderId,
-                amount: options.amount,
-                currency: options.currency,
-                status: 'created',
-                gatewayOrderId: orderId,
-            },
-        };
-    }
-
-    async verifyPayment(options: VerifyPaymentOptions): Promise<ProviderResult<{ verified: boolean }>> {
-        console.log(`[MockPayment] Verifying payment: ${options.paymentId}`);
-        return { success: true, data: { verified: true } };
-    }
-
-    async getPaymentStatus(paymentId: string): Promise<ProviderResult<{ status: string }>> {
-        console.log(`[MockPayment] Status check: ${paymentId}`);
-        return { success: true, data: { status: 'captured' } };
-    }
-}
-
-// ─── Razorpay Implementation ─────────────────────────────────
-
-class RazorpayProvider implements PaymentProvider {
-    private keyId: string;
-    private keySecret: string;
-    private baseUrl = 'https://api.razorpay.com/v1';
-
-    constructor() {
-        this.keyId = process.env.RAZORPAY_KEY_ID || '';
-        this.keySecret = process.env.RAZORPAY_KEY_SECRET || '';
-        if (!this.keyId || !this.keySecret) {
-            console.warn('[Razorpay] Missing RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET — will fail on API calls');
-        }
-    }
-
-    private get authHeader() {
-        return 'Basic ' + Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64');
-    }
-
+class RazorpayPaymentProvider implements PaymentProvider {
     async createOrder(options: CreateOrderOptions): Promise<ProviderResult<PaymentOrder>> {
         try {
-            const res = await fetch(`${this.baseUrl}/orders`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: this.authHeader,
-                },
-                body: JSON.stringify({
-                    amount: options.amount,
-                    currency: options.currency,
-                    receipt: options.receipt,
-                    notes: options.notes || {},
-                }),
+            const order = await getRazorpayGateway().createOrder({
+                amountMinor: options.amount,
+                currency: options.currency,
+                receipt: options.receipt,
+                notes: options.notes || {},
             });
-
-            if (!res.ok) {
-                const err = await res.json();
-                return { success: false, error: err.error?.description || 'Razorpay order creation failed' };
-            }
-
-            const data = await res.json();
             return {
                 success: true,
                 data: {
-                    orderId: data.id,
-                    amount: data.amount,
-                    currency: data.currency,
-                    status: data.status,
-                    gatewayOrderId: data.id,
+                    orderId: order.providerOrderId,
+                    amount: order.amountMinor,
+                    currency: order.currency,
+                    status: order.status,
+                    gatewayOrderId: order.providerOrderId,
                 },
             };
-        } catch (err: any) {
-            return { success: false, error: err.message };
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Payment order creation failed',
+            };
         }
     }
 
     async verifyPayment(options: VerifyPaymentOptions): Promise<ProviderResult<{ verified: boolean }>> {
         try {
-            const payload = `${options.orderId}|${options.paymentId}`;
-            const expectedSignature = crypto
-                .createHmac('sha256', this.keySecret)
-                .update(payload)
-                .digest('hex');
-
-            const verified = /^[0-9a-f]{64}$/i.test(options.signature)
-                && crypto.timingSafeEqual(
-                    Buffer.from(expectedSignature, 'hex'),
-                    Buffer.from(options.signature, 'hex'),
-                );
-            return { success: true, data: { verified } };
-        } catch (err: any) {
-            return { success: false, error: err.message };
+            return {
+                success: true,
+                data: {
+                    verified: getRazorpayGateway().verifyPaymentSignature(
+                        options.orderId,
+                        options.paymentId,
+                        options.signature,
+                    ),
+                },
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Payment verification failed',
+            };
         }
     }
 
-    async getPaymentStatus(paymentId: string): Promise<ProviderResult<{ status: string }>> {
-        try {
-            const res = await fetch(`${this.baseUrl}/payments/${paymentId}`, {
-                headers: { Authorization: this.authHeader },
-            });
-
-            if (!res.ok) return { success: false, error: 'Failed to fetch payment status' };
-
-            const data = await res.json();
-            return { success: true, data: { status: data.status } };
-        } catch (err: any) {
-            return { success: false, error: err.message };
-        }
+    async getPaymentStatus(_paymentId: string): Promise<ProviderResult<{ status: string }>> {
+        return {
+            success: false,
+            error: 'Payment status lookup is only available through provider webhooks and reconciliation.',
+        };
     }
 }
 
-// ─── Factory ─────────────────────────────────────────────────
-
-let _instance: PaymentProvider | null = null;
+let instance: PaymentProvider | null = null;
 
 export function getPaymentProvider(): PaymentProvider {
-    if (!_instance) {
-        const provider = process.env.PAYMENT_PROVIDER || (process.env.NODE_ENV === 'production' ? '' : 'mock');
-        switch (provider) {
-            case 'razorpay':
-                _instance = new RazorpayProvider();
-                break;
-            case 'mock':
-                if (process.env.NODE_ENV === 'production' && process.env.ENABLE_MOCK_PAYMENTS !== 'true') {
-                    throw new Error('Mock payment provider is disabled in production');
-                }
-                _instance = new MockPaymentProvider();
-                break;
-            default:
-                throw new Error('PAYMENT_PROVIDER must be configured');
-                break;
-        }
-        console.log(`[Payment] Using ${provider} provider`);
+    if (!instance) {
+        instance = new RazorpayPaymentProvider();
     }
-    return _instance;
+    return instance;
 }

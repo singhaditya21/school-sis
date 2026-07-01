@@ -1,47 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
-import { pool } from '@/lib/db';
+import { z } from 'zod';
 import { requireApiAuth } from '@/lib/auth/api';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
+import {
+    completeProviderPayment,
+    findInvoiceForPayment,
+    getPaymentOrderByProviderOrder,
+} from '@/lib/payments/ledger';
+import { getRazorpayGateway } from '@/lib/payments/providers';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-/**
- * Payment verification endpoint for Razorpay.
- * Verifies HMAC-SHA256 signature and returns verification result.
- *
- * SECURITY: This endpoint was previously returning success unconditionally.
- * Now implements proper cryptographic signature verification.
- */
-
-function getRazorpaySecret(): string {
-    const secret = process.env.RAZORPAY_KEY_SECRET;
-    if (!secret) {
-        throw new Error(
-            'RAZORPAY_KEY_SECRET environment variable is required for payment verification. ' +
-            'Get it from your Razorpay Dashboard → Settings → API Keys.'
-        );
-    }
-    return secret;
-}
-
-async function assertInvoiceAccess(invoiceId: string, tenantId: string, userId: string, role: string) {
-    const parentOnlyClause = role === 'PARENT'
-        ? 'AND EXISTS (SELECT 1 FROM guardians g WHERE g.student_id = i.student_id AND g.tenant_id = i.tenant_id AND g.user_id = $3)'
-        : '';
-
-    const { rows } = await pool.query(
-        `SELECT i.id
-         FROM invoices i
-         WHERE i.id = $1
-           AND i.tenant_id = $2
-           ${parentOnlyClause}
-         LIMIT 1`,
-        role === 'PARENT' ? [invoiceId, tenantId, userId] : [invoiceId, tenantId]
-    );
-
-    return Boolean(rows[0]);
-}
+const VerifyPaymentSchema = z.object({
+    invoiceId: z.string().uuid(),
+    razorpayOrderId: z.string().min(1),
+    razorpayPaymentId: z.string().min(1),
+    razorpaySignature: z.string().regex(/^[0-9a-f]{64}$/i, 'Invalid payment signature format'),
+});
 
 export async function POST(request: NextRequest) {
     const auth = await requireApiAuth(['PARENT', 'ACCOUNTANT', 'SCHOOL_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN']);
@@ -51,84 +26,74 @@ export async function POST(request: NextRequest) {
         const json = await readTenantScopedJson<Record<string, unknown>>(request, auth.context.tenantId);
         if (json.ok === false) return json.response;
 
-        const body = json.data as any;
-        const { invoiceId, razorpayOrderId, razorpayPaymentId, razorpaySignature, amount } = body;
-
-        // Validate required fields
-        if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+        const parsed = VerifyPaymentSchema.safeParse(json.data);
+        if (!parsed.success) {
             return NextResponse.json(
-                { success: false, error: 'Missing required Razorpay verification fields: razorpayOrderId, razorpayPaymentId, razorpaySignature' },
-                { status: 400 }
+                { success: false, error: parsed.error.errors[0]?.message || 'Invalid payment verification request' },
+                { status: 400 },
             );
         }
 
-        if (!invoiceId) {
-            return NextResponse.json(
-                { success: false, error: 'Missing invoiceId' },
-                { status: 400 }
-            );
-        }
-
-        const hasInvoiceAccess = await assertInvoiceAccess(
-            invoiceId,
+        const invoice = await findInvoiceForPayment(
+            parsed.data.invoiceId,
             auth.context.tenantId,
             auth.context.userId,
             auth.context.role,
         );
-        if (!hasInvoiceAccess) {
-            return NextResponse.json(
-                { success: false, error: 'Invoice not found' },
-                { status: 404 }
-            );
+        if (!invoice) {
+            return NextResponse.json({ success: false, error: 'Invoice not found' }, { status: 404 });
         }
 
-        if (!/^[0-9a-f]{64}$/i.test(razorpaySignature)) {
-            return NextResponse.json(
-                { success: false, error: 'Invalid payment signature format' },
-                { status: 400 }
-            );
-        }
-
-        // Verify Razorpay HMAC-SHA256 signature
-        const secret = getRazorpaySecret();
-        const generatedSignature = crypto
-            .createHmac('sha256', secret)
-            .update(`${razorpayOrderId}|${razorpayPaymentId}`)
-            .digest('hex');
-
-        const isValid = crypto.timingSafeEqual(
-            Buffer.from(generatedSignature, 'hex'),
-            Buffer.from(razorpaySignature, 'hex')
+        const order = await getPaymentOrderByProviderOrder(
+            auth.context.tenantId,
+            'RAZORPAY',
+            parsed.data.razorpayOrderId,
         );
+        if (!order || order.invoiceId !== invoice.id) {
+            return NextResponse.json({ success: false, error: 'Payment order not found' }, { status: 404 });
+        }
 
-        if (!isValid) {
-            console.error('[Payment Verify] Signature mismatch', {
-                invoiceId,
-                razorpayOrderId,
-                // Never log the actual signatures in production
-            });
+        const gateway = getRazorpayGateway();
+        const verified = gateway.verifyPaymentSignature(
+            parsed.data.razorpayOrderId,
+            parsed.data.razorpayPaymentId,
+            parsed.data.razorpaySignature,
+        );
+        if (!verified) {
             return NextResponse.json(
-                { success: false, error: 'Payment signature verification failed. This payment cannot be confirmed.' },
-                { status: 403 }
+                { success: false, error: 'Payment signature verification failed.' },
+                { status: 403 },
             );
         }
 
-        // Signature verified — return success
-        // TODO: Update invoice status in database (Phase 3 — mock removal)
+        const result = await completeProviderPayment({
+            tenantId: auth.context.tenantId,
+            invoiceId: invoice.id,
+            provider: 'RAZORPAY',
+            providerOrderId: parsed.data.razorpayOrderId,
+            providerPaymentId: parsed.data.razorpayPaymentId,
+            amountMinor: order.amountMinor,
+            currency: order.currency,
+            actorUserId: auth.context.userId,
+            metadata: {
+                source: 'client_verify',
+            },
+        });
+
         return NextResponse.json({
             success: true,
             data: {
                 verified: true,
-                paymentId: razorpayPaymentId,
-                invoiceId,
-                amount,
-            }
+                paymentId: result.paymentId,
+                invoiceId: invoice.id,
+                alreadyProcessed: result.alreadyProcessed,
+            },
         });
-    } catch (error: any) {
-        console.error('[Payment Verify] Error:', error.message);
+    } catch (error) {
+        console.error('[Payment Verify] Error:', error instanceof Error ? error.message : error);
         return NextResponse.json(
             { success: false, error: 'Payment verification failed due to an internal error' },
-            { status: 500 }
+            { status: 500 },
         );
     }
 }

@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe/server';
 import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 import { requireApiAuth, ROLE_GROUPS } from '@/lib/auth/api';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
+import { getStripeClient } from '@/lib/payments/providers';
+import { z } from 'zod';
 
 export const dynamic = "force-dynamic";
+
+const CheckoutSchema = z.object({
+    priceId: z.string().min(1),
+    planType: z.enum(['CORE', 'AI_PRO', 'ENTERPRISE']).default('CORE'),
+});
 
 export async function POST(req: NextRequest) {
     try {
@@ -20,12 +26,11 @@ export async function POST(req: NextRequest) {
         const json = await readTenantScopedJson<Record<string, unknown>>(req, auth.context.tenantId);
         if (json.ok === false) return json.response;
 
-        const body = json.data as any;
-        const { priceId, planType } = body;
-
-        if (!priceId) {
-            return NextResponse.json({ error: 'Price ID is required' }, { status: 400 });
+        const parsed = CheckoutSchema.safeParse(json.data);
+        if (!parsed.success) {
+            return NextResponse.json({ error: parsed.error.errors[0]?.message || 'Invalid checkout request' }, { status: 400 });
         }
+        const { priceId, planType } = parsed.data;
 
         // Fetch the company from the DB
         const { rows: [company] } = await pool.query(
@@ -41,6 +46,7 @@ export async function POST(req: NextRequest) {
 
         // If no stripe customer exists for this company, create one
         if (!stripeCustomerId) {
+            const stripe = getStripeClient();
             const customer = await stripe.customers.create({
                 name: company.name,
                 metadata: {
@@ -56,6 +62,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Create the Stripe Checkout Session
+        const stripe = getStripeClient();
         const checkoutSession = await stripe.checkout.sessions.create({
             mode: 'subscription',
             customer: stripeCustomerId,
@@ -77,10 +84,10 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ sessionId: checkoutSession.id, url: checkoutSession.url });
 
-    } catch (error: any) {
+    } catch (error) {
         console.error('[STRIPE_CHECKOUT_ERROR]', error);
         return NextResponse.json(
-            { error: error.message || 'Internal Server Error' },
+            { error: error instanceof Error ? error.message : 'Internal Server Error' },
             { status: 500 }
         );
     }
