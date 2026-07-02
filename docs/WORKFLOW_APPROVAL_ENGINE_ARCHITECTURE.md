@@ -45,7 +45,7 @@ Examples:
 
 ## Runtime Contract
 
-Use the pure engine for all modules:
+Use the pure engine for state transitions:
 
 - `createWorkflowApprovalRequest()`
 - `reviewWorkflowApprovalRequest()`
@@ -55,7 +55,28 @@ Use the pure engine for all modules:
 - `toWorkflowApprovalQueueItem()`
 - `canActorReviewWorkflowApproval()`
 
-The pure engine does not touch the database. API routes, server actions, and background jobs should load persisted requests, call the engine, and persist the returned request/review/event changes in one transaction.
+The pure engine does not touch the database. Persistence is handled by `packages/api/src/workflows/approvals/repository.ts`, which:
+
+- creates idempotent tenant-scoped approval requests,
+- writes request/review/event rows,
+- verifies approval policy, tenant, resource, and payload hash before approval reuse,
+- blocks self-approval and ineligible reviewer roles through the engine,
+- returns payload-free summaries for API callers.
+
+## Adopted Surfaces
+
+Generic API:
+
+- `GET /api/workflow-approvals`: list approval summaries visible to the requester or eligible approver role.
+- `POST /api/workflow-approvals`: create an idempotent approval request from session-derived tenant and actor context.
+- `POST /api/workflow-approvals/:id/review`: approve or reject a persisted approval request.
+
+Enforced gates:
+
+- BI sensitive export validation now creates or requires an approved `data.export_pii` workflow request.
+- CBSE results CSV export requires `reports:export`, an audit reason, and an approved `data.export_pii` request.
+- UDISE+ CSV export requires `reports:export`, an audit reason, and an approved `data.export_pii` request.
+- Metadata custom field publication creates or requires an approved `metadata.publish` request before the schema version is changed.
 
 ## Adoption Path
 
@@ -63,11 +84,22 @@ High-risk modules should adopt the engine in this order:
 
 1. payment refunds, invoice waivers, invoice cancellations
 2. role changes and privileged identity changes
-3. PII exports and compliance exports
-4. metadata publication
-5. student transfers and archival
-6. exam result publication
-7. AI agent actions
+3. student transfers and archival
+4. exam result publication
+5. AI agent actions
+
+Already adopted:
+
+- PII exports and compliance exports
+- Metadata publication
+
+Still pending:
+
+- finance mutation execution after approval, including refund provider calls and invoice waiver/cancellation services
+- identity role-change execution after approval
+- student lifecycle mutation execution after approval
+- exam result publication execution after approval
+- AI agent action migration from the agent-service-specific queue
 
 The current agent approval page can be migrated from the agent-service-only queue to this generic engine once agent actions write `workflow_approval_requests`.
 

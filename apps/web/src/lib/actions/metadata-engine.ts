@@ -7,6 +7,11 @@ import { unstable_cache, revalidateTag } from 'next/cache';
 import { hash } from 'bcryptjs';
 import crypto from 'crypto';
 import {
+    requireApprovedWorkflowApprovalOrRequest,
+    toWorkflowApprovalSummary,
+} from '@school-sis/api';
+import type { AuthorizationRole } from '@school-sis/api';
+import {
     assertSafeMetadataIdentifier,
     normalizeMetadataFieldInput,
     quoteIdentifier,
@@ -49,6 +54,11 @@ export interface MetadataLayout {
     schema: any;
     isDefault: boolean;
 }
+
+export type MetadataApprovalRequiredResult = {
+    approvalRequired: true;
+    approval: ReturnType<typeof toWorkflowApprovalSummary>;
+};
 
 const PROTECTED_DATA_FIELDS = new Set(['id', 'tenantId', 'tenant_id']);
 
@@ -575,9 +585,46 @@ async function ensureTenantOwnedMetadataObject(
 /**
  * Creates a new custom field for an object
  */
-export async function createCustomField(objectId: string, fieldData: any) {
-    const { tenantId, userId } = await requireAuth();
+export async function createCustomField(
+    objectId: string,
+    fieldData: any,
+    approvalOptions: { approvalRequestId?: string; reason?: string } = {},
+) {
+    const { tenantId, userId, session } = await requireAuth('metadata:publish');
     const normalizedField = normalizeMetadataFieldInput(fieldData);
+    const approval = await requireApprovedWorkflowApprovalOrRequest({
+        approvalRequestId: approvalOptions.approvalRequestId,
+        policyId: 'metadata.publish',
+        tenantId,
+        title: `Approve metadata field ${normalizedField.apiName}`,
+        description: 'Publishing metadata changes can alter runtime schema behavior.',
+        resource: {
+            type: 'metadata_object',
+            id: objectId,
+            tenantId,
+            label: normalizedField.label,
+        },
+        payload: {
+            operation: 'ADD_CUSTOM_FIELD',
+            objectId,
+            field: normalizedField,
+            reason: approvalOptions.reason,
+        },
+        reason: approvalOptions.reason,
+        requestedBy: {
+            userId,
+            role: session.role as AuthorizationRole,
+            tenantId,
+        },
+    });
+
+    if (!approval.approved) {
+        return {
+            approvalRequired: true,
+            approval: toWorkflowApprovalSummary(approval.request),
+        } satisfies MetadataApprovalRequiredResult;
+    }
+
     const client = await pool.connect();
 
     try {

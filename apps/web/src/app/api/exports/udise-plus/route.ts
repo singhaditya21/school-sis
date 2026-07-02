@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool, } from '@/lib/db';
 import { requireApiPermission } from '@/lib/auth/api';
+import {
+    requireApprovedWorkflowApprovalOrRequest,
+    toWorkflowApprovalSummary,
+    WorkflowApprovalError,
+} from '@school-sis/api';
+import type { AuthorizationRole } from '@school-sis/api';
 
 export const dynamic = "force-dynamic";
 
@@ -14,12 +20,50 @@ export const dynamic = "force-dynamic";
  */
 
 export async function GET(request: NextRequest) {
-    const auth = await requireApiPermission('reports:read');
+    const auth = await requireApiPermission('reports:export');
     if (auth.ok === false) return auth.response;
 
     const tenantId = auth.context.tenantId;
+    const { searchParams } = new URL(request.url);
+    const reason = searchParams.get('reason') || undefined;
+    const approvalRequestId = searchParams.get('approvalRequestId') || undefined;
+
+    if (!reason?.trim()) {
+        return NextResponse.json({ error: 'UDISE+ export requires an audit reason.' }, { status: 400 });
+    }
 
     try {
+        const approval = await requireApprovedWorkflowApprovalOrRequest({
+            approvalRequestId,
+            policyId: 'data.export_pii',
+            tenantId,
+            title: 'Approve UDISE+ export',
+            description: 'UDISE+ export contains aggregate and student-derived institutional data.',
+            resource: {
+                type: 'bi_export',
+                id: 'exports.udise_plus:annual',
+                tenantId,
+            },
+            payload: {
+                exportPolicyId: 'exports.udise_plus',
+                format: 'csv',
+                reason,
+            },
+            reason,
+            requestedBy: {
+                userId: auth.context.userId,
+                role: auth.context.role as AuthorizationRole,
+                tenantId,
+            },
+        });
+
+        if (!approval.approved) {
+            return NextResponse.json({
+                approvalRequired: true,
+                approval: toWorkflowApprovalSummary(approval.request),
+            }, { status: 202 });
+        }
+
         // Get school info
         const { rows: [school] } = await pool.query(
             `SELECT *, udise_code AS "udiseCode", affiliation_board AS "affiliationBoard" FROM tenants WHERE id = $1 LIMIT 1`,
@@ -96,6 +140,9 @@ export async function GET(request: NextRequest) {
             },
         });
     } catch (error: any) {
+        if (error instanceof WorkflowApprovalError) {
+            return NextResponse.json({ error: error.message }, { status: error.status });
+        }
         console.error('[UDISE+ Export] Error:', error.message);
         return NextResponse.json({ error: 'Failed to generate UDISE+ export' }, { status: 500 });
     }

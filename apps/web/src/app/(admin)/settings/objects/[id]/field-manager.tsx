@@ -23,6 +23,7 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
     const [newType, setNewType] = useState('TEXT');
     const [newRequired, setNewRequired] = useState(false);
     const [newOptions, setNewOptions] = useState('');
+    const [approvalReason, setApprovalReason] = useState('');
 
     const handleCreateField = async () => {
         try {
@@ -33,7 +34,17 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
                 isRequired: newRequired,
                 picklistOptions: newType === 'PICKLIST' ? newOptions.split(',').map(s => s.trim()) : null
             };
-            const created = await createCustomField(objectId, fieldData);
+            const created = await createCustomField(objectId, fieldData, {
+                reason: approvalReason,
+            });
+
+            if ('approvalRequired' in created) {
+                alert(`Approval requested: ${created.approval.id}`);
+                setIsAdding(false);
+                setApprovalReason('');
+                router.refresh();
+                return;
+            }
             
             setFields([...fields, {
                 id: created.id,
@@ -55,6 +66,7 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
             setNewApiName('');
             setNewType('TEXT');
             setNewOptions('');
+            setApprovalReason('');
             if (created.object_id && created.object_id !== objectId) {
                 router.replace(`/settings/objects/${created.object_id}`);
             } else {
@@ -119,7 +131,12 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
                                 <Label htmlFor="required">Required Field</Label>
                             </div>
 
-                            <Button className="w-full mt-4" onClick={handleCreateField}>Create Field</Button>
+                            <div className="space-y-2">
+                                <Label>Approval Reason</Label>
+                                <Input value={approvalReason} onChange={e => setApprovalReason(e.target.value)} placeholder="Reason for publishing this field" />
+                            </div>
+
+                            <Button className="w-full mt-4" onClick={handleCreateField} disabled={!approvalReason.trim()}>Create Field</Button>
                         </div>
                     </DialogContent>
                 </Dialog>

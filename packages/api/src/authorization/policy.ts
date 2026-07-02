@@ -115,6 +115,7 @@ const CORE_SCHOOL_ADMIN_PERMISSIONS = grants([
     'alumni:*',
     'webhooks:*',
     'integrations:*',
+    'workflow_approvals:*',
     'metadata:*',
     'settings:*',
     'reports:*',
@@ -165,6 +166,7 @@ export const AUTHORIZATION_ROLE_PERMISSIONS = {
             'communication:write',
             'reports:*',
             'audit:read',
+            'workflow_approvals:review',
         ]),
     ],
 
@@ -185,6 +187,7 @@ export const AUTHORIZATION_ROLE_PERMISSIONS = {
             'transfer:*',
             'documents:*',
             'reports:students',
+            'workflow_approvals:review',
         ]),
     ],
 
@@ -203,6 +206,7 @@ export const AUTHORIZATION_ROLE_PERMISSIONS = {
             'guardians:read',
             'webhooks:read',
             'audit:read',
+            'workflow_approvals:*',
         ]),
     ],
 
@@ -217,6 +221,7 @@ export const AUTHORIZATION_ROLE_PERMISSIONS = {
             'reports:fees',
             'students:read',
             'guardians:read',
+            'workflow_approvals:create',
         ]),
     ],
 
@@ -543,6 +548,7 @@ export const AUTHORIZATION_ROUTE_POLICIES = [
     { prefix: '/operator', permission: 'audit:read', scope: 'tenant', description: 'Tenant operator console boundary.' },
     { prefix: '/api/platform', permission: 'platform:read', scope: 'platform', description: 'Platform API boundary.' },
     { prefix: '/api/analytics', permission: 'reports:read', scope: 'tenant', description: 'Tenant analytics API boundary.' },
+    { prefix: '/api/workflow-approvals', permission: 'workflow_approvals:read', scope: 'tenant', description: 'Tenant workflow approval API boundary.' },
     { prefix: '/api/operator', permission: 'audit:read', scope: 'tenant', description: 'Operator console API boundary.' },
     { prefix: '/api/integrations', permission: 'integrations:read', scope: 'tenant', description: 'Tenant integrations API boundary.' },
     { prefix: '/api/webhooks', permission: 'webhooks:read', scope: 'tenant', description: 'Tenant webhook API boundary.' },

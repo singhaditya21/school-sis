@@ -67,6 +67,7 @@ const DEFAULT_POLICY = {
     slaHours: 8,
     expiryHours: 72,
     escalationApproverRoles: ['SUPER_ADMIN'] as const,
+    allowRequesterApproval: false,
 };
 
 export const APPROVAL_WORKFLOW_POLICIES = AUTHORIZATION_APPROVAL_POLICIES.map((policy) => {

@@ -8,6 +8,12 @@ import {
   validateBiQueryRequest,
   type BiScope,
 } from '../../../../../../../packages/api/src/analytics/bi';
+import {
+  requireApprovedWorkflowApprovalOrRequest,
+  toWorkflowApprovalSummary,
+  WorkflowApprovalError,
+} from '@school-sis/api';
+import type { AuthorizationRole } from '@school-sis/api';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -40,6 +46,7 @@ const exportSchema = querySchema.extend({
   exportPolicyId: z.string().min(1),
   format: z.enum(['csv', 'xlsx', 'json']),
   reason: z.string().optional(),
+  approvalRequestId: z.string().uuid().optional(),
 });
 
 function resolveScope(role: string, requestedScope?: string | null): BiScope {
@@ -55,6 +62,22 @@ function normalizeDateRange(dateRange: { from?: string; to?: string } | undefine
   return dateRange?.from && dateRange?.to
     ? { from: dateRange.from, to: dateRange.to }
     : undefined;
+}
+
+function buildExportApprovalPayload(requested: z.infer<typeof exportSchema>, scope: BiScope, tenantId: string | undefined) {
+  return {
+    exportPolicyId: requested.exportPolicyId,
+    format: requested.format,
+    scope,
+    tenantId,
+    datasetId: requested.datasetId,
+    metricIds: requested.metricIds,
+    dimensionIds: requested.dimensionIds ?? [],
+    filters: requested.filters ?? [],
+    dateRange: normalizeDateRange(requested.dateRange),
+    limit: requested.limit,
+    reason: requested.reason,
+  };
 }
 
 export async function GET(request: Request) {
@@ -122,9 +145,55 @@ export async function POST(request: Request) {
         limit: requested.limit,
         reason: requested.reason,
       });
+
+      if (validation.approvalPolicyId) {
+        if (!tenantId) {
+          return NextResponse.json({ error: 'Tenant-scoped approval is required for sensitive exports.' }, { status: 400 });
+        }
+
+        const approval = await requireApprovedWorkflowApprovalOrRequest({
+          approvalRequestId: requested.approvalRequestId,
+          policyId: validation.approvalPolicyId,
+          tenantId,
+          title: `Approve ${requested.exportPolicyId} export`,
+          description: 'Sensitive BI export requires workflow approval before release.',
+          resource: {
+            type: 'bi_export',
+            id: requested.exportPolicyId,
+            tenantId,
+          },
+          payload: buildExportApprovalPayload(requested, scope, tenantId),
+          reason: requested.reason,
+          requestedBy: {
+            userId: auth.context.userId,
+            role: auth.context.role as AuthorizationRole,
+            tenantId,
+          },
+        });
+
+        if (!approval.approved) {
+          return NextResponse.json({
+            approvalRequired: true,
+            approval: toWorkflowApprovalSummary(approval.request),
+            validation,
+          }, { status: 202 });
+        }
+
+        return NextResponse.json({
+          validation: {
+            ...validation,
+            approvalRequestId: approval.request.id,
+            approved: true,
+          },
+        });
+      }
+
       return NextResponse.json({ validation });
     } catch (error) {
-      return NextResponse.json({ error: error instanceof Error ? error.message : 'BI export request denied' }, { status: 403 });
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'BI export request denied' },
+        { status: error instanceof WorkflowApprovalError ? error.status : 403 },
+      );
     }
   }
 
