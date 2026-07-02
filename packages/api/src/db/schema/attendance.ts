@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, timestamp, date, pgEnum, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, timestamp, date, pgEnum, boolean, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { tenants, users } from './core';
 import { sections } from './academic';
@@ -22,7 +22,11 @@ export const attendanceRecords = pgTable('attendance_records', {
     isNotified: boolean('is_notified').default(false).notNull(), // parent notified?
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+    tenantDateStatusIdx: index('idx_attendance_tenant_date_status').on(table.tenantId, table.date, table.status),
+    tenantStudentDateIdx: index('idx_attendance_tenant_student_date').on(table.tenantId, table.studentId, table.date),
+    tenantSectionDateIdx: index('idx_attendance_tenant_section_date').on(table.tenantId, table.sectionId, table.date),
+}));
 
 // ─── Relations ───────────────────────────────────────────────
 

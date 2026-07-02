@@ -23,6 +23,8 @@
     "infra:check": "pnpm --filter @school-sis/web run infra:check",
     "backup:create": "pnpm --filter @school-sis/web run backup:create",
     "backup:restore": "pnpm --filter @school-sis/web run backup:restore",
+    "perf:bundle": "pnpm --filter @school-sis/web run perf:bundle",
+    "perf:load": "pnpm --filter @school-sis/web run perf:load",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "audit:security": "pnpm audit --audit-level=high",

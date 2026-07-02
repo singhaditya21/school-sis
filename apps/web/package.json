@@ -23,7 +23,9 @@
         "setup:founder": "tsx scripts/setup-founder.ts",
         "infra:check": "tsx scripts/check-production-runtime.ts",
         "backup:create": "tsx scripts/backup-neon.ts",
-        "backup:restore": "tsx scripts/restore-neon.ts"
+        "backup:restore": "tsx scripts/restore-neon.ts",
+        "perf:bundle": "node scripts/analyze-bundle.mjs",
+        "perf:load": "node scripts/load-test.mjs"
     },
     "dependencies": {
         "@school-sis/api": "workspace:*",

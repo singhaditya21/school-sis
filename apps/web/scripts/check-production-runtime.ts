@@ -154,6 +154,15 @@ if (strict && !process.env.BACKUP_RETENTION_DAYS) {
     add('warning', 'BACKUP_RETENTION_DAYS is not set; default retention runbook applies.');
 }
 
+const upstashConfigured = hasAll(['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN']);
+if (!upstashConfigured) {
+    add('warning', 'UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are not set; auth rate limiting will use the shared Postgres fallback.');
+}
+
+if (process.env.RATE_LIMIT_BACKEND && !['postgres'].includes(process.env.RATE_LIMIT_BACKEND)) {
+    add('warning', 'RATE_LIMIT_BACKEND only supports postgres as an explicit override when Upstash is not configured.');
+}
+
 const errors = issues.filter((issue) => issue.level === 'error');
 for (const issue of issues) {
     const prefix = issue.level === 'error' ? '[infra:error]' : '[infra:warn]';

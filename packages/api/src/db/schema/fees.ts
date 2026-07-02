@@ -61,6 +61,9 @@ export const invoices = pgTable('invoices', {
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
     customDataIdx: index('idx_invoices_custom_data').using('gin', table.customData),
+    tenantStatusDueIdx: index('idx_invoices_tenant_status_due').on(table.tenantId, table.status, table.dueDate),
+    tenantStudentStatusIdx: index('idx_invoices_tenant_student_status').on(table.tenantId, table.studentId, table.status),
+    tenantDueIdx: index('idx_invoices_tenant_due').on(table.tenantId, table.dueDate),
 }));
 
 // ─── Payments ────────────────────────────────────────────────
@@ -80,7 +83,11 @@ export const payments = pgTable('payments', {
     notes: text('notes'),
     paidAt: timestamp('paid_at', { withTimezone: true }).defaultNow().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+    tenantStatusPaidIdx: index('idx_payments_tenant_status_paid').on(table.tenantId, table.status, table.paidAt),
+    tenantInvoiceIdx: index('idx_payments_tenant_invoice').on(table.tenantId, table.invoiceId),
+    tenantStudentPaidIdx: index('idx_payments_tenant_student_paid').on(table.tenantId, table.studentId, table.paidAt),
+}));
 
 // ─── Payment Provider Orders ────────────────────────────────
 

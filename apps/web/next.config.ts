@@ -76,6 +76,24 @@ const nextConfig: NextConfig = {
     async headers() {
         return [
             {
+                source: '/_next/static/:path*',
+                headers: [
+                    {
+                        key: 'Cache-Control',
+                        value: 'public, max-age=31536000, immutable',
+                    },
+                ],
+            },
+            {
+                source: '/manifest.webmanifest',
+                headers: [
+                    {
+                        key: 'Cache-Control',
+                        value: 'public, max-age=3600, stale-while-revalidate=86400',
+                    },
+                ],
+            },
+            {
                 // Apply security headers to all routes
                 source: '/(.*)',
                 headers: securityHeaders,

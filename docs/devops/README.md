@@ -159,6 +159,8 @@ CI should pass:
 pnpm test:architecture
 pnpm test:unit
 pnpm build
+pnpm perf:bundle
+pnpm --filter @school-sis/web run perf:load -- --dry-run
 pnpm --filter @school-sis/web exec drizzle-kit check
 pnpm --filter @school-sis/web exec eslint src --quiet
 ```
@@ -168,6 +170,17 @@ Deployments should occur only after reviewed migrations are applied or confirmed
 ## Testing and Quality
 
 See [../TESTING_QUALITY_ARCHITECTURE.md](../TESTING_QUALITY_ARCHITECTURE.md) for the unit, E2E, coverage, and CI quality gate model.
+
+## Performance and Scale
+
+See [../PERFORMANCE_SCALE_ARCHITECTURE.md](../PERFORMANCE_SCALE_ARCHITECTURE.md) for query/index hygiene, rate limiting, caching, bundle budgets, and load-test commands.
+
+Production auth rate limiting uses Upstash Redis when configured and the shared Postgres `rate_limit_buckets` fallback otherwise. Set these when available:
+
+```env
+UPSTASH_REDIS_REST_URL=...
+UPSTASH_REDIS_REST_TOKEN=...
+```
 
 ## Background Jobs
 

@@ -71,6 +71,13 @@
       "when": 1783296000000,
       "tag": "0009_observability_sre_architecture",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783382400000,
+      "tag": "0010_performance_scale_architecture",
+      "breakpoints": true
     }
   ]
 }

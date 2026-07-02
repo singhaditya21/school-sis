@@ -49,6 +49,8 @@ export const students = pgTable('students', {
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
     customDataIdx: index('idx_students_custom_data').using('gin', table.customData),
+    tenantStatusGradeSectionIdx: index('idx_students_tenant_status_grade_section').on(table.tenantId, table.status, table.gradeId, table.sectionId),
+    tenantAdmissionNumberIdx: index('idx_students_tenant_admission_number').on(table.tenantId, table.admissionNumber),
 }));
 
 // ─── Guardians ───────────────────────────────────────────────
@@ -71,7 +73,10 @@ export const guardians = pgTable('guardians', {
     isPrimary: boolean('is_primary').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+    tenantStudentPrimaryIdx: index('idx_guardians_tenant_student_primary').on(table.tenantId, table.studentId, table.isPrimary),
+    tenantUserIdx: index('idx_guardians_tenant_user').on(table.tenantId, table.userId),
+}));
 
 // ─── Relations ───────────────────────────────────────────────
 
