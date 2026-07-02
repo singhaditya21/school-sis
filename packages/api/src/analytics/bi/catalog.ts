@@ -1,0 +1,383 @@
+import type {
+    BiDashboardDefinition,
+    BiDatasetDefinition,
+    BiExportPolicy,
+    BiMetricDefinition,
+} from './types';
+
+const COMMON_STUDENT_DIMENSIONS = [
+    { id: 'grade', label: 'Grade', sourceColumn: 'grades.name', type: 'string', classification: 'academic', filterable: true },
+    { id: 'section', label: 'Section', sourceColumn: 'sections.name', type: 'string', classification: 'academic', filterable: true },
+    { id: 'gender', label: 'Gender', sourceColumn: 'students.gender', type: 'string', classification: 'student_pii', filterable: true },
+    { id: 'category', label: 'Category', sourceColumn: 'students.category', type: 'string', classification: 'student_pii', filterable: true },
+] as const;
+
+export const BI_METRICS = [
+    { id: 'active_students', datasetId: 'enrollment.students', domain: 'ENROLLMENT', label: 'Active Students', description: 'Current active student count.', aggregation: 'count', expressionId: 'students.active.count', format: 'number', classification: 'student_pii', ownerRole: 'REGISTRAR' },
+    { id: 'new_admissions', datasetId: 'enrollment.students', domain: 'ENROLLMENT', label: 'New Admissions', description: 'Students created during the selected period.', aggregation: 'count', expressionId: 'students.created.count', format: 'number', classification: 'student_pii', ownerRole: 'REGISTRAR' },
+    { id: 'attendance_percentage', datasetId: 'attendance.daily', domain: 'ATTENDANCE', label: 'Attendance Percentage', description: 'Present records divided by total attendance records.', aggregation: 'ratio', expressionId: 'attendance.present.rate', format: 'percentage', classification: 'student_pii', ownerRole: 'ATTENDANCE_COORDINATOR' },
+    { id: 'absent_count', datasetId: 'attendance.daily', domain: 'ATTENDANCE', label: 'Absent Count', description: 'Absent attendance records in the selected period.', aggregation: 'count', expressionId: 'attendance.absent.count', format: 'number', classification: 'student_pii', ownerRole: 'ATTENDANCE_COORDINATOR' },
+    { id: 'average_exam_score', datasetId: 'academics.results', domain: 'ACADEMICS', label: 'Average Exam Score', description: 'Average marks obtained as a percentage of max marks.', aggregation: 'avg', expressionId: 'exam.score.average_pct', format: 'percentage', classification: 'academic', ownerRole: 'EXAM_CONTROLLER' },
+    { id: 'pass_rate', datasetId: 'academics.results', domain: 'ACADEMICS', label: 'Pass Rate', description: 'Students above the configured pass threshold.', aggregation: 'ratio', expressionId: 'exam.pass.rate', format: 'percentage', classification: 'academic', ownerRole: 'EXAM_CONTROLLER' },
+    { id: 'invoice_amount', datasetId: 'fees.ledger', domain: 'FEES', label: 'Invoice Amount', description: 'Total invoiced amount.', aggregation: 'sum', expressionId: 'invoices.total_amount.sum', format: 'currency', classification: 'financial', ownerRole: 'FEE_MANAGER' },
+    { id: 'collected_amount', datasetId: 'fees.ledger', domain: 'FEES', label: 'Collected Amount', description: 'Total completed payment amount.', aggregation: 'sum', expressionId: 'payments.completed.amount.sum', format: 'currency', classification: 'financial', ownerRole: 'FEE_MANAGER' },
+    { id: 'outstanding_amount', datasetId: 'fees.ledger', domain: 'FEES', label: 'Outstanding Amount', description: 'Open invoice balance.', aggregation: 'sum', expressionId: 'invoices.outstanding.sum', format: 'currency', classification: 'financial', ownerRole: 'FEE_MANAGER' },
+    { id: 'collection_rate', datasetId: 'fees.ledger', domain: 'FEES', label: 'Collection Rate', description: 'Collected amount divided by invoiced amount.', aggregation: 'ratio', expressionId: 'fees.collection.rate', format: 'percentage', classification: 'financial', ownerRole: 'FEE_MANAGER' },
+    { id: 'lead_count', datasetId: 'admissions.pipeline', domain: 'ADMISSIONS', label: 'Lead Count', description: 'Admission leads by stage and source.', aggregation: 'count', expressionId: 'admissions.leads.count', format: 'number', classification: 'student_pii', ownerRole: 'ADMISSION_OFFICER' },
+    { id: 'conversion_rate', datasetId: 'admissions.pipeline', domain: 'ADMISSIONS', label: 'Conversion Rate', description: 'Enrolled leads divided by total leads.', aggregation: 'ratio', expressionId: 'admissions.conversion.rate', format: 'percentage', classification: 'student_pii', ownerRole: 'ADMISSION_OFFICER' },
+    { id: 'delivered_notifications', datasetId: 'communications.delivery', domain: 'COMMUNICATIONS', label: 'Delivered Notifications', description: 'Notifications delivered successfully.', aggregation: 'count', expressionId: 'notifications.delivered.count', format: 'number', classification: 'operational', ownerRole: 'COMMUNICATIONS_ADMIN' },
+    { id: 'delivery_failure_rate', datasetId: 'communications.delivery', domain: 'COMMUNICATIONS', label: 'Delivery Failure Rate', description: 'Failed notifications divided by total attempted notifications.', aggregation: 'ratio', expressionId: 'notifications.failure.rate', format: 'percentage', classification: 'operational', ownerRole: 'COMMUNICATIONS_ADMIN' },
+    { id: 'failed_jobs', datasetId: 'operations.jobs', domain: 'OPERATIONS', label: 'Failed Jobs', description: 'Failed or dead-lettered background jobs.', aggregation: 'count', expressionId: 'background_jobs.failed.count', format: 'number', classification: 'operational', ownerRole: 'PLATFORM_ADMIN' },
+    { id: 'active_tenants', datasetId: 'platform.tenant_fleet', domain: 'PLATFORM', label: 'Active Tenants', description: 'Active tenant count across the platform.', aggregation: 'count', expressionId: 'tenants.active.count', format: 'number', classification: 'operational', ownerRole: 'PLATFORM_ADMIN' },
+    { id: 'platform_arr', datasetId: 'platform.tenant_fleet', domain: 'PLATFORM', label: 'Platform ARR', description: 'Annual recurring revenue based on subscription records.', aggregation: 'sum', expressionId: 'companies.arr.sum', format: 'currency', classification: 'financial', ownerRole: 'PLATFORM_ADMIN' },
+    { id: 'agent_token_cost', datasetId: 'platform.ai_economics', domain: 'AI_ECONOMICS', label: 'Agent Token Cost', description: 'AI token cost by tenant, model, and agent.', aggregation: 'sum', expressionId: 'ai_token_logs.cost.sum', format: 'currency', classification: 'financial', ownerRole: 'PLATFORM_ADMIN' },
+] as const satisfies readonly BiMetricDefinition[];
+
+export const BI_DATASETS = [
+    {
+        id: 'enrollment.students',
+        domain: 'ENROLLMENT',
+        scope: 'TENANT',
+        label: 'Student Enrollment',
+        description: 'Tenant-scoped student roster, grade, section, status, and demographic aggregates.',
+        grain: 'student',
+        sourceTables: ['students', 'guardians', 'sections', 'grades', 'academic_years'],
+        tenantColumn: 'students.tenant_id',
+        defaultDateField: 'students.created_at',
+        refreshStrategy: 'LIVE_QUERY',
+        dimensions: [
+            ...COMMON_STUDENT_DIMENSIONS,
+            { id: 'student_status', label: 'Student Status', sourceColumn: 'students.status', type: 'string', classification: 'operational', filterable: true },
+        ],
+        metricIds: ['active_students', 'new_admissions'],
+        requiredPermission: 'students:read',
+        requiredScope: 'tenant',
+        classifications: ['student_pii', 'academic', 'operational'],
+        exportable: true,
+    },
+    {
+        id: 'attendance.daily',
+        domain: 'ATTENDANCE',
+        scope: 'TENANT',
+        label: 'Daily Attendance',
+        description: 'Attendance rollups by date, class, section, and attendance status.',
+        grain: 'attendance_day',
+        sourceTables: ['attendance_records', 'students', 'sections', 'grades'],
+        tenantColumn: 'attendance_records.tenant_id',
+        defaultDateField: 'attendance_records.date',
+        refreshStrategy: 'LIVE_QUERY',
+        dimensions: [
+            ...COMMON_STUDENT_DIMENSIONS,
+            { id: 'attendance_date', label: 'Attendance Date', sourceColumn: 'attendance_records.date', type: 'date', classification: 'operational', filterable: true },
+            { id: 'attendance_status', label: 'Attendance Status', sourceColumn: 'attendance_records.status', type: 'string', classification: 'operational', filterable: true },
+        ],
+        metricIds: ['attendance_percentage', 'absent_count'],
+        requiredPermission: 'attendance:read',
+        requiredScope: 'tenant',
+        classifications: ['student_pii', 'operational'],
+        exportable: true,
+    },
+    {
+        id: 'academics.results',
+        domain: 'ACADEMICS',
+        scope: 'TENANT',
+        label: 'Academic Results',
+        description: 'Exam, subject, grade, and student performance analytics.',
+        grain: 'exam_result',
+        sourceTables: ['student_results', 'exam_schedules', 'subjects', 'exams', 'students'],
+        tenantColumn: 'exams.tenant_id',
+        defaultDateField: 'exams.created_at',
+        refreshStrategy: 'LIVE_QUERY',
+        dimensions: [
+            ...COMMON_STUDENT_DIMENSIONS,
+            { id: 'exam', label: 'Exam', sourceColumn: 'exams.name', type: 'string', classification: 'academic', filterable: true },
+            { id: 'subject', label: 'Subject', sourceColumn: 'subjects.name', type: 'string', classification: 'academic', filterable: true },
+        ],
+        metricIds: ['average_exam_score', 'pass_rate'],
+        requiredPermission: 'exams:read',
+        requiredScope: 'tenant',
+        classifications: ['student_pii', 'academic'],
+        exportable: true,
+    },
+    {
+        id: 'fees.ledger',
+        domain: 'FEES',
+        scope: 'TENANT',
+        label: 'Fee Ledger',
+        description: 'Invoices, payments, provider orders, balances, and collection analytics.',
+        grain: 'invoice',
+        sourceTables: ['invoices', 'payments', 'payment_orders', 'payment_provider_events', 'students'],
+        tenantColumn: 'invoices.tenant_id',
+        defaultDateField: 'invoices.due_date',
+        refreshStrategy: 'LIVE_QUERY',
+        dimensions: [
+            ...COMMON_STUDENT_DIMENSIONS,
+            { id: 'invoice_status', label: 'Invoice Status', sourceColumn: 'invoices.status', type: 'string', classification: 'financial', filterable: true },
+            { id: 'due_month', label: 'Due Month', sourceColumn: "date_trunc('month', invoices.due_date)", type: 'date', classification: 'financial', filterable: true },
+        ],
+        metricIds: ['invoice_amount', 'collected_amount', 'outstanding_amount', 'collection_rate'],
+        requiredPermission: 'fees:read',
+        requiredScope: 'tenant',
+        classifications: ['student_pii', 'financial'],
+        exportable: true,
+    },
+    {
+        id: 'admissions.pipeline',
+        domain: 'ADMISSIONS',
+        scope: 'TENANT',
+        label: 'Admissions Pipeline',
+        description: 'Admission leads, stages, source attribution, and enrollment conversion.',
+        grain: 'admission_lead',
+        sourceTables: ['admission_leads', 'admission_applications', 'students'],
+        tenantColumn: 'admission_leads.tenant_id',
+        defaultDateField: 'admission_leads.created_at',
+        refreshStrategy: 'LIVE_QUERY',
+        dimensions: [
+            { id: 'lead_stage', label: 'Lead Stage', sourceColumn: 'admission_leads.stage', type: 'string', classification: 'operational', filterable: true },
+            { id: 'lead_source', label: 'Lead Source', sourceColumn: 'admission_leads.source', type: 'string', classification: 'operational', filterable: true },
+            { id: 'created_month', label: 'Created Month', sourceColumn: "date_trunc('month', admission_leads.created_at)", type: 'date', classification: 'operational', filterable: true },
+        ],
+        metricIds: ['lead_count', 'conversion_rate'],
+        requiredPermission: 'admissions:read',
+        requiredScope: 'tenant',
+        classifications: ['student_pii', 'operational'],
+        exportable: true,
+    },
+    {
+        id: 'communications.delivery',
+        domain: 'COMMUNICATIONS',
+        scope: 'TENANT',
+        label: 'Communication Delivery',
+        description: 'Notification outbox and provider delivery performance.',
+        grain: 'notification',
+        sourceTables: ['notification_outbox', 'notification_delivery_events', 'message_templates'],
+        tenantColumn: 'notification_outbox.tenant_id',
+        defaultDateField: 'notification_outbox.created_at',
+        refreshStrategy: 'SNAPSHOT',
+        dimensions: [
+            { id: 'channel', label: 'Channel', sourceColumn: 'notification_outbox.channel', type: 'string', classification: 'operational', filterable: true },
+            { id: 'provider', label: 'Provider', sourceColumn: 'notification_outbox.provider', type: 'string', classification: 'operational', filterable: true },
+            { id: 'status', label: 'Status', sourceColumn: 'notification_outbox.status', type: 'string', classification: 'operational', filterable: true },
+        ],
+        metricIds: ['delivered_notifications', 'delivery_failure_rate'],
+        requiredPermission: 'communications:read',
+        requiredScope: 'tenant',
+        classifications: ['student_pii', 'operational'],
+        exportable: false,
+    },
+    {
+        id: 'operations.jobs',
+        domain: 'OPERATIONS',
+        scope: 'TENANT',
+        label: 'Background Operations',
+        description: 'Tenant job queue health, retries, and dead-letter trends.',
+        grain: 'job',
+        sourceTables: ['background_jobs', 'background_job_attempts'],
+        tenantColumn: 'background_jobs.tenant_id',
+        defaultDateField: 'background_jobs.created_at',
+        refreshStrategy: 'SNAPSHOT',
+        dimensions: [
+            { id: 'queue', label: 'Queue', sourceColumn: 'background_jobs.queue', type: 'string', classification: 'operational', filterable: true },
+            { id: 'task_name', label: 'Task Name', sourceColumn: 'background_jobs.task_name', type: 'string', classification: 'operational', filterable: true },
+            { id: 'job_status', label: 'Job Status', sourceColumn: 'background_jobs.status', type: 'string', classification: 'operational', filterable: true },
+        ],
+        metricIds: ['failed_jobs'],
+        requiredPermission: 'audit:read',
+        requiredScope: 'tenant',
+        classifications: ['operational'],
+        exportable: false,
+    },
+    {
+        id: 'platform.tenant_fleet',
+        domain: 'PLATFORM',
+        scope: 'PLATFORM',
+        label: 'Tenant Fleet',
+        description: 'Platform-level tenant, subscription, ARR, and churn-risk analytics.',
+        grain: 'tenant',
+        sourceTables: ['tenants', 'companies', 'payments', 'ai_token_logs'],
+        tenantColumn: undefined,
+        defaultDateField: 'tenants.created_at',
+        refreshStrategy: 'SNAPSHOT',
+        dimensions: [
+            { id: 'subscription_tier', label: 'Subscription Tier', sourceColumn: 'companies.subscription_tier', type: 'string', classification: 'financial', filterable: true },
+            { id: 'tenant_region', label: 'Tenant Region', sourceColumn: 'companies.region', type: 'string', classification: 'operational', filterable: true },
+            { id: 'tenant_status', label: 'Tenant Status', sourceColumn: 'tenants.is_active', type: 'boolean', classification: 'operational', filterable: true },
+        ],
+        metricIds: ['active_tenants', 'platform_arr'],
+        requiredPermission: 'platform:read',
+        requiredScope: 'platform',
+        classifications: ['operational', 'financial'],
+        exportable: true,
+    },
+    {
+        id: 'platform.ai_economics',
+        domain: 'AI_ECONOMICS',
+        scope: 'PLATFORM',
+        label: 'AI Economics',
+        description: 'AI usage, token cost, model mix, and tenant consumption analytics.',
+        grain: 'tenant',
+        sourceTables: ['ai_token_logs', 'tenants', 'companies'],
+        tenantColumn: undefined,
+        defaultDateField: 'ai_token_logs.created_at',
+        refreshStrategy: 'SNAPSHOT',
+        dimensions: [
+            { id: 'agent_type', label: 'Agent Type', sourceColumn: 'ai_token_logs.agent_type', type: 'string', classification: 'operational', filterable: true },
+            { id: 'model', label: 'Model', sourceColumn: 'ai_token_logs.model', type: 'string', classification: 'operational', filterable: true },
+            { id: 'tenant', label: 'Tenant', sourceColumn: 'tenants.name', type: 'string', classification: 'operational', filterable: true },
+        ],
+        metricIds: ['agent_token_cost'],
+        requiredPermission: 'platform:read',
+        requiredScope: 'platform',
+        classifications: ['operational', 'financial'],
+        exportable: true,
+    },
+] as const satisfies readonly BiDatasetDefinition[];
+
+export const BI_DASHBOARDS = [
+    {
+        id: 'school.executive_overview',
+        scope: 'TENANT',
+        domain: 'ENROLLMENT',
+        title: 'School Executive Overview',
+        description: 'Leadership view across enrollment, attendance, academic, and fee performance.',
+        route: '/analytics',
+        personaRoles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL'],
+        requiredPermission: 'reports:read',
+        requiredScope: 'tenant',
+        defaultFilters: ['academic_year', 'grade'],
+        tiles: [
+            { id: 'students', title: 'Active Students', datasetId: 'enrollment.students', metricIds: ['active_students'], dimensionIds: ['grade'], visualization: 'kpi' },
+            { id: 'attendance', title: 'Attendance Trend', datasetId: 'attendance.daily', metricIds: ['attendance_percentage'], dimensionIds: ['attendance_date'], visualization: 'line' },
+            { id: 'fees', title: 'Collection Rate', datasetId: 'fees.ledger', metricIds: ['collection_rate', 'outstanding_amount'], dimensionIds: ['due_month'], visualization: 'bar' },
+            { id: 'results', title: 'Academic Outcomes', datasetId: 'academics.results', metricIds: ['average_exam_score', 'pass_rate'], dimensionIds: ['grade'], visualization: 'bar' },
+        ],
+    },
+    {
+        id: 'finance.collections',
+        scope: 'TENANT',
+        domain: 'FEES',
+        title: 'Finance Collections',
+        description: 'Finance dashboard for invoices, collections, overdue balances, and reconciliation.',
+        route: '/analytics/fees',
+        personaRoles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'FINANCE_LEAD', 'ACCOUNTANT'],
+        requiredPermission: 'fees:read',
+        requiredScope: 'tenant',
+        defaultFilters: ['due_month', 'invoice_status'],
+        tiles: [
+            { id: 'invoiced', title: 'Invoiced', datasetId: 'fees.ledger', metricIds: ['invoice_amount'], dimensionIds: ['due_month'], visualization: 'line' },
+            { id: 'collected', title: 'Collected', datasetId: 'fees.ledger', metricIds: ['collected_amount'], dimensionIds: ['due_month'], visualization: 'bar' },
+            { id: 'outstanding', title: 'Outstanding', datasetId: 'fees.ledger', metricIds: ['outstanding_amount'], dimensionIds: ['grade'], visualization: 'table' },
+        ],
+    },
+    {
+        id: 'academics.outcomes',
+        scope: 'TENANT',
+        domain: 'ACADEMICS',
+        title: 'Academic Outcomes',
+        description: 'Exam and subject performance trends by grade and section.',
+        route: '/analytics/exams',
+        personaRoles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL'],
+        requiredPermission: 'exams:read',
+        requiredScope: 'tenant',
+        defaultFilters: ['exam', 'subject', 'grade'],
+        tiles: [
+            { id: 'avg-score', title: 'Average Score', datasetId: 'academics.results', metricIds: ['average_exam_score'], dimensionIds: ['subject'], visualization: 'bar' },
+            { id: 'pass-rate', title: 'Pass Rate', datasetId: 'academics.results', metricIds: ['pass_rate'], dimensionIds: ['grade'], visualization: 'heatmap' },
+        ],
+    },
+    {
+        id: 'platform.portfolio',
+        scope: 'PLATFORM',
+        domain: 'PLATFORM',
+        title: 'Platform Portfolio',
+        description: 'Portfolio analytics across tenants, subscriptions, ARR, and churn risk.',
+        route: '/platform/analytics',
+        personaRoles: ['PLATFORM_ADMIN'],
+        requiredPermission: 'platform:read',
+        requiredScope: 'platform',
+        defaultFilters: ['subscription_tier', 'tenant_region'],
+        tiles: [
+            { id: 'tenants', title: 'Active Tenants', datasetId: 'platform.tenant_fleet', metricIds: ['active_tenants'], dimensionIds: ['subscription_tier'], visualization: 'kpi' },
+            { id: 'arr', title: 'ARR', datasetId: 'platform.tenant_fleet', metricIds: ['platform_arr'], dimensionIds: ['subscription_tier'], visualization: 'bar' },
+            { id: 'ai-cost', title: 'AI Token Cost', datasetId: 'platform.ai_economics', metricIds: ['agent_token_cost'], dimensionIds: ['model'], visualization: 'bar' },
+        ],
+    },
+] as const satisfies readonly BiDashboardDefinition[];
+
+export const BI_EXPORT_POLICIES = [
+    {
+        id: 'exports.cbse_results',
+        label: 'CBSE Results Export',
+        datasetIds: ['academics.results'],
+        formats: ['csv'],
+        requiredPermission: 'reports:export',
+        requiredScope: 'tenant',
+        classifications: ['student_pii', 'academic'],
+        approvalPolicyId: 'data.export_pii',
+        requiresReason: true,
+        maxRows: 10000,
+    },
+    {
+        id: 'exports.udise_plus',
+        label: 'UDISE+ Annual Export',
+        datasetIds: ['enrollment.students'],
+        formats: ['csv'],
+        requiredPermission: 'reports:export',
+        requiredScope: 'tenant',
+        classifications: ['student_pii', 'academic'],
+        approvalPolicyId: 'data.export_pii',
+        requiresReason: true,
+        maxRows: 50000,
+    },
+    {
+        id: 'exports.fee_outstanding',
+        label: 'Fee Outstanding Export',
+        datasetIds: ['fees.ledger'],
+        formats: ['csv', 'xlsx'],
+        requiredPermission: 'reports:export',
+        requiredScope: 'tenant',
+        classifications: ['student_pii', 'financial'],
+        approvalPolicyId: 'data.export_pii',
+        requiresReason: true,
+        maxRows: 50000,
+    },
+    {
+        id: 'exports.platform_portfolio',
+        label: 'Platform Portfolio Export',
+        datasetIds: ['platform.tenant_fleet', 'platform.ai_economics'],
+        formats: ['csv', 'json'],
+        requiredPermission: 'platform:read',
+        requiredScope: 'platform',
+        classifications: ['financial', 'operational'],
+        requiresReason: true,
+        maxRows: 10000,
+    },
+] as const satisfies readonly BiExportPolicy[];
+
+export function listBiDatasets(): readonly BiDatasetDefinition[] {
+    return BI_DATASETS;
+}
+
+export function getBiDataset(id: string): BiDatasetDefinition | null {
+    return BI_DATASETS.find((dataset) => dataset.id === id) ?? null;
+}
+
+export function listBiMetrics(): readonly BiMetricDefinition[] {
+    return BI_METRICS;
+}
+
+export function getBiMetric(id: string): BiMetricDefinition | null {
+    return BI_METRICS.find((metric) => metric.id === id) ?? null;
+}
+
+export function listBiDashboards(): readonly BiDashboardDefinition[] {
+    return BI_DASHBOARDS;
+}
+
+export function listBiExportPolicies(): readonly BiExportPolicy[] {
+    return BI_EXPORT_POLICIES;
+}
+
+export function getBiExportPolicy(id: string): BiExportPolicy | null {
+    return BI_EXPORT_POLICIES.find((policy) => policy.id === id) ?? null;
+}

@@ -38,6 +38,7 @@ export * from './observability';
 export * from './performance';
 export * from './workflow-approvals';
 export * from './operator';
+export * from './bi';
 
 // Phase 4 Expansions (Advanced Education Sectors)
 export * from './higher_ed';
