@@ -131,6 +131,7 @@ export interface WorkflowApprovalQueueItem {
     tenantId: string;
     policyId: string;
     title: string;
+    description: string;
     priority: WorkflowApprovalPriority;
     status: WorkflowApprovalStatus;
     resourceType: string;

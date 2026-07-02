@@ -239,6 +239,7 @@ export function toWorkflowApprovalQueueItem(
         tenantId: request.tenantId,
         policyId: request.policyId,
         title: request.title,
+        description: request.description,
         priority: request.priority,
         status: request.status,
         resourceType: request.resource.type,

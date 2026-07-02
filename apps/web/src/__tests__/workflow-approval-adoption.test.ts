@@ -24,6 +24,14 @@ describe('Workflow approval adoption architecture', () => {
             permission: 'workflow_approvals:read',
             scope: 'tenant',
         });
+        expect(findRoutePolicy('/approvals')).toMatchObject({
+            permission: 'workflow_approvals:read',
+            scope: 'tenant',
+        });
+        expect(findRoutePolicy('/api/finance/invoices/inv-1/waive')).toMatchObject({
+            permission: 'fees:approve',
+            scope: 'tenant',
+        });
         expect(hasFineGrainedPermission('SCHOOL_ADMIN', 'workflow_approvals:read')).toBe(true);
         expect(hasFineGrainedPermission('FINANCE_LEAD', 'workflow_approvals:create')).toBe(true);
     });
@@ -155,6 +163,7 @@ describe('Workflow approval adoption architecture', () => {
             policyId: 'metadata.publish',
             resourceType: 'metadata_object',
             resourceId: 'student',
+            description: approval.description,
             status: 'PENDING',
         });
         expect(summary).not.toHaveProperty('payload');

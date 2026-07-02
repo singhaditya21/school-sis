@@ -71,12 +71,20 @@ Generic API:
 - `POST /api/workflow-approvals`: create an idempotent approval request from session-derived tenant and actor context.
 - `POST /api/workflow-approvals/:id/review`: approve or reject a persisted approval request.
 
+Generic UI:
+
+- `/approvals`: tenant-scoped workflow approval queue for pending, escalated, approved, rejected, and all approval states.
+- Review actions write to the generic workflow review endpoint and no longer depend on the legacy agent-only approval API.
+
 Enforced gates:
 
 - BI sensitive export validation now creates or requires an approved `data.export_pii` workflow request.
 - CBSE results CSV export requires `reports:export`, an audit reason, and an approved `data.export_pii` request.
 - UDISE+ CSV export requires `reports:export`, an audit reason, and an approved `data.export_pii` request.
 - Metadata custom field publication creates or requires an approved `metadata.publish` request before the schema version is changed.
+- Finance invoice waivers execute through `POST /api/finance/invoices/:invoiceId/waive` only after an approved `fees.invoice.waive` request matches the current tenant, invoice, reason, status, and amount snapshot.
+- Finance invoice cancellations execute through `POST /api/finance/invoices/:invoiceId/cancel` only after an approved `fees.invoice.cancel` request matches the current tenant, invoice, reason, status, and amount snapshot.
+- Full payment refunds execute through `POST /api/finance/payments/:paymentId/refund` only after an approved `payments.refund` request matches the current tenant, payment, reason, invoice state, and refund amount. The current implementation is an internal ledger refund; provider-native refund calls remain a separate provider integration hardening step.
 
 ## Adoption Path
 
@@ -92,16 +100,16 @@ Already adopted:
 
 - PII exports and compliance exports
 - Metadata publication
+- Generic approval queue UI
+- Finance invoice waiver, invoice cancellation, and full-payment refund execution
 
 Still pending:
 
-- finance mutation execution after approval, including refund provider calls and invoice waiver/cancellation services
+- provider-native refund execution for Stripe/Razorpay after ledger refund approval
 - identity role-change execution after approval
 - student lifecycle mutation execution after approval
 - exam result publication execution after approval
 - AI agent action migration from the agent-service-specific queue
-
-The current agent approval page can be migrated from the agent-service-only queue to this generic engine once agent actions write `workflow_approval_requests`.
 
 ## Operating Requirements
 

@@ -11,6 +11,7 @@ School SIS now treats payment collection as a tenant-owned ledger workflow rathe
 - **Webhook idempotency:** Stripe events are recorded in `payment_provider_events` with a unique `(provider, event_id)` key before processing.
 - **Money audit trail:** Manual payments, provider order creation, completed provider payments, and duplicate payment attempts write `payment_audit_logs`.
 - **Shared Stripe webhook handling:** `/api/payments/webhook` and `/api/webhooks/stripe` use the same idempotent handler.
+- **Approved finance execution:** invoice waivers, invoice cancellations, and full-payment ledger refunds require the reusable workflow approval engine before mutating `invoices`, `payments`, or `payment_audit_logs`.
 
 ## Operational Requirements
 
@@ -22,5 +23,5 @@ School SIS now treats payment collection as a tenant-owned ledger workflow rathe
 ## Remaining Hardening
 
 - Add Razorpay server-to-server webhook ingestion for payment capture/failure events.
-- Add refund and chargeback flows with the same audit/reconciliation model.
+- Add provider-native Stripe/Razorpay refund execution, partial refunds, and chargeback flows with the same audit/reconciliation model.
 - Add operator-facing reconciliation dashboards for provider events, failed events, and unmatched orders.

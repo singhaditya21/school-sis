@@ -115,7 +115,7 @@ export async function findInvoiceForPayment(
     return rows[0] || null;
 }
 
-async function insertMoneyAudit(
+export async function insertMoneyAudit(
     client: PoolClient,
     input: {
         tenantId: string;
