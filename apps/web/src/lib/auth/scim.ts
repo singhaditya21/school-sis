@@ -14,12 +14,18 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i
 
 export const SCIM_ALLOWED_ROLES = new Set([
     'SUPER_ADMIN',
+    'GROUP_EXECUTIVE',
     'SCHOOL_ADMIN',
     'PRINCIPAL',
+    'REGISTRAR',
+    'FINANCE_LEAD',
     'ACCOUNTANT',
     'ADMISSION_COUNSELOR',
+    'STUDENT_SUCCESS_COUNSELOR',
     'TEACHER',
     'TRANSPORT_MANAGER',
+    'TRUST_OFFICER',
+    'CREDENTIAL_OFFICER',
     'PARENT',
     'STUDENT',
 ]);

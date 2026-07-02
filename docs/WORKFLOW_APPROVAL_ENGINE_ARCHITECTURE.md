@@ -84,7 +84,12 @@ Enforced gates:
 - Metadata custom field publication creates or requires an approved `metadata.publish` request before the schema version is changed.
 - Finance invoice waivers execute through `POST /api/finance/invoices/:invoiceId/waive` only after an approved `fees.invoice.waive` request matches the current tenant, invoice, reason, status, and amount snapshot.
 - Finance invoice cancellations execute through `POST /api/finance/invoices/:invoiceId/cancel` only after an approved `fees.invoice.cancel` request matches the current tenant, invoice, reason, status, and amount snapshot.
-- Full payment refunds execute through `POST /api/finance/payments/:paymentId/refund` only after an approved `payments.refund` request matches the current tenant, payment, reason, invoice state, and refund amount. The current implementation is an internal ledger refund; provider-native refund calls remain a separate provider integration hardening step.
+- Full payment refunds execute through `POST /api/finance/payments/:paymentId/refund` only after an approved `payments.refund` request matches the current tenant, payment, reason, invoice state, and refund amount. Stripe payment-intent refunds and Razorpay payment refunds are executed through the provider adapters before the tenant ledger is marked refunded; manual payments remain ledger-only.
+- Identity role changes execute through `POST /api/identity/users/:userId/role-change` only after an approved `users.role_change` request matches the current tenant, user, source role, target role, active state, and reason.
+- Student transfers execute through `POST /api/students/:studentId/transfer` after an approved `students.transfer` request and a valid core SIS `ACTIVE|SUSPENDED|INACTIVE -> TRANSFERRED` transition.
+- Student archive actions execute through `POST /api/students/:studentId/archive` after an approved `students.archive` request and map to the terminal `ALUMNI` status supported by the student status model.
+- Exam result publication executes through `POST /api/exams/:examId/publish` after an approved `exams.results.publish` request matches the exam status and result counts; execution locks missing result hashes and marks the exam `PUBLISHED`.
+- AI agent action approvals now use the generic workflow approval store through `/api/agents/approvals` and `/api/agents/approvals/:id/review` compatibility endpoints.
 
 ## Adoption Path
 
@@ -101,15 +106,17 @@ Already adopted:
 - PII exports and compliance exports
 - Metadata publication
 - Generic approval queue UI
-- Finance invoice waiver, invoice cancellation, and full-payment refund execution
+- Finance invoice waiver, invoice cancellation, full-payment refund execution, and provider-native Stripe/Razorpay refund calls
+- Identity role-change execution
+- Student transfer/archive execution
+- Exam result publication execution
+- AI agent approval listing, creation, and review through generic workflow approvals
 
 Still pending:
 
-- provider-native refund execution for Stripe/Razorpay after ledger refund approval
-- identity role-change execution after approval
-- student lifecycle mutation execution after approval
-- exam result publication execution after approval
-- AI agent action migration from the agent-service-specific queue
+- partial refunds, chargebacks, and richer provider refund reconciliation
+- service-side removal or archival of the legacy Python `agent_approvals` queue once no agent code writes to it
+- approval-driven execution for additional privileged identity operations beyond role changes
 
 ## Operating Requirements
 

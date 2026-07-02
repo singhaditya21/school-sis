@@ -19,7 +19,11 @@ export const exams = pgTable('exams', {
     startDate: date('start_date').notNull(),
     endDate: date('end_date').notNull(),
     description: text('description'),
+    status: varchar('status', { length: 32 }).default('DRAFT').notNull(),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    publishedBy: uuid('published_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 // ─── Exam Schedules ──────────────────────────────────────────

@@ -4,6 +4,7 @@ import {
     buildRefundApprovalPayload,
     computeInvoiceStatusAfterRefund,
     financeResultHttpStatus,
+    resolveRefundProvider,
     type InvoiceSnapshot,
     type PaymentSnapshot,
 } from '@/lib/finance/approval-execution';
@@ -118,6 +119,20 @@ describe('finance approval execution helpers', () => {
             invoicePaidAmountMinor: 2000,
         });
         expect(buildRefundApprovalPayload(payment, 'Duplicate payment', 2000)).not.toHaveProperty('transactionId');
+    });
+
+    it('resolves native refund providers without exposing provider ids in approval payloads', () => {
+        expect(resolveRefundProvider({ transactionId: 'pi_123', razorpayPaymentId: null })).toEqual({
+            provider: 'STRIPE',
+            providerPaymentId: 'pi_123',
+        });
+        expect(resolveRefundProvider({ transactionId: 'pay_ignored', razorpayPaymentId: 'pay_razorpay' })).toEqual({
+            provider: 'RAZORPAY',
+            providerPaymentId: 'pay_razorpay',
+        });
+        expect(resolveRefundProvider({ transactionId: 'manual_reference', razorpayPaymentId: null })).toEqual({
+            provider: 'MANUAL',
+        });
     });
 
     it('maps approval execution results to deterministic HTTP statuses', () => {

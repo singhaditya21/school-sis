@@ -204,6 +204,13 @@ export async function addExamSchedule(data: {
         data.roomNumber || null
     ]);
 
+    await pool.query(`
+        UPDATE exams
+        SET status = CASE WHEN status = 'DRAFT' THEN 'SCHEDULED' ELSE status END,
+            updated_at = NOW()
+        WHERE id = $1 AND tenant_id = $2
+    `, [data.examId, tenantId]);
+
     return { success: true };
 }
 
@@ -289,6 +296,17 @@ export async function saveMarks(
             ]);
         }
     }
+
+    await pool.query(`
+        UPDATE exams e
+        SET status = 'RESULT_REVIEW',
+            updated_at = NOW()
+        FROM exam_schedules es
+        WHERE es.exam_id = e.id
+          AND es.id = $1
+          AND e.tenant_id = $2
+          AND e.status IN ('DRAFT', 'SCHEDULED', 'MARKS_ENTRY', 'RESULT_REVIEW')
+    `, [examScheduleId, tenantId]);
 
     return { success: true };
 }
@@ -643,4 +661,3 @@ export async function getProctoringLogs() {
         timestamp: r.timestamp ? new Date(r.timestamp).toLocaleString() : null
     }));
 }
-

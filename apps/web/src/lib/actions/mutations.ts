@@ -348,7 +348,12 @@ export async function enterMarks(
 
         // Find schedule for this subject
         const scheduleRes = await pool.query(
-            `SELECT id FROM exam_schedules WHERE exam_id = $1 AND subject_id = $2 AND tenant_id = $3`,
+            `SELECT es.id
+             FROM exam_schedules es
+             INNER JOIN exams e ON e.id = es.exam_id
+             WHERE es.exam_id = $1
+               AND es.subject_id = $2
+               AND e.tenant_id = $3`,
             [examId, entry.subjectId, tenantId]
         );
         const schedule = scheduleRes.rows[0];
@@ -374,6 +379,16 @@ export async function enterMarks(
             );
         }
     }
+
+    await pool.query(
+        `UPDATE exams
+         SET status = 'RESULT_REVIEW',
+             updated_at = NOW()
+         WHERE id = $1
+           AND tenant_id = $2
+           AND status IN ('DRAFT', 'SCHEDULED', 'MARKS_ENTRY', 'RESULT_REVIEW')`,
+        [examId, tenantId],
+    );
 
     return { success: true as const, error: undefined as string | undefined };
 }

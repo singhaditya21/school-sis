@@ -26,6 +26,23 @@ export type CreateStripeCheckoutInput = CreateProviderOrderInput & {
     cancelUrl: string;
 };
 
+export type ProviderRefund = {
+    provider: PaymentProviderName;
+    providerRefundId: string;
+    providerPaymentId: string;
+    amountMinor: number;
+    currency: string;
+    status: string;
+};
+
+export type RefundProviderPaymentInput = {
+    providerPaymentId: string;
+    amountMinor: number;
+    currency: string;
+    reason: string;
+    metadata?: Record<string, string>;
+};
+
 function isBuildPhase(): boolean {
     return process.env.npm_lifecycle_event === 'build'
         || process.env.NEXT_PHASE === 'phase-production-build';
@@ -115,6 +132,37 @@ export class RazorpayGateway {
         };
     }
 
+    async refundPayment(input: RefundProviderPaymentInput): Promise<ProviderRefund> {
+        const response = await fetch(`${this.baseUrl}/payments/${encodeURIComponent(input.providerPaymentId)}/refund`, {
+            method: 'POST',
+            headers: {
+                authorization: this.authHeader,
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                amount: input.amountMinor,
+                notes: {
+                    reason: input.reason,
+                    ...(input.metadata ?? {}),
+                },
+            }),
+        });
+
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(data?.error?.description || 'Razorpay refund failed.');
+        }
+
+        return {
+            provider: this.provider,
+            providerRefundId: data.id,
+            providerPaymentId: input.providerPaymentId,
+            amountMinor: data.amount ?? input.amountMinor,
+            currency: data.currency || input.currency,
+            status: data.status || 'created',
+        };
+    }
+
     verifyPaymentSignature(orderId: string, paymentId: string, signature: string): boolean {
         if (!/^[0-9a-f]{64}$/i.test(signature)) return false;
 
@@ -197,6 +245,26 @@ export class StripeGateway {
             currency: (session.currency || 'USD').toUpperCase(),
             status: session.status || 'open',
             checkoutUrl: session.url,
+        };
+    }
+
+    async refundPayment(input: RefundProviderPaymentInput): Promise<ProviderRefund> {
+        const refund = await this.stripe.refunds.create({
+            payment_intent: input.providerPaymentId,
+            amount: input.amountMinor,
+            metadata: {
+                reason: input.reason,
+                ...(input.metadata ?? {}),
+            },
+        });
+
+        return {
+            provider: this.provider,
+            providerRefundId: refund.id,
+            providerPaymentId: input.providerPaymentId,
+            amountMinor: refund.amount,
+            currency: refund.currency.toUpperCase(),
+            status: refund.status || 'pending',
         };
     }
 

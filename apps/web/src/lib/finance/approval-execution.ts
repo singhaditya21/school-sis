@@ -9,6 +9,12 @@ import {
     type WorkflowApprovalSummary,
 } from '@school-sis/api';
 import { insertMoneyAudit, minorFromAmount, outstandingMinor } from '@/lib/payments/ledger';
+import {
+    getRazorpayGateway,
+    getStripeGateway,
+    type PaymentProviderName,
+    type ProviderRefund,
+} from '@/lib/payments/providers';
 
 type InvoiceStatus = 'DRAFT' | 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'CANCELLED' | 'WAIVED';
 type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
@@ -61,7 +67,16 @@ export type FinanceApprovalExecutionResult =
         paymentId?: string;
         amount: string;
         currency: 'INR';
+        providerRefund?: ProviderRefundExecution | null;
     };
+
+export type ProviderRefundExecution = {
+    provider: PaymentProviderName | 'MANUAL';
+    providerRefundId?: string;
+    providerPaymentId?: string;
+    status: string;
+    executionMode: 'provider_native' | 'internal_ledger';
+};
 
 export type InvoiceFinanceActionInput = {
     tenantId: string;
@@ -140,6 +155,19 @@ export function buildRefundApprovalPayload(
         refundAmountMinor,
         invoicePaidAmountMinor: minorFromAmount(Number(payment.invoicePaidAmount || 0)),
     };
+}
+
+export function resolveRefundProvider(payment: Pick<PaymentSnapshot, 'transactionId' | 'razorpayPaymentId'>): {
+    provider: PaymentProviderName | 'MANUAL';
+    providerPaymentId?: string;
+} {
+    if (payment.razorpayPaymentId) {
+        return { provider: 'RAZORPAY', providerPaymentId: payment.razorpayPaymentId };
+    }
+    if (payment.transactionId?.startsWith('pi_')) {
+        return { provider: 'STRIPE', providerPaymentId: payment.transactionId };
+    }
+    return { provider: 'MANUAL' };
 }
 
 export function financeResultHttpStatus(result: FinanceApprovalExecutionResult): number {
@@ -288,6 +316,14 @@ export async function refundPaymentWithApproval(
                 payload: currentPayload,
             });
 
+            const providerRefund = await executeProviderRefundIfAvailable({
+                tenantId: input.tenantId,
+                payment: lockedPayment,
+                refundAmountMinor,
+                reason,
+                approvalRequestId: gate.request.id,
+            });
+
             const currentPaidMinor = minorFromAmount(Number(lockedPayment.invoicePaidAmount || 0));
             const newPaidMinor = Math.max(0, currentPaidMinor - refundAmountMinor);
             const newInvoiceStatus = computeInvoiceStatusAfterRefund({
@@ -317,7 +353,7 @@ export async function refundPaymentWithApproval(
                 invoiceId: lockedPayment.invoiceId,
                 paymentId: lockedPayment.id,
                 actorUserId: input.actor.userId,
-                provider: lockedPayment.razorpayPaymentId ? 'RAZORPAY' : 'MANUAL',
+                provider: providerRefund.provider,
                 action: 'PAYMENT_REFUNDED',
                 amount: amountFromMinor(refundAmountMinor),
                 currency: CURRENCY,
@@ -329,7 +365,7 @@ export async function refundPaymentWithApproval(
                     previousInvoicePaidAmount: lockedPayment.invoicePaidAmount,
                     newInvoicePaidAmount: amountFromMinor(newPaidMinor),
                     newInvoiceStatus,
-                    executionMode: 'internal_ledger',
+                    providerRefund,
                 },
             });
 
@@ -342,6 +378,7 @@ export async function refundPaymentWithApproval(
                 paymentId: lockedPayment.id,
                 amount: amountFromMinor(refundAmountMinor),
                 currency: CURRENCY,
+                providerRefund,
             };
         } catch (error) {
             await client.query('ROLLBACK');
@@ -535,6 +572,54 @@ function assertInvoiceWaivable(invoice: InvoiceSnapshot): void {
     if (outstandingMinor(invoice) <= 0) {
         throw new FinanceApprovalExecutionError('Invoice has no outstanding balance to waive.', 409);
     }
+}
+
+async function executeProviderRefundIfAvailable(input: {
+    tenantId: string;
+    payment: PaymentSnapshot;
+    refundAmountMinor: number;
+    reason: string;
+    approvalRequestId: string;
+}): Promise<ProviderRefundExecution> {
+    const provider = resolveRefundProvider(input.payment);
+    if (provider.provider === 'MANUAL' || !provider.providerPaymentId) {
+        return {
+            provider: 'MANUAL',
+            status: 'ledger_only',
+            executionMode: 'internal_ledger',
+        };
+    }
+
+    const metadata = {
+        tenantId: input.tenantId,
+        invoiceId: input.payment.invoiceId,
+        paymentId: input.payment.id,
+        approvalRequestId: input.approvalRequestId,
+    };
+
+    const refund: ProviderRefund = provider.provider === 'RAZORPAY'
+        ? await getRazorpayGateway().refundPayment({
+            providerPaymentId: provider.providerPaymentId,
+            amountMinor: input.refundAmountMinor,
+            currency: CURRENCY,
+            reason: input.reason,
+            metadata,
+        })
+        : await getStripeGateway().refundPayment({
+            providerPaymentId: provider.providerPaymentId,
+            amountMinor: input.refundAmountMinor,
+            currency: CURRENCY,
+            reason: input.reason,
+            metadata,
+        });
+
+    return {
+        provider: refund.provider,
+        providerRefundId: refund.providerRefundId,
+        providerPaymentId: refund.providerPaymentId,
+        status: refund.status,
+        executionMode: 'provider_native',
+    };
 }
 
 function assertInvoiceCancellable(invoice: InvoiceSnapshot): void {

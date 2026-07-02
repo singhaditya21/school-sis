@@ -6,12 +6,18 @@ import { relations } from 'drizzle-orm';
 export const userRoleEnum = pgEnum('user_role', [
     'PLATFORM_ADMIN',
     'SUPER_ADMIN',
+    'GROUP_EXECUTIVE',
     'SCHOOL_ADMIN',
     'PRINCIPAL',
+    'REGISTRAR',
+    'FINANCE_LEAD',
     'ACCOUNTANT',
     'ADMISSION_COUNSELOR',
+    'STUDENT_SUCCESS_COUNSELOR',
     'TEACHER',
     'TRANSPORT_MANAGER',
+    'TRUST_OFFICER',
+    'CREDENTIAL_OFFICER',
     'PARENT',
     'STUDENT',
 ]);
