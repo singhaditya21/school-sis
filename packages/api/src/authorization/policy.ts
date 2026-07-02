@@ -539,7 +539,9 @@ export const AUTHORIZATION_ROUTE_POLICIES = [
     { prefix: '/exams', permission: 'exams:read', scope: 'tenant', description: 'Exam operations.' },
     { prefix: '/reports', permission: 'reports:read', scope: 'tenant', description: 'Tenant reports.' },
     { prefix: '/settings', permission: 'settings:read', scope: 'tenant', description: 'Tenant settings.' },
+    { prefix: '/operator', permission: 'audit:read', scope: 'tenant', description: 'Tenant operator console boundary.' },
     { prefix: '/api/platform', permission: 'platform:read', scope: 'platform', description: 'Platform API boundary.' },
+    { prefix: '/api/operator', permission: 'audit:read', scope: 'tenant', description: 'Operator console API boundary.' },
     { prefix: '/api/integrations', permission: 'integrations:read', scope: 'tenant', description: 'Tenant integrations API boundary.' },
     { prefix: '/api/webhooks', permission: 'webhooks:read', scope: 'tenant', description: 'Tenant webhook API boundary.' },
 ] as const satisfies readonly RoutePolicy[];
