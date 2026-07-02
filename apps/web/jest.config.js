@@ -3,6 +3,7 @@ module.exports = {
     testEnvironment: 'node',
     roots: ['<rootDir>/src'],
     testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx'],
+    setupFiles: ['<rootDir>/jest.setup.ts'],
     moduleNameMapper: {
         '^@/lib/db$': '<rootDir>/../../packages/api/src/db/index.ts',
         '^@/lib/db/(.*)$': '<rootDir>/../../packages/api/src/db/$1',
@@ -18,9 +19,13 @@ module.exports = {
         }],
     },
     collectCoverageFrom: [
-        'src/lib/**/*.ts',
-        '!src/lib/db/**',
-        '!src/lib/providers/**',
+        'src/lib/tenant/isolation.ts',
+        'src/lib/observability/logger.ts',
+        '../../packages/api/src/db/index.ts',
+        '../../packages/api/src/validations.ts',
+        '../../packages/api/src/services/storage.ts',
     ],
+    coverageProvider: 'v8',
+    coverageReporters: ['text', 'lcov', 'json-summary'],
     coverageDirectory: 'coverage',
 };

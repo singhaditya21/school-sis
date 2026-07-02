@@ -43,8 +43,6 @@ function validateObjectKey(key: string, tenantId: string): void {
     } catch {
         throw new Error(`[Storage] Invalid object key encoding: ${key}`);
     }
-    const normalised = path.posix.normalize(decoded);
-
     const dangers = [
         /\.\./,           // traversal: ../
         /^\/|^\\/,        // absolute path
@@ -54,11 +52,18 @@ function validateObjectKey(key: string, tenantId: string): void {
     ];
 
     for (const pattern of dangers) {
-        if (pattern.test(normalised)) {
+        if (pattern.test(decoded)) {
             throw new Error(
                 `[Storage] Invalid object key — path traversal or injection detected: ${key}`
             );
         }
+    }
+
+    const normalised = path.posix.normalize(decoded);
+    if (normalised !== decoded) {
+        throw new Error(
+            `[Storage] Invalid object key — path traversal or injection detected: ${key}`
+        );
     }
 
     // Key must begin with the tenantId prefix

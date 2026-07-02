@@ -37,6 +37,9 @@ jobs:
       - name: Validate Drizzle Migrations
         run: pnpm --filter @school-sis/web exec drizzle-kit check
 
+      - name: Run TypeScript
+        run: pnpm --filter @school-sis/web exec tsc --noEmit --pretty false --incremental false
+
       - name: Run Build
         run: pnpm run build
         env:
@@ -45,5 +48,8 @@ jobs:
       - name: Run Linting
         run: pnpm --filter @school-sis/web exec eslint src --quiet
 
-      - name: Run Tests
-        run: pnpm test
+      - name: Validate Testing Architecture
+        run: pnpm test:architecture
+
+      - name: Run Unit Tests
+        run: pnpm test:unit

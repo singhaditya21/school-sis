@@ -156,12 +156,18 @@ Backup files contain sensitive data. Store production dumps outside the reposito
 CI should pass:
 
 ```bash
+pnpm test:architecture
+pnpm test:unit
 pnpm build
 pnpm --filter @school-sis/web exec drizzle-kit check
 pnpm --filter @school-sis/web exec eslint src --quiet
 ```
 
 Deployments should occur only after reviewed migrations are applied or confirmed unnecessary.
+
+## Testing and Quality
+
+See [../TESTING_QUALITY_ARCHITECTURE.md](../TESTING_QUALITY_ARCHITECTURE.md) for the unit, E2E, coverage, and CI quality gate model.
 
 ## Background Jobs
 

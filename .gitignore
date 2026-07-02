@@ -30,6 +30,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+debug_url.txt
 
 # Local env files
 .env*

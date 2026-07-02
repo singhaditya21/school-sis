@@ -1,36 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
-import path from 'path';
-import fs from 'fs';
-import { execSync } from 'child_process';
+import { ensurePlaywrightTestEnvironment } from './e2e/test-environment';
 
-// Dynamically populate .env.test with the test database name before Playwright starts the webServer
-const envPath = path.resolve(__dirname, '.env');
-const envTestPath = path.resolve(__dirname, '.env.test');
-
-if (fs.existsSync(envPath)) {
-  const envContent = fs.readFileSync(envPath, 'utf8');
-  const match = envContent.match(/DATABASE_URL="([^"]+)"/) || envContent.match(/DATABASE_URL=([^\s]+)/);
-  if (match) {
-    const originalUrl = match[1].trim();
-    const urlObj = new URL(originalUrl);
-    urlObj.pathname = '/school_sis_test';
-    const testDbUrl = urlObj.toString();
-    fs.writeFileSync(envTestPath, `DATABASE_URL="${testDbUrl}"\n`);
-    process.env.DATABASE_URL = testDbUrl;
-    fs.appendFileSync('/Users/adityasingh/PersonalWork/school-sis/debug_url.txt', `CONFIG_OVERRIDE: ${process.env.DATABASE_URL}\n`);
-    
-    // Ensure the database exists before the WebServer is spawned
-    try {
-      execSync('npx tsx scripts/create-test-db.ts', {
-        env: { ...process.env, DATABASE_URL: testDbUrl },
-        cwd: __dirname,
-        stdio: 'inherit'
-      });
-    } catch (err) {
-      console.error('Failed to run create-test-db.ts:', err);
-    }
-  }
-}
+ensurePlaywrightTestEnvironment({
+  envFileName: '.env.test',
+  defaultDatabaseName: 'school_sis_test',
+});
 
 /**
  * See https://playwright.dev/docs/test-configuration.
