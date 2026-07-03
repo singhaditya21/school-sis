@@ -2,7 +2,7 @@
 
 import { readFileSync } from 'node:fs';
 
-const auditPath = process.argv[2] || 'pnpm-audit-high.json';
+const auditPath = process.argv.slice(2).find((arg) => arg !== '--') || 'pnpm-audit-high.json';
 const failSeverities = new Set(['high', 'critical']);
 
 function readAuditReport(path) {
