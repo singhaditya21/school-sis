@@ -81,16 +81,19 @@ async function loginActionV2WithBypass(formData: FormData) {
 
             const { rows: platformRows } = await pool.query(
                 `SELECT
-                    id,
-                    tenant_id as "tenantId",
-                    email,
-                    password_hash as "passwordHash",
-                    role,
-                    first_name as "firstName",
-                    last_name as "lastName",
-                    mfa_enabled as "mfaEnabled"
-                 FROM users 
-                 WHERE email = $1 LIMIT 1`,
+                    u.id,
+                    u.tenant_id as "tenantId",
+                    t.code as "tenantCode",
+                    t.domain as "tenantDomain",
+                    u.email,
+                    u.password_hash as "passwordHash",
+                    u.role,
+                    u.first_name as "firstName",
+                    u.last_name as "lastName",
+                    u.mfa_enabled as "mfaEnabled"
+                 FROM users u
+                 LEFT JOIN tenants t ON t.id = u.tenant_id
+                 WHERE u.email = $1 LIMIT 1`,
                 [normalizedEmail]
             );
             const user = platformRows[0];
@@ -129,6 +132,8 @@ async function loginActionV2WithBypass(formData: FormData) {
             establishSession(session, {
                 userId: user.id,
                 tenantId: user.tenantId,
+                tenantCode: user.tenantCode || undefined,
+                tenantDomain: user.tenantDomain || undefined,
                 role: 'PLATFORM_ADMIN',
                 email: user.email,
                 provider: 'password',
@@ -151,7 +156,7 @@ async function loginActionV2WithBypass(formData: FormData) {
             // Look up tenant by school code and join company for features
             const { rows: tenantRows } = await pool.query(
                 `SELECT 
-                    t.id as "tenantId", t.is_active as "tenantIsActive",
+                    t.id as "tenantId", t.code as "tenantCode", t.domain as "tenantDomain", t.is_active as "tenantIsActive",
                     c.id as "companyId", c.is_active as "companyIsActive", c.subscription_tier as "subscriptionTier", c.active_modules as "activeModules"
                  FROM tenants t
                  LEFT JOIN companies c ON t.company_id = c.id
@@ -220,6 +225,8 @@ async function loginActionV2WithBypass(formData: FormData) {
             establishSession(session, {
                 userId: user.id,
                 tenantId: tenantRecord.tenantId,
+                tenantCode: tenantRecord.tenantCode || undefined,
+                tenantDomain: tenantRecord.tenantDomain || undefined,
                 role: user.role,
                 email: user.email,
                 provider: 'password',
@@ -316,6 +323,8 @@ export async function processSSOCallback(code: string, provider: string, state?:
         establishSession(session, {
             userId: ssoResult.userId,
             tenantId: ssoResult.tenantId,
+            tenantCode: ssoResult.tenantCode,
+            tenantDomain: ssoResult.tenantDomain,
             role: ssoResult.role,
             email: ssoResult.email,
             provider: 'sso',

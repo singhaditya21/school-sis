@@ -185,13 +185,13 @@ INSERT INTO tenants (id, code, name, domain, is_active)
 VALUES ('00000000-0000-0000-0000-000000000001', 'GREENWOOD', 'Greenwood International School', 'greenwood.edu', true)
 ON CONFLICT (code) DO NOTHING;
 
--- Insert demo admin user (password: admin123)
+-- Insert demo admin user with a redacted placeholder hash.
 INSERT INTO users (id, tenant_id, email, password_hash, role, first_name, last_name, is_active, email_verified)
 VALUES (
     '00000000-0000-0000-0000-000000000002',
     '00000000-0000-0000-0000-000000000001',
     'admin@greenwood.edu',
-    '[REDACTED_PASSWORD_HASH]', -- admin123
+    '[REDACTED_PASSWORD_HASH]',
     'SUPER_ADMIN',
     'Admin',
     'User',
@@ -199,13 +199,13 @@ VALUES (
     true
 ) ON CONFLICT (tenant_id, email) DO NOTHING;
 
--- Insert demo accountant
+-- Insert demo accountant with a redacted placeholder hash.
 INSERT INTO users (id, tenant_id, email, password_hash, role, first_name, last_name, is_active, email_verified)
 VALUES (
     '00000000-0000-0000-0000-000000000003',
     '00000000-0000-0000-0000-000000000001',
     'accountant@greenwood.edu',
-    '[REDACTED_PASSWORD_HASH]', -- accountant123 (same hash for demo)
+    '[REDACTED_PASSWORD_HASH]',
     'ACCOUNTANT',
     'Accounts',
     'Team',

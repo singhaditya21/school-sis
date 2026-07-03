@@ -2,9 +2,25 @@ import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
 
+function rejectProductionPlaceholderSecret(secret: string): void {
+    if (process.env.NODE_ENV !== 'production') return;
+
+    const lowered = secret.toLowerCase();
+    if (
+        lowered.includes('mock') ||
+        lowered.includes('dummy') ||
+        lowered.includes('changeme') ||
+        lowered.includes('build-time') ||
+        lowered === 'dev-secret'
+    ) {
+        throw new Error('PII_ENCRYPTION_KEY must not use a placeholder value in production.');
+    }
+}
+
 function getEncryptionSecret(): string {
     const secret = process.env.PII_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY;
     if (secret && secret.length >= 32) {
+        rejectProductionPlaceholderSecret(secret);
         return secret;
     }
 

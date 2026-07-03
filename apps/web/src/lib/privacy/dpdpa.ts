@@ -28,6 +28,18 @@ function getEncryptionKey(): Buffer {
             'ENCRYPTION_KEY is supported only as a legacy fallback.'
         );
     }
+    if (process.env.NODE_ENV === 'production') {
+        const lowered = secret.toLowerCase();
+        if (
+            lowered.includes('mock') ||
+            lowered.includes('dummy') ||
+            lowered.includes('changeme') ||
+            lowered.includes('build-time') ||
+            lowered === 'dev-secret'
+        ) {
+            throw new Error('PII_ENCRYPTION_KEY must not use a placeholder value in production.');
+        }
+    }
     return crypto.createHash('sha256').update(secret).digest();
 }
 

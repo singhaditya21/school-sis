@@ -238,6 +238,8 @@ export async function impersonateTenantAction(tenantId: string) {
 
     const { rows: tenantsData } = await pool.query(
         `SELECT 
+            t.code AS "tenantCode",
+            t.domain AS "tenantDomain",
             t.company_id AS "companyId", 
             c.subscription_tier AS "subscriptionTier", 
             c.active_modules AS "activeModules" 
@@ -259,6 +261,8 @@ export async function impersonateTenantAction(tenantId: string) {
     establishSession(session, {
         userId: targetAdmin.id,
         tenantId,
+        tenantCode: targetCompany?.tenantCode || undefined,
+        tenantDomain: targetCompany?.tenantDomain || undefined,
         role: 'SUPER_ADMIN',
         email: targetAdmin.email,
         provider: 'impersonation',
@@ -292,14 +296,17 @@ export async function returnToHQAction() {
 
     const { rows: usersList } = await pool.query(
         `SELECT
-            id,
-            tenant_id AS "tenantId",
-            email,
-            first_name AS "firstName",
-            last_name AS "lastName",
-            mfa_enabled AS "mfaEnabled"
-         FROM users
-         WHERE id = $1 AND role = 'PLATFORM_ADMIN' AND is_active = true
+            u.id,
+            u.tenant_id AS "tenantId",
+            t.code AS "tenantCode",
+            t.domain AS "tenantDomain",
+            u.email,
+            u.first_name AS "firstName",
+            u.last_name AS "lastName",
+            u.mfa_enabled AS "mfaEnabled"
+         FROM users u
+         LEFT JOIN tenants t ON t.id = u.tenant_id
+         WHERE u.id = $1 AND u.role = 'PLATFORM_ADMIN' AND u.is_active = true
          LIMIT 1`,
         [originalUserId]
     );
@@ -312,6 +319,8 @@ export async function returnToHQAction() {
     establishSession(session, {
         userId: founder.id,
         tenantId: founder.tenantId,
+        tenantCode: founder.tenantCode || undefined,
+        tenantDomain: founder.tenantDomain || undefined,
         role: 'PLATFORM_ADMIN',
         email: founder.email,
         provider: 'system',

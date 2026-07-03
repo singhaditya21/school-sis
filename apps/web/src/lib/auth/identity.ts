@@ -10,6 +10,8 @@ export type AuthProvider = NonNullable<SessionData['authProvider']>;
 export type EstablishSessionInput = {
     userId: string;
     tenantId: string;
+    tenantCode?: string;
+    tenantDomain?: string;
     role: string;
     email: string;
     provider: AuthProvider;
@@ -62,6 +64,8 @@ export function establishSession(session: SessionData, input: EstablishSessionIn
 
     session.userId = input.userId;
     session.tenantId = input.tenantId;
+    session.tenantCode = input.tenantCode;
+    session.tenantDomain = input.tenantDomain;
     session.role = input.role;
     session.email = input.email;
     session.token = input.token || '';

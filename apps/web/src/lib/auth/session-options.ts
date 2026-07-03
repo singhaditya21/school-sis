@@ -3,6 +3,8 @@ import type { SessionOptions } from 'iron-session';
 export type SessionData = {
     userId: string;
     tenantId: string;
+    tenantCode?: string;
+    tenantDomain?: string;
     role: string;
     email: string;
     token: string;

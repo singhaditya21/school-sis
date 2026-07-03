@@ -5,7 +5,7 @@ import { getSmsProvider } from '@/lib/providers/sms';
 import { NotificationService } from '@/lib/services/notifications';
 import { enqueueTenantJob } from '@/lib/worker/client';
 import { isValidTenantId } from '@/lib/tenant/isolation';
-import { recordSreIncident } from '@/lib/observability/logger';
+import { logger, recordSreIncident } from '@/lib/observability/logger';
 
 export type NotificationChannel = 'EMAIL' | 'SMS' | 'WHATSAPP' | 'PUSH' | 'IN_APP';
 export type NotificationStatus =
@@ -213,7 +213,13 @@ async function sendViaProvider(row: NotificationRow): Promise<ProviderSendResult
     }
     case 'WHATSAPP': {
       const providerMessageId = `mock_whatsapp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      console.log(`[MockWhatsApp] -> ${row.recipient}: ${row.body.slice(0, 120)}`);
+      logger.info('notification.mock_whatsapp_sent', 'Mock WhatsApp notification accepted', {
+        tenantId: row.tenantId,
+        source: 'notifications',
+        entityType: 'notification_outbox',
+        entityId: row.id,
+        metadata: { recipientLength: row.recipient.length, bodyLength: row.body.length },
+      });
       return {
         success: true,
         provider: providerForChannel(row.channel),
@@ -239,7 +245,13 @@ async function sendViaProvider(row: NotificationRow): Promise<ProviderSendResult
       }
 
       const providerMessageId = `mock_push_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      console.log(`[MockPush] -> ${row.recipient}: ${row.subject || 'School notification'}`);
+      logger.info('notification.mock_push_sent', 'Mock push notification accepted', {
+        tenantId: row.tenantId,
+        source: 'notifications',
+        entityType: 'notification_outbox',
+        entityId: row.id,
+        metadata: { recipientLength: row.recipient.length, subjectLength: (row.subject || 'School notification').length },
+      });
       return {
         success: true,
         provider: providerForChannel(row.channel),

@@ -176,6 +176,25 @@ export class RazorpayGateway {
             Buffer.from(signature, 'hex'),
         );
     }
+
+    verifyWebhookSignature(rawBody: string, signature: string): boolean {
+        return verifyRazorpayWebhookSignature(rawBody, signature);
+    }
+}
+
+export function verifyRazorpayWebhookSignature(rawBody: string, signature: string): boolean {
+    if (!/^[0-9a-f]{64}$/i.test(signature)) return false;
+
+    const webhookSecret = requirePaymentSecret('RAZORPAY_WEBHOOK_SECRET', 16);
+    const expectedSignature = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(rawBody)
+        .digest('hex');
+
+    return crypto.timingSafeEqual(
+        Buffer.from(expectedSignature, 'hex'),
+        Buffer.from(signature, 'hex'),
+    );
 }
 
 let stripeClient: Stripe | null = null;

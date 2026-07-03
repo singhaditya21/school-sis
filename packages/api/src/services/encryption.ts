@@ -2,8 +2,16 @@ import crypto from 'crypto';
 import { KMSClient, GenerateDataKeyCommand, DecryptCommand } from '@aws-sdk/client-kms';
 
 const IV_LENGTH = 16;
-// In production, KMS_KEY_ID would be the ARN of the AWS KMS Master Key
-const KMS_KEY_ID = process.env.AWS_KMS_KEY_ID || 'mock-kms-key-id-for-development';
+
+function kmsKeyId(): string {
+  const keyId = process.env.AWS_KMS_KEY_ID;
+  if (process.env.NODE_ENV === 'production') {
+    if (!keyId || keyId.toLowerCase().includes('mock') || keyId.toLowerCase().includes('dummy')) {
+      throw new Error('AWS_KMS_KEY_ID must be configured with a real KMS key in production.');
+    }
+  }
+  return keyId || 'mock-kms-key-id-for-development';
+}
 
 // Initialize AWS KMS Client
 const kmsClient = new KMSClient({
@@ -18,7 +26,7 @@ export class EncryptionService {
   static async encrypt(text: string): Promise<string> {
     // 1. Ask AWS KMS to generate a new Data Encryption Key (DEK)
     const generateKeyCommand = new GenerateDataKeyCommand({
-      KeyId: KMS_KEY_ID,
+      KeyId: kmsKeyId(),
       KeySpec: 'AES_256',
     });
     
@@ -30,8 +38,11 @@ export class EncryptionService {
       const { Plaintext, CiphertextBlob } = await kmsClient.send(generateKeyCommand);
       plaintextKey = Buffer.from(Plaintext!);
       encryptedKey = Buffer.from(CiphertextBlob!).toString('base64');
-    } catch (e) {
-      console.warn("AWS KMS failed or unconfigured, falling back to mock keys for development.");
+    } catch (error) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(`AWS KMS encryption failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      console.warn(JSON.stringify({ event: 'kms.encrypt_fallback', message: 'AWS KMS unavailable; using development mock key.' }));
       plaintextKey = crypto.randomBytes(32);
       encryptedKey = 'mocked-encrypted-key';
     }
@@ -72,8 +83,11 @@ export class EncryptionService {
       const decryptCommand = new DecryptCommand({ CiphertextBlob: encryptedKey });
       const { Plaintext } = await kmsClient.send(decryptCommand);
       plaintextKey = Buffer.from(Plaintext!);
-    } catch (e) {
-      console.warn("AWS KMS failed, using mock key for development.");
+    } catch (error) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(`AWS KMS decryption failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      console.warn(JSON.stringify({ event: 'kms.decrypt_fallback', message: 'AWS KMS unavailable; using development mock key.' }));
       plaintextKey = crypto.randomBytes(32); // Note: This will fail to decrypt real mock data, just a fallback
     }
 

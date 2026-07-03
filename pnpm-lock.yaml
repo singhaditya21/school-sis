@@ -9,6 +9,7 @@ overrides:
   flatted: '>=3.4.2'
   dompurify: '>=3.3.2'
   lodash: '>=4.17.23'
+  jspdf: '>=4.2.1'
   jsonwebtoken: '>=9.0.2'
   picomatch: '>=4.0.4'
   next: '>=16.2.5'
@@ -199,7 +200,7 @@ importers:
         specifier: ^6.2.2
         version: 6.2.2
       jspdf:
-        specifier: ^4.2.1
+        specifier: '>=4.2.1'
         version: 4.2.1
       lucide-react:
         specifier: ^0.460.0
@@ -399,7 +400,7 @@ importers:
         specifier: ^14.1.0
         version: 14.1.0
       jspdf:
-        specifier: ^4.2.1
+        specifier: '>=4.2.1'
         version: 4.2.1
       stripe:
         specifier: ^20.4.1

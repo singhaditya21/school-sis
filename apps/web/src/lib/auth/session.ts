@@ -20,6 +20,8 @@ const defaultSession: SessionData = {
 function resetSessionData(session: SessionData): void {
     session.userId = defaultSession.userId;
     session.tenantId = defaultSession.tenantId;
+    session.tenantCode = undefined;
+    session.tenantDomain = undefined;
     session.role = defaultSession.role;
     session.email = defaultSession.email;
     session.token = defaultSession.token;

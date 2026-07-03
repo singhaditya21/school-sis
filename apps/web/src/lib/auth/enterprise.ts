@@ -8,6 +8,8 @@ type SSOCallbackResult =
         userId: string;
         email: string;
         tenantId: string;
+        tenantCode?: string;
+        tenantDomain?: string;
         role: string;
         displayName?: string;
         companyId?: string;
@@ -56,6 +58,8 @@ type OidcUserInfo = {
 type IdentityUserRow = {
     id: string;
     tenantId: string;
+    tenantCode: string | null;
+    tenantDomain: string | null;
     email: string;
     role: string;
     firstName: string | null;
@@ -201,6 +205,8 @@ async function findExistingIdentityUser(
         `SELECT
             u.id,
             u.tenant_id AS "tenantId",
+            t.code AS "tenantCode",
+            t.domain AS "tenantDomain",
             u.email,
             u.role,
             u.first_name AS "firstName",
@@ -309,6 +315,8 @@ export async function handleSSOCallback(
         success: true,
         userId: user.id,
         tenantId: user.tenantId,
+        tenantCode: user.tenantCode || undefined,
+        tenantDomain: user.tenantDomain || undefined,
         role: user.role,
         email: user.email,
         displayName: displayNameFor(user, userInfo),

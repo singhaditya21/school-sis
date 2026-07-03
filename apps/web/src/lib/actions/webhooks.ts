@@ -8,6 +8,7 @@ import {
     ensureMockIntegrationConnection,
     recordIntegrationAudit,
 } from '@/lib/integrations/api-platform';
+import { logger } from '@/lib/observability/logger';
 
 const INTEGRATION_MODE = process.env.INTEGRATIONS_MODE === 'live' ? 'LIVE' : 'MOCK';
 
@@ -156,7 +157,13 @@ export async function dispatchEvent(tenantId: string, event: string, payload: Re
             });
 
             deliverWebhook(deliveryId, sub.url, body, requestHeaders, sub.timeoutMs)
-                .catch(err => console.error({ event: 'webhook.delivery_failed', deliveryId, error: err.message }));
+                .catch((err) => logger.error('webhook.delivery_failed', 'Webhook delivery failed', {
+                    tenantId,
+                    source: 'webhooks',
+                    entityType: 'webhook_delivery',
+                    entityId: deliveryId,
+                    metadata: { error: err instanceof Error ? err.message : String(err) },
+                }));
         }
 
         return { dispatched: matchingSubs.length };

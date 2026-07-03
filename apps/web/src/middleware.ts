@@ -11,6 +11,68 @@ import {
 // Public routes that don't require authentication
 const PUBLIC_ROUTES = ['/login', '/'];
 const MFA_REQUIRED_ROLES = new Set<string>(MFA_REQUIRED_ROLE_NAMES);
+const RESERVED_TENANT_HOSTS = new Set(['localhost', '127.0.0.1', '::1', 'www']);
+
+function normalizeHostname(value: string | null | undefined): string {
+    const normalized = (value || '').trim().toLowerCase();
+    if (normalized === '::1' || normalized === '[::1]') return '::1';
+    return normalized.replace(/:\d+$/, '');
+}
+
+function configuredTenantBaseHosts(): string[] {
+    const hosts = new Set<string>();
+    for (const raw of (process.env.TENANT_BASE_HOSTS || '').split(',')) {
+        let host = normalizeHostname(raw);
+        if (host.includes('://')) {
+            try {
+                host = normalizeHostname(new URL(host).hostname);
+            } catch {
+                host = '';
+            }
+        }
+        if (host) hosts.add(host);
+    }
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (appUrl) {
+        try {
+            hosts.add(normalizeHostname(new URL(appUrl).hostname));
+        } catch {
+            // Ignore malformed optional config here; env validation catches hard requirements.
+        }
+    }
+    return [...hosts];
+}
+
+function tenantHostHint(hostname: string, session: SessionData): string | null {
+    const host = normalizeHostname(hostname);
+    if (!host || RESERVED_TENANT_HOSTS.has(host) || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+        return null;
+    }
+
+    for (const baseHost of configuredTenantBaseHosts()) {
+        if (!baseHost || host === baseHost || host === `www.${baseHost}`) continue;
+        if (host.endsWith(`.${baseHost}`)) {
+            const prefix = host.slice(0, -(baseHost.length + 1)).split('.')[0];
+            return prefix && prefix !== 'www' ? prefix : null;
+        }
+    }
+
+    const tenantDomain = normalizeHostname(session.tenantDomain);
+    if (tenantDomain && host === tenantDomain) {
+        return host;
+    }
+
+    return null;
+}
+
+function tenantHostMatchesSession(hostHint: string, session: SessionData): boolean {
+    const allowed = [
+        normalizeHostname(session.tenantCode),
+        normalizeHostname(session.tenantDomain),
+    ].filter(Boolean);
+
+    return allowed.some((value) => value === hostHint);
+}
 
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
@@ -45,14 +107,9 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(loginUrl);
     }
 
-    // Tenant isolation: extract tenant from subdomain or header
-    const host = request.headers.get('host') || '';
-    const subdomain = host.split('.')[0];
-
-    // If subdomain routing is used, validate tenant access
-    if (subdomain && subdomain !== 'localhost' && subdomain !== 'www') {
-        // TODO: Implement tenant validation logic
-        // For now, we'll use tenantId from session
+    const hostHint = tenantHostHint(request.nextUrl.hostname, session);
+    if (hostHint && session.role !== 'PLATFORM_ADMIN' && !tenantHostMatchesSession(hostHint, session)) {
+        return NextResponse.redirect(new URL('/unauthorized', request.url));
     }
 
     // Role-based route protection

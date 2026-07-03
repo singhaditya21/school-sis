@@ -7,6 +7,7 @@
  */
 
 import type { ProviderResult } from './index';
+import { logger } from '@/lib/observability/logger';
 
 // ─── Interface ───────────────────────────────────────────────
 
@@ -19,7 +20,10 @@ export interface SmsProvider {
 
 class MockSmsProvider implements SmsProvider {
     async send(to: string, message: string): Promise<ProviderResult<{ messageId: string }>> {
-        console.log(`[MockSMS] → ${to}: ${message.substring(0, 80)}...`);
+        logger.info('notification.mock_sms_sent', 'Mock SMS accepted', {
+            source: 'notifications',
+            metadata: { recipientLength: to.length, messageLength: message.length },
+        });
         return {
             success: true,
             data: { messageId: `mock_sms_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` },
@@ -27,7 +31,10 @@ class MockSmsProvider implements SmsProvider {
     }
 
     async sendBulk(messages: { to: string; message: string }[]): Promise<ProviderResult<{ sent: number; failed: number }>> {
-        console.log(`[MockSMS] Bulk send → ${messages.length} messages`);
+        logger.info('notification.mock_sms_bulk_sent', 'Mock SMS bulk accepted', {
+            source: 'notifications',
+            metadata: { count: messages.length },
+        });
         for (const msg of messages) {
             await this.send(msg.to, msg.message);
         }
@@ -165,4 +172,3 @@ export function getSmsProvider(): SmsProvider {
     }
     return _instance;
 }
-

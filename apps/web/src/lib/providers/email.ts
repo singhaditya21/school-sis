@@ -7,6 +7,7 @@
  */
 
 import type { ProviderResult } from './index';
+import { logger } from '@/lib/observability/logger';
 
 // ─── Interface ───────────────────────────────────────────────
 
@@ -29,7 +30,14 @@ class MockEmailProvider implements EmailProvider {
         from?: string;
     }): Promise<ProviderResult<{ messageId: string }>> {
         const from = options.from || process.env.EMAIL_FROM || 'noreply@schoolsis.local';
-        console.log(`[MockEmail] ${from} → ${options.to}: "${options.subject}"`);
+        logger.info('notification.mock_email_sent', 'Mock email accepted', {
+            source: 'notifications',
+            metadata: {
+                fromLength: from.length,
+                recipientLength: options.to.length,
+                subjectLength: options.subject.length,
+            },
+        });
         return {
             success: true,
             data: { messageId: `mock_email_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` },
@@ -152,4 +160,3 @@ export function getEmailProvider(): EmailProvider {
     }
     return _instance;
 }
-

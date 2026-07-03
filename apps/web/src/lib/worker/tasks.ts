@@ -6,6 +6,7 @@ import {
   type NotificationChannel,
 } from '@/lib/notifications/outbox';
 import { getTenantIdFromJobPayload } from '@/lib/tenant/isolation';
+import { logger } from '@/lib/observability/logger';
 
 type TaskHandler = (payload: Record<string, unknown>) => Promise<unknown>;
 
@@ -59,7 +60,12 @@ export const tasks: Record<string, TaskHandler> = {
 
       return { queuedNotificationId: notification.notificationId };
     } else {
-      console.log(`[Task Runner] No FCM token found for tenant ${tenantId} student ${studentId}.`);
+      logger.info('worker.fcm_token_missing', 'No FCM token found for attendance scan notification', {
+        tenantId,
+        source: 'worker',
+        entityType: 'student',
+        entityId: typeof studentId === 'string' ? studentId : undefined,
+      });
       return { skipped: true, reason: 'missing_fcm_token' };
     }
   },
@@ -129,10 +135,11 @@ export const tasks: Record<string, TaskHandler> = {
   },
 
   'agent-incident-triage': async (payload) => {
-    console.log({
-      event: 'agent.incident_triage.mocked',
+    logger.info('agent.incident_triage.mocked', 'Agent incident triage mocked', {
       source: optionalStringValue(payload, 'source') || 'unknown_source',
-      receivedAt: optionalStringValue(payload, 'receivedAt') || new Date().toISOString(),
+      metadata: {
+        receivedAt: optionalStringValue(payload, 'receivedAt') || new Date().toISOString(),
+      },
     });
     return { triaged: true, mode: 'mock' };
   },

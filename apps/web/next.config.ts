@@ -1,51 +1,10 @@
 import type { NextConfig } from "next";
 import { createRequire } from "module";
 import { dirname } from "path";
+import { securityHeaders } from "./src/lib/security/headers";
 
-const require = createRequire(import.meta.url);
-const moduleRoot = (specifier: string) => dirname(require.resolve(specifier));
-
-const securityHeaders = [
-    {
-        key: 'X-Frame-Options',
-        value: 'DENY',
-    },
-    {
-        key: 'X-Content-Type-Options',
-        value: 'nosniff',
-    },
-    {
-        key: 'Referrer-Policy',
-        value: 'strict-origin-when-cross-origin',
-    },
-    {
-        key: 'X-DNS-Prefetch-Control',
-        value: 'on',
-    },
-    {
-        key: 'Strict-Transport-Security',
-        value: 'max-age=63072000; includeSubDomains; preload',
-    },
-    {
-        key: 'Permissions-Policy',
-        value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()',
-    },
-    {
-        key: 'Content-Security-Policy',
-        value: [
-            "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.stripe.com https://js.stripe.com https://checkout.razorpay.com",
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-            "font-src 'self' https://fonts.gstatic.com",
-            "img-src 'self' data: blob: https:",
-            "connect-src 'self' https://api.stripe.com https://lumberjack.razorpay.com https://*.razorpay.com",
-            "frame-src https://checkout.stripe.com https://js.stripe.com https://api.razorpay.com",
-            "object-src 'none'",
-            "base-uri 'self'",
-            "form-action 'self'",
-        ].join('; '),
-    },
-];
+const nodeRequire = createRequire(import.meta.url);
+const moduleRoot = (specifier: string) => dirname(nodeRequire.resolve(specifier));
 
 const nextConfig: NextConfig = {
     output: 'standalone',

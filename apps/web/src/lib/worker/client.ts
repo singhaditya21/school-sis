@@ -6,6 +6,7 @@ import {
   type PlatformJobPayload,
   type TenantJobPayload,
 } from '@/lib/tenant/isolation';
+import { logger } from '@/lib/observability/logger';
 
 type GraphileJobPayload = TenantJobPayload | PlatformJobPayload;
 
@@ -132,12 +133,15 @@ export async function enqueueJob(
     throw new Error('JOB_QUEUE_MODE=graphile is no longer bundled in the web runtime. Use JOB_QUEUE_MODE=database and /api/jobs/dispatch.');
   }
 
-  console.log({
-    event: 'background_job.enqueued',
-    jobId: persisted.jobId,
-    taskName,
-    status: persisted.status,
-    existing: persisted.existing,
+  logger.info('background_job.enqueued', 'Background job enqueued', {
+    source: 'worker',
+    entityType: 'background_job',
+    entityId: persisted.jobId,
+    metadata: {
+      taskName,
+      status: persisted.status,
+      existing: persisted.existing,
+    },
   });
 
   return persisted;

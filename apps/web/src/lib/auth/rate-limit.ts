@@ -9,6 +9,11 @@ interface RateLimitEntry {
 }
 
 type RateLimitBackend = 'redis' | 'postgres' | 'memory';
+type ConsumeRateLimitOptions = {
+    scope?: string;
+    maxAttempts?: number;
+    message?: string;
+};
 
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const MAX_ATTEMPTS = process.env.DISABLE_RATE_LIMIT === 'true' ? 1000 : 5;
@@ -33,6 +38,11 @@ export function getRateLimitBackendName(): RateLimitBackend {
 
 function normalizedLoginKey(identifier: string): string {
     return `ratelimit:login:${identifier.toLowerCase().trim()}`;
+}
+
+function normalizedScopedKey(scope: string, identifier: string): string {
+    const safeScope = scope.toLowerCase().replace(/[^a-z0-9:-]/g, '-');
+    return `ratelimit:${safeScope}:${identifier.toLowerCase().trim()}`;
 }
 
 function expirationFor(entry: RateLimitEntry, now: number): Date {
@@ -267,6 +277,43 @@ export async function recordFailedAttempt(identifier: string): Promise<void> {
  */
 export async function clearRateLimit(identifier: string): Promise<void> {
     await deleteEntry(normalizedLoginKey(identifier));
+}
+
+export async function consumeRateLimit(
+    identifier: string,
+    options: ConsumeRateLimitOptions = {},
+): Promise<string | null> {
+    if (process.env.DISABLE_RATE_LIMIT === 'true') return null;
+
+    const now = Date.now();
+    const key = normalizedScopedKey(options.scope || 'generic', identifier || 'unknown');
+    const maxAttempts = options.maxAttempts ?? MAX_ATTEMPTS;
+    const message = options.message || 'Too many requests. Please try again later.';
+    const entry = await getEntry(key, now);
+
+    if (!entry) {
+        await setEntry(key, { count: 1, firstAttempt: now, lockedUntil: null }, now);
+        return null;
+    }
+
+    if (entry.lockedUntil && now < entry.lockedUntil) {
+        return message;
+    }
+
+    if (entry.lockedUntil || now - entry.firstAttempt > WINDOW_MS) {
+        await setEntry(key, { count: 1, firstAttempt: now, lockedUntil: null }, now);
+        return null;
+    }
+
+    if (entry.count >= maxAttempts) {
+        entry.lockedUntil = now + LOCKOUT_MS;
+        await setEntry(key, entry, now);
+        return message;
+    }
+
+    entry.count += 1;
+    await setEntry(key, entry, now);
+    return null;
 }
 
 export function resetRateLimitMemoryForTests(): void {

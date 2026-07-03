@@ -324,6 +324,35 @@ export async function getPaymentOrderByProviderOrder(
     return rows[0] || null;
 }
 
+export async function getPaymentOrderByProviderOrderAnyTenant(
+    provider: PaymentProviderName,
+    providerOrderId: string,
+): Promise<PaymentOrderRow | null> {
+    return runWithRlsBypass(async () => {
+        const { rows } = await pool.query<PaymentOrderRow>(
+            `SELECT
+                id,
+                tenant_id AS "tenantId",
+                invoice_id AS "invoiceId",
+                student_id AS "studentId",
+                provider,
+                provider_order_id AS "providerOrderId",
+                provider_payment_id AS "providerPaymentId",
+                amount,
+                amount_minor AS "amountMinor",
+                currency,
+                status,
+                idempotency_key AS "idempotencyKey"
+             FROM payment_orders
+             WHERE provider = $1 AND provider_order_id = $2
+             LIMIT 1`,
+            [provider, providerOrderId],
+        );
+
+        return rows[0] || null;
+    });
+}
+
 export async function completeProviderPayment(input: CompleteProviderPaymentInput): Promise<{ paymentId: string; alreadyProcessed: boolean }> {
     const amount = amountFromMinor(input.amountMinor);
 
