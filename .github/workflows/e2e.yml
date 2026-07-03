@@ -5,11 +5,32 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "E2E suite to run"
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - full
+  schedule:
+    - cron: "0 2 * * *"
+
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24"
+  PNPM_VERSION: "9.15.9"
 
 jobs:
   build:
     name: Build & Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -17,12 +38,12 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9.15.9
+          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -41,10 +62,78 @@ jobs:
           path: ./apps/web/.next
           key: ${{ runner.os }}-nextjs-${{ github.sha }}
 
-  test:
+  smoke:
+    name: Playwright Smoke
+    needs: build
+    if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.suite == 'smoke')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: school_sis
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Next.js build
+        uses: actions/cache@v4
+        with:
+          path: ./apps/web/.next
+          key: ${{ runner.os }}-nextjs-${{ github.sha }}
+
+      - name: Install Playwright Browsers
+        run: pnpm --filter @school-sis/web exec playwright install --with-deps chromium
+
+      - name: Run Playwright Smoke Tests
+        timeout-minutes: 15
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis
+          SEED_USER_PASSWORD: e2e-seed-password-32-characters
+          TEST_DATABASE_SUFFIX: smoke
+          PLAYWRIGHT_GLOBAL_TIMEOUT_MS: "900000"
+        run: pnpm --filter @school-sis/web run test:e2e:smoke
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-smoke
+          path: apps/web/playwright-report/
+          retention-days: 14
+
+  full:
     name: Playwright Tests (Shard ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
     needs: build
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'full')
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     
     # Run Postgres as a service container for the tests
     services:
@@ -75,12 +164,12 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9.15.9
+          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -93,14 +182,16 @@ jobs:
           key: ${{ runner.os }}-nextjs-${{ github.sha }}
 
       - name: Install Playwright Browsers
-        run: pnpm --filter @school-sis/web exec playwright install --with-deps
+        run: pnpm --filter @school-sis/web exec playwright install --with-deps chromium
 
       - name: Run Playwright Tests
+        timeout-minutes: 50
         env:
           # Point the tests to the local Postgres service container
           DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis
           SEED_USER_PASSWORD: e2e-seed-password-32-characters
           TEST_DATABASE_SUFFIX: shard_${{ matrix.shardIndex }}
+          PLAYWRIGHT_GLOBAL_TIMEOUT_MS: "3000000"
         run: pnpm --filter @school-sis/web run test:e2e --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
       - name: Upload Playwright report
