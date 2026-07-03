@@ -31,6 +31,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 debug_url.txt
+pnpm-audit-high.json
 
 # Local env files
 .env*

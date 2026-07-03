@@ -49,7 +49,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run Dependency Audit
-        run: pnpm audit --audit-level=high --json > pnpm-audit-high.json
+        run: |
+          pnpm audit --json > pnpm-audit-high.json || true
+          pnpm audit:check -- pnpm-audit-high.json
 
       - name: Run Secret Pattern Scan
         run: pnpm audit:secrets

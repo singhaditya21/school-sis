@@ -27,7 +27,8 @@
     "perf:load": "pnpm --filter @school-sis/web run perf:load",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
-    "audit:security": "pnpm audit --audit-level=high",
+    "audit:security": "pnpm audit --json > pnpm-audit-high.json || true && pnpm audit:check -- pnpm-audit-high.json",
+    "audit:check": "node scripts/check-pnpm-audit-high.mjs",
     "audit:secrets": "node scripts/check-secret-patterns.mjs",
     "audit:ci": "pnpm audit:security && pnpm audit:secrets",
     "prepare": "husky"
