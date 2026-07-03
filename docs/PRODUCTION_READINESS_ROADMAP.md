@@ -20,9 +20,9 @@ The project is no longer missing its core architecture pillars. The main foundat
 
 The remaining work is mostly production hardening, operational tooling, provider cutover, test coverage, and removal of mock or prototype paths.
 
-## Recently Addressed Locally
+## Recently Shipped And Verified
 
-The current local security-hardening changes should be committed, deployed, and smoke-tested before the roadmap below is considered current in production:
+The current security-hardening and CI/CD stabilization work has been committed, pushed, deployed, and smoke-tested in production. The latest verified production commit is `dc061edd7ebbd520fc6dc04cc39cc89b72e503ac`.
 
 - Added `jspdf >=4.2.1` override and lockfile updates.
 - Added tenant host/session validation in middleware, including tenant subdomain/custom-domain matching.
@@ -33,13 +33,20 @@ The current local security-hardening changes should be committed, deployed, and 
 - Hardened production crypto/KMS behavior by rejecting placeholder secrets and failing closed in production.
 - Replaced several string/interpolated logs with structured logging.
 - Removed demo-password comments from legacy SQL seed migrations.
+- Stabilized GitHub Actions by moving CI/E2E to Node 24.
+- Split Playwright into a push/PR smoke gate and a manual/nightly full sharded suite with explicit timeouts.
+- Updated Playwright to run the standalone Next.js server output for CI smoke tests.
 
-Local verification after the hardening pass:
+Verification after the hardening and CI/CD pass:
 
 - `pnpm test:unit`: 20 suites, 114 tests passing.
 - `pnpm test:architecture`: passing.
 - TypeScript check for `apps/web`: passing.
 - `pnpm audit --audit-level=high`: no high or critical findings; 7 low and 15 moderate findings remain.
+- GitHub `CI/CD Pipeline`: passing on `dc061edd`.
+- GitHub `E2E Tests`: passing on the push/PR smoke gate.
+- Vercel production `/api/health`: passing and serving `dc061edd`.
+- Neon: no schema or migration action was required for this CI/CD stabilization.
 
 ## Definition of Production Ready
 
@@ -358,6 +365,23 @@ DIRECT_URL="postgresql://..." CONFIRM_RESTORE=school-sis pnpm backup:restore -- 
 - `backend/app/bin/main` appears to contain generated output and should be removed from source control if confirmed.
 - Scratch scripts should be promoted into maintained scripts or removed.
 
+## Broad Product Roadmap Execution Tracks
+
+The 10 tracks below are the agreed broader roadmap view. They sit above the detailed deep-audit rows and should be used for planning epics, sequencing milestones, and deciding what is left after CI/CD stabilization.
+
+| Track | Priority | Owner | Objective | Immediate next actions | Done when |
+| --- | --- | --- | --- | --- | --- |
+| 1. Production launch blockers | P0 | Engineering/DevOps/Security | Remove the remaining blockers before handling real customer or pilot data. | Audit production env vars, configure real provider secrets, verify tenant host config, run strict infra checks against production-like env, add protected-route tests, add signed webhook fixtures, configure scheduler, and run a backup/restore drill. | Real env validation passes, provider secrets are live, smoke checks cover authenticated flows, scheduler works, webhooks are fixture-tested, and restore evidence is recorded. |
+| 2. Module readiness | P0/P1 | Product/Engineering | Prove each product module is launchable with real APIs, tenant safety, approvals, audit, and tests. | Convert the domain maturity matrix into module epics for Fees, Identity, Admissions, Attendance, Exams, Timetable, Parent Portal, Transport, HR, Library, AI, BI, and Operator Console. | Each module has real API status, mock/prototype status, tenant isolation, audit logging, approval requirements, test evidence, and launch-readiness signoff. |
+| 3. Security and database hardening | P0/P1 | Security/Engineering/DevOps | Make the security posture defensible beyond happy-path deployment. | Tighten CSP, add CSRF/origin checks for sensitive mutations, define WAF/rate-limit policy, maintain RLS matrix, add real Postgres tenant-isolation tests, enforce least-privilege DB roles, and add migration drift detection. | Security controls are documented, tested, monitored, and tied to owners; tenant isolation and migration safety have repeatable evidence. |
+| 4. Operational backbone | P1 | DevOps/SRE/Product | Give operators enough tooling to run the platform without direct database access. | Configure Vercel Cron or an external scheduler, build job/dead-letter dashboards, add notification dashboards, start operator console UI, wire alert routing, and finalize incident runbooks. | Operators can see health, queues, failed jobs, notifications, incidents, payments, and runbooks from product surfaces with audited actions. |
+| 5. AI production readiness | P2 | AI/Engineering/Security | Move AI from architecture-ready to trust-ready. | Deploy private agent service, deploy dedicated worker, add prompt-injection tests, tenant leakage tests, tool-permission checks, token/cost budgets, model fallback rules, and AI incident response. | AI actions are private, tenant-scoped, permission-aware, auditable, budgeted, and covered by safety eval evidence. |
+| 6. BI, reporting, and exports | P2 | Product/Engineering/Data | Replace ad hoc reporting with governed analytics and safe exports. | Implement BI executor, migrate analytics pages to approved SQL templates, add scheduled reports, enforce export policies, add row limits, and audit sensitive exports. | Dashboards use governed metrics, scheduled reports run, exports are policy-controlled, and PII access is approved/audited. |
+| 7. Pilot and UAT | P1 | Product/Implementation/Customer Success | Define and run the first controlled pilot without sliding into unbounded custom services work. | Define pilot shape, campus count, imported data, workflows proven, success metrics, UAT owners, customization limits, training, hypercare, escalation, and go/no-go gates. | A pilot can start with signed scope, migration plan, UAT checklist, rollback plan, support plan, success metrics, and executive signoff. |
+| 8. Trust, procurement, and accessibility | P1/P2 | Trust/Legal/Product/QA | Prepare buyer-facing evidence for schools, groups, and regulated customers. | Build security/privacy overviews, DPA/MSA/SLA, subprocessors list, deployment matrix, AI governance overview, WCAG target, VPAT plan, keyboard/screen-reader checks, and accessibility CI checks. | Procurement evidence is current, accessibility blockers are tracked, Tier 1 workflows have no critical accessibility blockers, and buyer questionnaires can be answered quickly. |
+| 9. Support and customer success | P1/P2 | Support/Customer Success/Product | Make launch adoption repeatable for non-engineering users. | Define support tiers, response SLAs, escalation matrix, onboarding checklist, admin/staff training, help center, release notes, customer health metrics, renewal signals, and feedback triage. | Customers can onboard with guided setup, support has clear SLAs and escalation paths, and product feedback flows into roadmap triage. |
+| 10. Commercial packaging and market positioning | P0/P1 | GTM/Product/Finance Ops | Turn the platform into a sellable, margin-aware offer with clear differentiation. | Define Core SIS, AI Pack, Payments Pack, Trust Pack, International Pack, implementation services, pricing assumptions, usage metering, provider fee model, infrastructure cost model, competitor battlecards, buyer personas, wedge messaging, sales deck, and launch channels. | Packages, pricing assumptions, margin model, competitor positioning, launch narrative, and sales materials are ready for pilot and early customer conversations. |
+
 ## Deep Audit Launch Readiness Addendum
 
 The sections below expand the roadmap beyond production hardening into launch readiness. Each row uses role owners instead of named individuals.
@@ -576,8 +600,10 @@ Artifact-specific rules:
 
 ## Suggested Execution Order
 
-1. Ship the current security-hardening changes and production env updates.
-2. Enforce CI/CD launch gates: audit, required checks, branch protection, secret scanning, and release evidence.
+Current status: the security-hardening changes are shipped, GitHub CI is green, the push/PR E2E smoke gate is green, and Vercel production is serving the latest verified commit. The remaining work starts with production env validation and the broader launch-readiness tracks below.
+
+1. Finish production env updates and strict runtime validation.
+2. Complete CI/CD launch governance: required checks, branch protection, secret scanning, dependency review ownership, and release evidence.
 3. Tighten API/security boundaries: route-boundary tests, payment webhook fixtures, CSP plan, CSRF/origin controls, and WAF/rate-limit policy.
 4. Deepen database safety: RLS policy matrix, real Postgres tenant-isolation tests, least-privilege roles, migration drift detection, and destructive migration review.
 5. Turn on the scheduler for background jobs and build the first operator visibility screens.
@@ -594,9 +620,11 @@ Artifact-specific rules:
 
 ## Tracking Checklist
 
-- [ ] Security hardening committed and deployed.
+- [x] Security hardening committed and deployed.
 - [ ] Production env contract updated and strict infra check passing.
-- [ ] High-severity audit gate in CI.
+- [x] High-severity audit gate in CI.
+- [x] Push/PR E2E smoke gate stabilized and passing in GitHub Actions.
+- [x] Broad product roadmap execution tracks adopted.
 - [ ] Low/moderate dependency findings classified.
 - [ ] Route-boundary contract tests added.
 - [ ] Payment webhook fixture tests added.
