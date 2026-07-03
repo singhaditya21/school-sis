@@ -20,9 +20,9 @@ The project is no longer missing its core architecture pillars. The main foundat
 
 The remaining work is mostly production hardening, operational tooling, provider cutover, test coverage, and removal of mock or prototype paths.
 
-## Recently Shipped And Verified
+## Recently Shipped And Current Track 1 Changes
 
-The current security-hardening and CI/CD stabilization work has been committed, pushed, deployed, and smoke-tested in production. The latest verified production commit is `dc061edd7ebbd520fc6dc04cc39cc89b72e503ac`.
+The prior security-hardening and CI/CD stabilization work has been committed, pushed, deployed, and smoke-tested in production. The verified production commit for that baseline is `dc061edd7ebbd520fc6dc04cc39cc89b72e503ac`.
 
 - Added `jspdf >=4.2.1` override and lockfile updates.
 - Added tenant host/session validation in middleware, including tenant subdomain/custom-domain matching.
@@ -36,6 +36,10 @@ The current security-hardening and CI/CD stabilization work has been committed, 
 - Stabilized GitHub Actions by moving CI/E2E to Node 24.
 - Split Playwright into a push/PR smoke gate and a manual/nightly full sharded suite with explicit timeouts.
 - Updated Playwright to run the standalone Next.js server output for CI smoke tests.
+- Expanded the production runtime checker so strict mode now validates tenant base hosts, production app URL shape, payment secrets, required notification providers, storage/CDN URLs, cron scheduler secrets, backup retention, restore-drill evidence warnings, agent-service readiness, and error-tracking gaps.
+- Added a cron-compatible `GET /api/jobs/dispatch` path secured with `CRON_SECRET` while preserving the existing `POST` dispatcher secured by `JOB_DISPATCH_SECRET`.
+- Declared the Vercel Cron schedule for `/api/jobs/dispatch` in `apps/web/vercel.json`.
+- Added regression coverage for strict production runtime validation.
 
 Verification after the hardening and CI/CD pass:
 
@@ -47,6 +51,7 @@ Verification after the hardening and CI/CD pass:
 - GitHub `E2E Tests`: passing on the push/PR smoke gate.
 - Vercel production `/api/health`: passing and serving `dc061edd`.
 - Neon: no schema or migration action was required for this CI/CD stabilization.
+- Current roadmap implementation note: the scheduler and stricter checker are in code, but production completion still requires real Vercel secrets (`CRON_SECRET`, provider secrets, storage, backup retention, tenant hosts), an observed cron run, and restore-drill evidence.
 
 ## Definition of Production Ready
 
@@ -153,6 +158,8 @@ DIRECT_URL="postgresql://..." CONFIRM_PRODUCTION_MIGRATION=school-sis pnpm db:mi
 - Minimum production secrets include `DATABASE_URL`, `DIRECT_URL`, `SESSION_SECRET`, `PII_ENCRYPTION_KEY` or `ENCRYPTION_KEY`, `NEXT_PUBLIC_APP_URL`, `METRICS_TOKEN`, and `JOB_DISPATCH_SECRET`.
 - Payment production requires real `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET`.
 - Tenant host validation requires `TENANT_BASE_HOSTS` and correct tenant code/domain data.
+- Notification production requires `REQUIRED_NOTIFICATION_CHANNELS` to match the launch scope. Strict validation defaults to `email,sms`; required channels must use real providers, not `mock`.
+- Vercel Cron dispatch requires `CRON_SECRET`; manual or external scheduler POST dispatch requires `JOB_DISPATCH_SECRET`.
 - Agent production requires `AGENT_SERVICE_URL`, `AGENT_API_TOKEN`, and agent-side matching secrets.
 - Service tokens and secrets should be at least 32 random characters unless a provider requires a different format.
 - Production must fail closed on mock, dummy, placeholder, or development secrets for encryption, payment, KMS, and service auth.
@@ -224,8 +231,8 @@ DIRECT_URL="postgresql://..." CONFIRM_RESTORE=school-sis pnpm backup:restore -- 
 | Gap | Why it matters | Done when |
 | --- | --- | --- |
 | Commit and deploy the security-hardening changes | The repo is locally hardened but production will not benefit until this ships. | Changes are committed, pushed, deployed, and `/api/health` plus an authenticated smoke path pass. |
-| Configure new production secrets | Razorpay webhook and tenant host validation need runtime configuration. | `RAZORPAY_WEBHOOK_SECRET`, `TENANT_BASE_HOSTS`, real payment secrets, storage secrets, metrics/job tokens, and encryption keys are set in Vercel. |
-| Run strict production runtime validation | Prevents accidental deploys with mock or missing infrastructure. | `NODE_ENV=production pnpm --filter @school-sis/web run infra:check -- --strict` passes against production-like env. |
+| Configure new production secrets | Razorpay webhook, tenant host validation, scheduled jobs, storage, and provider cutover need runtime configuration. | `RAZORPAY_WEBHOOK_SECRET`, `TENANT_BASE_HOSTS`, `CRON_SECRET`, real payment secrets, required notification provider secrets, storage secrets, metrics/job tokens, backup retention, and encryption keys are set in Vercel. |
+| Run strict production runtime validation | Prevents accidental deploys with mock or missing infrastructure. | `NODE_ENV=production pnpm --filter @school-sis/web run infra:check -- --strict` passes against real production-like env; the checker rejects missing/placeholder tenant, payment, notification, cron, storage, app URL, backup, and core service secrets. |
 | Re-run dependency audit and classify low/moderate advisories | High/critical advisories are cleared, but 22 low/moderate findings remain. | Each advisory has upgrade, mitigation, or documented acceptance; CI runs the high-severity audit gate. |
 | Add route-boundary contract tests | Many API routes are protected through helpers or middleware; tests should prove the intended boundary. | Public, session, service-token, webhook-signature, and metrics-token routes have automated contract tests. |
 | Lock down prototype endpoints | `/api/mock`, `/api/seed`, and `/api/force-migrate` are gated, but should be formally excluded from production use. | Production returns 404/403 as intended, contract tests exist, and docs say how to seed/migrate safely. |
@@ -236,7 +243,7 @@ DIRECT_URL="postgresql://..." CONFIRM_RESTORE=school-sis pnpm backup:restore -- 
 
 | Gap | Why it matters | Done when |
 | --- | --- | --- |
-| Background job scheduler | Durable jobs exist, but a scheduler must call `/api/jobs/dispatch`. | Vercel Cron or external scheduler dispatches jobs every minute with `JOB_DISPATCH_SECRET`. |
+| Background job scheduler | Durable jobs exist, but a scheduler must call `/api/jobs/dispatch`. | Vercel Cron or external scheduler dispatches jobs every minute with `CRON_SECRET` for cron GETs or `JOB_DISPATCH_SECRET` for manual/external POSTs, and the first production dispatch is observed in logs. |
 | Job and notification dashboards | Dead letters and failed messages need operator visibility. | Operator/admin screens show queued, failed, locked, and dead-letter jobs plus notification outbox status. |
 | Per-tenant notification quotas and rate limits | Prevents noisy tenants or message loops from affecting everyone. | Quotas are enforced per tenant/channel with audit events and operator overrides. |
 | Provider delivery receipts | Outbound notifications need provider status reconciliation. | SMS, WhatsApp, email, and push receipt webhooks update `notification_delivery_events`. |
@@ -600,35 +607,39 @@ Artifact-specific rules:
 
 ## Suggested Execution Order
 
-Current status: the security-hardening changes are shipped, GitHub CI is green, the push/PR E2E smoke gate is green, and Vercel production is serving the latest verified commit. The remaining work starts with production env validation and the broader launch-readiness tracks below.
+Current status: the security-hardening changes are shipped, GitHub CI is green, the push/PR E2E smoke gate is green, and Vercel production is serving the latest verified baseline commit. The production runtime contract and Vercel Cron wiring have now been added in code; remaining launch work starts with configuring the real production secrets, observing the scheduler, and completing restore evidence.
 
-1. Finish production env updates and strict runtime validation.
-2. Complete CI/CD launch governance: required checks, branch protection, secret scanning, dependency review ownership, and release evidence.
-3. Tighten API/security boundaries: route-boundary tests, payment webhook fixtures, CSP plan, CSRF/origin controls, and WAF/rate-limit policy.
-4. Deepen database safety: RLS policy matrix, real Postgres tenant-isolation tests, least-privilege roles, migration drift detection, and destructive migration review.
-5. Turn on the scheduler for background jobs and build the first operator visibility screens.
-6. Add payment reconciliation, chargeback handling, notification receipts, and provider failure dashboards.
-7. Standardize domain services, lifecycle states, and persistent domain event outbox coverage for critical modules.
-8. Build the domain maturity matrix into execution: retire remaining mock/prototype paths and prove launch readiness module by module.
-9. Deploy the private agent service plus dedicated worker, then add AI safety evals, tool-permission red-team tests, token budgets, and AI incident response.
-10. Productize BI executor, exports, scheduled reports, and export policy enforcement.
-11. Retire generated/stale files, add ignore rules, and formalize generated-file lifecycle rules.
-12. Prepare release governance, pilot/UAT gates, support escalation, accessibility checks, procurement evidence, and commercial packaging.
-13. Run first controlled pilot using the defined scope, migration plan, UAT signoffs, training rollout, and hypercare model.
-14. Run performance, backup/restore, incident, accessibility, AI-eval, procurement, and compliance drills before broad external launch.
-15. Keep the roadmap current through the source-of-truth and decision-log process after every shipped milestone.
+1. Configure real production env updates in Vercel and run strict runtime validation against those values.
+2. Confirm Vercel Cron dispatch: set `CRON_SECRET`, verify `/api/jobs/dispatch` cron logs, and keep manual/external POSTs on `JOB_DISPATCH_SECRET`.
+3. Complete CI/CD launch governance: required checks, branch protection, secret scanning, dependency review ownership, and release evidence.
+4. Tighten API/security boundaries: route-boundary tests, payment webhook fixtures, CSP plan, CSRF/origin controls, and WAF/rate-limit policy.
+5. Deepen database safety: RLS policy matrix, real Postgres tenant-isolation tests, least-privilege roles, migration drift detection, and destructive migration review.
+6. Build the first operator visibility screens for jobs, dead letters, notifications, incidents, and runbooks.
+7. Add payment reconciliation, chargeback handling, notification receipts, and provider failure dashboards.
+8. Standardize domain services, lifecycle states, and persistent domain event outbox coverage for critical modules.
+9. Build the domain maturity matrix into execution: retire remaining mock/prototype paths and prove launch readiness module by module.
+10. Deploy the private agent service plus dedicated worker, then add AI safety evals, tool-permission red-team tests, token budgets, and AI incident response.
+11. Productize BI executor, exports, scheduled reports, and export policy enforcement.
+12. Retire generated/stale files, add ignore rules, and formalize generated-file lifecycle rules.
+13. Prepare release governance, pilot/UAT gates, support escalation, accessibility checks, procurement evidence, and commercial packaging.
+14. Run first controlled pilot using the defined scope, migration plan, UAT signoffs, training rollout, and hypercare model.
+15. Run performance, backup/restore, incident, accessibility, AI-eval, procurement, and compliance drills before broad external launch.
+16. Keep the roadmap current through the source-of-truth and decision-log process after every shipped milestone.
 
 ## Tracking Checklist
 
 - [x] Security hardening committed and deployed.
-- [ ] Production env contract updated and strict infra check passing.
+- [x] Production env contract expanded for production app URL, tenant hosts, payment secrets, required notification providers, cron, storage/CDN, backup retention, restore-drill warnings, agent readiness, and error-tracking gaps.
+- [ ] Strict infra check passing with real Vercel/Neon production secrets.
+- [x] Vercel Cron route declared for `/api/jobs/dispatch`.
+- [ ] `CRON_SECRET` configured in Vercel and first production cron dispatch observed.
 - [x] High-severity audit gate in CI.
 - [x] Push/PR E2E smoke gate stabilized and passing in GitHub Actions.
 - [x] Broad product roadmap execution tracks adopted.
 - [ ] Low/moderate dependency findings classified.
 - [ ] Route-boundary contract tests added.
 - [ ] Payment webhook fixture tests added.
-- [ ] Vercel Cron or external scheduler configured.
+- [ ] Vercel Cron or external scheduler configured, deployed, and observed dispatching jobs.
 - [ ] Operator console UI started.
 - [ ] Job/dead-letter and notification dashboards available.
 - [ ] Alert routing configured.
