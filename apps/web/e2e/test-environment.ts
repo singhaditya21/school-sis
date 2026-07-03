@@ -101,6 +101,16 @@ export async function recreateDatabase(environment: TestEnvironment): Promise<vo
     }
 }
 
+export async function enableVectorExtension(environment: TestEnvironment): Promise<void> {
+    const client = new Client({ connectionString: environment.databaseUrl });
+    await client.connect();
+    try {
+        await client.query('CREATE EXTENSION IF NOT EXISTS vector');
+    } finally {
+        await client.end();
+    }
+}
+
 export async function dropDatabase(environment: TestEnvironment): Promise<void> {
     const client = new Client({ connectionString: environment.adminDatabaseUrl });
     await client.connect();

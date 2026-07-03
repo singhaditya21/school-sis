@@ -3,6 +3,7 @@ import { Client } from 'pg';
 import path from 'path';
 import fs from 'fs';
 import {
+    enableVectorExtension,
     ensurePlaywrightTestEnvironment,
     recreateDatabase,
 } from './test-environment';
@@ -16,6 +17,8 @@ export default async function globalSetup() {
     });
     console.log(`📦 Recreating test database: ${environment.databaseName}`);
     await recreateDatabase(environment);
+    console.log('🧩 Enabling vector extension in test database...');
+    await enableVectorExtension(environment);
     console.log(`📝 Wrote test environment variables to ${path.basename(environment.envFilePath)}`);
 
     console.log('🏗️  Pushing schema to test database...');

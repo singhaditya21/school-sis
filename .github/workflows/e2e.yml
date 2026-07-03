@@ -99,6 +99,7 @@ jobs:
         env:
           # Point the tests to the local Postgres service container
           DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis
+          SEED_USER_PASSWORD: e2e-seed-password-32-characters
           TEST_DATABASE_SUFFIX: shard_${{ matrix.shardIndex }}
         run: pnpm --filter @school-sis/web run test:e2e --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
