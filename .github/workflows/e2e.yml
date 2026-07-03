@@ -98,7 +98,7 @@ jobs:
       - name: Run Playwright Tests
         env:
           # Point the tests to the local Postgres service container
-          DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis?sslmode=require
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis
           TEST_DATABASE_SUFFIX: shard_${{ matrix.shardIndex }}
         run: pnpm --filter @school-sis/web run test:e2e --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
