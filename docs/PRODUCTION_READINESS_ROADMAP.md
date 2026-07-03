@@ -40,6 +40,9 @@ The prior security-hardening and CI/CD stabilization work has been committed, pu
 - Added a cron-compatible `GET /api/jobs/dispatch` path secured with `CRON_SECRET` while preserving the existing `POST` dispatcher secured by `JOB_DISPATCH_SECRET`.
 - Declared a Hobby-compatible Vercel Cron schedule for `/api/jobs/dispatch` in `apps/web/vercel.json`; production-grade minute dispatch still requires Vercel Pro or an external scheduler.
 - Added regression coverage for strict production runtime validation.
+- Configured Vercel production inventory for the safe platform-level runtime values: `DIRECT_URL`, `NEXT_PUBLIC_APP_URL`, `TENANT_BASE_HOSTS`, `CRON_SECRET`, and `BACKUP_RETENTION_DAYS`.
+- Recorded production runtime evidence in `audits/reports/2026-07-03-production-runtime-evidence.md`, including Vercel env inventory, missing provider/storage secrets, scheduler decision, and backup readiness results.
+- Installed PostgreSQL 18 client tooling locally and completed a non-destructive schema-only backup/read-list check against Neon; the full restore drill remains open until a disposable restore target is available.
 
 Verification after the hardening and CI/CD pass:
 
@@ -51,7 +54,7 @@ Verification after the hardening and CI/CD pass:
 - GitHub `E2E Tests`: passing on the push/PR smoke gate.
 - Vercel production `/api/health`: passing and serving `dc061edd`.
 - Neon: no schema or migration action was required for this CI/CD stabilization.
-- Current roadmap implementation note: the scheduler route and stricter checker are in code, but production completion still requires real Vercel secrets (`CRON_SECRET`, provider secrets, storage, backup retention, tenant hosts), an observed cron run, a Pro/external minute-level scheduler decision, and restore-drill evidence.
+- Current roadmap implementation note: platform-level Vercel production values are configured, but production completion still requires real payment, notification, and storage provider secrets, an observed scheduler run, a Vercel Pro or external minute-level scheduler implementation, and a full restore drill into a disposable restore target.
 
 ## Definition of Production Ready
 
@@ -231,13 +234,13 @@ DIRECT_URL="postgresql://..." CONFIRM_RESTORE=school-sis pnpm backup:restore -- 
 | Gap | Why it matters | Done when |
 | --- | --- | --- |
 | Commit and deploy the security-hardening changes | The repo is locally hardened but production will not benefit until this ships. | Changes are committed, pushed, deployed, and `/api/health` plus an authenticated smoke path pass. |
-| Configure new production secrets | Razorpay webhook, tenant host validation, scheduled jobs, storage, and provider cutover need runtime configuration. | `RAZORPAY_WEBHOOK_SECRET`, `TENANT_BASE_HOSTS`, `CRON_SECRET`, real payment secrets, required notification provider secrets, storage secrets, metrics/job tokens, backup retention, and encryption keys are set in Vercel. |
-| Run strict production runtime validation | Prevents accidental deploys with mock or missing infrastructure. | `NODE_ENV=production pnpm --filter @school-sis/web run infra:check -- --strict` passes against real production-like env; the checker rejects missing/placeholder tenant, payment, notification, cron, storage, app URL, backup, and core service secrets. |
+| Configure new production secrets | Razorpay webhook, tenant host validation, scheduled jobs, storage, and provider cutover need runtime configuration. | Platform-level Vercel values are present; launch is complete only when real payment, required notification provider, and storage secrets are also set in Vercel. |
+| Run strict production runtime validation | Prevents accidental deploys with mock or missing infrastructure. | `NODE_ENV=production pnpm --filter @school-sis/web run infra:check -- --strict` passes in an environment where production secrets are available to the process. Vercel Sensitive env vars cannot be value-validated after pull without exposing secrets, so Vercel inventory checks are used for presence evidence. |
 | Re-run dependency audit and classify low/moderate advisories | High/critical advisories are cleared, but 22 low/moderate findings remain. | Each advisory has upgrade, mitigation, or documented acceptance; CI runs the high-severity audit gate. |
 | Add route-boundary contract tests | Many API routes are protected through helpers or middleware; tests should prove the intended boundary. | Public, session, service-token, webhook-signature, and metrics-token routes have automated contract tests. |
 | Lock down prototype endpoints | `/api/mock`, `/api/seed`, and `/api/force-migrate` are gated, but should be formally excluded from production use. | Production returns 404/403 as intended, contract tests exist, and docs say how to seed/migrate safely. |
 | Production smoke checklist | The app has many interconnected modules, so deploy success alone is not enough. | Login, tenant routing, dashboard load, invoice payment initiation, payment webhook fixture, receipt access, job dispatch, and metrics readiness are checked. |
-| Backup and restore drill | Database restore is the last line of defense for migration or operator mistakes. | Neon backups are enabled and one restore drill is recorded before launch. |
+| Backup and restore drill | Database restore is the last line of defense for migration or operator mistakes. | Schema-only backup/read-list readiness is recorded; launch requires Neon backups enabled and one full restore drill into a disposable restore target. |
 
 ### P1: Operational Backbone
 
@@ -630,9 +633,15 @@ Current status: the security-hardening changes are shipped, GitHub CI is green, 
 
 - [x] Security hardening committed and deployed.
 - [x] Production env contract expanded for production app URL, tenant hosts, payment secrets, required notification providers, cron, storage/CDN, backup retention, restore-drill warnings, agent readiness, and error-tracking gaps.
-- [ ] Strict infra check passing with real Vercel/Neon production secrets.
+- [x] Platform-level Vercel production env inventory configured: `DIRECT_URL`, `NEXT_PUBLIC_APP_URL`, `TENANT_BASE_HOSTS`, `CRON_SECRET`, and `BACKUP_RETENTION_DAYS`.
+- [ ] Real payment provider secrets configured in Vercel production.
+- [ ] Real required notification provider secrets configured in Vercel production.
+- [ ] Real object storage secrets configured in Vercel production.
+- [ ] Strict infra check passing with real production secrets available to the runtime.
 - [x] Vercel Cron route declared for `/api/jobs/dispatch` with a Hobby-compatible daily schedule.
-- [ ] `CRON_SECRET` configured in Vercel, Pro/external minute-level scheduler chosen, and first production dispatch observed.
+- [x] `CRON_SECRET` configured in Vercel production.
+- [x] Minute-level scheduler decision recorded: Vercel Pro Cron preferred; external scheduler fallback accepted if Pro is not approved.
+- [ ] Vercel Pro or external minute-level scheduler configured and first production dispatch observed.
 - [x] High-severity audit gate in CI.
 - [x] Push/PR E2E smoke gate stabilized and passing in GitHub Actions.
 - [x] Broad product roadmap execution tracks adopted.
@@ -643,7 +652,8 @@ Current status: the security-hardening changes are shipped, GitHub CI is green, 
 - [ ] Operator console UI started.
 - [ ] Job/dead-letter and notification dashboards available.
 - [ ] Alert routing configured.
-- [ ] Backup restore drill completed.
+- [x] Schema-only backup/read-list readiness check completed with PostgreSQL 18 client tools.
+- [ ] Full backup restore drill completed into a disposable restore target.
 - [ ] Private agent service and worker deployed.
 - [ ] BI executor implemented.
 - [ ] Legacy mock/prototype paths retired or feature-flagged.

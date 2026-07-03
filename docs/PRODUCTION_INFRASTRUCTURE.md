@@ -1,6 +1,6 @@
 # School SIS Production Runtime & Infrastructure
 
-Last updated: 2026-07-01
+Last updated: 2026-07-03
 
 This is the production operating contract for the School SIS platform. The active target stack is Vercel + Neon + Drizzle; legacy hosting/database targets are not part of this repository's production path.
 
@@ -83,14 +83,25 @@ Minimum production variables:
 | `SESSION_SECRET` | 32+ random characters |
 | `PII_ENCRYPTION_KEY` or `ENCRYPTION_KEY` | 32+ random characters |
 | `NEXT_PUBLIC_APP_URL` | Production HTTPS URL |
+| `TENANT_BASE_HOSTS` | Comma-separated production tenant base domains |
 | `METRICS_TOKEN` | 32+ random characters |
-| `JOB_DISPATCH_SECRET` | 32+ random characters for `/api/jobs/dispatch` |
+| `JOB_DISPATCH_SECRET` | 32+ random characters for manual or external scheduler `POST /api/jobs/dispatch` |
+| `CRON_SECRET` | 32+ random characters for Vercel Cron `GET /api/jobs/dispatch` |
+| `BACKUP_RETENTION_DAYS` | Positive integer, usually `30` or higher |
 | `AGENT_API_TOKEN` | 32+ random characters if agent service is enabled |
 | `AGENT_WEBHOOK_SECRET` | 32+ random characters if agent webhook is enabled |
 | `IOT_INGEST_SECRET` | 32+ random characters if IoT ingest is enabled |
 | `CEREBRAS_API_KEY` | Required only when Copilot is enabled |
 
-Background jobs default to `JOB_QUEUE_MODE=database`. Notification providers default to mock mode with `EMAIL_PROVIDER=mock`, `SMS_PROVIDER=mock`, `WHATSAPP_PROVIDER=mock`, and `PUSH_PROVIDER=mock`.
+Payment launch requires real provider values:
+
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `RAZORPAY_KEY_ID`
+- `RAZORPAY_KEY_SECRET`
+- `RAZORPAY_WEBHOOK_SECRET`
+
+Background jobs default to `JOB_QUEUE_MODE=database`. Notification providers default to mock mode with `EMAIL_PROVIDER=mock`, `SMS_PROVIDER=mock`, `WHATSAPP_PROVIDER=mock`, and `PUSH_PROVIDER=mock`. Production launch must set `REQUIRED_NOTIFICATION_CHANNELS` to the intended launch scope and configure real providers for those channels.
 
 Observability endpoints:
 
@@ -98,7 +109,14 @@ Observability endpoints:
 - `GET /api/ready`, `GET /api/metrics`, `GET /api/sre/status`, and `POST /api/sre/incidents` require `Authorization: Bearer $METRICS_TOKEN` in production.
 - `GET /api/sre/incidents` is session-authenticated for tenant admins; incident lifecycle updates require platform admin.
 
-The job dispatcher must be called by Vercel Cron or an external scheduler:
+The job dispatcher can be called by Vercel Cron using `GET` and `CRON_SECRET`:
+
+```bash
+curl "$NEXT_PUBLIC_APP_URL/api/jobs/dispatch" \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+Manual or external scheduler dispatch can use `POST` and `JOB_DISPATCH_SECRET`:
 
 ```bash
 curl -X POST "$NEXT_PUBLIC_APP_URL/api/jobs/dispatch" \
@@ -106,6 +124,8 @@ curl -X POST "$NEXT_PUBLIC_APP_URL/api/jobs/dispatch" \
   -H "Content-Type: application/json" \
   -d '{"limit":25,"notificationLimit":50}'
 ```
+
+Current repository config uses a Hobby-compatible Vercel Cron schedule of `0 0 * * *` so deployments stay green. Production launch requires minute-level dispatch with Vercel Pro Cron (`* * * * *`) or an external scheduler that can run every minute.
 
 Validate the runtime contract:
 
@@ -159,6 +179,8 @@ Operational policy:
 - Run one restore drill before any major launch or migration wave.
 - Store generated dumps outside the repository for production data.
 - Never commit backup files or raw dumps.
+- Use a `pg_dump`/`pg_restore` client version that is at least as new as the Neon Postgres server version. The current Neon server reports Postgres `18.4`, so local backup drills require PostgreSQL 18 client tools such as `/opt/homebrew/opt/postgresql@18/bin/pg_dump`.
+- The July 3, 2026 evidence check completed a schema-only custom dump and `pg_restore --list` validation without restoring data. The full restore drill remains open until a disposable Neon branch or isolated restore target is available.
 
 ## Region Decision
 
