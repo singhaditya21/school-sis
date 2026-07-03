@@ -38,7 +38,7 @@ The prior security-hardening and CI/CD stabilization work has been committed, pu
 - Updated Playwright to run the standalone Next.js server output for CI smoke tests.
 - Expanded the production runtime checker so strict mode now validates tenant base hosts, production app URL shape, payment secrets, required notification providers, storage/CDN URLs, cron scheduler secrets, backup retention, restore-drill evidence warnings, agent-service readiness, and error-tracking gaps.
 - Added a cron-compatible `GET /api/jobs/dispatch` path secured with `CRON_SECRET` while preserving the existing `POST` dispatcher secured by `JOB_DISPATCH_SECRET`.
-- Declared the Vercel Cron schedule for `/api/jobs/dispatch` in `apps/web/vercel.json`.
+- Declared a Hobby-compatible Vercel Cron schedule for `/api/jobs/dispatch` in `apps/web/vercel.json`; production-grade minute dispatch still requires Vercel Pro or an external scheduler.
 - Added regression coverage for strict production runtime validation.
 
 Verification after the hardening and CI/CD pass:
@@ -51,7 +51,7 @@ Verification after the hardening and CI/CD pass:
 - GitHub `E2E Tests`: passing on the push/PR smoke gate.
 - Vercel production `/api/health`: passing and serving `dc061edd`.
 - Neon: no schema or migration action was required for this CI/CD stabilization.
-- Current roadmap implementation note: the scheduler and stricter checker are in code, but production completion still requires real Vercel secrets (`CRON_SECRET`, provider secrets, storage, backup retention, tenant hosts), an observed cron run, and restore-drill evidence.
+- Current roadmap implementation note: the scheduler route and stricter checker are in code, but production completion still requires real Vercel secrets (`CRON_SECRET`, provider secrets, storage, backup retention, tenant hosts), an observed cron run, a Pro/external minute-level scheduler decision, and restore-drill evidence.
 
 ## Definition of Production Ready
 
@@ -243,7 +243,7 @@ DIRECT_URL="postgresql://..." CONFIRM_RESTORE=school-sis pnpm backup:restore -- 
 
 | Gap | Why it matters | Done when |
 | --- | --- | --- |
-| Background job scheduler | Durable jobs exist, but a scheduler must call `/api/jobs/dispatch`. | Vercel Cron or external scheduler dispatches jobs every minute with `CRON_SECRET` for cron GETs or `JOB_DISPATCH_SECRET` for manual/external POSTs, and the first production dispatch is observed in logs. |
+| Background job scheduler | Durable jobs exist, but a scheduler must call `/api/jobs/dispatch`. | Vercel Pro Cron or an external scheduler dispatches jobs every minute with `CRON_SECRET` for cron GETs or `JOB_DISPATCH_SECRET` for manual/external POSTs, and the first production dispatch is observed in logs. The current Hobby-compatible daily cron is deploy-safe but not sufficient for production job latency. |
 | Job and notification dashboards | Dead letters and failed messages need operator visibility. | Operator/admin screens show queued, failed, locked, and dead-letter jobs plus notification outbox status. |
 | Per-tenant notification quotas and rate limits | Prevents noisy tenants or message loops from affecting everyone. | Quotas are enforced per tenant/channel with audit events and operator overrides. |
 | Provider delivery receipts | Outbound notifications need provider status reconciliation. | SMS, WhatsApp, email, and push receipt webhooks update `notification_delivery_events`. |
@@ -607,10 +607,10 @@ Artifact-specific rules:
 
 ## Suggested Execution Order
 
-Current status: the security-hardening changes are shipped, GitHub CI is green, the push/PR E2E smoke gate is green, and Vercel production is serving the latest verified baseline commit. The production runtime contract and Vercel Cron wiring have now been added in code; remaining launch work starts with configuring the real production secrets, observing the scheduler, and completing restore evidence.
+Current status: the security-hardening changes are shipped, GitHub CI is green, the push/PR E2E smoke gate is green, and Vercel production is serving the latest verified baseline commit. The production runtime contract and cron-compatible dispatcher wiring have now been added in code; remaining launch work starts with configuring the real production secrets, choosing Pro/external minute scheduling, observing the scheduler, and completing restore evidence.
 
 1. Configure real production env updates in Vercel and run strict runtime validation against those values.
-2. Confirm Vercel Cron dispatch: set `CRON_SECRET`, verify `/api/jobs/dispatch` cron logs, and keep manual/external POSTs on `JOB_DISPATCH_SECRET`.
+2. Confirm scheduler dispatch: set `CRON_SECRET`, choose Vercel Pro minute cron or an external scheduler for production latency, verify `/api/jobs/dispatch` logs, and keep manual/external POSTs on `JOB_DISPATCH_SECRET`.
 3. Complete CI/CD launch governance: required checks, branch protection, secret scanning, dependency review ownership, and release evidence.
 4. Tighten API/security boundaries: route-boundary tests, payment webhook fixtures, CSP plan, CSRF/origin controls, and WAF/rate-limit policy.
 5. Deepen database safety: RLS policy matrix, real Postgres tenant-isolation tests, least-privilege roles, migration drift detection, and destructive migration review.
@@ -631,8 +631,8 @@ Current status: the security-hardening changes are shipped, GitHub CI is green, 
 - [x] Security hardening committed and deployed.
 - [x] Production env contract expanded for production app URL, tenant hosts, payment secrets, required notification providers, cron, storage/CDN, backup retention, restore-drill warnings, agent readiness, and error-tracking gaps.
 - [ ] Strict infra check passing with real Vercel/Neon production secrets.
-- [x] Vercel Cron route declared for `/api/jobs/dispatch`.
-- [ ] `CRON_SECRET` configured in Vercel and first production cron dispatch observed.
+- [x] Vercel Cron route declared for `/api/jobs/dispatch` with a Hobby-compatible daily schedule.
+- [ ] `CRON_SECRET` configured in Vercel, Pro/external minute-level scheduler chosen, and first production dispatch observed.
 - [x] High-severity audit gate in CI.
 - [x] Push/PR E2E smoke gate stabilized and passing in GitHub Actions.
 - [x] Broad product roadmap execution tracks adopted.

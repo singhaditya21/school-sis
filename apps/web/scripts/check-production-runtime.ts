@@ -325,6 +325,12 @@ if (!appVercel) {
             if (!cron.schedule || typeof cron.schedule !== 'string') {
                 add('error', `Cron ${cron.path || '<missing path>'} must define a schedule string.`);
             }
+            if (cron.path === '/api/jobs/dispatch' && cron.schedule !== '* * * * *') {
+                add(
+                    'warning',
+                    'The /api/jobs/dispatch cron is not minute-level. Use Vercel Pro or an external scheduler for production-grade job dispatch.',
+                );
+            }
         }
     }
 }
