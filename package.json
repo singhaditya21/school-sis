@@ -44,5 +44,17 @@
     "prettier": "^3.2.0",
     "ts-jest": "^29.4.9",
     "turbo": "^2.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "minimatch": ">=9.0.7",
+      "flatted": ">=3.4.2",
+      "dompurify": ">=3.3.2",
+      "lodash": ">=4.17.23",
+      "jspdf": ">=4.2.1",
+      "jsonwebtoken": ">=9.0.2",
+      "picomatch": ">=4.0.4",
+      "next": ">=16.2.5"
+    }
   }
 }
