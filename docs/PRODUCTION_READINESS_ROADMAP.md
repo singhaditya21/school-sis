@@ -22,7 +22,7 @@ The remaining work is mostly production hardening, operational tooling, provider
 
 ## Recently Shipped And Current Track 1 Changes
 
-The prior security-hardening and CI/CD stabilization work has been committed, pushed, deployed, and smoke-tested in production. The verified production commit for that baseline is `dc061edd7ebbd520fc6dc04cc39cc89b72e503ac`.
+The prior security-hardening and CI/CD stabilization work has been committed, pushed, deployed, and smoke-tested in production. The verified production runtime evidence baseline is `cd7e6ef58240804f19edada448c940bebba96bb2`.
 
 - Added `jspdf >=4.2.1` override and lockfile updates.
 - Added tenant host/session validation in middleware, including tenant subdomain/custom-domain matching.
@@ -50,9 +50,9 @@ Verification after the hardening and CI/CD pass:
 - `pnpm test:architecture`: passing.
 - TypeScript check for `apps/web`: passing.
 - `pnpm audit --audit-level=high`: no high or critical findings; 7 low and 15 moderate findings remain.
-- GitHub `CI/CD Pipeline`: passing on `dc061edd`.
+- GitHub `CI/CD Pipeline`: passing on the verified production runtime baseline.
 - GitHub `E2E Tests`: passing on the push/PR smoke gate.
-- Vercel production `/api/health`: passing and serving `dc061edd`.
+- Vercel production `/api/health`: passing and serving verified baseline `cd7e6ef58240804f19edada448c940bebba96bb2` before this closure pass.
 - Neon: no schema or migration action was required for this CI/CD stabilization.
 - Current roadmap implementation note: platform-level Vercel production values are configured, but production completion still requires real payment, notification, and storage provider secrets, an observed scheduler run, a Vercel Pro or external minute-level scheduler implementation, and a full restore drill into a disposable restore target.
 
@@ -649,7 +649,7 @@ Current status: the security-hardening changes are shipped, GitHub CI is green, 
 - [ ] Route-boundary contract tests added.
 - [ ] Payment webhook fixture tests added.
 - [ ] Vercel Cron or external scheduler configured, deployed, and observed dispatching jobs.
-- [ ] Operator console UI started.
+- [x] Operator console UI started.
 - [ ] Job/dead-letter and notification dashboards available.
 - [ ] Alert routing configured.
 - [x] Schema-only backup/read-list readiness check completed with PostgreSQL 18 client tools.
@@ -657,10 +657,10 @@ Current status: the security-hardening changes are shipped, GitHub CI is green, 
 - [ ] Private agent service and worker deployed.
 - [ ] BI executor implemented.
 - [ ] Legacy mock/prototype paths retired or feature-flagged.
-- [ ] Generated `graphify-out` artifacts removed or relocated.
-- [ ] Duplicate audit snapshots consolidated under `audits/reports/`.
-- [ ] Root/package-manager lockfile policy cleaned up.
-- [ ] Generated backend `bin` output removed or justified.
+- [x] Generated `graphify-out` artifacts removed or relocated.
+- [x] Duplicate audit snapshots consolidated under `audits/reports/`.
+- [x] Root/package-manager lockfile policy cleaned up.
+- [x] Generated backend `bin` output removed or justified.
 - [ ] Stale roadmap/security docs updated, archived, or marked historical.
 - [ ] Launch smoke suite and runbooks completed.
 - [ ] CI/CD enforcement gates added: audit, required checks, secret scanning, branch protection, PR/release templates, and evidence capture.

@@ -117,6 +117,7 @@ export async function middleware(request: NextRequest) {
     const isParentRoute = pathname.startsWith('/parent') || pathname.startsWith('/overview');
     const isPlatformRoute = pathname.startsWith('/platform');
     const isTeacherRoute = pathname.startsWith('/teacher');
+    const isOperatorRoute = pathname.startsWith('/operator');
 
     if (isTeacherRoute) {
         const allowedRoles = ['PLATFORM_ADMIN', 'SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER'];
@@ -127,6 +128,13 @@ export async function middleware(request: NextRequest) {
 
     if (isPlatformRoute) {
         if (session.role !== 'PLATFORM_ADMIN') {
+            return NextResponse.redirect(new URL('/unauthorized', request.url));
+        }
+    }
+
+    if (isOperatorRoute) {
+        const operatorRoles = ['PLATFORM_ADMIN', 'SUPER_ADMIN', 'SCHOOL_ADMIN'];
+        if (!operatorRoles.includes(session.role)) {
             return NextResponse.redirect(new URL('/unauthorized', request.url));
         }
     }

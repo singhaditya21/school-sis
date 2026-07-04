@@ -32,6 +32,20 @@ pnpm-debug.log*
 lerna-debug.log*
 debug_url.txt
 pnpm-audit-high.json
+apps/web/pnpm_audit.json
+apps/web/test-query.cjs
+apps/web/test-schema.cjs
+
+# Generated repository analysis artifacts
+graphify-out/
+**/graphify-out/
+
+# Build output that is regenerated from source
+backend/app/bin/
+
+# Package manager policy
+package-lock.json
+apps/**/package-lock.json
 
 # Local env files
 .env*
