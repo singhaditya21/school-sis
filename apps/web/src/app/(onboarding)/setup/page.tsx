@@ -130,7 +130,7 @@ export default function SetupWorkspacePage() {
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <Lock className="h-5 w-5 text-slate-400" />
                                         </div>
-                                        <Input required type="password" name="password" className="pl-10 h-11" placeholder="••••••••" minLength={8} />
+                                        <Input required type="password" name="password" className="pl-10 h-11" placeholder="Minimum 12 characters" minLength={12} />
                                     </div>
                                 </div>
                             </div>
@@ -155,7 +155,7 @@ export default function SetupWorkspacePage() {
                     </CardContent>
                 </Card>
                 <p className="mt-8 text-center text-sm text-slate-500 max-w-sm mx-auto">
-                    By proceeding, you agree to ScholarMind's Terms of Service and DPDPA/GDPR Data Processing Addendum.
+                    By proceeding, you agree to ScholarMind's Terms of Service and Data Processing Addendum.
                 </p>
             </div>
         </div>

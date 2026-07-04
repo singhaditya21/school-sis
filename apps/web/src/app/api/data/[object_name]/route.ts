@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
-import { requireApiAuth } from '@/lib/auth/api';
+import { requireApiPermission } from '@/lib/auth/api';
 import { readTenantScopedJson, stripTenantFields } from '@/lib/tenant/isolation';
 import {
   assertSafeMetadataIdentifier,
@@ -9,10 +9,68 @@ import {
   type MetadataDataType,
   type RuntimeMetadataField,
 } from '@/lib/metadata/platform';
+import {
+  checkWritableMetadataPayload,
+  filterReadableMetadataFields,
+  type RuntimeMetadataFieldWithPermissions,
+} from '@/lib/metadata/access-control';
 
 type RouteContext = {
   params: Promise<{ object_name: string }>;
 };
+
+async function fetchMetadataObject(objectName: string, tenantId: string) {
+  return pool.query<{ id: string }>(
+    `SELECT id
+     FROM metadata_objects
+     WHERE api_name = $1
+       AND status = 'PUBLISHED'
+       AND (
+         tenant_id = $2
+         OR (tenant_id IS NULL AND COALESCE(is_custom, false) = false)
+       )
+     ORDER BY CASE WHEN tenant_id = $2 THEN 0 ELSE 1 END, created_at DESC
+     LIMIT 1`,
+    [objectName, tenantId],
+  );
+}
+
+async function fetchMetadataFields(objectId: string): Promise<RuntimeMetadataFieldWithPermissions[]> {
+  const { rows } = await pool.query(
+    `SELECT f.id,
+            f.label,
+            f.api_name as "apiName",
+            f.data_type as "dataType",
+            f.is_required as "isRequired",
+            f.picklist_options as "picklistOptions",
+            f.validation_rules as "validationRules",
+            COALESCE(
+              jsonb_agg(
+                jsonb_build_object(
+                  'role', fp.role,
+                  'canRead', COALESCE(fp.can_read, true),
+                  'canWrite', COALESCE(fp.can_write, false)
+                )
+              ) FILTER (WHERE fp.id IS NOT NULL),
+              '[]'::jsonb
+            ) as permissions
+     FROM metadata_fields f
+     LEFT JOIN field_permissions fp ON fp.field_id = f.id
+     WHERE f.object_id = $1
+       AND f.status = 'ACTIVE'
+     GROUP BY f.id,
+              f.label,
+              f.api_name,
+              f.data_type,
+              f.is_required,
+              f.picklist_options,
+              f.validation_rules,
+              f.created_at
+     ORDER BY f.created_at ASC`,
+    [objectId],
+  );
+  return rows as RuntimeMetadataFieldWithPermissions[];
+}
 
 /**
  * Core Data Router for the No-Code Engine.
@@ -23,32 +81,27 @@ export async function GET(
   { params }: RouteContext
 ) {
   try {
-    const auth = await requireApiAuth();
+    const auth = await requireApiPermission('metadata:read');
     if (auth.ok === false) return auth.response;
 
     const { object_name: objectName } = await params;
     const tenantId = auth.context.tenantId;
     assertSafeMetadataIdentifier(objectName, 'object API name');
 
-    // 1. Validate the object exists for this tenant
-    const objRes = await pool.query(
-      `SELECT id
-       FROM metadata_objects
-       WHERE api_name = $1
-         AND status = 'PUBLISHED'
-         AND (
-           tenant_id = $2
-           OR (tenant_id IS NULL AND COALESCE(is_custom, false) = false)
-         )
-       ORDER BY CASE WHEN tenant_id = $2 THEN 0 ELSE 1 END, created_at DESC
-       LIMIT 1`,
-      [objectName, tenantId]
-    );
+    const objRes = await fetchMetadataObject(objectName, tenantId);
 
     if (objRes.rowCount === 0) {
       return NextResponse.json({ error: `Object '${objectName}' not found.` }, { status: 404 });
     }
     const objectId = objRes.rows[0].id;
+    const readableFields = filterReadableMetadataFields(
+      await fetchMetadataFields(objectId),
+      auth.context.role,
+    );
+
+    if (readableFields.length === 0) {
+      return NextResponse.json({ data: [] });
+    }
 
     // 2. Fetch all records and their EAV values for this object
     const recordsRes = await pool.query(
@@ -58,8 +111,9 @@ export async function GET(
        JOIN metadata_fields f ON v.field_id = f.id
        WHERE r.object_id = $1
          AND r.tenant_id = $2
-         AND f.status = 'ACTIVE'`,
-      [objectId, tenantId]
+         AND f.status = 'ACTIVE'
+         AND f.id = ANY($3::uuid[])`,
+      [objectId, tenantId, readableFields.map((field) => field.id)]
     );
 
     // Group EAV rows into clean JSON objects
@@ -93,7 +147,7 @@ export async function POST(
   { params }: RouteContext
 ) {
   try {
-    const auth = await requireApiAuth();
+    const auth = await requireApiPermission('metadata:create');
     if (auth.ok === false) return auth.response;
 
     const { object_name: objectName } = await params;
@@ -103,41 +157,25 @@ export async function POST(
     if (json.ok === false) return json.response;
     const body = stripTenantFields(json.data);
 
-    // 1. Validate object
-    const objRes = await pool.query(
-      `SELECT id
-       FROM metadata_objects
-       WHERE api_name = $1
-         AND status = 'PUBLISHED'
-         AND (
-           tenant_id = $2
-           OR (tenant_id IS NULL AND COALESCE(is_custom, false) = false)
-         )
-       ORDER BY CASE WHEN tenant_id = $2 THEN 0 ELSE 1 END, created_at DESC
-       LIMIT 1`,
-      [objectName, tenantId]
-    );
+    const objRes = await fetchMetadataObject(objectName, tenantId);
 
     if (objRes.rowCount === 0) {
       return NextResponse.json({ error: `Object '${objectName}' not found.` }, { status: 404 });
     }
     const objectId = objRes.rows[0].id;
 
-    const { rows: fieldRows } = await pool.query(
-      `SELECT id,
-              label,
-              api_name as "apiName",
-              data_type as "dataType",
-              is_required as "isRequired",
-              picklist_options as "picklistOptions",
-              validation_rules as "validationRules"
-       FROM metadata_fields
-       WHERE object_id = $1
-         AND status = 'ACTIVE'
-       ORDER BY created_at ASC`,
-      [objectId],
-    );
-    const fields = fieldRows as RuntimeMetadataField[];
+    const fields = await fetchMetadataFields(objectId);
+    const writeAccess = checkWritableMetadataPayload(fields, auth.context.role, body);
+    if (writeAccess.ok === false) {
+      return NextResponse.json({
+        error: 'Forbidden',
+        details: {
+          deniedFields: writeAccess.deniedFields,
+          blockedRequiredFields: writeAccess.blockedRequiredFields,
+        },
+      }, { status: 403 });
+    }
+
     const validated = validateMetadataRecordPayload(fields, body, { requireAll: true });
     if (validated.ok === false) {
       return NextResponse.json({ error: 'Validation failed', details: validated.errors }, { status: 400 });

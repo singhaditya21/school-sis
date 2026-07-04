@@ -31,7 +31,7 @@ export const PARENT_PAGE_ROLES = ['PARENT'] as const;
 export const STUDENT_PAGE_ROLES = ['STUDENT'] as const;
 export const OPERATOR_PAGE_ROLES = ['PLATFORM_ADMIN', 'SUPER_ADMIN', 'SCHOOL_ADMIN'] as const;
 
-export const PUBLIC_PAGE_PREFIXES = ['/', '/login'] as const;
+export const PUBLIC_PAGE_PREFIXES = ['/', '/login', '/register', '/setup'] as const;
 
 const ADMIN_PAGE_PREFIXES = [
     '/admissions',
@@ -146,7 +146,7 @@ export const PAGE_ACCESS_POLICIES = [
     },
     {
         name: 'authenticated-support',
-        prefixes: ['/unauthorized', '/upgrade', '/register', '/setup'],
+        prefixes: ['/unauthorized', '/upgrade'],
         level: 'authenticated',
     },
 ] as const satisfies readonly PageAccessPolicy[];

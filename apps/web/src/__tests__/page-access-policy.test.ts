@@ -41,6 +41,8 @@ describe('page access policy', () => {
     it('keeps only explicitly public pages public', () => {
         expect(isPublicPageRoute('/')).toBe(true);
         expect(isPublicPageRoute('/login')).toBe(true);
+        expect(isPublicPageRoute('/register')).toBe(true);
+        expect(isPublicPageRoute('/setup')).toBe(true);
         expect(isPublicPageRoute('/admissions')).toBe(false);
         expect(isPublicPageRoute('/overview')).toBe(false);
         expect(isPublicPageRoute('/student')).toBe(false);
