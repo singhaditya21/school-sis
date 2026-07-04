@@ -1,22 +1,24 @@
 import React from 'react';
 import { pool } from '@/lib/db';
 import { Plus, Database, Columns, Filter, MoreHorizontal, Save } from 'lucide-react';
-
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth/next-auth";
 import { redirect } from "next/navigation";
+import { getSession } from '@/lib/auth/session';
+import { isTenantStaffRole } from '@/lib/auth/page-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function MetadataEnginePage() {
-  const session = await getServerSession(authOptions);
-  
-  if (!session || !session.user) {
-    redirect('/api/auth/signin');
+  const session = await getSession();
+
+  if (!session.isLoggedIn) {
+    redirect('/login');
   }
 
-  // @ts-ignore
-  const tenantId = session.user.tenantId;
+  if (!isTenantStaffRole(session.role) || !session.tenantId) {
+    redirect('/unauthorized');
+  }
+
+  const tenantId = session.tenantId;
 
   // Fetch all custom objects for this school
   let objects = [];

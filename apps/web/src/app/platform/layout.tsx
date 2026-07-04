@@ -1,10 +1,21 @@
-'use client';
-
 import Link from 'next/link';
 import { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
 import { logoutAction } from '@/lib/actions/auth';
+import { getSession } from '@/lib/auth/session';
+import { isPlatformRole } from '@/lib/auth/page-access';
 
-export default function PlatformLayout({ children }: { children: ReactNode }) {
+export default async function PlatformLayout({ children }: { children: ReactNode }) {
+    const session = await getSession();
+
+    if (!session.isLoggedIn) {
+        redirect('/login');
+    }
+
+    if (!isPlatformRole(session.role)) {
+        redirect('/unauthorized');
+    }
+
     return (
         <div className="min-h-screen bg-slate-50 flex">
             {/* Sidebar */}
@@ -49,15 +60,17 @@ export default function PlatformLayout({ children }: { children: ReactNode }) {
                     </div>
                     <div className="flex items-center gap-6">
                         <div className="flex flex-col items-end">
-                            <span className="text-sm font-semibold text-slate-900">SaaS Founder</span>
+                            <span className="text-sm font-semibold text-slate-900">{session.email}</span>
                             <span className="text-xs text-slate-500">Platform Super Admin</span>
                         </div>
-                        <button 
-                            onClick={async () => { await logoutAction() }}
-                            className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"
-                        >
-                            Log Out
-                        </button>
+                        <form action={logoutAction}>
+                            <button
+                                type="submit"
+                                className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"
+                            >
+                                Log Out
+                            </button>
+                        </form>
                     </div>
                 </header>
                 <div className="p-10">

@@ -1,23 +1,25 @@
 import React from 'react';
 import { pool } from '@/lib/db';
 import { Search, Plus, Filter, MoreVertical } from 'lucide-react';
-
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth/next-auth";
 import { redirect } from "next/navigation";
+import { getSession } from '@/lib/auth/session';
+import { isTenantStaffRole } from '@/lib/auth/page-access';
 
 // Force dynamic rendering since we are fetching from the live database
 export const dynamic = 'force-dynamic';
 
 export default async function StudentDirectoryPage() {
-  const session = await getServerSession(authOptions);
-  
-  if (!session || !session.user) {
-    redirect('/api/auth/signin');
+  const session = await getSession();
+
+  if (!session.isLoggedIn) {
+    redirect('/login');
   }
 
-  // @ts-ignore
-  const tenantId = session.user.tenantId;
+  if (!isTenantStaffRole(session.role) || !session.tenantId) {
+    redirect('/unauthorized');
+  }
+
+  const tenantId = session.tenantId;
 
   let students = [];
   try {

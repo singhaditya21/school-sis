@@ -8,25 +8,32 @@ import {
   GraduationCap
 } from 'lucide-react';
 
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth/next-auth";
 import { pool } from "@/lib/db";
+import { getSession } from '@/lib/auth/session';
+import { isTenantStaffRole } from '@/lib/auth/page-access';
+import { redirect } from 'next/navigation';
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   let schoolName = "Springfield High School";
 
-  if (session && session.user) {
-    // @ts-ignore
-    const tenantId = session.user.tenantId;
+  if (!session.isLoggedIn) {
+    redirect('/login');
+  }
+
+  if (!isTenantStaffRole(session.role)) {
+    redirect('/unauthorized');
+  }
+
+  if (session.tenantId) {
     try {
       const res = await pool.query(
         "SELECT name FROM tenants WHERE id = $1 LIMIT 1",
-        [tenantId]
+        [session.tenantId]
       );
       if (res.rowCount > 0) {
         schoolName = res.rows[0].name;

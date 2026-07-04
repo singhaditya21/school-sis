@@ -7,9 +7,12 @@ import {
     sessionOptions,
     type SessionData,
 } from './lib/auth/session-options';
+import {
+    getPageAccessPolicy,
+    isPublicPageRoute,
+    isRoleAllowedForPage,
+} from './lib/auth/page-access';
 
-// Public routes that don't require authentication
-const PUBLIC_ROUTES = ['/login', '/'];
 const MFA_REQUIRED_ROLES = new Set<string>(MFA_REQUIRED_ROLE_NAMES);
 const RESERVED_TENANT_HOSTS = new Set(['localhost', '127.0.0.1', '::1', 'www']);
 
@@ -78,7 +81,7 @@ export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // Allow public routes
-    if (PUBLIC_ROUTES.includes(pathname)) {
+    if (isPublicPageRoute(pathname)) {
         return NextResponse.next();
     }
 
@@ -112,44 +115,9 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/unauthorized', request.url));
     }
 
-    // Role-based route protection
-    const isAdminRoute = pathname.startsWith('/admin') || pathname.startsWith('/dashboard') || pathname.startsWith('/hq');
-    const isParentRoute = pathname.startsWith('/parent') || pathname.startsWith('/overview');
-    const isPlatformRoute = pathname.startsWith('/platform');
-    const isTeacherRoute = pathname.startsWith('/teacher');
-    const isOperatorRoute = pathname.startsWith('/operator');
-
-    if (isTeacherRoute) {
-        const allowedRoles = ['PLATFORM_ADMIN', 'SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER'];
-        if (!allowedRoles.includes(session.role)) {
-            return NextResponse.redirect(new URL('/unauthorized', request.url));
-        }
-    }
-
-    if (isPlatformRoute) {
-        if (session.role !== 'PLATFORM_ADMIN') {
-            return NextResponse.redirect(new URL('/unauthorized', request.url));
-        }
-    }
-
-    if (isOperatorRoute) {
-        const operatorRoles = ['PLATFORM_ADMIN', 'SUPER_ADMIN', 'SCHOOL_ADMIN'];
-        if (!operatorRoles.includes(session.role)) {
-            return NextResponse.redirect(new URL('/unauthorized', request.url));
-        }
-    }
-
-    if (isAdminRoute) {
-        const adminRoles = ['PLATFORM_ADMIN', 'SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'ACCOUNTANT', 'ADMISSION_COUNSELOR', 'TEACHER', 'TRANSPORT_MANAGER'];
-        if (!adminRoles.includes(session.role)) {
-            return NextResponse.redirect(new URL('/unauthorized', request.url));
-        }
-    }
-
-    if (isParentRoute) {
-        if (session.role !== 'PARENT') {
-            return NextResponse.redirect(new URL('/unauthorized', request.url));
-        }
+    const pagePolicy = getPageAccessPolicy(pathname);
+    if (!isRoleAllowedForPage(session.role, pagePolicy)) {
+        return NextResponse.redirect(new URL('/unauthorized', request.url));
     }
 
     // ─── SaaS Paywall & Feature Flagging (Phase 5) ─────────────

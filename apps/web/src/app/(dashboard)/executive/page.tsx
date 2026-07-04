@@ -1,15 +1,25 @@
 import React from 'react';
 import { Card, Metric, Text, Flex, Grid, Title, BarChart, BadgeDelta, Color } from '@tremor/react';
 import { getExecutiveFinancialMetrics } from '../../../lib/actions/executive-analytics';
+import { getSession } from '@/lib/auth/session';
+import { isTenantStaffRole } from '@/lib/auth/page-access';
+import { redirect } from 'next/navigation';
 
 // This is the "God-Mode" Executive Dashboard tailored for the School Principal / Board.
 
 export default async function ExecutiveDashboardPage() {
-  // Hardcoding a mock tenantId for now. In production, this comes from the authenticated session.
-  const mockTenantId = '00000000-0000-0000-0000-000000000000'; 
-  
+  const session = await getSession();
+
+  if (!session.isLoggedIn) {
+    redirect('/login');
+  }
+
+  if (!isTenantStaffRole(session.role) || !session.tenantId) {
+    redirect('/unauthorized');
+  }
+
   // We fetch the highly optimized raw SQL aggregations from our server action
-  const metrics = await getExecutiveFinancialMetrics(mockTenantId);
+  const metrics = await getExecutiveFinancialMetrics(session.tenantId);
 
   // Formatting utilities
   const formatCurrency = (amount: number) => `$${(amount / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
