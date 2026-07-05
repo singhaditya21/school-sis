@@ -13,9 +13,9 @@
     "pg": "^8.22.0"
   },
   "dependencies": {
-    "zod": "^3.25.76",
+    "zod": "^4.4.3",
     "firebase-admin": "^14.1.0",
     "jspdf": "^4.2.1",
-    "stripe": "^20.4.1"
+    "stripe": "^22.3.0"
   }
 }
