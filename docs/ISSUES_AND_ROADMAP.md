@@ -1,303 +1,131 @@
-# ScholarMind V6 — Issues & Roadmap
+# School SIS — Issues & Roadmap
 
-> **Document Version**: 1.0.0  
-> **Last Audited**: 2026-04-26  
-> **Auditor**: Code Audit Agent  
-> **Scope**: Full-stack audit of `apps/web` (Next.js), `services/agents` (Python), infrastructure, dependencies, and security posture.
+> **Document version**: 2.0.0
+> **Last updated**: 2026-07-17
+> **Source of truth**: [`audits/reports/2026-07-04-full-application-audit.md`](../audits/reports/2026-07-04-full-application-audit.md), re-verified against the current `main` on 2026-07-17.
+> **Hosting**: App on **Vercel**, database on **Neon**.
+> **Supersedes**: v1.0.0 (2026-04-26) dependency/security audit — its still-open items are folded into the security, hygiene, and testing issues below.
 
----
+This roadmap is the human-readable index over the live GitHub issues. Every item below links to a tracked issue with re-verified evidence and residual done-criteria. Issues are grouped into three milestones by launch priority.
 
-## A. Executive Summary
+## Executive summary
 
-| Category | Count | Severity |
-|----------|-------|----------|
-| Security Vulnerabilities (Dependencies) | 8 | 1 Critical, 4 High, 3 Medium |
-| Security Gaps (Code-Level) | 6 | Medium |
-| Unimplemented / Mock Features | 18 | Low–Medium |
-| TODO / FIXME Comments | 9 | Low |
-| API Routes Missing Auth | 7 | High |
-| Performance Risks | 4 | Medium |
-| Test Coverage | ~1.3% (5 test files / 372+ source files) | Critical |
-| Documentation Drift | 3 | Low |
+The platform has crossed the prototype line for most of the web app: core builds and CI are green, payment architecture (idempotency, invoice ownership, webhooks, row-locking) is strong, and many security primitives exist. **Access control (audit P0 #1) is now closed** — a single centralized page/API permission matrix, real-URL middleware, restored student guard, NextAuth removal, and route-inventory/wrong-role tests all landed in commits `5880d317` and `96b4553f`.
 
-**Overall Health Score**: 🟡 **6.5 / 10** — Functional core with strong architecture, but significant security debt, near-zero test coverage, and heavy reliance on mock data outside the fee module.
+It is **not yet ready for a full production launch with real schools**. The fastest credible path is to close the remaining Phase 0 launch blockers (mock/demo ambiguity, operational HTTP endpoints, dynamic-data audit logging, and real Vercel/Neon runtime evidence), then Phase 1 hardening, then Phase 2 scale work.
 
----
+| Milestone | Focus | Open items |
+|---|---|---:|
+| [Phase 0 — Launch Blockers (P0)](https://github.com/singhaditya21/school-sis/milestone/1) | Must fix before any production launch | 4 |
+| [Phase 1 — Production Hardening (P1)](https://github.com/singhaditya21/school-sis/milestone/2) | Security/reliability/provider evidence at launch | 10 |
+| [Phase 2 — Quality, Maintainability & Scale (P2)](https://github.com/singhaditya21/school-sis/milestone/3) | Debt reduction & scale readiness | 5 |
 
-## B. Security Issues
+**Totals**: 10 open · 9 in progress · 1 verified done · 19 tracked issues.
 
-### B.1 Dependency Vulnerabilities (CVEs)
-
-| Package | CVE / Advisory | Severity | Installed | Fixed In | Status |
-|---------|---------------|----------|-----------|----------|--------|
-| **jsPDF** | CVE-2026-31938 | **CRITICAL** | 4.0.0–4.2.0 | ≥4.2.1 | 🔴 Unpatched in pnpm-lock |
-| jsPDF | CVE-2026-31898 | **HIGH** | 4.0.0–4.2.0 | ≥4.2.1 | 🔴 Unpatched |
-| jsPDF | CVE-2026-24133 | **HIGH** | 4.0.0 | ≥4.1.0 | 🔴 Unpatched |
-| jsPDF | CVE-2026-24737 | **HIGH** | 4.0.0 | ≥4.1.0 | 🔴 Unpatched |
-| jsPDF | CVE-2026-25535 | **HIGH** | 4.0.0 | ≥4.2.0 | 🔴 Unpatched |
-| jsPDF | CVE-2026-25755 | **HIGH** | 4.0.0 | ≥4.1.0 | 🔴 Unpatched |
-| jsPDF | CVE-2026-25940 | **HIGH** | 4.0.0 | ≥4.1.0 | 🔴 Unpatched |
-| **Next.js** | GHSA-h25m-26qc-wcjf | **HIGH** | 15.5.9–15.5.12 | ≥15.5.10 / ≥16.1.5 | 🟡 Partially mitigated by pnpm override |
-| Next.js | CVE-2026-27980 | MEDIUM | 15.5.12 | ≥16.1.7 | 🟡 Override exists but version is edge |
-| Next.js | CVE-2026-29057 | MEDIUM | 15.5.12 | ≥15.5.13 / ≥16.1.7 | 🟡 Same as above |
-| **lodash** | CVE-2025-13465 | MEDIUM | 4.17.21 | ≥4.17.23 | 🟢 Override declared in root package.json |
-| **DOMPurify** | CVE-2026-0540 | MEDIUM | 3.3.1 | ≥3.3.2 | 🟢 Override declared |
-| **flatted** | GHSA-25h7-pfq9-p65f | **HIGH** | ≤3.4.1 | ≥3.4.2 | 🟢 Override declared |
-| **minimatch** | GHSA-3ppc-4f35-3m26 | **HIGH** | 9.0.0–9.0.6 | ≥9.0.7 | 🟢 Override declared |
-
-**Root Cause**: `pnpm-lock.yaml` still resolves old versions of jsPDF (4.0.0) while `apps/web/package.json` lists `jspdf: ^4.2.1`. The root `package.json` has `pnpm.overrides` for some packages but **jsPDF is missing from overrides**.
-
-**Fix**: Add `jspdf: ">=4.2.1"` to `pnpm.overrides` in root `package.json`, run `pnpm install`, verify with `pnpm audit` and `trivy`.
-
-### B.2 Code-Level Security Gaps
-
-| # | Issue | File | Line | Risk | Fix |
-|---|-------|------|------|------|-----|
-| 1 | **Hardcoded bcrypt hashes** | `backend/app/bin/main/db/migration/V1__initial_schema.sql` | 194, 208 | Credential leak in source | Rotate hashes, move to env-seeded seed script |
-| 2 | **Hardcoded bcrypt hashes** | `backend/app/src/main/resources/db/migration/V1__initial_schema.sql` | 194, 208 | Credential leak in source | Same as above |
-| 3 | **Log forging / injection** | `apps/web/src/lib/actions/webhooks.ts` | ~103 | Attacker-controlled format strings in logs | Use structured logging (`console.log({event, data})`) |
-| 4 | **Log forging / injection** | `apps/web/src/lib/services/jobs.ts` | ~58 | Same as above | Same as above |
-| 5 | **API routes without auth** | `apps/web/src/app/api/attendance/route.ts` | — | Data exposure | Add `getSession()` + tenant check |
-| 6 | **API routes without auth** | `apps/web/src/app/api/leads/route.ts` | — | Data exposure | Add `getSession()` + tenant check |
-| 7 | **API routes without auth** | `apps/web/src/app/api/mock/route.ts` | — | Data exposure + seed data risk | Restrict to dev or add auth |
-| 8 | **API routes without auth** | `apps/web/src/app/api/fee-plans/route.ts` | — | Data exposure | Add `getSession()` + tenant check |
-| 9 | **API routes without auth** | `apps/web/src/app/api/exams/route.ts` | — | Data exposure | Add `getSession()` + tenant check |
-| 10 | **API routes without auth** | `apps/web/src/app/api/payments/webhook/route.ts` | — | Webhook spoofing | Add Stripe/Razorpay signature verification |
-| 11 | **API routes without auth** | `apps/web/src/app/api/webhooks/stripe/route.ts` | — | Webhook spoofing | Add Stripe signature verification |
-| 12 | **Tenant validation missing** | `apps/web/src/middleware.ts` | 34 | Subdomain bypass | Implement DB-backed tenant validation |
-
-**Note on Prior Reports**: The `SECURITY_REPORT.md` flagged GCM auth tag issues and path traversal. Current code review shows these have been **patched**:
-- `encryption.ts` now validates `authTag.length === 16` before decryption.
-- `storage.ts` now has robust `validateObjectKey()` with path traversal guards, null-byte rejection, and tenant scoping.
-
-### B.3 Infrastructure & Secrets
-
-| Item | Status | Recommendation |
-|------|--------|----------------|
-| `.env.example` | ✅ Present | Good template with clear warnings |
-| `SESSION_SECRET` enforcement | ✅ Implemented | Throws at runtime if < 32 chars |
-| `ENCRYPTION_KEY` fallback | ⚠️ Weak | Falls back to empty string + SHA256 hash; should hard-fail in production |
-| Docker `read_only` | ✅ Fixed | Applied to postgres and redis |
-| Docker `no-new-privileges` | ✅ Fixed | Applied to both services |
-| Secrets in CI | ✅ Secure | Uses `secrets.XXX` or dummy vars for build |
+**Status legend**: 🔴 Open · 🟡 In progress (partially addressed) · 🟢 Done (verified).
 
 ---
 
-## C. Code Quality Issues
+## Phase 0 — Launch blockers (P0) · [milestone](https://github.com/singhaditya21/school-sis/milestone/1)
 
-### C.1 TODO / FIXME Inventory
+These block production go-live. Target: close first.
 
-| File | Line | Comment | Priority |
-|------|------|---------|----------|
-| `middleware.ts` | 34 | `// TODO: Implement tenant validation logic` | **High** |
-| `api/payments/orders/route.ts` | 17 | `// TODO: Replace with actual Razorpay order creation` | **High** |
-| `api/payments/verify/route.ts` | 80 | `// TODO: Update invoice status in database (Phase 3 — mock removal)` | **High** |
-| `lib/services/jobs.ts` | 99 | `// TODO: Integrate with Gupshup/Msg91` | Medium |
-| `lib/services/jobs.ts` | 106 | `// TODO: Integrate with Resend/SendGrid/Nodemailer` | Medium |
-| `lib/services/jobs.ts` | 113 | `// TODO: Integrate with Gupshup WhatsApp Business API` | Medium |
-| `(admin)/settings/grading/page.tsx` | 50 | `// TODO: Replace with actual API call` | Low |
-| `(admin)/settings/roles/page.tsx` | 113 | `// TODO: Call API to save role permissions` | Low |
-| `(admin)/dashboard/page.tsx` | 40 | `// TODO: implement consent tracking` | Low |
+| Issue | Title | Status | Areas |
+|---|---|---|---|
+| [#16](https://github.com/singhaditya21/school-sis/issues/16) | Add audit logging for dynamic metadata data-API reads and writes | 🟡 In progress | `access-control`, `data-engine`, `observability` |
+| [#17](https://github.com/singhaditya21/school-sis/issues/17) | Remove or hard-isolate mock/demo/fixture surfaces from runtime integration code | 🔴 Open | `integrations`, `security`, `notifications` |
+| [#18](https://github.com/singhaditya21/school-sis/issues/18) | Capture strict production runtime evidence and add a strict infra release gate | 🟡 In progress | `infra`, `observability`, `database` |
+| [#19](https://github.com/singhaditya21/school-sis/issues/19) | Remove operational HTTP endpoints /api/force-migrate and /api/seed or make them local-only | 🔴 Open | `security`, `infra`, `database` |
 
-### C.2 Mock Data & Unimplemented UI
+## Phase 1 — Production hardening (P1) · [milestone](https://github.com/singhaditya21/school-sis/milestone/2)
 
-The following pages rely entirely on inline mock data and will not reflect real database state:
+Required at or immediately around launch.
 
-| Page | File | Mock Type |
-|------|------|-----------|
-| Health / Medical | `(admin)/health/page.tsx` | `MOCK_INCIDENTS` array |
-| Homework | `(admin)/homework/page.tsx` | `MOCK_ASSIGNMENTS` array |
-| DigiLocker | `(admin)/digilocker/page.tsx` | `mockDigiLockerDocuments` + fake push function |
-| Quiz Attempt | `(admin)/quiz/[id]/attempt/page.tsx` | Inline `mockQuiz` object |
-| Quiz Results | `(admin)/quiz/[id]/results/page.tsx` | Inline `mockQuiz` object |
-| Message Tracking | `(admin)/messages/tracking/page.tsx` | `generateMockMessages()` function |
-| ID Cards | `(admin)/id-cards/page.tsx` | Inline mock types |
-| Admissions | `(admin)/admissions/page.tsx` | Hardcoded student name/score |
-| Exams Verification | `(admin)/exams/verification/page.tsx` | `// Mock data` comment |
-| Fee Alerts | `(admin)/fees/alerts/page.tsx` | `// Mock data` comment |
-| Fee Plan Edit | `(admin)/fees/plans/[id]/edit/page.tsx` | `// Mock fetch plan data` |
-| Coaching Batches | `(admin)/coaching/components/CreateBatchForm.tsx` | Injected mock `tenantId` via `uuidv4()` |
-| Teacher Welfare | `teacher/students/[id]/welfare/page.tsx` | Mock student ID generation |
-| Teacher Profile | `teacher/profile/page.tsx` | Mock teacher profile data |
-| HQ Settings | `hq/settings/client-page.tsx` | `// Mock save` comment |
-| Upload API | `api/upload/route.ts` | Returns fake URL/key when storage is unconfigured |
+| Issue | Title | Status | Areas |
+|---|---|---|---|
+| [#20](https://github.com/singhaditya21/school-sis/issues/20) | Tighten Content-Security-Policy: remove script-src unsafe-inline/unsafe-eval | 🔴 Open | `security`, `frontend`, `payments` |
+| [#21](https://github.com/singhaditya21/school-sis/issues/21) | Make the mobile app production-ready (real auth, secure payment context) or gate it | 🟡 In progress | `mobile`, `payments`, `security` |
+| [#22](https://github.com/singhaditya21/school-sis/issues/22) | Remove or reconcile legacy payment create-order route forwarding to localhost:8080 Java backend | 🔴 Open | `payments`, `integrations`, `security` |
+| [#23](https://github.com/singhaditya21/school-sis/issues/23) | Decide the Go gateway: secure it as a real edge or remove it from production | 🔴 Open | `services`, `security`, `rate-limiting` |
+| [#24](https://github.com/singhaditya21/school-sis/issues/24) | Remove the unused legacy R2 storage adapter that uploads via unsigned raw fetch | 🔴 Open | `storage`, `security` |
+| [#25](https://github.com/singhaditya21/school-sis/issues/25) | Provide notification provider evidence or disable unsupported channels (WhatsApp/push mock; no delivery-receipt ingestion) | 🟡 In progress | `notifications`, `integrations`, `observability` |
+| [#26](https://github.com/singhaditya21/school-sis/issues/26) | Formalize RLS/database security: policy matrix, real Postgres isolation tests, bypass review, verify-full SSL, migration gates | 🟡 In progress | `database`, `security`, `testing` |
+| [#27](https://github.com/singhaditya21/school-sis/issues/27) | Stop tracking generated/session artifacts (.agents/**, *.tsbuildinfo, build.log, server.log) | 🔴 Open | `hygiene`, `devex` |
+| [#28](https://github.com/singhaditya21/school-sis/issues/28) | Add AI eval suites, per-tenant token/cost budgets, model fallback, and red-team tests for agent/copilot | 🟡 In progress | `ai`, `testing`, `rate-limiting` |
+| [#29](https://github.com/singhaditya21/school-sis/issues/29) | Make rate limiting fail closed (or degrade stricter) on backend outage for public/AI endpoints | 🔴 Open | `rate-limiting`, `security`, `services` |
 
-### C.3 Error Handling & Reliability
+## Phase 2 — Quality, maintainability & scale (P2) · [milestone](https://github.com/singhaditya21/school-sis/milestone/3)
 
-| Issue | Location | Impact |
-|-------|----------|--------|
-| `after()` from `next/server` used for background jobs without retry logic | `jobs.ts` | Jobs can fail silently across serverless lifecycle boundaries |
-| No BullMQ fallback activation | `jobs.ts` | Production runs sync-only; no queue durability |
-| Payment verify returns success but does **not** update invoice record | `api/payments/verify/route.ts` | Payment appears successful but invoice stays unpaid in DB |
-| Razorpay order creation is fully mocked | `api/payments/orders/route.ts` | No real payment initiation possible |
-| Stripe webhook has no signature verification | `api/webhooks/stripe/route.ts` | Forgeable webhook events |
-| Razorpay webhook has no signature verification | `api/payments/webhook/route.ts` | Forgeable webhook events |
+Debt reduction and scale-readiness; parallelizable with pilot operations.
 
-### C.4 Type Safety & Build
-
-| Item | Status |
-|------|--------|
-| TypeScript strict mode | ✅ Enabled in `drizzle.config.ts` |
-| `tsc --noEmit` in CI | ✅ Enabled |
-| ESLint in CI | ✅ Enabled |
-| Jest unit tests | ⚠️ Only 5 test files for 372+ source files |
-| Playwright E2E | ✅ Configured but likely minimal coverage |
-| Prisma references in scripts | ✅ Resolved | Root scripts now route through Drizzle commands |
+| Issue | Title | Status | Areas |
+|---|---|---|---|
+| [#30](https://github.com/singhaditya21/school-sis/issues/30) | Reduce static risk debt (console.*, any, raw SQL, alerts) with downward-only CI thresholds | 🔴 Open | `hygiene`, `observability`, `devex` |
+| [#31](https://github.com/singhaditya21/school-sis/issues/31) | Harden website lead capture: production API env, anti-bot controls, consent, CRM routing | 🟡 In progress | `website`, `integrations`, `observability` |
+| [#32](https://github.com/singhaditya21/school-sis/issues/32) | Enforce pnpm toolchain via Corepack and a preflight guard; document in dev guide | 🟡 In progress | `devex`, `infra`, `hygiene` |
+| [#33](https://github.com/singhaditya21/school-sis/issues/33) | Migrate middleware to proxy convention and revisit static cache headers for Next.js 16 | 🔴 Open | `infra`, `devex` |
+| [#34](https://github.com/singhaditya21/school-sis/issues/34) | Complete side-service test tooling and CI for Python/Go/Rust services | 🟡 In progress | `testing`, `services`, `devex` |
 
 ---
 
-## D. Performance Issues
+## Verified done since the audit
 
-| # | Issue | Evidence | Recommendation |
-|---|-------|----------|----------------|
-| 1 | **No database indexes audited** | Migrations create tables but index coverage is unknown | Run `EXPLAIN ANALYZE` on high-traffic queries (fee collection, attendance, invoice lists) |
-| 2 | **Synchronous job execution in production path** | `jobs.ts` uses `after()` without queue | Activate BullMQ + Redis for production |
-| 3 | **Potential N+1 in fee defaulter service** | `defaulter.service.ts` iterates students then invoices | Batch query with `JOIN` or Drizzle relational queries |
-| 4 | **No CDN / edge caching configured** | `next.config.js` not audited | Add caching headers for public assets and use Vercel/CDN edge caching |
-| 5 | **Large bundle risk from Tremor + Radix** | Multiple `@radix-ui/*` + `@tremor/react` | Audit with `@next/bundle-analyzer`; tree-shake unused Tremor components |
+| Audit finding | Outcome | Evidence |
+|---|---|---|
+| P0 #1 — Single enforced access-control model | 🟢 Done | Centralized `lib/auth/page-access.ts` + `lib/auth/api-access.ts`; middleware classifies by real emitted URLs; student guard restored in `app/student/layout.tsx`; NextAuth removed (unified on Iron Session); route-inventory + wrong-role test suites (`__tests__/page-access-policy.test.ts`, `api-access-policy.test.ts`). Commits `5880d317`, `96b4553f`. |
+
+_Minor residual hygiene from #1 (delete dead `app/(platform)/layout.tsx` and the empty `app/api/auth/[...nextauth]` dir) is folded into the repository-hygiene issue._
 
 ---
 
-## E. Feature Gaps
+## Phased execution plan
 
-### E.1 Fee Module (Partially Complete)
-From `docs/FEE_COLLECTIONS_SUMMARY.md` and code review:
+Adapted from the audit's closure plan, updated for current state (access control already closed).
 
-| Feature | Status | Blocker |
-|---------|--------|---------|
-| Cashflow forecast (7/14/30 days) | ❌ Missing | Requires time-series calculation |
-| Real payment gateway UI | ❌ Mock only | Razorpay/Stripe integration incomplete |
-| Send reminder flows | ❌ Missing | SMS/WhatsApp job handlers not implemented |
-| Invoice detail page (admin) | ❌ Missing | UI exists but may be static |
-| Receipt PDF generation | ⚠️ Partial | `pdf/receipt-generator.ts` exists but not wired to UI |
-| Invoice edit / cancel | ❌ Missing | UI pages exist but may be mock-backed |
+### First 48 hours (Phase 0)
+1. Remove production mock ambiguity — issue #17.
+2. Remove/hard-disable operational HTTP endpoints and the fallback seed credential — issue #19.
+3. Add object/field audit logging to the dynamic data API — issue #16 (RBAC + field permissions already enforced).
+4. Capture real Vercel/Neon strict runtime evidence + backup/restore drill — issue #18.
 
-### E.2 Authentication & Security
+### Days 3–7 (Phase 1, first wave)
+1. Tighten CSP + header tests — issue #20.
+2. Remove/reconcile legacy payment create-order route — issue #22.
+3. Remove/replace legacy R2 storage adapter — issue #24.
+4. Notification provider evidence or disable channels — issue #25.
+5. Decide Go gateway: secure or remove — issue #23.
+6. Extend hygiene gate for tracked generated artifacts — issue #27.
+7. Make rate limiting fail closed on backend outage — issue #29.
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| MFA enrollment UI | ✅ Exists | `mfa.ts` + settings pages |
-| **MFA enforcement** | ❌ Missing | No middleware check forcing MFA for sensitive roles |
-| Password reset flow | ⚠️ Partial | DB table exists (`003_password_reset_tokens.sql`), UI not audited |
-| Session timeout warning | ❌ Missing | 7-day cookie without idle timeout |
-| Role-permission matrix API | ⚠️ Partial | UI has TODO to call API |
-
-### E.3 AI Agent Swarm
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| 26 agents defined | ✅ Yes | Full toolset in `services/agents/src/tools/` |
-| HITL approval queue | ✅ Exists | `core/approvals.py` + DB table |
-| Approval UI | ⚠️ Partial | `approvals/page.tsx` exists but depth not audited |
-| Agent observability | ⚠️ Unknown | No metrics/logging review performed |
-| RAG pipeline | ✅ Exists | `core/rag.py` + `indexing/` pipeline |
-| Vector search | ✅ Yes | `pgvector` enabled in Postgres |
-
-### E.4 Compliance & Governance
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Audit trail logging | ✅ Yes | `audit.service.ts` + `audit-trail` API |
-| DPDPA handler | ✅ Exists | `lib/privacy/dpdpa.ts` |
-| GDPR handler | ✅ Exists | `lib/privacy/gdpr.ts` |
-| Consent tracking UI | ⚠️ Partial | Dashboard shows `consentBlocked: 0` (TODO) |
-| SOC2 evidence collection | ⚠️ Partial | Audit reports exist but are manual |
+### Weeks 2–4 (Phase 1 completion + Phase 2)
+1. RLS policy matrix + real Postgres isolation tests — issue #26.
+2. AI eval suites, tenant leakage, model fallback, cost budgets — issue #28.
+3. Mobile production auth + secure payment context — issue #21.
+4. Static risk-debt reduction with downward-only CI thresholds — issue #30.
+5. Website lead-capture hardening — issue #31.
+6. Toolchain pinning (Corepack) — issue #32; Next.js proxy migration — issue #33; side-service test tooling — issue #34.
 
 ---
 
-## F. Roadmap
+## Domain & module readiness (from audit)
 
-### Phase 1 — Security Hardening (Week 1–2)
-- [ ] Add `jspdf: ">=4.2.1"` to root `pnpm.overrides`
-- [ ] Run `pnpm audit fix` and `trivy` re-scan
-- [ ] Remove hardcoded bcrypt hashes from migration scripts
-- [ ] Add auth guards to 7 unprotected API routes
-- [ ] Implement Stripe + Razorpay webhook signature verification
-- [ ] Add tenant validation in `middleware.ts`
-- [ ] Replace `console.log` concatenation with structured JSON logging
-- [ ] Make `ENCRYPTION_KEY` hard-fail in production (no fallback)
-
-### Phase 2 — Mock → Real (Week 3–4)
-- [ ] Replace mocked Razorpay order creation with live SDK calls
-- [ ] Wire payment verification to update invoice + create receipt in DB
-- [ ] Activate BullMQ job queue with Redis (production)
-- [ ] Implement SMS handler (Gupshup/Msg91)
-- [ ] Implement email handler (Resend/SendGrid)
-- [ ] Implement WhatsApp handler (Gupshup WABA)
-- [ ] Replace inline mock data on 16 UI pages with server actions + Drizzle queries
-
-### Phase 3 — Feature Completion (Week 5–6)
-- [ ] Cashflow forecast service (7/14/30 day prediction)
-- [ ] Admin invoice detail / edit / cancel flows
-- [ ] Receipt PDF generation wired to parent portal
-- [ ] Fee reminder template editor + scheduling
-- [ ] MFA enforcement middleware for `SUPER_ADMIN` / `FINANCE_LEAD`
-- [ ] Password reset end-to-end flow test
-
-### Phase 4 — Performance & Quality (Week 7–8)
-- [ ] Add missing PostgreSQL indexes (invoices, payments, attendance)
-- [ ] Audit and fix N+1 queries in fee / student services
-- [ ] Add `@next/bundle-analyzer` and optimize bundle
-- [ ] Write unit tests for `fee-engine.service.ts`, `defaulter.service.ts`, auth middleware
-- [ ] Write E2E tests for critical path: login → fee payment → receipt download
-- [ ] Add API rate limiting (per-tenant + per-IP)
-
-### Phase 5 — AI & Compliance (Ongoing)
-- [ ] Agent execution observability (OpenTelemetry / Prometheus)
-- [ ] SOC2 Type II evidence automation (automated Trivy + Semgrep reports)
-- [ ] DPDPA data-export API for students/guardians
-- [ ] Automated RLS policy regression tests
-- [ ] AI agent HITL load testing (100+ concurrent approval requests)
+| Domain/module | Launch readiness |
+|---|---|
+| Fees & payments | Strong ledger/verification/webhook/idempotency; close legacy route (#22) + real provider evidence (#25) first. |
+| Admissions / Attendance / Exams / Timetable / Library / HR | Pilot after module RBAC tests + tenant-isolation coverage (#26). |
+| Transport | Not launch-ready without route/stop tenant review + workflow tests (#26). |
+| Parent portal | Web pilot after payment/provider evidence (#25, #21). |
+| Student portal | Access guard restored (done); pilot after portal workflow coverage. |
+| AI / copilot / agents | Not launch-ready for regulated customers until eval/leakage/fallback/budget evidence (#28). |
+| Integrations | Not launch-ready while runtime mock mode exists (#17). |
+| Mobile app | Not production-ready until real auth + secure payments (#21). |
+| Operator/SRE console | Internal-only until incident/runbook/UAT evidence. |
+| Marketing website | Launch-ready after lead-capture ops evidence (#31). |
 
 ---
 
-## G. Compliance & Governance Checklist
+## How to work this roadmap
 
-| Requirement | Status | Evidence |
-|-------------|--------|----------|
-| Data encryption at rest | ✅ | AES-256-GCM for PII |
-| Data encryption in transit | ✅ | PostgreSQL SSL, HTTPS in prod |
-| Role-based access control | ✅ | `rbac/permissions.ts` + middleware |
-| Audit logging | ✅ | `audit.service.ts` |
-| Password hashing | ✅ | `bcryptjs` |
-| MFA support | ⚠️ | UI exists, enforcement missing |
-| Row Level Security | ✅ | `002_rls_policies.sql` |
-| Dependency vulnerability scanning | ✅ | CI runs `pnpm audit` |
-| SAST (Semgrep) | ✅ | `SECURITY_REPORT.md` references scans |
-| Secret detection | ⚠️ | Hardcoded hashes in migrations |
-| Backup / DR strategy | ❌ | Not documented |
-| Penetration test report | ❌ | Not documented |
-
----
-
-## H. Quick Wins (Do These First)
-
-1. **Fix jsPDF override** — one line in `package.json`, eliminates CRITICAL CVE.
-2. **Add auth to 7 API routes** — copy-paste `getSession()` pattern, ~20 min total.
-3. **Remove mock data from 3 highest-traffic pages** — Health, Homework, DigiLocker.
-4. **Wire payment verify to DB** — call `applyPaymentAction()` after signature check.
-5. **Delete or gate `/api/mock`** — prevents accidental seed exposure in production.
-
----
-
-## I. Appendix: File Inventory
-
-### Key Configuration Files
-- `package.json` — root monorepo config with pnpm overrides
-- `apps/web/package.json` — Next.js app dependencies
-- `pnpm-workspace.yaml` — workspace definition
-- `docker-compose.yml` — local infra (Postgres + Redis)
-- `vercel.json` — Vercel deployment spec
-- `.github/workflows/ci.yml` — CI pipeline
-
-### Key Source Directories
-- `apps/web/src/app/` — 100+ Next.js App Router pages
-- `apps/web/src/lib/services/` — 25+ domain services
-- `apps/web/src/lib/actions/` — Server Actions (mutations)
-- `apps/web/src/lib/db/schema/` — Drizzle ORM schema
-- `apps/web/drizzle/` — SQL migrations (0000–0008)
-- `services/agents/src/` — Python FastAPI AI swarm
-
----
-
-*End of Audit Document*
+- Filter by milestone: [Phase 0](https://github.com/singhaditya21/school-sis/milestone/1) · [Phase 1](https://github.com/singhaditya21/school-sis/milestone/2) · [Phase 2](https://github.com/singhaditya21/school-sis/milestone/3).
+- Filter by priority label: [`P0`](https://github.com/singhaditya21/school-sis/issues?q=is%3Aissue+is%3Aopen+label%3AP0) · [`P1`](https://github.com/singhaditya21/school-sis/issues?q=is%3Aissue+is%3Aopen+label%3AP1) · [`P2`](https://github.com/singhaditya21/school-sis/issues?q=is%3Aissue+is%3Aopen+label%3AP2).
+- Each issue lists only **residual** done-criteria (already-completed work is excluded) and re-verified `file:line` evidence.
