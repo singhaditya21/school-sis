@@ -4,7 +4,7 @@ import { tenants, users } from './core';
 
 // ─── Audit Log ───────────────────────────────────────────────
 
-export const auditActionEnum = pgEnum('audit_action', ['CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'EXPORT', 'PAYMENT', 'ROLE_CHANGE']);
+export const auditActionEnum = pgEnum('audit_action', ['CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'EXPORT', 'PAYMENT', 'ROLE_CHANGE', 'READ']);
 
 export const auditLogs = pgTable('audit_logs', {
     id: uuid('id').primaryKey().defaultRandom(),

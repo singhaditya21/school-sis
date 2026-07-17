@@ -14,6 +14,7 @@ import {
   filterReadableMetadataFields,
   type RuntimeMetadataFieldWithPermissions,
 } from '@/lib/metadata/access-control';
+import { logAudit } from '@/lib/audit';
 
 type RouteContext = {
   params: Promise<{ object_name: string }>;
@@ -135,7 +136,22 @@ export async function GET(
       record[row.field_name] = value;
     });
 
-    return NextResponse.json({ data: Array.from(dataMap.values()) });
+    const data = Array.from(dataMap.values());
+
+    // Audit the read: who read which object, how many records, and which fields were exposed.
+    await logAudit({
+      tenantId,
+      userId: auth.context.userId,
+      action: 'READ',
+      entityType: objectName,
+      description: `Read ${data.length} record(s) from object '${objectName}'`,
+      afterState: {
+        recordCount: data.length,
+        readableFields: readableFields.map((field) => field.apiName),
+      },
+    });
+
+    return NextResponse.json({ data });
   } catch (error) {
     console.error('Dynamic Data GET Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -210,6 +226,18 @@ export async function POST(
       }
 
       await client.query('COMMIT');
+
+      // Audit the write: who created which record in which object, and the fields written.
+      await logAudit({
+        tenantId,
+        userId: auth.context.userId,
+        action: 'CREATE',
+        entityType: objectName,
+        entityId: recordId,
+        description: `Created record in object '${objectName}'`,
+        afterState: { fields: Object.keys(validated.data) },
+      });
+
       return NextResponse.json({ success: true, recordId }, { status: 201 });
     } catch (err) {
       await client.query('ROLLBACK');

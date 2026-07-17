@@ -129,12 +129,6 @@ export const API_ACCESS_POLICIES = [
         expectedGuardSnippets: ['requireApiPermission'],
     },
     {
-        prefix: '/api/force-migrate',
-        boundary: 'production-disabled',
-        description: 'Development-only force migration endpoint.',
-        expectedGuardSnippets: ['requireApiAuth', "NODE_ENV === 'production'"],
-    },
-    {
         prefix: '/api/identity',
         boundary: 'permission',
         description: 'Identity mutations.',
@@ -253,12 +247,6 @@ export const API_ACCESS_POLICIES = [
         boundary: 'integration',
         description: 'SCIM integration API.',
         expectedGuardSnippets: ['authenticateScimRequest'],
-    },
-    {
-        prefix: '/api/seed',
-        boundary: 'production-disabled',
-        description: 'Seed endpoint, restricted in production.',
-        expectedGuardSnippets: ['NODE_ENV', 'requireApiAuth'],
     },
     {
         prefix: '/api/sre/incidents/[incidentId]',
