@@ -1,15 +1,18 @@
-'use server';
-
 /**
  * Audit Logging Middleware — Centralized audit trail for all mutations.
  * Wraps server actions to automatically log before/after states.
+ *
+ * NOTE: This is a plain server-side module (no 'use server' directive) so it
+ * can be imported directly by route handlers and server components. It exports
+ * a synchronous higher-order function (`withAudit`), which a Server Actions
+ * file is not allowed to do.
  */
 
 import { db } from '@/lib/db';
 import { auditLogs } from '@/lib/db/schema';
 import { randomUUID } from 'crypto';
 
-type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'EXPORT' | 'PAYMENT' | 'ROLE_CHANGE';
+type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'EXPORT' | 'PAYMENT' | 'ROLE_CHANGE' | 'READ';
 
 export async function logAudit(params: {
     tenantId: string;

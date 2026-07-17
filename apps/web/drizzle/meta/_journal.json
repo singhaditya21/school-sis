@@ -99,6 +99,13 @@
       "when": 1783728000000,
       "tag": "0014_workflow_approval_adoption",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1784284251059,
+      "tag": "0015_audit_read_action",
+      "breakpoints": true
     }
   ]
 }

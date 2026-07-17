@@ -11,6 +11,7 @@ enum AuditAction {
   EXPORT = 'EXPORT',
   PAYMENT = 'PAYMENT',
   ROLE_CHANGE = 'ROLE_CHANGE',
+  READ = 'READ',
 };
 
 export default AuditAction;
