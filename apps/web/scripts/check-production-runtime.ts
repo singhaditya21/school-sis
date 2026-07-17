@@ -310,8 +310,20 @@ let hasJobDispatchCron = false;
 if (!appVercel) {
     add('error', 'apps/web/vercel.json is required because the Vercel project root is apps/web.');
 } else {
-    if (appVercel.buildCommand !== 'pnpm --filter @school-sis/web run build') {
-        add('error', 'apps/web/vercel.json must build @school-sis/web.');
+    // The production build command may be the direct Next build, or the
+    // vercel-build wrapper that applies Neon migrations before building.
+    const VALID_BUILD_COMMANDS = [
+        'pnpm --filter @school-sis/web run vercel-build',
+        'pnpm --filter @school-sis/web run build',
+    ];
+    if (!VALID_BUILD_COMMANDS.includes(appVercel.buildCommand)) {
+        add('error', 'apps/web/vercel.json must build @school-sis/web via `pnpm --filter @school-sis/web run build` or `run vercel-build`.');
+    }
+    if (typeof appVercel.buildCommand === 'string' && appVercel.buildCommand.includes('run vercel-build')) {
+        const webPkg = readJson('apps/web/package.json');
+        if (!webPkg?.scripts?.['vercel-build']) {
+            add('error', 'apps/web/vercel.json uses `vercel-build`, but apps/web/package.json defines no `vercel-build` script.');
+        }
     }
     if (!Array.isArray(appVercel.regions) || appVercel.regions.length === 0) {
         add('warning', 'apps/web/vercel.json should pin at least one primary serverless region.');
