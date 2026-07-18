@@ -35,9 +35,10 @@ function requireValue(name: string): EnvIssue | null {
     return process.env[name] ? null : { name, message: `${name} must be set.` };
 }
 
-function normalizeProductionDatabaseUrl() {
+function validateDatabaseUrlShape() {
+    // Local-first: no cloud SSL is enforced. Just validate the URL shape.
     const databaseUrl = process.env.DATABASE_URL;
-    if (!databaseUrl || process.env.NODE_ENV !== 'production') return;
+    if (!databaseUrl) return;
 
     let parsed: URL;
     try {
@@ -48,18 +49,6 @@ function normalizeProductionDatabaseUrl() {
 
     if (!['postgres:', 'postgresql:'].includes(parsed.protocol)) {
         throw new Error('DATABASE_URL must use postgres:// or postgresql://.');
-    }
-
-    if (parsed.searchParams.get('sslmode') === 'disable') {
-        throw new Error('DATABASE_URL must not disable SSL in production.');
-    }
-
-    if (
-        !['localhost', '127.0.0.1', '::1'].includes(parsed.hostname) &&
-        !parsed.searchParams.has('sslmode')
-    ) {
-        parsed.searchParams.set('sslmode', 'require');
-        process.env.DATABASE_URL = parsed.toString();
     }
 }
 
@@ -80,7 +69,7 @@ export function validateSecurityEnvironment() {
         );
     }
 
-    normalizeProductionDatabaseUrl();
+    validateDatabaseUrlShape();
 }
 
 export function getSecurityFeatureStatus() {

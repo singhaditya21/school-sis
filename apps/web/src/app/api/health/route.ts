@@ -8,8 +8,8 @@ export async function GET() {
       status: 'ok',
       service: 'school-sis-web',
       timestamp: new Date().toISOString(),
-      region: process.env.VERCEL_REGION || 'local',
-      commit: process.env.VERCEL_GIT_COMMIT_SHA || null,
+      region: process.env.APP_REGION || 'local',
+      commit: process.env.GIT_COMMIT_SHA || null,
     },
     {
       headers: {

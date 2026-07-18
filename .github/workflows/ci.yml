@@ -60,12 +60,6 @@ jobs:
       - name: Run Secret Pattern Scan
         run: pnpm audit:secrets
 
-      - name: Validate Infrastructure Contract
-        run: pnpm infra:check
-        env:
-          DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis?sslmode=require
-          DIRECT_URL: postgresql://postgres:password@localhost:5432/school_sis?sslmode=require
-
       - name: Validate Drizzle Migrations
         run: pnpm --filter @school-sis/web exec drizzle-kit check
 

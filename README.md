@@ -12,7 +12,7 @@ The ScholarMind framework operates on a hybrid monolith/microservice architectur
 
 ### 1. Presentation & Core API Layer (`/apps/web`)
 - **Framework**: Next.js 16 (App Router)
-- **Database**: Neon Postgres with pgvector
+- **Database**: PostgreSQL 16 with pgvector (runs locally — see [RUNNING.md](./RUNNING.md))
 - **ORM**: Drizzle ORM — Fully typed, zero-abstraction relational querying.
 - **Styling**: Tailwind CSS & Tremor React components for rich dashboards.
 - **Identity**: NextAuth/IronSession tracking multi-tenant boundaries (`tenantId`) explicitly for every query.
@@ -21,7 +21,7 @@ The ScholarMind framework operates on a hybrid monolith/microservice architectur
 - **Framework**: Python FastAPI
 - **LLM Engine**: Cerebras Inference (`llama3.1-70b`)
 - **Memory**: Redis (Arq) for background queue management and cost-tracking.
-- **Embeddings**: `pgvector` stored back in Neon for instant RAG retrieval.
+- **Embeddings**: `pgvector` stored in Postgres for instant RAG retrieval.
 - **Agent Framework**: Custom lightweight framework derived from LangChain principles, built for extreme latency optimization and strict tool execution oversight.
 
 ---
@@ -74,7 +74,7 @@ The complete documentation suite for ScholarMind is broken down by persona. Whet
 
 - **[End-User Guide](./docs/user-guide/README.md)**: For School Admins & Teachers. Learn about the Metadata Engine, Workflows, Fees, Attendance, and AI Integrations.
 - **[Developer & API Guide](./docs/api/README.md)**: For Integrators. Discover how to build on top of our Metadata Architecture, consume Webhooks, and integrate third-party tools (Stripe, Twilio, MSG91).
-- **[DevOps & Deployment Guide](./docs/devops/README.md)**: For Internal DevOps. Read about local environments, database migrations (Neon/Drizzle), Vercel deployments, and environment configuration.
+- **[Running Locally](./RUNNING.md)**: Set up the self-contained local stack (Postgres + pgvector + the app) — no cloud services required.
 - **[Sales & Marketing Enablement](./docs/sales/README.md)**: For the GTM Team. Access pitches for the "True Vertical OS for Education", value propositions, and strategies against monolithic competitors.
 
 ---

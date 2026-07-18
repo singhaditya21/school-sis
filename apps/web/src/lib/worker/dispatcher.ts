@@ -167,7 +167,7 @@ export async function dispatchDueJobs(options: DispatchJobsOptions = {}): Promis
   const normalized = {
     limit: Math.max(1, Math.min(options.limit ?? 10, 100)),
     queue: options.queue || 'default',
-    workerId: options.workerId || `vercel-${process.env.VERCEL_REGION || 'local'}-${process.pid}`,
+    workerId: options.workerId || `worker-${process.env.APP_REGION || 'local'}-${process.pid}`,
   };
 
   const jobs = await runWithRlsBypass(() => claimDueJobs(normalized));
