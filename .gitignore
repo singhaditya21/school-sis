@@ -16,12 +16,16 @@ out/
 build/
 dist/
 
-# Production and build caches
-.vercel/
-
 # Local Postgres cluster (scripts/local-db.sh)
 .pgdata/
 .turbo/
+
+# Session/agent + build artifacts (never commit)
+.agents/
+.agent/
+.codex/
+*.log
+*.tsbuildinfo
 
 # Misc
 .DS_Store
@@ -42,9 +46,6 @@ apps/web/test-schema.cjs
 # Generated repository analysis artifacts
 graphify-out/
 **/graphify-out/
-
-# Build output that is regenerated from source
-backend/app/bin/
 
 # Package manager policy
 package-lock.json
