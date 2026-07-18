@@ -57,7 +57,7 @@ jobs:
 
       # Upload the Next.js build output to share with the test runners
       - name: Cache Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ./apps/web/.next
           key: ${{ runner.os }}-nextjs-${{ github.sha }}
@@ -158,7 +158,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Restore Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ./apps/web/.next
           key: ${{ runner.os }}-nextjs-${{ github.sha }}
@@ -236,7 +236,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Restore Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ./apps/web/.next
           key: ${{ runner.os }}-nextjs-${{ github.sha }}
