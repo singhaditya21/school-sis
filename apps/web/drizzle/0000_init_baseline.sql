@@ -1,6 +1,6 @@
 CREATE TYPE "public"."institution_type" AS ENUM('K12', 'COLLEGE', 'UNIVERSITY', 'COACHING', 'HYBRID');--> statement-breakpoint
 CREATE TYPE "public"."subscription_tier" AS ENUM('CORE', 'AI_PRO', 'ENTERPRISE');--> statement-breakpoint
-CREATE TYPE "public"."user_role" AS ENUM('PLATFORM_ADMIN', 'SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'ACCOUNTANT', 'ADMISSION_COUNSELOR', 'TEACHER', 'TRANSPORT_MANAGER', 'PARENT', 'STUDENT');--> statement-breakpoint
+CREATE TYPE "public"."user_role" AS ENUM('PLATFORM_ADMIN', 'SUPER_ADMIN', 'GROUP_EXECUTIVE', 'SCHOOL_ADMIN', 'PRINCIPAL', 'REGISTRAR', 'FINANCE_LEAD', 'ACCOUNTANT', 'ADMISSION_COUNSELOR', 'STUDENT_SUCCESS_COUNSELOR', 'TEACHER', 'TRANSPORT_MANAGER', 'TRUST_OFFICER', 'CREDENTIAL_OFFICER', 'PARENT', 'STUDENT');--> statement-breakpoint
 CREATE TYPE "public"."term_type" AS ENUM('TERM_1', 'TERM_2', 'TERM_3', 'ANNUAL');--> statement-breakpoint
 CREATE TYPE "public"."blood_group" AS ENUM('A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-');--> statement-breakpoint
 CREATE TYPE "public"."gender" AS ENUM('MALE', 'FEMALE', 'OTHER');--> statement-breakpoint
@@ -19,7 +19,7 @@ CREATE TYPE "public"."consent_channel" AS ENUM('SMS', 'WHATSAPP', 'EMAIL');--> s
 CREATE TYPE "public"."message_channel" AS ENUM('SMS', 'WHATSAPP', 'EMAIL', 'IN_APP', 'PUSH');--> statement-breakpoint
 CREATE TYPE "public"."message_status" AS ENUM('QUEUED', 'SENT', 'DELIVERED', 'FAILED', 'READ');--> statement-breakpoint
 CREATE TYPE "public"."exam_type" AS ENUM('UNIT_TEST', 'MID_TERM', 'FINAL', 'PRACTICE', 'BOARD_PREP');--> statement-breakpoint
-CREATE TYPE "public"."audit_action" AS ENUM('CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'EXPORT', 'PAYMENT', 'ROLE_CHANGE');--> statement-breakpoint
+CREATE TYPE "public"."audit_action" AS ENUM('CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'EXPORT', 'PAYMENT', 'ROLE_CHANGE', 'READ');--> statement-breakpoint
 CREATE TYPE "public"."employment_type" AS ENUM('FULL_TIME', 'PART_TIME', 'CONTRACT', 'VISITING');--> statement-breakpoint
 CREATE TYPE "public"."leave_status" AS ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED');--> statement-breakpoint
 CREATE TYPE "public"."leave_type" AS ENUM('CL', 'SL', 'EL', 'ML', 'PL', 'COMP_OFF', 'LWP');--> statement-breakpoint
@@ -49,6 +49,7 @@ CREATE TYPE "public"."quiz_status" AS ENUM('DRAFT', 'PUBLISHED', 'CLOSED');--> s
 CREATE TYPE "public"."lesson_plan_status" AS ENUM('DRAFT', 'SUBMITTED', 'APPROVED', 'COMPLETED');--> statement-breakpoint
 CREATE TYPE "public"."certificate_status" AS ENUM('DRAFT', 'ISSUED', 'REVOKED');--> statement-breakpoint
 CREATE TYPE "public"."certificate_type" AS ENUM('TRANSFER', 'CHARACTER', 'BONAFIDE', 'MIGRATION', 'REPORT_CARD', 'MARKSHEET', 'CUSTOM');--> statement-breakpoint
+CREATE TYPE "public"."digilocker_sync_status" AS ENUM('PENDING', 'SUCCESS', 'FAILED');--> statement-breakpoint
 CREATE TYPE "public"."id_card_status" AS ENUM('PENDING', 'PRINTED', 'ISSUED');--> statement-breakpoint
 CREATE TYPE "public"."alumni_event_status" AS ENUM('UPCOMING', 'ONGOING', 'COMPLETED');--> statement-breakpoint
 CREATE TYPE "public"."alumni_event_type" AS ENUM('REUNION', 'NETWORKING', 'CAREER_TALK', 'WORKSHOP', 'FUNDRAISER');--> statement-breakpoint
@@ -93,6 +94,7 @@ CREATE TABLE "tenants" (
 	"affiliation_number" varchar(100),
 	"udise_code" varchar(20),
 	"is_active" boolean DEFAULT true NOT NULL,
+	"stripe_connect_account_id" varchar(255),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "tenants_code_unique" UNIQUE("code")
@@ -224,6 +226,7 @@ CREATE TABLE "students" (
 	"previous_school" varchar(255),
 	"medical_notes" text,
 	"embedding" text,
+	"custom_data" jsonb DEFAULT '{}'::jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -290,8 +293,57 @@ CREATE TABLE "invoices" (
 	"description" text,
 	"line_items" text,
 	"embedding" text,
+	"custom_data" jsonb DEFAULT '{}'::jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "payment_audit_logs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"invoice_id" uuid,
+	"payment_id" uuid,
+	"payment_order_id" uuid,
+	"actor_user_id" uuid,
+	"provider_event_id" uuid,
+	"provider" varchar(32) NOT NULL,
+	"action" varchar(64) NOT NULL,
+	"amount" numeric(12, 2),
+	"currency" varchar(3) DEFAULT 'INR' NOT NULL,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "payment_orders" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"invoice_id" uuid NOT NULL,
+	"student_id" uuid NOT NULL,
+	"provider" varchar(32) NOT NULL,
+	"provider_order_id" varchar(255),
+	"provider_payment_id" varchar(255),
+	"amount" numeric(12, 2) NOT NULL,
+	"amount_minor" integer NOT NULL,
+	"currency" varchar(3) DEFAULT 'INR' NOT NULL,
+	"status" varchar(32) DEFAULT 'CREATED' NOT NULL,
+	"idempotency_key" varchar(255) NOT NULL,
+	"created_by" uuid,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "payment_provider_events" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"provider" varchar(32) NOT NULL,
+	"event_id" varchar(255) NOT NULL,
+	"event_type" varchar(255) NOT NULL,
+	"status" varchar(32) DEFAULT 'PROCESSING' NOT NULL,
+	"payload" jsonb DEFAULT '{}'::jsonb,
+	"error" text,
+	"received_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"processed_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "payments" (
@@ -387,6 +439,18 @@ CREATE TABLE "periods" (
 	"display_order" integer NOT NULL,
 	"is_break" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "substitution_requests" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"teacher_id" uuid NOT NULL,
+	"substitute_id" uuid,
+	"section_id" uuid,
+	"period" integer NOT NULL,
+	"date" varchar(10) NOT NULL,
+	"reason" varchar(255),
+	"status" varchar(50) DEFAULT 'pending'
 );
 --> statement-breakpoint
 CREATE TABLE "substitutions" (
@@ -537,6 +601,25 @@ CREATE TABLE "messages" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "exam_proctoring_logs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"exam_schedule_id" uuid NOT NULL,
+	"student_id" uuid NOT NULL,
+	"flag_type" varchar(50) NOT NULL,
+	"description" text,
+	"timestamp" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "exam_result_hashes" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"result_id" uuid NOT NULL,
+	"hash" text NOT NULL,
+	"locked_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"locked_by" uuid
+);
+--> statement-breakpoint
 CREATE TABLE "exam_schedules" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"exam_id" uuid NOT NULL,
@@ -560,7 +643,11 @@ CREATE TABLE "exams" (
 	"start_date" date NOT NULL,
 	"end_date" date NOT NULL,
 	"description" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"status" varchar(32) DEFAULT 'DRAFT' NOT NULL,
+	"published_at" timestamp with time zone,
+	"published_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "student_results" (
@@ -676,6 +763,7 @@ CREATE TABLE "staff_profiles" (
 	"address" text,
 	"emergency_contact" varchar(20),
 	"emergency_contact_name" varchar(100),
+	"custom_data" jsonb DEFAULT '{}'::jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -735,9 +823,14 @@ CREATE TABLE "books" (
 --> statement-breakpoint
 CREATE TABLE "webhook_deliveries" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
 	"subscription_id" uuid NOT NULL,
 	"event" varchar(100) NOT NULL,
+	"event_id" uuid DEFAULT gen_random_uuid() NOT NULL,
+	"idempotency_key" varchar(120) NOT NULL,
 	"payload" jsonb NOT NULL,
+	"request_headers" jsonb,
+	"signature" varchar(128),
 	"status" "delivery_status" DEFAULT 'PENDING' NOT NULL,
 	"response_code" integer,
 	"response_body" text,
@@ -745,7 +838,8 @@ CREATE TABLE "webhook_deliveries" (
 	"last_attempt_at" timestamp with time zone,
 	"next_retry_at" timestamp with time zone,
 	"error" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "webhook_deliveries_subscription_id_idempotency_key_key" UNIQUE("subscription_id","idempotency_key")
 );
 --> statement-breakpoint
 CREATE TABLE "webhook_subscriptions" (
@@ -763,6 +857,66 @@ CREATE TABLE "webhook_subscriptions" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "integration_api_keys" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"name" varchar(120) NOT NULL,
+	"provider" varchar(40) DEFAULT 'PLATFORM' NOT NULL,
+	"key_prefix" varchar(32) NOT NULL,
+	"key_hash" varchar(128) NOT NULL,
+	"scopes" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"status" varchar(20) DEFAULT 'ACTIVE' NOT NULL,
+	"expires_at" timestamp with time zone,
+	"last_used_at" timestamp with time zone,
+	"created_by" uuid,
+	"revoked_by" uuid,
+	"revoked_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "integration_api_keys_key_hash_key" UNIQUE("key_hash")
+);
+--> statement-breakpoint
+CREATE TABLE "integration_audit_logs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"provider" varchar(40) NOT NULL,
+	"action" varchar(120) NOT NULL,
+	"direction" varchar(20) DEFAULT 'INBOUND' NOT NULL,
+	"status" varchar(20) NOT NULL,
+	"api_key_id" uuid,
+	"actor_user_id" uuid,
+	"request_id" varchar(80),
+	"idempotency_key" varchar(120),
+	"http_method" varchar(12),
+	"path" text,
+	"status_code" integer,
+	"duration_ms" integer,
+	"ip_address" varchar(64),
+	"user_agent" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"error" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "integration_connections" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"provider" varchar(40) NOT NULL,
+	"mode" varchar(20) DEFAULT 'MOCK' NOT NULL,
+	"status" varchar(20) DEFAULT 'ACTIVE' NOT NULL,
+	"config" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"scopes" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"last_sync_at" timestamp with time zone,
+	"last_success_at" timestamp with time zone,
+	"last_failure_at" timestamp with time zone,
+	"last_error" text,
+	"created_by" uuid,
+	"updated_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "integration_connections_tenant_provider_key" UNIQUE("tenant_id","provider")
+);
+--> statement-breakpoint
 CREATE TABLE "hostel_allocations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" uuid NOT NULL,
@@ -775,6 +929,17 @@ CREATE TABLE "hostel_allocations" (
 	"status" "allocation_status" DEFAULT 'ACTIVE' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "hostel_fees" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"student_id" uuid NOT NULL,
+	"fee_type" varchar(50) NOT NULL,
+	"amount" numeric(12, 2) NOT NULL,
+	"due_date" date NOT NULL,
+	"status" varchar(50) NOT NULL,
+	"paid_date" date
 );
 --> statement-breakpoint
 CREATE TABLE "hostel_rooms" (
@@ -998,6 +1163,8 @@ CREATE TABLE "quiz_attempts" (
 	"score" integer,
 	"total_marks" integer,
 	"percentage" integer,
+	"percentile" integer,
+	"section_scores" jsonb DEFAULT '{}'::jsonb,
 	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"submitted_at" timestamp with time zone,
 	"status" "attempt_status" DEFAULT 'IN_PROGRESS' NOT NULL
@@ -1012,6 +1179,8 @@ CREATE TABLE "quiz_questions" (
 	"options" jsonb DEFAULT '[]'::jsonb,
 	"correct_answer" text NOT NULL,
 	"marks" integer NOT NULL,
+	"negative_marks" integer DEFAULT 0 NOT NULL,
+	"section" varchar(100),
 	"ordering" integer DEFAULT 0 NOT NULL
 );
 --> statement-breakpoint
@@ -1092,6 +1261,19 @@ CREATE TABLE "certificate_templates" (
 	"variables" jsonb DEFAULT '[]'::jsonb,
 	"is_active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "digilocker_sync_logs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"document_type" varchar(50) NOT NULL,
+	"student_id" uuid NOT NULL,
+	"reference_id" uuid,
+	"xml_payload" text NOT NULL,
+	"response_hash" text,
+	"status" "digilocker_sync_status" DEFAULT 'PENDING' NOT NULL,
+	"sync_attempted_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"error_message" text
 );
 --> statement-breakpoint
 CREATE TABLE "id_cards" (
@@ -1215,6 +1397,32 @@ CREATE TABLE "consent_responses" (
 	"notes" text
 );
 --> statement-breakpoint
+CREATE TABLE "metadata_workflows" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"name" text NOT NULL,
+	"object_name" text NOT NULL,
+	"trigger_event" text NOT NULL,
+	"conditions" jsonb DEFAULT '[]' NOT NULL,
+	"action_type" text NOT NULL,
+	"action_payload" jsonb DEFAULT '{}' NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "workflows" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"trigger_event" varchar(100) NOT NULL,
+	"action_type" varchar(100) NOT NULL,
+	"action_payload" jsonb DEFAULT '{}'::jsonb,
+	"is_active" boolean DEFAULT true,
+	"created_at" timestamp with time zone DEFAULT now(),
+	"updated_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
 CREATE TABLE "student_documents" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" uuid NOT NULL,
@@ -1229,6 +1437,535 @@ CREATE TABLE "student_documents" (
 	"verified_by" uuid,
 	"verified_at" timestamp with time zone,
 	"notes" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "field_permissions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"field_id" uuid NOT NULL,
+	"role" varchar(50) NOT NULL,
+	"can_read" boolean DEFAULT true,
+	"can_write" boolean DEFAULT false,
+	"created_at" timestamp with time zone DEFAULT now(),
+	CONSTRAINT "field_permissions_field_id_role_key" UNIQUE("field_id","role")
+);
+--> statement-breakpoint
+CREATE TABLE "metadata_fields" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"object_id" uuid NOT NULL,
+	"label" varchar(255) NOT NULL,
+	"api_name" varchar(255) NOT NULL,
+	"data_type" varchar(50) NOT NULL,
+	"is_custom" boolean DEFAULT false,
+	"is_required" boolean DEFAULT false,
+	"default_value" text,
+	"picklist_options" jsonb DEFAULT '[]'::jsonb,
+	"validation_rules" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"status" varchar(24) DEFAULT 'ACTIVE' NOT NULL,
+	"version" integer DEFAULT 1 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now(),
+	"updated_at" timestamp with time zone DEFAULT now(),
+	CONSTRAINT "metadata_fields_object_id_api_name_key" UNIQUE("object_id","api_name")
+);
+--> statement-breakpoint
+CREATE TABLE "metadata_layouts" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"object_id" uuid NOT NULL,
+	"layout_type" varchar(50) NOT NULL,
+	"schema" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"is_default" boolean DEFAULT true,
+	"created_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "metadata_migration_jobs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"object_id" uuid NOT NULL,
+	"schema_version_id" uuid,
+	"operation" varchar(64) NOT NULL,
+	"status" varchar(24) DEFAULT 'PENDING' NOT NULL,
+	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"error" text,
+	"requested_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"started_at" timestamp with time zone,
+	"completed_at" timestamp with time zone
+);
+--> statement-breakpoint
+CREATE TABLE "metadata_objects" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"name" varchar(100) NOT NULL,
+	"api_name" varchar(100) NOT NULL,
+	"table_name" varchar(100) NOT NULL,
+	"description" text,
+	"is_custom" boolean DEFAULT false,
+	"status" varchar(24) DEFAULT 'PUBLISHED' NOT NULL,
+	"version" integer DEFAULT 1 NOT NULL,
+	"published_version" integer DEFAULT 1 NOT NULL,
+	"locked_at" timestamp with time zone,
+	"published_at" timestamp with time zone DEFAULT now(),
+	"created_at" timestamp with time zone DEFAULT now(),
+	"updated_at" timestamp with time zone DEFAULT now(),
+	CONSTRAINT "metadata_objects_tenant_id_api_name_key" UNIQUE("tenant_id","api_name")
+);
+--> statement-breakpoint
+CREATE TABLE "metadata_records" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"object_id" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now(),
+	"updated_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "metadata_schema_versions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"object_id" uuid NOT NULL,
+	"version" integer NOT NULL,
+	"status" varchar(24) DEFAULT 'PUBLISHED' NOT NULL,
+	"schema_snapshot" jsonb NOT NULL,
+	"migration_plan" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_by" uuid,
+	"published_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"published_at" timestamp with time zone,
+	CONSTRAINT "metadata_schema_versions_object_id_version_key" UNIQUE("object_id","version")
+);
+--> statement-breakpoint
+CREATE TABLE "metadata_values" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"record_id" uuid NOT NULL,
+	"field_id" uuid NOT NULL,
+	"value_string" text,
+	"value_number" numeric,
+	"value_boolean" boolean,
+	"value_date" date
+);
+--> statement-breakpoint
+CREATE TABLE "agent_approvals" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"agent_name" varchar(50) NOT NULL,
+	"title" varchar(255) NOT NULL,
+	"description" text NOT NULL,
+	"proposed_action" jsonb NOT NULL,
+	"status" varchar(20) DEFAULT 'PENDING' NOT NULL,
+	"priority" varchar(20) DEFAULT 'NORMAL' NOT NULL,
+	"created_by_user_id" uuid,
+	"reviewed_by_user_id" uuid,
+	"reviewed_at" timestamp with time zone,
+	"expires_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "agent_audit_logs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"agent_name" varchar(50) NOT NULL,
+	"query" text,
+	"prompt" text,
+	"response" text,
+	"tool_calls" jsonb DEFAULT '[]'::jsonb,
+	"tool_results" jsonb DEFAULT '[]'::jsonb,
+	"tokens_used" integer DEFAULT 0 NOT NULL,
+	"latency_ms" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "embeddings" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"collection" varchar(50) NOT NULL,
+	"entity_type" varchar(50) NOT NULL,
+	"entity_id" uuid NOT NULL,
+	"text_content" text NOT NULL,
+	"embedding" vector(1024) NOT NULL,
+	"metadata" jsonb DEFAULT '{}'::jsonb,
+	"indexed_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "background_job_attempts" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"job_id" uuid NOT NULL,
+	"tenant_id" uuid,
+	"attempt_number" integer NOT NULL,
+	"status" varchar(30) NOT NULL,
+	"worker_id" varchar(120),
+	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"finished_at" timestamp with time zone,
+	"error" text,
+	"result" jsonb
+);
+--> statement-breakpoint
+CREATE TABLE "background_jobs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"scope" varchar(20) DEFAULT 'TENANT' NOT NULL,
+	"queue" varchar(80) DEFAULT 'default' NOT NULL,
+	"task_name" varchar(120) NOT NULL,
+	"status" varchar(30) DEFAULT 'QUEUED' NOT NULL,
+	"priority" integer DEFAULT 0 NOT NULL,
+	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"idempotency_key" varchar(160),
+	"scheduled_for" timestamp with time zone DEFAULT now() NOT NULL,
+	"available_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"max_attempts" integer DEFAULT 3 NOT NULL,
+	"locked_at" timestamp with time zone,
+	"locked_by" varchar(120),
+	"last_error" text,
+	"result" jsonb,
+	"created_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"completed_at" timestamp with time zone
+);
+--> statement-breakpoint
+CREATE TABLE "notification_delivery_events" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"notification_id" uuid NOT NULL,
+	"job_id" uuid,
+	"status" varchar(30) NOT NULL,
+	"provider" varchar(40) DEFAULT 'mock' NOT NULL,
+	"provider_message_id" varchar(255),
+	"error" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "notification_outbox" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"job_id" uuid,
+	"channel" varchar(20) NOT NULL,
+	"status" varchar(30) DEFAULT 'PENDING' NOT NULL,
+	"provider" varchar(40) DEFAULT 'mock' NOT NULL,
+	"recipient" varchar(320) NOT NULL,
+	"recipient_user_id" uuid,
+	"subject" varchar(500),
+	"body" text NOT NULL,
+	"template_id" uuid,
+	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"idempotency_key" varchar(160),
+	"scheduled_for" timestamp with time zone DEFAULT now() NOT NULL,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"max_attempts" integer DEFAULT 3 NOT NULL,
+	"next_attempt_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"provider_message_id" varchar(255),
+	"last_error" text,
+	"created_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"sent_at" timestamp with time zone
+);
+--> statement-breakpoint
+CREATE TABLE "observability_events" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"scope" varchar(20) DEFAULT 'PLATFORM' NOT NULL,
+	"severity" varchar(20) DEFAULT 'INFO' NOT NULL,
+	"source" varchar(120) NOT NULL,
+	"event_type" varchar(120) NOT NULL,
+	"message" text NOT NULL,
+	"request_id" varchar(120),
+	"trace_id" varchar(120),
+	"actor_user_id" uuid,
+	"entity_type" varchar(80),
+	"entity_id" varchar(120),
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "slo_definitions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"scope" varchar(20) DEFAULT 'PLATFORM' NOT NULL,
+	"service" varchar(120) NOT NULL,
+	"name" varchar(160) NOT NULL,
+	"indicator" varchar(80) NOT NULL,
+	"target_bps" integer NOT NULL,
+	"window" varchar(40) DEFAULT '30d' NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "slo_measurements" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"slo_id" uuid NOT NULL,
+	"tenant_id" uuid,
+	"service" varchar(120) NOT NULL,
+	"window_start" timestamp with time zone NOT NULL,
+	"window_end" timestamp with time zone NOT NULL,
+	"good_events" integer DEFAULT 0 NOT NULL,
+	"total_events" integer DEFAULT 0 NOT NULL,
+	"value_bps" numeric(8, 2) DEFAULT '0' NOT NULL,
+	"status" varchar(20) DEFAULT 'UNKNOWN' NOT NULL,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "sre_incidents" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"scope" varchar(20) DEFAULT 'PLATFORM' NOT NULL,
+	"severity" varchar(20) DEFAULT 'WARNING' NOT NULL,
+	"status" varchar(20) DEFAULT 'OPEN' NOT NULL,
+	"source" varchar(120) NOT NULL,
+	"fingerprint" varchar(160) NOT NULL,
+	"title" varchar(240) NOT NULL,
+	"description" text,
+	"occurrence_count" integer DEFAULT 1 NOT NULL,
+	"first_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"last_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"acknowledged_by" uuid,
+	"acknowledged_at" timestamp with time zone,
+	"resolved_by" uuid,
+	"resolved_at" timestamp with time zone,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "rate_limit_buckets" (
+	"key" text PRIMARY KEY NOT NULL,
+	"count" integer NOT NULL,
+	"window_start" timestamp with time zone NOT NULL,
+	"locked_until" timestamp with time zone,
+	"expires_at" timestamp with time zone NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "workflow_approval_delegations" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"policy_id" varchar(120),
+	"from_user_id" uuid NOT NULL,
+	"from_role" varchar(50) NOT NULL,
+	"to_user_id" uuid NOT NULL,
+	"to_role" varchar(50) NOT NULL,
+	"reason" text,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"starts_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"ends_at" timestamp with time zone NOT NULL,
+	"created_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"revoked_at" timestamp with time zone
+);
+--> statement-breakpoint
+CREATE TABLE "workflow_approval_events" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"approval_request_id" uuid NOT NULL,
+	"event_type" varchar(40) NOT NULL,
+	"from_status" varchar(30),
+	"to_status" varchar(30) NOT NULL,
+	"actor_user_id" uuid,
+	"actor_role" varchar(50),
+	"reason" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "workflow_approval_requests" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"policy_id" varchar(120) NOT NULL,
+	"title" varchar(255) NOT NULL,
+	"description" text NOT NULL,
+	"status" varchar(30) DEFAULT 'PENDING' NOT NULL,
+	"priority" varchar(20) DEFAULT 'NORMAL' NOT NULL,
+	"resource_type" varchar(100) NOT NULL,
+	"resource_id" varchar(160),
+	"action_permission" varchar(120) NOT NULL,
+	"audit_action" varchar(160) NOT NULL,
+	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"required_approver_roles" text[] NOT NULL,
+	"min_approvals" integer DEFAULT 1 NOT NULL,
+	"approvals_received" integer DEFAULT 0 NOT NULL,
+	"rejections_received" integer DEFAULT 0 NOT NULL,
+	"allow_requester_approval" boolean DEFAULT false NOT NULL,
+	"requested_by_user_id" uuid,
+	"requested_by_role" varchar(50) NOT NULL,
+	"idempotency_key" varchar(160),
+	"escalation_level" integer DEFAULT 0 NOT NULL,
+	"due_at" timestamp with time zone NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"completed_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "workflow_approval_reviews" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"approval_request_id" uuid NOT NULL,
+	"reviewer_user_id" uuid,
+	"reviewer_role" varchar(50) NOT NULL,
+	"decision" varchar(20) NOT NULL,
+	"reason" text,
+	"delegated_from_user_id" uuid,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "operator_console_action_logs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"scope" varchar(20) DEFAULT 'TENANT' NOT NULL,
+	"domain" varchar(60) NOT NULL,
+	"action_type" varchar(80) NOT NULL,
+	"audit_action" varchar(160) NOT NULL,
+	"target_type" varchar(80),
+	"target_id" varchar(160),
+	"idempotency_key" varchar(160),
+	"status" varchar(30) DEFAULT 'REQUESTED' NOT NULL,
+	"actor_user_id" uuid,
+	"actor_role" varchar(80) NOT NULL,
+	"reason" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"requested_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"completed_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "operator_console_runbooks" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"scope" varchar(20) DEFAULT 'PLATFORM' NOT NULL,
+	"code" varchar(160) NOT NULL,
+	"domain" varchar(60) NOT NULL,
+	"title" varchar(240) NOT NULL,
+	"severity" varchar(20) DEFAULT 'WARNING' NOT NULL,
+	"owner_role" varchar(80) NOT NULL,
+	"summary" text NOT NULL,
+	"steps" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"escalation" text,
+	"status" varchar(20) DEFAULT 'ACTIVE' NOT NULL,
+	"version" integer DEFAULT 1 NOT NULL,
+	"created_by" uuid,
+	"updated_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "operator_console_runbooks_code_key" UNIQUE("code")
+);
+--> statement-breakpoint
+CREATE TABLE "operator_console_snapshots" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"scope" varchar(20) DEFAULT 'TENANT' NOT NULL,
+	"status" varchar(20) DEFAULT 'HEALTHY' NOT NULL,
+	"health_score" integer DEFAULT 100 NOT NULL,
+	"generated_by" uuid,
+	"generated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"metrics" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"signals" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "bi_dashboards" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"scope" varchar(20) DEFAULT 'TENANT' NOT NULL,
+	"dashboard_key" varchar(160) NOT NULL,
+	"domain" varchar(60) NOT NULL,
+	"title" varchar(240) NOT NULL,
+	"description" text NOT NULL,
+	"route" varchar(240) NOT NULL,
+	"persona_roles" text[] DEFAULT '{}' NOT NULL,
+	"required_permission" varchar(120) NOT NULL,
+	"required_scope" varchar(40) DEFAULT 'tenant' NOT NULL,
+	"default_filters" text[] DEFAULT '{}' NOT NULL,
+	"tiles" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"status" varchar(20) DEFAULT 'ACTIVE' NOT NULL,
+	"version" integer DEFAULT 1 NOT NULL,
+	"created_by" uuid,
+	"updated_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "bi_datasets" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"scope" varchar(20) DEFAULT 'TENANT' NOT NULL,
+	"dataset_key" varchar(160) NOT NULL,
+	"domain" varchar(60) NOT NULL,
+	"label" varchar(240) NOT NULL,
+	"description" text NOT NULL,
+	"grain" varchar(80) NOT NULL,
+	"source_tables" text[] DEFAULT '{}' NOT NULL,
+	"tenant_column" varchar(160),
+	"default_date_field" varchar(160),
+	"refresh_strategy" varchar(40) DEFAULT 'LIVE_QUERY' NOT NULL,
+	"dimensions" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"metric_ids" text[] DEFAULT '{}' NOT NULL,
+	"required_permission" varchar(120) NOT NULL,
+	"required_scope" varchar(40) DEFAULT 'tenant' NOT NULL,
+	"classifications" text[] DEFAULT '{}' NOT NULL,
+	"exportable" boolean DEFAULT false NOT NULL,
+	"status" varchar(20) DEFAULT 'ACTIVE' NOT NULL,
+	"version" integer DEFAULT 1 NOT NULL,
+	"created_by" uuid,
+	"updated_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "bi_metric_snapshots" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"scope" varchar(20) DEFAULT 'TENANT' NOT NULL,
+	"metric_key" varchar(160) NOT NULL,
+	"dataset_key" varchar(160) NOT NULL,
+	"grain" varchar(80) NOT NULL,
+	"period_start" timestamp with time zone NOT NULL,
+	"period_end" timestamp with time zone NOT NULL,
+	"value" numeric(18, 4) DEFAULT '0' NOT NULL,
+	"dimensions" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"source_run_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "bi_report_definitions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"scope" varchar(20) DEFAULT 'TENANT' NOT NULL,
+	"name" varchar(240) NOT NULL,
+	"dataset_key" varchar(160) NOT NULL,
+	"selected_metrics" text[] DEFAULT '{}' NOT NULL,
+	"selected_dimensions" text[] DEFAULT '{}' NOT NULL,
+	"filters" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"date_range" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"schedule" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"export_policy_id" varchar(160),
+	"status" varchar(20) DEFAULT 'ACTIVE' NOT NULL,
+	"created_by" uuid,
+	"updated_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "bi_report_runs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid,
+	"scope" varchar(20) DEFAULT 'TENANT' NOT NULL,
+	"report_definition_id" uuid,
+	"dataset_key" varchar(160) NOT NULL,
+	"status" varchar(30) DEFAULT 'QUEUED' NOT NULL,
+	"requested_by" uuid,
+	"row_count" integer DEFAULT 0 NOT NULL,
+	"export_object_key" text,
+	"error" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"queued_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"started_at" timestamp with time zone,
+	"completed_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -1295,11 +2032,12 @@ CREATE TABLE "group_policies" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"group_id" uuid NOT NULL,
 	"policy_name" varchar(255) NOT NULL,
-	"policy_key" varchar(255) DEFAULT '' NOT NULL,
-	"policy_value" text DEFAULT '' NOT NULL,
+	"policy_key" varchar(100) NOT NULL,
+	"policy_value" varchar(255) NOT NULL,
 	"is_hard_block" boolean DEFAULT true NOT NULL,
-	"document_url" varchar(500),
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"document_url" varchar(500) NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "hq_groups" (
@@ -1394,6 +2132,53 @@ CREATE TABLE "platform_broadcasts" (
 	"created_by" uuid
 );
 --> statement-breakpoint
+CREATE TABLE "grading_rubrics" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"scale_id" uuid NOT NULL,
+	"label" varchar(255) NOT NULL,
+	"min_score" numeric,
+	"max_score" numeric,
+	"gpa_value" numeric,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "grading_scales" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"type" varchar(50) NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "appointments" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"title" varchar(255) NOT NULL,
+	"description" text,
+	"date" varchar(10) NOT NULL,
+	"time" varchar(10) NOT NULL,
+	"duration" integer NOT NULL,
+	"with_user_id" uuid,
+	"status" varchar(50) DEFAULT 'scheduled',
+	"type" varchar(50)
+);
+--> statement-breakpoint
+CREATE TABLE "diary_entries" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"title" varchar(255) NOT NULL,
+	"content" text NOT NULL,
+	"date" varchar(10) NOT NULL,
+	"grade_id" uuid,
+	"section_id" uuid,
+	"subject_id" uuid,
+	"teacher_id" uuid,
+	"type" varchar(50),
+	"file_attachments" text,
+	"created_at" timestamp with time zone DEFAULT now(),
+	"updated_at" timestamp with time zone DEFAULT now()
+);
+--> statement-breakpoint
 ALTER TABLE "tenants" ADD CONSTRAINT "tenants_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "users" ADD CONSTRAINT "users_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "academic_years" ADD CONSTRAINT "academic_years_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -1425,6 +2210,17 @@ ALTER TABLE "fine_rules" ADD CONSTRAINT "fine_rules_fee_plan_id_fee_plans_id_fk"
 ALTER TABLE "invoices" ADD CONSTRAINT "invoices_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invoices" ADD CONSTRAINT "invoices_student_id_students_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invoices" ADD CONSTRAINT "invoices_fee_plan_id_fee_plans_id_fk" FOREIGN KEY ("fee_plan_id") REFERENCES "public"."fee_plans"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_audit_logs" ADD CONSTRAINT "payment_audit_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_audit_logs" ADD CONSTRAINT "payment_audit_logs_invoice_id_invoices_id_fk" FOREIGN KEY ("invoice_id") REFERENCES "public"."invoices"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_audit_logs" ADD CONSTRAINT "payment_audit_logs_payment_id_payments_id_fk" FOREIGN KEY ("payment_id") REFERENCES "public"."payments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_audit_logs" ADD CONSTRAINT "payment_audit_logs_payment_order_id_payment_orders_id_fk" FOREIGN KEY ("payment_order_id") REFERENCES "public"."payment_orders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_audit_logs" ADD CONSTRAINT "payment_audit_logs_actor_user_id_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_audit_logs" ADD CONSTRAINT "payment_audit_logs_provider_event_id_payment_provider_events_id_fk" FOREIGN KEY ("provider_event_id") REFERENCES "public"."payment_provider_events"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_invoice_id_invoices_id_fk" FOREIGN KEY ("invoice_id") REFERENCES "public"."invoices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_student_id_students_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_provider_events" ADD CONSTRAINT "payment_provider_events_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_invoice_id_invoices_id_fk" FOREIGN KEY ("invoice_id") REFERENCES "public"."invoices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_student_id_students_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -1442,6 +2238,10 @@ ALTER TABLE "attendance_records" ADD CONSTRAINT "attendance_records_student_id_s
 ALTER TABLE "attendance_records" ADD CONSTRAINT "attendance_records_section_id_sections_id_fk" FOREIGN KEY ("section_id") REFERENCES "public"."sections"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "attendance_records" ADD CONSTRAINT "attendance_records_marked_by_users_id_fk" FOREIGN KEY ("marked_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "periods" ADD CONSTRAINT "periods_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "substitution_requests" ADD CONSTRAINT "substitution_requests_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "substitution_requests" ADD CONSTRAINT "substitution_requests_teacher_id_users_id_fk" FOREIGN KEY ("teacher_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "substitution_requests" ADD CONSTRAINT "substitution_requests_substitute_id_users_id_fk" FOREIGN KEY ("substitute_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "substitution_requests" ADD CONSTRAINT "substitution_requests_section_id_sections_id_fk" FOREIGN KEY ("section_id") REFERENCES "public"."sections"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "substitutions" ADD CONSTRAINT "substitutions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "substitutions" ADD CONSTRAINT "substitutions_timetable_entry_id_timetable_entries_id_fk" FOREIGN KEY ("timetable_entry_id") REFERENCES "public"."timetable_entries"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "substitutions" ADD CONSTRAINT "substitutions_original_teacher_id_users_id_fk" FOREIGN KEY ("original_teacher_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -1470,11 +2270,18 @@ ALTER TABLE "consents" ADD CONSTRAINT "consents_user_id_users_id_fk" FOREIGN KEY
 ALTER TABLE "messages" ADD CONSTRAINT "messages_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "messages" ADD CONSTRAINT "messages_recipient_id_users_id_fk" FOREIGN KEY ("recipient_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "messages" ADD CONSTRAINT "messages_sent_by_users_id_fk" FOREIGN KEY ("sent_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "exam_proctoring_logs" ADD CONSTRAINT "exam_proctoring_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "exam_proctoring_logs" ADD CONSTRAINT "exam_proctoring_logs_exam_schedule_id_exam_schedules_id_fk" FOREIGN KEY ("exam_schedule_id") REFERENCES "public"."exam_schedules"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "exam_proctoring_logs" ADD CONSTRAINT "exam_proctoring_logs_student_id_students_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "exam_result_hashes" ADD CONSTRAINT "exam_result_hashes_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "exam_result_hashes" ADD CONSTRAINT "exam_result_hashes_result_id_student_results_id_fk" FOREIGN KEY ("result_id") REFERENCES "public"."student_results"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "exam_result_hashes" ADD CONSTRAINT "exam_result_hashes_locked_by_users_id_fk" FOREIGN KEY ("locked_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "exam_schedules" ADD CONSTRAINT "exam_schedules_exam_id_exams_id_fk" FOREIGN KEY ("exam_id") REFERENCES "public"."exams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "exam_schedules" ADD CONSTRAINT "exam_schedules_grade_id_grades_id_fk" FOREIGN KEY ("grade_id") REFERENCES "public"."grades"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "exam_schedules" ADD CONSTRAINT "exam_schedules_subject_id_subjects_id_fk" FOREIGN KEY ("subject_id") REFERENCES "public"."subjects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "exams" ADD CONSTRAINT "exams_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "exams" ADD CONSTRAINT "exams_academic_year_id_academic_years_id_fk" FOREIGN KEY ("academic_year_id") REFERENCES "public"."academic_years"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "exams" ADD CONSTRAINT "exams_published_by_users_id_fk" FOREIGN KEY ("published_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "student_results" ADD CONSTRAINT "student_results_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "student_results" ADD CONSTRAINT "student_results_exam_schedule_id_exam_schedules_id_fk" FOREIGN KEY ("exam_schedule_id") REFERENCES "public"."exam_schedules"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "student_results" ADD CONSTRAINT "student_results_student_id_students_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -1503,12 +2310,24 @@ ALTER TABLE "book_reservations" ADD CONSTRAINT "book_reservations_tenant_id_tena
 ALTER TABLE "book_reservations" ADD CONSTRAINT "book_reservations_book_id_books_id_fk" FOREIGN KEY ("book_id") REFERENCES "public"."books"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "book_reservations" ADD CONSTRAINT "book_reservations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "books" ADD CONSTRAINT "books_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "webhook_deliveries" ADD CONSTRAINT "webhook_deliveries_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "webhook_deliveries" ADD CONSTRAINT "webhook_deliveries_subscription_id_webhook_subscriptions_id_fk" FOREIGN KEY ("subscription_id") REFERENCES "public"."webhook_subscriptions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "webhook_subscriptions" ADD CONSTRAINT "webhook_subscriptions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "integration_api_keys" ADD CONSTRAINT "integration_api_keys_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "integration_api_keys" ADD CONSTRAINT "integration_api_keys_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "integration_api_keys" ADD CONSTRAINT "integration_api_keys_revoked_by_users_id_fk" FOREIGN KEY ("revoked_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "integration_audit_logs" ADD CONSTRAINT "integration_audit_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "integration_audit_logs" ADD CONSTRAINT "integration_audit_logs_api_key_id_integration_api_keys_id_fk" FOREIGN KEY ("api_key_id") REFERENCES "public"."integration_api_keys"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "integration_audit_logs" ADD CONSTRAINT "integration_audit_logs_actor_user_id_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "integration_connections" ADD CONSTRAINT "integration_connections_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "integration_connections" ADD CONSTRAINT "integration_connections_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "integration_connections" ADD CONSTRAINT "integration_connections_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "hostel_allocations" ADD CONSTRAINT "hostel_allocations_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "hostel_allocations" ADD CONSTRAINT "hostel_allocations_student_id_students_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "hostel_allocations" ADD CONSTRAINT "hostel_allocations_hostel_id_hostels_id_fk" FOREIGN KEY ("hostel_id") REFERENCES "public"."hostels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "hostel_allocations" ADD CONSTRAINT "hostel_allocations_room_id_hostel_rooms_id_fk" FOREIGN KEY ("room_id") REFERENCES "public"."hostel_rooms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "hostel_fees" ADD CONSTRAINT "hostel_fees_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "hostel_fees" ADD CONSTRAINT "hostel_fees_student_id_students_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "hostel_rooms" ADD CONSTRAINT "hostel_rooms_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "hostel_rooms" ADD CONSTRAINT "hostel_rooms_hostel_id_hostels_id_fk" FOREIGN KEY ("hostel_id") REFERENCES "public"."hostels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "hostels" ADD CONSTRAINT "hostels_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -1559,6 +2378,8 @@ ALTER TABLE "lesson_plans" ADD CONSTRAINT "lesson_plans_grade_id_grades_id_fk" F
 ALTER TABLE "lesson_plans" ADD CONSTRAINT "lesson_plans_teacher_id_users_id_fk" FOREIGN KEY ("teacher_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "lesson_plans" ADD CONSTRAINT "lesson_plans_approved_by_users_id_fk" FOREIGN KEY ("approved_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "certificate_templates" ADD CONSTRAINT "certificate_templates_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "digilocker_sync_logs" ADD CONSTRAINT "digilocker_sync_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "digilocker_sync_logs" ADD CONSTRAINT "digilocker_sync_logs_student_id_students_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "id_cards" ADD CONSTRAINT "id_cards_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issued_certificates" ADD CONSTRAINT "issued_certificates_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "issued_certificates" ADD CONSTRAINT "issued_certificates_template_id_certificate_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."certificate_templates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -1579,10 +2400,88 @@ ALTER TABLE "consent_forms" ADD CONSTRAINT "consent_forms_created_by_users_id_fk
 ALTER TABLE "consent_responses" ADD CONSTRAINT "consent_responses_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "consent_responses" ADD CONSTRAINT "consent_responses_form_id_consent_forms_id_fk" FOREIGN KEY ("form_id") REFERENCES "public"."consent_forms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "consent_responses" ADD CONSTRAINT "consent_responses_student_id_students_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_workflows" ADD CONSTRAINT "metadata_workflows_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflows" ADD CONSTRAINT "workflows_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "student_documents" ADD CONSTRAINT "student_documents_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "student_documents" ADD CONSTRAINT "student_documents_student_id_students_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."students"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "student_documents" ADD CONSTRAINT "student_documents_uploaded_by_users_id_fk" FOREIGN KEY ("uploaded_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "student_documents" ADD CONSTRAINT "student_documents_verified_by_users_id_fk" FOREIGN KEY ("verified_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "field_permissions" ADD CONSTRAINT "field_permissions_field_id_metadata_fields_id_fk" FOREIGN KEY ("field_id") REFERENCES "public"."metadata_fields"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_fields" ADD CONSTRAINT "metadata_fields_object_id_metadata_objects_id_fk" FOREIGN KEY ("object_id") REFERENCES "public"."metadata_objects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_layouts" ADD CONSTRAINT "metadata_layouts_object_id_metadata_objects_id_fk" FOREIGN KEY ("object_id") REFERENCES "public"."metadata_objects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_migration_jobs" ADD CONSTRAINT "metadata_migration_jobs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_migration_jobs" ADD CONSTRAINT "metadata_migration_jobs_object_id_metadata_objects_id_fk" FOREIGN KEY ("object_id") REFERENCES "public"."metadata_objects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_migration_jobs" ADD CONSTRAINT "metadata_migration_jobs_schema_version_id_metadata_schema_versions_id_fk" FOREIGN KEY ("schema_version_id") REFERENCES "public"."metadata_schema_versions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_migration_jobs" ADD CONSTRAINT "metadata_migration_jobs_requested_by_users_id_fk" FOREIGN KEY ("requested_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_objects" ADD CONSTRAINT "metadata_objects_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_records" ADD CONSTRAINT "metadata_records_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_records" ADD CONSTRAINT "metadata_records_object_id_metadata_objects_id_fk" FOREIGN KEY ("object_id") REFERENCES "public"."metadata_objects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_schema_versions" ADD CONSTRAINT "metadata_schema_versions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_schema_versions" ADD CONSTRAINT "metadata_schema_versions_object_id_metadata_objects_id_fk" FOREIGN KEY ("object_id") REFERENCES "public"."metadata_objects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_schema_versions" ADD CONSTRAINT "metadata_schema_versions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_schema_versions" ADD CONSTRAINT "metadata_schema_versions_published_by_users_id_fk" FOREIGN KEY ("published_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_values" ADD CONSTRAINT "metadata_values_record_id_metadata_records_id_fk" FOREIGN KEY ("record_id") REFERENCES "public"."metadata_records"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "metadata_values" ADD CONSTRAINT "metadata_values_field_id_metadata_fields_id_fk" FOREIGN KEY ("field_id") REFERENCES "public"."metadata_fields"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "agent_approvals" ADD CONSTRAINT "agent_approvals_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "agent_approvals" ADD CONSTRAINT "agent_approvals_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "agent_approvals" ADD CONSTRAINT "agent_approvals_reviewed_by_user_id_users_id_fk" FOREIGN KEY ("reviewed_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "agent_audit_logs" ADD CONSTRAINT "agent_audit_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "embeddings" ADD CONSTRAINT "embeddings_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "background_job_attempts" ADD CONSTRAINT "background_job_attempts_job_id_background_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."background_jobs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "background_job_attempts" ADD CONSTRAINT "background_job_attempts_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "background_jobs" ADD CONSTRAINT "background_jobs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "background_jobs" ADD CONSTRAINT "background_jobs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_delivery_events" ADD CONSTRAINT "notification_delivery_events_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_delivery_events" ADD CONSTRAINT "notification_delivery_events_notification_id_notification_outbox_id_fk" FOREIGN KEY ("notification_id") REFERENCES "public"."notification_outbox"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_delivery_events" ADD CONSTRAINT "notification_delivery_events_job_id_background_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."background_jobs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_outbox" ADD CONSTRAINT "notification_outbox_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_outbox" ADD CONSTRAINT "notification_outbox_job_id_background_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."background_jobs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_outbox" ADD CONSTRAINT "notification_outbox_recipient_user_id_users_id_fk" FOREIGN KEY ("recipient_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_outbox" ADD CONSTRAINT "notification_outbox_template_id_message_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."message_templates"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_outbox" ADD CONSTRAINT "notification_outbox_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "observability_events" ADD CONSTRAINT "observability_events_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "observability_events" ADD CONSTRAINT "observability_events_actor_user_id_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "slo_definitions" ADD CONSTRAINT "slo_definitions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "slo_definitions" ADD CONSTRAINT "slo_definitions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "slo_measurements" ADD CONSTRAINT "slo_measurements_slo_id_slo_definitions_id_fk" FOREIGN KEY ("slo_id") REFERENCES "public"."slo_definitions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "slo_measurements" ADD CONSTRAINT "slo_measurements_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "sre_incidents" ADD CONSTRAINT "sre_incidents_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "sre_incidents" ADD CONSTRAINT "sre_incidents_acknowledged_by_users_id_fk" FOREIGN KEY ("acknowledged_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "sre_incidents" ADD CONSTRAINT "sre_incidents_resolved_by_users_id_fk" FOREIGN KEY ("resolved_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_approval_delegations" ADD CONSTRAINT "workflow_approval_delegations_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_approval_delegations" ADD CONSTRAINT "workflow_approval_delegations_from_user_id_users_id_fk" FOREIGN KEY ("from_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_approval_delegations" ADD CONSTRAINT "workflow_approval_delegations_to_user_id_users_id_fk" FOREIGN KEY ("to_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_approval_delegations" ADD CONSTRAINT "workflow_approval_delegations_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_approval_events" ADD CONSTRAINT "workflow_approval_events_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_approval_events" ADD CONSTRAINT "workflow_approval_events_approval_request_id_workflow_approval_requests_id_fk" FOREIGN KEY ("approval_request_id") REFERENCES "public"."workflow_approval_requests"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_approval_events" ADD CONSTRAINT "workflow_approval_events_actor_user_id_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_approval_requests" ADD CONSTRAINT "workflow_approval_requests_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_approval_requests" ADD CONSTRAINT "workflow_approval_requests_requested_by_user_id_users_id_fk" FOREIGN KEY ("requested_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_approval_reviews" ADD CONSTRAINT "workflow_approval_reviews_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_approval_reviews" ADD CONSTRAINT "workflow_approval_reviews_approval_request_id_workflow_approval_requests_id_fk" FOREIGN KEY ("approval_request_id") REFERENCES "public"."workflow_approval_requests"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_approval_reviews" ADD CONSTRAINT "workflow_approval_reviews_reviewer_user_id_users_id_fk" FOREIGN KEY ("reviewer_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_approval_reviews" ADD CONSTRAINT "workflow_approval_reviews_delegated_from_user_id_users_id_fk" FOREIGN KEY ("delegated_from_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "operator_console_action_logs" ADD CONSTRAINT "operator_console_action_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "operator_console_action_logs" ADD CONSTRAINT "operator_console_action_logs_actor_user_id_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "operator_console_runbooks" ADD CONSTRAINT "operator_console_runbooks_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "operator_console_runbooks" ADD CONSTRAINT "operator_console_runbooks_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "operator_console_runbooks" ADD CONSTRAINT "operator_console_runbooks_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "operator_console_snapshots" ADD CONSTRAINT "operator_console_snapshots_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "operator_console_snapshots" ADD CONSTRAINT "operator_console_snapshots_generated_by_users_id_fk" FOREIGN KEY ("generated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bi_dashboards" ADD CONSTRAINT "bi_dashboards_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bi_dashboards" ADD CONSTRAINT "bi_dashboards_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bi_dashboards" ADD CONSTRAINT "bi_dashboards_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bi_datasets" ADD CONSTRAINT "bi_datasets_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bi_datasets" ADD CONSTRAINT "bi_datasets_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bi_datasets" ADD CONSTRAINT "bi_datasets_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bi_metric_snapshots" ADD CONSTRAINT "bi_metric_snapshots_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bi_metric_snapshots" ADD CONSTRAINT "bi_metric_snapshots_source_run_id_bi_report_runs_id_fk" FOREIGN KEY ("source_run_id") REFERENCES "public"."bi_report_runs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bi_report_definitions" ADD CONSTRAINT "bi_report_definitions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bi_report_definitions" ADD CONSTRAINT "bi_report_definitions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bi_report_definitions" ADD CONSTRAINT "bi_report_definitions_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bi_report_runs" ADD CONSTRAINT "bi_report_runs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bi_report_runs" ADD CONSTRAINT "bi_report_runs_report_definition_id_bi_report_definitions_id_fk" FOREIGN KEY ("report_definition_id") REFERENCES "public"."bi_report_definitions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bi_report_runs" ADD CONSTRAINT "bi_report_runs_requested_by_users_id_fk" FOREIGN KEY ("requested_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "faculty_workload" ADD CONSTRAINT "faculty_workload_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "faculty_workload" ADD CONSTRAINT "faculty_workload_faculty_id_users_id_fk" FOREIGN KEY ("faculty_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "faculty_workload" ADD CONSTRAINT "faculty_workload_course_id_university_courses_id_fk" FOREIGN KEY ("course_id") REFERENCES "public"."university_courses"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -1609,4 +2508,117 @@ ALTER TABLE "ai_token_logs" ADD CONSTRAINT "ai_token_logs_tenant_id_tenants_id_f
 ALTER TABLE "platform_audit_logs" ADD CONSTRAINT "platform_audit_logs_actor_id_users_id_fk" FOREIGN KEY ("actor_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "platform_audit_logs" ADD CONSTRAINT "platform_audit_logs_target_company_id_companies_id_fk" FOREIGN KEY ("target_company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "platform_audit_logs" ADD CONSTRAINT "platform_audit_logs_target_tenant_id_tenants_id_fk" FOREIGN KEY ("target_tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "platform_broadcasts" ADD CONSTRAINT "platform_broadcasts_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "platform_broadcasts" ADD CONSTRAINT "platform_broadcasts_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "grading_rubrics" ADD CONSTRAINT "grading_rubrics_scale_id_grading_scales_id_fk" FOREIGN KEY ("scale_id") REFERENCES "public"."grading_scales"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "grading_scales" ADD CONSTRAINT "grading_scales_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_with_user_id_users_id_fk" FOREIGN KEY ("with_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "diary_entries" ADD CONSTRAINT "diary_entries_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "diary_entries" ADD CONSTRAINT "diary_entries_grade_id_grades_id_fk" FOREIGN KEY ("grade_id") REFERENCES "public"."grades"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "diary_entries" ADD CONSTRAINT "diary_entries_section_id_sections_id_fk" FOREIGN KEY ("section_id") REFERENCES "public"."sections"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "diary_entries" ADD CONSTRAINT "diary_entries_subject_id_subjects_id_fk" FOREIGN KEY ("subject_id") REFERENCES "public"."subjects"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "diary_entries" ADD CONSTRAINT "diary_entries_teacher_id_users_id_fk" FOREIGN KEY ("teacher_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "idx_guardians_tenant_student_primary" ON "guardians" USING btree ("tenant_id","student_id","is_primary");--> statement-breakpoint
+CREATE INDEX "idx_guardians_tenant_user" ON "guardians" USING btree ("tenant_id","user_id");--> statement-breakpoint
+CREATE INDEX "idx_students_custom_data" ON "students" USING gin ("custom_data");--> statement-breakpoint
+CREATE INDEX "idx_students_tenant_status_grade_section" ON "students" USING btree ("tenant_id","status","grade_id","section_id");--> statement-breakpoint
+CREATE INDEX "idx_students_tenant_admission_number" ON "students" USING btree ("tenant_id","admission_number");--> statement-breakpoint
+CREATE INDEX "idx_invoices_custom_data" ON "invoices" USING gin ("custom_data");--> statement-breakpoint
+CREATE INDEX "idx_invoices_tenant_status_due" ON "invoices" USING btree ("tenant_id","status","due_date");--> statement-breakpoint
+CREATE INDEX "idx_invoices_tenant_student_status" ON "invoices" USING btree ("tenant_id","student_id","status");--> statement-breakpoint
+CREATE INDEX "idx_invoices_tenant_due" ON "invoices" USING btree ("tenant_id","due_date");--> statement-breakpoint
+CREATE INDEX "idx_payment_audit_logs_tenant_created" ON "payment_audit_logs" USING btree ("tenant_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_payment_audit_logs_invoice" ON "payment_audit_logs" USING btree ("invoice_id");--> statement-breakpoint
+CREATE INDEX "idx_payment_orders_tenant_invoice" ON "payment_orders" USING btree ("tenant_id","invoice_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_payment_orders_provider_order" ON "payment_orders" USING btree ("provider","provider_order_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_payment_orders_tenant_idempotency" ON "payment_orders" USING btree ("tenant_id","idempotency_key");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_payment_provider_events_provider_event" ON "payment_provider_events" USING btree ("provider","event_id");--> statement-breakpoint
+CREATE INDEX "idx_payment_provider_events_tenant" ON "payment_provider_events" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "idx_payments_tenant_status_paid" ON "payments" USING btree ("tenant_id","status","paid_at");--> statement-breakpoint
+CREATE INDEX "idx_payments_tenant_invoice" ON "payments" USING btree ("tenant_id","invoice_id");--> statement-breakpoint
+CREATE INDEX "idx_payments_tenant_student_paid" ON "payments" USING btree ("tenant_id","student_id","paid_at");--> statement-breakpoint
+CREATE INDEX "idx_attendance_tenant_date_status" ON "attendance_records" USING btree ("tenant_id","date","status");--> statement-breakpoint
+CREATE INDEX "idx_attendance_tenant_student_date" ON "attendance_records" USING btree ("tenant_id","student_id","date");--> statement-breakpoint
+CREATE INDEX "idx_attendance_tenant_section_date" ON "attendance_records" USING btree ("tenant_id","section_id","date");--> statement-breakpoint
+CREATE INDEX "idx_staff_profiles_custom_data" ON "staff_profiles" USING gin ("custom_data");--> statement-breakpoint
+CREATE INDEX "idx_webhook_deliveries_tenant_created" ON "webhook_deliveries" USING btree ("tenant_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_webhook_deliveries_retry" ON "webhook_deliveries" USING btree ("status","next_retry_at");--> statement-breakpoint
+CREATE INDEX "idx_integration_api_keys_tenant_provider" ON "integration_api_keys" USING btree ("tenant_id","provider");--> statement-breakpoint
+CREATE INDEX "idx_integration_api_keys_tenant_status" ON "integration_api_keys" USING btree ("tenant_id","status");--> statement-breakpoint
+CREATE INDEX "idx_integration_audit_tenant_provider_created" ON "integration_audit_logs" USING btree ("tenant_id","provider","created_at");--> statement-breakpoint
+CREATE INDEX "idx_integration_audit_request" ON "integration_audit_logs" USING btree ("request_id");--> statement-breakpoint
+CREATE INDEX "idx_integration_connections_tenant_status" ON "integration_connections" USING btree ("tenant_id","status");--> statement-breakpoint
+CREATE INDEX "idx_workflows_tenant" ON "workflows" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "idx_workflows_trigger" ON "workflows" USING btree ("trigger_event") WHERE "workflows"."is_active" = true;--> statement-breakpoint
+CREATE INDEX "idx_meta_fld_obj" ON "metadata_fields" USING btree ("object_id");--> statement-breakpoint
+CREATE INDEX "idx_metadata_fields_object_status" ON "metadata_fields" USING btree ("object_id","status");--> statement-breakpoint
+CREATE INDEX "idx_metadata_migration_jobs_tenant_status" ON "metadata_migration_jobs" USING btree ("tenant_id","status","created_at");--> statement-breakpoint
+CREATE INDEX "idx_metadata_migration_jobs_object" ON "metadata_migration_jobs" USING btree ("object_id");--> statement-breakpoint
+CREATE INDEX "idx_meta_obj_api" ON "metadata_objects" USING btree ("tenant_id","api_name");--> statement-breakpoint
+CREATE INDEX "idx_metadata_objects_tenant_status" ON "metadata_objects" USING btree ("tenant_id","status");--> statement-breakpoint
+CREATE INDEX "idx_metadata_schema_versions_tenant_object_status" ON "metadata_schema_versions" USING btree ("tenant_id","object_id","status");--> statement-breakpoint
+CREATE INDEX "idx_agent_approvals_tenant_status" ON "agent_approvals" USING btree ("tenant_id","status","created_at");--> statement-breakpoint
+CREATE INDEX "idx_agent_audit_tenant" ON "agent_audit_logs" USING btree ("tenant_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_agent_audit_agent" ON "agent_audit_logs" USING btree ("agent_name","created_at");--> statement-breakpoint
+CREATE INDEX "idx_embeddings_tenant_collection" ON "embeddings" USING btree ("tenant_id","collection");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_embeddings_tenant_collection_entity" ON "embeddings" USING btree ("tenant_id","collection","entity_id");--> statement-breakpoint
+CREATE INDEX "idx_embeddings_vector" ON "embeddings" USING hnsw ("embedding" vector_cosine_ops);--> statement-breakpoint
+CREATE INDEX "idx_background_job_attempts_job_attempt" ON "background_job_attempts" USING btree ("job_id","attempt_number");--> statement-breakpoint
+CREATE INDEX "idx_background_job_attempts_tenant_started" ON "background_job_attempts" USING btree ("tenant_id","started_at");--> statement-breakpoint
+CREATE INDEX "idx_background_jobs_tenant_status_available" ON "background_jobs" USING btree ("tenant_id","status","available_at");--> statement-breakpoint
+CREATE INDEX "idx_background_jobs_queue_status_available" ON "background_jobs" USING btree ("queue","status","available_at");--> statement-breakpoint
+CREATE INDEX "idx_background_jobs_task_status" ON "background_jobs" USING btree ("task_name","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "background_jobs_tenant_idempotency_key" ON "background_jobs" USING btree ("tenant_id","idempotency_key") WHERE "background_jobs"."tenant_id" IS NOT NULL AND "background_jobs"."idempotency_key" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "background_jobs_platform_idempotency_key" ON "background_jobs" USING btree ("idempotency_key") WHERE "background_jobs"."tenant_id" IS NULL AND "background_jobs"."idempotency_key" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "idx_notification_events_notification_created" ON "notification_delivery_events" USING btree ("notification_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_notification_events_tenant_created" ON "notification_delivery_events" USING btree ("tenant_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_notification_outbox_tenant_status_next" ON "notification_outbox" USING btree ("tenant_id","status","next_attempt_at");--> statement-breakpoint
+CREATE INDEX "idx_notification_outbox_job" ON "notification_outbox" USING btree ("job_id");--> statement-breakpoint
+CREATE INDEX "idx_notification_outbox_recipient" ON "notification_outbox" USING btree ("tenant_id","recipient");--> statement-breakpoint
+CREATE UNIQUE INDEX "notification_outbox_tenant_idempotency_key" ON "notification_outbox" USING btree ("tenant_id","idempotency_key") WHERE "notification_outbox"."idempotency_key" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "idx_observability_events_tenant_severity_created" ON "observability_events" USING btree ("tenant_id","severity","created_at");--> statement-breakpoint
+CREATE INDEX "idx_observability_events_source_type_created" ON "observability_events" USING btree ("source","event_type","created_at");--> statement-breakpoint
+CREATE INDEX "idx_observability_events_request" ON "observability_events" USING btree ("request_id");--> statement-breakpoint
+CREATE INDEX "idx_slo_definitions_service_active" ON "slo_definitions" USING btree ("service","is_active");--> statement-breakpoint
+CREATE INDEX "idx_slo_definitions_tenant_service" ON "slo_definitions" USING btree ("tenant_id","service");--> statement-breakpoint
+CREATE INDEX "idx_slo_measurements_slo_window" ON "slo_measurements" USING btree ("slo_id","window_end");--> statement-breakpoint
+CREATE INDEX "idx_slo_measurements_tenant_service_window" ON "slo_measurements" USING btree ("tenant_id","service","window_end");--> statement-breakpoint
+CREATE INDEX "idx_sre_incidents_tenant_status_severity" ON "sre_incidents" USING btree ("tenant_id","status","severity");--> statement-breakpoint
+CREATE INDEX "idx_sre_incidents_last_seen" ON "sre_incidents" USING btree ("last_seen_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "sre_incidents_tenant_fingerprint_key" ON "sre_incidents" USING btree ("tenant_id","fingerprint") WHERE "sre_incidents"."tenant_id" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "sre_incidents_platform_fingerprint_key" ON "sre_incidents" USING btree ("fingerprint") WHERE "sre_incidents"."tenant_id" IS NULL;--> statement-breakpoint
+CREATE INDEX "idx_rate_limit_buckets_expires" ON "rate_limit_buckets" USING btree ("expires_at");--> statement-breakpoint
+CREATE INDEX "idx_workflow_approval_delegations_tenant_to_active" ON "workflow_approval_delegations" USING btree ("tenant_id","to_user_id","is_active");--> statement-breakpoint
+CREATE INDEX "idx_workflow_approval_delegations_tenant_from" ON "workflow_approval_delegations" USING btree ("tenant_id","from_user_id");--> statement-breakpoint
+CREATE INDEX "idx_workflow_approval_events_request_created" ON "workflow_approval_events" USING btree ("approval_request_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_workflow_approval_events_tenant_type_created" ON "workflow_approval_events" USING btree ("tenant_id","event_type","created_at");--> statement-breakpoint
+CREATE INDEX "idx_workflow_approvals_tenant_status_due" ON "workflow_approval_requests" USING btree ("tenant_id","status","due_at");--> statement-breakpoint
+CREATE INDEX "idx_workflow_approvals_tenant_policy_status" ON "workflow_approval_requests" USING btree ("tenant_id","policy_id","status");--> statement-breakpoint
+CREATE INDEX "idx_workflow_approvals_resource" ON "workflow_approval_requests" USING btree ("tenant_id","resource_type","resource_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "workflow_approvals_tenant_idempotency_key" ON "workflow_approval_requests" USING btree ("tenant_id","idempotency_key") WHERE "workflow_approval_requests"."idempotency_key" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "idx_workflow_approval_reviews_request_created" ON "workflow_approval_reviews" USING btree ("approval_request_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_workflow_approval_reviews_tenant_reviewer" ON "workflow_approval_reviews" USING btree ("tenant_id","reviewer_user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "workflow_approval_reviews_request_reviewer_key" ON "workflow_approval_reviews" USING btree ("approval_request_id","reviewer_user_id") WHERE "workflow_approval_reviews"."reviewer_user_id" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "idx_operator_actions_tenant_action_created" ON "operator_console_action_logs" USING btree ("tenant_id","action_type","created_at");--> statement-breakpoint
+CREATE INDEX "idx_operator_actions_status" ON "operator_console_action_logs" USING btree ("status","created_at");--> statement-breakpoint
+CREATE INDEX "idx_operator_actions_target" ON "operator_console_action_logs" USING btree ("target_type","target_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "operator_actions_tenant_idempotency_key" ON "operator_console_action_logs" USING btree ("tenant_id","idempotency_key") WHERE "operator_console_action_logs"."tenant_id" IS NOT NULL AND "operator_console_action_logs"."idempotency_key" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "operator_actions_platform_idempotency_key" ON "operator_console_action_logs" USING btree ("idempotency_key") WHERE "operator_console_action_logs"."tenant_id" IS NULL AND "operator_console_action_logs"."idempotency_key" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "idx_operator_runbooks_tenant_domain" ON "operator_console_runbooks" USING btree ("tenant_id","domain");--> statement-breakpoint
+CREATE INDEX "idx_operator_runbooks_status" ON "operator_console_runbooks" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "idx_operator_snapshots_tenant_generated" ON "operator_console_snapshots" USING btree ("tenant_id","generated_at");--> statement-breakpoint
+CREATE INDEX "idx_operator_snapshots_scope_status" ON "operator_console_snapshots" USING btree ("scope","status","generated_at");--> statement-breakpoint
+CREATE INDEX "idx_bi_dashboards_tenant_domain" ON "bi_dashboards" USING btree ("tenant_id","domain");--> statement-breakpoint
+CREATE INDEX "idx_bi_dashboards_status" ON "bi_dashboards" USING btree ("status");--> statement-breakpoint
+CREATE UNIQUE INDEX "bi_dashboards_tenant_dashboard_key" ON "bi_dashboards" USING btree ("tenant_id","dashboard_key") WHERE "bi_dashboards"."tenant_id" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "bi_dashboards_platform_dashboard_key" ON "bi_dashboards" USING btree ("dashboard_key") WHERE "bi_dashboards"."tenant_id" IS NULL;--> statement-breakpoint
+CREATE INDEX "idx_bi_datasets_tenant_domain" ON "bi_datasets" USING btree ("tenant_id","domain");--> statement-breakpoint
+CREATE INDEX "idx_bi_datasets_status" ON "bi_datasets" USING btree ("status");--> statement-breakpoint
+CREATE UNIQUE INDEX "bi_datasets_tenant_dataset_key" ON "bi_datasets" USING btree ("tenant_id","dataset_key") WHERE "bi_datasets"."tenant_id" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "bi_datasets_platform_dataset_key" ON "bi_datasets" USING btree ("dataset_key") WHERE "bi_datasets"."tenant_id" IS NULL;--> statement-breakpoint
+CREATE INDEX "idx_bi_metric_snapshots_tenant_metric_period" ON "bi_metric_snapshots" USING btree ("tenant_id","metric_key","period_end");--> statement-breakpoint
+CREATE INDEX "idx_bi_metric_snapshots_dataset_period" ON "bi_metric_snapshots" USING btree ("dataset_key","period_end");--> statement-breakpoint
+CREATE INDEX "idx_bi_report_defs_tenant_dataset" ON "bi_report_definitions" USING btree ("tenant_id","dataset_key");--> statement-breakpoint
+CREATE INDEX "idx_bi_report_defs_tenant_status" ON "bi_report_definitions" USING btree ("tenant_id","status");--> statement-breakpoint
+CREATE INDEX "idx_bi_report_runs_tenant_status_queued" ON "bi_report_runs" USING btree ("tenant_id","status","queued_at");--> statement-breakpoint
+CREATE INDEX "idx_bi_report_runs_definition" ON "bi_report_runs" USING btree ("report_definition_id");
