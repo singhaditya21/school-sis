@@ -1,7 +1,5 @@
 import { execSync } from 'child_process';
-import { Client } from 'pg';
 import path from 'path';
-import fs from 'fs';
 import {
     enableVectorExtension,
     ensurePlaywrightTestEnvironment,
@@ -36,32 +34,6 @@ export default async function globalSetup() {
         stdio: 'inherit',
         cwd: path.resolve(__dirname, '..')
     });
-
-    console.log('🏗️  Running metadata engine migrations...');
-    const dbClient = new Client({ connectionString: environment.databaseUrl });
-    await dbClient.connect();
-    try {
-        const migrationsDir = path.resolve(__dirname, '../src/lib/db/migrations');
-        const migrationFiles = [
-            'metadata-foundation.sql',
-            'seed-students-metadata.sql',
-            'seed-staff-invoices.sql',
-            'automation.sql'
-        ];
-        for (const file of migrationFiles) {
-            const sqlPath = path.join(migrationsDir, file);
-            if (fs.existsSync(sqlPath)) {
-                console.log(`  Executing migration: ${file}`);
-                const sql = fs.readFileSync(sqlPath, 'utf8');
-                await dbClient.query(sql);
-            }
-        }
-        console.log('✅ Metadata engine migrations complete!');
-    } catch (e) {
-        console.error('❌ Failed to run metadata engine migrations:', e);
-    } finally {
-        await dbClient.end();
-    }
 
     console.log('👤 Seeding E2E test users...');
     execSync('npx tsx scripts/run-e2e-sql.ts', {
