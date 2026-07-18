@@ -15,7 +15,6 @@
   "dependencies": {
     "zod": "^3.25.76",
     "firebase-admin": "^14.1.0",
-    "jspdf": "^4.2.1",
     "stripe": "^20.4.1"
   }
 }
