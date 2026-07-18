@@ -4,6 +4,11 @@ import { requireApiAuth } from '@/lib/auth/api';
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Report card PDF. This previously proxied to a Java backend on localhost:8080
+ * that is no longer deployed. Set PDF_SERVICE_URL to an external renderer to
+ * re-enable proxying; otherwise this returns 501 (native PDF is a follow-up).
+ */
 export async function GET(
     _request: Request,
     { params }: { params: Promise<{ studentId: string; termId: string }> }
@@ -11,26 +16,29 @@ export async function GET(
     const { studentId, termId } = await params;
     const auth = await requireApiAuth();
     if (auth.ok === false) return auth.response;
-    const session = await getSession();
 
-    try {
-        // Fetch report card PDF from Java API
-        const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/exams/report-cards/${studentId}/${termId}/pdf`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${session.token}`,
-                    'X-Tenant-Id': auth.context.tenantId,
-                },
-            }
+    const pdfServiceUrl = process.env.PDF_SERVICE_URL;
+    if (!pdfServiceUrl) {
+        return NextResponse.json(
+            { error: 'Report card PDF generation is not available in this deployment.' },
+            { status: 501 },
         );
+    }
+
+    const session = await getSession();
+    try {
+        const response = await fetch(`${pdfServiceUrl}/api/v1/exams/report-cards/${studentId}/${termId}/pdf`, {
+            headers: {
+                'Authorization': `Bearer ${session.token}`,
+                'X-Tenant-Id': auth.context.tenantId,
+            },
+        });
 
         if (!response.ok) {
             return NextResponse.json({ error: 'Report card not found' }, { status: 404 });
         }
 
         const pdfBuffer = await response.arrayBuffer();
-
         return new NextResponse(pdfBuffer, {
             status: 200,
             headers: {
@@ -40,6 +48,6 @@ export async function GET(
         });
     } catch (error) {
         console.error('[Report Card PDF] Error:', error);
-        return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 502 });
     }
 }

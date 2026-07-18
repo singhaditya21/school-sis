@@ -29,7 +29,6 @@ export function OnlinePaymentDialog({
     isOpen,
     onClose,
     invoiceId,
-    studentId,
     studentName,
     amount,
     invoiceNumber,
@@ -44,28 +43,29 @@ export function OnlinePaymentDialog({
         setError(null);
 
         try {
-            const response = await fetch('/api/payments/create-order', {
+            // Canonical in-app payment order flow (ledger + idempotency + invoice
+            // ownership). Amount defaults to the invoice's outstanding balance.
+            const response = await fetch('/api/payments/orders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     invoiceId,
-                    studentId,
-                    amount,
                     description: `Fee payment for ${invoiceNumber}`
                 })
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to create payment order');
+            const data = await response.json();
+            if (!response.ok || !data?.success) {
+                throw new Error(data?.error || 'Failed to create payment order');
             }
 
-            const data = await response.json();
-            setOrderId(data.providerOrderId);
+            const newOrderId: string = data.data?.orderId;
+            setOrderId(newOrderId);
             setStatus('ready');
 
-            // In production, initialize Razorpay checkout here
-            // For demo, simulate payment flow
-            simulatePayment(data.providerOrderId);
+            // TODO: initialize real Razorpay checkout here. The completion below
+            // is still a placeholder demo flow (tracked separately).
+            simulatePayment(newOrderId);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Payment initialization failed');
             setStatus('failed');
