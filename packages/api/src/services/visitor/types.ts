@@ -1,1 +1,0 @@
-export type { Visitor, VisitorStats, VisitPurpose } from './visitor.service';

@@ -1,1 +1,0 @@
-export type { InventoryItem } from './inventory.service';

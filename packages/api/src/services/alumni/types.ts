@@ -1,1 +1,0 @@
-export type { Alumni } from './alumni.service';

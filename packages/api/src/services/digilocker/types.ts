@@ -1,1 +1,0 @@
-export type { DigiLockerCertificate } from './digilocker.service';
