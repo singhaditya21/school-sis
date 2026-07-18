@@ -11,10 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import { ROLES, ROLE_LABELS, ROLE_COLORS } from '@/lib/constants';
-import { usersApi, type AdminUser } from '@/lib/api/users';
-
-// Default tenant ID for demo
-const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+import { listUsers, createUser, setUserActive, resetUserPassword, type AdminUser } from '@/lib/actions/users';
 
 export default function UserManagementPage() {
     const [users, setUsers] = useState<AdminUser[]>([]);
@@ -35,24 +32,14 @@ export default function UserManagementPage() {
         setLoading(true);
         setError(null);
         try {
-            const response = await usersApi.getAll(0, 100);
+            const response = await listUsers();
             if (response.success && response.data) {
-                setUsers(response.data.content);
+                setUsers(response.data);
             } else {
-                // Fall back to mock data if API fails
-                setUsers([
-                    { id: '1', email: 'admin@greenwood.edu', firstName: 'Admin', lastName: 'User', role: 'SUPER_ADMIN', active: true, createdAt: '2025-01-01', lastLoginAt: '2026-01-22', tenantId: DEFAULT_TENANT_ID },
-                    { id: '2', email: 'accountant@greenwood.edu', firstName: 'Accounts', lastName: 'Team', role: 'ACCOUNTANT', active: true, createdAt: '2025-01-01', lastLoginAt: '2026-01-20', tenantId: DEFAULT_TENANT_ID },
-                    { id: '3', email: 'principal@greenwood.edu', firstName: 'Dr. Sharma', lastName: '', role: 'PRINCIPAL', active: true, createdAt: '2025-01-01', lastLoginAt: null, tenantId: DEFAULT_TENANT_ID },
-                ]);
-                setError('Using demo data (backend not available)');
+                setError(response.error ?? 'Failed to load users');
             }
-        } catch {
-            setUsers([
-                { id: '1', email: 'admin@greenwood.edu', firstName: 'Admin', lastName: 'User', role: 'SUPER_ADMIN', active: true, createdAt: '2025-01-01', lastLoginAt: '2026-01-22', tenantId: DEFAULT_TENANT_ID },
-                { id: '2', email: 'accountant@greenwood.edu', firstName: 'Accounts', lastName: 'Team', role: 'ACCOUNTANT', active: true, createdAt: '2025-01-01', lastLoginAt: '2026-01-20', tenantId: DEFAULT_TENANT_ID },
-            ]);
-            setError('Using demo data (backend not available)');
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Failed to load users');
         }
         setLoading(false);
     };
@@ -68,54 +55,44 @@ export default function UserManagementPage() {
     const handleAddUser = async () => {
         setSaving(true);
         try {
-            const response = await usersApi.create({
+            const response = await createUser({
                 email: newUser.email,
                 password: newUser.password,
                 firstName: newUser.firstName,
                 lastName: newUser.lastName,
                 role: newUser.role,
-                tenantId: DEFAULT_TENANT_ID,
             });
 
             if (response.success && response.data) {
-                setUsers([...users, response.data]);
+                setUsers([response.data, ...users]);
                 setNewUser({ email: '', firstName: '', lastName: '', role: 'TEACHER', password: '' });
                 setIsAddDialogOpen(false);
             } else {
-                alert(response.error?.message || 'Failed to create user');
+                alert(response.error || 'Failed to create user');
             }
-        } catch {
-            alert('Failed to create user. Is the backend running?');
+        } catch (e) {
+            alert(e instanceof Error ? e.message : 'Failed to create user');
         }
         setSaving(false);
     };
 
     const handleToggleActive = async (userId: string, currentActive: boolean) => {
-        try {
-            const response = await usersApi.update(userId, { active: !currentActive });
-            if (response.success && response.data) {
-                setUsers(users.map(user =>
-                    user.id === userId ? { ...user, active: !currentActive } : user
-                ));
-            }
-        } catch {
-            // Update locally as fallback
+        const response = await setUserActive(userId, !currentActive);
+        if (response.success) {
             setUsers(users.map(user =>
                 user.id === userId ? { ...user, active: !currentActive } : user
             ));
+        } else {
+            alert(response.error ?? 'Failed to update user');
         }
     };
 
     const handleResetPassword = async (userId: string) => {
-        try {
-            const response = await usersApi.resetPassword(userId);
-            if (response.success && response.data) {
-                alert(`Temporary password: ${response.data.temporaryPassword}\n\nPlease share this securely with the user.`);
-            } else {
-                alert('Password reset feature requires backend connection.');
-            }
-        } catch {
-            alert('Password reset requires the backend to be running.');
+        const response = await resetUserPassword(userId);
+        if (response.success && response.data) {
+            alert(`Temporary password: ${response.data.temporaryPassword}\n\nPlease share this securely with the user.`);
+        } else {
+            alert(response.error ?? 'Failed to reset password');
         }
     };
 
