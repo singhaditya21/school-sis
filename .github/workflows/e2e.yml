@@ -62,6 +62,58 @@ jobs:
           path: ./apps/web/.next
           key: ${{ runner.os }}-nextjs-${{ github.sha }}
 
+  migrate-check:
+    name: Migration Chain
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'schedule'
+    # Applies the ordered Drizzle migrations to a FRESH database so a broken or
+    # mis-ordered migration fails here in CI, not on the Vercel production build.
+    # INFORMATIONAL (continue-on-error) until issue #45 is fixed: the chain
+    # currently can't build a fresh DB (metadata_* tables are never CREATEd by any
+    # migration). Remove continue-on-error once #45 lands to make this enforcing.
+    continue-on-error: true
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: school_sis
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Enable pgvector extension
+        run: PGPASSWORD=password psql -h localhost -U postgres -d school_sis -c 'CREATE EXTENSION IF NOT EXISTS vector;'
+
+      - name: Apply the full migration chain to a fresh database
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis
+          DIRECT_URL: postgresql://postgres:password@localhost:5432/school_sis
+        run: pnpm --filter @school-sis/web exec drizzle-kit migrate
+
   smoke:
     name: Playwright Smoke
     needs: build
