@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-const toast = (...args: any[]) => console.log(...args);
+import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     Table,
@@ -28,7 +28,7 @@ export default function CompliancePage() {
                 setProctoringLogs(logs);
             } catch (err) {
                 console.error(err);
-                alert('Failed to fetch proctoring logs');
+                toast.error('Failed to fetch proctoring logs');
             }
         };
         fetchLogs();

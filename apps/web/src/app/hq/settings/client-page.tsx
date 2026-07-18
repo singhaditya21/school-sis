@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Sliders, Cpu, Save, Database, Key } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function SettingsClient() {
     const [configs, setConfigs] = useState({
@@ -13,7 +14,7 @@ export default function SettingsClient() {
 
     const handleSave = () => {
         // Mock save
-        alert("Global configuration synchronized to Core Ledger.");
+        toast.success("Global configuration synchronized to Core Ledger.");
     }
 
     return (

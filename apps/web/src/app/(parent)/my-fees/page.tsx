@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getMyFees, ParentFeeResponse } from '@/lib/services/parent/parent.service';
 import { createCheckoutSession } from '@/lib/actions/payments';
+import { toast } from 'sonner';
 
 export default function MyFeesPage() {
     const [data, setData] = useState<ParentFeeResponse>({ invoices: [], payments: [] });
@@ -32,7 +33,7 @@ export default function MyFeesPage() {
             if (url) window.location.href = url;
         } catch (error) {
             console.error('Payment error', error);
-            alert('Failed to initiate payment. Please try again later.');
+            toast.error('Failed to initiate payment. Please try again later.');
         }
     };
 

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { markClassAttendance } from '@/lib/actions/mutations';
+import { toast } from 'sonner';
 type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'LEAVE' | 'HALF_DAY' | 'EXCUSED';
 import Link from 'next/link';
 
@@ -84,7 +85,7 @@ export function AttendanceForm({
             if (result.success) {
                 router.push('/attendance');
             } else {
-                alert(result.error || 'Failed to save attendance');
+                toast.error(result.error || 'Failed to save attendance');
             }
         });
     };

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,12 +37,12 @@ export default function DefaulterAlerts({ stats, defaulters }: DefaulterAlertsPr
         setIsProcessing(true);
         await new Promise(resolve => setTimeout(resolve, 2000));
         setIsProcessing(false);
-        alert('Reminders sent successfully!');
+        toast.success('Reminders sent successfully!');
     };
 
     const handleSendReminder = async (studentId: string) => {
         // In production, call API
-        alert(`Reminder sent for student ${studentId}`);
+        toast.success(`Reminder sent for student ${studentId}`);
     };
 
     return (

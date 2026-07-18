@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
+import { toast } from 'sonner';
 import { ROLES, ROLE_LABELS, ROLE_COLORS } from '@/lib/constants';
 import { listUsers, createUser, setUserActive, resetUserPassword, type AdminUser } from '@/lib/actions/users';
 
@@ -68,10 +69,10 @@ export default function UserManagementPage() {
                 setNewUser({ email: '', firstName: '', lastName: '', role: 'TEACHER', password: '' });
                 setIsAddDialogOpen(false);
             } else {
-                alert(response.error || 'Failed to create user');
+                toast.error(response.error || 'Failed to create user');
             }
         } catch (e) {
-            alert(e instanceof Error ? e.message : 'Failed to create user');
+            toast.error(e instanceof Error ? e.message : 'Failed to create user');
         }
         setSaving(false);
     };
@@ -83,16 +84,16 @@ export default function UserManagementPage() {
                 user.id === userId ? { ...user, active: !currentActive } : user
             ));
         } else {
-            alert(response.error ?? 'Failed to update user');
+            toast.error(response.error ?? 'Failed to update user');
         }
     };
 
     const handleResetPassword = async (userId: string) => {
         const response = await resetUserPassword(userId);
         if (response.success && response.data) {
-            alert(`Temporary password: ${response.data.temporaryPassword}\n\nPlease share this securely with the user.`);
+            toast.success(`Temporary password: ${response.data.temporaryPassword}\n\nPlease share this securely with the user.`, { duration: 15000 });
         } else {
-            alert(response.error ?? 'Failed to reset password');
+            toast.error(response.error ?? 'Failed to reset password');
         }
     };
 

@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ROLES, ROLE_LABELS, ROLE_COLORS } from '@/lib/constants';
+import { toast } from 'sonner';
 
 interface Permission {
     id: string;
@@ -112,7 +113,7 @@ export default function RoleManagementPage() {
     const handleSave = () => {
         // TODO: Call API to save role permissions
         setHasChanges(false);
-        alert('Permissions saved successfully!');
+        toast.success('Permissions saved successfully!');
     };
 
     const getPermissionsByModule = (module: string) =>

@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { enterMarks } from '@/lib/actions/mutations';
 import Link from 'next/link';
+import { toast } from 'sonner';
 
 interface Student {
     id: string;
@@ -97,17 +98,17 @@ export function MarksEntryForm({
             .filter((m): m is NonNullable<typeof m> => m !== null);
 
         if (marksData.length === 0) {
-            alert('Please enter at least one mark');
+            toast.error('Please enter at least one mark');
             return;
         }
 
         startTransition(async () => {
             const result = await enterMarks(examId, marksData);
             if (result.success) {
-                alert('Marks saved successfully!');
+                toast.success('Marks saved successfully!');
                 router.refresh();
             } else {
-                alert(result.error || 'Failed to save marks');
+                toast.error(result.error || 'Failed to save marks');
             }
         });
     };

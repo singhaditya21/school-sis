@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FileDown, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function TallyExportForm() {
     const [isLoading, setIsLoading] = useState(false);
@@ -41,7 +42,7 @@ export default function TallyExportForm() {
 
         } catch (error) {
             console.error('Failed to export Tally XML:', error);
-            alert('Failed to generate Tally export. Please check the date range and try again.');
+            toast.error('Failed to generate Tally export. Please check the date range and try again.');
         } finally {
             setIsLoading(false);
         }

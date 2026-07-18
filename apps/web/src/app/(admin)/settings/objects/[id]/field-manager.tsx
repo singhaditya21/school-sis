@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Plus, Trash2, GripVertical, Settings } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 export default function FieldManagerClient({ objectId, initialFields }: { objectId: string, initialFields: MetadataField[] }) {
     const router = useRouter();
@@ -39,7 +40,7 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
             });
 
             if ('approvalRequired' in created) {
-                alert(`Approval requested: ${created.approval.id}`);
+                toast.success(`Approval requested: ${created.approval.id}`);
                 setIsAdding(false);
                 setApprovalReason('');
                 router.refresh();
@@ -73,7 +74,7 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
                 router.refresh();
             }
         } catch (e: any) {
-            alert(e.message || "Failed to create field");
+            toast.error(e.message || "Failed to create field");
         }
     };
 

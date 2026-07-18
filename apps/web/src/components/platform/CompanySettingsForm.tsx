@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { updateCompanySettingsAction } from '@/lib/actions/platform';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 export default function CompanySettingsForm({
     company,
@@ -55,10 +56,10 @@ export default function CompanySettingsForm({
                 themeColor,
                 domainMask
             });
-            alert('Company settings updated successfully.');
+            toast.success('Company settings updated successfully.');
             router.refresh();
         } catch (e: any) {
-            alert('Failed to update company context.');
+            toast.error('Failed to update company context.');
         } finally {
             setLoading(false);
         }

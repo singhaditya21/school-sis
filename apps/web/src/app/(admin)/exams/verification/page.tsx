@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-const toast = (...args: any[]) => console.log(...args);
+import { toast } from 'sonner';
 import {
     Table,
     TableBody,
@@ -51,7 +51,7 @@ export default function MarksVerificationPage() {
             setStats(st);
         } catch (error) {
             console.error('Failed to load verification data:', error);
-            alert('Failed to load verification data');
+            toast.error('Failed to load verification data');
         }
     };
 
@@ -74,12 +74,12 @@ export default function MarksVerificationPage() {
         try {
             const ids = Array.from(selectedMarks);
             await verifyExamResults(ids);
-            alert(`Successfully verified ${ids.length} marks`);
+            toast.success(`Successfully verified ${ids.length} marks`);
             setSelectedMarks(new Set());
             await loadData();
         } catch (error) {
             console.error(error);
-            alert('Failed to verify marks');
+            toast.error('Failed to verify marks');
         } finally {
             setIsLoading(false);
         }
@@ -90,12 +90,12 @@ export default function MarksVerificationPage() {
         try {
             const ids = Array.from(selectedMarks);
             await rejectExamResults(ids);
-            alert(`Successfully rejected ${ids.length} marks`);
+            toast.success(`Successfully rejected ${ids.length} marks`);
             setSelectedMarks(new Set());
             await loadData();
         } catch (error) {
             console.error(error);
-            alert('Failed to reject marks');
+            toast.error('Failed to reject marks');
         } finally {
             setIsLoading(false);
         }

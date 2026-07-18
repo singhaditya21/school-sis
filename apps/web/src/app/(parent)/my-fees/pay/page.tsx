@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createCheckoutSession } from '@/lib/actions/payments';
+import { toast } from 'sonner';
 
 export default function PaymentCheckoutPage() {
     const searchParams = useSearchParams();
@@ -22,7 +23,7 @@ export default function PaymentCheckoutPage() {
     async function handlePayment(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         if (!invoiceId) {
-            alert('No invoice ID provided.');
+            toast.error('No invoice ID provided.');
             return;
         }
         setProcessing(true);

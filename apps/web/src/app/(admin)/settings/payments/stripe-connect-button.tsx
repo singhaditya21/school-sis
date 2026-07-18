@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { createStripeConnectAccount } from '@/lib/actions/payments';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function StripeConnectButton() {
     const [loading, setLoading] = useState(false);
@@ -17,7 +18,7 @@ export function StripeConnectButton() {
             }
         } catch (error) {
             console.error(error);
-            alert("Failed to connect Stripe.");
+            toast.error("Failed to connect Stripe.");
         } finally {
             setLoading(false);
         }

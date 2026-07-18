@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PlusCircle, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function WorkflowBuilder() {
   const router = useRouter();
@@ -51,7 +52,7 @@ export function WorkflowBuilder() {
       router.push('/settings/automation');
     } catch (error) {
       console.error(error);
-      alert("Failed to save workflow. Please check the JSON payload format.");
+      toast.error("Failed to save workflow. Please check the JSON payload format.");
     } finally {
       setLoading(false);
     }

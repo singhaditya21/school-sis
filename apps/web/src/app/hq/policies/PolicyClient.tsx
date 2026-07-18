@@ -5,6 +5,7 @@ import { createGroupPolicyAction, deleteGroupPolicyAction } from '@/lib/actions/
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShieldAlert, Trash2, Plus, Shield } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 export default function PolicyClient({ initialPolicies, groupId }: { initialPolicies: any[], groupId: string }) {
     const [policies, setPolicies] = useState(initialPolicies);
@@ -32,7 +33,7 @@ export default function PolicyClient({ initialPolicies, groupId }: { initialPoli
             router.refresh();
         } catch (error) {
             console.error(error);
-            alert('Failed to create policy');
+            toast.error('Failed to create policy');
         }
         setIsSubmitting(false);
     };
@@ -46,7 +47,7 @@ export default function PolicyClient({ initialPolicies, groupId }: { initialPoli
             router.refresh();
         } catch (error) {
             console.error(error);
-            alert('Failed to delete policy');
+            toast.error('Failed to delete policy');
         }
     };
 
