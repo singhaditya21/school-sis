@@ -18,25 +18,32 @@ function runInfraCheck(env: Record<string, string>, args = ['--strict']) {
     });
 }
 
-function productionLikeEnv(): Record<string, string> {
+// The complete must-have set: a lean deploy with no optional capabilities.
+function minimalValidEnv(): Record<string, string> {
     return {
-        NODE_ENV: 'test',
+        NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://runtime:rtpass123@ep-blue-pooler.ap-south-1.aws.neon.tech/school?sslmode=require',
         DIRECT_URL: 'postgresql://migrator:mgpass123@ep-blue.ap-south-1.aws.neon.tech/school?sslmode=require',
         SESSION_SECRET: 'session-runtime-token-20260703-value',
-        METRICS_TOKEN: 'metrics-runtime-token-20260703-value',
         JOB_DISPATCH_SECRET: 'job-dispatch-token-20260703-value',
         CRON_SECRET: 'cron-dispatch-token-20260703-value',
         PII_ENCRYPTION_KEY: 'pii-encryption-key-20260703-value',
         NEXT_PUBLIC_APP_URL: 'https://school-sis-web.vercel.app',
-        NEXT_PUBLIC_SENTRY_DSN: 'https://abc123@o0.ingest.sentry.io/1',
         TENANT_BASE_HOSTS: 'school-sis-web.vercel.app,academy.school.edu',
+    };
+}
+
+// A fully-configured deploy with all optional capabilities enabled.
+function productionLikeEnv(): Record<string, string> {
+    return {
+        ...minimalValidEnv(),
+        NODE_ENV: 'test',
+        METRICS_TOKEN: 'metrics-runtime-token-20260703-value',
+        NEXT_PUBLIC_SENTRY_DSN: 'https://abc123@o0.ingest.sentry.io/1',
+        PAYMENT_PROVIDER: 'stripe',
         STRIPE_SECRET_KEY: `sk_live_${'a'.repeat(32)}`,
         STRIPE_WEBHOOK_SECRET: `whsec_${'b'.repeat(32)}`,
         NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: `pk_live_${'c'.repeat(32)}`,
-        RAZORPAY_KEY_ID: `rzp_live_${'AbC123456789'}`,
-        RAZORPAY_KEY_SECRET: 'razorpay-secret-20260703-value',
-        RAZORPAY_WEBHOOK_SECRET: 'razorpay-webhook-20260703-value',
         REQUIRED_NOTIFICATION_CHANNELS: 'email,sms',
         EMAIL_PROVIDER: 'resend',
         RESEND_API_KEY: `re_${'d'.repeat(32)}`,
@@ -57,27 +64,37 @@ function productionLikeEnv(): Record<string, string> {
 }
 
 describe('production runtime contract check', () => {
-    it('fails strict mode when launch-critical provider and tenant config is missing', () => {
-        const result = runInfraCheck({
-            NODE_ENV: 'production',
-            DATABASE_URL: 'postgresql://runtime:rtpass123@ep-blue-pooler.ap-south-1.aws.neon.tech/school?sslmode=require',
-            DIRECT_URL: 'postgresql://migrator:mgpass123@ep-blue.ap-south-1.aws.neon.tech/school?sslmode=require',
-            SESSION_SECRET: 'session-runtime-token-20260703-value',
-            METRICS_TOKEN: 'metrics-runtime-token-20260703-value',
-            JOB_DISPATCH_SECRET: 'job-dispatch-token-20260703-value',
-            PII_ENCRYPTION_KEY: 'pii-encryption-key-20260703-value',
-            NEXT_PUBLIC_APP_URL: 'https://school-sis-web.vercel.app',
-        });
+    it('fails strict mode when a REQUIRED var (tenant hosts / cron secret) is missing', () => {
+        const env = minimalValidEnv();
+        delete env.TENANT_BASE_HOSTS;
+        delete env.CRON_SECRET;
+        const result = runInfraCheck(env);
         const output = `${result.stdout}\n${result.stderr}`;
 
         expect(result.status).toBe(1);
         expect(output).toContain('TENANT_BASE_HOSTS');
-        expect(output).toContain('STRIPE_SECRET_KEY');
-        expect(output).toContain('RAZORPAY_WEBHOOK_SECRET');
         expect(output).toContain('CRON_SECRET');
     });
 
-    it('passes strict mode with production-like Vercel, Neon, provider, cron, and backup env', () => {
+    it('a lean deploy (only the required vars, no optional capabilities) passes strict mode', () => {
+        const result = runInfraCheck(minimalValidEnv());
+        const output = `${result.stdout}\n${result.stderr}`;
+
+        expect(output).toContain('[infra] Production runtime contract check passed.');
+        expect(result.status).toBe(0);
+    });
+
+    it('requires ONLY the selected payment provider secrets when payments are enabled', () => {
+        const result = runInfraCheck({ ...minimalValidEnv(), PAYMENT_PROVIDER: 'stripe' });
+        const output = `${result.stdout}\n${result.stderr}`;
+
+        expect(result.status).toBe(1);
+        expect(output).toContain('STRIPE_SECRET_KEY');
+        // The other provider must NOT be demanded.
+        expect(output).not.toContain('RAZORPAY_KEY_ID');
+    });
+
+    it('passes strict mode with a fully-configured (all capabilities) production-like env', () => {
         const result = runInfraCheck(productionLikeEnv());
         const output = `${result.stdout}\n${result.stderr}`;
 
