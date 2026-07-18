@@ -26,30 +26,18 @@ function isLocalDatabaseUrl(value: string): boolean {
 }
 
 function normalizeRuntimeDatabaseUrl(value: string): string {
-    if (!value || isBuildPhase || process.env.NODE_ENV !== 'production' || isLocalDatabaseUrl(value)) {
-        return value;
-    }
-
-    let parsed: URL;
+    // Local-first: no cloud SSL is enforced. Just validate the shape.
+    if (!value || isBuildPhase) return value;
     try {
-        parsed = new URL(value);
-    } catch {
+        const parsed = new URL(value);
+        if (!['postgres:', 'postgresql:'].includes(parsed.protocol)) {
+            throw new Error('DATABASE_URL must use postgres:// or postgresql://.');
+        }
+    } catch (err) {
+        if (err instanceof Error && err.message.includes('postgres://')) throw err;
         throw new Error('DATABASE_URL must be a valid Postgres URL.');
     }
-
-    if (!['postgres:', 'postgresql:'].includes(parsed.protocol)) {
-        throw new Error('DATABASE_URL must use postgres:// or postgresql://.');
-    }
-
-    if (parsed.searchParams.get('sslmode') === 'disable') {
-        throw new Error('DATABASE_URL must not disable SSL in production.');
-    }
-
-    if (!parsed.searchParams.has('sslmode')) {
-        parsed.searchParams.set('sslmode', 'require');
-    }
-
-    return parsed.toString();
+    return value;
 }
 
 let connectionString = normalizeRuntimeDatabaseUrl(process.env.DATABASE_URL || '');

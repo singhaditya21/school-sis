@@ -18,6 +18,9 @@ dist/
 
 # Production and build caches
 .vercel/
+
+# Local Postgres cluster (scripts/local-db.sh)
+.pgdata/
 .turbo/
 
 # Misc
