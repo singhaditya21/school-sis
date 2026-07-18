@@ -41,11 +41,11 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
                 <FieldManagerClient objectId={resolvedParams.id} initialFields={fields} />
             </div>
         );
-    } catch (e: any) {
+    } catch (e: unknown) {
         return (
             <div className="p-8 text-center border rounded-lg border-red-200 bg-red-50 text-red-600">
                 <h2 className="text-xl font-bold mb-2">Error Loading Object</h2>
-                <p>{e.message}</p>
+                <p>{(e as Error).message}</p>
             </div>
         );
     }

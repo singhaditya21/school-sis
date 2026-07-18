@@ -15,7 +15,7 @@ export async function getGradebookData(classId?: string): Promise<{ classes: any
         [tenantId]
     );
 
-    let students: any[] = [];
+    let students: unknown[] = [];
     if (classId) {
         const { rows } = await pool.query(
             `SELECT s.id, s.first_name || ' ' || s.last_name AS name, s.roll_number AS "rollNo",

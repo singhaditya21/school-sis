@@ -22,7 +22,7 @@ export default function GenericFormClient({
     recordId?: string,
     fields: MetadataField[], 
     initialData: Record<string, any>,
-    layout?: any
+    layout?: unknown
 }) {
     const router = useRouter();
     const [isSaving, setIsSaving] = useState(false);
@@ -30,7 +30,7 @@ export default function GenericFormClient({
         defaultValues: initialData
     });
 
-    const onSubmit = async (data: Record<string, any>) => {
+    const onSubmit = async (data: Record<string, unknown>) => {
         setIsSaving(true);
         try {
             await upsertRecord(objectName, data, recordId);

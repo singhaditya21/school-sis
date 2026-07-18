@@ -13,12 +13,49 @@ interface KpiData {
     consentBlocked: number;
 }
 
+interface OverdueStudent {
+    id: string | number;
+    name: string;
+    class: string;
+    invoice: string;
+    amount: number | string;
+    daysOverdue: number;
+    phone: string;
+}
+
+interface DueSoonStudent {
+    id: string | number;
+    name: string;
+    class: string;
+    invoice: string;
+    amount: number | string;
+    dueDate: string;
+    phone: string;
+}
+
+interface CollectionRow {
+    class: string;
+    total: number | string;
+    collected: number | string;
+    pending: number | string;
+    rate: number;
+}
+
+interface BlockedReminder {
+    id: string | number;
+    name: string;
+    class: string;
+    reason: string;
+    guardian: string;
+    phone: string;
+}
+
 interface KpiCardsProps {
     data: KpiData;
-    overdueStudents?: any[];
-    dueSoonStudents?: any[];
-    collectionData?: any[];
-    blockedReminders?: any[];
+    overdueStudents?: OverdueStudent[];
+    dueSoonStudents?: DueSoonStudent[];
+    collectionData?: CollectionRow[];
+    blockedReminders?: BlockedReminder[];
 }
 
 type DrillDownType = 'overdue' | 'dueSoon' | 'collection' | 'blocked' | null;
@@ -46,14 +83,14 @@ export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], col
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
                             <div className="text-sm text-muted-foreground">{overdueStudents.length} students with overdue fees</div>
-                            <Badge variant="destructive">Total: {formatFullCurrency(overdueStudents.reduce((sum: number, s: any) => sum + Number(s.amount || 0), 0))}</Badge>
+                            <Badge variant="destructive">Total: {formatFullCurrency(overdueStudents.reduce((sum: number, s: OverdueStudent) => sum + Number(s.amount || 0), 0))}</Badge>
                         </div>
                         {overdueStudents.length === 0 ? <p className="text-gray-500 text-center py-8">No overdue data available.</p> : (
                             <Table><TableHeader><TableRow>
                                 <TableHead>Student</TableHead><TableHead>Class</TableHead><TableHead>Invoice</TableHead>
                                 <TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Days Overdue</TableHead><TableHead>Phone</TableHead>
                             </TableRow></TableHeader><TableBody>
-                                {overdueStudents.map((student: any) => (
+                                {overdueStudents.map((student: OverdueStudent) => (
                                     <TableRow key={student.id} className="hover:bg-red-50">
                                         <TableCell className="font-medium">{student.name}</TableCell><TableCell>{student.class}</TableCell>
                                         <TableCell className="text-blue-600">{student.invoice}</TableCell>
@@ -71,14 +108,14 @@ export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], col
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
                             <div className="text-sm text-muted-foreground">{dueSoonStudents.length} invoices due in the next 7 days</div>
-                            <Badge className="bg-amber-500">Total: {formatFullCurrency(dueSoonStudents.reduce((sum: number, s: any) => sum + Number(s.amount || 0), 0))}</Badge>
+                            <Badge className="bg-amber-500">Total: {formatFullCurrency(dueSoonStudents.reduce((sum: number, s: DueSoonStudent) => sum + Number(s.amount || 0), 0))}</Badge>
                         </div>
                         {dueSoonStudents.length === 0 ? <p className="text-gray-500 text-center py-8">No upcoming due data.</p> : (
                             <Table><TableHeader><TableRow>
                                 <TableHead>Student</TableHead><TableHead>Class</TableHead><TableHead>Invoice</TableHead>
                                 <TableHead className="text-right">Amount</TableHead><TableHead>Due Date</TableHead><TableHead>Phone</TableHead>
                             </TableRow></TableHeader><TableBody>
-                                {dueSoonStudents.map((student: any) => (
+                                {dueSoonStudents.map((student: DueSoonStudent) => (
                                     <TableRow key={student.id} className="hover:bg-amber-50">
                                         <TableCell className="font-medium">{student.name}</TableCell><TableCell>{student.class}</TableCell>
                                         <TableCell className="text-blue-600">{student.invoice}</TableCell>
@@ -104,7 +141,7 @@ export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], col
                                 <TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Pending</TableHead>
                                 <TableHead className="text-right">Collection Rate</TableHead>
                             </TableRow></TableHeader><TableBody>
-                                {collectionData.map((row: any) => (
+                                {collectionData.map((row: CollectionRow) => (
                                     <TableRow key={row.class} className="hover:bg-green-50">
                                         <TableCell className="font-medium">{row.class}</TableCell>
                                         <TableCell className="text-right">{row.total}</TableCell>
@@ -136,7 +173,7 @@ export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], col
                                 <TableHead>Student</TableHead><TableHead>Class</TableHead><TableHead>Reason</TableHead>
                                 <TableHead>Guardian</TableHead><TableHead>Phone</TableHead>
                             </TableRow></TableHeader><TableBody>
-                                {blockedReminders.map((student: any) => (
+                                {blockedReminders.map((student: BlockedReminder) => (
                                     <TableRow key={student.id} className="hover:bg-orange-50">
                                         <TableCell className="font-medium">{student.name}</TableCell><TableCell>{student.class}</TableCell>
                                         <TableCell><Badge variant="outline" className="border-orange-400 text-orange-600 bg-orange-50">{student.reason}</Badge></TableCell>

@@ -155,9 +155,9 @@ export async function createPersistedWorkflowApprovalRequest(
 
             await client.query('COMMIT');
             return (await fetchWorkflowApprovalRequestById(input.tenantId, rows[0].id))!;
-        } catch (error: any) {
+        } catch (error: unknown) {
             await client.query('ROLLBACK');
-            if (error?.code === '23505') {
+            if ((error as { code?: unknown })?.code === '23505') {
                 const duplicate = await fetchWorkflowApprovalByIdempotency(input.tenantId, idempotencyKey);
                 if (duplicate) return duplicate;
             }

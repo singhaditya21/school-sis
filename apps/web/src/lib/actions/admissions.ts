@@ -30,7 +30,7 @@ export async function getAdmissionLeads(options?: {
     const limit = options?.limit || 50;
 
     const conditions: string[] = ['l.tenant_id = $1'];
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
 
     if (options?.stage) {
         params.push(options.stage);
@@ -67,8 +67,25 @@ export async function getAdmissionLeads(options?: {
         LIMIT $${params.length + 1}
     `, [...params, limit]);
 
+    type LeadRow = {
+        id: string;
+        childFirstName: string;
+        childLastName: string;
+        childDob: string | null;
+        applyingForGrade: string;
+        parentName: string;
+        parentEmail: string;
+        parentPhone: string;
+        source: string;
+        stage: string;
+        notes: string | null;
+        previousSchool: string | null;
+        assignedFirstName: string | null;
+        assignedLastName: string | null;
+        createdAt: Date;
+    };
     return {
-        leads: rows.map((r: any) => ({
+        leads: rows.map((r: LeadRow) => ({
             id: r.id,
             childFirstName: r.childFirstName,
             childLastName: r.childLastName,
@@ -323,7 +340,7 @@ export async function getAdmissionsAnalytics(): Promise<AdmissionsAnalytics> {
         withdrawn,
         conversionRate,
         activeInPipeline,
-        sourceBreakdown: sourceRows.map((r: any) => ({ source: r.source, count: parseInt(r.count, 10) })),
+        sourceBreakdown: sourceRows.map((r: { source: string; count: string }) => ({ source: r.source, count: parseInt(r.count, 10) })),
         avgDaysToEnroll: Number(avgRow[0]?.avgDays || 0),
     };
 }
@@ -468,7 +485,7 @@ export async function getWaitlist(grade?: string) {
         FROM admission_leads
         WHERE tenant_id = $1 AND stage = 'OFFERED'
     `;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
 
     if (grade) {
         params.push(grade);

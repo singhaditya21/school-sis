@@ -15,20 +15,34 @@ import {
 } from '@/components/ui/table';
 import Link from 'next/link';
 
+interface HostelFee {
+    id: string;
+    studentId: string;
+    studentName: string;
+    class: string | null;
+    hostelName: string | null;
+    roomNumber: string | null;
+    feeType: string;
+    amount: number;
+    dueDate: string | null;
+    status: string;
+    paidDate: string | null;
+}
+
 export default function HostelFeesPage() {
     const [statusFilter, setStatusFilter] = useState('');
     const [feeTypeFilter, setFeeTypeFilter] = useState('');
-    const [fees, setFees] = useState<any[]>([]);
+    const [fees, setFees] = useState<HostelFee[]>([]);
 
     useEffect(() => {
         getHostelFees(statusFilter || undefined, feeTypeFilter || undefined).then(setFees);
     }, [statusFilter, feeTypeFilter]);
 
     const stats = {
-        totalDue: fees.filter(f => f.status !== 'paid').reduce((sum: number, f: any) => sum + f.amount, 0),
-        collected: fees.filter(f => f.status === 'paid').reduce((sum: number, f: any) => sum + f.amount, 0),
-        pending: fees.filter(f => f.status === 'pending').reduce((sum: number, f: any) => sum + f.amount, 0),
-        overdue: fees.filter(f => f.status === 'overdue').reduce((sum: number, f: any) => sum + f.amount, 0),
+        totalDue: fees.filter(f => f.status !== 'paid').reduce((sum: number, f: HostelFee) => sum + f.amount, 0),
+        collected: fees.filter(f => f.status === 'paid').reduce((sum: number, f: HostelFee) => sum + f.amount, 0),
+        pending: fees.filter(f => f.status === 'pending').reduce((sum: number, f: HostelFee) => sum + f.amount, 0),
+        overdue: fees.filter(f => f.status === 'overdue').reduce((sum: number, f: HostelFee) => sum + f.amount, 0),
     };
 
     const getStatusColor = (status: string) => {
@@ -76,7 +90,7 @@ export default function HostelFeesPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {fees.map((fee: any) => (
+                            {fees.map((fee: HostelFee) => (
                                 <TableRow key={fee.id}>
                                     <TableCell>
                                         <p className="font-medium">{fee.studentName}</p>

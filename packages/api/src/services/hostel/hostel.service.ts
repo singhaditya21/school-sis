@@ -115,7 +115,7 @@ export async function getHostelFees(
         LEFT JOIN hostel_rooms hr ON hr.id = ha.room_id
         WHERE hf.tenant_id = $1
     `;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
     if (status) {
         params.push(status);
         query += ` AND hf.status = $${params.length}`;

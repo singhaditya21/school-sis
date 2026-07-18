@@ -25,13 +25,30 @@ interface BookIssue {
     status: string; 
 }
 
+interface LibraryStudent {
+    id: string;
+    userId: string;
+    name: string;
+    class: string;
+    admissionNo: string;
+}
+
+interface LibraryBook {
+    id: string;
+    title: string;
+    author: string;
+    isbn: string | null;
+    availableCopies: number;
+    totalCopies: number;
+}
+
 export default function IssueBookPage() {
     const [mode, setMode] = useState<'issue' | 'return'>('issue');
     const [selectedBook, setSelectedBook] = useState('');
     const [selectedStudent, setSelectedStudent] = useState('');
     const [bookSearch, setBookSearch] = useState('');
-    const [students, setStudents] = useState<any[]>([]);
-    const [books, setBooks] = useState<any[]>([]);
+    const [students, setStudents] = useState<LibraryStudent[]>([]);
+    const [books, setBooks] = useState<LibraryBook[]>([]);
     const [issuedBooks, setIssuedBooks] = useState<BookIssue[]>([]);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -93,8 +110,8 @@ export default function IssueBookPage() {
             } else {
                 setMessage({ type: 'error', text: res.error || 'Failed to issue book.' });
             }
-        } catch (err: any) {
-            setMessage({ type: 'error', text: err.message || 'An error occurred.' });
+        } catch (err: unknown) {
+            setMessage({ type: 'error', text: (err as Error).message || 'An error occurred.' });
         }
     };
 
@@ -107,8 +124,8 @@ export default function IssueBookPage() {
             } else {
                 setMessage({ type: 'error', text: res.error || 'Failed to return book.' });
             }
-        } catch (err: any) {
-            setMessage({ type: 'error', text: err.message || 'An error occurred.' });
+        } catch (err: unknown) {
+            setMessage({ type: 'error', text: (err as Error).message || 'An error occurred.' });
         }
     };
 
@@ -158,7 +175,7 @@ export default function IssueBookPage() {
                             <label className="block text-sm font-medium mb-2">Select Student</label>
                             <select data-testid="student-select" value={selectedStudent} onChange={(e) => setSelectedStudent(e.target.value)} className="w-full px-4 py-2 border rounded-lg">
                                 <option value="">Select a student...</option>
-                                {students.map((student: any) => (<option key={student.id} value={student.id}>{student.name} - Class {student.class} ({student.admissionNo})</option>))}
+                                {students.map((student: LibraryStudent) => (<option key={student.id} value={student.id}>{student.name} - Class {student.class} ({student.admissionNo})</option>))}
                             </select>
                         </div>
                         <div className="bg-gray-50 p-4 rounded-lg text-sm"><p><strong>Loan Period:</strong> 14 days</p><p><strong>Fine Rate:</strong> ₹2 per day after due date</p></div>

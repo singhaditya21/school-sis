@@ -30,8 +30,8 @@ export default function SetupWorkspacePage() {
                 // Immediate redirect to pricing for checkout
                 router.push('/pricing');
             }
-        } catch (err: any) {
-            setError(err.message || 'An unexpected error occurred.');
+        } catch (err: unknown) {
+            setError((err as { message?: string }).message || 'An unexpected error occurred.');
             setLoading(false);
         }
     };

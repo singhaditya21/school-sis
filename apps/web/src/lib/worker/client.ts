@@ -104,8 +104,8 @@ async function persistJob(
       );
 
       return { jobId: rows[0].id, status: rows[0].status, existing: false };
-    } catch (error: any) {
-      if (error?.code === '23505' && options.idempotencyKey) {
+    } catch (error) {
+      if ((error as { code?: string } | null | undefined)?.code === '23505' && options.idempotencyKey) {
         const existing = await findExistingJob({ tenantId, idempotencyKey: options.idempotencyKey });
         if (existing) return existing;
       }

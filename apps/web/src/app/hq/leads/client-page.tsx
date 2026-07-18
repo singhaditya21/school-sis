@@ -11,7 +11,27 @@ const COLORS = {
     'CLOSED': '#10b981',     // Emerald
 };
 
-export default function LeadsClient({ statusData, leads, kpis }: { statusData: any[], leads: any[], kpis: any }) {
+interface StatusAggregate {
+    status: string;
+    count: number;
+    capacity: number;
+}
+
+interface Lead {
+    id: string | number;
+    contact_name: string;
+    contact_email: string;
+    school_name: string;
+    student_capacity: number;
+    status: string;
+    created_at: string | Date;
+}
+
+interface LeadsKpis {
+    pipelineValue: number;
+}
+
+export default function LeadsClient({ statusData, leads, kpis }: { statusData: StatusAggregate[], leads: Lead[], kpis: LeadsKpis }) {
 
     // Format Data for Recharts
     const funnelData = [

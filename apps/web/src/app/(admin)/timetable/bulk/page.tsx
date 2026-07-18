@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { bulkCreateEntries } from '@/lib/actions/timetable';
+import { bulkCreateEntries, type TimetableConflict } from '@/lib/actions/timetable';
 
 export default function BulkUploadTimetablePage() {
     const router = useRouter();
@@ -14,7 +14,7 @@ export default function BulkUploadTimetablePage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
-    const [conflicts, setConflicts] = useState<any[]>([]);
+    const [conflicts, setConflicts] = useState<TimetableConflict[]>([]);
     const [skipConflicts, setSkipConflicts] = useState(false);
 
     const handleVerifyAndImport = async (e: React.FormEvent) => {
@@ -24,20 +24,20 @@ export default function BulkUploadTimetablePage() {
         setConflicts([]);
         setIsSubmitting(true);
 
-        let parsedData: any;
+        let parsedData: unknown;
         try {
             parsedData = JSON.parse(jsonInput);
             if (!Array.isArray(parsedData)) {
                 throw new Error('Input must be a JSON Array');
             }
-        } catch (err: any) {
-            setErrorMessage('Invalid JSON format: ' + err.message);
+        } catch (err: unknown) {
+            setErrorMessage('Invalid JSON format: ' + (err as Error).message);
             setIsSubmitting(false);
             return;
         }
 
         try {
-            const res = await bulkCreateEntries(parsedData);
+            const res = await bulkCreateEntries(parsedData as Parameters<typeof bulkCreateEntries>[0]);
             if (res.success) {
                 setSuccessMessage(`Bulk upload completed! Successfully inserted ${res.inserted} entries.`);
                 setTimeout(() => {
@@ -54,8 +54,8 @@ export default function BulkUploadTimetablePage() {
                     setErrorMessage(`Found ${res.conflicts.length} conflicts. Please resolve conflicts or check "Skip conflicts" to proceed with valid entries.`);
                 }
             }
-        } catch (err: any) {
-            setErrorMessage(err.message || 'Failed to bulk import entries.');
+        } catch (err: unknown) {
+            setErrorMessage((err as Error).message || 'Failed to bulk import entries.');
         } finally {
             setIsSubmitting(false);
         }

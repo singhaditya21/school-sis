@@ -27,7 +27,7 @@ export async function getMessages(options?: {
         FROM messages
         WHERE tenant_id = $1
     `;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
 
     if (options?.channel) {
         params.push(options.channel);
@@ -39,7 +39,7 @@ export async function getMessages(options?: {
     const { rows: msgs } = await pool.query(query, [...params, limit, offset]);
 
     let countQuery = `SELECT COUNT(*) AS count FROM messages WHERE tenant_id = $1`;
-    const countParams: any[] = [tenantId];
+    const countParams: string[] = [tenantId];
     if (options?.channel) {
         countParams.push(options.channel);
         countQuery += ` AND channel = $${countParams.length}`;

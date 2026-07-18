@@ -53,8 +53,8 @@ export default function AssignStudentForm({ routeId, stops }: AssignStudentFormP
                 setStudentId('');
                 router.refresh();
             }
-        } catch (err: any) {
-            setError(err.message || 'Failed to assign student');
+        } catch (err: unknown) {
+            setError((err as { message?: string }).message || 'Failed to assign student');
         } finally {
             setIsSubmitting(false);
         }

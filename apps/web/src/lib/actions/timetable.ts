@@ -164,7 +164,7 @@ export async function checkConflicts(data: {
     const conflicts: TimetableConflict[] = [];
 
     // Check teacher double-booking
-    const teacherParams: any[] = [tenantId, data.periodId, data.dayOfWeek, data.teacherId, data.sectionId];
+    const teacherParams: string[] = [tenantId, data.periodId, data.dayOfWeek, data.teacherId, data.sectionId];
     let teacherQuery = `
         SELECT te.id, te.section_id AS "sectionId", s.name AS "sectionName", g.name AS "gradeName"
         FROM timetable_entries te
@@ -192,7 +192,7 @@ export async function checkConflicts(data: {
 
     // Check room double-booking
     if (data.roomNumber) {
-        const roomParams: any[] = [tenantId, data.periodId, data.dayOfWeek, data.roomNumber, data.sectionId];
+        const roomParams: string[] = [tenantId, data.periodId, data.dayOfWeek, data.roomNumber, data.sectionId];
         let roomQuery = `
             SELECT te.id, s.name AS "sectionName", g.name AS "gradeName"
             FROM timetable_entries te
@@ -289,7 +289,7 @@ export async function bulkCreateEntries(entries: {
 
     // Insert valid entries
     if (validEntries.length > 0) {
-        const values: any[] = [];
+        const values: (string | null)[] = [];
         const placeholders: string[] = [];
         let index = 1;
         for (const e of validEntries) {

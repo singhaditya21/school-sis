@@ -26,7 +26,7 @@ export async function getQuizzes(filters?: { status?: string }) {
         FROM quizzes 
         WHERE tenant_id = $1
     `;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
 
     if (filters?.status) {
         query += ` AND status = $2`;
@@ -196,7 +196,7 @@ export async function submitAttempt(quizId: string, studentId: string, answers: 
 
     let totalMarks = quizzes[0]?.totalMarks;
     if (!totalMarks) {
-        totalMarks = questions.reduce((s: number, q: any) => s + q.marks, 0);
+        totalMarks = questions.reduce((s: number, q: { marks: number }) => s + q.marks, 0);
     }
     const percentage = totalMarks > 0 ? Math.round((Math.max(score, 0) / totalMarks) * 100) : 0;
 

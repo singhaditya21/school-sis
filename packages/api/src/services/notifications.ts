@@ -29,7 +29,7 @@ export class NotificationService {
    * Sends a 100% free Native Push Notification to a Parent's Mobile App (Expo).
    * Completely replaces our old Twilio SMS integration.
    */
-  static async sendParentAlert(deviceToken: string, title: string, body: string, dataPayload: any = {}) {
+  static async sendParentAlert(deviceToken: string, title: string, body: string, dataPayload: Record<string, unknown> = {}) {
     try {
       const message = {
         token: deviceToken,
@@ -37,7 +37,7 @@ export class NotificationService {
           title,
           body,
         },
-        data: dataPayload,
+        data: dataPayload as Record<string, string>,
         android: {
           priority: 'high' as const,
         },

@@ -6,8 +6,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getDiaryEntries } from '@/lib/services/diary/diary.service';
 
+interface DiaryEntry {
+    id: string;
+    title: string;
+    content: string;
+    date: string;
+    class: string | null;
+    section: string | null;
+    subject: string | null;
+    teacherName: string | null;
+    type: string | null;
+}
+
 export default function DiaryPage() {
-    const [entries, setEntries] = useState<any[]>([]);
+    const [entries, setEntries] = useState<DiaryEntry[]>([]);
     useEffect(() => { getDiaryEntries().then(setEntries); }, []);
 
     return (
@@ -18,7 +30,7 @@ export default function DiaryPage() {
             </div>
             {entries.length === 0 ? <Card><CardContent className="py-12 text-center text-gray-500">No diary entries found.</CardContent></Card> : (
                 <div className="space-y-4">
-                    {entries.map((entry: any) => (
+                    {entries.map((entry) => (
                         <Card key={entry.id}>
                             <CardHeader>
                                 <CardTitle className="flex items-center justify-between">

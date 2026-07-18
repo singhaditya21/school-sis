@@ -84,9 +84,9 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
 
         const data = await response.json();
         return { success: true, messageId: data.id };
-    } catch (error: any) {
-        console.error('[Email] Error:', error.message);
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        console.error('[Email] Error:', (error as Error).message);
+        return { success: false, error: (error as Error).message };
     }
 }
 

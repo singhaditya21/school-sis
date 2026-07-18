@@ -9,7 +9,7 @@ export async function getAssignments(filters?: { gradeId?: string }) {
     const { tenantId } = await requireAuth('homework:read');
 
     let query = 'SELECT id, tenant_id AS "tenantId", title, description, subject_id AS "subjectId", grade_id AS "gradeId", section_id AS "sectionId", due_date AS "dueDate", assigned_by AS "assignedBy", max_marks AS "maxMarks", created_at AS "createdAt", updated_at AS "updatedAt" FROM homework_assignments WHERE tenant_id = $1';
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
 
     if (filters?.gradeId) {
         params.push(filters.gradeId);

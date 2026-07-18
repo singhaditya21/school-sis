@@ -4,8 +4,14 @@ import { useEffect, useState } from 'react';
 import { fetchActiveBroadcasts } from '@/lib/actions/platform';
 import { Megaphone, X } from 'lucide-react';
 
+interface Broadcast {
+    id: string;
+    title: string;
+    message: string;
+}
+
 export default function PlatformBroadcastTicker() {
-    const [broadcasts, setBroadcasts] = useState<any[]>([]);
+    const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
     const [dismissedId, setDismissedId] = useState<string | null>(null);
 
     useEffect(() => {

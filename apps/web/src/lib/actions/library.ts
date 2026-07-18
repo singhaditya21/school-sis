@@ -25,7 +25,7 @@ export async function getBooks(categoryFilter?: string) {
         FROM books
         WHERE tenant_id = $1 AND is_active = true
     `;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
 
     if (categoryFilter && categoryFilter !== 'ALL') {
         params.push(categoryFilter);

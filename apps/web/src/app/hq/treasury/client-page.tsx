@@ -6,7 +6,7 @@ import { Banknote, Landmark, Clock, ArrowUpRight } from 'lucide-react';
 
 const COLORS = ['#8b5cf6', '#06b6d4', '#f59e0b', '#10b981', '#ef4444']; // Indigo, Cyan, Amber, Emerald, Red
 
-export default function TreasuryClient({ methodData, nodeData, kpis }: { methodData: any[], nodeData: any[], kpis: any }) {
+export default function TreasuryClient({ methodData, nodeData, kpis }: { methodData: { payment_method: string | null, total_volume: number, txn_count: number }[], nodeData: { node_name: string, total_volume: number }[], kpis: { totalVolume: number, totalPending: number } }) {
 
     // Format Data
     const pieData = methodData.map(m => ({

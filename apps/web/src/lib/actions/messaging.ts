@@ -6,7 +6,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 export async function getMessageTemplates(channel?: string) {
     const { tenantId } = await requireAuth('messaging:read');
     let query = `SELECT id, tenant_id AS "tenantId", name, channel, subject, body, variables FROM message_templates WHERE tenant_id = $1`;
-    const params: any[] = [tenantId];
+    const params: unknown[] = [tenantId];
     if (channel) {
         params.push(channel);
         query += ` AND channel = $2`;

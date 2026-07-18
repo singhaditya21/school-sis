@@ -46,7 +46,7 @@ export async function getStaffList(departmentFilter?: string): Promise<StaffList
         LEFT JOIN designations d ON sp.designation_id = d.id
         WHERE sp.tenant_id = $1
     `;
-    const params: any[] = [tenantId];
+    const params: unknown[] = [tenantId];
     let paramIndex = 2;
 
     if (departmentFilter && departmentFilter !== 'ALL') {

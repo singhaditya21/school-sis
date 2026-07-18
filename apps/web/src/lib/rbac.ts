@@ -1,4 +1,4 @@
-import { ROLES, type UserRole } from './constants';
+import { ROLES } from './constants';
 
 // Dashboard widgets that can be shown
 export const DASHBOARD_WIDGETS = {
@@ -104,19 +104,19 @@ export function getWidgetsForRole(role: string): WidgetKey[] {
  * Check if role is admin-level (can see fees KPIs)
  */
 export function isAdminRole(role: string): boolean {
-    return [
+    return ([
         ROLES.SUPER_ADMIN,
         ROLES.SCHOOL_ADMIN,
         ROLES.PRINCIPAL,
         ROLES.ACCOUNTANT,
-    ].includes(role as any);
+    ] as string[]).includes(role);
 }
 
 /**
  * Check if role is staff (non-parent/student)
  */
 export function isStaffRole(role: string): boolean {
-    return ![ROLES.PARENT, ROLES.STUDENT].includes(role as any);
+    return !([ROLES.PARENT, ROLES.STUDENT] as string[]).includes(role);
 }
 
 /**

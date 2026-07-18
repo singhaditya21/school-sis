@@ -130,7 +130,7 @@ function patchPoolForRlsContext(targetPool: Pool): Pool {
     const originalConnect = targetPool.connect.bind(targetPool);
     const originalQuery = targetPool.query.bind(targetPool);
 
-    poolWithPatch.connect = (async (...args: any[]) => {
+    poolWithPatch.connect = (async (...args: unknown[]) => {
         const callback = args[0];
         if (typeof callback === 'function') {
             return originalConnect(async (err: Error, client: PoolClient, done: (release?: Error | boolean) => void) => {
@@ -250,7 +250,7 @@ export const runWithPlatformContext = runWithRlsBypass;
  */
 export async function withTenant<T>(
     tenantId: string,
-    fn: (client: any) => Promise<T>
+    fn: (client: PoolClient) => Promise<T>
 ): Promise<T> {
     return runWithTenantContext(tenantId, async () => {
         const client = await pool.connect();

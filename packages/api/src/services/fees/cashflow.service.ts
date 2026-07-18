@@ -61,7 +61,7 @@ export const CashflowService = {
                 COALESCE(SUM(total_amount - paid_amount) FILTER (WHERE status = 'OVERDUE'), 0) AS "overdueAmount"
             FROM invoices
             WHERE tenant_id = ${tenantId}
-        `) as any[];
+        `) as Array<{ totalInvoiced: number; totalCollected: number; totalOutstanding: number; overdueCount: number; overdueAmount: number }>;
         return { totalInvoiced: Number(s?.totalInvoiced||0), totalCollected: Number(s?.totalCollected||0), totalOutstanding: Number(s?.totalOutstanding||0), overdueCount: Number(s?.overdueCount||0), overdueAmount: Number(s?.overdueAmount||0), collectionRate: s?.totalInvoiced>0?Math.round(Number(s.totalCollected)/Number(s.totalInvoiced)*100):0 };
     },
     async getPaymentMethodBreakdown(tenantId: string) {

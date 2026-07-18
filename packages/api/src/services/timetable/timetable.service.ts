@@ -11,7 +11,7 @@ import { users } from '@/lib/db/schema/core';
  * Retrieves all teachers who could be candidates for substitutions.
  * Enforces tenant isolation and checks permissions (timetable:read or substitution:read).
  */
-export async function getSubstitutionTeachers(): Promise<any[]> {
+export async function getSubstitutionTeachers(): Promise<{ id: string; name: string; subject: string; available: boolean }[]> {
     let auth;
     try {
         auth = await requireAuth('timetable:read');
@@ -37,7 +37,7 @@ export async function getSubstitutionTeachers(): Promise<any[]> {
  * Retrieves substitution requests for the tenant.
  * Enforces tenant isolation and checks permissions (timetable:read or substitution:read).
  */
-export async function getSubstitutionRequests(): Promise<any[]> {
+export async function getSubstitutionRequests(): Promise<{ id: string; originalTeacher: string; reason: string | null; class: string | null; period: number; date: string; substitute: string | null; status: string }[]> {
     let auth;
     try {
         auth = await requireAuth('timetable:read');

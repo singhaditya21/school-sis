@@ -4,6 +4,18 @@ import { UserRole } from '@/lib/rbac/permissions';
 import { pool, } from '@/lib/db';
 import AIGovernanceClient from './client-page';
 
+interface ModelAggregateRow {
+    model: string;
+    total_tokens: number;
+    total_cost: string;
+}
+
+interface AgentAggregateRow {
+    agent_type: string;
+    total_tokens: number;
+    request_count: string;
+}
+
 export const metadata = {
     title: 'AI Governance | ScholarMind HQ',
 };
@@ -33,12 +45,12 @@ export default async function AIGovernancePage() {
         GROUP BY agent_type
     `);
 
-    const totalTokens = (modelAggregates as any[]).reduce((a, b) => a + Number(b.total_tokens), 0);
-    const totalCost = (modelAggregates as any[]).reduce((a, b) => a + Number(b.total_cost), 0);
+    const totalTokens = (modelAggregates as ModelAggregateRow[]).reduce((a, b) => a + Number(b.total_tokens), 0);
+    const totalCost = (modelAggregates as ModelAggregateRow[]).reduce((a, b) => a + Number(b.total_cost), 0);
     
-    return <AIGovernanceClient 
-        modelData={modelAggregates as any[]} 
-        agentData={agentAggregates as any[]}
+    return <AIGovernanceClient
+        modelData={modelAggregates as ModelAggregateRow[]}
+        agentData={agentAggregates as AgentAggregateRow[]}
         kpis={{ totalTokens, totalCost }}
     />;
 }

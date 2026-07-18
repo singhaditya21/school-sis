@@ -168,11 +168,11 @@ export async function anonymizeStudent(
 // ═══════════════════════════════════════════════════════════
 
 export interface PortabilityExport {
-    student: Record<string, any>;
-    guardians: Record<string, any>[];
-    attendance: Record<string, any>[];
-    fees: Record<string, any>[];
-    exams: Record<string, any>[];
+    student: Record<string, unknown>;
+    guardians: Record<string, unknown>[];
+    attendance: Record<string, unknown>[];
+    fees: Record<string, unknown>[];
+    exams: Record<string, unknown>[];
     exportedAt: string;
     format: string;
 }
@@ -225,9 +225,9 @@ export async function exportStudentData(
     return {
         student: studentData || {},
         guardians: guardianData,
-        attendance: attendanceData as any[],
-        fees: feeData as any[],
-        exams: examData as any[],
+        attendance: attendanceData as unknown as Record<string, unknown>[],
+        fees: feeData as unknown as Record<string, unknown>[],
+        exams: examData as unknown as Record<string, unknown>[],
         exportedAt: new Date().toISOString(),
         format: 'JSON (DPDPA Section 12(2) compliant)',
     };
@@ -258,7 +258,7 @@ export async function verifyConsent(
         LIMIT 1
     `);
 
-    return (result as any[]).length > 0;
+    return (result as unknown as unknown[]).length > 0;
 }
 
 /**

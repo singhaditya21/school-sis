@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const entityType = searchParams.get('entityType');
 
     try {
-        const params: any[] = [tenantId, days];
+        const params: (string | number)[] = [tenantId, days];
         let actionClause = '';
         if (action) {
             params.push(action);
@@ -56,8 +56,8 @@ export async function GET(request: NextRequest) {
         `, params);
 
         return NextResponse.json({ logs: data, total: data.length });
-    } catch (error: any) {
-        console.error('[Audit Trail] Error:', error.message);
+    } catch (error: unknown) {
+        console.error('[Audit Trail] Error:', (error as Error).message);
         return NextResponse.json({ logs: [], total: 0, error: 'Failed to fetch audit logs' });
     }
 }

@@ -11,10 +11,28 @@ import { createSubstitutionRequest, approveSubstitutionRequest } from '@/lib/act
 
 const periods = [1, 2, 3, 4, 5, 6, 7, 8];
 
+interface SubstitutionTeacher {
+    id: string;
+    name: string;
+    subject: string;
+    available: boolean;
+}
+
+interface SubstitutionRequestRow {
+    id: string;
+    originalTeacher: string;
+    reason: string | null;
+    class: string | null;
+    period: number;
+    date: string;
+    substitute: string | null;
+    status: string;
+}
+
 export default function SubstitutionPage() {
     const [showCreateDialog, setShowCreateDialog] = useState(false);
-    const [teachers, setTeachers] = useState<any[]>([]);
-    const [substitutions, setSubstitutions] = useState<any[]>([]);
+    const [teachers, setTeachers] = useState<SubstitutionTeacher[]>([]);
+    const [substitutions, setSubstitutions] = useState<SubstitutionRequestRow[]>([]);
     const [validationError, setValidationError] = useState('');
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -67,8 +85,8 @@ export default function SubstitutionPage() {
                 substituteTeacher: ''
             });
             refreshData();
-        } catch (err: any) {
-            setValidationError(err.message || 'Failed to create substitution request');
+        } catch (err) {
+            setValidationError((err as Error).message || 'Failed to create substitution request');
         }
     };
 
@@ -81,10 +99,10 @@ export default function SubstitutionPage() {
         }
     };
 
-    const absentTeachers = teachers.filter((t: any) => !t.available);
-    const availableTeachers = teachers.filter((t: any) => t.available);
-    const todayCount = substitutions.filter((s: any) => s.date === new Date().toISOString().split('T')[0]).length;
-    const pendingCount = substitutions.filter((s: any) => s.status === 'pending').length;
+    const absentTeachers = teachers.filter((t) => !t.available);
+    const availableTeachers = teachers.filter((t) => t.available);
+    const todayCount = substitutions.filter((s) => s.date === new Date().toISOString().split('T')[0]).length;
+    const pendingCount = substitutions.filter((s) => s.status === 'pending').length;
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -157,7 +175,7 @@ export default function SubstitutionPage() {
                         {absentTeachers.length === 0 ? (
                             <p className="text-gray-500" data-testid="no-absent-msg">No teachers absent today</p>
                         ) : (
-                            absentTeachers.map((teacher: any) => (
+                            absentTeachers.map((teacher) => (
                                 <div key={teacher.id} className="flex items-center gap-2 bg-red-50 px-3 py-2 rounded-lg" data-testid="absent-teacher-item">
                                     <span className="font-medium text-red-700">{teacher.name}</span>
                                     <span className="text-xs text-gray-500">({teacher.subject})</span>
@@ -189,7 +207,7 @@ export default function SubstitutionPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {substitutions.map((sub: any) => (
+                                {substitutions.map((sub) => (
                                     <TableRow key={sub.id} data-testid={`substitution-row-${sub.id}`}>
                                         <TableCell>
                                             <Link href={`/timetable/substitution/detail/${sub.id}`} className="text-blue-600 hover:underline">
@@ -255,7 +273,7 @@ export default function SubstitutionPage() {
                                 className="w-full px-3 py-2 border rounded-lg bg-white"
                             >
                                 <option value="">Select teacher...</option>
-                                {teachers.map((t: any) => (
+                                {teachers.map((t) => (
                                     <option key={t.id} value={t.name}>{t.name}</option>
                                 ))}
                             </select>
@@ -297,7 +315,7 @@ export default function SubstitutionPage() {
                                 className="w-full px-3 py-2 border rounded-lg bg-white"
                             >
                                 <option value="">Select substitute...</option>
-                                {teachers.map((t: any) => (
+                                {teachers.map((t) => (
                                     <option key={t.id} value={t.name}>{t.name}</option>
                                 ))}
                             </select>
@@ -309,7 +327,7 @@ export default function SubstitutionPage() {
                                 {availableTeachers.length === 0 ? (
                                     <span className="text-xs text-gray-500 italic">None available</span>
                                 ) : (
-                                    availableTeachers.map((t: any) => (
+                                    availableTeachers.map((t) => (
                                         <Badge key={t.id} variant="outline" className="bg-green-50">
                                             {t.name}
                                         </Badge>

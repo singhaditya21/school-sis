@@ -82,8 +82,8 @@ export default function NewRouteForm() {
                 router.push('/transport');
                 router.refresh();
             }
-        } catch (error: any) {
-            setErrors({ submit: error.message || 'Failed to create route' });
+        } catch (error: unknown) {
+            setErrors({ submit: (error as { message?: string }).message || 'Failed to create route' });
         } finally {
             setIsSubmitting(false);
         }

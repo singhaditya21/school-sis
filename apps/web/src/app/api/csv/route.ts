@@ -122,8 +122,8 @@ export async function GET(request: NextRequest) {
                 'Content-Disposition': `attachment; filename="${entity}_export_${new Date().toISOString().slice(0, 10)}.csv"`,
             },
         });
-    } catch (error: any) {
-        console.error('[CSV Export] Error:', error.message);
+    } catch (error: unknown) {
+        console.error('[CSV Export] Error:', (error as Error).message);
         return NextResponse.json({ error: 'Export failed' }, { status: 500 });
     }
 }
@@ -204,9 +204,9 @@ export async function POST(request: NextRequest) {
                             row.admission_number || null
                         ]);
                         imported++;
-                    } catch (e: any) {
+                    } catch (e: unknown) {
                         skipped++;
-                        errors.push(`Row "${row.first_name} ${row.last_name}": ${e.message}`);
+                        errors.push(`Row "${row.first_name} ${row.last_name}": ${(e as Error).message}`);
                     }
                 }
                 break;
@@ -226,15 +226,16 @@ export async function POST(request: NextRequest) {
             total: records.length,
             errors: errors.slice(0, 10), // Show first 10 errors
         });
-    } catch (error: any) {
-        console.error('[CSV Import] Error:', error.message);
-        return NextResponse.json({ error: 'Import failed: ' + error.message }, { status: 500 });
+    } catch (error: unknown) {
+        const message = (error as Error).message;
+        console.error('[CSV Import] Error:', message);
+        return NextResponse.json({ error: 'Import failed: ' + message }, { status: 500 });
     }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
 
-function toCSV(rows: Record<string, any>[], columns: string[]): string {
+function toCSV(rows: Record<string, unknown>[], columns: string[]): string {
     const header = columns.join(',');
     const body = rows.map(row =>
         columns.map(col => {

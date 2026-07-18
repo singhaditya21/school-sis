@@ -6,7 +6,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 export async function getAlumni(filters?: { batch?: string; verified?: boolean }) {
     const { tenantId } = await requireAuth('alumni:read');
     let query = 'SELECT id, tenant_id AS "tenantId", name, email, phone, batch, current_company AS "currentCompany", designation, location, linkedin AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt" FROM alumni_profiles WHERE tenant_id = $1';
-    const params: any[] = [tenantId];
+    const params: (string | boolean)[] = [tenantId];
     if (filters?.batch) {
         params.push(filters.batch);
         query += ` AND batch = $${params.length}`;
@@ -45,7 +45,7 @@ export async function verifyAlumni(alumniId: string) {
 export async function getAlumniEvents(status?: string) {
     const { tenantId } = await requireAuth('alumni:read');
     let query = 'SELECT id, tenant_id AS "tenantId", title, description, date, time, venue, type, organizer_id AS "organizerId", max_capacity AS "maxCapacity", status, created_at AS "createdAt" FROM alumni_events WHERE tenant_id = $1';
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
     if (status) {
         params.push(status);
         query += ` AND status = $${params.length}`;
@@ -75,9 +75,9 @@ export async function getAlumniStats() {
     
     return {
         total: all.length,
-        verified: all.filter((a: any) => a.isVerified).length,
-        pending: all.filter((a: any) => !a.isVerified).length,
-        batches: new Set(all.map((a: any) => a.batch)).size,
-        upcomingEvents: events.filter((e: any) => e.status === 'UPCOMING').length,
+        verified: all.filter((a: { isVerified: boolean; batch: string }) => a.isVerified).length,
+        pending: all.filter((a: { isVerified: boolean; batch: string }) => !a.isVerified).length,
+        batches: new Set(all.map((a: { isVerified: boolean; batch: string }) => a.batch)).size,
+        upcomingEvents: events.filter((e: { status: string }) => e.status === 'UPCOMING').length,
     };
 }

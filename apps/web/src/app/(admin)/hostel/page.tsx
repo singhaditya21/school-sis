@@ -4,7 +4,7 @@ import { getHostels, getHostelStats, getAllocations, getMessMenu, allocateStuden
 import { Badge } from '@/components/ui/badge';
 import { revalidatePath } from 'next/cache';
 import { getSession } from '@/lib/auth/session';
-import { isStaff } from '@/lib/rbac/permissions';
+import { isStaff, UserRole } from '@/lib/rbac/permissions';
 import { redirect } from 'next/navigation';
 import {
     Table,
@@ -20,7 +20,7 @@ export default async function HostelPage() {
     if (!session.isLoggedIn) {
         redirect('/login');
     }
-    if (!isStaff(session.role as any)) {
+    if (!isStaff(session.role as UserRole)) {
         redirect('/unauthorized');
     }
 
@@ -86,7 +86,7 @@ export default async function HostelPage() {
                                         <p className="text-xs text-gray-500 italic">No mess menu scheduled.</p>
                                     ) : (
                                         <div className="space-y-2" data-testid="mess-menu-list">
-                                            {myMenu.map((item: any) => (
+                                            {myMenu.map((item: { id: string; day: string; breakfast: string | null; lunch: string | null; snacks: string | null; dinner: string | null }) => (
                                                 <div key={item.id} className="text-xs flex justify-between border-b pb-1 border-gray-100 last:border-0" data-testid={`mess-menu-day-${item.day.toLowerCase()}`}>
                                                     <span className="font-bold text-gray-600">{item.day}:</span>
                                                     <span className="text-gray-500">

@@ -70,10 +70,10 @@ export async function completeOnboarding(data: {
         await client.query('COMMIT');
         revalidatePath('/dashboard');
         return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
         await client.query('ROLLBACK');
         console.error('[ONBOARDING_WIZARD_ERROR]', error);
-        return { error: error.message || 'Failed to complete onboarding.' };
+        return { error: (error as Error)?.message || 'Failed to complete onboarding.' };
     } finally {
         client.release();
     }

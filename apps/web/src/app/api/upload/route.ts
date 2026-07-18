@@ -96,8 +96,8 @@ export async function POST(request: NextRequest) {
         let key: string;
         try {
             key = createTenantStorageKey(auth.context.tenantId, folder, file.name);
-        } catch (error: any) {
-            return NextResponse.json({ error: error.message || 'Invalid upload path' }, { status: 400 });
+        } catch (error: unknown) {
+            return NextResponse.json({ error: (error as { message?: string }).message || 'Invalid upload path' }, { status: 400 });
         }
 
         const command = new PutObjectCommand({
@@ -118,8 +118,8 @@ export async function POST(request: NextRequest) {
             success: true,
             data: { url, key }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[API/upload] Error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: (error as { message?: string }).message }, { status: 500 });
     }
 }

@@ -35,7 +35,7 @@ export async function createCoachingBatch(formData: FormData) {
     const [newBatch] = await db.insert(coachingBatches).values({
       tenantId: validatedData.tenantId,
       name: validatedData.name,
-      examTarget: validatedData.examTarget as any,
+      examTarget: validatedData.examTarget as string,
       courseId: validatedData.courseId,
       startDate: validatedData.startDate,
       endDate: validatedData.endDate,

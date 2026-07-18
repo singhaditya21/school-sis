@@ -12,7 +12,7 @@ export default function ReportBuilder() {
     const [sources, setSources] = useState<{ id: string, name: string, apiName: string }[]>([]);
     const [selectedSource, setSelectedSource] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(false);
-    const [reportData, setReportData] = useState<any[]>([]);
+    const [reportData, setReportData] = useState<Record<string, unknown>[]>([]);
     const [columns, setColumns] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
 
@@ -38,8 +38,8 @@ export default function ReportBuilder() {
                 setReportData([]);
                 setColumns([]);
             }
-        } catch (err: any) {
-            setError(err.message || 'An unexpected error occurred');
+        } catch (err: unknown) {
+            setError((err as Error).message || 'An unexpected error occurred');
         } finally {
             setLoading(false);
         }
@@ -48,7 +48,7 @@ export default function ReportBuilder() {
     const handleExportCSV = () => {
         if (!reportData || reportData.length === 0) return;
         
-        const escapeCsv = (val: any) => {
+        const escapeCsv = (val: unknown) => {
             if (val === null || val === undefined) return '""';
             const str = String(val);
             if (str.includes(',') || str.includes('"') || str.includes('\\n')) {

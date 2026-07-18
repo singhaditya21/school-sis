@@ -30,7 +30,7 @@ export async function getLessonPlans(filters?: { status?: string; teacherId?: st
         FROM lesson_plans 
         WHERE tenant_id = $1
     `;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
     let paramIndex = 2;
 
     if (filters?.status) {
@@ -113,7 +113,7 @@ export async function updateLessonPlan(planId: string, data: Partial<{
     const { tenantId } = await requireAuth('lessonplan:write');
 
     const setClauses: string[] = [];
-    const params: any[] = [planId, tenantId];
+    const params: (string | number)[] = [planId, tenantId];
     let paramIndex = 3;
 
     if (data.topic !== undefined) {

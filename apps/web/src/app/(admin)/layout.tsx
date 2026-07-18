@@ -1,5 +1,5 @@
 import { getSession } from '@/lib/auth/session';
-import { isStaff } from '@/lib/rbac/permissions';
+import { isStaff, UserRole } from '@/lib/rbac/permissions';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { returnToHQAction } from '@/lib/actions/platform';
@@ -19,7 +19,7 @@ export default async function AdminLayout({
     }
 
     // Check if user has staff/admin access
-    if (!isStaff(session.role as any)) {
+    if (!isStaff(session.role as UserRole)) {
         redirect('/unauthorized');
     }
 

@@ -7,6 +7,15 @@ export const metadata = {
     title: 'HQ Policies | ScholarMind',
 };
 
+interface GroupPolicy {
+    id: string | number;
+    policyName: string;
+    policyKey: string;
+    policyValue: string;
+    isHardBlock: boolean;
+    documentUrl: string | null;
+}
+
 export default async function TenantHQPoliciesPage() {
     const { isMappedToHQ, hqGroup, policies } = await getTenantHQPoliciesAction();
 
@@ -43,7 +52,7 @@ export default async function TenantHQPoliciesPage() {
                         No policies have been deployed to this campus yet.
                     </div>
                 ) : (
-                    policies.map((policy: any) => (
+                    policies.map((policy: GroupPolicy) => (
                         <Card key={policy.id} className={`border-l-4 transition-all hover:shadow-md ${policy.isHardBlock ? 'border-l-red-500' : 'border-l-amber-500'}`}>
                             <CardHeader className="pb-3">
                                 <div className="flex justify-between items-start">

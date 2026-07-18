@@ -8,6 +8,22 @@ export const metadata = {
     title: 'Lead Pipeline | ScholarMind HQ',
 };
 
+interface StatusAggregate {
+    status: string;
+    count: number;
+    capacity: number;
+}
+
+interface Lead {
+    id: string | number;
+    contact_name: string;
+    contact_email: string;
+    school_name: string;
+    student_capacity: number;
+    status: string;
+    created_at: string | Date;
+}
+
 export default async function LeadsPage() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
 
@@ -31,13 +47,13 @@ export default async function LeadsPage() {
     `);
 
     // Pipeline Value (Assuming $15/student/year is avg MRR)
-    const pipelineValue = (statusAggregates as any[])
+    const pipelineValue = (statusAggregates as StatusAggregate[])
         .filter(s => s.status !== 'CLOSED') // Don't count already closed revenue in pipeline
         .reduce((a, b) => a + (Number(b.capacity) * 15), 0);
 
     return <LeadsClient 
-        statusData={statusAggregates as any[]} 
-        leads={leadsList as any[]}
+        statusData={statusAggregates as StatusAggregate[]}
+        leads={leadsList as Lead[]}
         kpis={{ pipelineValue }}
     />;
 }

@@ -60,8 +60,8 @@ export default function OnboardingWizardClient() {
                 router.push('/dashboard');
                 router.refresh();
             }
-        } catch (err: any) {
-            setError(err.message || 'An unexpected error occurred.');
+        } catch (err: unknown) {
+            setError((err as { message?: string }).message || 'An unexpected error occurred.');
             setLoading(false);
         }
     };

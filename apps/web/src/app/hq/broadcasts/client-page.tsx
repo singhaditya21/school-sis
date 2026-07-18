@@ -4,7 +4,15 @@ import React from 'react';
 import { Megaphone, Activity, CheckCircle, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 
-export default function BroadcastsClient({ broadcastsData }: { broadcastsData: any[] }) {
+interface Broadcast {
+    createdAt: string | Date;
+    type: string;
+    title: string;
+    targetTiers?: string[] | null;
+    isActive: boolean;
+}
+
+export default function BroadcastsClient({ broadcastsData }: { broadcastsData: Broadcast[] }) {
     
     return (
         <div className="space-y-6">

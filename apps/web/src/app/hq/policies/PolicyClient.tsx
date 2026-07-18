@@ -7,7 +7,15 @@ import { ShieldAlert, Trash2, Plus, Shield } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
-export default function PolicyClient({ initialPolicies, groupId }: { initialPolicies: any[], groupId: string }) {
+interface Policy {
+    id: string;
+    policyName: string;
+    policyKey: string;
+    policyValue: string;
+    isHardBlock: boolean;
+}
+
+export default function PolicyClient({ initialPolicies, groupId }: { initialPolicies: Policy[], groupId: string }) {
     const [policies, setPolicies] = useState(initialPolicies);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const router = useRouter();

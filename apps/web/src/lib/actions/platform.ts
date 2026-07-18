@@ -112,7 +112,17 @@ export async function getAllPlatformTenants(): Promise<PlatformTenant[]> {
         ORDER BY t.name ASC`
     );
 
-    return rows.map((row: any) => ({
+    return rows.map((row: {
+        id: string;
+        company_id: string;
+        name: string;
+        code: string;
+        subscriptionTier: string;
+        status: string;
+        adminEmail: string;
+        activeStudents: number;
+        revenue: number;
+    }) => ({
         id: row.id,
         companyId: row.company_id,
         name: row.name,
@@ -194,7 +204,7 @@ export async function createTenantAction(formData: FormData) {
         revalidatePath('/hq');
 
         return { success: true, tenantId: newTenant.id, code: tenantCode, temporaryPassword };
-    } catch (e: any) {
+    } catch (e: unknown) {
         console.error('Error creating tenant:', e);
         return { error: 'An unexpected error occurred while creating the tenant.' };
     }
@@ -415,7 +425,14 @@ export async function getPlatformBillingStats() {
         ORDER BY c.stripe_current_period_end ASC`
     );
 
-    const invoices = rows.map((row: any) => {
+    const invoices = rows.map((row: {
+        id: string;
+        school: string;
+        tier: string;
+        status: string | null;
+        date: string | Date | null;
+        students: number;
+    }) => {
         let amount = 0;
         const students = Number(row.students);
         if (row.tier === 'CORE') amount = students * 10;
@@ -510,7 +527,12 @@ export async function getPlatformAIAnalytics() {
     const modelStats: Record<string, number> = {};
     const agentStats: Record<string, { queries: number, cost: number }> = {};
 
-    logs.forEach((log: any) => {
+    logs.forEach((log: {
+        tokensUsed: number;
+        queryCostUsd: string | number;
+        model: string;
+        agentType: string;
+    }) => {
         totalTokens += log.tokensUsed;
         const cost = Number(log.queryCostUsd);
         totalCostUsd += cost;

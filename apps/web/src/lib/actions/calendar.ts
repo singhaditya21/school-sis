@@ -17,7 +17,7 @@ export async function getEvents(filters?: { eventType?: string; month?: number; 
         FROM academic_events 
         WHERE tenant_id = $1
     `;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
 
     if (filters?.eventType) {
         params.push(filters.eventType);
@@ -109,7 +109,7 @@ export async function updateEvent(eventId: string, data: Partial<{
     const { tenantId } = await requireAuth('calendar:write');
 
     const setClauses: string[] = [];
-    const params: any[] = [];
+    const params: unknown[] = [];
     let paramIndex = 1;
 
     for (const [key, value] of Object.entries(data)) {

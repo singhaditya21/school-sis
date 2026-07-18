@@ -15,7 +15,7 @@ export async function getCertificateTemplates(type?: string) {
         FROM certificate_templates
         WHERE tenant_id = $1
     `;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
 
     if (type) {
         params.push(type);
@@ -116,7 +116,7 @@ export async function getIssuedCertificates(studentId?: string) {
         LEFT JOIN certificate_templates ct ON ic.template_id = ct.id
         WHERE ic.tenant_id = $1
     `;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
 
     if (studentId) {
         params.push(studentId);
@@ -187,7 +187,7 @@ export async function getIDCards(personType?: string) {
         LEFT JOIN users u ON ic.person_type = 'STAFF' AND ic.person_id = u.id
         WHERE ic.tenant_id = $1
     `;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
 
     if (personType) {
         params.push(personType);

@@ -12,15 +12,17 @@ import {
     getPeriods,
     getTeachersForTimetable,
     getSubjectsForTimetable,
-    createTimetableEntry
+    createTimetableEntry,
+    type PeriodItem,
+    type TimetableSection
 } from '@/lib/actions/timetable';
 
 export default function NewTimetablePage() {
     const router = useRouter();
-    const [sections, setSections] = useState<any[]>([]);
-    const [periods, setPeriods] = useState<any[]>([]);
-    const [teachers, setTeachers] = useState<any[]>([]);
-    const [subjects, setSubjects] = useState<any[]>([]);
+    const [sections, setSections] = useState<TimetableSection[]>([]);
+    const [periods, setPeriods] = useState<PeriodItem[]>([]);
+    const [teachers, setTeachers] = useState<{ id: string; firstName: string; lastName: string }[]>([]);
+    const [subjects, setSubjects] = useState<{ id: string; name: string; code: string }[]>([]);
 
     const [sectionId, setSectionId] = useState('');
     const [subjectId, setSubjectId] = useState('');
@@ -74,8 +76,8 @@ export default function NewTimetablePage() {
                     setErrorMessage('Conflict detected or failed to create entry.');
                 }
             }
-        } catch (err: any) {
-            setErrorMessage(err.message || 'An error occurred while creating entry.');
+        } catch (err: unknown) {
+            setErrorMessage((err as Error).message || 'An error occurred while creating entry.');
         } finally {
             setIsSubmitting(false);
         }

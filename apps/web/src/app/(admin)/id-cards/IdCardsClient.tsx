@@ -5,7 +5,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
-export default function IdCardsClient({ stats, templates, studentCards, staffCards }: { stats: any, templates: any, studentCards: any, staffCards: any }) {
+interface IdCard {
+    id: string;
+    status: string;
+    personId: string;
+    validFrom: string | Date;
+    validTo: string | Date;
+    studentFirstName?: string;
+    studentLastName?: string;
+    studentRollNo?: string | null;
+    staffFirstName?: string;
+    staffLastName?: string;
+    staffRole?: string;
+}
+
+interface IdCardStats {
+    idCards: number;
+    pendingCards: number;
+}
+
+export default function IdCardsClient({ stats, templates, studentCards, staffCards }: { stats: IdCardStats, templates: unknown, studentCards: IdCard[], staffCards: IdCard[] }) {
     const [activeTab, setActiveTab] = useState<'student' | 'staff'>('student');
     const [statusFilter, setStatusFilter] = useState('');
     const [selectedCards, setSelectedCards] = useState<string[]>([]);
@@ -20,7 +39,7 @@ export default function IdCardsClient({ stats, templates, studentCards, staffCar
         issued: 0,
     };
 
-    const filteredCards = cards.filter((c: any) => statusFilter ? c.status.toLowerCase() === statusFilter.toLowerCase() : true);
+    const filteredCards = cards.filter((c: IdCard) => statusFilter ? c.status.toLowerCase() === statusFilter.toLowerCase() : true);
 
     const getStatusColor = (status: string) => {
         const s = status.toLowerCase();
@@ -33,7 +52,7 @@ export default function IdCardsClient({ stats, templates, studentCards, staffCar
     };
 
     const toggleSelect = (id: string) => setSelectedCards((prev) => prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]);
-    const selectAll = () => setSelectedCards(selectedCards.length === filteredCards.length ? [] : filteredCards.map((c: any) => c.id));
+    const selectAll = () => setSelectedCards(selectedCards.length === filteredCards.length ? [] : filteredCards.map((c: IdCard) => c.id));
 
     return (
         <div className="space-y-6">
@@ -79,7 +98,7 @@ export default function IdCardsClient({ stats, templates, studentCards, staffCar
                         <div className="text-center py-10 text-gray-500">No cards found.</div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {filteredCards.map((card: any) => (
+                            {filteredCards.map((card: IdCard) => (
                                 <div key={card.id} onClick={() => toggleSelect(card.id)} className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedCards.includes(card.id) ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
                                     <div className="bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-lg p-4 mb-3">
                                         <div className="flex items-start justify-between mb-3">

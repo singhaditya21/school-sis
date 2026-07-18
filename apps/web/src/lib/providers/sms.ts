@@ -76,8 +76,8 @@ class Msg91Provider implements SmsProvider {
 
             const data = await res.json();
             return { success: true, data: { messageId: data.request_id || `msg91_${Date.now()}` } };
-        } catch (err: any) {
-            return { success: false, error: err.message };
+        } catch (err: unknown) {
+            return { success: false, error: (err as Error).message };
         }
     }
 
@@ -133,8 +133,8 @@ class TwilioProvider implements SmsProvider {
 
             const data = await res.json();
             return { success: true, data: { messageId: data.sid } };
-        } catch (err: any) {
-            return { success: false, error: err.message };
+        } catch (err: unknown) {
+            return { success: false, error: (err as Error).message };
         }
     }
 

@@ -153,9 +153,9 @@ export async function GET(
     let key: string;
     try {
         key = validateTenantStorageKey(pathParts.join('/'), auth.context.tenantId);
-    } catch (error: any) {
-        const status = error.message === 'Forbidden file path.' ? 403 : 400;
-        return NextResponse.json({ error: error.message || 'Invalid file path' }, { status });
+    } catch (error: unknown) {
+        const status = (error as { message?: string }).message === 'Forbidden file path.' ? 403 : 400;
+        return NextResponse.json({ error: (error as { message?: string }).message || 'Invalid file path' }, { status });
     }
 
     const requestedExpires = Number(request.nextUrl.searchParams.get('expires') || 300);
@@ -164,8 +164,8 @@ export async function GET(
     let signedUrl: string;
     try {
         signedUrl = createSignedGetUrl(key, expiresSeconds);
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message || 'Storage is not configured' }, { status: 503 });
+    } catch (error: unknown) {
+        return NextResponse.json({ error: (error as { message?: string }).message || 'Storage is not configured' }, { status: 503 });
     }
 
     if (request.nextUrl.searchParams.get('redirect') === 'false') {

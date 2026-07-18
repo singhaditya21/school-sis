@@ -324,8 +324,8 @@ export async function enqueueNotification(
         ],
       );
       notificationId = rows[0].id;
-    } catch (error: any) {
-      if (error?.code === '23505' && input.idempotencyKey) {
+    } catch (error: unknown) {
+      if ((error as { code?: string } | null)?.code === '23505' && input.idempotencyKey) {
         const existing = await findExistingNotification(input.tenantId, input.idempotencyKey);
         if (existing) return existing;
       }

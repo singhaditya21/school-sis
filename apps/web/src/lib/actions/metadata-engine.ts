@@ -175,7 +175,7 @@ export async function queryRecords(apiName: string, filters: Record<string, any>
     // Flatten custom_data into the root object for the UI
     return rows.map(row => {
         const { custom_data, ...rest } = row;
-        const serializedRest: Record<string, any> = {};
+        const serializedRest: Record<string, unknown> = {};
         for (const [key, val] of Object.entries(rest)) {
             if (val instanceof Date) {
                 serializedRest[key] = val.toISOString().split('T')[0];
@@ -327,7 +327,7 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
         if (id) {
             // UPDATE
             const setClauses: string[] = [];
-            const values: any[] = [id, tenantId];
+            const values: unknown[] = [id, tenantId];
             let argIndex = 3;
 
             for (const [key, value] of Object.entries(standardData)) {
@@ -354,7 +354,7 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
         } else {
             // INSERT
             const keys = [quoteIdentifier('tenant_id')];
-            const values: any[] = [tenantId];
+            const values: unknown[] = [tenantId];
             const placeholders = ['$1'];
             let argIndex = 2;
 

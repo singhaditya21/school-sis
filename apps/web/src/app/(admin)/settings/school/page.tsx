@@ -13,7 +13,7 @@ export default async function SchoolSettingsPage() {
     const { policies } = await getTenantHQPoliciesAction();
     
     // Helper to find an enforced policy value
-    const getEnforcedPolicy = (key: string) => policies.find((p: any) => p.policyKey === key && p.isHardBlock);
+    const getEnforcedPolicy = (key: string) => policies.find((p: { policyKey: string; isHardBlock: boolean }) => p.policyKey === key && p.isHardBlock);
 
     const minAttendancePolicy = getEnforcedPolicy('MIN_ATTENDANCE_PCT');
     const lateFeePolicy = getEnforcedPolicy('LATE_FEE_AMOUNT');

@@ -39,7 +39,7 @@ export async function updateHealthRecord(studentId: string, data: {
 
     if (existing) {
         const updates: string[] = [];
-        const params: any[] = [];
+        const params: (string | string[] | Date)[] = [];
         let index = 1;
         
         for (const [key, value] of Object.entries(data)) {
@@ -63,7 +63,7 @@ export async function updateHealthRecord(studentId: string, data: {
     } else {
         const columns = ['tenant_id', 'student_id'];
         const values = ['$1', '$2'];
-        const params: any[] = [tenantId, studentId];
+        const params: (string | string[])[] = [tenantId, studentId];
         let index = 3;
         
         for (const [key, value] of Object.entries(data)) {
@@ -114,7 +114,7 @@ export async function getIncidents(studentId?: string) {
                  FROM health_incidents h
                  LEFT JOIN students s ON h.student_id = s.id
                  WHERE h.tenant_id = $1`;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
     if (studentId) {
         query += ` AND h.student_id = $2`;
         params.push(studentId);

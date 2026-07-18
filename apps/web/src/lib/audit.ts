@@ -45,7 +45,7 @@ export async function logAudit(params: {
 /**
  * Higher-order function to wrap server actions with audit logging.
  */
-export function withAudit<TArgs extends any[], TReturn>(
+export function withAudit<TArgs extends unknown[], TReturn>(
     action: (...args: TArgs) => Promise<TReturn>,
     auditConfig: {
         action: AuditAction;

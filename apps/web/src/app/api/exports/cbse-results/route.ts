@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
             }, { status: 202 });
         }
 
-        const params: any[] = [tenantId];
+        const params: string[] = [tenantId];
         let examClause = '';
         if (examId) {
             params.push(examId);
@@ -124,11 +124,11 @@ export async function GET(request: NextRequest) {
                 'Content-Disposition': `attachment; filename="cbse_results_${tenant?.code || 'export'}_${new Date().toISOString().slice(0, 10)}.csv"`,
             },
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (error instanceof WorkflowApprovalError) {
             return NextResponse.json({ error: error.message }, { status: error.status });
         }
-        console.error('[CBSE Export] Error:', error.message);
+        console.error('[CBSE Export] Error:', (error as Error).message);
         return NextResponse.json({ error: 'Export failed' }, { status: 500 });
     }
 }

@@ -51,8 +51,8 @@ export async function runDynamicReport(apiName: string): Promise<{ success: bool
         const { rows } = await pool.query(query, [tenantId, ...customFieldNames]);
 
         return { success: true, data: rows, columns };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Report execution failed:', error);
-        return { success: false, error: error.message || 'Failed to generate dynamic report' };
+        return { success: false, error: (error as { message?: string }).message || 'Failed to generate dynamic report' };
     }
 }

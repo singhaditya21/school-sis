@@ -14,13 +14,35 @@ const DIGILOCKER_DOCUMENT_TYPES = [
     { value: 'PASSING_CERTIFICATE', code: 'PASSCERT', label: 'Passing Certificate' }
 ];
 
-export default function DigilockerClient({ initialDocuments, initialStudents }: { initialDocuments: any[], initialStudents: any[] }) {
+interface DigilockerDocument {
+    id: string;
+    studentId: string;
+    studentName: string;
+    studentLastName: string;
+    documentType: string;
+    documentNumber: string;
+    status: string;
+    apaarId?: string;
+    digiLockerUri: string;
+    errorMessage: string;
+    pushedAt: string;
+}
+
+interface StudentRow {
+    studentId: string;
+    firstName: string;
+    lastName: string;
+    apaarId: string;
+    verified?: boolean;
+}
+
+export default function DigilockerClient({ initialDocuments, initialStudents }: { initialDocuments: DigilockerDocument[], initialStudents: StudentRow[] }) {
     const [documents, setDocuments] = useState(initialDocuments);
     const [students, setStudents] = useState(initialStudents);
     const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'SUCCESS' | 'FAILED'>('ALL');
     const [pushing, setPushing] = useState<string | null>(null);
     const [showVerifyDialog, setShowVerifyDialog] = useState(false);
-    const [verifyStudent, setVerifyStudent] = useState<any | null>(null);
+    const [verifyStudent, setVerifyStudent] = useState<StudentRow | null>(null);
     const [newAaparId, setNewAaparId] = useState('');
     const [verifyResult, setVerifyResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -50,7 +72,7 @@ export default function DigilockerClient({ initialDocuments, initialStudents }: 
         return <Badge variant="outline">{docType?.code || type}</Badge>;
     };
 
-    const handlePush = async (doc: any) => {
+    const handlePush = async (doc: DigilockerDocument) => {
         setPushing(doc.id);
         const result = await pushToDigilocker(doc.studentId, doc.documentType);
         setDocuments(prev => prev.map(d => {
@@ -76,7 +98,7 @@ export default function DigilockerClient({ initialDocuments, initialStudents }: 
         }
     };
 
-    const openVerifyDialog = (student: any) => {
+    const openVerifyDialog = (student: StudentRow) => {
         setVerifyStudent(student);
         setNewAaparId(student.apaarId || '');
         setVerifyResult(null);

@@ -20,8 +20,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.redirect(new URL('/fees', request.url));
         }
         return NextResponse.json({ error: 'Failed to create fee plan' }, { status: 400 });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[API/fee-plans] Error:', error);
-        return NextResponse.json({ error: error.message || 'Internal error' }, { status: 500 });
+        return NextResponse.json({ error: (error as { message?: string }).message || 'Internal error' }, { status: 500 });
     }
 }

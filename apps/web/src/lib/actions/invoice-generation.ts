@@ -132,9 +132,9 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
             ]);
 
             generated++;
-        } catch (err: any) {
+        } catch (err: unknown) {
             skipped++;
-            errors.push(`Error for student ${studentId}: ${err.message}`);
+            errors.push(`Error for student ${studentId}: ${(err as Error).message}`);
         }
     }
 
@@ -151,7 +151,7 @@ export async function generateBulkInvoices(options: BulkGenerateOptions): Promis
         FROM students
         WHERE tenant_id = $1 AND status = 'ACTIVE'
     `;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
     let paramIndex = 2;
 
     if (options.gradeId) {
@@ -217,7 +217,7 @@ export async function getInvoiceGenerationPreview(
         FROM students
         WHERE tenant_id = $1 AND status = 'ACTIVE'
     `;
-    const countParams: any[] = [tenantId];
+    const countParams: string[] = [tenantId];
     let paramIndex = 2;
 
     if (gradeId) {

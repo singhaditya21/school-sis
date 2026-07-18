@@ -16,10 +16,20 @@ import {
 } from '@/components/ui/table';
 import { getProctoringLogs } from '@/lib/actions/exams';
 
+interface ProctoringLog {
+    id: string | number;
+    studentName: string;
+    examName: string;
+    subject: string;
+    flagType: string;
+    description: string | null;
+    timestamp: string | null;
+}
+
 export default function CompliancePage() {
     const [activeTab, setActiveTab] = useState('udise');
     const [isExporting, setIsExporting] = useState(false);
-    const [proctoringLogs, setProctoringLogs] = useState<any[]>([]);
+    const [proctoringLogs, setProctoringLogs] = useState<ProctoringLog[]>([]);
 
     useEffect(() => {
         const fetchLogs = async () => {

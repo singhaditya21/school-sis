@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
         ].join(','));
 
         // Data rows
-        for (const row of studentData as any[]) {
+        for (const row of studentData as Array<Record<string, unknown>>) {
             rows.push([
                 school.udiseCode || '',
                 `"${school.name}"`,
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
                 row.st_count,
                 row.obc_count,
                 row.general_count,
-                (teacherData as any)?.total_teachers || 0,
+                (teacherData as Record<string, unknown>)?.total_teachers || 0,
             ].join(','));
         }
 
@@ -139,11 +139,11 @@ export async function GET(request: NextRequest) {
                 'Content-Disposition': `attachment; filename="udise_plus_${school.code}_${new Date().toISOString().slice(0, 10)}.csv"`,
             },
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (error instanceof WorkflowApprovalError) {
             return NextResponse.json({ error: error.message }, { status: error.status });
         }
-        console.error('[UDISE+ Export] Error:', error.message);
+        console.error('[UDISE+ Export] Error:', (error as Error).message);
         return NextResponse.json({ error: 'Failed to generate UDISE+ export' }, { status: 500 });
     }
 }

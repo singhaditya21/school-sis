@@ -151,7 +151,7 @@ export default async function TreasuryDashboard() {
                                         <td colSpan={6} className="px-6 py-4 text-center text-gray-500">No completed payments found.</td>
                                     </tr>
                                 ) : (
-                                    dbLedger.map((row: any) => (
+                                    dbLedger.map((row: { id: string; transactionId: string | null; invoiceNumber: string | null; method: string; amount: string | number; paidAt: string | Date; status: string }) => (
                                         <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-6 py-4 font-mono text-xs">{row.transactionId || row.id.slice(0, 8)}</td>
                                             <td className="px-6 py-4 font-semibold">{row.invoiceNumber}</td>

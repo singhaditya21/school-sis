@@ -8,6 +8,14 @@ export const metadata = {
     title: 'Global Compliance | ScholarMind HQ',
 };
 
+interface ComplianceNode {
+    company_name: string;
+    region: string;
+    subscription_tier: string;
+    tenant_name: string;
+    tenant_code: string;
+}
+
 export default async function CompliancePage() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
 
@@ -34,7 +42,7 @@ export default async function CompliancePage() {
     `);
 
     const totalNodes = complianceList.length;
-    const dpdpCompliant = complianceList.filter((c: any) => c.subscription_tier === 'ENTERPRISE').length;
+    const dpdpCompliant = complianceList.filter((c: ComplianceNode) => c.subscription_tier === 'ENTERPRISE').length;
     const ferpaCompliant = totalNodes; // All nodes baseline FERPA
 
     return (
@@ -110,7 +118,7 @@ export default async function CompliancePage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/60">
-                            {complianceList.map((node: any, i) => (
+                            {complianceList.map((node: ComplianceNode, i) => (
                                 <tr key={i} className="hover:bg-slate-900/50 transition-colors">
                                     <td className="px-6 py-4">
                                         <div className="font-semibold text-white">{node.tenant_name}</div>

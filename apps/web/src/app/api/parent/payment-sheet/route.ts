@@ -74,8 +74,8 @@ export async function POST(req: Request) {
       ephemeralKey: null,
       customer: parentCustomerId,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Failed to generate payment sheet parameters:", error);
-    return NextResponse.json({ error: error.message || "Stripe Connection Error" }, { status: 500 });
+    return NextResponse.json({ error: (error as { message?: string }).message || "Stripe Connection Error" }, { status: 500 });
   }
 }

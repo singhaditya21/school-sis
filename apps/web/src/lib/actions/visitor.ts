@@ -19,7 +19,7 @@ export async function getVisitors(filters?: { status?: string; purpose?: string 
         FROM visitors
         WHERE tenant_id = $1
     `;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
 
     if (filters?.status) {
         params.push(filters.status);

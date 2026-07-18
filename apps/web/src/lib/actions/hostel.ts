@@ -46,7 +46,7 @@ export async function getRooms(hostelId?: string) {
     const { tenantId } = await requireAuth('hostel:read');
 
     let query = 'SELECT id, tenant_id AS "tenantId", hostel_id AS "hostelId", floor, room_number AS "roomNumber", total_beds AS "totalBeds", occupied_beds AS "occupiedBeds", status, created_at AS "createdAt", updated_at AS "updatedAt" FROM hostel_rooms WHERE tenant_id = $1';
-    const params: any[] = [tenantId];
+    const params: unknown[] = [tenantId];
 
     if (hostelId) {
         params.push(hostelId);
@@ -82,7 +82,7 @@ export async function getAllocations(filters?: { hostelId?: string; status?: str
         LEFT JOIN hostel_rooms hr ON ha.room_id = hr.id
         WHERE ha.tenant_id = $1`;
     
-    const params: any[] = [tenantId];
+    const params: unknown[] = [tenantId];
 
     if (filters?.hostelId) {
         params.push(filters.hostelId);

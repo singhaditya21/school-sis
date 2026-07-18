@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 
-export default async function GradebookPage({ searchParams }: { searchParams: any }) {
+export default async function GradebookPage({ searchParams }: { searchParams: Promise<{ subjectId?: string; gradeId?: string }> }) {
     const session = await getSession();
     if (!session.isLoggedIn) redirect('/login');
 
@@ -18,8 +18,8 @@ export default async function GradebookPage({ searchParams }: { searchParams: an
     if (subjectId && gradeId) {
         try {
             gradebookData = await getAdvancedGradebook(subjectId, gradeId);
-        } catch (err: any) {
-            errorMsg = err.message || 'An error occurred';
+        } catch (err) {
+            errorMsg = (err as { message?: string }).message || 'An error occurred';
         }
     }
 

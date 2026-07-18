@@ -86,8 +86,8 @@ class SmtpProvider implements EmailProvider {
             });
 
             return { success: true, data: { messageId: info.messageId } };
-        } catch (err: any) {
-            return { success: false, error: err.message };
+        } catch (err: unknown) {
+            return { success: false, error: (err as Error).message };
         }
     }
 }
@@ -131,8 +131,8 @@ class ResendProvider implements EmailProvider {
 
             const data = await res.json();
             return { success: true, data: { messageId: data.id } };
-        } catch (err: any) {
-            return { success: false, error: err.message };
+        } catch (err: unknown) {
+            return { success: false, error: (err as Error).message };
         }
     }
 }

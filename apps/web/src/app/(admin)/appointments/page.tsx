@@ -5,8 +5,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getAppointments } from '@/lib/services/appointments/appointments.service';
 
+interface Appointment {
+    id: string | number;
+    title: string;
+    description: string;
+    date: string;
+    time: string;
+    duration: string | number;
+    with: string;
+    status: string;
+}
+
 export default function AppointmentsPage() {
-    const [appointments, setAppointments] = useState<any[]>([]);
+    const [appointments, setAppointments] = useState<Appointment[]>([]);
     useEffect(() => { getAppointments().then(setAppointments); }, []);
 
     const getStatusColor = (s: string) => ({ scheduled: 'bg-blue-100 text-blue-800', completed: 'bg-green-100 text-green-800', cancelled: 'bg-red-100 text-red-800' }[s] || 'bg-gray-100 text-gray-800');
@@ -19,7 +30,7 @@ export default function AppointmentsPage() {
             </div>
             {appointments.length === 0 ? <Card><CardContent className="py-12 text-center text-gray-500">No appointments scheduled.</CardContent></Card> : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {appointments.map((appt: any) => (
+                    {appointments.map((appt: Appointment) => (
                         <Card key={appt.id}>
                             <CardHeader>
                                 <CardTitle className="flex items-center justify-between text-lg">

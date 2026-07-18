@@ -50,7 +50,7 @@ export default function CompanySettingsForm({
         setLoading(true);
         try {
             await updateCompanySettingsAction(company.id, {
-                subscriptionTier: tier as any,
+                subscriptionTier: tier as 'CORE' | 'AI_PRO' | 'ENTERPRISE',
                 activeModules,
                 isActive,
                 themeColor,
@@ -58,7 +58,7 @@ export default function CompanySettingsForm({
             });
             toast.success('Company settings updated successfully.');
             router.refresh();
-        } catch (e: any) {
+        } catch (e: unknown) {
             toast.error('Failed to update company context.');
         } finally {
             setLoading(false);

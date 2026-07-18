@@ -6,7 +6,24 @@ import { Cpu, DollarSign, Zap } from 'lucide-react';
 
 const COLORS = ['#8b5cf6', '#06b6d4', '#f59e0b', '#10b981'];
 
-export default function AIGovernanceClient({ modelData, agentData, kpis }: { modelData: any[], agentData: any[], kpis: any }) {
+interface ModelAggregateRow {
+    model: string;
+    total_tokens: number;
+    total_cost: string;
+}
+
+interface AgentAggregateRow {
+    agent_type: string;
+    total_tokens: number;
+    request_count: string;
+}
+
+interface AIGovernanceKpis {
+    totalTokens: number;
+    totalCost: number;
+}
+
+export default function AIGovernanceClient({ modelData, agentData, kpis }: { modelData: ModelAggregateRow[], agentData: AgentAggregateRow[], kpis: AIGovernanceKpis }) {
     // Format Pie chart data for Model Cost Distribution
     const costPieData = modelData.map((d) => ({
         name: d.model,

@@ -89,7 +89,7 @@ export async function getAttendanceWeeklyStats(): Promise<AttendanceWeeklyStats[
         GROUP BY status
     `, [tenantId, startDate]);
 
-    return rows.map((r: any) => ({
+    return rows.map((r: { status: string; count: string }) => ({
         status: r.status,
         count: parseInt(r.count, 10),
     }));
@@ -222,7 +222,7 @@ export async function getStudentAttendanceDetail(
         absentDays: stats['ABSENT'] || 0,
         lateDays: stats['LATE'] || 0,
         attendanceRate: records.length > 0 ? Math.round((present / records.length) * 100) : 0,
-        recentRecords: records.slice(0, 30).map((r: any) => ({
+        recentRecords: records.slice(0, 30).map((r: { date: string; status: string; remarks: string | null }) => ({
             date: r.date,
             status: r.status,
             remarks: r.remarks,
@@ -292,9 +292,9 @@ export async function notifyAbsentParents(date?: string): Promise<{ sent: number
             `, [row.recordId]);
 
             sent++;
-        } catch (err: any) {
+        } catch (err) {
             failed++;
-            errors.push(err.message);
+            errors.push((err as Error).message);
         }
     }
 

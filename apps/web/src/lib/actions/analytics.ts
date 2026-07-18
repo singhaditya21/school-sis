@@ -51,7 +51,7 @@ export async function getFeeCollectionData() {
         FROM monthly_payments
         ORDER BY month_date
     `, [tenantId]);
-    return rows.map((r: any) => ({
+    return rows.map((r: { month: string; collected: string | number | null; target: string | number | null; pending: string | number | null }) => ({
         month: r.month, collected: Number(r.collected || 0),
         target: Number(r.target || 0), pending: Number(r.pending || 0),
     }));
@@ -71,7 +71,7 @@ export async function getClassWiseSummary() {
         WHERE e.tenant_id=$1
         GROUP BY g.name, g.display_order ORDER BY g.display_order
     `, [tenantId]);
-    return rows.map((r: any) => ({ label: r.label || 'N/A', value: Number(r.value || 0) }));
+    return rows.map((r: { label: string | null; value: string | number | null }) => ({ label: r.label || 'N/A', value: Number(r.value || 0) }));
 }
 
 export async function getTopPerformers() {
@@ -90,7 +90,7 @@ export async function getTopPerformers() {
         GROUP BY s.id, s.first_name, s.last_name, g.name
         ORDER BY percentage DESC LIMIT 10
     `, [tenantId]);
-    return rows.map((r: any) => ({ name: r.name, class: r.class || 'N/A', percentage: Number(r.percentage || 0) }));
+    return rows.map((r: { name: string; class: string | null; percentage: string | number | null }) => ({ name: r.name, class: r.class || 'N/A', percentage: Number(r.percentage || 0) }));
 }
 
 export async function getDailyAttendance() {
@@ -101,7 +101,7 @@ export async function getDailyAttendance() {
         FROM attendance_records WHERE tenant_id=$1 AND date >= CURRENT_DATE - 30
         GROUP BY date ORDER BY date
     `, [tenantId]);
-    return rows.map((r: any) => ({ date: r.date, value: Number(r.value || 0) }));
+    return rows.map((r: { date: string; value: string | number | null }) => ({ date: r.date, value: Number(r.value || 0) }));
 }
 
 export async function getWeeklyAttendance(weeks: number = 12) {
@@ -114,7 +114,7 @@ export async function getWeeklyAttendance(weeks: number = 12) {
         FROM attendance_records WHERE tenant_id=$1 AND date >= CURRENT_DATE - ($2::int * 7)
         GROUP BY DATE_TRUNC('week', date) ORDER BY week_start
     `, [tenantId, weeks]);
-    return rows.map((r: any) => ({
+    return rows.map((r: { week_start: Date | string | null; present: string | number | null; absent: string | number | null; percentage: string | number | null }) => ({
         date: String(r.week_start), present: Number(r.present || 0),
         absent: Number(r.absent || 0), percentage: Number(r.percentage || 0),
     }));
@@ -132,7 +132,7 @@ export async function getSubjectPerformance() {
         WHERE e.tenant_id=$1
         GROUP BY sub.name ORDER BY value DESC
     `, [tenantId]);
-    return rows.map((r: any) => ({ label: r.label, value: Number(r.value || 0) }));
+    return rows.map((r: { label: string; value: string | number | null }) => ({ label: r.label, value: Number(r.value || 0) }));
 }
 
 export async function getExamClassPerformance() {
@@ -151,7 +151,7 @@ export async function getExamClassPerformance() {
         GROUP BY g.name, sec.name, g.display_order
         ORDER BY g.display_order, sec.name
     `, [tenantId]);
-    return rows.map((r: any) => ({
+    return rows.map((r: { class: string | null; section: string | null; averagePercent: string | number | null; passPercent: string | number | null }) => ({
         class: r.class || 'N/A', section: r.section || 'N/A',
         averagePercent: Number(r.averagePercent || 0), passPercent: Number(r.passPercent || 0),
     }));
@@ -171,7 +171,7 @@ export async function getClassWiseAttendance() {
         WHERE ar.tenant_id=$1 AND ar.date >= CURRENT_DATE - 30
         GROUP BY g.name, g.display_order ORDER BY g.display_order
     `, [tenantId]);
-    return rows.map((r: any) => ({
+    return rows.map((r: { class: string | null; percentage: string | number | null; present: string | number | null; total: string | number | null }) => ({
         class: r.class || 'N/A', percentage: Number(r.percentage || 0),
         present: Number(r.present || 0), total: Number(r.total || 0),
     }));
@@ -191,7 +191,7 @@ export async function getClassWiseFees() {
         WHERE i.tenant_id=$1
         GROUP BY g.name, g.display_order ORDER BY g.display_order
     `, [tenantId]);
-    return rows.map((r: any) => ({
+    return rows.map((r: { class: string | null; students: string | number | null; collected: string | number | null; pending: string | number | null }) => ({
         class: r.class || 'N/A', students: Number(r.students || 0),
         collected: Number(r.collected || 0), pending: Number(r.pending || 0),
     }));

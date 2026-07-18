@@ -73,8 +73,8 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
             } else {
                 router.refresh();
             }
-        } catch (e: any) {
-            toast.error(e.message || "Failed to create field");
+        } catch (e: unknown) {
+            toast.error((e as Error).message || "Failed to create field");
         }
     };
 

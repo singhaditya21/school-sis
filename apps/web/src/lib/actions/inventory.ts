@@ -17,7 +17,7 @@ export async function getAssets(category?: string) {
         FROM assets
         WHERE tenant_id = $1
     `;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
     let paramIndex = 2;
 
     if (category) {
@@ -83,7 +83,7 @@ export async function getConsumables(category?: string) {
         FROM consumables
         WHERE tenant_id = $1
     `;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
     let paramIndex = 2;
 
     if (category) {
@@ -172,7 +172,7 @@ export async function getStockAlerts(resolved?: boolean) {
         FROM stock_alerts
         WHERE tenant_id = $1
     `;
-    const params: any[] = [tenantId];
+    const params: (string | boolean)[] = [tenantId];
     let paramIndex = 2;
 
     if (resolved !== undefined) {

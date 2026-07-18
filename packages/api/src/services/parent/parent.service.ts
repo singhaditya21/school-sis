@@ -47,7 +47,7 @@ export async function getMyFees(params?: ParentFeeParams): Promise<ParentFeeResp
     const offset = params?.offset || 0;
     
     let statusFilter = '';
-    const queryParams: any[] = [tenantId, userId, limit, offset];
+    const queryParams: (string | number)[] = [tenantId, userId, limit, offset];
     
     if (params?.status) {
         queryParams.push(params.status);
@@ -110,7 +110,7 @@ export interface MyResult {
 export async function getMyResults(params?: ParentResultParams): Promise<MyResult[]> {
     const { tenantId, userId } = await requireAuth('parent:read');
     let examFilter = '';
-    const queryParams: any[] = [tenantId, userId];
+    const queryParams: (string | number)[] = [tenantId, userId];
 
     if (params?.examId) {
         queryParams.push(params.examId);
@@ -139,7 +139,7 @@ export async function getMyResults(params?: ParentResultParams): Promise<MyResul
         ORDER BY e.start_date DESC, s.first_name, sub.name
     `, queryParams);
 
-    return rows.map((r: any) => ({
+    return rows.map((r: MyResult) => ({
         ...r,
         marksObtained: Number(r.marksObtained),
         totalMarks: Number(r.totalMarks),
@@ -166,7 +166,7 @@ export async function getMyAttendance(params: ParentAttendanceParams): Promise<M
         ORDER BY s.first_name, ar.date
     `, [tenantId, userId, params.month, params.year]);
 
-    return rows.map((r: any) => ({
+    return rows.map((r: { date: Date | string; status: string; studentName: string }) => ({
         ...r,
         date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date)
     }));
@@ -253,7 +253,7 @@ export async function getParentAlerts(): Promise<ParentAlert[]> {
         LIMIT 50
     `, [tenantId, userId]);
 
-    return rows.map((r: any) => ({
+    return rows.map((r: { id: string; channel: string; subject: string; body: string; status: string; sentAt: Date | string | null; createdAt: Date | string }) => ({
         ...r,
         sentAt: r.sentAt ? (r.sentAt instanceof Date ? r.sentAt.toISOString() : String(r.sentAt)) : null,
         createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt)
@@ -293,7 +293,7 @@ export async function getParentConsentData(): Promise<ConsentFormForParent[]> {
         ORDER BY cf.created_at DESC
     `, [tenantId, userId]);
 
-    return rows.map((r: any) => ({
+    return rows.map((r: { id: string; title: string; description: string | null; formType: string; dueDate: Date | string | null; isActive: boolean; studentName: string; response: string | null; respondedAt: Date | string | null }) => ({
         ...r,
         dueDate: r.dueDate ? (r.dueDate instanceof Date ? r.dueDate.toISOString().split('T')[0] : String(r.dueDate)) : null,
         respondedAt: r.respondedAt ? (r.respondedAt instanceof Date ? r.respondedAt.toISOString() : String(r.respondedAt)) : null

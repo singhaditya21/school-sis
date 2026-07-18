@@ -7,7 +7,7 @@ export async function getStudentDocuments(studentId?: string) {
     const { tenantId } = await requireAuth('documents:read');
     
     let query = `SELECT sd.id, sd.student_id AS "studentId", s.first_name || ' ' || s.last_name AS "studentName", sd.document_type AS "documentType", sd.file_name AS "fileName", sd.file_size AS "fileSize", sd.is_verified AS "isVerified", sd.created_at AS "createdAt" FROM student_documents sd LEFT JOIN students s ON sd.student_id = s.id WHERE sd.tenant_id = $1`;
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
     
     if (studentId) {
         query += ` AND sd.student_id = $2`;

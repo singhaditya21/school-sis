@@ -123,8 +123,8 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
         await session.save();
 
         return { success: true, tenantId: tenant.id };
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[ONBOARDING_ERROR]', error);
-        return { error: error.message || 'Failed to create workspace database. Please try again later.' };
+        return { error: (error as { message?: string }).message || 'Failed to create workspace database. Please try again later.' };
     }
 }

@@ -30,7 +30,7 @@ export async function getStudents(options?: {
     const offset = options?.offset || 0;
 
     const conditions: string[] = ['s.tenant_id = $1'];
-    const params: any[] = [tenantId];
+    const params: string[] = [tenantId];
     let paramIndex = 2;
 
     if (options?.gradeId) {

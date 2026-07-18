@@ -115,7 +115,7 @@ export async function getInvoices(options?: {
         INNER JOIN students s ON i.student_id = s.id
         WHERE i.tenant_id = $1
     `;
-    const params: any[] = [tenantId];
+    const params: (string | number)[] = [tenantId];
 
     if (options?.status) {
         params.push(options.status);

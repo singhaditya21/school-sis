@@ -8,13 +8,48 @@ import { Badge } from '@/components/ui/badge';
 import { useEffect, useState } from 'react';
 import { getQuizById, getQuizAttemptsByQuizId, getQuizAnalytics } from '@/lib/actions/quiz';
 
+interface QuizQuestion {
+    id: string;
+    text: string;
+    type: string;
+    correctAnswer: string;
+    marks: number;
+    negativeMarks?: number | null;
+    section?: string | null;
+}
+
+interface Quiz {
+    title: string;
+    totalMarks: number;
+    questions?: QuizQuestion[];
+}
+
+interface QuizAttempt {
+    id: string;
+    studentName?: string;
+    studentId: string;
+    score: number;
+    totalMarks: number;
+    percentage: number;
+    answers?: Record<string, string | number>;
+}
+
+interface QuizAnalytics {
+    totalAttempts: number;
+    averageScore: number;
+    highestScore: number;
+    lowestScore: number;
+    passed: number;
+    failed: number;
+}
+
 export default function QuizResultsPage() {
     const params = useParams();
     const router = useRouter();
-    
-    const [quiz, setQuiz] = useState<any>(null);
-    const [attempts, setAttempts] = useState<any[]>([]);
-    const [analytics, setAnalytics] = useState<any>(null);
+
+    const [quiz, setQuiz] = useState<Quiz | null>(null);
+    const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
+    const [analytics, setAnalytics] = useState<QuizAnalytics | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -119,7 +154,7 @@ export default function QuizResultsPage() {
                 <CardHeader><CardTitle>Question-wise Analysis</CardTitle><CardDescription>Performance breakdown by question</CardDescription></CardHeader>
                 <CardContent>
                     <div className="space-y-4">
-                        {quiz.questions?.map((q: any, i: number) => {
+                        {quiz.questions?.map((q: QuizQuestion, i: number) => {
                             const correctCount = attempts.filter((a) => {
                                 const ans = (a.answers || {})[q.id];
                                 if (q.type === 'SHORT_ANSWER') return String(ans).toLowerCase().trim() === String(q.correctAnswer).toLowerCase().trim();

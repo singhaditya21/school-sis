@@ -76,7 +76,7 @@ export default async function InternationalDashboard() {
                                             <td colSpan={4} className="px-6 py-8 text-center text-gray-400">No student visas tracked.</td>
                                         </tr>
                                     ) : (
-                                        visas.map((v: any) => (
+                                        visas.map((v: { id: string; studentName: string; visaType: string; passportNumber: string; expirationDate: string | Date }) => (
                                             <tr key={v.id} className="hover:bg-gray-50">
                                                 <td className="px-6 py-4 font-semibold text-gray-900">{v.studentName}</td>
                                                 <td className="px-6 py-4"><Badge variant="outline">{v.visaType}</Badge></td>
@@ -114,7 +114,7 @@ export default async function InternationalDashboard() {
                                             <td colSpan={4} className="px-6 py-8 text-center text-gray-400">No host families registered.</td>
                                         </tr>
                                     ) : (
-                                        families.map((f: any) => (
+                                        families.map((f: { id: string; familyName: string; address: string; phone: string; backgroundChecked: string | Date | null }) => (
                                             <tr key={f.id} className="hover:bg-gray-50">
                                                 <td className="px-6 py-4 font-semibold text-gray-900">{f.familyName}</td>
                                                 <td className="px-6 py-4 text-xs text-gray-600">{f.address}</td>
