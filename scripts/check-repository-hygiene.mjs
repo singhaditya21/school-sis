@@ -11,10 +11,6 @@ const blockedExactPaths = new Set([
 ]);
 
 const blockedPrefixes = [
-  'apps/web/src/graphify-out/',
-  'backend/app/bin/',
-  'graphify-out/',
-  'services/agents/src/graphify-out/',
 ];
 
 function trackedFiles() {

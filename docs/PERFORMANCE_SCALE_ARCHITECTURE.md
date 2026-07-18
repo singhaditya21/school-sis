@@ -10,7 +10,7 @@ Login brute-force protection now uses this backend order:
 2. Postgres `rate_limit_buckets` as the production fallback.
 3. In-memory maps only for local development and unit tests.
 
-The Postgres table is RLS-protected and only accessible through platform bypass context. This prevents Vercel serverless instances from silently relying on per-process memory.
+The Postgres table is RLS-protected and only accessible through platform bypass context. This prevents serverless/worker instances from silently relying on per-process memory.
 
 Recommended production env:
 

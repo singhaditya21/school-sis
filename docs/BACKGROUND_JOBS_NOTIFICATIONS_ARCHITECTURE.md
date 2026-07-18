@@ -12,7 +12,7 @@ School SIS now treats background work and notification delivery as durable, tena
 - **Idempotency:** jobs and notifications use partial unique indexes for tenant/platform idempotency keys.
 - **Retry and dead-letter:** dispatcher failures move jobs through `FAILED` with exponential backoff and finally `DEAD_LETTER`.
 - **Mock-first providers:** email, SMS, WhatsApp, push, and in-app delivery default to mock/database providers. Real providers are opt-in env choices.
-- **Authenticated dispatch:** `POST /api/jobs/dispatch` requires `Authorization: Bearer $JOB_DISPATCH_SECRET`; Vercel Cron can call `GET /api/jobs/dispatch` with `Authorization: Bearer $CRON_SECRET`.
+- **Authenticated dispatch:** `POST /api/jobs/dispatch` requires `Authorization: Bearer $JOB_DISPATCH_SECRET`; the local scheduler (`pnpm scheduler`) triggers it on an interval.
 - **Tenant-safe status:** `/api/jobs/[jobId]` returns only jobs owned by the caller's tenant, with platform-only access for platform jobs.
 
 ## Runtime Flow
@@ -46,14 +46,14 @@ Optional:
 Recommended production scheduler:
 
 ```bash
-curl https://school-sis-web.vercel.app/api/jobs/dispatch \
+curl http://localhost:3000/api/jobs/dispatch \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
 Manual or external scheduler dispatch:
 
 ```bash
-curl -X POST https://school-sis-web.vercel.app/api/jobs/dispatch \
+curl -X POST http://localhost:3000/api/jobs/dispatch \
   -H "Authorization: Bearer $JOB_DISPATCH_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"limit":25,"notificationLimit":50}'
@@ -63,11 +63,11 @@ Run frequency:
 
 - Every minute for normal notification and webhook workloads.
 - More frequently only if provider rate limits and database capacity are sized for it.
-- The current Vercel Hobby-safe schedule is daily (`0 0 * * *`). Upgrade to Vercel Pro Cron or use an external scheduler before production launch to meet the minute-level target.
+- The local scheduler (`pnpm scheduler`) triggers `/api/jobs/dispatch` on an interval (default 60s, `SCHEDULER_INTERVAL_MS`).
 
 ## Remaining Hardening
 
-- Upgrade/configure minute-level Vercel Pro Cron or an external scheduler that calls `/api/jobs/dispatch`.
+- Run `pnpm scheduler` (or any scheduler) to call `/api/jobs/dispatch` on the desired interval.
 - Add operator dashboards for queued, failed, and dead-letter jobs.
 - Add provider-specific inbound webhook handling for delivery receipts.
 - Add rate limiting and per-tenant notification quotas.

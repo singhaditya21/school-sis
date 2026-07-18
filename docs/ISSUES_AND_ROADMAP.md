@@ -3,7 +3,7 @@
 > **Document version**: 2.0.0
 > **Last updated**: 2026-07-17
 > **Source of truth**: [`audits/reports/2026-07-04-full-application-audit.md`](../audits/reports/2026-07-04-full-application-audit.md), re-verified against the current `main` on 2026-07-17.
-> **Hosting**: App on **Vercel**, database on **Neon**.
+> **Runtime**: Local-first — the app runs on localhost with a local Postgres cluster (`scripts/local-db.sh`); no cloud target.
 > **Supersedes**: v1.0.0 (2026-04-26) dependency/security audit — its still-open items are folded into the security, hygiene, and testing issues below.
 
 This roadmap is the human-readable index over the live GitHub issues. Every item below links to a tracked issue with re-verified evidence and residual done-criteria. Issues are grouped into three milestones by launch priority.
@@ -12,7 +12,7 @@ This roadmap is the human-readable index over the live GitHub issues. Every item
 
 The platform has crossed the prototype line for most of the web app: core builds and CI are green, payment architecture (idempotency, invoice ownership, webhooks, row-locking) is strong, and many security primitives exist. **Access control (audit P0 #1) is now closed** — a single centralized page/API permission matrix, real-URL middleware, restored student guard, NextAuth removal, and route-inventory/wrong-role tests all landed in commits `5880d317` and `96b4553f`.
 
-It is **not yet ready for a full production launch with real schools**. The fastest credible path is to close the remaining Phase 0 launch blockers (mock/demo ambiguity, operational HTTP endpoints, dynamic-data audit logging, and real Vercel/Neon runtime evidence), then Phase 1 hardening, then Phase 2 scale work.
+It runs entirely locally now (no cloud target). The fastest credible path to a strong product is to close the remaining Phase 0 items (mock/demo ambiguity, operational HTTP endpoints, dynamic-data audit logging), then Phase 1 hardening, then Phase 2 scale work. Deploy/runtime evidence is deferred until a deploy target is chosen.
 
 | Milestone | Focus | Open items |
 |---|---|---:|
@@ -86,7 +86,7 @@ Adapted from the audit's closure plan, updated for current state (access control
 1. Remove production mock ambiguity — issue #17.
 2. Remove/hard-disable operational HTTP endpoints and the fallback seed credential — issue #19.
 3. Add object/field audit logging to the dynamic data API — issue #16 (RBAC + field permissions already enforced).
-4. Capture real Vercel/Neon strict runtime evidence + backup/restore drill — issue #18.
+4. (Deferred) Runtime/deploy evidence — issue #18; moot after the local-first pivot until a deploy target is chosen.
 
 ### Days 3–7 (Phase 1, first wave)
 1. Tighten CSP + header tests — issue #20.

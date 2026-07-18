@@ -18,7 +18,7 @@
 - Agent audit logs set tenant context; new approval queue writes are stored in `workflow_approval_requests`.
 - Student and invoice indexing now use the same `embeddings` table that RAG search reads.
 - Incremental indexing for single students and invoices is implemented.
-- Neon has RLS-protected `embeddings`, `agent_audit_logs`, legacy `agent_approvals`, and generic `workflow_approval_*` tables.
+- Postgres has RLS-protected `embeddings`, `agent_audit_logs`, legacy `agent_approvals`, and generic `workflow_approval_*` tables.
 - Student/invoice database triggers emit indexing notifications on tenant-scoped changes.
 
 ## Runtime Requirements
@@ -31,7 +31,7 @@ Web app:
 Agent service:
 
 - `AGENT_API_TOKEN`: shared service token.
-- `AGENT_DATABASE_URL`: Neon/Postgres connection string.
+- `AGENT_DATABASE_URL`: Postgres connection string.
 - `AGENT_REDIS_URL`: Redis for async job queue, job ownership, rate limiting, and token tracking.
 - `AGENT_LLM_API_KEY`: chat model provider key.
 - `AGENT_NVIDIA_API_KEY`: embedding provider key.

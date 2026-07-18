@@ -43,10 +43,6 @@ apps/web/pnpm_audit.json
 apps/web/test-query.cjs
 apps/web/test-schema.cjs
 
-# Generated repository analysis artifacts
-graphify-out/
-**/graphify-out/
-
 # Package manager policy
 package-lock.json
 apps/**/package-lock.json
