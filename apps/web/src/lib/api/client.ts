@@ -1,9 +1,14 @@
 /**
- * Base API client for connecting to Java Spring Boot backend.
- * Handles JWT authentication, error handling, and request/response processing.
+ * Base API client for an external backend (JWT auth + error handling).
+ *
+ * NOTE: The original Java Spring Boot backend this targeted is no longer
+ * deployed. `usersApi`/`rolesApi` (settings/users) still call it. There is no
+ * localhost fallback anymore — when NEXT_PUBLIC_API_URL is unset, requests go to
+ * the app's own origin and cleanly 404 instead of silently hanging on
+ * localhost:8080. Native user/role management is tracked as a follow-up.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export interface ApiResponse<T> {
     success: boolean;
