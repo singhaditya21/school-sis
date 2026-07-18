@@ -60,13 +60,24 @@ Debt reduction and scale-readiness; parallelizable with pilot operations.
 
 | Issue | Title | Status | Areas |
 |---|---|---|---|
-| [#30](https://github.com/singhaditya21/school-sis/issues/30) | Reduce static risk debt (console.*, any, raw SQL, alerts) with downward-only CI thresholds | 🔴 Open | `hygiene`, `observability`, `devex` |
+| [#30](https://github.com/singhaditya21/school-sis/issues/30) | Reduce static risk debt (console.*, any, raw SQL, alerts) with downward-only CI thresholds | 🟡 In progress | `hygiene`, `observability`, `devex` |
 | [#31](https://github.com/singhaditya21/school-sis/issues/31) | Harden website lead capture: production API env, anti-bot controls, consent, CRM routing | 🟡 In progress | `website`, `integrations`, `observability` |
 | [#32](https://github.com/singhaditya21/school-sis/issues/32) | Enforce pnpm toolchain via Corepack and a preflight guard; document in dev guide | 🟡 In progress | `devex`, `infra`, `hygiene` |
 | [#33](https://github.com/singhaditya21/school-sis/issues/33) | Migrate middleware to proxy convention and revisit static cache headers for Next.js 16 | 🔴 Open | `infra`, `devex` |
 | [#34](https://github.com/singhaditya21/school-sis/issues/34) | Complete side-service test tooling and CI for Python/Go/Rust services | 🟡 In progress | `testing`, `services`, `devex` |
 
 ---
+
+## Recent progress (2026-07-18)
+
+Static risk-debt hardening (issue #30) is substantially underway:
+
+- **Downward-only ratchet in CI** — `scripts/check-risk-debt.mjs` + `scripts/risk-debt-baseline.json`, wired as `pnpm audit:debt` inside `audit:ci` and enforced in the CI `validate` job. It fails the build if explicit `any`, `console.log/debug`, or native `alert/confirm/prompt` counts rise above the committed baseline. Commit `6cfb929b`.
+- **`alert()` eliminated** — all 31 browser `alert()` calls converted to `sonner` toasts (`<Toaster/>` mounted once in the root layout); the 2 remaining native dialogs are `confirm()` delete-guards, grandfathered at baseline. Commit `eebbeeea`.
+- **Explicit `any` cut 366 → 45** — type-only tightening across 97 files (DB-row interfaces, `unknown` + narrowing, correct library types); `tsc` clean, 131/131 tests pass. Baseline lowered to 45. Commit `80ee2dc4`.
+- **Residual for #30**: burn the 45 remaining `any` down further, reduce `console.*` toward the structured logger, and add the raw-SQL lens.
+
+Adjacent hygiene also landed: 13 unused dependencies removed and the pnpm store/lockfile realigned (`f2483d4b`, aids #32); `settings/users` and the last phantom-backend client replaced with native tenant-scoped server actions (`b99ea974`).
 
 ## Verified done since the audit
 
