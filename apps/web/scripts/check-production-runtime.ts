@@ -205,14 +205,6 @@ function validateTenantBaseHosts() {
     }
 }
 
-function requirePositiveInteger(name: string) {
-    const value = process.env[name];
-    const parsed = Number(value);
-    if (!value || !Number.isInteger(parsed) || parsed <= 0) {
-        add(issueForStrict(), `${name} must be a positive integer.`);
-    }
-}
-
 function validateIsoDate(name: string, level: Issue['level']) {
     const value = process.env[name];
     if (!value) {
@@ -226,12 +218,16 @@ function validateIsoDate(name: string, level: Issue['level']) {
 
 function validateNotificationProviders() {
     const requiredChannels = parseList('REQUIRED_NOTIFICATION_CHANNELS');
-    const channels = new Set(
-        (strict && requiredChannels.length === 0 ? ['email', 'sms'] : requiredChannels)
-            .map((channel) => channel.toLowerCase()),
-    );
+    // Default: no external channel is required — a basic deploy can ship with
+    // in-app notifications only. Opt in by listing channels (email, sms, push).
+    const channels = new Set(requiredChannels.map((channel) => channel.toLowerCase()));
 
-    if (channels.has('none')) return;
+    if (channels.size === 0 || channels.has('none')) {
+        if (strict && channels.size === 0) {
+            add('warning', 'No REQUIRED_NOTIFICATION_CHANNELS set; only in-app notifications are guaranteed. List email/sms/push to require external delivery.');
+        }
+        return;
+    }
 
     if (channels.has('email')) {
         const provider = (process.env.EMAIL_PROVIDER || '').toLowerCase();
@@ -280,15 +276,29 @@ function validateNotificationProviders() {
 function validatePaymentProviders() {
     if (!strict) return;
 
-    requireProductionValue('STRIPE_SECRET_KEY', { minLength: 16, prefixes: ['sk_live_'], label: 'secret key' });
-    requireProductionValue('STRIPE_WEBHOOK_SECRET', { minLength: 16, prefixes: ['whsec_'], label: 'webhook secret' });
-    if (process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
-        requireProductionValue('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', { minLength: 16, prefixes: ['pk_live_'], label: 'publishable key' });
+    // Online payments are opt-in and single-provider. Set PAYMENT_PROVIDER to
+    // 'stripe' or 'razorpay' (by target geography) to enable; a deploy that does
+    // not take online payments yet needs no payment secrets at all.
+    const provider = (process.env.PAYMENT_PROVIDER || 'none').toLowerCase();
+
+    if (provider === 'none' || provider === '') {
+        add('warning', 'PAYMENT_PROVIDER is not set; online payments are disabled. Set PAYMENT_PROVIDER=stripe or razorpay to enable.');
+        return;
     }
 
-    requireProductionValue('RAZORPAY_KEY_ID', { minLength: 8, prefixes: ['rzp_live_'], label: 'key id' });
-    requireProductionValue('RAZORPAY_KEY_SECRET', { minLength: 16 });
-    requireProductionValue('RAZORPAY_WEBHOOK_SECRET', { minLength: 16 });
+    if (provider === 'stripe') {
+        requireProductionValue('STRIPE_SECRET_KEY', { minLength: 16, prefixes: ['sk_live_'], label: 'secret key' });
+        requireProductionValue('STRIPE_WEBHOOK_SECRET', { minLength: 16, prefixes: ['whsec_'], label: 'webhook secret' });
+        if (process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
+            requireProductionValue('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', { minLength: 16, prefixes: ['pk_live_'], label: 'publishable key' });
+        }
+    } else if (provider === 'razorpay') {
+        requireProductionValue('RAZORPAY_KEY_ID', { minLength: 8, prefixes: ['rzp_live_'], label: 'key id' });
+        requireProductionValue('RAZORPAY_KEY_SECRET', { minLength: 16 });
+        requireProductionValue('RAZORPAY_WEBHOOK_SECRET', { minLength: 16 });
+    } else {
+        add('error', `PAYMENT_PROVIDER='${provider}' is not supported; use stripe, razorpay, or none.`);
+    }
 }
 
 function validateAgentService() {
@@ -380,7 +390,9 @@ if (process.env.DIRECT_URL || strict) {
 
 if (strict) {
     requireProductionValue('SESSION_SECRET', { minLength: 32 });
-    requireProductionValue('METRICS_TOKEN', { minLength: 32 });
+    if (!process.env.METRICS_TOKEN || process.env.METRICS_TOKEN.length < 32) {
+        add('warning', 'METRICS_TOKEN is not set (>=32 chars); the /api/metrics Prometheus scrape endpoint stays disabled.');
+    }
     requireProductionValue('JOB_DISPATCH_SECRET', { minLength: 32 });
     requireOneProductionSecret(['PII_ENCRYPTION_KEY', 'ENCRYPTION_KEY'], 32);
     requireHttpsUrl('NEXT_PUBLIC_APP_URL');
@@ -402,14 +414,19 @@ const r2Configured = hasAll(['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACC
 const s3Configured = hasAll(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_S3_BUCKET']);
 
 if (!r2Configured && !s3Configured) {
-    add(strict ? 'error' : 'warning', 'Storage is not configured. Set Cloudflare R2 or AWS S3 credentials.');
+    add('warning', 'Storage is not configured (Cloudflare R2 or AWS S3). File upload/download features stay unavailable until credentials are set.');
 }
 
 const cdnBaseUrl = process.env.STORAGE_CDN_BASE_URL || process.env.R2_PUBLIC_BASE_URL;
 validateOptionalHttpsUrl('STORAGE_CDN_BASE_URL/R2_PUBLIC_BASE_URL', cdnBaseUrl);
 
 if (strict) {
-    requirePositiveInteger('BACKUP_RETENTION_DAYS');
+    const retention = process.env.BACKUP_RETENTION_DAYS;
+    if (retention && (!Number.isInteger(Number(retention)) || Number(retention) <= 0)) {
+        add('error', 'BACKUP_RETENTION_DAYS must be a positive integer when set.');
+    } else if (!retention) {
+        add('warning', 'BACKUP_RETENTION_DAYS is not set; record a backup retention/restore policy before onboarding real schools.');
+    }
     validateIsoDate('BACKUP_RESTORE_DRILL_AT', 'warning');
 }
 
