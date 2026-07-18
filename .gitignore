@@ -76,7 +76,6 @@ apps/web/prisma/dev.db*
 
 # AI infrastructure
 *.gguf
-services/inference/models/*.gguf
 
 # Rust
 target/
@@ -90,10 +89,6 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 venv/
-
-# Go
-services/gateway/gateway
-services/gateway/gateway.exe
 
 # Package manager caches
 .npm-cache/
