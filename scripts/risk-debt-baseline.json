@@ -1,0 +1,8 @@
+{
+  "_comment": "Downward-only risk-debt ratchet (issue #30). CI fails if any count exceeds these. Lower a number after reducing that debt, then run: node scripts/check-risk-debt.mjs --update",
+  "counts": {
+    "explicitAny": 366,
+    "consoleLog": 9,
+    "browserAlert": 2
+  }
+}

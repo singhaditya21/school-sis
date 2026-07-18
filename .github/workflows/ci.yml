@@ -60,6 +60,9 @@ jobs:
       - name: Run Secret Pattern Scan
         run: pnpm audit:secrets
 
+      - name: Enforce Static Risk-Debt Ratchet
+        run: pnpm audit:debt
+
       - name: Validate Drizzle Migrations
         run: pnpm --filter @school-sis/web exec drizzle-kit check
 

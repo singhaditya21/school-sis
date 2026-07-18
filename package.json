@@ -31,7 +31,8 @@
     "audit:check": "node scripts/check-pnpm-audit-high.mjs",
     "audit:secrets": "node scripts/check-secret-patterns.mjs",
     "audit:hygiene": "node scripts/check-repository-hygiene.mjs",
-    "audit:ci": "pnpm audit:security && pnpm audit:secrets && pnpm audit:hygiene",
+    "audit:debt": "node scripts/check-risk-debt.mjs",
+    "audit:ci": "pnpm audit:security && pnpm audit:secrets && pnpm audit:hygiene && pnpm audit:debt",
     "prepare": "husky"
   },
   "devDependencies": {
