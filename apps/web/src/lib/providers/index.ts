@@ -10,7 +10,6 @@
 
 export { getSmsProvider } from './sms';
 export { getEmailProvider } from './email';
-export { getPaymentProvider } from './payment';
 
 export type ProviderResult<T = void> = {
     success: boolean;
