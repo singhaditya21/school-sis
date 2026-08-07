@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { QueryResult } from 'pg';
-import { pool, runWithRlsBypass } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass } from '@/lib/db';
 import { requireApiAuth, ROLE_GROUPS } from '@/lib/auth/api';
 import { recordObservabilityEvent, requestContextFrom } from '@/lib/observability/logger';
 
@@ -42,7 +42,7 @@ export async function PATCH(
     fingerprint: string;
     title: string;
     status: string;
-  }>>(() => pool.query(
+  }>>(RLS_BYPASS_JUSTIFICATIONS.PLATFORM_INCIDENT_UPDATE, () => pool.query(
     `UPDATE sre_incidents
      SET status = $1,
          ${fieldSql},

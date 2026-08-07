@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import "sonner/dist/styles.css";
 import { Toaster } from "sonner";
 import { PWARegistry } from "@/components/pwa-registry";
 

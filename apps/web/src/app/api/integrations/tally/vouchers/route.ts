@@ -12,10 +12,11 @@ import { pool } from '@/lib/db';
 import { ROLE_GROUPS } from '@/lib/auth/api';
 import {
     authenticateIntegrationRequest,
-    ensureMockIntegrationConnection,
+    ensureIntegrationConnection,
     integrationApiHeaders,
     integrationJson,
     recordIntegrationAudit,
+    runWithIntegrationTenant,
 } from '@/lib/integrations/api-platform';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
 
@@ -32,8 +33,10 @@ export async function POST(request: NextRequest) {
     if (auth.ok === false) return auth.response;
     const tenantId = auth.context.tenantId;
 
+    return runWithIntegrationTenant(auth.context, async () => {
+
     try {
-        await ensureMockIntegrationConnection({
+        await ensureIntegrationConnection({
             tenantId,
             provider: 'TALLY',
             scopes: ['tally:export'],
@@ -116,7 +119,7 @@ ${vouchers}
             context: auth.context,
             statusCode: 200,
             durationMs: Date.now() - startedAt,
-            metadata: { fromDate, toDate, voucherCount: payments.length, mode: 'mock' },
+            metadata: { fromDate, toDate, voucherCount: payments.length },
         });
 
         return new NextResponse(tallyXml, {
@@ -142,6 +145,7 @@ ${vouchers}
         console.error('[Tally Sync] Error:', message);
         return integrationJson({ error: 'Tally export failed' }, { status: 500 });
     }
+    });
 }
 
 function formatTallyDate(date: string | Date): string {

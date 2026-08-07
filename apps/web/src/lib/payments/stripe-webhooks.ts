@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { pool, runWithRlsBypass } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass } from '@/lib/db';
 import {
     completeProviderPayment,
     markProviderEventProcessed,
@@ -50,7 +50,7 @@ async function handleSubscriptionCheckoutCompleted(session: Stripe.Checkout.Sess
         throw new Error('Subscription checkout session is missing company or subscription metadata.');
     }
 
-    await runWithRlsBypass(() => pool.query(
+    await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.STRIPE_SUBSCRIPTION_UPDATE, () => pool.query(
         `UPDATE companies
          SET stripe_subscription_id = $1,
              subscription_tier = $2,
@@ -71,7 +71,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Pro
                 ? 'CANCELED'
                 : 'UNPAID';
 
-    await runWithRlsBypass(() => pool.query(
+    await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.STRIPE_SUBSCRIPTION_UPDATE, () => pool.query(
         `UPDATE companies
          SET billing_status = $1,
              is_active = $2,
@@ -88,7 +88,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Pro
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void> {
-    await runWithRlsBypass(() => pool.query(
+    await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.STRIPE_SUBSCRIPTION_UPDATE, () => pool.query(
         `UPDATE companies
          SET billing_status = 'CANCELED',
              is_active = false,

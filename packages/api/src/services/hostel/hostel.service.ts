@@ -145,5 +145,8 @@ export async function sendPaymentReminder(tenantId: string, feeId: string) {
         throw new Error('Fee record not found');
     }
 
-    return { success: true, message: `Payment reminder sent successfully for fee ID ${feeId}` };
+    return {
+        success: false,
+        message: 'Hostel payment reminders are unavailable until a live notification workflow is configured.',
+    };
 }

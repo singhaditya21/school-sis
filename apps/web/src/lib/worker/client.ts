@@ -1,4 +1,4 @@
-import { pool, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
 import {
   createPlatformJobPayload,
   createTenantJobPayload,
@@ -116,7 +116,7 @@ async function persistJob(
   if (tenantId) {
     return runWithTenantContext(tenantId, query);
   }
-  return runWithRlsBypass(query);
+  return runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.PLATFORM_JOB_PERSISTENCE, query);
 }
 
 /**

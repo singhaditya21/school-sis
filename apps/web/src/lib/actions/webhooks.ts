@@ -5,12 +5,20 @@ import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 import crypto from 'crypto';
 import {
-    ensureMockIntegrationConnection,
+    ensureIntegrationConnection,
     recordIntegrationAudit,
 } from '@/lib/integrations/api-platform';
+import {
+    integrationRuntimeMode,
+    mockWebhookDeliveryIsEnabled,
+} from '@/lib/integrations/runtime-mode';
+import {
+    assertWebhookCustomHeadersAllowed,
+    buildWebhookRequestHeaders,
+    sendWebhookRequest,
+    validateWebhookTargetUrl,
+} from '@/lib/integrations/webhook-security';
 import { logger } from '@/lib/observability/logger';
-
-const INTEGRATION_MODE = process.env.INTEGRATIONS_MODE === 'live' ? 'LIVE' : 'MOCK';
 
 // ─── Webhook Management ─────────────────────────────────────
 
@@ -21,10 +29,12 @@ export async function registerWebhook(data: {
     headers?: Record<string, string>;
 }) {
     const { tenantId, userId } = await requireAuth('webhooks:write');
+    const targetUrl = await validateWebhookTargetUrl(data.url);
+    assertWebhookCustomHeadersAllowed(data.headers);
 
     const secret = crypto.randomBytes(32).toString('hex');
 
-    await ensureMockIntegrationConnection({
+    await ensureIntegrationConnection({
         tenantId,
         provider: 'WEBHOOKS',
         scopes: ['webhooks:manage', 'webhooks:deliver'],
@@ -39,7 +49,7 @@ export async function registerWebhook(data: {
         randomUUID(), 
         tenantId, 
         data.name, 
-        data.url, 
+        targetUrl.toString(),
         secret, 
         data.events, 
         data.headers ? JSON.stringify(data.headers) : null 
@@ -52,7 +62,7 @@ export async function registerWebhook(data: {
         direction: 'INTERNAL',
         status: 'SUCCESS',
         context: { tenantId, userId, provider: 'WEBHOOKS', subjectType: 'session', scopes: ['session'] },
-        metadata: { subscriptionId: rows[0].id, events: data.events, mode: INTEGRATION_MODE.toLowerCase() },
+        metadata: { subscriptionId: rows[0].id, events: data.events, mode: integrationRuntimeMode().toLowerCase() },
     });
 
     return { success: true, secret };
@@ -96,7 +106,7 @@ export async function deleteWebhook(webhookId: string) {
 
 export async function dispatchEvent(tenantId: string, event: string, payload: Record<string, unknown>) {
     return runWithTenantContext(tenantId, async () => {
-        await ensureMockIntegrationConnection({
+        await ensureIntegrationConnection({
             tenantId,
             provider: 'WEBHOOKS',
             scopes: ['webhooks:manage', 'webhooks:deliver'],
@@ -119,14 +129,13 @@ export async function dispatchEvent(tenantId: string, event: string, payload: Re
             const idempotencyKey = `${event}:${eventId}`;
             const body = JSON.stringify({ event, eventId, payload, timestamp: new Date().toISOString() });
             const signature = `sha256=${crypto.createHmac('sha256', sub.secret).update(body).digest('hex')}`;
-            const requestHeaders = {
-                'Content-Type': 'application/json',
-                'X-School-SIS-Event': event,
-                'X-School-SIS-Event-Id': eventId,
-                'X-School-SIS-Signature': signature,
-                'Idempotency-Key': idempotencyKey,
-                ...((sub.headers || {}) as Record<string, string>),
-            };
+            const requestHeaders = buildWebhookRequestHeaders({
+                customHeaders: (sub.headers || {}) as Record<string, string>,
+                event,
+                eventId,
+                signature,
+                idempotencyKey,
+            });
 
             await pool.query(`
                 INSERT INTO webhook_deliveries (
@@ -153,10 +162,17 @@ export async function dispatchEvent(tenantId: string, event: string, payload: Re
                 action: 'webhooks.delivery.queued',
                 direction: 'OUTBOUND',
                 status: 'QUEUED',
-                metadata: { deliveryId, subscriptionId: sub.id, event, eventId, idempotencyKey, mode: INTEGRATION_MODE.toLowerCase() },
+                metadata: { deliveryId, subscriptionId: sub.id, event, eventId, idempotencyKey, mode: integrationRuntimeMode().toLowerCase() },
             });
 
-            deliverWebhook(deliveryId, sub.url, body, requestHeaders, sub.timeoutMs)
+            await deliverWebhook(
+                deliveryId,
+                sub.url,
+                body,
+                requestHeaders,
+                sub.timeoutMs,
+                Math.max(1, Number(sub.retryCount) + 1),
+            )
                 .catch((err) => logger.error('webhook.delivery_failed', 'Webhook delivery failed', {
                     tenantId,
                     source: 'webhooks',
@@ -170,14 +186,15 @@ export async function dispatchEvent(tenantId: string, event: string, payload: Re
     });
 }
 
-async function deliverWebhook(
+export async function deliverWebhook(
     deliveryId: string,
     url: string,
     body: string,
     requestHeaders: Record<string, string>,
     timeoutMs: number,
+    maxAttempts = 4,
 ) {
-    if (INTEGRATION_MODE !== 'LIVE') {
+    if (mockWebhookDeliveryIsEnabled()) {
         const { rows } = await pool.query(`
             UPDATE webhook_deliveries
             SET status = 'SUCCESS',
@@ -213,46 +230,50 @@ async function deliverWebhook(
     }
 
     try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: requestHeaders,
-            body,
-            signal: controller.signal,
-        });
-
-        clearTimeout(timeout);
-
+        const res = await sendWebhookRequest(url, body, requestHeaders, timeoutMs);
         await pool.query(`
-            UPDATE webhook_deliveries
-            SET status = $1,
-                response_code = $2,
-                response_body = $3,
+            UPDATE webhook_deliveries AS deliveries
+            SET status = CASE
+                    WHEN $1::boolean THEN 'SUCCESS'::delivery_status
+                    WHEN deliveries.attempts + 1 >= $2::integer THEN 'FAILED'::delivery_status
+                    ELSE 'RETRYING'::delivery_status
+                END,
+                response_code = $3,
+                response_body = $4,
                 attempts = attempts + 1,
                 last_attempt_at = NOW(),
-                next_retry_at = CASE WHEN $1 = 'RETRYING' THEN NOW() + INTERVAL '5 minutes' ELSE NULL END,
-                error = $4
-            WHERE id = $5
+                next_retry_at = CASE
+                    WHEN NOT $1::boolean AND deliveries.attempts + 1 < $2::integer
+                        THEN NOW() + INTERVAL '5 minutes'
+                    ELSE NULL
+                END,
+                error = CASE WHEN $1::boolean THEN NULL ELSE $5 END
+            WHERE id = $6
         `, [
-            res.ok ? 'SUCCESS' : 'RETRYING',
+            res.ok,
+            maxAttempts,
             res.status,
-            (await res.text()).slice(0, 4000),
+            res.body.slice(0, 4000),
             res.ok ? null : `HTTP ${res.status}`,
             deliveryId,
         ]);
     } catch (err) {
         const message = err instanceof Error ? err.message : 'Webhook delivery failed';
         await pool.query(`
-            UPDATE webhook_deliveries
-            SET status = 'RETRYING',
+            UPDATE webhook_deliveries AS deliveries
+            SET status = CASE
+                    WHEN deliveries.attempts + 1 >= $1::integer THEN 'FAILED'::delivery_status
+                    ELSE 'RETRYING'::delivery_status
+                END,
                 attempts = attempts + 1,
                 last_attempt_at = NOW(),
-                next_retry_at = NOW() + INTERVAL '5 minutes',
-                error = $1
-            WHERE id = $2
-        `, [message, deliveryId]);
+                next_retry_at = CASE
+                    WHEN deliveries.attempts + 1 < $1::integer THEN NOW() + INTERVAL '5 minutes'
+                    ELSE NULL
+                END,
+                error = $2
+            WHERE id = $3
+        `, [maxAttempts, message, deliveryId]);
     }
 }
 

@@ -49,7 +49,7 @@ export const integrationConnections = pgTable(
       .notNull()
       .references(() => tenants.id, { onDelete: 'cascade' }),
     provider: varchar('provider', { length: 40 }).notNull(),
-    mode: varchar('mode', { length: 20 }).default('MOCK').notNull(),
+    mode: varchar('mode', { length: 20 }).default('LIVE').notNull(),
     status: varchar('status', { length: 20 }).default('ACTIVE').notNull(),
     config: jsonb('config').$type<Record<string, unknown>>().default({}).notNull(),
     scopes: jsonb('scopes').$type<string[]>().default([]).notNull(),

@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import {
     authenticateIntegrationRequest,
-    ensureMockIntegrationConnection,
+    ensureIntegrationConnection,
+    runWithIntegrationTenant,
     type IntegrationAuthContext,
 } from '@/lib/integrations/api-platform';
 
@@ -69,6 +70,8 @@ export async function authenticateScimRequest(request: Request): Promise<ScimAut
     });
     if (auth.ok === false) return auth;
 
+    return runWithIntegrationTenant(auth.context, async () => {
+
     const { rows } = await pool.query(
         `SELECT id FROM tenants WHERE id = $1 AND is_active = true LIMIT 1`,
         [auth.context.tenantId],
@@ -77,7 +80,7 @@ export async function authenticateScimRequest(request: Request): Promise<ScimAut
         return { ok: false, response: scimError('Tenant is inactive or not found.', 404, 'notFound') };
     }
 
-    await ensureMockIntegrationConnection({
+    await ensureIntegrationConnection({
         tenantId: auth.context.tenantId,
         provider: 'SCIM',
         scopes: ['scim:read', 'scim:write'],
@@ -85,6 +88,7 @@ export async function authenticateScimRequest(request: Request): Promise<ScimAut
     });
 
     return { ok: true, tenantId: auth.context.tenantId, context: auth.context };
+    });
 }
 
 function roleCandidateFrom(value: unknown): string | null {

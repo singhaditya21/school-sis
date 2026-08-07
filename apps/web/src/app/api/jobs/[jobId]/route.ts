@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool, runWithRlsBypass } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
 import { requireApiAuth, ROLE_GROUPS } from '@/lib/auth/api';
 
 export const dynamic = 'force-dynamic';
@@ -98,7 +98,9 @@ export async function GET(
     return { ...job, attempts: attempts || [], notifications: notifications || [] };
   };
 
-  const job = platform ? await runWithRlsBypass(load) : await load();
+  const job = platform
+    ? await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.PLATFORM_JOB_INSPECTION, load)
+    : await runWithTenantContext(auth.context.tenantId, load);
   if (!job) {
     return NextResponse.json({ error: 'Job not found' }, { status: 404 });
   }

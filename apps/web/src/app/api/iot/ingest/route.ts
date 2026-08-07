@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { enterTenantContext, pool } from '@/lib/db';
+import { pool, runWithTenantContext } from '@/lib/db';
 import { z } from 'zod';
 import { enqueueTenantJob } from '@/lib/worker/client';
 import { requireBearerServiceAuth } from '@/lib/auth/api';
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     if (tenantHeaderError) return tenantHeaderError;
 
     const tenantId = parsedEvent.tenantId;
-    enterTenantContext(tenantId);
+    return runWithTenantContext(tenantId, async () => {
 
     // Resolve the scanned token to a tenant-scoped student record.
     const studentRes = await pool.query(
@@ -87,6 +87,7 @@ export async function POST(req: Request) {
     );
 
     return NextResponse.json({ success: true, message: 'IoT Event Processed' }, { status: 202 });
+    });
 
   } catch (error) {
     console.error('IoT Ingestion Error:', error);

@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import postgres from 'postgres';
 import { hash } from 'bcryptjs';
 import * as schema from '../../../packages/api/src/db/schema';
+import { resolveDatabaseConnectionOptions } from '../../../packages/api/src/db/ssl';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -10,7 +11,11 @@ if (!connectionString) {
     process.exit(1);
 }
 
-const client = postgres(connectionString, { max: 1 });
+const databaseOptions = resolveDatabaseConnectionOptions(connectionString);
+const client = postgres(databaseOptions.connectionString, {
+    max: 1,
+    ...(databaseOptions.ssl ? { ssl: databaseOptions.ssl } : {}),
+});
 const db = drizzle(client, { schema });
 
 async function setup() {

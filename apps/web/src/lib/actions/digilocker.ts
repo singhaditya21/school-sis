@@ -2,7 +2,6 @@
 
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
-import { randomUUID } from 'crypto';
 
 export async function getDigilockerSyncLogs() {
     const { tenantId } = await requireAuth('certificate:read');
@@ -33,22 +32,20 @@ export async function getDigilockerSyncLogs() {
     return rows;
 }
 
-export async function pushToDigilocker(studentId: string, documentType: string) {
+export async function pushToDigilocker(
+    studentId: string,
+    documentType: string,
+): Promise<{ success: true; uri: string } | { success: false; error: string }> {
     const { tenantId } = await requireAuth('certificate:write');
-
-    const mockXmlPayload = `<Certificate><StudentId>${studentId}</StudentId><Type>${documentType}</Type><Data>Mock Digilocker Content</Data></Certificate>`;
-
-    const responseHash = `dl://${documentType.toLowerCase()}/${randomUUID()}`;
-    const { rows } = await pool.query(
+    const errorMessage = 'DigiLocker delivery is unavailable because no live provider is configured.';
+    await pool.query(
         `INSERT INTO digilocker_sync_logs 
-         (tenant_id, student_id, document_type, xml_payload, status, response_hash)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING response_hash AS "responseHash"`,
-        [tenantId, studentId, documentType, mockXmlPayload, 'SUCCESS', responseHash]
+         (tenant_id, student_id, document_type, xml_payload, status, error_message)
+         VALUES ($1, $2, $3, $4, 'FAILED', $5)`,
+        [tenantId, studentId, documentType, '', errorMessage]
     );
-    const log = rows[0];
 
-    return { success: true, uri: log.responseHash };
+    return { success: false, error: errorMessage };
 }
 
 export async function getStudentsWithApaar() {
@@ -69,19 +66,14 @@ export async function getStudentsWithApaar() {
 }
 
 export async function verifyAPAARId(studentId: string, apaarId: string) {
-    const { tenantId } = await requireAuth('certificate:write');
-    
-    const isValid = apaarId.startsWith('APAAR') && apaarId.length >= 10;
-    if (!isValid) {
+    await requireAuth('certificate:write');
+
+    if (!studentId.trim() || !apaarId.trim()) {
         return { success: false, message: 'Invalid APAAR ID format.' };
     }
 
-    await pool.query(
-        `UPDATE students 
-         SET apaar_id = $1
-         WHERE id = $2 AND tenant_id = $3`,
-        [apaarId, studentId, tenantId]
-    );
-        
-    return { success: true, message: 'APAAR ID verified and linked successfully.' };
+    return {
+        success: false,
+        message: 'APAAR verification is unavailable because no live verifier is configured.',
+    };
 }

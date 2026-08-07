@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { requireApiAuth } from '@/lib/auth/api';
+import { consumeRateLimit } from '@/lib/auth/rate-limit';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,15 @@ export async function POST(req: Request) {
   try {
     const auth = await requireApiAuth(COPILOT_ROLES);
     if (auth.ok === false) return auth.response;
+
+    const limitError = await consumeRateLimit(`${auth.context.tenantId}:${auth.context.userId}`, {
+      scope: 'ai_copilot',
+      maxAttempts: 10,
+      degradedMaxAttempts: 1,
+      endpointClass: 'ai',
+      message: 'AI request limit reached. Please try again later.',
+    });
+    if (limitError) return NextResponse.json({ error: limitError }, { status: 429 });
 
     const apiKey = process.env.CEREBRAS_API_KEY;
     if (!apiKey) {

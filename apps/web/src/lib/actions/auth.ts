@@ -3,8 +3,8 @@
 import crypto from 'crypto';
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/session';
-import { checkRateLimit, recordFailedAttempt, clearRateLimit } from '@/lib/auth/rate-limit';
-import { pool, runWithRlsBypass } from '@/lib/db';
+import { clearRateLimit, consumeLoginRateLimit } from '@/lib/auth/rate-limit';
+import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { compare } from 'bcryptjs';
 import { z } from 'zod';
 import { generateSSOAuthorizationUrl, handleSSOCallback } from '@/lib/auth/enterprise';
@@ -45,7 +45,10 @@ function displayNameFor(user: { firstName?: string | null; lastName?: string | n
 }
 
 export async function loginActionV2(formData: FormData) {
-    return runWithRlsBypass(() => loginActionV2WithBypass(formData));
+    return runWithRlsBypass(
+        RLS_BYPASS_JUSTIFICATIONS.PASSWORD_LOGIN,
+        () => loginActionV2WithBypass(formData),
+    );
 }
 
 async function loginActionV2WithBypass(formData: FormData) {
@@ -62,8 +65,9 @@ async function loginActionV2WithBypass(formData: FormData) {
         };
     }
 
-    // Rate limiting — 5 failed attempts per email in 15 minutes
-    const rateLimitError = await checkRateLimit(email);
+    // Consume before any account lookup or password work. Successful authentication
+    // clears the bucket; every rejected authentication attempt remains counted.
+    const rateLimitError = await consumeLoginRateLimit(email);
     if (rateLimitError) {
         return { error: rateLimitError };
     }
@@ -99,18 +103,15 @@ async function loginActionV2WithBypass(formData: FormData) {
             const user = platformRows[0];
 
             if (!user) {
-                await recordFailedAttempt(email);
                 return { error: 'Invalid email or password' };
             }
 
             if (user.role !== 'PLATFORM_ADMIN') {
-                await recordFailedAttempt(email);
                 return { error: 'Invalid email or password' };
             }
 
             const passwordValid = await compare(password, user.passwordHash);
             if (!passwordValid) {
-                await recordFailedAttempt(email);
                 return { error: 'Invalid credentials' };
             }
 
@@ -120,7 +121,6 @@ async function loginActionV2WithBypass(formData: FormData) {
                 }
                 const mfaResult = await verifyMFACode(user.id, user.tenantId, mfaCode);
                 if (!mfaResult.success) {
-                    await recordFailedAttempt(email);
                     return { error: mfaResult.error || 'Invalid MFA code', mfaRequired: true };
                 }
             } else if (shouldRequireMfaEnrollment(user.role, Boolean(user.mfaEnabled))) {
@@ -191,18 +191,15 @@ async function loginActionV2WithBypass(formData: FormData) {
             const user = userRows[0];
 
             if (!user) {
-                await recordFailedAttempt(email);
                 return { error: 'Invalid email or password' };
             }
 
             if (!user.isActive) {
-                await recordFailedAttempt(email);
                 return { error: 'Your account has been deactivated. Contact your school admin.' };
             }
 
             const passwordValid = await compare(password, user.passwordHash);
             if (!passwordValid) {
-                await recordFailedAttempt(email);
                 return { error: 'Invalid email or password' };
             }
 
@@ -212,7 +209,6 @@ async function loginActionV2WithBypass(formData: FormData) {
                 }
                 const mfaResult = await verifyMFACode(user.id, tenantRecord.tenantId, mfaCode);
                 if (!mfaResult.success) {
-                    await recordFailedAttempt(email);
                     return { error: mfaResult.error || 'Invalid MFA code', mfaRequired: true };
                 }
             } else if (shouldRequireMfaEnrollment(user.role, Boolean(user.mfaEnabled))) {

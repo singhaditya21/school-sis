@@ -242,8 +242,6 @@ export async function notifyAbsentParents(date?: string): Promise<{ sent: number
 
     if (absentRows.length === 0) return { sent: 0, failed: 0, errors: [] };
 
-    const smsProvider = getSmsProvider();
-    const emailProvider = getEmailProvider();
     let sent = 0;
     let failed = 0;
     const errors: string[] = [];
@@ -272,24 +270,41 @@ export async function notifyAbsentParents(date?: string): Promise<{ sent: number
 
             const studentName = `${student.firstName} ${student.lastName}`;
             const dateFormatted = new Date(targetDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
+            let attempted = 0;
+            let delivered = 0;
 
             if (guardian.phone) {
-                await smsProvider.send(guardian.phone, `Dear ${guardian.firstName}, ${studentName} was marked absent on ${dateFormatted}. If incorrect, please contact the school. - ScholarMind`);
+                attempted++;
+                const smsResult = await getSmsProvider().send(
+                    guardian.phone,
+                    `Dear ${guardian.firstName}, ${studentName} was marked absent on ${dateFormatted}. If incorrect, please contact the school. - ScholarMind`,
+                );
+                if (smsResult.success) delivered++;
+                else errors.push(`SMS for ${row.studentId}: ${smsResult.error || 'provider rejected delivery'}`);
             }
 
             if (guardian.email) {
-                await emailProvider.send({
+                attempted++;
+                const emailResult = await getEmailProvider().send({
                     to: guardian.email,
                     subject: `Absence Alert - ${studentName}`,
                     html: `<p>Dear ${guardian.firstName},</p><p>${studentName} was marked <strong>absent</strong> on ${dateFormatted}.</p><p>If this is incorrect, please contact the school office.</p><p style="color:#888;font-size:12px">ScholarMind Automated Notification</p>`,
                 });
+                if (emailResult.success) delivered++;
+                else errors.push(`Email for ${row.studentId}: ${emailResult.error || 'provider rejected delivery'}`);
+            }
+
+            if (attempted === 0 || delivered === 0) {
+                failed++;
+                if (attempted === 0) errors.push(`No guardian delivery address for ${row.studentId}.`);
+                continue;
             }
 
             await pool.query(`
                 UPDATE attendance_records
                 SET is_notified = true
-                WHERE id = $1
-            `, [row.recordId]);
+                WHERE id = $1 AND tenant_id = $2
+            `, [row.recordId, tenantId]);
 
             sent++;
         } catch (err) {
@@ -307,4 +322,3 @@ export async function notifyAbsentParents(date?: string): Promise<{ sent: number
 
     return { sent, failed, errors };
 }
-

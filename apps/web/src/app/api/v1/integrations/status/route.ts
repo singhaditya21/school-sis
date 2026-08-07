@@ -3,7 +3,9 @@ import {
     authenticateIntegrationRequest,
     integrationJson,
     recordIntegrationAudit,
+    runWithIntegrationTenant,
 } from '@/lib/integrations/api-platform';
+import { integrationRuntimeMode } from '@/lib/integrations/runtime-mode';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -16,6 +18,8 @@ export async function GET(request: Request) {
         allowSession: false,
     });
     if (auth.ok === false) return auth.response;
+
+    return runWithIntegrationTenant(auth.context, async () => {
 
     const { rows } = await pool.query(
         `SELECT provider, mode, status, scopes, updated_at AS "updatedAt"
@@ -40,7 +44,8 @@ export async function GET(request: Request) {
         tenantId: auth.context.tenantId,
         subjectType: auth.context.subjectType,
         scopes: auth.context.scopes,
-        mode: 'mock',
+        mode: integrationRuntimeMode().toLowerCase(),
         integrations: rows,
+    });
     });
 }

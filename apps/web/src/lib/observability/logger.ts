@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { pool, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
 import { isValidTenantId } from '@/lib/tenant/isolation';
 
 export type ObservabilitySeverity = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
@@ -134,7 +134,7 @@ export async function recordObservabilityEvent(input: RecordObservabilityEventIn
     if (tenantId && isValidTenantId(tenantId)) {
       await runWithTenantContext(tenantId, insert);
     } else {
-      await runWithRlsBypass(insert);
+      await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.PLATFORM_EVENT_WRITE, insert);
     }
   } catch (error) {
     logger.warn('observability.event_write_failed', 'Failed to write observability event', {
@@ -186,7 +186,7 @@ export async function recordSreIncident(input: RecordSreIncidentInput): Promise<
     if (tenantId && isValidTenantId(tenantId)) {
       await runWithTenantContext(tenantId, write);
     } else {
-      await runWithRlsBypass(write);
+      await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.PLATFORM_INCIDENT_WRITE, write);
     }
     logger.warn('sre.incident_recorded', input.title, {
       tenantId,

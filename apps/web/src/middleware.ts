@@ -12,9 +12,31 @@ import {
     isPublicPageRoute,
     isRoleAllowedForPage,
 } from './lib/auth/page-access';
+import {
+    CONTENT_SECURITY_POLICY_HEADER,
+    CONTENT_SECURITY_POLICY_REPORT_ONLY_HEADER,
+    contentSecurityPolicyHeaderName,
+    createContentSecurityPolicy,
+    createCspNonce,
+} from './lib/security/headers';
 
 const MFA_REQUIRED_ROLES = new Set<string>(MFA_REQUIRED_ROLE_NAMES);
 const RESERVED_TENANT_HOSTS = new Set(['localhost', '127.0.0.1', '::1', 'www']);
+
+function attachContentSecurityPolicy(
+    response: NextResponse,
+    policy: string,
+    reportOnly: boolean,
+): NextResponse {
+    const headerName = contentSecurityPolicyHeaderName(reportOnly);
+    const otherHeaderName = reportOnly
+        ? CONTENT_SECURITY_POLICY_HEADER
+        : CONTENT_SECURITY_POLICY_REPORT_ONLY_HEADER;
+
+    response.headers.set(headerName, policy);
+    response.headers.delete(otherHeaderName);
+    return response;
+}
 
 function normalizeHostname(value: string | null | undefined): string {
     const normalized = (value || '').trim().toLowerCase();
@@ -79,45 +101,70 @@ function tenantHostMatchesSession(hostHint: string, session: SessionData): boole
 
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
+    const nonce = createCspNonce();
+    const contentSecurityPolicy = createContentSecurityPolicy(nonce, {
+        isDevelopment: process.env.NODE_ENV === 'development',
+    });
+    // Production is secure by default. `false` is an explicit, temporary
+    // rollback switch; non-production stays report-only unless opted in so local
+    // tooling remains inspectable while exercising the identical nonce policy.
+    const reportOnly = process.env.CSP_ENFORCE === 'false'
+        || (process.env.NODE_ENV !== 'production' && process.env.CSP_ENFORCE !== 'true');
+    const requestHeaders = new Headers(request.headers);
+
+    // Next.js reads the nonce from the request CSP during dynamic rendering and
+    // applies it to framework/page scripts and generated style elements.
+    requestHeaders.set('x-nonce', nonce);
+    requestHeaders.set(CONTENT_SECURITY_POLICY_HEADER, contentSecurityPolicy);
+
+    const response = NextResponse.next({
+        request: {
+            headers: requestHeaders,
+        },
+    });
+    const respond = (candidate: NextResponse) => attachContentSecurityPolicy(
+        candidate,
+        contentSecurityPolicy,
+        reportOnly,
+    );
 
     // Allow public routes
     if (isPublicPageRoute(pathname)) {
-        return NextResponse.next();
+        return respond(response);
     }
 
     // Get session from cookies
-    const response = NextResponse.next();
     const session = await getIronSession<SessionData>(request, response, sessionOptions);
 
     // Check if user is authenticated
     if (!session.isLoggedIn) {
         const loginUrl = new URL('/login', request.url);
         loginUrl.searchParams.set('redirect', pathname);
-        return NextResponse.redirect(loginUrl);
+        return respond(NextResponse.redirect(loginUrl));
     }
 
     if (isSessionDataExpired(session)) {
         const loginUrl = new URL('/login', request.url);
         loginUrl.searchParams.set('redirect', pathname);
         loginUrl.searchParams.set('expired', '1');
-        return NextResponse.redirect(loginUrl);
+        return respond(NextResponse.redirect(loginUrl));
     }
 
     const productionMfaRequired = process.env.NODE_ENV === 'production' && MFA_REQUIRED_ROLES.has(session.role);
     if ((session.mfaRequired || productionMfaRequired) && !session.mfaVerified && MFA_REQUIRED_ROLES.has(session.role)) {
         const loginUrl = new URL('/login', request.url);
         loginUrl.searchParams.set('mfa', 'required');
-        return NextResponse.redirect(loginUrl);
+        return respond(NextResponse.redirect(loginUrl));
     }
 
     const hostHint = tenantHostHint(request.nextUrl.hostname, session);
     if (hostHint && session.role !== 'PLATFORM_ADMIN' && !tenantHostMatchesSession(hostHint, session)) {
-        return NextResponse.redirect(new URL('/unauthorized', request.url));
+        return respond(NextResponse.redirect(new URL('/unauthorized', request.url)));
     }
 
     const pagePolicy = getPageAccessPolicy(pathname);
     if (!isRoleAllowedForPage(session.role, pagePolicy)) {
-        return NextResponse.redirect(new URL('/unauthorized', request.url));
+        return respond(NextResponse.redirect(new URL('/unauthorized', request.url)));
     }
 
     // ─── SaaS Paywall & Feature Flagging (Phase 5) ─────────────
@@ -130,34 +177,34 @@ export async function middleware(request: NextRequest) {
     // Group HQ Command Center (Super Admin Only + Multi-Campus Tier)
     if (pathname.startsWith('/hq')) {
         if (session.role !== 'SUPER_ADMIN' && session.role !== 'PLATFORM_ADMIN') {
-            return NextResponse.redirect(new URL('/unauthorized', request.url));
+            return respond(NextResponse.redirect(new URL('/unauthorized', request.url)));
         }
         if (session.role !== 'PLATFORM_ADMIN' && !activeModules.includes('MULTI_CAMPUS') && !activeModules.includes('ENTERPRISE')) {
-            return NextResponse.redirect(new URL('/upgrade?feature=hq', request.url));
+            return respond(NextResponse.redirect(new URL('/upgrade?feature=hq', request.url)));
         }
     }
 
     // Higher Education Paywall
     if (pathname.startsWith('/university') && !activeModules.includes('HIGHER_ED')) {
-        return NextResponse.redirect(new URL('/upgrade?feature=university', request.url));
+        return respond(NextResponse.redirect(new URL('/upgrade?feature=university', request.url)));
     }
 
     // Coaching Paywall
     if (pathname.startsWith('/coaching') && !activeModules.includes('COACHING')) {
-        return NextResponse.redirect(new URL('/upgrade?feature=coaching', request.url));
+        return respond(NextResponse.redirect(new URL('/upgrade?feature=coaching', request.url)));
     }
 
     // International / Visa Paywall
     if (pathname.startsWith('/international') && !activeModules.includes('INTERNATIONAL')) {
-        return NextResponse.redirect(new URL('/upgrade?feature=international', request.url));
+        return respond(NextResponse.redirect(new URL('/upgrade?feature=international', request.url)));
     }
 
     // AI Agents Paywall
     if (pathname.startsWith('/chat') && !activeModules.includes('AI_AGENTS') && session.subscriptionTier === 'CORE') {
-        return NextResponse.redirect(new URL('/upgrade?feature=ai', request.url));
+        return respond(NextResponse.redirect(new URL('/upgrade?feature=ai', request.url)));
     }
 
-    return response;
+    return respond(response);
 }
 
 export const config = {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { pool, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
 import { getDatabaseHealth } from '@/lib/observability/snapshot';
 import { requireApiAuth, ROLE_GROUPS } from '@/lib/auth/api';
 import { isValidTenantId } from '@/lib/tenant/isolation';
@@ -49,11 +49,7 @@ async function collectOperatorConsoleMetrics(
   tenantId?: string,
 ): Promise<OperatorConsoleMetrics> {
   const database = await getDatabaseHealth();
-  const run = scope === 'PLATFORM'
-    ? runWithRlsBypass
-    : <T>(fn: () => Promise<T>) => runWithTenantContext(tenantId!, fn);
-
-  return run(async () => {
+  const collect = async () => {
     const failedJobs = scopedWhere(scope, tenantId, "status = 'FAILED'");
     const deadJobs = scopedWhere(scope, tenantId, "status = 'DEAD_LETTER'");
     const queuedJobs = scopedWhere(scope, tenantId, "status IN ('QUEUED', 'SCHEDULED')");
@@ -186,7 +182,11 @@ async function collectOperatorConsoleMetrics(
         migrationDrift: metadataMigrationFailures,
       },
     };
-  });
+  };
+
+  return scope === 'PLATFORM'
+    ? runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.PLATFORM_OPERATOR_CONSOLE, collect)
+    : runWithTenantContext(tenantId!, collect);
 }
 
 export async function GET(request: Request) {

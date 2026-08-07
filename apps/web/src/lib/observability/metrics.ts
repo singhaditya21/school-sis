@@ -1,11 +1,11 @@
 import { Gauge, register } from 'prom-client';
 import type { QueryResult } from 'pg';
-import { pool, runWithRlsBypass } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass } from '@/lib/db';
 import { getDatabaseHealth } from '@/lib/observability/snapshot';
 import { logger } from '@/lib/observability/logger';
+import { initializeRateLimitMetrics } from '@/lib/auth/rate-limit';
 
 declare global {
-  // eslint-disable-next-line no-var
   var __SCHOOL_SIS_APP_METRICS_INIT: boolean | undefined;
 }
 
@@ -23,7 +23,10 @@ function getGauge(name: string, help: string, labelNames: string[] = []) {
 }
 
 async function queryCounts(sql: string): Promise<Record<string, number>> {
-  const result = await runWithRlsBypass<QueryResult<{ key: string; count: string }>>(() => pool.query(sql));
+  const result = await runWithRlsBypass<QueryResult<{ key: string; count: string }>>(
+    RLS_BYPASS_JUSTIFICATIONS.PLATFORM_METRICS,
+    () => pool.query(sql),
+  );
   return Object.fromEntries(result.rows.map((row) => [row.key, Number(row.count)]));
 }
 
@@ -39,6 +42,7 @@ async function safeCollect(name: string, fn: () => Promise<void>) {
 }
 
 export function initializeAppMetrics() {
+  initializeRateLimitMetrics();
   if (globalThis.__SCHOOL_SIS_APP_METRICS_INIT) return;
 
   const dbReady = getGauge('school_sis_database_ready', 'Database readiness probe status, 1 for ready and 0 for failed');

@@ -34,6 +34,12 @@ School SIS now has a production operations layer for health checks, readiness, P
 - `school_sis_notification_outbox{status}`
 - `school_sis_sre_incidents{status}`
 - `school_sis_sre_open_incidents_by_severity{severity}`
+- `school_sis_rate_limit_decisions_total{endpoint_class,outcome,backend}`
+- `school_sis_rate_limit_backend_failures_total{backend,operation}`
+- `school_sis_rate_limit_backend_healthy{backend}`
+- `school_sis_rate_limit_fallback_capacity_exhaustions_total{endpoint_class}`
+
+The importable Grafana dashboard is committed at `ops/observability/grafana/rate-limit-dashboard.json`, and the matching Prometheus alert rules are at `ops/observability/prometheus/rate-limit-alerts.yml`. A hosting target must load those files and route their `warning`/`critical` labels to the chosen on-call receiver; provider-specific import and notification routing remain part of deferred production-environment issue #18.
 
 ## SLO Baseline
 
@@ -75,6 +81,14 @@ curl -X POST "$NEXT_PUBLIC_APP_URL/api/sre/incidents" \
   -H "Content-Type: application/json" \
   -d '{"severity":"ERROR","source":"synthetic","fingerprint":"synthetic:web:login","title":"Login probe failed"}'
 ```
+
+### Rate-limit response
+
+1. Confirm `/api/ready` reports `rateLimit.status=degraded` and identify `configuredBackend` plus `lastFailureOperation`.
+2. Check the dashboard's backend-failure panel and application logs for `rate_limit.backend_failure`.
+3. Restore Redis/Postgres connectivity; do not disable throttling or raise the in-process bound as the first response.
+4. Treat `SchoolSisRateLimitFallbackCapacityExhausted` as critical: strict public/login/AI identities are being denied intentionally to preserve memory and fail-closed behavior.
+5. Verify `school_sis_rate_limit_backend_healthy` returns to `1` and degraded decision traffic stops.
 
 ## Remaining Hardening
 

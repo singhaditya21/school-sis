@@ -1,4 +1,4 @@
-import { pool, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
 import { recordSreIncident } from '@/lib/observability/logger';
 import { tasks } from '@/lib/worker/tasks';
 
@@ -160,7 +160,7 @@ async function executeJob(job: BackgroundJobRow): Promise<unknown> {
     return runWithTenantContext(job.tenantId, () => handler(job.payload));
   }
 
-  return runWithRlsBypass(() => handler(job.payload));
+  return runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.JOB_DISPATCH, () => handler(job.payload));
 }
 
 export async function dispatchDueJobs(options: DispatchJobsOptions = {}): Promise<DispatchJobsResult> {
@@ -170,7 +170,7 @@ export async function dispatchDueJobs(options: DispatchJobsOptions = {}): Promis
     workerId: options.workerId || `worker-${process.env.APP_REGION || 'local'}-${process.pid}`,
   };
 
-  const jobs = await runWithRlsBypass(() => claimDueJobs(normalized));
+  const jobs = await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.JOB_DISPATCH, () => claimDueJobs(normalized));
   const result: DispatchJobsResult = {
     claimed: jobs.length,
     succeeded: 0,
@@ -181,19 +181,34 @@ export async function dispatchDueJobs(options: DispatchJobsOptions = {}): Promis
 
   for (const job of jobs) {
     const attemptNumber = job.attempts + 1;
-    const attemptId = await runWithRlsBypass(() => insertAttempt(job, attemptNumber, normalized.workerId));
+    const attemptId = await runWithRlsBypass(
+      RLS_BYPASS_JUSTIFICATIONS.JOB_DISPATCH,
+      () => insertAttempt(job, attemptNumber, normalized.workerId),
+    );
 
     try {
       const taskResult = await executeJob(job);
-      await runWithRlsBypass(() => markAttemptSucceeded(attemptId, taskResult));
-      await runWithRlsBypass(() => markJobSucceeded(job, attemptNumber, taskResult));
+      await runWithRlsBypass(
+        RLS_BYPASS_JUSTIFICATIONS.JOB_DISPATCH,
+        () => markAttemptSucceeded(attemptId, taskResult),
+      );
+      await runWithRlsBypass(
+        RLS_BYPASS_JUSTIFICATIONS.JOB_DISPATCH,
+        () => markJobSucceeded(job, attemptNumber, taskResult),
+      );
       result.succeeded += 1;
       result.jobs.push({ jobId: job.id, taskName: job.taskName, status: 'SUCCEEDED' });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Job execution failed';
       const deadLetter = attemptNumber >= job.maxAttempts;
-      await runWithRlsBypass(() => markAttemptFailed(attemptId, message));
-      await runWithRlsBypass(() => markJobFailed(job, attemptNumber, message));
+      await runWithRlsBypass(
+        RLS_BYPASS_JUSTIFICATIONS.JOB_DISPATCH,
+        () => markAttemptFailed(attemptId, message),
+      );
+      await runWithRlsBypass(
+        RLS_BYPASS_JUSTIFICATIONS.JOB_DISPATCH,
+        () => markJobFailed(job, attemptNumber, message),
+      );
       if (deadLetter) {
         await recordSreIncident({
           tenantId: job.tenantId,

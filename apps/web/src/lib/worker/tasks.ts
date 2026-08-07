@@ -134,13 +134,7 @@ export const tasks: Record<string, TaskHandler> = {
     });
   },
 
-  'agent-incident-triage': async (payload) => {
-    logger.info('agent.incident_triage.mocked', 'Agent incident triage mocked', {
-      source: optionalStringValue(payload, 'source') || 'unknown_source',
-      metadata: {
-        receivedAt: optionalStringValue(payload, 'receivedAt') || new Date().toISOString(),
-      },
-    });
-    return { triaged: true, mode: 'mock' };
+  'agent-incident-triage': async () => {
+    throw new Error('Agent incident triage is disabled until a live agent worker is configured.');
   },
 };

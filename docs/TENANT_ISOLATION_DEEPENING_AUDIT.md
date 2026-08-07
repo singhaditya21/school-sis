@@ -1,6 +1,6 @@
 # Tenant Isolation Deepening Audit
 
-Date: 2026-06-30
+Date: 2026-08-07
 
 ## Scope
 
@@ -15,8 +15,8 @@ Audited tenant isolation across:
 
 ## Controls Implemented
 
-- Shared `pg.Pool` now applies request-local RLS context to every acquired connection.
-- Authenticated sessions enter either tenant context or explicit platform bypass context.
+- Shared `pg.Pool` resolves request-local RLS context at query time. Each protected standalone query runs as `BEGIN` → transaction-local context → query → `COMMIT`; explicit transactions receive the same `SET LOCAL` context immediately after `BEGIN`.
+- Authenticated cookie sessions are resolved at the database boundary, while API-key/service and background work use callback-scoped tenant or reviewed platform-bypass contexts.
 - Bootstrap flows that must run before tenant context exists now use explicit RLS bypass:
   - password login
   - OAuth tenant-domain lookup
@@ -60,7 +60,7 @@ The RLS migration covers:
 
 ## Older Module Audit Result
 
-Older modules still using direct `pool.query`, `pool.connect`, or Drizzle `db.execute` are now protected by the shared DB context layer once they run after `getSession`, `requireAuth`, or `requireApiAuth`.
+Older modules still using direct `pool.query`, `pool.connect`, or Drizzle `db.execute` are protected by the shared DB context layer. Session context is re-resolved at query time, so it survives an awaited `getSession`, `requireAuth`, or `requireApiAuth` boundary.
 
 Modules that intentionally operate outside tenant context were converted to explicit platform/RLS bypasses rather than relying on unrestricted database access.
 
@@ -68,11 +68,12 @@ Modules that intentionally operate outside tenant context were converted to expl
 
 - Apply schema first, then apply RLS with `db:rls`.
 - Background jobs must call `runWithTenantContext(tenantId, fn)` before tenant data access.
-- Platform jobs and schema maintenance must call `runWithRlsBypass(fn)` or set `app.bypass_rls = on`.
+- Platform jobs and schema maintenance must call `runWithRlsBypass(reviewedJustification, fn)`.
+- Integration API-key handlers must execute post-authentication work with `runWithIntegrationTenant(context, fn)`.
+- Never use session-level `SET app.current_tenant`; the shared wrapper uses transaction-local settings so runtime `DATABASE_URL` may safely point to a transaction-pooler endpoint.
 - New file storage keys must continue using `createTenantStorageKey`.
 - New file reads must go through `/api/files/...` or validate keys with `validateTenantStorageKey`.
 
 ## Watchlist
 
-- `platform_plugins` is an ad hoc global table created from the AppExchange page and is not part of the Drizzle schema. It does not contain tenant data today, but it should be moved into schema-managed migrations before plugin install state becomes tenant-specific.
 - Any future standalone worker that imports `@school-sis/api` outside Next.js must set tenant context explicitly before using `pool` or `db`.

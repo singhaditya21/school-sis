@@ -1,6 +1,6 @@
 'use server';
 
-import { pool, runWithRlsBypass } from '@/lib/db';
+import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { hash } from 'bcryptjs';
 import { cookies } from 'next/headers';
 import { getIronSession } from 'iron-session';
@@ -53,16 +53,23 @@ async function enforceOnboardingRateLimits(input: OnboardingInput): Promise<stri
     return await consumeRateLimit(input.email, {
         scope: 'onboarding_email',
         maxAttempts: 3,
+        degradedMaxAttempts: 1,
+        endpointClass: 'public-write',
         message: 'Too many workspace attempts for this email. Please try again later.',
     }) || await consumeRateLimit(input.domain, {
         scope: 'onboarding_domain',
         maxAttempts: 3,
+        degradedMaxAttempts: 1,
+        endpointClass: 'public-write',
         message: 'Too many workspace attempts for this subdomain. Please try again later.',
     });
 }
 
 export async function setupSchoolWorkspace(formData: FormData) {
-    return runWithRlsBypass(() => setupSchoolWorkspaceWithBypass(formData));
+    return runWithRlsBypass(
+        RLS_BYPASS_JUSTIFICATIONS.TENANT_PROVISIONING,
+        () => setupSchoolWorkspaceWithBypass(formData),
+    );
 }
 
 async function setupSchoolWorkspaceWithBypass(formData: FormData) {

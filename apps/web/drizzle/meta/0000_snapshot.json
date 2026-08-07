@@ -7582,7 +7582,7 @@
           "type": "varchar(20)",
           "primaryKey": false,
           "notNull": true,
-          "default": "'MOCK'"
+          "default": "'LIVE'"
         },
         "status": {
           "name": "status",

@@ -1,4 +1,4 @@
-import { pool, runWithRlsBypass } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass } from '@/lib/db';
 
 export type ComponentStatus = 'healthy' | 'degraded' | 'unhealthy';
 
@@ -52,7 +52,7 @@ function statusFrom(snapshot: Omit<OperationalSnapshot, 'status'>): ComponentSta
 export async function getDatabaseHealth(): Promise<{ status: ComponentStatus; latencyMs: number | null }> {
   const startedAt = Date.now();
   try {
-    await runWithRlsBypass(() => pool.query('SELECT 1'));
+    await pool.query('SELECT 1');
     return { status: 'healthy', latencyMs: Date.now() - startedAt };
   } catch {
     return { status: 'unhealthy', latencyMs: null };
@@ -114,7 +114,7 @@ export async function collectOperationalSnapshot(): Promise<OperationalSnapshot>
     };
   };
 
-  const counts = await runWithRlsBypass(query);
+  const counts = await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.OPERATIONAL_SNAPSHOT, query);
   const base = {
     generatedAt: new Date().toISOString(),
     database,

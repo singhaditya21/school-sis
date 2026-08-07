@@ -11,7 +11,7 @@ School SIS now treats background work and notification delivery as durable, tena
 - **Tenant RLS:** all new job/outbox/event tables have forced row-level security. Platform jobs use `tenant_id IS NULL` and are visible only through RLS bypass.
 - **Idempotency:** jobs and notifications use partial unique indexes for tenant/platform idempotency keys.
 - **Retry and dead-letter:** dispatcher failures move jobs through `FAILED` with exponential backoff and finally `DEAD_LETTER`.
-- **Mock-first providers:** email, SMS, WhatsApp, push, and in-app delivery default to mock/database providers. Real providers are opt-in env choices.
+- **Fail-loud external providers:** email, SMS, WhatsApp, and push remain unconfigured until a real provider is selected; only in-app delivery defaults to the database. Mock delivery requires an explicit development/test opt-in and is rejected at production startup.
 - **Authenticated dispatch:** `POST /api/jobs/dispatch` requires `Authorization: Bearer $JOB_DISPATCH_SECRET`; the local scheduler (`pnpm scheduler`) triggers it on an interval.
 - **Tenant-safe status:** `/api/jobs/[jobId]` returns only jobs owned by the caller's tenant, with platform-only access for platform jobs.
 
@@ -31,15 +31,12 @@ School SIS now treats background work and notification delivery as durable, tena
 JOB_QUEUE_MODE=database
 JOB_DISPATCH_SECRET=replace_with_at_least_32_random_characters
 CRON_SECRET=replace_with_at_least_32_random_characters
-EMAIL_PROVIDER=mock
-SMS_PROVIDER=mock
-WHATSAPP_PROVIDER=mock
-PUSH_PROVIDER=mock
 ```
 
 Optional:
 
-- Set `EMAIL_PROVIDER=smtp|resend`, `SMS_PROVIDER=msg91|twilio`, or `PUSH_PROVIDER=firebase` only after real provider secrets are configured.
+- Set `EMAIL_PROVIDER=smtp|resend`, `SMS_PROVIDER=msg91|twilio`, or `PUSH_PROVIDER=firebase` only after real provider secrets are configured. WhatsApp stays unavailable until a live adapter lands.
+- For development/test-only delivery simulation, set `ENABLE_INTEGRATION_MOCKS=true` together with the desired `*_PROVIDER=mock`; never use these values in production.
 
 ## Operations
 

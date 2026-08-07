@@ -2,8 +2,9 @@ import { pool } from '@/lib/db';
 import { ROLE_GROUPS } from '@/lib/auth/api';
 import {
     authenticateIntegrationRequest,
-    ensureMockIntegrationConnection,
+    ensureIntegrationConnection,
     integrationJson,
+    runWithIntegrationTenant,
     type IntegrationAuthContext,
     recordIntegrationAudit,
 } from '@/lib/integrations/api-platform';
@@ -40,10 +41,12 @@ export async function handleOneRosterGet(request: Request, { params }: RouteCont
     });
     if (auth.ok === false) return auth.response;
 
+    return runWithIntegrationTenant(auth.context, async () => {
+
     const { entity } = await params;
     const tenantId = auth.context.tenantId;
 
-    await ensureMockIntegrationConnection({
+    await ensureIntegrationConnection({
         tenantId,
         provider: 'ONEROSTER',
         scopes: ['oneroster:read'],
@@ -196,11 +199,12 @@ export async function handleOneRosterGet(request: Request, { params }: RouteCont
             context: auth.context,
             statusCode: 500,
             durationMs: Date.now() - startedAt,
-            error: error instanceof Error ? error.message : 'OneRoster mock failed',
+            error: error instanceof Error ? error.message : 'OneRoster request failed',
         });
         console.error(`[OneRoster] Error fetching ${entity}:`, error);
         return integrationJson({ error: 'Internal server error' }, { status: 500 });
     }
+    });
 }
 
 async function auditSuccess(
@@ -219,7 +223,7 @@ async function auditSuccess(
         context,
         statusCode: 200,
         durationMs: Date.now() - startedAt,
-        metadata: { count, mode: 'mock' },
+        metadata: { count },
     });
 }
 
