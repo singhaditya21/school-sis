@@ -1,13 +1,14 @@
 /**
  * Email Provider — mock + SMTP + Resend implementations.
  * 
- * Set EMAIL_PROVIDER env var to 'mock' (default), 'smtp', or 'resend'.
+ * Set EMAIL_PROVIDER to 'smtp' or 'resend'. The 'mock' provider is test/dev-only.
  * SMTP: Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
  * Resend: Set RESEND_API_KEY
  */
 
 import type { ProviderResult } from './index';
 import { logger } from '@/lib/observability/logger';
+import { mockRuntimeIsAllowed, notificationProviderForChannel } from '@/lib/integrations/runtime-mode';
 
 // ─── Interface ───────────────────────────────────────────────
 
@@ -143,7 +144,7 @@ let _instance: EmailProvider | null = null;
 
 export function getEmailProvider(): EmailProvider {
     if (!_instance) {
-        const provider = process.env.EMAIL_PROVIDER || 'mock';
+        const provider = notificationProviderForChannel('EMAIL');
         switch (provider) {
             case 'smtp':
                 _instance = new SmtpProvider();
@@ -152,9 +153,15 @@ export function getEmailProvider(): EmailProvider {
                 _instance = new ResendProvider();
                 break;
             case 'mock':
-            default:
+                if (!mockRuntimeIsAllowed()) {
+                    throw new Error('Mock email delivery is disabled in this runtime.');
+                }
                 _instance = new MockEmailProvider();
                 break;
+            case 'unconfigured':
+                throw new Error('Email provider is not configured.');
+            default:
+                throw new Error(`Unsupported email provider: ${provider}.`);
         }
         console.log(`[Email] Using ${provider} provider`);
     }

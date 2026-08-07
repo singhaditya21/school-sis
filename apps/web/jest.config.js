@@ -23,7 +23,7 @@ module.exports = {
         'src/lib/observability/logger.ts',
         '../../packages/api/src/db/index.ts',
         '../../packages/api/src/validations.ts',
-        '../../packages/api/src/services/storage.ts',
+        'src/app/api/upload/route.ts',
     ],
     coverageProvider: 'v8',
     coverageReporters: ['text', 'lcov', 'json-summary'],

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { pool, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
 import { requireApiAuth, requireBearerServiceAuth, ROLE_GROUPS } from '@/lib/auth/api';
 import { isValidTenantId } from '@/lib/tenant/isolation';
 import { recordObservabilityEvent, recordSreIncident, requestContextFrom } from '@/lib/observability/logger';
@@ -80,7 +80,7 @@ export async function GET(request: Request) {
   );
 
   const result = platform
-    ? await runWithRlsBypass(load)
+    ? await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.PLATFORM_INCIDENT_READ, load)
     : await runWithTenantContext(auth.context.tenantId, load);
 
   return NextResponse.json({ incidents: result.rows });

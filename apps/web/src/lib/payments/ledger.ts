@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import type { PoolClient } from 'pg';
-import { pool, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
 import type { PaymentProviderName } from './providers';
 
 type InvoiceForPayment = {
@@ -328,7 +328,7 @@ export async function getPaymentOrderByProviderOrderAnyTenant(
     provider: PaymentProviderName,
     providerOrderId: string,
 ): Promise<PaymentOrderRow | null> {
-    return runWithRlsBypass(async () => {
+    return runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.PROVIDER_PAYMENT_LOOKUP, async () => {
         const { rows } = await pool.query<PaymentOrderRow>(
             `SELECT
                 id,
@@ -590,7 +590,7 @@ export async function recordProviderEvent(input: {
     tenantId?: string | null;
     payload: Record<string, unknown>;
 }): Promise<{ event: ProviderEventRow; duplicate: boolean }> {
-    return runWithRlsBypass(async () => {
+    return runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.PROVIDER_EVENT_LEDGER, async () => {
         const inserted = await pool.query<ProviderEventRow>(
             `INSERT INTO payment_provider_events (tenant_id, provider, event_id, event_type, payload, status)
              VALUES ($1, $2, $3, $4, $5::jsonb, 'PROCESSING')
@@ -621,7 +621,7 @@ export async function recordProviderEvent(input: {
 }
 
 export async function markProviderEventProcessed(providerEventId: string, status: 'PROCESSED' | 'FAILED', error?: string): Promise<void> {
-    await runWithRlsBypass(() => pool.query(
+    await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.PROVIDER_EVENT_LEDGER, () => pool.query(
         `UPDATE payment_provider_events
          SET status = $1,
              error = $2,

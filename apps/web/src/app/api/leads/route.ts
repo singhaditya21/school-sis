@@ -15,6 +15,8 @@ export async function POST(request: Request) {
         const ipLimitError = await consumeRateLimit(clientIpFrom(request), {
             scope: 'lead_capture_ip',
             maxAttempts: 10,
+            degradedMaxAttempts: 1,
+            endpointClass: 'public-write',
             message: 'Too many lead submissions. Please try again later.',
         });
         if (ipLimitError) {
@@ -27,6 +29,8 @@ export async function POST(request: Request) {
             const emailLimitError = await consumeRateLimit(contactEmail, {
                 scope: 'lead_capture_email',
                 maxAttempts: 3,
+                degradedMaxAttempts: 1,
+                endpointClass: 'public-write',
                 message: 'Too many lead submissions for this email. Please try again later.',
             });
             if (emailLimitError) {

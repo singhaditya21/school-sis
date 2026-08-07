@@ -33,15 +33,15 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -57,7 +57,7 @@ jobs:
 
       # Upload the Next.js build output to share with the test runners
       - name: Cache Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ./apps/web/.next
           key: ${{ runner.os }}-nextjs-${{ github.sha }}
@@ -86,15 +86,15 @@ jobs:
           --health-retries 5
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -110,6 +110,18 @@ jobs:
           DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis
           DIRECT_URL: postgresql://postgres:password@localhost:5432/school_sis
         run: pnpm --filter @school-sis/web exec drizzle-kit migrate
+
+      - name: Apply tenant RLS policies
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis
+          DIRECT_URL: postgresql://postgres:password@localhost:5432/school_sis
+        run: pnpm --filter @school-sis/web run db:rls
+
+      - name: Verify live tenant isolation
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis
+          DIRECT_URL: postgresql://postgres:password@localhost:5432/school_sis
+        run: pnpm --filter @school-sis/web run db:test:rls
 
   smoke:
     name: Playwright Smoke
@@ -138,15 +150,15 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -155,7 +167,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Restore Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ./apps/web/.next
           key: ${{ runner.os }}-nextjs-${{ github.sha }}
@@ -174,7 +186,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-smoke
           path: apps/web/playwright-report/
@@ -216,15 +228,15 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -233,7 +245,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Restore Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ./apps/web/.next
           key: ${{ runner.os }}-nextjs-${{ github.sha }}
@@ -253,7 +265,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-shard-${{ matrix.shardIndex }}
           path: apps/web/playwright-report/

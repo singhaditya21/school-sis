@@ -88,12 +88,10 @@
    → Filter by student
    → See total due/paid
    ↓
-4. Parent pays invoice (mock gateway)
-   → applyPaymentAction()
-   → FeeEngineService.applyPayment()
-   → Creates Payment + Receipt
-   → Updates invoice status
-   → Audit log created
+4. Parent opens the configured provider's hosted checkout
+   → School SIS sends only the server-validated invoice and amount
+   → A signed provider webhook confirms the payment
+   → Creates Payment + Receipt, updates the invoice, and writes the audit trail
    ↓
 5. Admin views updated dashboard
    → Collection stats updated

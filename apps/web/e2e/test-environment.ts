@@ -3,6 +3,7 @@ import path from 'path';
 import { Client } from 'pg';
 
 const FALLBACK_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/school_sis';
+const FALLBACK_SEED_USER_PASSWORD = 'school-sis-e2e-seed-password';
 const SAFE_IDENTIFIER_RE = /^[a-zA-Z_][a-zA-Z0-9_]{0,62}$/;
 
 export type TestEnvironment = {
@@ -73,16 +74,17 @@ export function ensurePlaywrightTestEnvironment(options: {
         'ENCRYPTION_KEY="test-encryption-key-32-characters"',
         'PII_ENCRYPTION_KEY="test-pii-encryption-key-32-characters"',
         'JOB_QUEUE_MODE="database"',
-        'EMAIL_PROVIDER="mock"',
-        'SMS_PROVIDER="mock"',
-        'WHATSAPP_PROVIDER="mock"',
-        'PUSH_PROVIDER="mock"',
+        // Playwright runs the production server. Keep optional providers
+        // unconfigured so the production mock guard remains meaningful.
+        'RATE_LIMIT_BACKEND="postgres"',
+        'CSP_ENFORCE="true"',
         '',
     ];
 
     fs.writeFileSync(envFilePath, envLines.join('\n'));
     process.env.DATABASE_URL = databaseUrl;
     process.env.DIRECT_URL = databaseUrl;
+    process.env.SEED_USER_PASSWORD ||= FALLBACK_SEED_USER_PASSWORD;
 
     return { databaseName, databaseUrl, adminDatabaseUrl, envFilePath };
 }

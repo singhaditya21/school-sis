@@ -1,7 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +9,6 @@ import {
     Clock,
     Send,
     Filter,
-    RefreshCw,
     Users,
     IndianRupee
 } from 'lucide-react';
@@ -31,20 +28,6 @@ const getStatus = (daysOverdue: number) => {
 };
 
 export default function DefaulterAlerts({ stats, defaulters }: DefaulterAlertsProps) {
-    const [isProcessing, setIsProcessing] = useState(false);
-
-    const handleProcessDefaulters = async () => {
-        setIsProcessing(true);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        setIsProcessing(false);
-        toast.success('Reminders sent successfully!');
-    };
-
-    const handleSendReminder = async (studentId: string) => {
-        // In production, call API
-        toast.success(`Reminder sent for student ${studentId}`);
-    };
-
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -52,13 +35,9 @@ export default function DefaulterAlerts({ stats, defaulters }: DefaulterAlertsPr
                     <h1 className="text-3xl font-bold">Defaulter Alerts</h1>
                     <p className="text-muted-foreground">Automated fee reminder and escalation management</p>
                 </div>
-                <Button onClick={handleProcessDefaulters} disabled={isProcessing}>
-                    {isProcessing ? (
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                        <Send className="h-4 w-4 mr-2" />
-                    )}
-                    Process & Send Reminders
+                <Button disabled title="Configure a live fee-reminder notification workflow first.">
+                    <Send className="h-4 w-4 mr-2" />
+                    Provider setup required
                 </Button>
             </div>
 
@@ -190,7 +169,12 @@ export default function DefaulterAlerts({ stats, defaulters }: DefaulterAlertsPr
                                             </TableCell>
                                             <TableCell>{defaulter.invoiceCount}</TableCell>
                                             <TableCell>
-                                                <Button size="sm" variant="outline" onClick={() => handleSendReminder(defaulter.studentId)}>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled
+                                                    title="Configure a live fee-reminder notification workflow first."
+                                                >
                                                     <Send className="h-3 w-3 mr-1" />
                                                     Send Reminder
                                                 </Button>

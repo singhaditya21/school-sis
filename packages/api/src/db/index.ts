@@ -4,6 +4,14 @@ import type { PoolClient } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from './schema';
 import { getLimit } from '@/lib/config/limits';
+import { resolveDatabaseConnectionOptions } from './ssl';
+import {
+    assertRlsBypassJustification,
+    type RlsBypassJustification,
+} from './rls-bypass';
+
+export { resolveDatabaseConnectionOptions, resolveDatabaseSsl } from './ssl';
+export { RLS_BYPASS_JUSTIFICATIONS, type RlsBypassJustification } from './rls-bypass';
 
 /**
  * Database connection — uses native pg.Pool
@@ -15,15 +23,6 @@ import { getLimit } from '@/lib/config/limits';
  */
 
 const isBuildPhase = process.env.npm_lifecycle_event === 'build' || process.env.NEXT_PHASE === 'phase-production-build';
-
-function isLocalDatabaseUrl(value: string): boolean {
-    try {
-        const parsed = new URL(value);
-        return ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
-    } catch {
-        return false;
-    }
-}
 
 function normalizeRuntimeDatabaseUrl(value: string): string {
     // Local-first: no cloud SSL is enforced. Just validate the shape.
@@ -63,10 +62,13 @@ declare global {
 
 type DbRlsContext =
     | { tenantId: string; bypassRls?: false }
-    | { tenantId?: undefined; bypassRls: true };
+    | { tenantId?: undefined; bypassRls: true; justification: RlsBypassJustification };
+
+export type DbRlsContextResolver = () => DbRlsContext | undefined | Promise<DbRlsContext | undefined>;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const dbContext = new AsyncLocalStorage<DbRlsContext>();
+let requestContextResolver: DbRlsContextResolver | undefined;
 
 function assertTenantId(tenantId: string): void {
     if (!UUID_RE.test(tenantId)) {
@@ -78,52 +80,225 @@ function currentContext(): DbRlsContext | undefined {
     return dbContext.getStore();
 }
 
-async function applyDbContext(client: PoolClient, context: DbRlsContext): Promise<void> {
+async function resolvedContext(): Promise<DbRlsContext | undefined> {
+    const scoped = currentContext();
+    if (scoped) return scoped;
+    if (!requestContextResolver) return undefined;
+
+    const resolved = await requestContextResolver();
+    if (!resolved) return undefined;
+    if (resolved.bypassRls) {
+        assertRlsBypassJustification(resolved.justification);
+    } else {
+        assertTenantId(resolved.tenantId);
+    }
+    return resolved;
+}
+
+/**
+ * Registers the web runtime's request-session resolver. AsyncLocalStorage scopes
+ * remain authoritative for jobs, integrations, and explicitly-scoped work; this
+ * resolver covers the normal `await requireAuth(); pool.query(...)` boundary,
+ * where an `enterWith` performed inside the awaited auth helper cannot flow back
+ * into its caller's already-created promise continuation.
+ */
+export function registerDbRlsContextResolver(resolver: DbRlsContextResolver | undefined): void {
+    requestContextResolver = resolver;
+}
+
+type RawClientQuery = (...args: unknown[]) => Promise<unknown>;
+
+async function applyLocalDbContext(query: RawClientQuery, context: DbRlsContext): Promise<void> {
     if (context.bypassRls) {
-        await client.query(
-            "SELECT set_config('app.current_tenant', '', false), set_config('app.bypass_rls', 'on', false)"
+        await query(
+            "SELECT set_config('app.current_tenant', '', true), set_config('app.bypass_rls', 'on', true)"
         );
         return;
     }
 
-    await client.query(
-        "SELECT set_config('app.current_tenant', $1, false), set_config('app.bypass_rls', 'off', false)",
+    await query(
+        "SELECT set_config('app.current_tenant', $1, true), set_config('app.bypass_rls', 'off', true)",
         [context.tenantId],
     );
 }
 
-async function resetDbContext(client: PoolClient): Promise<void> {
-    await client.query(
-        "SELECT set_config('app.current_tenant', '', false), set_config('app.bypass_rls', 'off', false)"
-    );
+function contextsMatch(left: DbRlsContext | undefined, right: DbRlsContext | undefined): boolean {
+    if (!left || !right) return left === right;
+    if (left.bypassRls || right.bypassRls) {
+        return Boolean(
+            left.bypassRls
+            && right.bypassRls
+            && left.justification.id === right.justification.id,
+        );
+    }
+    return left.tenantId === right.tenantId;
 }
 
-function wrapReleaseWithContextReset(client: PoolClient): void {
-    const wrappedClient = client as PoolClient & { __rlsReleaseWrapped?: boolean };
-    if (wrappedClient.__rlsReleaseWrapped) return;
+function transactionCommand(queryArgs: unknown[]): 'begin' | 'commit' | 'rollback' | 'in-transaction' | 'query' {
+    const input = queryArgs[0];
+    const configuredText = input && typeof input === 'object'
+        ? (input as { text?: unknown }).text
+        : undefined;
+    const text = typeof input === 'string'
+        ? input
+        : typeof configuredText === 'string'
+            ? configuredText
+            : null;
+    if (text === null) {
+        throw new Error('Streaming and cursor queries are not supported by the RLS context wrapper.');
+    }
 
-    const release = client.release.bind(client) as (err?: Error | boolean) => void;
+    const normalized = text.trim().replace(/;$/, '').trim();
+    if (/^(?:BEGIN|START\s+TRANSACTION)$/i.test(normalized)) return 'begin';
+    if (/^(?:COMMIT|END)$/i.test(normalized)) return 'commit';
+    if (/^ROLLBACK$/i.test(normalized)) return 'rollback';
+    if (/^(?:SAVEPOINT\b|RELEASE\s+SAVEPOINT\b|ROLLBACK\s+TO\b)/i.test(normalized)) {
+        return 'in-transaction';
+    }
+    if (/^(?:BEGIN|START\s+TRANSACTION|COMMIT|END|ROLLBACK)\b/i.test(normalized)) {
+        throw new Error('Unsupported or multi-statement transaction control query.');
+    }
+    return 'query';
+}
+
+function asError(value: unknown, fallback: string): Error {
+    return value instanceof Error ? value : new Error(fallback);
+}
+
+function wrapClientWithTransactionLocalContext(client: PoolClient): PoolClient {
+    const originalQueryMethod = client.query;
+    const originalRelease = client.release.bind(client) as (err?: Error | boolean) => void;
+    const rawQuery: RawClientQuery = (...args: unknown[]) => Promise.resolve(
+        Reflect.apply(originalQueryMethod, client, args),
+    );
+    let transactionActive = false;
+    let transactionContext: DbRlsContext | undefined;
+    let destroyOnRelease: Error | undefined;
     let released = false;
 
-    wrappedClient.__rlsReleaseWrapped = true;
-    wrappedClient.release = ((err?: Error | boolean) => {
+    const rollbackAfterFailure = async (): Promise<void> => {
+        if (!transactionActive) return;
+        try {
+            await rawQuery('ROLLBACK');
+        } catch (rollbackError) {
+            destroyOnRelease = asError(rollbackError, 'Failed to roll back contextual database transaction.');
+        } finally {
+            transactionActive = false;
+            transactionContext = undefined;
+        }
+    };
+
+    const assertStableTransactionContext = async (): Promise<void> => {
+        const context = await resolvedContext();
+        if (!contextsMatch(context, transactionContext)) {
+            throw new Error('Database RLS context changed during an active transaction.');
+        }
+    };
+
+    const execute = async (queryArgs: unknown[]): Promise<unknown> => {
+        const command = transactionCommand(queryArgs);
+
+        if (command === 'begin') {
+            if (transactionActive) throw new Error('Nested database transactions are not supported.');
+            const context = await resolvedContext();
+            const beginResult = await rawQuery(...queryArgs);
+            transactionActive = true;
+            transactionContext = context;
+            try {
+                if (context) await applyLocalDbContext(rawQuery, context);
+                return beginResult;
+            } catch (error) {
+                await rollbackAfterFailure();
+                throw error;
+            }
+        }
+
+        if (command === 'commit' || command === 'rollback') {
+            if (!transactionActive) return rawQuery(...queryArgs);
+            await assertStableTransactionContext();
+            try {
+                const result = await rawQuery(...queryArgs);
+                transactionActive = false;
+                transactionContext = undefined;
+                return result;
+            } catch (error) {
+                destroyOnRelease = asError(error, `Failed to ${command} contextual database transaction.`);
+                throw error;
+            }
+        }
+
+        if (command === 'in-transaction') {
+            if (!transactionActive) {
+                throw new Error('Transaction savepoint command requires an active transaction.');
+            }
+            await assertStableTransactionContext();
+            return rawQuery(...queryArgs);
+        }
+
+        if (transactionActive) {
+            await assertStableTransactionContext();
+            return rawQuery(...queryArgs);
+        }
+
+        const context = await resolvedContext();
+        if (!context) return rawQuery(...queryArgs);
+
+        await rawQuery('BEGIN');
+        transactionActive = true;
+        transactionContext = context;
+        try {
+            await applyLocalDbContext(rawQuery, context);
+            const result = await rawQuery(...queryArgs);
+            try {
+                await rawQuery('COMMIT');
+            } catch (commitError) {
+                destroyOnRelease = asError(commitError, 'Failed to commit contextual database query.');
+                throw commitError;
+            }
+            transactionActive = false;
+            transactionContext = undefined;
+            return result;
+        } catch (error) {
+            await rollbackAfterFailure();
+            throw error;
+        }
+    };
+
+    client.query = ((...args: unknown[]) => {
+        const callback = args[args.length - 1];
+        if (typeof callback === 'function') {
+            const queryCallback = callback as (error: Error | null, result?: unknown) => void;
+            const queryArgs = args.slice(0, -1);
+            void execute(queryArgs).then(
+                (result) => queryCallback(null, result),
+                (error) => queryCallback(asError(error, 'Contextual database query failed.')),
+            );
+            return undefined;
+        }
+        return execute(args);
+    }) as PoolClient['query'];
+
+    client.release = ((err?: Error | boolean) => {
         if (released) return;
         released = true;
+        client.query = originalQueryMethod;
 
         if (err) {
-            release(err);
+            originalRelease(err);
             return;
         }
 
-        void resetDbContext(client)
-            .catch((resetError) => {
-                console.error('[DB] Failed to reset RLS context before releasing client:', resetError);
-            })
-            .finally(() => release());
+        if (transactionActive) {
+            void rollbackAfterFailure().then(() => originalRelease(destroyOnRelease));
+            return;
+        }
+        originalRelease(destroyOnRelease);
     }) as PoolClient['release'];
+
+    return client;
 }
 
-function patchPoolForRlsContext(targetPool: Pool): Pool {
+export function patchPoolForRlsContext(targetPool: Pool): Pool {
     const poolWithPatch = targetPool as Pool & { __rlsContextPatched?: boolean };
     if (poolWithPatch.__rlsContextPatched) return targetPool;
 
@@ -133,22 +308,24 @@ function patchPoolForRlsContext(targetPool: Pool): Pool {
     poolWithPatch.connect = (async (...args: unknown[]) => {
         const callback = args[0];
         if (typeof callback === 'function') {
+            try {
+                await resolvedContext();
+            } catch (contextError) {
+                callback(contextError);
+                return;
+            }
+
             return originalConnect(async (err: Error, client: PoolClient, done: (release?: Error | boolean) => void) => {
                 if (err || !client) {
                     callback(err, client, done);
                     return;
                 }
 
-                const context = currentContext();
-                if (!context) {
-                    callback(err, client, done);
-                    return;
-                }
-
                 try {
-                    await applyDbContext(client, context);
-                    wrapReleaseWithContextReset(client);
-                    callback(undefined, client, client.release.bind(client));
+                    const contextualClient = currentContext() || requestContextResolver
+                        ? wrapClientWithTransactionLocalContext(client)
+                        : client;
+                    callback(undefined, contextualClient, contextualClient.release.bind(contextualClient));
                 } catch (contextError) {
                     client.release(contextError as Error);
                     callback(contextError, client, done);
@@ -156,18 +333,16 @@ function patchPoolForRlsContext(targetPool: Pool): Pool {
             });
         }
 
+        await resolvedContext();
         const client = await originalConnect();
-        const context = currentContext();
-        if (context) {
-            await applyDbContext(client, context);
-            wrapReleaseWithContextReset(client);
-        }
-        return client;
+        return currentContext() || requestContextResolver
+            ? wrapClientWithTransactionLocalContext(client)
+            : client;
     }) as Pool['connect'];
 
     poolWithPatch.query = ((...args: any[]) => {
         const context = currentContext();
-        if (!context) {
+        if (!context && !requestContextResolver) {
             return originalQuery(...args);
         }
 
@@ -202,11 +377,10 @@ function patchPoolForRlsContext(targetPool: Pool): Pool {
 
 // Connection pool — optimized for serverless (Vercel + Neon.tech free tier)
 export const pool = patchPoolForRlsContext(globalThis.pgPool || new Pool({
-    connectionString,
+    ...resolveDatabaseConnectionOptions(connectionString),
     max: getLimit('DB_POOL_MAX'),
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
-    ssl: process.env.NODE_ENV === 'production' && !isLocalDatabaseUrl(connectionString) ? { rejectUnauthorized: false } : undefined,
 }));
 
 if (process.env.NODE_ENV !== 'production') {
@@ -223,24 +397,17 @@ export function getCurrentDbContext(): DbRlsContext | undefined {
     return currentContext();
 }
 
-export function enterTenantContext(tenantId: string): void {
-    assertTenantId(tenantId);
-    dbContext.enterWith({ tenantId });
-}
-
-export function enterRlsBypassContext(): void {
-    dbContext.enterWith({ bypassRls: true });
-}
-
-export const enterPlatformContext = enterRlsBypassContext;
-
 export async function runWithTenantContext<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
     assertTenantId(tenantId);
     return dbContext.run({ tenantId }, fn);
 }
 
-export async function runWithRlsBypass<T>(fn: () => Promise<T>): Promise<T> {
-    return dbContext.run({ bypassRls: true }, fn);
+export async function runWithRlsBypass<T>(
+    justification: RlsBypassJustification,
+    fn: () => Promise<T>,
+): Promise<T> {
+    assertRlsBypassJustification(justification);
+    return dbContext.run({ bypassRls: true, justification }, fn);
 }
 
 export const runWithPlatformContext = runWithRlsBypass;

@@ -6,6 +6,7 @@ const requestedPlaywrightPort = process.env.PLAYWRIGHT_PORT || '3000';
 const playwrightPort = /^\d+$/.test(requestedPlaywrightPort) ? requestedPlaywrightPort : '3000';
 const playwrightBaseUrl = process.env.PLAYWRIGHT_BASE_URL || `http://127.0.0.1:${playwrightPort}`;
 const startServerCommand = [
+  'pnpm exec tsx e2e/prepare-test-environment.ts main &&',
   'if [ -f .next/standalone/apps/web/server.js ]; then',
   'mkdir -p .next/standalone/apps/web/.next;',
   'cp -R .next/static .next/standalone/apps/web/.next/static 2>/dev/null || true;',
@@ -25,7 +26,6 @@ ensurePlaywrightTestEnvironment({
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  globalSetup: require.resolve('./e2e/global-setup'),
   globalTeardown: require.resolve('./e2e/global-teardown'),
   testDir: './e2e',
   /* Run tests in files in parallel */
@@ -65,7 +65,7 @@ export default defineConfig({
   webServer: {
     command: `sh -c ${JSON.stringify(startServerCommand)}`,
     url: playwrightBaseUrl,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
+    reuseExistingServer: false,
+    timeout: 300 * 1000,
   },
 });

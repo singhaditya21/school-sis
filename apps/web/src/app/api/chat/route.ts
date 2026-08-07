@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireApiAuth } from '@/lib/auth/api';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
 import { agentUnavailableResponse, forwardAgentRequest } from '@/lib/agents/client';
+import { consumeRateLimit } from '@/lib/auth/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +42,15 @@ export async function POST(req: Request) {
       'TEACHER',
     ]);
     if (auth.ok === false) return auth.response;
+
+    const limitError = await consumeRateLimit(`${auth.context.tenantId}:${auth.context.userId}`, {
+      scope: 'ai_chat',
+      maxAttempts: 20,
+      degradedMaxAttempts: 1,
+      endpointClass: 'ai',
+      message: 'AI request limit reached. Please try again later.',
+    });
+    if (limitError) return NextResponse.json({ error: limitError }, { status: 429 });
 
     const json = await readTenantScopedJson<Record<string, unknown>>(req, auth.context.tenantId);
     if (json.ok === false) return json.response;

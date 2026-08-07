@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { pool } from '@/lib/db';
-import { recordIntegrationAudit } from '@/lib/integrations/api-platform';
+import { recordIntegrationAudit, runWithIntegrationTenant } from '@/lib/integrations/api-platform';
 import {
     authenticateScimRequest,
     getScimUserById,
@@ -186,6 +186,8 @@ export async function GET(request: Request, { params }: RouteContext) {
     const auth = await authenticateScimRequest(request);
     if (auth.ok === false) return auth.response;
 
+    return runWithIntegrationTenant(auth.context, async () => {
+
     const { id } = await params;
     if (!isValidUuid(id)) return scimError('Invalid user ID.', 400);
 
@@ -201,16 +203,19 @@ export async function GET(request: Request, { params }: RouteContext) {
         context: auth.context,
         statusCode: 200,
         durationMs: Date.now() - startedAt,
-        metadata: { userId: id, mode: 'mock' },
+        metadata: { userId: id },
     });
 
     return NextResponse.json(toScimUser(user, request));
+    });
 }
 
 export async function PATCH(request: Request, { params }: RouteContext) {
     const startedAt = Date.now();
     const auth = await authenticateScimRequest(request);
     if (auth.ok === false) return auth.response;
+
+    return runWithIntegrationTenant(auth.context, async () => {
 
     const { id } = await params;
     if (!isValidUuid(id)) return scimError('Invalid user ID.', 400);
@@ -256,16 +261,19 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         context: auth.context,
         statusCode: 200,
         durationMs: Date.now() - startedAt,
-        metadata: { userId: id, fields: Object.keys(updateResult.updates), mode: 'mock' },
+        metadata: { userId: id, fields: Object.keys(updateResult.updates) },
     });
 
     return NextResponse.json(toScimUser(updated, request));
+    });
 }
 
 export async function DELETE(request: Request, { params }: RouteContext) {
     const startedAt = Date.now();
     const auth = await authenticateScimRequest(request);
     if (auth.ok === false) return auth.response;
+
+    return runWithIntegrationTenant(auth.context, async () => {
 
     const { id } = await params;
     if (!isValidUuid(id)) return scimError('Invalid user ID.', 400);
@@ -282,8 +290,9 @@ export async function DELETE(request: Request, { params }: RouteContext) {
         context: auth.context,
         statusCode: 204,
         durationMs: Date.now() - startedAt,
-        metadata: { userId: id, mode: 'mock' },
+        metadata: { userId: id },
     });
 
     return new NextResponse(null, { status: 204 });
+    });
 }

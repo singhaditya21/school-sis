@@ -32,6 +32,14 @@ export type SessionData = {
         startedAt: string;
         expiresAt: string;
     };
+    ltiLaunch?: {
+        issuer: string;
+        deploymentId: string;
+        courseId: string;
+        courseTitle?: string;
+        courseLabel?: string;
+        launchedAt: string;
+    };
 };
 
 export const MFA_REQUIRED_ROLE_NAMES = [

@@ -173,20 +173,14 @@ export const API_ACCESS_POLICIES = [
     {
         prefix: '/api/lti',
         boundary: 'integration',
-        description: 'LTI integration endpoint.',
-        expectedGuardSnippets: ['authenticateIntegrationRequest'],
+        description: 'LTI 1.3 OIDC login and verified launch endpoints.',
+        expectedGuardSnippets: ['@/lib/integrations/lti'],
     },
     {
         prefix: '/api/metrics',
         boundary: 'service-bearer',
         description: 'Metrics scrape endpoint.',
         expectedGuardSnippets: ['requireBearerServiceAuth'],
-    },
-    {
-        prefix: '/api/mock',
-        boundary: 'mock',
-        description: 'Mock data endpoint, disabled by default in production.',
-        expectedGuardSnippets: ['ENABLE_MOCK_API', 'requireBearerServiceAuth'],
     },
     {
         prefix: '/api/notifications',
@@ -247,6 +241,12 @@ export const API_ACCESS_POLICIES = [
         boundary: 'integration',
         description: 'SCIM integration API.',
         expectedGuardSnippets: ['authenticateScimRequest'],
+    },
+    {
+        prefix: '/api/security/csp-report',
+        boundary: 'public-rate-limited',
+        description: 'Browser Content Security Policy violation reports.',
+        expectedGuardSnippets: ['consumeRateLimit'],
     },
     {
         prefix: '/api/sre/incidents/[incidentId]',

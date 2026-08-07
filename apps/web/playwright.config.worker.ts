@@ -1,6 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 import { ensurePlaywrightTestEnvironment } from './e2e/test-environment';
 
+const workerServerCommand = [
+  'pnpm exec tsx e2e/prepare-test-environment.ts worker &&',
+  'node --env-file=.env.test.worker ./node_modules/next/dist/bin/next start -p 3001',
+].join(' ');
+
 ensurePlaywrightTestEnvironment({
   envFileName: '.env.test.worker',
   defaultDatabaseName: 'school_sis_test_worker',
@@ -10,7 +15,6 @@ ensurePlaywrightTestEnvironment({
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  globalSetup: require.resolve('./e2e/global-setup-worker'),
   globalTeardown: require.resolve('./e2e/global-teardown-worker'),
   testDir: './e2e',
   /* Run tests in files in parallel */
@@ -47,9 +51,9 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'node --env-file=.env.test.worker ./node_modules/next/dist/bin/next start -p 3001',
+    command: `sh -c ${JSON.stringify(workerServerCommand)}`,
     url: 'http://localhost:3001',
     reuseExistingServer: false,
-    timeout: 120 * 1000,
+    timeout: 300 * 1000,
   },
 });

@@ -1,3 +1,5 @@
+import { assertProductionMockModesDisabled } from '@/lib/integrations/runtime-mode';
+
 type EnvIssue = {
     name: string;
     message: string;
@@ -52,7 +54,45 @@ function validateDatabaseUrlShape() {
     }
 }
 
+function validateRateLimitConfiguration(): EnvIssue[] {
+    const issues: EnvIssue[] = [];
+    const backend = process.env.RATE_LIMIT_BACKEND;
+    const redisUrl = Boolean(process.env.UPSTASH_REDIS_REST_URL);
+    const redisToken = Boolean(process.env.UPSTASH_REDIS_REST_TOKEN);
+
+    if (backend && !['redis', 'postgres', 'memory'].includes(backend)) {
+        issues.push({ name: 'RATE_LIMIT_BACKEND', message: 'RATE_LIMIT_BACKEND must be redis, postgres, or memory.' });
+    }
+    if (redisUrl !== redisToken) {
+        issues.push({
+            name: 'UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN',
+            message: 'Upstash rate limiting requires both UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.',
+        });
+    }
+    if (backend === 'redis' && (!redisUrl || !redisToken)) {
+        issues.push({
+            name: 'RATE_LIMIT_BACKEND',
+            message: 'RATE_LIMIT_BACKEND=redis requires complete Upstash credentials.',
+        });
+    }
+    if (process.env.NODE_ENV === 'production' && backend !== 'redis' && backend !== 'postgres') {
+        issues.push({
+            name: 'RATE_LIMIT_BACKEND',
+            message: 'Production requires explicit RATE_LIMIT_BACKEND=redis or RATE_LIMIT_BACKEND=postgres.',
+        });
+    }
+    if (process.env.NODE_ENV === 'production' && process.env.DISABLE_RATE_LIMIT === 'true') {
+        issues.push({
+            name: 'DISABLE_RATE_LIMIT',
+            message: 'DISABLE_RATE_LIMIT=true is not permitted in production.',
+        });
+    }
+
+    return issues;
+}
+
 export function validateSecurityEnvironment() {
+    assertProductionMockModesDisabled();
     if (isBuildPhase()) return;
 
     const issues = [
@@ -60,6 +100,7 @@ export function validateSecurityEnvironment() {
         requireSecret('SESSION_SECRET'),
         requireOneOf(['PII_ENCRYPTION_KEY', 'ENCRYPTION_KEY']),
     ].filter(Boolean) as EnvIssue[];
+    issues.push(...validateRateLimitConfiguration());
 
     if (issues.length > 0) {
         throw new Error(

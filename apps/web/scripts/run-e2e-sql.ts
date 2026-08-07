@@ -1,6 +1,7 @@
 import postgres from 'postgres';
 import * as fs from 'fs';
 import * as path from 'path';
+import { resolveDatabaseConnectionOptions } from '../../../packages/api/src/db/ssl';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -19,7 +20,11 @@ async function run() {
     }
 
     const sqlContent = fs.readFileSync(sqlFilePath, 'utf8');
-    const client = postgres(connectionString, { max: 1 });
+    const databaseOptions = resolveDatabaseConnectionOptions(connectionString);
+    const client = postgres(databaseOptions.connectionString, {
+        max: 1,
+        ...(databaseOptions.ssl ? { ssl: databaseOptions.ssl } : {}),
+    });
 
     try {
         // Run the statements using unsafe which supports multi-statement queries

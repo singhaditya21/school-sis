@@ -1,13 +1,14 @@
 /**
  * SMS Provider — mock + MSG91 + Twilio implementations.
  * 
- * Set SMS_PROVIDER env var to 'mock' (default), 'msg91', or 'twilio'.
+ * Set SMS_PROVIDER to 'msg91' or 'twilio'. The 'mock' provider is test/dev-only.
  * MSG91: Set MSG91_AUTH_KEY
  * Twilio: Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER
  */
 
 import type { ProviderResult } from './index';
 import { logger } from '@/lib/observability/logger';
+import { mockRuntimeIsAllowed, notificationProviderForChannel } from '@/lib/integrations/runtime-mode';
 
 // ─── Interface ───────────────────────────────────────────────
 
@@ -75,7 +76,10 @@ class Msg91Provider implements SmsProvider {
             }
 
             const data = await res.json();
-            return { success: true, data: { messageId: data.request_id || `msg91_${Date.now()}` } };
+            if (typeof data.request_id !== 'string' || !data.request_id.trim()) {
+                return { success: false, error: 'MSG91 response did not include a request_id.' };
+            }
+            return { success: true, data: { messageId: data.request_id } };
         } catch (err: unknown) {
             return { success: false, error: (err as Error).message };
         }
@@ -88,7 +92,11 @@ class Msg91Provider implements SmsProvider {
             const result = await this.send(msg.to, msg.message);
             result.success ? sent++ : failed++;
         }
-        return { success: true, data: { sent, failed } };
+        return {
+            success: failed === 0,
+            data: { sent, failed },
+            error: failed > 0 ? `${failed} SMS message(s) failed.` : undefined,
+        };
     }
 }
 
@@ -132,6 +140,9 @@ class TwilioProvider implements SmsProvider {
             }
 
             const data = await res.json();
+            if (typeof data.sid !== 'string' || !data.sid.trim()) {
+                return { success: false, error: 'Twilio response did not include a message SID.' };
+            }
             return { success: true, data: { messageId: data.sid } };
         } catch (err: unknown) {
             return { success: false, error: (err as Error).message };
@@ -145,7 +156,11 @@ class TwilioProvider implements SmsProvider {
             const result = await this.send(msg.to, msg.message);
             result.success ? sent++ : failed++;
         }
-        return { success: true, data: { sent, failed } };
+        return {
+            success: failed === 0,
+            data: { sent, failed },
+            error: failed > 0 ? `${failed} SMS message(s) failed.` : undefined,
+        };
     }
 }
 
@@ -155,7 +170,7 @@ let _instance: SmsProvider | null = null;
 
 export function getSmsProvider(): SmsProvider {
     if (!_instance) {
-        const provider = process.env.SMS_PROVIDER || 'mock';
+        const provider = notificationProviderForChannel('SMS');
         switch (provider) {
             case 'msg91':
                 _instance = new Msg91Provider();
@@ -164,9 +179,15 @@ export function getSmsProvider(): SmsProvider {
                 _instance = new TwilioProvider();
                 break;
             case 'mock':
-            default:
+                if (!mockRuntimeIsAllowed()) {
+                    throw new Error('Mock SMS delivery is disabled in this runtime.');
+                }
                 _instance = new MockSmsProvider();
                 break;
+            case 'unconfigured':
+                throw new Error('SMS provider is not configured.');
+            default:
+                throw new Error(`Unsupported SMS provider: ${provider}.`);
         }
         console.log(`[SMS] Using ${provider} provider`);
     }

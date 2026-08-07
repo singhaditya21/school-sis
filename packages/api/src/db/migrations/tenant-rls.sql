@@ -724,11 +724,39 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR (
+                    tenant_id = app_private.current_tenant_id()
+                    AND EXISTS (
+                        SELECT 1
+                        FROM public.metadata_objects mo
+                        WHERE mo.id = metadata_records.object_id
+                          AND (
+                              mo.tenant_id = app_private.current_tenant_id()
+                              OR (
+                                  mo.tenant_id IS NULL
+                                  AND COALESCE(mo.is_custom, false) = false
+                              )
+                          )
+                    )
+                )
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR (
+                    tenant_id = app_private.current_tenant_id()
+                    AND EXISTS (
+                        SELECT 1
+                        FROM public.metadata_objects mo
+                        WHERE mo.id = metadata_records.object_id
+                          AND (
+                              mo.tenant_id = app_private.current_tenant_id()
+                              OR (
+                                  mo.tenant_id IS NULL
+                                  AND COALESCE(mo.is_custom, false) = false
+                              )
+                          )
+                    )
+                )
             );
     END IF;
 
@@ -743,8 +771,19 @@ BEGIN
                 OR EXISTS (
                     SELECT 1
                     FROM public.metadata_records mr
+                    JOIN public.metadata_fields mf
+                      ON mf.id = metadata_values.field_id
+                     AND mf.object_id = mr.object_id
+                    JOIN public.metadata_objects mo ON mo.id = mr.object_id
                     WHERE mr.id = metadata_values.record_id
                       AND mr.tenant_id = app_private.current_tenant_id()
+                      AND (
+                          mo.tenant_id = app_private.current_tenant_id()
+                          OR (
+                              mo.tenant_id IS NULL
+                              AND COALESCE(mo.is_custom, false) = false
+                          )
+                      )
                 )
             )
             WITH CHECK (
@@ -752,8 +791,19 @@ BEGIN
                 OR EXISTS (
                     SELECT 1
                     FROM public.metadata_records mr
+                    JOIN public.metadata_fields mf
+                      ON mf.id = metadata_values.field_id
+                     AND mf.object_id = mr.object_id
+                    JOIN public.metadata_objects mo ON mo.id = mr.object_id
                     WHERE mr.id = metadata_values.record_id
                       AND mr.tenant_id = app_private.current_tenant_id()
+                      AND (
+                          mo.tenant_id = app_private.current_tenant_id()
+                          OR (
+                              mo.tenant_id IS NULL
+                              AND COALESCE(mo.is_custom, false) = false
+                          )
+                      )
                 )
             );
     END IF;
@@ -938,6 +988,18 @@ BEGIN
         ALTER TABLE public.marketing_leads FORCE ROW LEVEL SECURITY;
         DROP POLICY IF EXISTS marketing_leads_platform_only ON public.marketing_leads;
         CREATE POLICY marketing_leads_platform_only ON public.marketing_leads
+            AS PERMISSIVE FOR ALL
+            USING (app_private.rls_bypass())
+            WITH CHECK (app_private.rls_bypass());
+    END IF;
+
+    -- Rate-limit keys can contain hashed public identifiers and span tenants.
+    -- They are operational platform state, never tenant-queryable application data.
+    IF app_private.table_exists('rate_limit_buckets') THEN
+        ALTER TABLE public.rate_limit_buckets ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.rate_limit_buckets FORCE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS rate_limit_buckets_platform_only ON public.rate_limit_buckets;
+        CREATE POLICY rate_limit_buckets_platform_only ON public.rate_limit_buckets
             AS PERMISSIVE FOR ALL
             USING (app_private.rls_bypass())
             WITH CHECK (app_private.rls_bypass());

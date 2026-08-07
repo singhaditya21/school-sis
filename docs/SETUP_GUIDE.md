@@ -538,7 +538,7 @@ Once the app is running:
 
 2. **Test Parent Portal**:
    - View fees for child
-   - Initiate payment (mock gateway)
+   - Initiate payment through the configured hosted payment provider
    - Download receipt
 
 3. **Check Admissions**:

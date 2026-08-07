@@ -1,6 +1,5 @@
 import { getIronSession } from 'iron-session';
 import { cookies } from 'next/headers';
-import { enterRlsBypassContext, enterTenantContext } from '@/lib/db';
 import { isSessionDataExpired, sessionOptions, type SessionData } from './session-options';
 
 export { sessionOptions };
@@ -38,6 +37,7 @@ function resetSessionData(session: SessionData): void {
     session.mfaVerified = false;
     session.ssoState = undefined;
     session.impersonation = undefined;
+    session.ltiLaunch = undefined;
 }
 
 export async function getSession() {
@@ -50,11 +50,6 @@ export async function getSession() {
         resetSessionData(session);
     } else {
         session.lastSeenAt = new Date().toISOString();
-        if (session.role === 'PLATFORM_ADMIN') {
-            enterRlsBypassContext();
-        } else if (session.tenantId) {
-            enterTenantContext(session.tenantId);
-        }
     }
 
     return session;

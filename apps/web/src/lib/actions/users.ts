@@ -2,7 +2,7 @@
 
 import { randomBytes } from 'crypto';
 import { hash } from 'bcryptjs';
-import { pool, runWithRlsBypass } from '@/lib/db';
+import { pool, runWithTenantContext } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 
 export interface AdminUser {
@@ -66,7 +66,7 @@ export async function listUsers(): Promise<Result<AdminUser[]>> {
     const auth = await requireUserAdmin();
     if (!auth.ok) return { success: false, error: auth.error };
     try {
-        const rows = await runWithRlsBypass(async () => {
+        const rows = await runWithTenantContext(auth.tenantId, async () => {
             const res = await pool.query<UserRow>(
                 `SELECT ${SELECT_COLS} FROM users WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 500`,
                 [auth.tenantId],
@@ -98,7 +98,7 @@ export async function createUser(input: {
 
     try {
         const passwordHash = await hash(input.password, 12);
-        const row = await runWithRlsBypass(async () => {
+        const row = await runWithTenantContext(auth.tenantId, async () => {
             const existing = await pool.query('SELECT 1 FROM users WHERE tenant_id = $1 AND email = $2', [auth.tenantId, email]);
             if (existing.rowCount) throw new Error('A user with that email already exists.');
             const res = await pool.query<UserRow>(
@@ -120,7 +120,7 @@ export async function setUserActive(userId: string, active: boolean): Promise<Re
     const auth = await requireUserAdmin();
     if (!auth.ok) return { success: false, error: auth.error };
     try {
-        const row = await runWithRlsBypass(async () => {
+        const row = await runWithTenantContext(auth.tenantId, async () => {
             const res = await pool.query<UserRow>(
                 `UPDATE users SET is_active = $1, updated_at = NOW()
                  WHERE id = $2 AND tenant_id = $3 RETURNING ${SELECT_COLS}`,
@@ -142,7 +142,7 @@ export async function resetUserPassword(userId: string): Promise<Result<{ tempor
     try {
         const temporaryPassword = randomBytes(9).toString('base64url');
         const passwordHash = await hash(temporaryPassword, 12);
-        const updated = await runWithRlsBypass(async () => {
+        const updated = await runWithTenantContext(auth.tenantId, async () => {
             const res = await pool.query(
                 `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3`,
                 [passwordHash, userId, auth.tenantId],

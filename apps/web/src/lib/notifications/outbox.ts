@@ -1,4 +1,4 @@
-import { pool, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
 import type { QueryResult } from 'pg';
 import { getEmailProvider } from '@/lib/providers/email';
 import { getSmsProvider } from '@/lib/providers/sms';
@@ -6,6 +6,10 @@ import { NotificationService } from '@/lib/services/notifications';
 import { enqueueTenantJob } from '@/lib/worker/client';
 import { isValidTenantId } from '@/lib/tenant/isolation';
 import { logger, recordSreIncident } from '@/lib/observability/logger';
+import {
+  mockRuntimeIsAllowed,
+  notificationProviderForChannel,
+} from '@/lib/integrations/runtime-mode';
 
 export type NotificationChannel = 'EMAIL' | 'SMS' | 'WHATSAPP' | 'PUSH' | 'IN_APP';
 export type NotificationStatus =
@@ -75,20 +79,26 @@ function scheduledDate(value: Date | string | undefined): Date {
   return parsed;
 }
 
-function providerForChannel(channel: NotificationChannel): string {
-  switch (channel) {
-    case 'EMAIL':
-      return process.env.EMAIL_PROVIDER || 'mock';
-    case 'SMS':
-      return process.env.SMS_PROVIDER || 'mock';
-    case 'WHATSAPP':
-      return process.env.WHATSAPP_PROVIDER || 'mock';
-    case 'PUSH':
-      return process.env.PUSH_PROVIDER || 'mock';
-    case 'IN_APP':
-      return 'database';
-    default:
-      return 'mock';
+export function providerForChannel(channel: NotificationChannel): string {
+  return notificationProviderForChannel(channel);
+}
+
+function assertSupportedProvider(channel: NotificationChannel, provider: string): void {
+  const supported: Record<NotificationChannel, readonly string[]> = {
+    EMAIL: ['smtp', 'resend', 'mock'],
+    SMS: ['msg91', 'twilio', 'mock'],
+    WHATSAPP: ['mock'],
+    PUSH: ['firebase', 'mock'],
+    IN_APP: ['database'],
+  };
+  if (provider === 'unconfigured') {
+    throw new Error(`${channel} notification provider is not configured.`);
+  }
+  if (!supported[channel].includes(provider)) {
+    throw new Error(`${channel} notification provider '${provider}' is not supported.`);
+  }
+  if (provider === 'mock' && !mockRuntimeIsAllowed()) {
+    throw new Error(`${channel} mock notification provider is disabled in this runtime.`);
   }
 }
 
@@ -184,6 +194,7 @@ async function recordDeliveryEvent(params: {
 }
 
 async function sendViaProvider(row: NotificationRow): Promise<ProviderSendResult> {
+  assertSupportedProvider(row.channel, providerForChannel(row.channel));
   switch (row.channel) {
     case 'EMAIL': {
       const provider = getEmailProvider();
@@ -212,8 +223,15 @@ async function sendViaProvider(row: NotificationRow): Promise<ProviderSendResult
       };
     }
     case 'WHATSAPP': {
-      const providerMessageId = `mock_whatsapp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      logger.info('notification.mock_whatsapp_sent', 'Mock WhatsApp notification accepted', {
+      const provider = providerForChannel(row.channel);
+      if (provider !== 'mock') {
+        return {
+          success: false,
+          provider,
+          error: 'No live WhatsApp provider adapter is installed.',
+        };
+      }
+      logger.info('notification.dev_whatsapp_accepted', 'Development WhatsApp notification accepted', {
         tenantId: row.tenantId,
         source: 'notifications',
         entityType: 'notification_outbox',
@@ -222,14 +240,14 @@ async function sendViaProvider(row: NotificationRow): Promise<ProviderSendResult
       });
       return {
         success: true,
-        provider: providerForChannel(row.channel),
-        providerMessageId,
+        provider,
         status: 'SENT',
-        metadata: { mock: true },
+        metadata: { developmentOnly: true },
       };
     }
     case 'PUSH': {
-      if (process.env.PUSH_PROVIDER === 'firebase') {
+      const provider = providerForChannel(row.channel);
+      if (provider === 'firebase') {
         const response = await NotificationService.sendParentAlert(
           row.recipient,
           row.subject || 'School notification',
@@ -243,9 +261,14 @@ async function sendViaProvider(row: NotificationRow): Promise<ProviderSendResult
           status: 'SENT',
         };
       }
-
-      const providerMessageId = `mock_push_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      logger.info('notification.mock_push_sent', 'Mock push notification accepted', {
+      if (provider !== 'mock') {
+        return {
+          success: false,
+          provider,
+          error: 'Push notification provider is not configured.',
+        };
+      }
+      logger.info('notification.dev_push_accepted', 'Development push notification accepted', {
         tenantId: row.tenantId,
         source: 'notifications',
         entityType: 'notification_outbox',
@@ -254,10 +277,9 @@ async function sendViaProvider(row: NotificationRow): Promise<ProviderSendResult
       });
       return {
         success: true,
-        provider: providerForChannel(row.channel),
-        providerMessageId,
+        provider,
         status: 'SENT',
-        metadata: { mock: true },
+        metadata: { developmentOnly: true },
       };
     }
     case 'IN_APP': {
@@ -272,7 +294,7 @@ async function sendViaProvider(row: NotificationRow): Promise<ProviderSendResult
     default:
       return {
         success: false,
-        provider: 'mock',
+        provider: 'unconfigured',
         error: `Unsupported notification channel: ${row.channel}`,
       };
   }
@@ -293,6 +315,7 @@ export async function enqueueNotification(
 
   const scheduledFor = scheduledDate(input.scheduledFor);
   const provider = providerForChannel(input.channel);
+  assertSupportedProvider(input.channel, provider);
 
   return runWithTenantContext(input.tenantId, async () => {
     const existing = await findExistingNotification(input.tenantId, input.idempotencyKey);
@@ -579,7 +602,9 @@ export async function processDueNotifications(limit = 25): Promise<{
   succeeded: number;
   failed: number;
 }> {
-  const result = await runWithRlsBypass<QueryResult<{ id: string; tenantId: string }>>(() => pool.query(
+  const result = await runWithRlsBypass<QueryResult<{ id: string; tenantId: string }>>(
+    RLS_BYPASS_JUSTIFICATIONS.NOTIFICATION_SWEEP,
+    () => pool.query(
     `SELECT id, tenant_id AS "tenantId"
      FROM notification_outbox
      WHERE status IN ('PENDING', 'QUEUED', 'FAILED')
@@ -587,7 +612,8 @@ export async function processDueNotifications(limit = 25): Promise<{
      ORDER BY next_attempt_at ASC, created_at ASC
      LIMIT $1`,
     [limit],
-  ));
+    ),
+  );
   const rows = result.rows;
 
   let succeeded = 0;

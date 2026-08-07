@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { Pool } from 'pg';
+import { resolveDatabaseConnectionOptions } from '../../../packages/api/src/db/ssl';
 
 const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
 
@@ -14,10 +15,8 @@ const migrationPath = fileURLToPath(
 );
 
 const sql = readFileSync(migrationPath, 'utf8');
-const isLocalDatabase = /localhost|127\.0\.0\.1/.test(connectionString);
 const pool = new Pool({
-    connectionString,
-    ssl: isLocalDatabase ? undefined : { rejectUnauthorized: false },
+    ...resolveDatabaseConnectionOptions(connectionString),
 });
 
 async function main() {

@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { Client } from 'pg';
 import path from 'path';
 import fs from 'fs';
@@ -21,9 +21,8 @@ export default async function globalSetup() {
     await enableVectorExtension(environment);
     console.log(`📝 Wrote test environment variables to ${path.basename(environment.envFilePath)}`);
 
-    console.log('🏗️  Pushing schema to test database...');
-    // Run Drizzle push to create the schema
-    execSync('npx drizzle-kit push --force', { 
+    console.log('🏗️  Applying migrations to test database...');
+    execFileSync('pnpm', ['exec', 'drizzle-kit', 'migrate'], {
         env: { ...process.env, DATABASE_URL: environment.databaseUrl },
         stdio: 'inherit',
         cwd: path.resolve(__dirname, '..')
@@ -57,14 +56,14 @@ export default async function globalSetup() {
 
     console.log('🌱 Seeding test database...');
     // Run the standard seeder (which seeds tenants, users, students, etc.)
-    execSync('npx tsx scripts/seed.ts', {
+    execFileSync('pnpm', ['exec', 'tsx', 'scripts/seed.ts'], {
         env: { ...process.env, DATABASE_URL: environment.databaseUrl },
         stdio: 'inherit',
         cwd: path.resolve(__dirname, '..')
     });
 
     console.log('👤 Seeding E2E test users...');
-    execSync('npx tsx scripts/run-e2e-sql.ts', {
+    execFileSync('pnpm', ['exec', 'tsx', 'scripts/run-e2e-sql.ts'], {
         env: { ...process.env, DATABASE_URL: environment.databaseUrl },
         stdio: 'inherit',
         cwd: path.resolve(__dirname, '..')

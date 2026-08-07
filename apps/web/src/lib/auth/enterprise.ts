@@ -1,4 +1,4 @@
-import { pool, runWithRlsBypass } from '@/lib/db';
+import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import type { QueryResult } from 'pg';
 import { shouldRequireMfaEnrollment } from './identity';
 
@@ -201,7 +201,9 @@ async function findExistingIdentityUser(
     const tenantFilter = tenantId ? 'AND u.tenant_id = $2' : '';
     if (tenantId) values.push(tenantId);
 
-    const result = await runWithRlsBypass<QueryResult<IdentityUserRow>>(() => pool.query<IdentityUserRow>(
+    const result = await runWithRlsBypass<QueryResult<IdentityUserRow>>(
+        RLS_BYPASS_JUSTIFICATIONS.ENTERPRISE_IDENTITY_LOOKUP,
+        () => pool.query<IdentityUserRow>(
         `SELECT
             u.id,
             u.tenant_id AS "tenantId",
@@ -225,7 +227,8 @@ async function findExistingIdentityUser(
          ${tenantFilter}
          LIMIT 2`,
         values,
-    ));
+        ),
+    );
     const rows = result.rows;
 
     if (rows.length === 0) {

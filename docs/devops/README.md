@@ -60,7 +60,8 @@ Rules:
 
 - Use `DATABASE_URL` for app runtime.
 - Use `DIRECT_URL` for migrations, backups, and restore drills.
-- Include `sslmode=require` or `sslmode=verify-full`.
+- Runtime RLS context uses `SET LOCAL` in the same transaction as each protected query, so `DATABASE_URL` supports direct or transaction-pooled connections.
+- Set `DATABASE_SSL_MODE=verify-full` (the remote default). Use `require` only as a documented provider compatibility waiver.
 - Do not use Neon pooler URLs for `DIRECT_URL`.
 
 ## Environment Variables
@@ -70,21 +71,22 @@ Use `apps/web/.env.example` as the canonical template.
 Minimum production variables:
 
 ```env
-DATABASE_URL=postgresql://...neon.tech/db?sslmode=require
-DIRECT_URL=postgresql://...neon.tech/db?sslmode=require
+DATABASE_URL=postgresql://...neon.tech/db
+DIRECT_URL=postgresql://...neon.tech/db
+DATABASE_SSL_MODE=verify-full
 SESSION_SECRET=replace_with_at_least_32_random_characters
 PII_ENCRYPTION_KEY=replace_with_at_least_32_random_characters
 NEXT_PUBLIC_APP_URL=https://school-sis-web.vercel.app
-INTEGRATIONS_MODE=mock
-PAYMENT_PROVIDER_MODE=mock
+INTEGRATIONS_MODE=live
 JOB_QUEUE_MODE=database
 JOB_DISPATCH_SECRET=replace_with_at_least_32_random_characters
 METRICS_TOKEN=replace_with_at_least_32_random_characters
-EMAIL_PROVIDER=mock
-SMS_PROVIDER=mock
-WHATSAPP_PROVIDER=mock
-PUSH_PROVIDER=mock
+RATE_LIMIT_BACKEND=postgres
+RATE_LIMIT_MEMORY_MAX_ENTRIES=10000
+CSP_ENFORCE=true
 ```
+
+Leave external notification channels and online payments unconfigured until real provider credentials are present. Never set an integration or notification provider to `mock` in production. Production enforces the nonce CSP by default; `CSP_ENFORCE=false` is only a temporary rollback while investigating `/api/security/csp-report`, and must be restored to `true` after remediation. Import the rate-limit dashboard and alert rules from `ops/observability` when the production monitoring target is selected.
 
 Validate the production contract:
 

@@ -468,11 +468,15 @@ export async function triggerStageNotification(leadId: string, newStage: string)
 
     const { getEmailProvider } = await import('@/lib/providers/email');
     const emailProvider = getEmailProvider();
-    await emailProvider.send({
+    const result = await emailProvider.send({
         to: lead.parentEmail,
         subject: template.subject,
         html: template.body,
     });
+
+    if (!result.success) {
+        return { success: false, sent: false, error: result.error || 'Email provider rejected delivery.' };
+    }
 
     return { success: true, sent: true };
 }

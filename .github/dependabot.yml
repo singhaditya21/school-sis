@@ -9,11 +9,9 @@ updates:
       time: "05:00"
       timezone: Asia/Kolkata
     open-pull-requests-limit: 5
-    groups:
-      production-dependencies:
-        dependency-type: production
-      development-dependencies:
-        dependency-type: development
+    # Keep npm upgrades independently reviewable. The previous production and
+    # development mega-groups produced 19- and 43-package PRs whose CI,
+    # Playwright, and Vercel failures could not be attributed safely.
 
   - package-ecosystem: github-actions
     directory: /

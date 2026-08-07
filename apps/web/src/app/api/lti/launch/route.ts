@@ -1,149 +1,184 @@
 import { NextResponse } from 'next/server';
-import { ROLE_GROUPS } from '@/lib/auth/api';
+import { pool, runWithTenantContext } from '@/lib/db';
+import { getSession } from '@/lib/auth/session';
+import { establishSession } from '@/lib/auth/identity';
 import {
-    authenticateIntegrationRequest,
-    ensureMockIntegrationConnection,
+    ensureIntegrationConnection,
     integrationApiHeaders,
     integrationJson,
     recordIntegrationAudit,
 } from '@/lib/integrations/api-platform';
+import {
+    LTI_STATE_COOKIE_NAME,
+    localRoleForLtiLaunch,
+    verifyLtiLaunchToken,
+} from '@/lib/integrations/lti';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-type MockLtiClaims = {
-    sub: string;
-    name?: string;
-    email?: string;
-    roles?: string[];
-    context?: {
-        id: string;
-        title?: string;
-        label?: string;
-    };
+type LocalLtiUser = {
+    id: string;
+    email: string;
+    role: string;
+    firstName: string;
+    lastName: string;
+    mfaEnabled: boolean;
+    tenantCode: string;
+    tenantDomain: string | null;
+    tenantIsActive: boolean;
+    companyId: string | null;
+    companyIsActive: boolean | null;
+    subscriptionTier: string | null;
+    activeModules: string[] | null;
 };
+
+function stateCookieFrom(request: Request): string {
+    const cookieHeader = request.headers.get('cookie') || '';
+    for (const segment of cookieHeader.split(';')) {
+        const separator = segment.indexOf('=');
+        if (separator < 0) continue;
+        const name = segment.slice(0, separator).trim();
+        if (name === LTI_STATE_COOKIE_NAME) return segment.slice(separator + 1).trim();
+    }
+    return '';
+}
+
+function expireStateCookie(response: NextResponse): NextResponse {
+    response.cookies.set({
+        name: LTI_STATE_COOKIE_NAME,
+        value: '',
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        path: '/',
+        expires: new Date(0),
+        maxAge: 0,
+    });
+    return response;
+}
 
 export async function POST(request: Request) {
     const startedAt = Date.now();
-    const auth = await authenticateIntegrationRequest(request, {
-        provider: 'LTI',
-        scopes: ['lti:launch'],
-        allowSession: true,
-        sessionRoles: ROLE_GROUPS.staff,
-    });
-    if (auth.ok === false) return auth.response;
 
     try {
-        await ensureMockIntegrationConnection({
-            tenantId: auth.context.tenantId,
-            provider: 'LTI',
-            scopes: ['lti:launch'],
-            userId: auth.context.userId,
-        });
-
         const formData = await request.formData();
-        const token = String(formData.get('id_token') || formData.get('mock_token') || '').trim();
-        const state = String(formData.get('state') || '').trim();
+        const idToken = String(formData.get('id_token') || '').trim();
+        const encodedState = String(formData.get('state') || '').trim();
+        const stateCookieValue = stateCookieFrom(request);
 
-        if (!token) {
-            return integrationJson({ error: 'Missing mock LTI token' }, { status: 400 });
+        if (!idToken || !encodedState || !stateCookieValue) {
+            return expireStateCookie(integrationJson({
+                error: 'Missing signed LTI id_token, state, or browser binding.',
+            }, { status: 400 }));
         }
 
-        const claims = parseMockLtiToken(token);
-        if (!claims.context?.id) {
-            return integrationJson({ error: 'Mock LTI token must include context.id' }, { status: 400 });
-        }
+        const launch = await verifyLtiLaunchToken(idToken, encodedState, stateCookieValue);
+        const expectedLocalRole = localRoleForLtiLaunch(launch.roles);
 
-        const roles = claims.roles || [];
-        const isInstructor = roles.some((role) =>
-            role.includes('Instructor') || role.includes('Administrator') || role.includes('ContentDeveloper'),
-        );
+        const localUser = await runWithTenantContext(launch.tenantId, async () => {
+            const result = await pool.query<LocalLtiUser>(
+                `SELECT
+                    u.id::text AS id,
+                    u.email,
+                    u.role::text AS role,
+                    u.first_name AS "firstName",
+                    u.last_name AS "lastName",
+                    u.mfa_enabled AS "mfaEnabled",
+                    t.code AS "tenantCode",
+                    t.domain AS "tenantDomain",
+                    t.is_active AS "tenantIsActive",
+                    c.id::text AS "companyId",
+                    c.is_active AS "companyIsActive",
+                    c.subscription_tier::text AS "subscriptionTier",
+                    c.active_modules AS "activeModules"
+                 FROM users u
+                 INNER JOIN tenants t ON t.id = u.tenant_id
+                 LEFT JOIN companies c ON c.id = t.company_id
+                 WHERE u.tenant_id = $1
+                   AND u.id::text = $2
+                   AND u.is_active = TRUE
+                 LIMIT 1`,
+                [launch.tenantId, launch.subject],
+            );
+            const user = result.rows[0];
+            if (!user || !user.tenantIsActive || (user.companyId && !user.companyIsActive)) {
+                throw new Error('LTI subject is not linked to an active local user.');
+            }
+            if (user.role !== expectedLocalRole) {
+                throw new Error('LTI role does not match the linked local user role.');
+            }
+            if (user.mfaEnabled) {
+                throw new Error('LTI launch cannot satisfy this account\'s MFA requirement.');
+            }
 
-        await recordIntegrationAudit({
-            tenantId: auth.context.tenantId,
-            provider: 'LTI',
-            action: 'lti.launch',
-            status: 'SUCCESS',
-            request,
-            context: auth.context,
-            statusCode: 302,
-            durationMs: Date.now() - startedAt,
-            metadata: {
-                userId: claims.sub,
-                courseId: claims.context.id,
-                role: isInstructor ? 'TEACHER' : 'STUDENT',
-                mode: 'mock',
-            },
+            await ensureIntegrationConnection({
+                tenantId: launch.tenantId,
+                provider: 'LTI',
+                scopes: ['lti:launch'],
+                config: {
+                    issuer: launch.issuer,
+                    clientId: launch.clientId,
+                    deploymentId: launch.deploymentId,
+                },
+            });
+            return user;
         });
 
-        const deepLinkUrl = new URL('/courses/lti-launch', process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
-        deepLinkUrl.searchParams.set('courseId', claims.context.id);
-        deepLinkUrl.searchParams.set('role', isInstructor ? 'TEACHER' : 'STUDENT');
-        deepLinkUrl.searchParams.set('userId', claims.sub);
-        if (claims.context.title) deepLinkUrl.searchParams.set('courseTitle', claims.context.title);
-        if (state) deepLinkUrl.searchParams.set('state', state);
+        const session = await getSession();
+        establishSession(session, {
+            userId: localUser.id,
+            tenantId: launch.tenantId,
+            tenantCode: localUser.tenantCode,
+            tenantDomain: localUser.tenantDomain || undefined,
+            role: localUser.role,
+            email: localUser.email,
+            provider: 'sso',
+            displayName: `${localUser.firstName} ${localUser.lastName}`.trim() || localUser.email,
+            companyId: localUser.companyId || undefined,
+            subscriptionTier: localUser.subscriptionTier || undefined,
+            activeModules: localUser.activeModules || [],
+            mfaEnabled: false,
+            mfaVerified: false,
+        });
+        session.ltiLaunch = {
+            issuer: launch.issuer,
+            deploymentId: launch.deploymentId,
+            courseId: launch.context.id,
+            courseTitle: launch.context.title,
+            courseLabel: launch.context.label,
+            launchedAt: new Date().toISOString(),
+        };
+        await session.save();
+
+        await runWithTenantContext(launch.tenantId, async () => {
+            await recordIntegrationAudit({
+                tenantId: launch.tenantId,
+                provider: 'LTI',
+                action: 'lti.launch',
+                status: 'SUCCESS',
+                request,
+                statusCode: 302,
+                durationMs: Date.now() - startedAt,
+                metadata: {
+                    subject: launch.subject,
+                    courseId: launch.context.id,
+                    role: localUser.role,
+                    issuer: launch.issuer,
+                    deploymentId: launch.deploymentId,
+                },
+            });
+        });
+
+        const deepLinkUrl = new URL('/lti/launch', process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
 
         const response = NextResponse.redirect(deepLinkUrl.toString(), 302);
         for (const [key, value] of Object.entries(integrationApiHeaders())) {
             response.headers.set(key, value);
         }
-        return response;
+        return expireStateCookie(response);
     } catch (error) {
-        const message = error instanceof Error ? error.message : 'Mock LTI launch failed';
-        await recordIntegrationAudit({
-            tenantId: auth.context.tenantId,
-            provider: 'LTI',
-            action: 'lti.launch',
-            status: 'FAILED',
-            request,
-            context: auth.context,
-            statusCode: 400,
-            durationMs: Date.now() - startedAt,
-            error: message,
-        });
-        return integrationJson({ error: message }, { status: 400 });
+        const message = error instanceof Error ? error.message : 'LTI launch verification failed';
+        return expireStateCookie(integrationJson({ error: message }, { status: 400 }));
     }
-}
-
-function parseMockLtiToken(token: string): MockLtiClaims {
-    let raw = token;
-    if (token.startsWith('mock:')) raw = token.slice('mock:'.length);
-
-    try {
-        if (raw.startsWith('{')) return normalizeClaims(JSON.parse(raw));
-        const decoded = Buffer.from(raw, 'base64url').toString('utf8');
-        return normalizeClaims(JSON.parse(decoded));
-    } catch {
-        return normalizeClaims({
-            sub: raw,
-            roles: ['Learner'],
-            context: {
-                id: 'mock-course',
-                title: 'Mock Course',
-            },
-        });
-    }
-}
-
-function normalizeClaims(input: Record<string, unknown>): MockLtiClaims {
-    const context = input.context && typeof input.context === 'object'
-        ? input.context as Record<string, unknown>
-        : input['https://purl.imsglobal.org/spec/lti/claim/context'] as Record<string, unknown> | undefined;
-    const roles = Array.isArray(input.roles)
-        ? input.roles.map(String)
-        : Array.isArray(input['https://purl.imsglobal.org/spec/lti/claim/roles'])
-            ? (input['https://purl.imsglobal.org/spec/lti/claim/roles'] as unknown[]).map(String)
-            : ['Learner'];
-
-    return {
-        sub: String(input.sub || input.userId || 'mock-lti-user'),
-        name: typeof input.name === 'string' ? input.name : undefined,
-        email: typeof input.email === 'string' ? input.email : undefined,
-        roles,
-        context: {
-            id: String(context?.id || 'mock-course'),
-            title: typeof context?.title === 'string' ? context.title : 'Mock Course',
-            label: typeof context?.label === 'string' ? context.label : undefined,
-        },
-    };
 }

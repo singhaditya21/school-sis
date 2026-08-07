@@ -2,12 +2,11 @@ import { z } from 'zod';
 import { pool } from '@/lib/db';
 import { requireApiAuth, ROLE_GROUPS } from '@/lib/auth/api';
 import {
-    ensureMockIntegrationConnection,
     integrationJson,
-    type IntegrationProvider,
     providerFromInput,
     recordIntegrationAudit,
 } from '@/lib/integrations/api-platform';
+import { integrationRuntimeMode } from '@/lib/integrations/runtime-mode';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -23,23 +22,13 @@ const providerScopes: Record<string, string[]> = {
 
 const upsertSchema = z.object({
     provider: z.string().trim(),
-    status: z.enum(['ACTIVE', 'DISABLED', 'ERROR']).default('ACTIVE'),
+    status: z.enum(['PENDING', 'DISABLED']).default('PENDING'),
     config: z.record(z.unknown()).optional(),
 });
 
 export async function GET(request: Request) {
     const auth = await requireApiAuth(ROLE_GROUPS.tenantAdmins);
     if (auth.ok === false) return auth.response;
-
-    for (const [provider, scopes] of Object.entries(providerScopes)) {
-        if (provider === 'PLATFORM') continue;
-        await ensureMockIntegrationConnection({
-            tenantId: auth.context.tenantId,
-            provider: provider as IntegrationProvider,
-            scopes,
-            userId: auth.context.userId,
-        });
-    }
 
     const { rows } = await pool.query(
         `SELECT id,
@@ -66,7 +55,7 @@ export async function GET(request: Request) {
         status: 'SUCCESS',
         request,
         context: { userId: auth.context.userId },
-        statusCode: 200,
+        statusCode: 202,
     });
 
     return integrationJson({ integrations: rows });
@@ -96,14 +85,18 @@ export async function POST(request: Request) {
     }
 
     const scopes = providerScopes[provider] || [];
+    const mode = integrationRuntimeMode();
+    const config = mode === 'MOCK'
+        ? { ...(parsed.data.config || {}), mock: true }
+        : parsed.data.config || {};
     const { rows } = await pool.query(
         `INSERT INTO integration_connections (
             tenant_id, provider, mode, status, config, scopes, created_by, updated_by
          )
-         VALUES ($1, $2, 'MOCK', $3, $4::jsonb, $5::jsonb, $6, $6)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $7)
          ON CONFLICT (tenant_id, provider)
          DO UPDATE SET
-            mode = 'MOCK',
+            mode = EXCLUDED.mode,
             status = EXCLUDED.status,
             config = EXCLUDED.config,
             scopes = EXCLUDED.scopes,
@@ -113,8 +106,9 @@ export async function POST(request: Request) {
         [
             auth.context.tenantId,
             provider,
+            mode,
             parsed.data.status,
-            JSON.stringify({ ...(parsed.data.config || {}), mock: true }),
+            JSON.stringify(config),
             JSON.stringify(scopes),
             auth.context.userId,
         ],
@@ -131,5 +125,10 @@ export async function POST(request: Request) {
         metadata: { status: parsed.data.status },
     });
 
-    return integrationJson({ integration: rows[0] });
+    return integrationJson({
+        integration: rows[0],
+        message: parsed.data.status === 'PENDING'
+            ? 'Configuration saved pending a verified live integration request.'
+            : 'Integration disabled.',
+    }, { status: 202 });
 }

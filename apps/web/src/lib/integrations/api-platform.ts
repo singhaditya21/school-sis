@@ -1,8 +1,9 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import type { QueryResult } from 'pg';
-import { enterTenantContext, pool, runWithRlsBypass } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
 import { requireApiAuth, ROLE_GROUPS, type ApiAuthContext } from '@/lib/auth/api';
+import { integrationRuntimeMode } from '@/lib/integrations/runtime-mode';
 
 export type IntegrationProvider = 'ONEROSTER' | 'SCIM' | 'TALLY' | 'LTI' | 'WEBHOOKS' | 'PLATFORM';
 export type IntegrationDirection = 'INBOUND' | 'OUTBOUND' | 'INTERNAL';
@@ -74,7 +75,6 @@ export function generateIntegrationApiKey(provider: IntegrationProvider): { apiK
 export function integrationApiHeaders(version = 'v1'): HeadersInit {
     return {
         'X-School-SIS-API-Version': version,
-        'X-School-SIS-Integration-Mode': 'mock',
     };
 }
 
@@ -114,7 +114,7 @@ async function authenticateApiKey(
     if (!apiKey) return null;
 
     const keyHash = hashIntegrationApiKey(apiKey);
-    const result = await runWithRlsBypass(() => pool.query<ApiKeyRow>(
+    const result = await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.INTEGRATION_API_KEY_AUTH, () => pool.query<ApiKeyRow>(
         `SELECT
             k.id,
             k.tenant_id AS "tenantId",
@@ -161,14 +161,13 @@ async function authenticateApiKey(
         };
     }
 
-    await runWithRlsBypass(() => pool.query(
+    await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.INTEGRATION_API_KEY_AUTH, () => pool.query(
         `UPDATE integration_api_keys
          SET last_used_at = NOW(), updated_at = NOW()
          WHERE id = $1`,
         [key.id],
     ));
 
-    enterTenantContext(key.tenantId);
     return {
         ok: true,
         context: {
@@ -179,6 +178,13 @@ async function authenticateApiKey(
             apiKeyId: key.id,
         },
     };
+}
+
+export function runWithIntegrationTenant<T>(
+    context: IntegrationAuthContext,
+    fn: () => Promise<T>,
+): Promise<T> {
+    return runWithTenantContext(context.tenantId, fn);
 }
 
 export async function authenticateIntegrationRequest(
@@ -214,33 +220,63 @@ export async function authenticateIntegrationRequest(
     };
 }
 
-export async function ensureMockIntegrationConnection(params: {
+export async function ensureIntegrationConnection(params: {
     tenantId: string;
     provider: IntegrationProvider;
     scopes: string[];
     userId?: string;
+    config?: Record<string, unknown>;
 }) {
+    const mode = integrationRuntimeMode();
+    const config = mode === 'MOCK'
+        ? { ...(params.config || {}), mock: true, lastEnsuredAt: new Date().toISOString() }
+        : params.config || {};
+
     await pool.query(
         `INSERT INTO integration_connections (
             tenant_id, provider, mode, status, config, scopes, created_by, updated_by
          )
-         VALUES ($1, $2, 'MOCK', 'ACTIVE', $3::jsonb, $4::jsonb, $5, $5)
+         VALUES ($1, $2, $3, 'ACTIVE', $4::jsonb, $5::jsonb, $6, $6)
          ON CONFLICT (tenant_id, provider)
          DO UPDATE SET
-            mode = 'MOCK',
+            mode = EXCLUDED.mode,
             status = 'ACTIVE',
             scopes = EXCLUDED.scopes,
-            config = integration_connections.config || EXCLUDED.config,
+            config = CASE
+                WHEN EXCLUDED.mode = 'LIVE'
+                    THEN (integration_connections.config - 'mock' - 'lastEnsuredAt') || EXCLUDED.config
+                ELSE integration_connections.config || EXCLUDED.config
+            END,
             updated_by = EXCLUDED.updated_by,
             updated_at = NOW()`,
         [
             params.tenantId,
             params.provider,
-            JSON.stringify({ mock: true, lastEnsuredAt: new Date().toISOString() }),
+            mode,
+            JSON.stringify(config),
             JSON.stringify(params.scopes),
             params.userId || null,
         ],
     );
+}
+
+export async function assertNoProductionMockConnections(): Promise<void> {
+    if (process.env.NODE_ENV !== 'production') return;
+
+    const result = await runWithRlsBypass<QueryResult<{ count: number }>>(
+        RLS_BYPASS_JUSTIFICATIONS.PRODUCTION_INTEGRATION_AUDIT,
+        () => pool.query<{ count: number }>(
+        `SELECT COUNT(*)::int AS count
+         FROM integration_connections
+         WHERE mode = 'MOCK' OR config ->> 'mock' = 'true'`,
+        ),
+    );
+    const count = result.rows[0]?.count || 0;
+    if (count > 0) {
+        throw new Error(
+            `Production startup blocked: ${count} integration connection(s) are still configured in MOCK mode.`,
+        );
+    }
 }
 
 export async function recordIntegrationAudit(params: {

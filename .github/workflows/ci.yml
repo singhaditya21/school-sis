@@ -24,27 +24,78 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Review dependency changes
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
 
+  rls-integration:
+    name: Tenant RLS Integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: school_sis_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d school_sis_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/school_sis_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/school_sis_test
+      DATABASE_SSL_MODE: disable
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Enable pgvector Extension
+        run: PGPASSWORD=postgres psql -h localhost -U postgres -d school_sis_test -c 'CREATE EXTENSION IF NOT EXISTS vector;'
+
+      - name: Apply Schema and Tenant RLS
+        run: |
+          pnpm --filter @school-sis/web run db:migrate
+          pnpm --filter @school-sis/web run db:rls
+
+      - name: Verify Tenant Isolation
+        run: pnpm --filter @school-sis/web run db:test:rls
+
   validate:
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -65,6 +116,12 @@ jobs:
 
       - name: Validate Drizzle Migrations
         run: pnpm --filter @school-sis/web exec drizzle-kit check
+
+      - name: Reject Unapproved Destructive Migrations
+        run: pnpm audit:migrations
+
+      - name: Validate RLS Policy Matrix
+        run: pnpm audit:rls-matrix
 
       - name: Run TypeScript
         run: pnpm --filter @school-sis/web exec tsc --noEmit --pretty false --incremental false
@@ -91,7 +148,7 @@ jobs:
 
       - name: Upload CI Evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ci-evidence-${{ github.run_id }}
           path: |

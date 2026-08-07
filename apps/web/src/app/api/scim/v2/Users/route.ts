@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
 import { z } from 'zod';
 import { pool } from '@/lib/db';
-import { recordIntegrationAudit } from '@/lib/integrations/api-platform';
+import { recordIntegrationAudit, runWithIntegrationTenant } from '@/lib/integrations/api-platform';
 import {
     authenticateScimRequest,
     parseScimRole,
@@ -50,6 +50,8 @@ export async function GET(request: Request) {
     const startedAt = Date.now();
     const auth = await authenticateScimRequest(request);
     if (auth.ok === false) return auth.response;
+
+    return runWithIntegrationTenant(auth.context, async () => {
 
     const url = new URL(request.url);
     const filteredEmail = parseUserNameFilter(url.searchParams.get('filter'));
@@ -112,16 +114,19 @@ export async function GET(request: Request) {
         context: auth.context,
         statusCode: 200,
         durationMs: Date.now() - startedAt,
-        metadata: { totalResults: responseBody.totalResults, filtered: Boolean(filteredEmail), mode: 'mock' },
+        metadata: { totalResults: responseBody.totalResults, filtered: Boolean(filteredEmail) },
     });
 
     return NextResponse.json(responseBody);
+    });
 }
 
 export async function POST(request: Request) {
     const startedAt = Date.now();
     const auth = await authenticateScimRequest(request);
     if (auth.ok === false) return auth.response;
+
+    return runWithIntegrationTenant(auth.context, async () => {
 
     let rawBody: unknown;
     try {
@@ -192,11 +197,12 @@ export async function POST(request: Request) {
         context: auth.context,
         statusCode: 201,
         durationMs: Date.now() - startedAt,
-        metadata: { userId: created.rows[0].id, role: roleResult.role, active, mode: 'mock' },
+        metadata: { userId: created.rows[0].id, role: roleResult.role, active },
     });
 
     return NextResponse.json(body, {
         status: 201,
         headers: { Location: location },
+    });
     });
 }

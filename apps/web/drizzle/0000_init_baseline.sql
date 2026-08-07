@@ -902,7 +902,7 @@ CREATE TABLE "integration_connections" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" uuid NOT NULL,
 	"provider" varchar(40) NOT NULL,
-	"mode" varchar(20) DEFAULT 'MOCK' NOT NULL,
+	"mode" varchar(20) DEFAULT 'LIVE' NOT NULL,
 	"status" varchar(20) DEFAULT 'ACTIVE' NOT NULL,
 	"config" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"scopes" jsonb DEFAULT '[]'::jsonb NOT NULL,
