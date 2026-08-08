@@ -10,7 +10,16 @@ declare global {
 }
 
 const JOB_STATUSES = ['QUEUED', 'SCHEDULED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'DEAD_LETTER', 'CANCELLED'];
-const NOTIFICATION_STATUSES = ['PENDING', 'QUEUED', 'SENT', 'DELIVERED', 'FAILED', 'DEAD_LETTER', 'SUPPRESSED'];
+const NOTIFICATION_STATUSES = [
+  'PENDING',
+  'QUEUED',
+  'PROCESSING',
+  'SENT',
+  'DELIVERED',
+  'FAILED',
+  'DEAD_LETTER',
+  'SUPPRESSED',
+];
 const INCIDENT_STATUSES = ['OPEN', 'ACKNOWLEDGED', 'RESOLVED', 'SUPPRESSED'];
 const INCIDENT_SEVERITIES = ['INFO', 'WARNING', 'ERROR', 'CRITICAL'];
 
@@ -71,20 +80,28 @@ export function initializeAppMetrics() {
 
   const notificationGauge = getGauge(
     'school_sis_notification_outbox',
-    'Notification outbox entries by status over the last seven days',
-    ['status'],
+    'Notification outbox entries by status, channel, and provider over the last seven days',
+    ['status', 'channel', 'provider'],
   );
   notificationGauge.collect = async function collect(this: Gauge<string>) {
     await safeCollect('school_sis_notification_outbox', async () => {
       this.reset();
-      const counts = await queryCounts(
-        `SELECT status AS key, COUNT(*)::int AS count
+      const result = await runWithRlsBypass<QueryResult<{ status: string; channel: string; provider: string; count: string }>>(
+        RLS_BYPASS_JUSTIFICATIONS.PLATFORM_METRICS,
+        () => pool.query(
+        `SELECT status, channel, provider, COUNT(*)::int AS count
          FROM notification_outbox
          WHERE created_at >= NOW() - INTERVAL '7 days'
-         GROUP BY status`,
+           AND status IN ('PENDING', 'QUEUED', 'PROCESSING', 'SENT', 'DELIVERED', 'FAILED', 'DEAD_LETTER', 'SUPPRESSED')
+           AND channel IN ('EMAIL', 'SMS', 'WHATSAPP', 'PUSH', 'IN_APP')
+           AND provider IN ('smtp', 'resend', 'msg91', 'twilio', 'firebase', 'database', 'mock', 'unconfigured')
+         GROUP BY status, channel, provider`,
+        ),
       );
-      for (const status of NOTIFICATION_STATUSES) {
-        this.set({ status }, counts[status] || 0);
+      for (const row of result.rows) {
+        if (NOTIFICATION_STATUSES.includes(row.status)) {
+          this.set({ status: row.status, channel: row.channel, provider: row.provider }, Number(row.count));
+        }
       }
     });
   };

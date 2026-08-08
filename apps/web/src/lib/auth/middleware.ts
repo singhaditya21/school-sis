@@ -30,6 +30,14 @@ export interface AuthContext {
 export async function requireAuth(permission?: string): Promise<AuthContext> {
     const session = await getSession();
 
+    if (session.passwordChangeRequired) {
+        redirect('/change-password');
+    }
+
+    if (session.mfaRequired && !session.mfaVerified) {
+        redirect('/mfa/enroll');
+    }
+
     if (!session.isLoggedIn || !session.userId) {
         redirect('/login');
     }

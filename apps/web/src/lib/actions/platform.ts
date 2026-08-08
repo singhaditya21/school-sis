@@ -1,13 +1,26 @@
 'use server';
 
 import { requireRole } from '@/lib/auth/middleware';
-import { pool, } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass } from '@/lib/db';
 import { UserRole } from '@/lib/rbac/permissions';
 import { hash } from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
 import { getSession } from '@/lib/auth/session';
 import { establishSession, impersonationExpiresAt, legacyImpersonationActorId } from '@/lib/auth/identity';
 import crypto from 'crypto';
+import type { QueryResult } from 'pg';
+
+type PlatformSessionUserRow = {
+    id: string;
+    tenantId: string;
+    tenantCode: string | null;
+    tenantDomain: string | null;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    authVersion: number;
+    mfaEnabled: boolean;
+};
 
 export interface PlatformTenant {
     id: string;
@@ -142,7 +155,7 @@ export async function createTenantAction(formData: FormData) {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
 
     const name = formData.get('name') as string;
-    const adminEmail = formData.get('adminEmail') as string;
+    const adminEmail = String(formData.get('adminEmail') || '').trim().toLowerCase();
     const adminFirstName = formData.get('adminFirstName') as string;
     const adminLastName = formData.get('adminLastName') as string;
     const region = (formData.get('region') as string) || 'US-EAST';
@@ -193,10 +206,22 @@ export async function createTenantAction(formData: FormData) {
         // 3. Create SUPER_ADMIN with a one-time temporary password.
         const temporaryPassword = crypto.randomBytes(18).toString('base64url');
         const defaultPassword = await hash(temporaryPassword, 12);
+        const temporaryPasswordExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
         await pool.query(
-            `INSERT INTO users (tenant_id, email, first_name, last_name, role, password_hash) 
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [newTenant.id, adminEmail, adminFirstName, adminLastName, 'SUPER_ADMIN', defaultPassword]
+            `INSERT INTO users (
+                tenant_id, email, first_name, last_name, role, password_hash,
+                password_change_required, temporary_password_expires_at
+             )
+             VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7)`,
+            [
+                newTenant.id,
+                adminEmail,
+                adminFirstName,
+                adminLastName,
+                'SUPER_ADMIN',
+                defaultPassword,
+                temporaryPasswordExpiresAt,
+            ]
         );
 
         revalidatePath('/platform/tenants');
@@ -237,7 +262,12 @@ export async function impersonateTenantAction(tenantId: string) {
 
     // Find the super admin of the target tenant
     const { rows: admins } = await pool.query(
-        `SELECT id, email, first_name AS "firstName", last_name AS "lastName"
+        `SELECT
+            id,
+            email,
+            first_name AS "firstName",
+            last_name AS "lastName",
+            auth_version AS "authVersion"
          FROM users
          WHERE tenant_id = $1 AND role = 'SUPER_ADMIN' AND is_active = true
          LIMIT 1`,
@@ -263,6 +293,10 @@ export async function impersonateTenantAction(tenantId: string) {
     const originalId = session.userId;
     const originalTenantId = session.tenantId;
     const originalEmail = session.email;
+    const originalAuthVersion = session.authVersion;
+    if (typeof originalAuthVersion !== 'number' || !Number.isInteger(originalAuthVersion)) {
+        return { error: 'Platform session revision is missing.' };
+    }
     const startedAt = new Date().toISOString();
     const expiresAt = impersonationExpiresAt();
 
@@ -276,6 +310,7 @@ export async function impersonateTenantAction(tenantId: string) {
         role: 'SUPER_ADMIN',
         email: targetAdmin.email,
         provider: 'impersonation',
+        authVersion: targetAdmin.authVersion,
         displayName: [targetAdmin.firstName, targetAdmin.lastName].filter(Boolean).join(' ') || targetAdmin.email,
         companyId: targetCompany?.companyId,
         subscriptionTier: targetCompany?.subscriptionTier,
@@ -287,6 +322,7 @@ export async function impersonateTenantAction(tenantId: string) {
             actorUserId: originalId,
             actorTenantId: originalTenantId,
             actorEmail: originalEmail,
+            actorAuthVersion: originalAuthVersion,
             startedAt,
             expiresAt,
         },
@@ -304,21 +340,35 @@ export async function returnToHQAction() {
         return { error: 'Not currently impersonating a session.' };
     }
 
-    const { rows: usersList } = await pool.query(
-        `SELECT
-            u.id,
-            u.tenant_id AS "tenantId",
-            t.code AS "tenantCode",
-            t.domain AS "tenantDomain",
-            u.email,
-            u.first_name AS "firstName",
-            u.last_name AS "lastName",
-            u.mfa_enabled AS "mfaEnabled"
-         FROM users u
-         LEFT JOIN tenants t ON t.id = u.tenant_id
-         WHERE u.id = $1 AND u.role = 'PLATFORM_ADMIN' AND u.is_active = true
-         LIMIT 1`,
-        [originalUserId]
+    const originalTenantId = session.impersonation?.actorTenantId;
+    const originalAuthVersion = session.impersonation?.actorAuthVersion;
+    if (!originalTenantId || typeof originalAuthVersion !== 'number') {
+        session.destroy();
+        return { error: 'Legacy impersonation sessions cannot be restored. Sign in again.' };
+    }
+    const { rows: usersList } = await runWithRlsBypass<QueryResult<PlatformSessionUserRow>>(
+        RLS_BYPASS_JUSTIFICATIONS.PLATFORM_SESSION,
+        () => pool.query<PlatformSessionUserRow>(
+            `SELECT
+                u.id,
+                u.tenant_id AS "tenantId",
+                t.code AS "tenantCode",
+                t.domain AS "tenantDomain",
+                u.email,
+                u.first_name AS "firstName",
+                u.last_name AS "lastName",
+                u.auth_version AS "authVersion",
+                u.mfa_enabled AS "mfaEnabled"
+             FROM users u
+             LEFT JOIN tenants t ON t.id = u.tenant_id
+             WHERE u.id = $1
+               AND u.tenant_id = $2
+               AND u.role = 'PLATFORM_ADMIN'
+               AND u.is_active = true
+               AND u.auth_version = $3
+             LIMIT 1`,
+            [originalUserId, originalTenantId, originalAuthVersion],
+        ),
     );
     const founder = usersList[0];
     if (!founder) {
@@ -334,6 +384,7 @@ export async function returnToHQAction() {
         role: 'PLATFORM_ADMIN',
         email: founder.email,
         provider: 'system',
+        authVersion: founder.authVersion,
         displayName: [founder.firstName, founder.lastName].filter(Boolean).join(' ') || founder.email,
         subscriptionTier: 'ENTERPRISE',
         activeModules: ['ATTENDANCE', 'FEES', 'COMMUNICATION', 'AI_AGENTS', 'HIGHER_ED', 'COACHING', 'INTERNATIONAL', 'MULTI_CAMPUS', 'ENTERPRISE'],

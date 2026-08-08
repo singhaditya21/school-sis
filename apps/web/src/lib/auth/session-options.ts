@@ -8,6 +8,8 @@ export type SessionData = {
     role: string;
     email: string;
     token: string;
+    /** Persisted user revision. Missing values are deliberately treated as revoked. */
+    authVersion?: number;
     authProvider?: 'password' | 'sso' | 'impersonation' | 'system';
     issuedAt?: string;
     lastSeenAt?: string;
@@ -19,6 +21,8 @@ export type SessionData = {
     activeModules?: string[];
     mfaRequired?: boolean;
     mfaVerified?: boolean;
+    passwordChangeRequired?: boolean;
+    temporaryPasswordExpiresAt?: string;
     ssoState?: {
         value: string;
         provider: string;
@@ -29,6 +33,7 @@ export type SessionData = {
         actorUserId: string;
         actorTenantId: string;
         actorEmail: string;
+        actorAuthVersion: number;
         startedAt: string;
         expiresAt: string;
     };
@@ -45,8 +50,11 @@ export type SessionData = {
 export const MFA_REQUIRED_ROLE_NAMES = [
     'PLATFORM_ADMIN',
     'SUPER_ADMIN',
+    'GROUP_EXECUTIVE',
     'SCHOOL_ADMIN',
     'PRINCIPAL',
+    'REGISTRAR',
+    'FINANCE_LEAD',
     'ACCOUNTANT',
 ] as const;
 

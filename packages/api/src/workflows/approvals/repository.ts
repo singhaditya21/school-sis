@@ -303,6 +303,9 @@ export async function requireApprovedWorkflowApprovalOrRequest(
             throw new WorkflowApprovalError('Approval request not found.', 404);
         }
         assertApprovalMatchesAction(existing, input);
+        if (existing.status === 'EXECUTED') {
+            throw new WorkflowApprovalError('Approval request has already been executed.', 409);
+        }
         return existing.status === 'APPROVED'
             ? { approved: true, request: existing }
             : { approved: false, request: existing };

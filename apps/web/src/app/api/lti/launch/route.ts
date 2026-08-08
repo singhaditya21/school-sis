@@ -21,6 +21,9 @@ type LocalLtiUser = {
     id: string;
     email: string;
     role: string;
+    authVersion: number;
+    passwordChangeRequired: boolean;
+    temporaryPasswordExpiresAt: Date | string | null;
     firstName: string;
     lastName: string;
     mfaEnabled: boolean;
@@ -82,6 +85,9 @@ export async function POST(request: Request) {
                     u.id::text AS id,
                     u.email,
                     u.role::text AS role,
+                    u.auth_version AS "authVersion",
+                    u.password_change_required AS "passwordChangeRequired",
+                    u.temporary_password_expires_at AS "temporaryPasswordExpiresAt",
                     u.first_name AS "firstName",
                     u.last_name AS "lastName",
                     u.mfa_enabled AS "mfaEnabled",
@@ -111,6 +117,15 @@ export async function POST(request: Request) {
             if (user.mfaEnabled) {
                 throw new Error('LTI launch cannot satisfy this account\'s MFA requirement.');
             }
+            if (
+                user.passwordChangeRequired
+                && (
+                    !user.temporaryPasswordExpiresAt
+                    || new Date(user.temporaryPasswordExpiresAt).getTime() <= Date.now()
+                )
+            ) {
+                throw new Error('The linked user temporary password has expired.');
+            }
 
             await ensureIntegrationConnection({
                 tenantId: launch.tenantId,
@@ -134,6 +149,11 @@ export async function POST(request: Request) {
             role: localUser.role,
             email: localUser.email,
             provider: 'sso',
+            authVersion: localUser.authVersion,
+            passwordChangeRequired: localUser.passwordChangeRequired,
+            temporaryPasswordExpiresAt: localUser.temporaryPasswordExpiresAt
+                ? new Date(localUser.temporaryPasswordExpiresAt).toISOString()
+                : undefined,
             displayName: `${localUser.firstName} ${localUser.lastName}`.trim() || localUser.email,
             companyId: localUser.companyId || undefined,
             subscriptionTier: localUser.subscriptionTier || undefined,

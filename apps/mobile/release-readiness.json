@@ -1,0 +1,10 @@
+{
+  "productionReady": false,
+  "requiredCapabilities": {
+    "tokenLogin": false,
+    "tokenRefresh": false,
+    "secureTokenStorage": false,
+    "authenticatedTenantScopedApi": false,
+    "loginInvoiceNotificationPaymentE2E": false
+  }
+}

@@ -1,8 +1,17 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
-const snapshot = JSON.parse(readFileSync(`${repoRoot}/apps/web/drizzle/meta/0000_snapshot.json`, 'utf8'));
+const snapshotDirectory = `${repoRoot}/apps/web/drizzle/meta`;
+const snapshotFiles = readdirSync(snapshotDirectory)
+  .filter((name) => /^\d{4}_snapshot\.json$/.test(name))
+  .sort((left, right) => left.localeCompare(right, 'en'));
+if (snapshotFiles.length === 0) {
+  console.error('No Drizzle schema snapshot was found.');
+  process.exit(1);
+}
+const latestSnapshotFile = snapshotFiles.at(-1);
+const snapshot = JSON.parse(readFileSync(`${snapshotDirectory}/${latestSnapshotFile}`, 'utf8'));
 const rlsSql = readFileSync(`${repoRoot}/packages/api/src/db/migrations/tenant-rls.sql`, 'utf8');
 
 const specialPolicies = new Map([
@@ -78,6 +87,6 @@ if (
 }
 
 console.info(
-  `RLS policy matrix covers ${tableEntries.length} schema tables: ` +
+  `RLS policy matrix (${latestSnapshotFile}) covers ${tableEntries.length} schema tables: ` +
   `${directTenantTables.length} direct tenant tables and ${specialPolicies.size} explicit special policies.`,
 );

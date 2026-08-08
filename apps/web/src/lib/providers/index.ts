@@ -8,11 +8,18 @@
  *   - Real implementation for production
  */
 
+import type { ProviderFailureOutcome } from './outcome';
+
 export { getSmsProvider } from './sms';
 export { getEmailProvider } from './email';
+export { getWhatsAppProvider } from './whatsapp';
+export { getPushProvider } from './push';
+export { providerFailureOutcomeForHttpStatus } from './outcome';
+export type { ProviderFailureOutcome } from './outcome';
 
 export type ProviderResult<T = void> = {
     success: boolean;
     data?: T;
     error?: string;
+    outcome?: ProviderFailureOutcome;
 };

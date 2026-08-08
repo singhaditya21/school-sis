@@ -8,7 +8,7 @@ The engine has four persisted records:
 
 - `workflow_approval_requests`: the approval case, policy, resource, required roles, SLA, expiry, status, and counters.
 - `workflow_approval_reviews`: immutable reviewer decisions with role, reason, delegation metadata, and timestamp.
-- `workflow_approval_events`: append-only audit timeline for request, approval, rejection, escalation, cancellation, and expiry.
+- `workflow_approval_events`: append-only audit timeline for request, approval, execution, rejection, escalation, cancellation, and expiry.
 - `workflow_approval_delegations`: temporary reviewer delegation from one user/role to another user/role.
 
 Every table is tenant-scoped and protected by RLS in `apps/web/drizzle/0011_workflow_approval_engine.sql`.
@@ -17,13 +17,14 @@ Every table is tenant-scoped and protected by RLS in `apps/web/drizzle/0011_work
 
 Requests start as `PENDING`.
 
-- `APPROVED`: enough eligible approvers approved the request.
+- `APPROVED`: enough eligible approvers approved the request and the originating action may attempt to consume it.
+- `EXECUTED`: the originating action atomically consumed the approval while applying the approved mutation.
 - `REJECTED`: any eligible approver rejected the request.
 - `ESCALATED`: SLA due time passed and escalation roles were added.
 - `CANCELLED`: requester or operator cancelled before completion.
 - `EXPIRED`: expiry time passed before completion.
 
-Terminal states are `APPROVED`, `REJECTED`, `CANCELLED`, and `EXPIRED`.
+Review-terminal states are `APPROVED`, `EXECUTED`, `REJECTED`, `CANCELLED`, and `EXPIRED`. For adopted high-risk mutations, `APPROVED` transitions to `EXECUTED` exactly once inside the mutation transaction.
 
 ## Policy Source
 
@@ -60,6 +61,7 @@ The pure engine does not touch the database. Persistence is handled by `packages
 - creates idempotent tenant-scoped approval requests,
 - writes request/review/event rows,
 - verifies approval policy, tenant, resource, and payload hash before approval reuse,
+- rejects requests that have already reached `EXECUTED`,
 - blocks self-approval and ineligible reviewer roles through the engine,
 - returns payload-free summaries for API callers.
 
@@ -73,7 +75,7 @@ Generic API:
 
 Generic UI:
 
-- `/approvals`: tenant-scoped workflow approval queue for pending, escalated, approved, rejected, and all approval states.
+- `/approvals`: tenant-scoped workflow approval queue for pending, escalated, approved, executed, rejected, and all approval states.
 - Review actions write to the generic workflow review endpoint and no longer depend on the legacy agent-only approval API.
 
 Enforced gates:
@@ -85,7 +87,7 @@ Enforced gates:
 - Finance invoice waivers execute through `POST /api/finance/invoices/:invoiceId/waive` only after an approved `fees.invoice.waive` request matches the current tenant, invoice, reason, status, and amount snapshot.
 - Finance invoice cancellations execute through `POST /api/finance/invoices/:invoiceId/cancel` only after an approved `fees.invoice.cancel` request matches the current tenant, invoice, reason, status, and amount snapshot.
 - Full payment refunds execute through `POST /api/finance/payments/:paymentId/refund` only after an approved `payments.refund` request matches the current tenant, payment, reason, invoice state, and refund amount. Stripe payment-intent refunds and Razorpay payment refunds are executed through the provider adapters before the tenant ledger is marked refunded; manual payments remain ledger-only.
-- Identity role changes execute through `POST /api/identity/users/:userId/role-change` only after an approved `users.role_change` request matches the current tenant, user, source role, target role, active state, and reason.
+- Identity role changes execute through `POST /api/identity/users/:userId/role-change` only after an approved `users.role_change` request matches the current tenant, user, source role, target role, active state, and reason. The request is conditionally consumed as `EXECUTED` in the same transaction as the role update and session-revision increment, so replay and concurrent double execution fail closed.
 - Student transfers execute through `POST /api/students/:studentId/transfer` after an approved `students.transfer` request and a valid core SIS `ACTIVE|SUSPENDED|INACTIVE -> TRANSFERRED` transition.
 - Student archive actions execute through `POST /api/students/:studentId/archive` after an approved `students.archive` request and map to the terminal `ALUMNI` status supported by the student status model.
 - Exam result publication executes through `POST /api/exams/:examId/publish` after an approved `exams.results.publish` request matches the exam status and result counts; execution locks missing result hashes and marks the exam `PUBLISHED`.

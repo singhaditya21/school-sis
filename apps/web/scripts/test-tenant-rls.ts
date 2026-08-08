@@ -20,6 +20,8 @@ const FIELD_A = '90000000-0000-4000-8000-000000000009';
 const FIELD_A_OTHER = 'a0000000-0000-4000-8000-00000000000a';
 const FIELD_B = 'b0000000-0000-4000-8000-00000000000b';
 const RECORD_A = 'c0000000-0000-4000-8000-00000000000c';
+const BUDGET_A = 'd0000000-0000-4000-8000-00000000000d';
+const BUDGET_B = 'e0000000-0000-4000-8000-00000000000e';
 const TEST_ROLE = 'school_sis_rls_test';
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -95,6 +97,7 @@ async function main(): Promise<void> {
             GRANT SELECT, INSERT, UPDATE, DELETE ON
                 public.tenants,
                 public.academic_years,
+                public.ai_budget_usage,
                 public.metadata_objects,
                 public.metadata_fields,
                 public.metadata_records,
@@ -144,6 +147,14 @@ async function main(): Promise<void> {
              ON CONFLICT (id) DO NOTHING`,
             [RECORD_A, TENANT_A, OBJECT_A],
         );
+        await client.query(
+            `INSERT INTO ai_budget_usage (id, tenant_id, scope_kind, scope_id, period_start)
+             VALUES
+                ($1, $3, 'TENANT', $3, '2026-08-01'),
+                ($2, $4, 'TENANT', $4, '2026-08-01')
+             ON CONFLICT (scope_kind, scope_id, period_start) DO NOTHING`,
+            [BUDGET_A, BUDGET_B, TENANT_A, TENANT_B],
+        );
 
         await client.query(`SET ROLE ${TEST_ROLE}`);
         await setTenant(client, TENANT_A);
@@ -153,6 +164,12 @@ async function main(): Promise<void> {
 
         const crossTenantRead = await client.query('SELECT id FROM academic_years WHERE id = $1', [YEAR_B]);
         assert(crossTenantRead.rowCount === 0, 'Cross-tenant reads must return zero rows.');
+
+        const visibleBudgetRows = await client.query<{ id: string }>('SELECT id FROM ai_budget_usage ORDER BY id');
+        assert(
+            visibleBudgetRows.rows.length === 1 && visibleBudgetRows.rows[0].id === BUDGET_A,
+            'AI budget counters must be isolated to the active tenant.',
+        );
 
         const crossTenantUpdate = await client.query(
             "UPDATE academic_years SET name = 'tampered' WHERE id = $1",

@@ -44,6 +44,21 @@ function displayNameFor(user: { firstName?: string | null; lastName?: string | n
     return [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email;
 }
 
+function optionalDateIso(value: Date | string | null | undefined): string | undefined {
+    if (!value) return undefined;
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function isTemporaryPasswordExpired(user: {
+    passwordChangeRequired?: boolean;
+    temporaryPasswordExpiresAt?: Date | string | null;
+}): boolean {
+    if (!user.passwordChangeRequired) return false;
+    const expiresAt = optionalDateIso(user.temporaryPasswordExpiresAt);
+    return !expiresAt || Date.parse(expiresAt) <= Date.now();
+}
+
 export async function loginActionV2(formData: FormData) {
     return runWithRlsBypass(
         RLS_BYPASS_JUSTIFICATIONS.PASSWORD_LOGIN,
@@ -92,12 +107,18 @@ async function loginActionV2WithBypass(formData: FormData) {
                     u.email,
                     u.password_hash as "passwordHash",
                     u.role,
+                    u.is_active as "isActive",
+                    u.auth_version as "authVersion",
+                    u.password_change_required as "passwordChangeRequired",
+                    u.temporary_password_expires_at as "temporaryPasswordExpiresAt",
                     u.first_name as "firstName",
                     u.last_name as "lastName",
                     u.mfa_enabled as "mfaEnabled"
                  FROM users u
                  LEFT JOIN tenants t ON t.id = u.tenant_id
-                 WHERE u.email = $1 LIMIT 1`,
+                 WHERE lower(u.email) = lower($1)
+                   AND u.role = 'PLATFORM_ADMIN'
+                 LIMIT 1`,
                 [normalizedEmail]
             );
             const user = platformRows[0];
@@ -110,11 +131,23 @@ async function loginActionV2WithBypass(formData: FormData) {
                 return { error: 'Invalid email or password' };
             }
 
+            if (!user.isActive) {
+                return { error: 'Your account has been deactivated.' };
+            }
+
             const passwordValid = await compare(password, user.passwordHash);
             if (!passwordValid) {
                 return { error: 'Invalid credentials' };
             }
 
+            if (isTemporaryPasswordExpired(user)) {
+                return { error: 'Your temporary password has expired. Ask an administrator to reset it again.' };
+            }
+
+            const mfaEnrollmentRequired = shouldRequireMfaEnrollment(
+                user.role,
+                Boolean(user.mfaEnabled),
+            );
             if (user.mfaEnabled) {
                 if (!mfaCode) {
                     return { error: 'Enter your authenticator code to continue', mfaRequired: true };
@@ -123,8 +156,6 @@ async function loginActionV2WithBypass(formData: FormData) {
                 if (!mfaResult.success) {
                     return { error: mfaResult.error || 'Invalid MFA code', mfaRequired: true };
                 }
-            } else if (shouldRequireMfaEnrollment(user.role, Boolean(user.mfaEnabled))) {
-                return { error: 'MFA enrollment is required for this account before login.' };
             }
 
             await clearRateLimit(email);
@@ -137,6 +168,9 @@ async function loginActionV2WithBypass(formData: FormData) {
                 role: 'PLATFORM_ADMIN',
                 email: user.email,
                 provider: 'password',
+                authVersion: user.authVersion,
+                passwordChangeRequired: Boolean(user.passwordChangeRequired),
+                temporaryPasswordExpiresAt: optionalDateIso(user.temporaryPasswordExpiresAt),
                 displayName: displayNameFor(user),
                 subscriptionTier: 'ENTERPRISE',
                 activeModules: PLATFORM_ACTIVE_MODULES,
@@ -145,7 +179,11 @@ async function loginActionV2WithBypass(formData: FormData) {
             });
             await session.save();
 
-            redirectPath = '/hq';
+            redirectPath = user.passwordChangeRequired
+                ? '/change-password'
+                : mfaEnrollmentRequired
+                    ? '/mfa/enroll'
+                    : '/hq';
 
         } else {
             // School staff login — requires school code
@@ -183,9 +221,12 @@ async function loginActionV2WithBypass(formData: FormData) {
                     first_name as "firstName",
                     last_name as "lastName",
                     is_active as "isActive",
+                    auth_version as "authVersion",
+                    password_change_required as "passwordChangeRequired",
+                    temporary_password_expires_at as "temporaryPasswordExpiresAt",
                     mfa_enabled as "mfaEnabled"
                  FROM users 
-                 WHERE email = $1 AND tenant_id = $2 LIMIT 1`,
+                 WHERE lower(email) = lower($1) AND tenant_id = $2 LIMIT 1`,
                 [email, tenantRecord.tenantId]
             );
             const user = userRows[0];
@@ -203,6 +244,14 @@ async function loginActionV2WithBypass(formData: FormData) {
                 return { error: 'Invalid email or password' };
             }
 
+            if (isTemporaryPasswordExpired(user)) {
+                return { error: 'Your temporary password has expired. Ask an administrator to reset it again.' };
+            }
+
+            const mfaEnrollmentRequired = shouldRequireMfaEnrollment(
+                user.role,
+                Boolean(user.mfaEnabled),
+            );
             if (user.mfaEnabled) {
                 if (!mfaCode) {
                     return { error: 'Enter your authenticator code to continue', mfaRequired: true };
@@ -211,8 +260,6 @@ async function loginActionV2WithBypass(formData: FormData) {
                 if (!mfaResult.success) {
                     return { error: mfaResult.error || 'Invalid MFA code', mfaRequired: true };
                 }
-            } else if (shouldRequireMfaEnrollment(user.role, Boolean(user.mfaEnabled))) {
-                return { error: 'MFA enrollment is required for this account before login.' };
             }
 
             // Create session — clear rate limit on success
@@ -226,6 +273,9 @@ async function loginActionV2WithBypass(formData: FormData) {
                 role: user.role,
                 email: user.email,
                 provider: 'password',
+                authVersion: user.authVersion,
+                passwordChangeRequired: Boolean(user.passwordChangeRequired),
+                temporaryPasswordExpiresAt: optionalDateIso(user.temporaryPasswordExpiresAt),
                 displayName: displayNameFor(user),
                 companyId: tenantRecord.companyId || undefined,
                 subscriptionTier: tenantRecord.subscriptionTier,
@@ -243,7 +293,11 @@ async function loginActionV2WithBypass(formData: FormData) {
             );
 
             // Route based on role
-            if (user.role === 'PARENT') {
+            if (user.passwordChangeRequired) {
+                redirectPath = '/change-password';
+            } else if (mfaEnrollmentRequired) {
+                redirectPath = '/mfa/enroll';
+            } else if (user.role === 'PARENT') {
                 redirectPath = '/overview';
             } else if (user.role === 'STUDENT') {
                 redirectPath = '/profile';
@@ -324,6 +378,9 @@ export async function processSSOCallback(code: string, provider: string, state?:
             role: ssoResult.role,
             email: ssoResult.email,
             provider: 'sso',
+            authVersion: ssoResult.authVersion,
+            passwordChangeRequired: ssoResult.passwordChangeRequired,
+            temporaryPasswordExpiresAt: ssoResult.temporaryPasswordExpiresAt,
             displayName: ssoResult.displayName,
             companyId: ssoResult.companyId,
             subscriptionTier: ssoResult.subscriptionTier,
@@ -334,7 +391,7 @@ export async function processSSOCallback(code: string, provider: string, state?:
         session.ssoState = undefined;
         await session.save();
         
-        redirectPath = '/dashboard';
+        redirectPath = ssoResult.passwordChangeRequired ? '/change-password' : '/dashboard';
     } catch (error) {
         console.error('[SSO] Error processing callback:', error);
         return { error: 'Failed to process SSO callback' };

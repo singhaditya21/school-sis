@@ -1,4 +1,17 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, integer, numeric } from 'drizzle-orm/pg-core';
+import {
+    bigint,
+    boolean,
+    date,
+    index,
+    integer,
+    numeric,
+    pgTable,
+    text,
+    timestamp,
+    unique,
+    uuid,
+    varchar,
+} from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { companies, tenants, users } from './core';
 
@@ -21,13 +34,45 @@ export const aiTokenLogs = pgTable('ai_token_logs', {
     id: uuid('id').primaryKey().defaultRandom(),
     companyId: uuid('company_id').references(() => companies.id, { onDelete: 'cascade' }).notNull(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    requestId: uuid('request_id'),
     agentType: varchar('agent_type', { length: 150 }).notNull(), // e.g., 'FEE_INTELLIGENCE'
+    provider: varchar('provider', { length: 100 }),
     model: varchar('model', { length: 100 }).notNull(), // 'gpt-4o', 'qwen-7b'
     tokensUsed: integer('tokens_used').notNull(),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
     computeCostMs: integer('compute_cost_ms').notNull(),
     queryCostUsd: numeric('query_cost_usd', { precision: 12, scale: 6 }).default('0').notNull(),
+    requestStatus: varchar('request_status', { length: 24 }).default('COMPLETED').notNull(),
+    failureReason: varchar('failure_reason', { length: 160 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * Atomic monthly budget counters. `scope_id` is the tenant id for TENANT rows
+ * and the user id for USER rows. Keeping both scopes in one table lets a single
+ * tenant-scoped transaction reserve both ceilings before a provider is called.
+ */
+export const aiBudgetUsage = pgTable('ai_budget_usage', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
+    scopeKind: varchar('scope_kind', { length: 16 }).notNull(),
+    scopeId: uuid('scope_id').notNull(),
+    periodStart: date('period_start').notNull(),
+    reservedTokens: bigint('reserved_tokens', { mode: 'number' }).default(0).notNull(),
+    usedTokens: bigint('used_tokens', { mode: 'number' }).default(0).notNull(),
+    reservedCostMicrousd: bigint('reserved_cost_microusd', { mode: 'number' }).default(0).notNull(),
+    usedCostMicrousd: bigint('used_cost_microusd', { mode: 'number' }).default(0).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+    scopePeriodUnique: unique('ai_budget_usage_scope_period_key').on(
+        table.scopeKind,
+        table.scopeId,
+        table.periodStart,
+    ),
+    tenantPeriodIdx: index('idx_ai_budget_usage_tenant_period').on(table.tenantId, table.periodStart),
+}));
 
 // ─── Platform Broadcasts (Stage 5) ───────────────────────────
 
@@ -55,6 +100,11 @@ export const platformAuditLogsRelations = relations(platformAuditLogs, ({ one })
 export const aiTokenLogsRelations = relations(aiTokenLogs, ({ one }) => ({
     company: one(companies, { fields: [aiTokenLogs.companyId], references: [companies.id] }),
     tenant: one(tenants, { fields: [aiTokenLogs.tenantId], references: [tenants.id] }),
+    user: one(users, { fields: [aiTokenLogs.userId], references: [users.id] }),
+}));
+
+export const aiBudgetUsageRelations = relations(aiBudgetUsage, ({ one }) => ({
+    tenant: one(tenants, { fields: [aiBudgetUsage.tenantId], references: [tenants.id] }),
 }));
 
 export const platformBroadcastsRelations = relations(platformBroadcasts, ({ one }) => ({

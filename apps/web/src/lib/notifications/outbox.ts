@@ -1,11 +1,12 @@
 import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
-import type { QueryResult } from 'pg';
+import type { PoolClient, QueryResult } from 'pg';
 import { getEmailProvider } from '@/lib/providers/email';
 import { getSmsProvider } from '@/lib/providers/sms';
-import { NotificationService } from '@/lib/services/notifications';
+import { getWhatsAppProvider } from '@/lib/providers/whatsapp';
+import { getPushProvider } from '@/lib/providers/push';
 import { enqueueTenantJob } from '@/lib/worker/client';
 import { isValidTenantId } from '@/lib/tenant/isolation';
-import { logger, recordSreIncident } from '@/lib/observability/logger';
+import { recordSreIncident } from '@/lib/observability/logger';
 import {
   mockRuntimeIsAllowed,
   notificationProviderForChannel,
@@ -15,6 +16,7 @@ export type NotificationChannel = 'EMAIL' | 'SMS' | 'WHATSAPP' | 'PUSH' | 'IN_AP
 export type NotificationStatus =
   | 'PENDING'
   | 'QUEUED'
+  | 'PROCESSING'
   | 'SENT'
   | 'DELIVERED'
   | 'FAILED'
@@ -64,6 +66,7 @@ type ProviderSendResult = {
   provider: string;
   providerMessageId?: string;
   error?: string;
+  outcome?: 'REJECTED' | 'UNKNOWN';
   status?: NotificationStatus;
   metadata?: Record<string, unknown>;
 };
@@ -87,7 +90,7 @@ function assertSupportedProvider(channel: NotificationChannel, provider: string)
   const supported: Record<NotificationChannel, readonly string[]> = {
     EMAIL: ['smtp', 'resend', 'mock'],
     SMS: ['msg91', 'twilio', 'mock'],
-    WHATSAPP: ['mock'],
+    WHATSAPP: ['twilio', 'mock'],
     PUSH: ['firebase', 'mock'],
     IN_APP: ['database'],
   };
@@ -141,28 +144,35 @@ async function updateLinkedMessage(params: {
   providerMessageId?: string;
   error?: string;
   metadata?: Record<string, unknown>;
-}) {
+}, client?: PoolClient) {
   const messageId = messageIdFromPayload(params.payload);
   if (!messageId) return;
 
-  await pool.query(
+  const sql =
     `UPDATE messages
-     SET status = $1,
+     SET status = CASE
+           WHEN status = 'DELIVERED' AND $1 <> 'DELIVERED' THEN status
+           ELSE $1
+         END,
          provider_message_id = COALESCE($2, provider_message_id),
-         error_message = $3,
+         error_message = CASE
+           WHEN status = 'DELIVERED' AND $1 <> 'DELIVERED' THEN error_message
+           ELSE $3
+         END,
          metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb,
          sent_at = CASE WHEN $1 IN ('SENT', 'DELIVERED') THEN COALESCE(sent_at, NOW()) ELSE sent_at END,
          delivered_at = CASE WHEN $1 = 'DELIVERED' THEN COALESCE(delivered_at, NOW()) ELSE delivered_at END
-     WHERE tenant_id = $5 AND id = $6`,
-    [
-      params.status,
-      params.providerMessageId || null,
-      params.error || null,
-      JSON.stringify(params.metadata || {}),
-      params.tenantId,
-      messageId,
-    ],
-  );
+     WHERE tenant_id = $5 AND id = $6`;
+  const values = [
+    params.status,
+    params.providerMessageId || null,
+    params.error || null,
+    JSON.stringify(params.metadata || {}),
+    params.tenantId,
+    messageId,
+  ];
+  if (client) await client.query(sql, values);
+  else await pool.query(sql, values);
 }
 
 async function recordDeliveryEvent(params: {
@@ -174,23 +184,24 @@ async function recordDeliveryEvent(params: {
   providerMessageId?: string;
   error?: string;
   metadata?: Record<string, unknown>;
-}) {
-  await pool.query(
+}, client?: PoolClient) {
+  const sql =
     `INSERT INTO notification_delivery_events (
         tenant_id, notification_id, job_id, status, provider, provider_message_id, error, metadata
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
-    [
-      params.tenantId,
-      params.notificationId,
-      params.jobId,
-      params.status,
-      params.provider,
-      params.providerMessageId || null,
-      params.error || null,
-      JSON.stringify(params.metadata || {}),
-    ],
-  );
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`;
+  const values = [
+    params.tenantId,
+    params.notificationId,
+    params.jobId,
+    params.status,
+    params.provider,
+    params.providerMessageId || null,
+    params.error || null,
+    JSON.stringify(params.metadata || {}),
+  ];
+  if (client) await client.query(sql, values);
+  else await pool.query(sql, values);
 }
 
 async function sendViaProvider(row: NotificationRow): Promise<ProviderSendResult> {
@@ -208,6 +219,7 @@ async function sendViaProvider(row: NotificationRow): Promise<ProviderSendResult
         provider: providerForChannel(row.channel),
         providerMessageId: result.data?.messageId,
         error: result.error,
+        outcome: result.outcome,
         status: 'SENT',
       };
     }
@@ -219,67 +231,37 @@ async function sendViaProvider(row: NotificationRow): Promise<ProviderSendResult
         provider: providerForChannel(row.channel),
         providerMessageId: result.data?.messageId,
         error: result.error,
+        outcome: result.outcome,
         status: 'SENT',
       };
     }
     case 'WHATSAPP': {
       const provider = providerForChannel(row.channel);
-      if (provider !== 'mock') {
-        return {
-          success: false,
-          provider,
-          error: 'No live WhatsApp provider adapter is installed.',
-        };
-      }
-      logger.info('notification.dev_whatsapp_accepted', 'Development WhatsApp notification accepted', {
-        tenantId: row.tenantId,
-        source: 'notifications',
-        entityType: 'notification_outbox',
-        entityId: row.id,
-        metadata: { recipientLength: row.recipient.length, bodyLength: row.body.length },
-      });
+      const result = await getWhatsAppProvider().send(row.recipient, row.body);
       return {
-        success: true,
+        success: result.success,
         provider,
+        providerMessageId: result.data?.messageId,
+        error: result.error,
+        outcome: result.outcome,
         status: 'SENT',
-        metadata: { developmentOnly: true },
       };
     }
     case 'PUSH': {
       const provider = providerForChannel(row.channel);
-      if (provider === 'firebase') {
-        const response = await NotificationService.sendParentAlert(
-          row.recipient,
-          row.subject || 'School notification',
-          row.body,
-          row.payload,
-        );
-        return {
-          success: response.success,
-          provider: 'firebase',
-          providerMessageId: response.messageId,
-          status: 'SENT',
-        };
-      }
-      if (provider !== 'mock') {
-        return {
-          success: false,
-          provider,
-          error: 'Push notification provider is not configured.',
-        };
-      }
-      logger.info('notification.dev_push_accepted', 'Development push notification accepted', {
-        tenantId: row.tenantId,
-        source: 'notifications',
-        entityType: 'notification_outbox',
-        entityId: row.id,
-        metadata: { recipientLength: row.recipient.length, subjectLength: (row.subject || 'School notification').length },
+      const result = await getPushProvider().send({
+        token: row.recipient,
+        title: row.subject || 'School notification',
+        body: row.body,
+        data: row.payload,
       });
       return {
-        success: true,
+        success: result.success,
         provider,
+        providerMessageId: result.data?.messageId,
+        error: result.error,
+        outcome: result.outcome,
         status: 'SENT',
-        metadata: { developmentOnly: true },
       };
     }
     case 'IN_APP': {
@@ -383,133 +365,265 @@ export async function enqueueNotification(
   });
 }
 
+async function recordNotificationIncident(
+  incident: Parameters<typeof recordSreIncident>[0],
+): Promise<void> {
+  try {
+    await recordSreIncident(incident);
+  } catch {
+    // Delivery state is authoritative. An observability write must never alter retry semantics.
+  }
+}
+
+async function persistProviderOutcome(
+  row: NotificationRow,
+  attemptNumber: number,
+  result: ProviderSendResult,
+): Promise<NotificationStatus> {
+  const finalStatus = result.success ? (result.status || 'SENT') : 'FAILED';
+  const terminalFailure = !result.success && attemptNumber >= row.maxAttempts;
+  const storedStatus: NotificationStatus = terminalFailure ? 'DEAD_LETTER' : finalStatus;
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    const updateResult = await client.query<{ status: NotificationStatus }>(
+      `UPDATE notification_outbox
+       SET status = $1,
+           provider = $2,
+           provider_message_id = COALESCE($3, provider_message_id),
+           last_error = $4,
+           next_attempt_at = CASE
+             WHEN $1 IN ('SENT', 'DELIVERED') THEN next_attempt_at
+             ELSE NOW() + $5::interval
+           END,
+           sent_at = CASE
+             WHEN $1 IN ('SENT', 'DELIVERED') THEN COALESCE(sent_at, NOW())
+             ELSE sent_at
+           END,
+           updated_at = NOW()
+       WHERE tenant_id = $6 AND id = $7 AND status = 'PROCESSING'
+       RETURNING status`,
+      [
+        storedStatus,
+        result.provider,
+        result.providerMessageId || null,
+        result.error || null,
+        backoffForAttempt(attemptNumber),
+        row.tenantId,
+        row.id,
+      ],
+    );
+    if (updateResult.rowCount !== 1) {
+      throw new Error('Notification delivery claim was lost before provider outcome bookkeeping.');
+    }
+
+    await recordDeliveryEvent({
+      tenantId: row.tenantId,
+      notificationId: row.id,
+      jobId: row.jobId,
+      status: storedStatus,
+      provider: result.provider,
+      providerMessageId: result.providerMessageId,
+      error: result.error,
+      metadata: {
+        ...(result.metadata || {}),
+        attemptNumber,
+        claimedStatus: 'PROCESSING',
+      },
+    }, client);
+
+    await updateLinkedMessage({
+      tenantId: row.tenantId,
+      payload: row.payload || {},
+      status: storedStatus === 'DELIVERED' ? 'DELIVERED' : storedStatus === 'SENT' ? 'SENT' : 'FAILED',
+      providerMessageId: result.providerMessageId,
+      error: result.error,
+      metadata: { notificationId: row.id, provider: result.provider, status: storedStatus },
+    }, client);
+
+    await client.query('COMMIT');
+    return storedStatus;
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // Preserve the original bookkeeping failure for the reconciliation incident.
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function processNotification(notificationId: string, tenantId: string): Promise<ProviderSendResult> {
   if (!isValidTenantId(tenantId)) {
     throw new Error('Invalid tenant context.');
   }
 
   return runWithTenantContext(tenantId, async () => {
-    const client = await pool.connect();
-    let row: NotificationRow | null = null;
-    let attemptNumber = 0;
-
-    try {
-      await client.query('BEGIN');
-      const { rows } = await client.query(
-        `SELECT id,
-                tenant_id AS "tenantId",
-                job_id AS "jobId",
-                channel,
-                status,
-                provider,
-                recipient,
-                recipient_user_id AS "recipientUserId",
-                subject,
-                body,
-                payload,
-                attempts,
-                max_attempts AS "maxAttempts"
-         FROM notification_outbox
-         WHERE tenant_id = $1 AND id = $2
-         FOR UPDATE`,
-        [tenantId, notificationId],
-      );
-
-      row = rows[0] || null;
-      if (!row) {
-        await client.query('COMMIT');
-        return { success: false, provider: 'unknown', error: 'Notification not found' };
-      }
-      if (TERMINAL_STATUSES.has(row.status)) {
-        await client.query('COMMIT');
-        return { success: true, provider: row.provider, status: row.status, metadata: { skipped: true } };
-      }
-      if (row.attempts >= row.maxAttempts) {
-        await client.query(
-          `UPDATE notification_outbox
-           SET status = 'DEAD_LETTER', updated_at = NOW()
-           WHERE tenant_id = $1 AND id = $2`,
-          [tenantId, notificationId],
-        );
-        await client.query('COMMIT');
-        await recordSreIncident({
-          tenantId,
-          severity: 'ERROR',
-          source: 'notifications',
-          fingerprint: `notification_dead_letter:${notificationId}`,
-          title: `Notification dead-lettered: ${row.channel}`,
-          description: 'Max attempts exhausted',
-          entityType: 'notification_outbox',
-          entityId: notificationId,
-          metadata: {
-            notificationId,
-            channel: row.channel,
-            provider: row.provider,
-            maxAttempts: row.maxAttempts,
-          },
-        });
-        return { success: false, provider: row.provider, status: 'DEAD_LETTER', error: 'Max attempts exhausted' };
-      }
-
-      attemptNumber = row.attempts + 1;
-      await client.query(
-        `UPDATE notification_outbox
-         SET status = 'QUEUED', attempts = attempts + 1, updated_at = NOW()
-         WHERE tenant_id = $1 AND id = $2`,
-        [tenantId, notificationId],
-      );
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    const claimResult = await pool.query<NotificationRow>(
+      `UPDATE notification_outbox
+       SET status = 'PROCESSING',
+           attempts = attempts + 1,
+           last_error = NULL,
+           updated_at = NOW()
+       WHERE tenant_id = $1
+         AND id = $2
+         AND status IN ('PENDING', 'QUEUED', 'FAILED')
+         AND attempts < max_attempts
+       RETURNING id,
+                 tenant_id AS "tenantId",
+                 job_id AS "jobId",
+                 channel,
+                 status,
+                 provider,
+                 recipient,
+                 recipient_user_id AS "recipientUserId",
+                 subject,
+                 body,
+                 payload,
+                 attempts,
+                 max_attempts AS "maxAttempts"`,
+      [tenantId, notificationId],
+    );
+    const row = claimResult.rows[0] || null;
 
     if (!row) {
-      return { success: false, provider: 'unknown', error: 'Notification not found' };
+      const currentResult = await pool.query<Pick<NotificationRow, 'channel' | 'status' | 'provider' | 'attempts' | 'maxAttempts'>>(
+        `SELECT channel, status, provider, attempts, max_attempts AS "maxAttempts"
+         FROM notification_outbox
+         WHERE tenant_id = $1 AND id = $2
+         LIMIT 1`,
+        [tenantId, notificationId],
+      );
+      const current = currentResult.rows[0];
+      if (!current) {
+        return { success: false, provider: 'unknown', error: 'Notification not found' };
+      }
+      if (TERMINAL_STATUSES.has(current.status) || current.status === 'PROCESSING') {
+        return {
+          success: true,
+          provider: current.provider,
+          status: current.status,
+          metadata: { skipped: true, claimHeld: current.status === 'PROCESSING' },
+        };
+      }
+
+      if (current.attempts >= current.maxAttempts) {
+        const exhaustedResult = await pool.query(
+          `UPDATE notification_outbox
+           SET status = 'DEAD_LETTER', updated_at = NOW()
+           WHERE tenant_id = $1
+             AND id = $2
+             AND status IN ('PENDING', 'QUEUED', 'FAILED')
+             AND attempts >= max_attempts
+           RETURNING id`,
+          [tenantId, notificationId],
+        );
+        if (exhaustedResult.rowCount === 1) {
+          await recordNotificationIncident({
+            tenantId,
+            severity: 'ERROR',
+            source: 'notifications',
+            fingerprint: `notification_dead_letter:${notificationId}`,
+            title: `Notification dead-lettered: ${current.channel}`,
+            description: 'Max attempts exhausted',
+            entityType: 'notification_outbox',
+            entityId: notificationId,
+            metadata: {
+              notificationId,
+              channel: current.channel,
+              provider: current.provider,
+              maxAttempts: current.maxAttempts,
+            },
+          });
+          return {
+            success: false,
+            provider: current.provider,
+            status: 'DEAD_LETTER',
+            error: 'Max attempts exhausted',
+          };
+        }
+      }
+
+      return {
+        success: true,
+        provider: current.provider,
+        status: current.status,
+        metadata: { skipped: true, claimContended: true },
+      };
+    }
+
+    const attemptNumber = row.attempts;
+    let result: ProviderSendResult;
+    try {
+      result = await sendViaProvider(row);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Notification provider outcome is unknown.';
+      await recordNotificationIncident({
+        tenantId,
+        severity: 'CRITICAL',
+        source: 'notifications',
+        fingerprint: `notification_delivery_unknown:${notificationId}`,
+        title: `Notification delivery state unknown: ${row.channel}`,
+        description: message,
+        entityType: 'notification_outbox',
+        entityId: notificationId,
+        metadata: {
+          notificationId,
+          jobId: row.jobId,
+          channel: row.channel,
+          provider: row.provider,
+          attemptNumber,
+          reconciliationRequired: true,
+        },
+      });
+      return {
+        success: false,
+        provider: row.provider,
+        status: 'PROCESSING',
+        error: 'Provider outcome is unknown; notification requires operator reconciliation.',
+        metadata: { deliveryStateUnknown: true, reconciliationRequired: true },
+      };
+    }
+
+    if (!result.success && result.outcome === 'UNKNOWN') {
+      await recordNotificationIncident({
+        tenantId,
+        severity: 'CRITICAL',
+        source: 'notifications',
+        fingerprint: `notification_delivery_unknown:${notificationId}`,
+        title: `Notification delivery state unknown: ${row.channel}`,
+        description: result.error || 'The provider transport outcome is unknown.',
+        entityType: 'notification_outbox',
+        entityId: notificationId,
+        metadata: {
+          notificationId,
+          jobId: row.jobId,
+          channel: row.channel,
+          provider: result.provider,
+          providerMessageId: result.providerMessageId || null,
+          attemptNumber,
+          reconciliationRequired: true,
+        },
+      });
+      return {
+        ...result,
+        status: 'PROCESSING',
+        error: 'Provider transport outcome is unknown; automatic retry is blocked.',
+        metadata: {
+          ...(result.metadata || {}),
+          deliveryStateUnknown: true,
+          reconciliationRequired: true,
+        },
+      };
     }
 
     try {
-      const result = await sendViaProvider(row);
-      const finalStatus = result.success ? (result.status || 'SENT') : 'FAILED';
-      const terminalFailure = !result.success && attemptNumber >= row.maxAttempts;
-      const storedStatus = terminalFailure ? 'DEAD_LETTER' : finalStatus;
-      const nextAttemptSql = result.success ? 'NULL' : `NOW() + INTERVAL '${backoffForAttempt(attemptNumber)}'`;
-
-      await pool.query(
-        `UPDATE notification_outbox
-         SET status = $1,
-             provider = $2,
-             provider_message_id = COALESCE($3, provider_message_id),
-             last_error = $4,
-             next_attempt_at = COALESCE(${nextAttemptSql}, next_attempt_at),
-             sent_at = CASE WHEN $1 IN ('SENT', 'DELIVERED') THEN COALESCE(sent_at, NOW()) ELSE sent_at END,
-             updated_at = NOW()
-         WHERE tenant_id = $5 AND id = $6`,
-        [
-          storedStatus,
-          result.provider,
-          result.providerMessageId || null,
-          result.error || null,
-          tenantId,
-          notificationId,
-        ],
-      );
-
-      await recordDeliveryEvent({
-        tenantId,
-        notificationId,
-        jobId: row.jobId,
-        status: storedStatus,
-        provider: result.provider,
-        providerMessageId: result.providerMessageId,
-        error: result.error,
-        metadata: result.metadata,
-      });
-
+      const storedStatus = await persistProviderOutcome(row, attemptNumber, result);
       if (storedStatus === 'DEAD_LETTER') {
-        await recordSreIncident({
+        await recordNotificationIncident({
           tenantId,
           severity: 'ERROR',
           source: 'notifications',
@@ -528,71 +642,44 @@ export async function processNotification(notificationId: string, tenantId: stri
           },
         });
       }
-
-      await updateLinkedMessage({
-        tenantId,
-        payload: row.payload || {},
-        status: storedStatus === 'DELIVERED' ? 'DELIVERED' : storedStatus === 'SENT' ? 'SENT' : 'FAILED',
-        providerMessageId: result.providerMessageId,
-        error: result.error,
-        metadata: { notificationId, provider: result.provider, status: storedStatus },
-      });
-
       return { ...result, status: storedStatus };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Notification delivery failed';
-      const terminalFailure = attemptNumber >= row.maxAttempts;
-      const storedStatus: NotificationStatus = terminalFailure ? 'DEAD_LETTER' : 'FAILED';
-
-      await pool.query(
-        `UPDATE notification_outbox
-         SET status = $1,
-             last_error = $2,
-             next_attempt_at = NOW() + INTERVAL '${backoffForAttempt(attemptNumber)}',
-             updated_at = NOW()
-         WHERE tenant_id = $3 AND id = $4`,
-        [storedStatus, message, tenantId, notificationId],
-      );
-
-      await recordDeliveryEvent({
+      const message = error instanceof Error ? error.message : 'Provider outcome bookkeeping failed.';
+      await recordNotificationIncident({
         tenantId,
-        notificationId,
-        jobId: row.jobId,
-        status: storedStatus,
-        provider: row.provider,
-        error: message,
+        severity: 'CRITICAL',
+        source: 'notifications',
+        fingerprint: `notification_bookkeeping_unknown:${notificationId}`,
+        title: `Notification bookkeeping requires reconciliation: ${row.channel}`,
+        description: message,
+        entityType: 'notification_outbox',
+        entityId: notificationId,
+        metadata: {
+          notificationId,
+          jobId: row.jobId,
+          channel: row.channel,
+          provider: result.provider,
+          providerAccepted: result.success,
+          providerMessageId: result.providerMessageId || null,
+          providerMessageIdPresent: Boolean(result.providerMessageId),
+          attemptNumber,
+          reconciliationRequired: true,
+        },
       });
-
-      if (storedStatus === 'DEAD_LETTER') {
-        await recordSreIncident({
-          tenantId,
-          severity: 'ERROR',
-          source: 'notifications',
-          fingerprint: `notification_dead_letter:${notificationId}`,
-          title: `Notification dead-lettered: ${row.channel}`,
-          description: message,
-          entityType: 'notification_outbox',
-          entityId: notificationId,
-          metadata: {
-            notificationId,
-            jobId: row.jobId,
-            channel: row.channel,
-            provider: row.provider,
-            attemptNumber,
-            maxAttempts: row.maxAttempts,
-          },
-        });
-      }
-
-      await updateLinkedMessage({
-        tenantId,
-        payload: row.payload || {},
-        status: 'FAILED',
-        error: message,
-        metadata: { notificationId, provider: row.provider, status: storedStatus },
-      });
-
-      return { success: false, provider: row.provider, status: storedStatus, error: message };
+      return {
+        success: false,
+        provider: result.provider,
+        status: 'PROCESSING',
+        error: result.success
+          ? 'Provider accepted the notification, but bookkeeping is unconfirmed; automatic retry is blocked.'
+          : 'Provider outcome bookkeeping is unconfirmed; automatic retry is blocked.',
+        metadata: {
+          ...(result.metadata || {}),
+          providerAccepted: result.success,
+          deliveryStateUnknown: true,
+          reconciliationRequired: true,
+        },
+      };
     }
   });
 }
@@ -609,6 +696,14 @@ export async function processDueNotifications(limit = 25): Promise<{
      FROM notification_outbox
      WHERE status IN ('PENDING', 'QUEUED', 'FAILED')
        AND next_attempt_at <= NOW()
+       AND NOT EXISTS (
+         SELECT 1
+         FROM notification_delivery_events receipt
+         WHERE receipt.notification_id = notification_outbox.id
+           AND receipt.tenant_id = notification_outbox.tenant_id
+           AND receipt.status IN ('FAILED', 'SUPPRESSED')
+           AND receipt.metadata ->> 'receiptAuthenticated' = 'true'
+       )
      ORDER BY next_attempt_at ASC, created_at ASC
      LIMIT $1`,
     [limit],
@@ -616,10 +711,13 @@ export async function processDueNotifications(limit = 25): Promise<{
   );
   const rows = result.rows;
 
+  let processed = 0;
   let succeeded = 0;
   let failed = 0;
   for (const row of rows) {
     const result = await processNotification(row.id, row.tenantId);
+    if (result.metadata?.skipped) continue;
+    processed += 1;
     if (result.success) {
       succeeded += 1;
     } else {
@@ -627,5 +725,5 @@ export async function processDueNotifications(limit = 25): Promise<{
     }
   }
 
-  return { processed: rows.length, succeeded, failed };
+  return { processed, succeeded, failed };
 }

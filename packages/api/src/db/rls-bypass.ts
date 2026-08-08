@@ -38,6 +38,7 @@ export const RLS_BYPASS_JUSTIFICATIONS = {
     JOB_DISPATCH: defineJustification('worker.cross-tenant-dispatch', 'The trusted dispatcher claims and records lifecycle state for jobs across tenant queues.'),
     PROVIDER_PAYMENT_LOOKUP: defineJustification('payments.provider-order-lookup', 'A verified payment-provider callback must map its provider order identifier to a tenant.'),
     PROVIDER_EVENT_LEDGER: defineJustification('payments.provider-event-ledger', 'Verified provider webhook events use a global idempotency ledger before tenant routing.'),
+    PROVIDER_NOTIFICATION_LOOKUP: defineJustification('notifications.provider-receipt', 'A cryptographically verified notification provider receipt must resolve its provider message identifier to a tenant before tenant-scoped mutation.'),
     STRIPE_SUBSCRIPTION_UPDATE: defineJustification('payments.stripe-subscription', 'A verified Stripe webhook updates platform company billing state by provider subscription identifier.'),
     PLATFORM_OPERATOR_CONSOLE: defineJustification('operations.platform-console', 'A verified platform operator requested an explicitly cross-tenant operational console view.'),
     PLATFORM_INCIDENT_READ: defineJustification('operations.platform-incident-read', 'A verified platform operator requested incidents across all tenant and platform scopes.'),

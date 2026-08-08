@@ -7,6 +7,7 @@
  */
 
 import type { ProviderResult } from './index';
+import { providerFailureOutcomeForHttpStatus } from './outcome';
 import { logger } from '@/lib/observability/logger';
 import { mockRuntimeIsAllowed, notificationProviderForChannel } from '@/lib/integrations/runtime-mode';
 
@@ -72,30 +73,42 @@ class Msg91Provider implements SmsProvider {
 
             if (!res.ok) {
                 const err = await res.text();
-                return { success: false, error: `MSG91 error: ${err}` };
+                return {
+                    success: false,
+                    error: `MSG91 error: ${err}`,
+                    outcome: providerFailureOutcomeForHttpStatus(res.status),
+                };
             }
 
             const data = await res.json();
             if (typeof data.request_id !== 'string' || !data.request_id.trim()) {
-                return { success: false, error: 'MSG91 response did not include a request_id.' };
+                return {
+                    success: false,
+                    error: 'MSG91 accepted the request without a request_id.',
+                    outcome: 'UNKNOWN',
+                };
             }
             return { success: true, data: { messageId: data.request_id } };
         } catch (err: unknown) {
-            return { success: false, error: (err as Error).message };
+            return { success: false, error: (err as Error).message, outcome: 'UNKNOWN' };
         }
     }
 
     async sendBulk(messages: { to: string; message: string }[]): Promise<ProviderResult<{ sent: number; failed: number }>> {
         let sent = 0;
         let failed = 0;
+        let unknown = false;
         for (const msg of messages) {
             const result = await this.send(msg.to, msg.message);
-            result.success ? sent++ : failed++;
+            if (result.success) sent += 1;
+            else failed += 1;
+            if (result.outcome === 'UNKNOWN') unknown = true;
         }
         return {
             success: failed === 0,
             data: { sent, failed },
             error: failed > 0 ? `${failed} SMS message(s) failed.` : undefined,
+            ...(failed > 0 ? { outcome: unknown ? 'UNKNOWN' as const : 'REJECTED' as const } : {}),
         };
     }
 }
@@ -106,12 +119,21 @@ class TwilioProvider implements SmsProvider {
     private accountSid: string;
     private authToken: string;
     private fromNumber: string;
+    private statusCallback: string;
 
     constructor() {
         this.accountSid = process.env.TWILIO_ACCOUNT_SID || '';
         this.authToken = process.env.TWILIO_AUTH_TOKEN || '';
         this.fromNumber = process.env.TWILIO_FROM_NUMBER || '';
-        if (!this.accountSid || !this.authToken) console.warn('[Twilio] Missing credentials');
+        this.statusCallback = process.env.NOTIFICATION_TWILIO_STATUS_CALLBACK_URL || '';
+        if (!this.accountSid || !this.authToken || !this.fromNumber) {
+            throw new Error('Twilio SMS requires TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER.');
+        }
+        try {
+            if (new URL(this.statusCallback).protocol !== 'https:') throw new Error();
+        } catch {
+            throw new Error('Twilio SMS requires NOTIFICATION_TWILIO_STATUS_CALLBACK_URL as an HTTPS URL.');
+        }
     }
 
     async send(to: string, message: string): Promise<ProviderResult<{ messageId: string }>> {
@@ -123,6 +145,7 @@ class TwilioProvider implements SmsProvider {
                 To: to,
                 From: this.fromNumber,
                 Body: message,
+                StatusCallback: this.statusCallback,
             });
 
             const res = await fetch(url, {
@@ -136,30 +159,42 @@ class TwilioProvider implements SmsProvider {
 
             if (!res.ok) {
                 const err = await res.json();
-                return { success: false, error: err.message || 'Twilio send failed' };
+                return {
+                    success: false,
+                    error: err.message || 'Twilio send failed',
+                    outcome: providerFailureOutcomeForHttpStatus(res.status),
+                };
             }
 
             const data = await res.json();
             if (typeof data.sid !== 'string' || !data.sid.trim()) {
-                return { success: false, error: 'Twilio response did not include a message SID.' };
+                return {
+                    success: false,
+                    error: 'Twilio accepted the request without a message SID.',
+                    outcome: 'UNKNOWN',
+                };
             }
             return { success: true, data: { messageId: data.sid } };
         } catch (err: unknown) {
-            return { success: false, error: (err as Error).message };
+            return { success: false, error: (err as Error).message, outcome: 'UNKNOWN' };
         }
     }
 
     async sendBulk(messages: { to: string; message: string }[]): Promise<ProviderResult<{ sent: number; failed: number }>> {
         let sent = 0;
         let failed = 0;
+        let unknown = false;
         for (const msg of messages) {
             const result = await this.send(msg.to, msg.message);
-            result.success ? sent++ : failed++;
+            if (result.success) sent += 1;
+            else failed += 1;
+            if (result.outcome === 'UNKNOWN') unknown = true;
         }
         return {
             success: failed === 0,
             data: { sent, failed },
             error: failed > 0 ? `${failed} SMS message(s) failed.` : undefined,
+            ...(failed > 0 ? { outcome: unknown ? 'UNKNOWN' as const : 'REJECTED' as const } : {}),
         };
     }
 }
@@ -189,7 +224,7 @@ export function getSmsProvider(): SmsProvider {
             default:
                 throw new Error(`Unsupported SMS provider: ${provider}.`);
         }
-        console.log(`[SMS] Using ${provider} provider`);
+        console.info(`[SMS] Using ${provider} provider`);
     }
     return _instance;
 }

@@ -22,6 +22,9 @@ export type EstablishSessionInput = {
     mfaEnabled?: boolean;
     mfaVerified?: boolean;
     token?: string;
+    authVersion: number;
+    passwordChangeRequired?: boolean;
+    temporaryPasswordExpiresAt?: string;
     impersonation?: SessionData['impersonation'];
 };
 
@@ -69,6 +72,7 @@ export function establishSession(session: SessionData, input: EstablishSessionIn
     session.role = input.role;
     session.email = input.email;
     session.token = input.token || '';
+    session.authVersion = input.authVersion;
     session.authProvider = input.provider;
     session.issuedAt = issuedAt;
     session.lastSeenAt = issuedAt;
@@ -80,6 +84,8 @@ export function establishSession(session: SessionData, input: EstablishSessionIn
     session.activeModules = input.activeModules || [];
     session.mfaRequired = mfaRequired;
     session.mfaVerified = !mfaRequired || Boolean(input.mfaVerified);
+    session.passwordChangeRequired = Boolean(input.passwordChangeRequired);
+    session.temporaryPasswordExpiresAt = input.temporaryPasswordExpiresAt;
     session.impersonation = input.impersonation;
 }
 

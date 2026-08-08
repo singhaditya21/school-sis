@@ -1,50 +1,47 @@
 # ScholarMind V6 — Comprehensive Architecture & Deployment Specification
 
-This specification document outlines the complete architectural design, service topology, deployment models, multi-campus hierarchy, and security control systems for ScholarMind V6.
+This specification document outlines the current service topology, deployment models, multi-campus hierarchy, and security control systems for ScholarMind V6.
 
 ---
 
 ## 1. Global Topology & Service Architecture
 
-ScholarMind V6 is composed of five distinct service layers designed for modularity, strict security isolation, and high performance.
+ScholarMind V6 currently ships as a Next.js application backed by Postgres and configured external providers. The hosting platform sends HTTPS traffic directly to the application; the repository does not build or deploy a separate API gateway.
 
 ```mermaid
 graph TD
-    UserClient([Client Browser]) -->|HTTPS / WSS| Gateway[Go Gateway: services/gateway]
-    Gateway -->|HTML / CSS / JS| Web[Next.js App: apps/web]
-    Gateway -->|Database Ingestion / GraphQL| Web
-    Web -->|SQL Query / Drizzle| Postgres[(Neon Postgres + pgvector)]
-    Web -->|HTTP JSON RPC| Agents[FastAPI AI Swarm: services/agents]
-    Agents -->|Background Processing| RedisQueue[(Redis Queue / Arq)]
-    Agents -->|Embeddings Search| Postgres
-    Agents -->|NIM chat/embeddings| Inference[Rust Inference: services/inference]
-    Inference -->|llama.cpp / Qwen 7B| LLM[LLM Engine]
+    UserClient([Client Browser]) -->|HTTPS| Web[Next.js App: apps/web]
+    Web -->|Pages / Server Actions / Route Handlers| Core[Application Core: apps/web + packages/api]
+    Core -->|SQL Query / Drizzle| Postgres[(Neon Postgres + pgvector)]
+    Core -->|Durable Dispatch| JobQueue[(Postgres Job Queue)]
+    Core -->|Authenticated HTTPS| Providers[Configured Payment / Messaging / AI Providers]
 ```
 
-### 1.1 The Five Service Layers
+### 1.1 Current Runtime Layers
 
 1. **Presentation & Core API Layer (`/apps/web`)**:
-   - **Framework**: Next.js 15 (App Router).
+   - **Framework**: Next.js 16 (App Router).
    - **Database ORM**: Drizzle ORM (fully typed mapping).
-   - **Authentication**: NextAuth / IronSession tracking tenant scope (`tenantId`) and user role (`role`).
-   - **Responsibility**: Serving responsive web views (Tailwind CSS, Tremor dashboards) and executing server-side transactional mutations.
+   - **Authentication**: Iron Session tracking tenant scope (`tenantId`), user identity, role, and revocable authorization version.
+   - **Responsibility**: Serving responsive web views, authenticating browser/API callers, applying CSP and security headers, rate limiting protected entrypoints, and executing server-side transactional mutations.
    
-2. **AI Swarm Orchestration Layer (`/services/agents`)**:
-   - **Framework**: Python FastAPI.
-   - **Responsibility**: Directing queries to the 26 specialized agents, matching RAG pipelines, managing tool registries, executing local business tools, and queueing background tasks.
-   
-3. **Rust Inference Engine (`/services/inference`)**:
-   - **Framework**: Rust (Cargo).
-   - **Responsibility**: Exposing high-performance APIs for local LLM inference (using llama.cpp or NIM endpoints) and text-to-vector embedding generation.
-   
-4. **API Gateway Layer (`/services/gateway`)**:
-   - **Framework**: Go.
-   - **Responsibility**: Routing requests, enforcing rate limits, parsing authentication cookies, handling CORS headers, and load balancing traffic.
-   
-5. **Data & Storage Layer**:
+2. **Domain & Data Access Layer (`/packages/api`)**:
+   - **Framework**: TypeScript and Drizzle ORM.
+   - **Responsibility**: Providing the typed schema, tenant-aware database access, and domain services consumed by the web runtime.
+
+3. **Job & Provider Integration Layer (`/apps/web/src/lib`)**:
+   - **Responsibility**: Persisting durable jobs and calling explicitly configured payment, messaging, storage, and AI providers. Provider-specific authentication and callback verification remain inside the application boundary.
+
+4. **Data & Storage Layer**:
    - **Neon Postgres**: Primary transactional and relational store.
    - **pgvector**: Cosine and Euclidean vector distance database extension.
-   - **Redis**: Persistent background job queue (Arq) and token tracking.
+   - **Redis or Postgres**: Shared atomic rate-limit state, selected explicitly by production configuration.
+
+### 1.2 Production Edge Decision
+
+The experimental Go reverse proxy under `services/gateway` was removed on 2026-07-18. It had no runtime, build, CI, or deployment integration and is not part of the production security model. The managed hosting edge terminates transport, while `apps/web` owns identity, tenant authorization, endpoint-level request validation, CSP/security headers, callback verification, and rate limiting.
+
+Any future repository-owned edge service is a new architecture decision. It must not be exposed until it has authenticated routes, allowlisted CORS, bounded request bodies and route timeouts, upstream readiness checks, structured observability, automated tests, and an enforced CI/deployment gate.
 
 ---
 

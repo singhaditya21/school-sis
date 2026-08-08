@@ -1,48 +1,79 @@
-# AI / Agent Architecture
+# AI / Copilot Safety Architecture
 
-## Implemented Controls
+Last reviewed: 2026-08-07
 
-- Browser clients no longer call the Python agent service directly.
-- Next.js exposes tenant-authenticated proxy routes under `/api/agents/*`.
-- Agent human-in-the-loop approvals now use the generic workflow approval engine through compatibility routes at `/api/agents/approvals` and `/api/agents/approvals/:id/review`.
-- The web gateway forwards only trusted session context to agents:
-  - `Authorization: Bearer ${AGENT_API_TOKEN}`
-  - `X-Tenant-Id`
-  - `X-User-Id`
-  - `X-User-Role`
-- FastAPI agent routes bind body/path tenant IDs to `X-Tenant-Id`.
-- Approval review is bound to the session user and reviewer role through `workflow_approval_reviews`; callers cannot review as another user.
-- Async jobs are stored with tenant/user ownership and polling rejects cross-tenant/job access.
-- Public agent responses strip reasoning artifacts and redact tool arguments/results.
-- RAG search and embedding upsert set PostgreSQL tenant context before DB access.
-- Agent audit logs set tenant context; new approval queue writes are stored in `workflow_approval_requests`.
-- Student and invoice indexing now use the same `embeddings` table that RAG search reads.
-- Incremental indexing for single students and invoices is implemented.
-- Postgres has RLS-protected `embeddings`, `agent_audit_logs`, legacy `agent_approvals`, and generic `workflow_approval_*` tables.
-- Student/invoice database triggers emit indexing notifications on tenant-scoped changes.
+## Deployed surface
 
-## Runtime Requirements
+The repository ships one native model path: the tenant-authenticated report copilot at
+`POST /api/copilot`. The `/api/chat` and `/api/agents/:agent/query-async` routes are
+authenticated compatibility gateways to an independently deployed agent service. That
+Python service is not present in this repository and is hard-gated: credentials alone
+cannot enable it. Activation requires a reviewed code change that records the external
+service version, the SHA-256 of a passing eval artifact, all required red-team
+categories, and the specifically approved agent ids.
 
-Web app:
+Agent approval compatibility routes are local and persist requests in the generic
+workflow-approval engine. They do not invoke a model.
 
-- `AGENT_SERVICE_URL`: private URL of the Python FastAPI agent service.
-- `AGENT_API_TOKEN`: shared service token, at least 32 characters, matching `AGENT_API_TOKEN` in the agent service.
+The dynamic gateway accepts only the six agent ids exposed by the UI; arbitrary
+path-selected agents/tools are rejected before forwarding. With no approved external
+release currently checked in, the transport rejects every forwarding attempt before
+network access.
 
-Agent service:
+## Request controls
 
-- `AGENT_API_TOKEN`: shared service token.
-- `AGENT_DATABASE_URL`: Postgres connection string.
-- `AGENT_REDIS_URL`: Redis for async job queue, job ownership, rate limiting, and token tracking.
-- `AGENT_LLM_API_KEY`: chat model provider key.
-- `AGENT_NVIDIA_API_KEY`: embedding provider key.
-- `AGENT_ALLOWED_ORIGINS`: production web origins.
-- `AGENT_ENVIRONMENT=production`.
+Every model ingress performs controls in this order:
 
-## Remaining Hardening
+1. authenticated role and tenant binding;
+2. strict distributed rate-limit consumption (`endpointClass: ai`), with a bounded
+   one-request in-process fallback if Redis/Postgres is unavailable;
+3. tenant-field rejection and request-shape limits;
+4. prompt normalization and deterministic prompt-injection/secret/cross-tenant/tool
+   abuse rejection;
+5. atomic per-tenant and per-user monthly token and cost reservation;
+6. provider invocation; and
+7. idempotent usage settlement in `ai_token_logs` and `ai_budget_usage`.
 
-- Deploy the Python agent service to a private service boundary, not a public browser-facing URL.
-- Add a dedicated agent worker process for ARQ jobs.
-- Add a replay-safe webhook/indexing event table if LISTEN/NOTIFY loss cannot be tolerated.
-- Add role-aware agent/tool permissions beyond tenant membership.
-- Add dashboards for agent audit logs, token usage, indexing lag, and failed jobs.
-- Remove or archive legacy Python `agent_approvals` writes once every agent action creates `agents.approval.review` workflow approvals directly.
+Budget storage is tenant-RLS protected. Both scope reservations occur in one
+transaction. A request is denied before provider invocation if either ceiling cannot
+cover its conservative maximum token and cost estimate. Failed or aborted provider
+calls remain conservatively charged because a provider may have processed tokens
+before the failure became observable.
+
+## Report-copilot grounding
+
+The report copilot queries only published metadata for the authenticated tenant and
+only fields readable by the caller's role. Only identifier-shaped API names enter the
+model context. The tenant id never enters the prompt.
+
+The `generateReportAst` tool is read-only. Its output is accepted only when the base
+object and every aggregation/filter field exist in the same tenant catalog. It cannot
+execute SQL or mutate a record. Unknown objects and fields are returned to the model
+as grounding failures rather than accepted configurations.
+
+## Provider fallback policy
+
+The native copilot makes one primary request with SDK retries disabled. It switches to
+the configured OpenAI-compatible fallback only when the primary fails before response
+streaming with a timeout/network error, HTTP 408/425/429, or HTTP 5xx. It never sends
+the prompt to a fallback after authentication, authorization, configuration, safety,
+or other HTTP 4xx failures. A mid-stream failure is not replayed.
+
+Fallback configuration is all-or-nothing and should use a different failure domain.
+If no fallback is configured, primary failure is surfaced as unavailable. See
+[AI provider failure runbook](./runbooks/AI_PROVIDER_FAILURE.md).
+
+## Release evidence
+
+`pnpm test:ai-evals` runs deterministic release cases for prompt injection, tenant
+leakage, hallucination/groundedness, unsafe tool use, retrieval grounding, budget
+enforcement, provider degradation, and rate-limit outage behavior. CI fails on any
+case failure and uploads `apps/web/artifacts/ai-evals/results.json` with the CI evidence
+artifact. Unit tests carry the larger red-team corpus and provider/budget boundaries.
+The suite also verifies that the unversioned external agent/tool surface remains
+release-gated; it must supply its own passing artifact before a later reviewed release
+can activate it.
+
+No eval makes a live provider call or treats a mock response as production success.
+Provider credentials, pricing, and a staged failure drill are deployment evidence and
+remain operator responsibilities.

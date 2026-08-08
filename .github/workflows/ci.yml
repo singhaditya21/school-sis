@@ -150,6 +150,9 @@ jobs:
       - name: Run Secret Pattern Scan
         run: pnpm audit:secrets
 
+      - name: Enforce Repository Hygiene
+        run: pnpm audit:hygiene
+
       - name: Enforce Static Risk-Debt Ratchet
         run: pnpm audit:debt
 
@@ -164,6 +167,11 @@ jobs:
 
       - name: Run TypeScript
         run: pnpm --filter @school-sis/web exec tsc --noEmit --pretty false --incremental false
+
+      - name: Validate Gated Mobile Preview
+        run: |
+          pnpm --filter mobile run typecheck
+          pnpm --filter mobile run test:release-gate
 
       - name: Run Build
         run: pnpm run build
@@ -182,6 +190,9 @@ jobs:
       - name: Run Unit Tests
         run: pnpm test:unit
 
+      - name: Run AI Safety Evals
+        run: pnpm test:ai-evals
+
       - name: Validate Load Test Harness
         run: pnpm --filter @school-sis/web run perf:load -- --dry-run
 
@@ -192,5 +203,6 @@ jobs:
           name: ci-evidence-${{ github.run_id }}
           path: |
             pnpm-audit-high.json
+            apps/web/artifacts/ai-evals/results.json
           if-no-files-found: ignore
           retention-days: 14

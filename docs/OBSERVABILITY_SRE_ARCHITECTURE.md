@@ -31,7 +31,7 @@ School SIS now has a production operations layer for health checks, readiness, P
 
 - `school_sis_database_ready`
 - `school_sis_background_jobs{status}`
-- `school_sis_notification_outbox{status}`
+- `school_sis_notification_outbox{status,channel,provider}` (including delivered and suppressed outcomes)
 - `school_sis_sre_incidents{status}`
 - `school_sis_sre_open_incidents_by_severity{severity}`
 - `school_sis_rate_limit_decisions_total{endpoint_class,outcome,backend}`

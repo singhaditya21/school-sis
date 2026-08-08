@@ -75,3 +75,80 @@ export function assertProductionMockModesDisabled(env: NodeJS.ProcessEnv = proce
     );
   }
 }
+
+type NotificationProviderName = 'EMAIL' | 'SMS' | 'WHATSAPP' | 'PUSH';
+
+const LIVE_NOTIFICATION_PROVIDERS: Record<NotificationProviderName, Record<string, readonly string[]>> = {
+  EMAIL: {
+    resend: ['RESEND_API_KEY', 'RESEND_WEBHOOK_SECRET'],
+    smtp: ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'NOTIFICATION_RECEIPT_WEBHOOK_SECRET'],
+  },
+  SMS: {
+    msg91: ['MSG91_AUTH_KEY', 'NOTIFICATION_RECEIPT_WEBHOOK_SECRET'],
+    twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER', 'NOTIFICATION_TWILIO_STATUS_CALLBACK_URL'],
+  },
+  WHATSAPP: {
+    twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_WHATSAPP_FROM_NUMBER', 'NOTIFICATION_TWILIO_STATUS_CALLBACK_URL'],
+  },
+  PUSH: {
+    firebase: ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY', 'NOTIFICATION_RECEIPT_WEBHOOK_SECRET'],
+  },
+};
+
+function configuredValue(env: NodeJS.ProcessEnv, name: string): boolean {
+  return Boolean(env[name]?.trim());
+}
+
+/**
+ * Production providers are optional, but selecting one is a complete contract:
+ * send credentials and an authenticated receipt path must be configured together.
+ */
+export function assertProductionNotificationProvidersConfigured(env: NodeJS.ProcessEnv = process.env): void {
+  if (env.NODE_ENV !== 'production') return;
+
+  const requiredChannels = new Set(
+    (env.REQUIRED_NOTIFICATION_CHANNELS || '')
+      .split(',')
+      .map((value) => value.trim().toUpperCase())
+      .filter(Boolean),
+  );
+  const violations: string[] = [];
+
+  for (const channel of Object.keys(LIVE_NOTIFICATION_PROVIDERS) as NotificationProviderName[]) {
+    const provider = normalizedEnvValue(env, `${channel}_PROVIDER`);
+    if (!provider) {
+      if (requiredChannels.has(channel)) violations.push(`${channel}_PROVIDER is required`);
+      continue;
+    }
+    const requirements = LIVE_NOTIFICATION_PROVIDERS[channel][provider];
+    if (!requirements) {
+      violations.push(`${channel}_PROVIDER=${provider} is unsupported`);
+      continue;
+    }
+    const missing = requirements.filter((name) => !configuredValue(env, name));
+    if (missing.length > 0) violations.push(`${channel}_PROVIDER=${provider} is missing ${missing.join(', ')}`);
+  }
+
+  for (const required of requiredChannels) {
+    if (!(required in LIVE_NOTIFICATION_PROVIDERS)) violations.push(`unknown required channel ${required}`);
+  }
+
+  const callbackUrl = env.NOTIFICATION_TWILIO_STATUS_CALLBACK_URL;
+  if (callbackUrl) {
+    try {
+      if (new URL(callbackUrl).protocol !== 'https:') throw new Error();
+    } catch {
+      violations.push('NOTIFICATION_TWILIO_STATUS_CALLBACK_URL must be a valid HTTPS URL');
+    }
+  }
+  if (
+    env.NOTIFICATION_RECEIPT_WEBHOOK_SECRET
+    && env.NOTIFICATION_RECEIPT_WEBHOOK_SECRET.trim().length < 32
+  ) {
+    violations.push('NOTIFICATION_RECEIPT_WEBHOOK_SECRET must be at least 32 characters');
+  }
+
+  if (violations.length > 0) {
+    throw new Error(`Production notification provider configuration is invalid: ${violations.join('; ')}.`);
+  }
+}

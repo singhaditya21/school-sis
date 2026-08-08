@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
 import type { ApiAuthContext } from '@/lib/auth/api';
+import {
+    requireApprovedExternalAgent,
+    requireApprovedExternalAgentRelease,
+    type AllowedAgentId,
+} from '@/lib/agents/policy';
 
 type AgentFetchOptions = {
+    /** Required for model/tool invocation; omitted only for read-only job polling. */
+    agentId?: AllowedAgentId;
     method?: 'GET' | 'POST';
     body?: unknown;
 };
@@ -22,11 +29,21 @@ function agentServiceToken(): string {
     return token;
 }
 
+export function ensureAgentServiceConfigured(agentId?: AllowedAgentId): void {
+    if (agentId) requireApprovedExternalAgent(agentId);
+    else requireApprovedExternalAgentRelease();
+    agentServiceUrl();
+    agentServiceToken();
+}
+
 export async function forwardAgentRequest(
     auth: ApiAuthContext,
     path: string,
     options: AgentFetchOptions = {},
 ): Promise<NextResponse> {
+    // Keep the release gate at the transport boundary as well as at callers so
+    // a future route cannot accidentally bypass the external eval requirement.
+    ensureAgentServiceConfigured(options.agentId);
     const response = await fetch(`${agentServiceUrl()}${path}`, {
         method: options.method || 'GET',
         headers: {
@@ -50,6 +67,6 @@ export async function forwardAgentRequest(
 
 export function agentUnavailableResponse(error: unknown): NextResponse {
     const message = error instanceof Error ? error.message : 'Agent service is unavailable.';
-    const status = message.includes('configured') ? 503 : 502;
+    const status = message.includes('configured') || message.includes('release-gated') ? 503 : 502;
     return NextResponse.json({ error: message }, { status });
 }

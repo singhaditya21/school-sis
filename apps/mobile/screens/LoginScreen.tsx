@@ -1,12 +1,12 @@
 import React from 'react';
 import { View, Text, Button, StyleSheet, SafeAreaView } from 'react-native';
 
-export function LoginScreen({ navigation }: any) {
+export function LoginScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>School SIS</Text>
-        <Text style={styles.subtitle}>Parent Portal</Text>
+        <Text style={styles.subtitle}>Development preview — authentication disabled</Text>
         
         <View style={styles.buttonContainer}>
           <Button 
@@ -15,7 +15,8 @@ export function LoginScreen({ navigation }: any) {
             onPress={() => undefined} 
           />
           <Text style={styles.notice}>
-            Use the web portal until a token-based mobile login endpoint is available.
+            This client is not available for production use. Use the authenticated web portal
+            until token login, secure storage, and mobile security tests are complete.
           </Text>
         </View>
       </View>

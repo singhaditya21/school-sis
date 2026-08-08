@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const blockedExactPaths = new Set([
   'apps/web/pnpm_audit.json',
@@ -10,7 +12,11 @@ const blockedExactPaths = new Set([
   'package-lock.json',
 ]);
 
-const blockedPrefixes = [
+const blockedDirectoryNames = new Set(['.agents']);
+
+const blockedSuffixes = [
+  '.log',
+  '.tsbuildinfo',
 ];
 
 function trackedFiles() {
@@ -18,19 +24,32 @@ function trackedFiles() {
   return output.split('\0').filter(Boolean);
 }
 
-function isBlocked(file) {
-  return blockedExactPaths.has(file) || blockedPrefixes.some((prefix) => file.startsWith(prefix));
+export function isBlocked(file) {
+  return blockedExactPaths.has(file)
+    || file.split('/').some((segment) => blockedDirectoryNames.has(segment))
+    || blockedSuffixes.some((suffix) => file.endsWith(suffix));
 }
 
-const findings = trackedFiles().filter(isBlocked);
+export function findBlockedFiles(files) {
+  return files.filter(isBlocked);
+}
 
-if (findings.length > 0) {
-  console.error('Generated or policy-blocked files are still tracked:');
-  for (const file of findings) {
-    console.error(`- ${file}`);
+function run() {
+  const findings = findBlockedFiles(trackedFiles());
+
+  if (findings.length > 0) {
+    console.error('Generated or policy-blocked files are still tracked:');
+    for (const file of findings) {
+      console.error(`- ${file}`);
+    }
+    console.error('Remove these files from Git or update the hygiene gate with a reviewed source-of-truth exception.');
+    return 1;
   }
-  console.error('Remove these files from Git or update the hygiene gate with a reviewed source-of-truth exception.');
-  process.exit(1);
+
+  console.log('Repository hygiene gate passed.');
+  return 0;
 }
 
-console.log('Repository hygiene gate passed.');
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  process.exitCode = run();
+}

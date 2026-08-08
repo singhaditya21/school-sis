@@ -137,6 +137,15 @@ function updatesFromPatchPayload(payload: Record<string, unknown>): { ok: true; 
     return { ok: true, updates };
 }
 
+function isTenantEmailConflict(error: unknown): boolean {
+    return Boolean(
+        error
+        && typeof error === 'object'
+        && (error as { code?: string }).code === '23505'
+        && (error as { constraint?: string }).constraint === 'users_tenant_email_lower_key',
+    );
+}
+
 async function updateScimUser(
     tenantId: string,
     id: string,
@@ -164,7 +173,9 @@ async function updateScimUser(
 
     const { rows } = await pool.query<ScimUserRow>(
         `UPDATE users
-         SET ${assignments.join(', ')}, updated_at = NOW()
+         SET ${assignments.join(', ')},
+             auth_version = auth_version + 1,
+             updated_at = NOW()
          WHERE tenant_id = $${tenantParam} AND id = $${idParam}
          RETURNING
             id,
@@ -249,7 +260,15 @@ export async function PATCH(request: Request, { params }: RouteContext) {
         }
     }
 
-    const updated = await updateScimUser(auth.tenantId, id, updateResult.updates);
+    let updated: ScimUserRow | null;
+    try {
+        updated = await updateScimUser(auth.tenantId, id, updateResult.updates);
+    } catch (error) {
+        if (isTenantEmailConflict(error)) {
+            return scimError('A user with this email already exists in this tenant.', 409, 'uniqueness');
+        }
+        throw error;
+    }
     if (!updated) return scimError('User not found.', 404, 'notFound');
 
     await recordIntegrationAudit({

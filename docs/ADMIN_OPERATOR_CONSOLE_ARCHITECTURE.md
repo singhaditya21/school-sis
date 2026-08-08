@@ -19,7 +19,7 @@ School SIS now has a control-plane architecture for platform and tenant operator
 | --- | --- | --- |
 | Tenant Health | `tenants`, `observability_events`, `sre_incidents` | Platform-wide tenant triage |
 | Jobs | `background_jobs`, `background_job_attempts` | Retry or cancel failed jobs |
-| Notifications | `notification_outbox`, `notification_delivery_events` | Replay failed communications |
+| Notifications | `notification_outbox`, `notification_delivery_events` | Review queued/sent/delivered/failed/dead-letter/suppressed counts by channel; replay failed communications |
 | Payments | `payment_orders`, `payment_provider_events`, `payment_audit_logs` | Reconcile money movement |
 | Integrations | `integration_connections`, `integration_api_keys`, `integration_audit_logs` | Retry partner delivery and rotate keys |
 | Approvals | `workflow_approval_requests`, `workflow_approval_reviews` | Escalate overdue approvals |

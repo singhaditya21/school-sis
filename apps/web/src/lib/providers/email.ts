@@ -7,6 +7,7 @@
  */
 
 import type { ProviderResult } from './index';
+import { providerFailureOutcomeForHttpStatus } from './outcome';
 import { logger } from '@/lib/observability/logger';
 import { mockRuntimeIsAllowed, notificationProviderForChannel } from '@/lib/integrations/runtime-mode';
 
@@ -88,7 +89,7 @@ class SmtpProvider implements EmailProvider {
 
             return { success: true, data: { messageId: info.messageId } };
         } catch (err: unknown) {
-            return { success: false, error: (err as Error).message };
+            return { success: false, error: (err as Error).message, outcome: 'UNKNOWN' };
         }
     }
 }
@@ -127,13 +128,24 @@ class ResendProvider implements EmailProvider {
 
             if (!res.ok) {
                 const err = await res.json();
-                return { success: false, error: err.message || 'Resend API error' };
+                return {
+                    success: false,
+                    error: err.message || 'Resend API error',
+                    outcome: providerFailureOutcomeForHttpStatus(res.status),
+                };
             }
 
-            const data = await res.json();
+            const data = await res.json() as { id?: unknown };
+            if (typeof data.id !== 'string' || !data.id.trim()) {
+                return {
+                    success: false,
+                    error: 'Resend accepted the request without a message id.',
+                    outcome: 'UNKNOWN',
+                };
+            }
             return { success: true, data: { messageId: data.id } };
         } catch (err: unknown) {
-            return { success: false, error: (err as Error).message };
+            return { success: false, error: (err as Error).message, outcome: 'UNKNOWN' };
         }
     }
 }
@@ -163,7 +175,7 @@ export function getEmailProvider(): EmailProvider {
             default:
                 throw new Error(`Unsupported email provider: ${provider}.`);
         }
-        console.log(`[Email] Using ${provider} provider`);
+        console.info(`[Email] Using ${provider} provider`);
     }
     return _instance;
 }

@@ -54,6 +54,22 @@ type Snapshot = {
             status?: string;
             latencyMs?: number | null;
         };
+        notifications?: {
+            queued?: number;
+            sent?: number;
+            delivered?: number;
+            failed?: number;
+            deadLettered?: number;
+            suppressed?: number;
+            byChannel?: Record<string, {
+                queued: number;
+                sent: number;
+                delivered: number;
+                failed: number;
+                deadLettered: number;
+                suppressed: number;
+            }>;
+        };
     };
 };
 
@@ -238,6 +254,44 @@ export default function OperatorConsoleClient({ initialScope, role, tenantId }: 
                         </article>
                     ))}
                 </section>
+
+                {snapshot?.metrics.notifications && (
+                    <section className="rounded-md border border-slate-200 bg-white">
+                        <div className="border-b border-slate-200 px-4 py-3">
+                            <h2 className="text-base font-semibold text-slate-950">Notification delivery</h2>
+                            <p className="mt-1 text-sm text-slate-500">Provider-confirmed outcomes by channel.</p>
+                            <dl className="mt-3 flex flex-wrap gap-4 text-sm">
+                                <div><dt className="text-slate-500">Delivered</dt><dd className="font-semibold text-emerald-700">{snapshot.metrics.notifications.delivered ?? 0}</dd></div>
+                                <div><dt className="text-slate-500">Suppressed</dt><dd className="font-semibold text-amber-700">{snapshot.metrics.notifications.suppressed ?? 0}</dd></div>
+                                <div><dt className="text-slate-500">Failed</dt><dd className="font-semibold text-red-700">{snapshot.metrics.notifications.failed ?? 0}</dd></div>
+                            </dl>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-slate-200 text-sm">
+                                <thead className="bg-slate-50 text-left text-slate-600">
+                                    <tr>
+                                        {['Channel', 'Queued', 'Sent', 'Delivered', 'Failed', 'Dead letter', 'Suppressed'].map((label) => (
+                                            <th key={label} className="px-4 py-2 font-medium">{label}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {Object.entries(snapshot.metrics.notifications.byChannel ?? {}).map(([channel, counts]) => (
+                                        <tr key={channel}>
+                                            <th className="px-4 py-2 text-left font-medium text-slate-900">{channel}</th>
+                                            <td className="px-4 py-2">{counts.queued}</td>
+                                            <td className="px-4 py-2">{counts.sent}</td>
+                                            <td className="px-4 py-2 text-emerald-700">{counts.delivered}</td>
+                                            <td className="px-4 py-2 text-red-700">{counts.failed}</td>
+                                            <td className="px-4 py-2 text-red-700">{counts.deadLettered}</td>
+                                            <td className="px-4 py-2 text-amber-700">{counts.suppressed}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                )}
 
                 <section className="rounded-md border border-slate-200 bg-white">
                     <div className="flex flex-col gap-1 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">

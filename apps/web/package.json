@@ -11,6 +11,7 @@
         "test:unit": "jest --runInBand",
         "test:unit:coverage": "jest --runInBand --coverage",
         "test:architecture": "node scripts/check-test-architecture.mjs",
+        "test:ai-evals": "node --import tsx scripts/run-ai-evals.ts",
         "test:e2e": "touch .env.test && node --env-file-if-exists=.env ./node_modules/@playwright/test/cli.js test",
         "test:e2e:smoke": "touch .env.test && node --env-file-if-exists=.env ./node_modules/@playwright/test/cli.js test e2e/smoke.spec.ts",
         "db:generate": "drizzle-kit generate",

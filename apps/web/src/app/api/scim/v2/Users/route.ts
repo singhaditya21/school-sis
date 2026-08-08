@@ -18,6 +18,15 @@ import {
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+function isTenantEmailConflict(error: unknown): boolean {
+    return Boolean(
+        error
+        && typeof error === 'object'
+        && (error as { code?: string }).code === '23505'
+        && (error as { constraint?: string }).constraint === 'users_tenant_email_lower_key',
+    );
+}
+
 const scimCreateSchema = z.object({
     userName: z.string().optional(),
     active: z.boolean().optional(),
@@ -163,28 +172,36 @@ export async function POST(request: Request) {
     const passwordHash = await hash(randomPassword, 12);
     const active = payload.active !== false;
 
-    const created = await pool.query<ScimUserRow>(
-        `INSERT INTO users (
-            tenant_id,
-            email,
-            password_hash,
-            first_name,
-            last_name,
-            role,
-            is_active
-         )
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING
-            id,
-            email,
-            first_name AS "firstName",
-            last_name AS "lastName",
-            role,
-            is_active AS "isActive",
-            created_at AS "createdAt",
-            updated_at AS "updatedAt"`,
-        [auth.tenantId, email, passwordHash, firstName, lastName, roleResult.role, active],
-    );
+    let created;
+    try {
+        created = await pool.query<ScimUserRow>(
+            `INSERT INTO users (
+                tenant_id,
+                email,
+                password_hash,
+                first_name,
+                last_name,
+                role,
+                is_active
+             )
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             RETURNING
+                id,
+                email,
+                first_name AS "firstName",
+                last_name AS "lastName",
+                role,
+                is_active AS "isActive",
+                created_at AS "createdAt",
+                updated_at AS "updatedAt"`,
+            [auth.tenantId, email, passwordHash, firstName, lastName, roleResult.role, active],
+        );
+    } catch (error) {
+        if (isTenantEmailConflict(error)) {
+            return scimError('A user with this email already exists in this tenant.', 409, 'uniqueness');
+        }
+        throw error;
+    }
 
     const body = toScimUser(created.rows[0], request);
     const location = (body.meta as { location: string }).location;

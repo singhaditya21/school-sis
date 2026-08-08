@@ -35,7 +35,7 @@ Limitations:
 - Production Vercel and Neon secrets were not available in the local shell, so strict production runtime evidence could not be re-proven locally.
 - Browser/manual QA of every page was not performed in this pass.
 - Python agent tests could not be run because `pytest` was not installed.
-- Go gateway tests could not be run because `go` was not installed.
+- At audit time, Go gateway tests could not be run because `go` was not installed; the unwired service was subsequently removed.
 
 ## Verification Results
 
@@ -57,7 +57,7 @@ Limitations:
 | `pnpm --filter mobile exec tsc --noEmit --pretty false` | Pass | Mobile TypeScript passed, but mobile is still prototype-grade. |
 | `cargo test` in `services/inference` | Pass with warnings | Compiled; zero tests; unused-code warnings. |
 | `pytest services/agents/tests -q` | Not run | `pytest` command missing. |
-| `go test ./...` in `services/gateway` | Not run | `go` command missing. |
+| `go test ./...` in `services/gateway` | Not run | Historical result; the unwired service was subsequently removed. |
 | `pnpm --filter @school-sis/web run infra:check -- --strict` | Fail locally | Required production secrets/env were not loaded in local shell. |
 
 ## P0 Launch Blockers
@@ -254,6 +254,8 @@ Done criteria:
 - Re-run payment webhook and ledger tests.
 
 ### 9. Go Gateway Is Not A Production Edge
+
+Resolution (2026-08-07): the unwired Go gateway was removed from the repository on 2026-07-18, and the current architecture specifications now identify `apps/web` as the application security boundary. The evidence below is retained as the historical basis for that removal; it does not describe a current runtime component.
 
 Priority: P1  
 Owner: Platform/infrastructure  
@@ -485,13 +487,13 @@ Risk: Services compile or exist but do not have verified test coverage in the cu
 Evidence:
 
 - Python agent tests could not run because `pytest` was missing.
-- Go gateway tests could not run because `go` was missing.
+- At audit time, Go gateway tests could not run because `go` was missing; the unwired service was subsequently removed.
 - Rust inference compiled but had zero tests and unused-code warnings.
 
 Done criteria:
 
 - Add Python test dependencies and run them in CI.
-- Add Go toolchain if gateway remains in scope.
+- No Go toolchain is required after the gateway's removal; add one only if a reviewed Go service is introduced in the future.
 - Add Rust unit/integration tests for auth, request validation, and inference fallback paths.
 - Make side-service CI required only for services that are part of the production architecture.
 
@@ -593,7 +595,7 @@ Current generated-file lifecycle gaps:
 2. Remove legacy payment route or migrate callers.
 3. Remove or replace legacy storage adapter.
 4. Configure notification providers and delivery evidence.
-5. Decide whether Go gateway ships; secure or remove it.
+5. Resolved 2026-08-07: the Go gateway does not ship and its unwired source was removed.
 6. Extend repository hygiene gate for tracked generated artifacts.
 7. Install and run Python/Go service test tooling where services remain in production scope.
 

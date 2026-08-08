@@ -13,6 +13,7 @@ import {
     type WorkflowApprovalRequest,
     type WorkflowApprovalSummary,
 } from '@school-sis/api';
+import { canAssignUserRole, canManageUserRole } from '@/lib/users/role-policy';
 
 type Queryable = Pick<PoolClient, 'query'> | typeof pool;
 type StudentStatus = 'ACTIVE' | 'INACTIVE' | 'ALUMNI' | 'TRANSFERRED' | 'SUSPENDED';
@@ -342,10 +343,26 @@ async function executeRoleChange(input: {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
+            const lockedApproval = await lockRoleChangeApproval(
+                client,
+                input.tenantId,
+                input.approvalRequest.id,
+            );
             const user = await fetchUserSnapshot(input.tenantId, input.userId, client, true);
             assertRoleChangeAllowed(user, input.targetRole, input.actor);
             const payload = buildRoleChangeApprovalPayload(user, input.targetRole, input.reason);
-            assertApprovalMatchesAction(input.approvalRequest, {
+            assertApprovalMatchesAction({
+                ...input.approvalRequest,
+                tenantId: lockedApproval.tenantId,
+                policyId: lockedApproval.policyId,
+                status: lockedApproval.status,
+                resource: {
+                    type: lockedApproval.resourceType,
+                    id: lockedApproval.resourceId ?? undefined,
+                    tenantId: lockedApproval.tenantId,
+                },
+                payload: lockedApproval.payload,
+            }, {
                 tenantId: input.tenantId,
                 policyId: WORKFLOW_ADOPTION_POLICIES.roleChange,
                 resource: {
@@ -356,9 +373,18 @@ async function executeRoleChange(input: {
                 payload,
             });
 
+            await consumeRoleChangeApproval(client, {
+                tenantId: input.tenantId,
+                approvalRequestId: input.approvalRequest.id,
+                actor: input.actor,
+                userId: input.userId,
+                reason: input.reason,
+            });
+
             await client.query(
                 `UPDATE users
                  SET role = $1,
+                     auth_version = auth_version + 1,
                      updated_at = NOW()
                  WHERE tenant_id = $2 AND id = $3`,
                 [input.targetRole, input.tenantId, input.userId],
@@ -370,12 +396,13 @@ async function executeRoleChange(input: {
                 action: 'ROLE_CHANGE',
                 entityType: 'users',
                 entityId: input.userId,
-                description: `Changed user role from ${user.role} to ${input.targetRole}.`,
+                description: `Changed user role from ${user.role} to ${input.targetRole}; existing sessions were revoked.`,
                 beforeState: { role: user.role },
                 afterState: {
                     role: input.targetRole,
                     approvalRequestId: input.approvalRequest.id,
                     reason: input.reason,
+                    sessionsRevoked: true,
                 },
             });
 
@@ -398,6 +425,101 @@ async function executeRoleChange(input: {
             client.release();
         }
     });
+}
+
+async function lockRoleChangeApproval(
+    client: PoolClient,
+    tenantId: string,
+    approvalRequestId: string,
+): Promise<{
+    tenantId: string;
+    policyId: string;
+    status: WorkflowApprovalRequest['status'];
+    resourceType: string;
+    resourceId: string | null;
+    payload: Record<string, unknown>;
+}> {
+    const { rows } = await client.query(
+        `SELECT
+            tenant_id AS "tenantId",
+            policy_id AS "policyId",
+            status,
+            resource_type AS "resourceType",
+            resource_id AS "resourceId",
+            payload
+         FROM workflow_approval_requests
+         WHERE tenant_id = $1 AND id = $2
+         LIMIT 1
+         FOR UPDATE`,
+        [tenantId, approvalRequestId],
+    );
+    const approval = rows[0];
+    if (!approval) {
+        throw new WorkflowAdoptionExecutionError('Approval request not found.', 404);
+    }
+    if (approval.status !== 'APPROVED') {
+        throw new WorkflowAdoptionExecutionError(
+            'Approval request has already been executed or is no longer approved.',
+            409,
+        );
+    }
+    return approval;
+}
+
+async function consumeRoleChangeApproval(
+    client: PoolClient,
+    input: {
+        tenantId: string;
+        approvalRequestId: string;
+        actor: WorkflowApprovalActor;
+        userId: string;
+        reason: string;
+    },
+): Promise<void> {
+    const { rows } = await client.query(
+        `UPDATE workflow_approval_requests
+         SET status = 'EXECUTED',
+             updated_at = NOW()
+         WHERE tenant_id = $1
+           AND id = $2
+           AND status = 'APPROVED'
+         RETURNING id`,
+        [input.tenantId, input.approvalRequestId],
+    );
+    if (rows.length === 0) {
+        throw new WorkflowAdoptionExecutionError(
+            'Approval request has already been executed or is no longer approved.',
+            409,
+        );
+    }
+
+    await client.query(
+        `INSERT INTO workflow_approval_events (
+            tenant_id,
+            approval_request_id,
+            event_type,
+            from_status,
+            to_status,
+            actor_user_id,
+            actor_role,
+            reason,
+            metadata,
+            created_at
+         )
+         VALUES ($1, $2, 'EXECUTED', 'APPROVED', 'EXECUTED', $3, $4, $5, $6::jsonb, NOW())`,
+        [
+            input.tenantId,
+            input.approvalRequestId,
+            input.actor.userId,
+            input.actor.role,
+            input.reason,
+            JSON.stringify({
+                action: 'CHANGE_USER_ROLE',
+                resourceType: 'identity.user',
+                resourceId: input.userId,
+            }),
+        ],
+    );
 }
 
 async function executeStudentLifecycle(input: {
@@ -779,14 +901,26 @@ function normalizeTargetRole(value: string): AuthorizationRole {
 }
 
 function assertRoleChangeAllowed(user: UserSnapshot, targetRole: AuthorizationRole, actor: WorkflowApprovalActor): void {
-    if (user.role === targetRole) {
-        throw new WorkflowAdoptionExecutionError('User already has the requested role.', 409);
-    }
-    if (user.role === 'PLATFORM_ADMIN') {
-        throw new WorkflowAdoptionExecutionError('Tenant role changes cannot modify PLATFORM_ADMIN users.', 403);
+    if (user.tenantId !== actor.tenantId) {
+        throw new WorkflowAdoptionExecutionError('User role changes must remain inside the active tenant.', 403);
     }
     if (user.id === actor.userId) {
         throw new WorkflowAdoptionExecutionError('Users cannot change their own role through approval execution.', 403);
+    }
+    if (user.role === 'PLATFORM_ADMIN' || !canManageUserRole(actor.role, user.role)) {
+        throw new WorkflowAdoptionExecutionError(
+            'You cannot change the role of a peer or higher-privilege user.',
+            403,
+        );
+    }
+    if (!canAssignUserRole(actor.role, targetRole)) {
+        throw new WorkflowAdoptionExecutionError(
+            'You cannot assign a role at or above your own privilege boundary.',
+            403,
+        );
+    }
+    if (user.role === targetRole) {
+        throw new WorkflowAdoptionExecutionError('User already has the requested role.', 409);
     }
 }
 

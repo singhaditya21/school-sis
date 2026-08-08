@@ -11,6 +11,9 @@ type SSOCallbackResult =
         tenantCode?: string;
         tenantDomain?: string;
         role: string;
+        authVersion: number;
+        passwordChangeRequired: boolean;
+        temporaryPasswordExpiresAt?: string;
         displayName?: string;
         companyId?: string;
         subscriptionTier?: string;
@@ -62,6 +65,9 @@ type IdentityUserRow = {
     tenantDomain: string | null;
     email: string;
     role: string;
+    authVersion: number;
+    passwordChangeRequired: boolean;
+    temporaryPasswordExpiresAt: Date | string | null;
     firstName: string | null;
     lastName: string | null;
     isActive: boolean;
@@ -211,6 +217,9 @@ async function findExistingIdentityUser(
             t.domain AS "tenantDomain",
             u.email,
             u.role,
+            u.auth_version AS "authVersion",
+            u.password_change_required AS "passwordChangeRequired",
+            u.temporary_password_expires_at AS "temporaryPasswordExpiresAt",
             u.first_name AS "firstName",
             u.last_name AS "lastName",
             u.is_active AS "isActive",
@@ -309,6 +318,15 @@ export async function handleSSOCallback(
     }
 
     const { user } = identity;
+    if (
+        user.passwordChangeRequired
+        && (
+            !user.temporaryPasswordExpiresAt
+            || new Date(user.temporaryPasswordExpiresAt).getTime() <= Date.now()
+        )
+    ) {
+        return { success: false, error: 'This account temporary password has expired. Ask an administrator to reset it again.' };
+    }
     const requiresMfaBackedSso = user.mfaEnabled || shouldRequireMfaEnrollment(user.role, Boolean(user.mfaEnabled));
     if (requiresMfaBackedSso && !config.assumeMfa) {
         return { success: false, error: 'This account requires MFA-backed SSO. Enable SSO_ASSUME_MFA only after enforcing MFA at the identity provider.' };
@@ -321,6 +339,11 @@ export async function handleSSOCallback(
         tenantCode: user.tenantCode || undefined,
         tenantDomain: user.tenantDomain || undefined,
         role: user.role,
+        authVersion: user.authVersion,
+        passwordChangeRequired: user.passwordChangeRequired,
+        temporaryPasswordExpiresAt: user.temporaryPasswordExpiresAt
+            ? new Date(user.temporaryPasswordExpiresAt).toISOString()
+            : undefined,
         email: user.email,
         displayName: displayNameFor(user, userInfo),
         companyId: user.companyId || undefined,

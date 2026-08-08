@@ -12,6 +12,7 @@ School SIS now treats background work and notification delivery as durable, tena
 - **Idempotency:** jobs and notifications use partial unique indexes for tenant/platform idempotency keys.
 - **Retry and dead-letter:** dispatcher failures move jobs through `FAILED` with exponential backoff and finally `DEAD_LETTER`.
 - **Fail-loud external providers:** email, SMS, WhatsApp, and push remain unconfigured until a real provider is selected; only in-app delivery defaults to the database. Mock delivery requires an explicit development/test opt-in and is rejected at production startup.
+- **Authenticated delivery receipts:** native Twilio and Resend callbacks plus the trusted MSG91/Firebase/SMTP bridge advance provider-accepted `SENT` rows to `DELIVERED`, `FAILED`, or `SUPPRESSED` without crossing tenant RLS boundaries.
 - **Authenticated dispatch:** `POST /api/jobs/dispatch` requires `Authorization: Bearer $JOB_DISPATCH_SECRET`; the local scheduler (`pnpm scheduler`) triggers it on an interval.
 - **Tenant-safe status:** `/api/jobs/[jobId]` returns only jobs owned by the caller's tenant, with platform-only access for platform jobs.
 
@@ -24,6 +25,7 @@ School SIS now treats background work and notification delivery as durable, tena
 5. Tenant jobs execute under `runWithTenantContext`; platform jobs execute under RLS bypass.
 6. Notifications are delivered through the outbox processor and recorded as delivery events.
 7. Linked communication messages move from `QUEUED` to `SENT`, `DELIVERED`, or `FAILED`.
+8. Signed provider callbacks are deduplicated and recorded in `notification_delivery_events`; stale callbacks cannot regress terminal state.
 
 ## Environment Requirements
 
@@ -35,8 +37,9 @@ CRON_SECRET=replace_with_at_least_32_random_characters
 
 Optional:
 
-- Set `EMAIL_PROVIDER=smtp|resend`, `SMS_PROVIDER=msg91|twilio`, or `PUSH_PROVIDER=firebase` only after real provider secrets are configured. WhatsApp stays unavailable until a live adapter lands.
+- Set `EMAIL_PROVIDER=smtp|resend`, `SMS_PROVIDER=msg91|twilio`, `WHATSAPP_PROVIDER=twilio`, or `PUSH_PROVIDER=firebase` only after the complete send-and-receipt contract is configured.
 - For development/test-only delivery simulation, set `ENABLE_INTEGRATION_MOCKS=true` together with the desired `*_PROVIDER=mock`; never use these values in production.
+- Follow `docs/NOTIFICATION_DELIVERY_RUNBOOK.md` for provider secrets, receipt signatures, status mapping, and the live delivery drill.
 
 ## Operations
 
@@ -65,7 +68,5 @@ Run frequency:
 ## Remaining Hardening
 
 - Run `pnpm scheduler` (or any scheduler) to call `/api/jobs/dispatch` on the desired interval.
-- Add operator dashboards for queued, failed, and dead-letter jobs.
-- Add provider-specific inbound webhook handling for delivery receipts.
 - Add rate limiting and per-tenant notification quotas.
 - Add alerting when dead-letter counts rise above threshold.

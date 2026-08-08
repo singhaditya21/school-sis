@@ -1,5 +1,5 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, pgEnum } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { pgTable, uuid, varchar, text, timestamp, boolean, integer, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core';
+import { relations, sql } from 'drizzle-orm';
 
 // ─── Enums ───────────────────────────────────────────────────
 
@@ -91,6 +91,10 @@ export const users = pgTable('users', {
     phone: varchar('phone', { length: 20 }),
     avatarUrl: text('avatar_url'),
     isActive: boolean('is_active').default(true).notNull(),
+    // Incrementing this value revokes every previously-issued signed session.
+    authVersion: integer('auth_version').default(1).notNull(),
+    passwordChangeRequired: boolean('password_change_required').default(false).notNull(),
+    temporaryPasswordExpiresAt: timestamp('temporary_password_expires_at', { withTimezone: true }),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
     // ─── MFA Fields ──────────────────────────────────────────
     // mfaSecret is stored encrypted via encryptField() before insert
@@ -100,7 +104,12 @@ export const users = pgTable('users', {
     mfaBackupCodes: text('mfa_backup_codes').array(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+    tenantEmailLowerUnique: uniqueIndex('users_tenant_email_lower_key').on(
+        table.tenantId,
+        sql`lower(${table.email})`,
+    ),
+}));
 
 // ─── Relations ───────────────────────────────────────────────
 

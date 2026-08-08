@@ -2,9 +2,8 @@
 
 import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { hash } from 'bcryptjs';
-import { cookies } from 'next/headers';
-import { getIronSession } from 'iron-session';
-import { sessionOptions, SessionData } from '@/lib/auth/session';
+import { getSession } from '@/lib/auth/session';
+import { establishSession } from '@/lib/auth/identity';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
 
 type OnboardingInput = {
@@ -111,22 +110,33 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
         const { rows: adminUserRows } = await pool.query(
             `INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role, is_active) 
              VALUES ($1, $2, $3, $4, $5, $6, $7) 
-             RETURNING id, tenant_id AS "tenantId", email, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", role, is_active AS "isActive"`,
+             RETURNING
+                id,
+                tenant_id AS "tenantId",
+                email,
+                password_hash AS "passwordHash",
+                first_name AS "firstName",
+                last_name AS "lastName",
+                role,
+                is_active AS "isActive",
+                auth_version AS "authVersion"`,
             [tenant.id, email, passwordHash, firstName, lastName, 'SCHOOL_ADMIN', true]
         );
         const adminUser = adminUserRows[0];
 
         // Automatically log them in immediately so the checkout API route succeeds
-        const c = await cookies();
-        const session = await getIronSession<SessionData>(c, sessionOptions);
-        
-        session.isLoggedIn = true;
-        session.userId = adminUser.id;
-        session.tenantId = tenant.id;
-        session.role = adminUser.role;
-        session.email = adminUser.email;
-        session.displayName = `${adminUser.firstName} ${adminUser.lastName}`;
-        
+        const session = await getSession();
+        establishSession(session, {
+            userId: adminUser.id,
+            tenantId: tenant.id,
+            tenantCode: tenant.code,
+            tenantDomain: tenant.domain,
+            role: adminUser.role,
+            email: adminUser.email,
+            provider: 'password',
+            authVersion: adminUser.authVersion,
+            displayName: `${adminUser.firstName} ${adminUser.lastName}`,
+        });
         await session.save();
 
         return { success: true, tenantId: tenant.id };

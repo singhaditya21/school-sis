@@ -9,6 +9,7 @@ import {
 } from '@/lib/integrations/lti';
 import {
   assertProductionMockModesDisabled,
+  assertProductionNotificationProvidersConfigured,
   integrationRuntimeMode,
   mockWebhookDeliveryIsEnabled,
   notificationProviderForChannel,
@@ -94,6 +95,32 @@ describe('production integration safety', () => {
     expect(notificationProviderForChannel('WHATSAPP')).toBe('unconfigured');
     expect(notificationProviderForChannel('PUSH')).toBe('unconfigured');
     expect(notificationProviderForChannel('IN_APP')).toBe('database');
+  });
+
+  it('requires complete live provider and receipt configuration for selected production channels', () => {
+    expect(() => assertProductionNotificationProvidersConfigured({
+      NODE_ENV: 'production',
+      REQUIRED_NOTIFICATION_CHANNELS: 'whatsapp,push',
+      WHATSAPP_PROVIDER: 'twilio',
+      TWILIO_ACCOUNT_SID: 'AC123',
+      TWILIO_AUTH_TOKEN: 'token',
+      TWILIO_WHATSAPP_FROM_NUMBER: '+14155238886',
+    })).toThrow(/STATUS_CALLBACK_URL.*PUSH_PROVIDER is required/);
+
+    expect(() => assertProductionNotificationProvidersConfigured({
+      NODE_ENV: 'production',
+      REQUIRED_NOTIFICATION_CHANNELS: 'whatsapp,push',
+      WHATSAPP_PROVIDER: 'twilio',
+      TWILIO_ACCOUNT_SID: 'AC123',
+      TWILIO_AUTH_TOKEN: 'token',
+      TWILIO_WHATSAPP_FROM_NUMBER: '+14155238886',
+      NOTIFICATION_TWILIO_STATUS_CALLBACK_URL: 'https://sis.example.edu/api/webhooks/notifications/twilio',
+      PUSH_PROVIDER: 'firebase',
+      FIREBASE_PROJECT_ID: 'school-sis',
+      FIREBASE_CLIENT_EMAIL: 'firebase@example.edu',
+      FIREBASE_PRIVATE_KEY: 'private-key',
+      NOTIFICATION_RECEIPT_WEBHOOK_SECRET: 'receipt-secret-at-least-32-characters',
+    })).not.toThrow();
   });
 
   it('rejects unsigned, mock-prefixed, and alg=none LTI tokens', () => {

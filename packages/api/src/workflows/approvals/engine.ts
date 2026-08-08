@@ -17,6 +17,7 @@ import type {
 
 const TERMINAL_STATUSES = new Set<WorkflowApprovalStatus>([
     'APPROVED',
+    'EXECUTED',
     'REJECTED',
     'CANCELLED',
     'EXPIRED',

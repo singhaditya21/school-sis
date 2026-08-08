@@ -9,7 +9,12 @@ export async function register() {
 
     registerDbRlsContextResolver(async () => {
       const session = await getSession();
-      if (!session.isLoggedIn || !session.userId) return undefined;
+      if (
+        !session.isLoggedIn
+        || !session.userId
+        || session.passwordChangeRequired
+        || (session.mfaRequired && !session.mfaVerified)
+      ) return undefined;
       if (session.role === 'PLATFORM_ADMIN') {
         return {
           bypassRls: true,

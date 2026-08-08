@@ -12,6 +12,7 @@
     "test:unit": "pnpm --filter @school-sis/web run test:unit",
     "test:unit:coverage": "pnpm --filter @school-sis/web run test:unit:coverage",
     "test:architecture": "pnpm --filter @school-sis/web run test:architecture",
+    "test:ai-evals": "pnpm --filter @school-sis/web run test:ai-evals",
     "test:e2e": "turbo run test:e2e",
     "test:e2e:smoke": "pnpm --filter @school-sis/web run test:e2e:smoke",
     "local:setup": "bash scripts/local-setup.sh",
@@ -27,10 +28,10 @@
     "jobs:tick": "node --env-file=apps/web/.env.local scripts/scheduler.mjs --once",
     "perf:bundle": "pnpm --filter @school-sis/web run perf:bundle",
     "perf:load": "pnpm --filter @school-sis/web run perf:load",
-    "audit:security": "pnpm audit --json > pnpm-audit-high.json || true && pnpm audit:check -- pnpm-audit-high.json",
+    "audit:security": "(pnpm audit --json > pnpm-audit-high.json || true) && pnpm audit:check -- pnpm-audit-high.json",
     "audit:check": "node scripts/check-pnpm-audit-high.mjs",
     "audit:secrets": "node scripts/check-secret-patterns.mjs",
-    "audit:hygiene": "node scripts/check-repository-hygiene.mjs",
+    "audit:hygiene": "node --test scripts/check-repository-hygiene.test.mjs && node scripts/check-repository-hygiene.mjs",
     "audit:debt": "node scripts/check-risk-debt.mjs",
     "audit:migrations": "node scripts/check-destructive-migrations.mjs",
     "audit:rls-matrix": "node scripts/check-rls-policy-matrix.mjs",
@@ -50,7 +51,8 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "sonner@2.0.7": "patches/sonner@2.0.7.patch"
+      "sonner@2.0.7": "patches/sonner@2.0.7.patch",
+      "image-size@1.2.1": "patches/image-size@1.2.1.patch"
     },
     "overrides": {
       "minimatch": ">=9.0.7",
@@ -66,7 +68,8 @@
       "fast-xml-parser": "5.10.1",
       "brace-expansion@5.0.5": "5.0.9",
       "js-yaml@3.14.2": "3.15.1",
-      "js-yaml@4.1.1": "4.3.1"
+      "js-yaml@4.1.1": "4.3.1",
+      "nanoid@3.3.15": "3.3.17"
     }
   }
 }

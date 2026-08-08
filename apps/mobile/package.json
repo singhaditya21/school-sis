@@ -19,10 +19,17 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "start": "node scripts/run-development-expo.cjs start",
+    "android": "node scripts/run-development-expo.cjs start --android",
+    "ios": "node scripts/run-development-expo.cjs start --ios",
+    "web": "node scripts/run-development-expo.cjs start --web",
+    "expo:dev": "node scripts/run-development-expo.cjs",
+    "typecheck": "tsc --noEmit",
+    "test:release-gate": "node --test tests/release-gate.test.cjs",
+    "release:check": "node scripts/mobile-release-gate.cjs --target production",
+    "build:production": "node scripts/mobile-release-gate.cjs --target production && expo export",
+    "submit:production": "node scripts/mobile-release-gate.cjs --target store && eas submit --profile production",
+    "eas-build-pre-install": "node scripts/mobile-release-gate.cjs"
   },
   "private": true
 }

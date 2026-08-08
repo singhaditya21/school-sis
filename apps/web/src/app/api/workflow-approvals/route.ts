@@ -31,7 +31,7 @@ const createSchema = z.object({
   idempotencyKey: z.string().min(1).max(160).optional(),
 });
 
-const statusSchema = z.enum(['PENDING', 'ESCALATED', 'APPROVED', 'REJECTED', 'CANCELLED', 'EXPIRED']);
+const statusSchema = z.enum(['PENDING', 'ESCALATED', 'APPROVED', 'EXECUTED', 'REJECTED', 'CANCELLED', 'EXPIRED']);
 
 function actorFromAuth(auth: { userId: string; role: string; tenantId: string }): WorkflowApprovalActor {
   return {

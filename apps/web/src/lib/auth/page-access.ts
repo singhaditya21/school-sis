@@ -146,7 +146,7 @@ export const PAGE_ACCESS_POLICIES = [
     },
     {
         name: 'authenticated-support',
-        prefixes: ['/lti', '/unauthorized', '/upgrade'],
+        prefixes: ['/change-password', '/mfa/enroll', '/lti', '/unauthorized', '/upgrade'],
         level: 'authenticated',
     },
 ] as const satisfies readonly PageAccessPolicy[];

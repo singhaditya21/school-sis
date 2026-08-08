@@ -16,6 +16,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 type CountRow = { count: string | number };
+type NotificationChannelStatusRow = { channel: string; status: string; count: string | number };
 
 function firstCount(rows: CountRow[]): number {
   return Number(rows[0]?.count || 0);
@@ -24,6 +25,30 @@ function firstCount(rows: CountRow[]): number {
 async function count(sql: string, values: unknown[] = []): Promise<number> {
   const result = await pool.query<CountRow>(sql, values);
   return firstCount(result.rows);
+}
+
+function notificationChannelBreakdown(rows: NotificationChannelStatusRow[]) {
+  const result: NonNullable<OperatorConsoleMetrics['notifications']>['byChannel'] = {};
+  for (const row of rows) {
+    const channel = row.channel.toUpperCase();
+    const current = result[channel] || {
+      queued: 0,
+      sent: 0,
+      delivered: 0,
+      failed: 0,
+      deadLettered: 0,
+      suppressed: 0,
+    };
+    const count = Number(row.count || 0);
+    if (row.status === 'PENDING' || row.status === 'QUEUED') current.queued += count;
+    else if (row.status === 'SENT') current.sent += count;
+    else if (row.status === 'DELIVERED') current.delivered += count;
+    else if (row.status === 'FAILED') current.failed += count;
+    else if (row.status === 'DEAD_LETTER') current.deadLettered += count;
+    else if (row.status === 'SUPPRESSED') current.suppressed += count;
+    result[channel] = current;
+  }
+  return result;
 }
 
 function scopedWhere(scope: OperatorConsoleScope, tenantId: string | undefined, condition?: string): {
@@ -57,6 +82,10 @@ async function collectOperatorConsoleMetrics(
     const failedNotifications = scopedWhere(scope, tenantId, "status = 'FAILED'");
     const deadNotifications = scopedWhere(scope, tenantId, "status = 'DEAD_LETTER'");
     const queuedNotifications = scopedWhere(scope, tenantId, "status IN ('PENDING', 'QUEUED')");
+    const sentNotifications = scopedWhere(scope, tenantId, "status = 'SENT'");
+    const deliveredNotifications = scopedWhere(scope, tenantId, "status = 'DELIVERED'");
+    const suppressedNotifications = scopedWhere(scope, tenantId, "status = 'SUPPRESSED'");
+    const notificationChannels = scopedWhere(scope, tenantId);
     const unreconciledOrders = scopedWhere(scope, tenantId, "status IN ('FAILED', 'REQUIRES_ACTION', 'CANCELLED')");
     const failedProviderEvents = scopedWhere(scope, tenantId, "status IN ('FAILED', 'ERROR')");
     const failingConnections = scopedWhere(scope, tenantId, "status IN ('FAILED', 'ERROR')");
@@ -85,6 +114,10 @@ async function collectOperatorConsoleMetrics(
       notificationsFailed,
       notificationsDead,
       notificationsQueued,
+      notificationsSent,
+      notificationsDelivered,
+      notificationsSuppressed,
+      notificationChannelRows,
       ordersUnreconciled,
       providerEventsFailed,
       connectionsFailing,
@@ -112,6 +145,15 @@ async function collectOperatorConsoleMetrics(
       count(`SELECT COUNT(*)::int AS count FROM notification_outbox ${failedNotifications.where}`, failedNotifications.values),
       count(`SELECT COUNT(*)::int AS count FROM notification_outbox ${deadNotifications.where}`, deadNotifications.values),
       count(`SELECT COUNT(*)::int AS count FROM notification_outbox ${queuedNotifications.where}`, queuedNotifications.values),
+      count(`SELECT COUNT(*)::int AS count FROM notification_outbox ${sentNotifications.where}`, sentNotifications.values),
+      count(`SELECT COUNT(*)::int AS count FROM notification_outbox ${deliveredNotifications.where}`, deliveredNotifications.values),
+      count(`SELECT COUNT(*)::int AS count FROM notification_outbox ${suppressedNotifications.where}`, suppressedNotifications.values),
+      pool.query<NotificationChannelStatusRow>(
+        `SELECT channel, status, COUNT(*)::int AS count
+         FROM notification_outbox ${notificationChannels.where}
+         GROUP BY channel, status`,
+        notificationChannels.values,
+      ).then((result) => result.rows),
       count(`SELECT COUNT(*)::int AS count FROM payment_orders ${unreconciledOrders.where}`, unreconciledOrders.values),
       count(`SELECT COUNT(*)::int AS count FROM payment_provider_events ${failedProviderEvents.where}`, failedProviderEvents.values),
       count(`SELECT COUNT(*)::int AS count FROM integration_connections ${failingConnections.where}`, failingConnections.values),
@@ -147,6 +189,10 @@ async function collectOperatorConsoleMetrics(
         failed: notificationsFailed,
         deadLettered: notificationsDead,
         queued: notificationsQueued,
+        sent: notificationsSent,
+        delivered: notificationsDelivered,
+        suppressed: notificationsSuppressed,
+        byChannel: notificationChannelBreakdown(notificationChannelRows),
       },
       payments: {
         unreconciledOrders: ordersUnreconciled,

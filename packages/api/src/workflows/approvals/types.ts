@@ -4,6 +4,7 @@ export type WorkflowApprovalStatus =
     | 'PENDING'
     | 'ESCALATED'
     | 'APPROVED'
+    | 'EXECUTED'
     | 'REJECTED'
     | 'CANCELLED'
     | 'EXPIRED';
@@ -16,6 +17,7 @@ export type WorkflowApprovalEventType =
     | 'REQUESTED'
     | 'REVIEWED'
     | 'APPROVED'
+    | 'EXECUTED'
     | 'REJECTED'
     | 'ESCALATED'
     | 'CANCELLED'

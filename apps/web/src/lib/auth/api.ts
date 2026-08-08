@@ -40,6 +40,26 @@ export const ROLE_GROUPS = {
 export async function requireApiAuth(allowedRoles?: readonly string[]): Promise<ApiAuthResult> {
     const session = await getSession();
 
+    if (session.passwordChangeRequired) {
+        return {
+            ok: false,
+            response: NextResponse.json(
+                { error: 'Password change required', code: 'PASSWORD_CHANGE_REQUIRED' },
+                { status: 403 },
+            ),
+        };
+    }
+
+    if (session.mfaRequired && !session.mfaVerified) {
+        return {
+            ok: false,
+            response: NextResponse.json(
+                { error: 'MFA enrollment required', code: 'MFA_ENROLLMENT_REQUIRED' },
+                { status: 403 },
+            ),
+        };
+    }
+
     if (!session.isLoggedIn || !session.userId || !session.tenantId) {
         return {
             ok: false,

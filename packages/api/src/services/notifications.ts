@@ -24,6 +24,18 @@ function getFirebaseMessaging() {
   return getMessaging();
 }
 
+export function normalizeFirebaseDataPayload(
+  dataPayload: Record<string, unknown>,
+): Record<string, string> {
+  const normalized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(dataPayload)) {
+    if (typeof value === 'string') normalized[key] = value;
+    else if (typeof value === 'boolean') normalized[key] = String(value);
+    else if (typeof value === 'number' && Number.isFinite(value)) normalized[key] = String(value);
+  }
+  return normalized;
+}
+
 export class NotificationService {
   /**
    * Sends a 100% free Native Push Notification to a Parent's Mobile App (Expo).
@@ -37,7 +49,7 @@ export class NotificationService {
           title,
           body,
         },
-        data: dataPayload as Record<string, string>,
+        data: normalizeFirebaseDataPayload(dataPayload),
         android: {
           priority: 'high' as const,
         },

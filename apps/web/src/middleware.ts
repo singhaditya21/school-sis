@@ -150,11 +150,20 @@ export async function middleware(request: NextRequest) {
         return respond(NextResponse.redirect(loginUrl));
     }
 
+    if (session.passwordChangeRequired && pathname !== '/change-password') {
+        return respond(NextResponse.redirect(new URL('/change-password', request.url)));
+    }
+
     const productionMfaRequired = process.env.NODE_ENV === 'production' && MFA_REQUIRED_ROLES.has(session.role);
-    if ((session.mfaRequired || productionMfaRequired) && !session.mfaVerified && MFA_REQUIRED_ROLES.has(session.role)) {
-        const loginUrl = new URL('/login', request.url);
-        loginUrl.searchParams.set('mfa', 'required');
-        return respond(NextResponse.redirect(loginUrl));
+    if (
+        !session.passwordChangeRequired
+        && (session.mfaRequired || productionMfaRequired)
+        && !session.mfaVerified
+        && MFA_REQUIRED_ROLES.has(session.role)
+    ) {
+        if (pathname !== '/mfa/enroll') {
+            return respond(NextResponse.redirect(new URL('/mfa/enroll', request.url)));
+        }
     }
 
     const hostHint = tenantHostHint(request.nextUrl.hostname, session);

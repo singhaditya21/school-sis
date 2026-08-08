@@ -3,7 +3,22 @@ import { z } from 'zod';
 import { requireApiAuth } from '@/lib/auth/api';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
-import { agentUnavailableResponse, forwardAgentRequest } from '@/lib/agents/client';
+import {
+    agentUnavailableResponse,
+    ensureAgentServiceConfigured,
+    forwardAgentRequest,
+} from '@/lib/agents/client';
+import {
+    aiBudgetErrorResponse,
+    estimateAiBudget,
+    loadAiBudgetPolicy,
+    reserveAiBudget,
+    settleAiBudget,
+    type AiBudgetReservation,
+} from '@/lib/ai/budget';
+import { loadAgentProxyMetering } from '@/lib/ai/providers';
+import { assessAiPrompt } from '@/lib/ai/safety';
+import { isAllowedAgentId } from '@/lib/agents/policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +40,7 @@ export async function POST(
     request: NextRequest,
     { params }: { params: Promise<{ agent: string }> },
 ) {
+    let reservation: AiBudgetReservation | undefined;
     const auth = await requireApiAuth(AGENT_ROLES);
     if (auth.ok === false) return auth.response;
 
@@ -45,21 +61,66 @@ export async function POST(
         return NextResponse.json({ error: 'Invalid agent query' }, { status: 400 });
     }
 
+    const promptAssessment = assessAiPrompt(parsed.data.query);
+    if (promptAssessment.allowed === false) {
+        return NextResponse.json(
+            { error: 'Prompt violates the AI safety policy.', code: 'AI_PROMPT_REJECTED' },
+            { status: 400 },
+        );
+    }
+
     const { agent } = await params;
+    if (!isAllowedAgentId(agent)) {
+        return NextResponse.json({ error: 'Unknown agent.' }, { status: 404 });
+    }
     try {
-        return await forwardAgentRequest(
+        ensureAgentServiceConfigured(agent);
+        const policy = loadAiBudgetPolicy();
+        const metering = loadAgentProxyMetering();
+        const estimate = estimateAiBudget(
+            promptAssessment.prompt,
+            policy.maxOutputTokens,
+            [metering.pricing],
+        );
+        reservation = await reserveAiBudget({
+            tenantId: auth.context.tenantId,
+            userId: auth.context.userId,
+            estimate,
+            policy,
+            provider: metering.provider,
+            model: metering.model,
+            agentType: `ASYNC_${agent.slice(0, 120).toUpperCase()}`,
+        });
+
+        const response = await forwardAgentRequest(
             auth.context,
             `/api/v1/agents/${encodeURIComponent(agent)}/query_async`,
             {
+                agentId: agent,
                 method: 'POST',
                 body: {
-                    query: parsed.data.query,
+                    query: promptAssessment.prompt,
                     tenant_id: auth.context.tenantId,
                     user_id: auth.context.userId,
                 },
             },
         );
+        await settleAiBudget({
+            reservation,
+            status: response.ok ? 'COMPLETED' : 'FAILED',
+            failureReason: response.ok ? undefined : `upstream_http_${response.status}`,
+        });
+        return response;
     } catch (error) {
+        if (reservation) {
+            await settleAiBudget({
+                reservation,
+                status: 'FAILED',
+                failureReason: error instanceof Error ? error.name : 'upstream_error',
+            }).catch(() => undefined);
+        }
+        const budgetResponse = aiBudgetErrorResponse(error);
+        if (budgetResponse) return budgetResponse;
         return agentUnavailableResponse(error);
     }
 }

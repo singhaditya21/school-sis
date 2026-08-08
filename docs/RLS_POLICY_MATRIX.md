@@ -1,7 +1,7 @@
 # Database RLS Policy Matrix
 
 Last reviewed: 2026-08-07
-Schema source: `apps/web/drizzle/meta/0000_snapshot.json`
+Schema source: the latest numbered snapshot in `apps/web/drizzle/meta/`
 Enforcement source: `packages/api/src/db/migrations/tenant-rls.sql`
 
 This document classifies every schema-managed public table. CI runs
@@ -182,6 +182,7 @@ host_families
 international_placements
 student_visas
 ai_token_logs
+ai_budget_usage
 grading_scales
 appointments
 diary_entries

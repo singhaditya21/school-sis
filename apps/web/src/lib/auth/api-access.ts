@@ -303,6 +303,16 @@ export const API_ACCESS_POLICIES = [
         expectedGuardSnippets: ['handleOneRosterGet'],
     },
     {
+        prefix: '/api/webhooks/notifications',
+        boundary: 'provider-webhook',
+        description: 'Signed notification-provider delivery receipt endpoint.',
+        expectedGuardSnippets: [
+            'verifyTwilioReceiptSignature',
+            'verifyResendReceiptSignature',
+            'verifyBridgeReceiptSignature',
+        ],
+    },
+    {
         prefix: '/api/webhooks/stripe',
         boundary: 'provider-webhook',
         description: 'Stripe webhook endpoint.',

@@ -1,8 +1,9 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "School SIS Mobile (Auth Disabled)",
     "slug": "mobile",
     "version": "1.0.0",
+    "description": "Internal development preview. Authentication, payments, and notifications are disabled; not for production distribution.",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

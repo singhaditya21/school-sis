@@ -1,0 +1,28 @@
+{
+  "build": {
+    "development": {
+      "distribution": "internal",
+      "environment": "development",
+      "env": {
+        "MOBILE_RELEASE_TARGET": "development"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "environment": "preview",
+      "env": {
+        "MOBILE_RELEASE_TARGET": "preview"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "environment": "production",
+      "env": {
+        "MOBILE_RELEASE_TARGET": "production"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

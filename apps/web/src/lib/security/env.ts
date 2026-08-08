@@ -1,4 +1,8 @@
-import { assertProductionMockModesDisabled } from '@/lib/integrations/runtime-mode';
+import {
+    assertProductionMockModesDisabled,
+    assertProductionNotificationProvidersConfigured,
+} from '@/lib/integrations/runtime-mode';
+import { approvedExternalAgentRelease } from '@/lib/agents/policy';
 
 type EnvIssue = {
     name: string;
@@ -94,6 +98,7 @@ function validateRateLimitConfiguration(): EnvIssue[] {
 export function validateSecurityEnvironment() {
     assertProductionMockModesDisabled();
     if (isBuildPhase()) return;
+    assertProductionNotificationProvidersConfigured();
 
     const issues = [
         requireValue('DATABASE_URL'),
@@ -114,9 +119,13 @@ export function validateSecurityEnvironment() {
 }
 
 export function getSecurityFeatureStatus() {
+    const externalAgentReleaseApproved = Boolean(approvedExternalAgentRelease());
     return {
         copilot: hasSecret('CEREBRAS_API_KEY', 16),
-        agentService: hasSecret('AGENT_API_TOKEN') && Boolean(process.env.AGENT_SERVICE_URL || process.env.AGENT_BASE_URL),
+        // Credentials alone cannot enable an unevaluated external agent release.
+        agentService: externalAgentReleaseApproved
+            && hasSecret('AGENT_API_TOKEN')
+            && Boolean(process.env.AGENT_SERVICE_URL || process.env.AGENT_BASE_URL),
         agentWebhook: hasSecret('AGENT_WEBHOOK_SECRET'),
         iotIngest: hasSecret('IOT_INGEST_SECRET') && Boolean(process.env.IOT_SYSTEM_USER_ID),
         metrics: hasSecret('METRICS_TOKEN'),

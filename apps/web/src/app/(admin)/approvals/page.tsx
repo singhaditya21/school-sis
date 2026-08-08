@@ -14,6 +14,7 @@ type WorkflowApprovalStatus =
     | 'PENDING'
     | 'ESCALATED'
     | 'APPROVED'
+    | 'EXECUTED'
     | 'REJECTED'
     | 'CANCELLED'
     | 'EXPIRED';
@@ -48,6 +49,7 @@ const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
     { label: 'Pending', value: 'PENDING' },
     { label: 'Escalated', value: 'ESCALATED' },
     { label: 'Approved', value: 'APPROVED' },
+    { label: 'Executed', value: 'EXECUTED' },
     { label: 'Rejected', value: 'REJECTED' },
     { label: 'All', value: 'ALL' },
 ];
@@ -60,7 +62,9 @@ function priorityClass(priority: WorkflowApproval['priority']) {
 }
 
 function statusClass(status: WorkflowApprovalStatus) {
-    if (status === 'APPROVED') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (status === 'APPROVED' || status === 'EXECUTED') {
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    }
     if (status === 'REJECTED' || status === 'CANCELLED' || status === 'EXPIRED') {
         return 'bg-slate-50 text-slate-600 border-slate-200';
     }

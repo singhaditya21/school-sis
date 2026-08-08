@@ -19,10 +19,9 @@ import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import type { PoolClient } from 'pg';
 import { encrypt, decrypt } from '@/lib/encryption';
-import { db } from '@/lib/db';
-import { users } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { pool, runWithTenantContext } from '@/lib/db';
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -30,8 +29,11 @@ import { eq, and } from 'drizzle-orm';
 export const MFA_REQUIRED_ROLES = new Set([
     'PLATFORM_ADMIN',
     'SUPER_ADMIN',
+    'GROUP_EXECUTIVE',
     'SCHOOL_ADMIN',
     'PRINCIPAL',
+    'REGISTRAR',
+    'FINANCE_LEAD',
     'ACCOUNTANT',
 ]);
 
@@ -47,6 +49,61 @@ export interface MFAEnrollmentResult {
     qrCodeDataUrl: string;
     /** Plain-text backup codes — shown ONCE, then hashed and stored */
     backupCodes: string[];
+    /** New revision that the one allowed enrollment session must adopt. */
+    authVersion: number;
+}
+
+type MfaUserRow = {
+    mfaSecret: string | null;
+    mfaEnabled: boolean;
+    mfaBackupCodes: string[] | null;
+    authVersion: number;
+};
+
+async function withMfaTransaction<T>(
+    tenantId: string,
+    operation: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+    return runWithTenantContext(tenantId, async () => {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const result = await operation(client);
+            await client.query('COMMIT');
+            return result;
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    });
+}
+
+async function insertMfaAudit(
+    client: PoolClient,
+    input: {
+        userId: string;
+        tenantId: string;
+        description: string;
+        beforeState: Record<string, unknown>;
+        afterState: Record<string, unknown>;
+    },
+): Promise<void> {
+    await client.query(
+        `INSERT INTO audit_logs (
+            tenant_id, user_id, action, entity_type, entity_id,
+            description, before_state, after_state
+         )
+         VALUES ($1, $2, 'UPDATE', 'users', $2, $3, $4::jsonb, $5::jsonb)`,
+        [
+            input.tenantId,
+            input.userId,
+            input.description,
+            JSON.stringify(input.beforeState),
+            JSON.stringify(input.afterState),
+        ],
+    );
 }
 
 // ─── Enrollment ──────────────────────────────────────────────
@@ -63,6 +120,7 @@ export async function generateMFAEnrollment(
     userId: string,
     tenantId: string,
     userEmail: string,
+    expectedAuthVersion: number,
 ): Promise<MFAEnrollmentResult> {
     const secret = authenticator.generateSecret(32); // 160-bit secret
 
@@ -81,16 +139,34 @@ export async function generateMFAEnrollment(
         backupCodes.map(code => bcrypt.hash(code, BCRYPT_ROUNDS))
     );
 
-    await db
-        .update(users)
-        .set({
-            mfaSecret: encryptedSecret,
-            mfaEnabled: false, // not active until user verifies a code
-            mfaBackupCodes: hashedBackupCodes,
-        })
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
+    const authVersion = await withMfaTransaction(tenantId, async (client) => {
+        const result = await client.query<{ authVersion: number }>(
+            `UPDATE users
+             SET mfa_secret = $1,
+                 mfa_enabled = FALSE,
+                 mfa_backup_codes = $2::text[],
+                 auth_version = auth_version + 1,
+                 updated_at = NOW()
+             WHERE id = $3
+               AND tenant_id = $4
+               AND is_active = TRUE
+               AND auth_version = $5
+             RETURNING auth_version AS "authVersion"`,
+            [encryptedSecret, hashedBackupCodes, userId, tenantId, expectedAuthVersion],
+        );
+        const updated = result.rows[0];
+        if (!updated) throw new Error('MFA enrollment session changed. Sign in again.');
+        await insertMfaAudit(client, {
+            userId,
+            tenantId,
+            description: 'Generated a new MFA enrollment secret and revoked other sessions.',
+            beforeState: { mfaEnabled: false },
+            afterState: { mfaEnabled: false, enrollmentPending: true, sessionsRevoked: true },
+        });
+        return updated.authVersion;
+    });
 
-    return { secret, qrCodeDataUrl, backupCodes };
+    return { secret, qrCodeDataUrl, backupCodes, authVersion };
 }
 
 // ─── Activation (verify first code) ─────────────────────────
@@ -103,34 +179,54 @@ export async function activateMFA(
     userId: string,
     tenantId: string,
     totpCode: string,
-): Promise<{ success: boolean; error?: string }> {
-    const [user] = await db
-        .select({ mfaSecret: users.mfaSecret, mfaEnabled: users.mfaEnabled })
-        .from(users)
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
-        .limit(1);
+    expectedAuthVersion: number,
+): Promise<{ success: boolean; authVersion?: number; error?: string }> {
+    try {
+        const authVersion = await withMfaTransaction(tenantId, async (client) => {
+            const result = await client.query<MfaUserRow>(
+                `SELECT
+                    mfa_secret AS "mfaSecret",
+                    mfa_enabled AS "mfaEnabled",
+                    mfa_backup_codes AS "mfaBackupCodes",
+                    auth_version AS "authVersion"
+                 FROM users
+                 WHERE id = $1 AND tenant_id = $2 AND auth_version = $3
+                 LIMIT 1
+                 FOR UPDATE`,
+                [userId, tenantId, expectedAuthVersion],
+            );
+            const user = result.rows[0];
+            if (!user?.mfaSecret) throw new Error('MFA enrollment not started. Generate a new QR code.');
+            if (user.mfaEnabled) throw new Error('MFA is already active for this account.');
 
-    if (!user?.mfaSecret) {
-        return { success: false, error: 'MFA enrollment not started. Call generateMFAEnrollment first.' };
+            const secret = decrypt(user.mfaSecret);
+            if (!authenticator.verify({ token: totpCode, secret })) {
+                throw new Error('Invalid or expired code. Please try again.');
+            }
+
+            const updated = await client.query<{ authVersion: number }>(
+                `UPDATE users
+                 SET mfa_enabled = TRUE,
+                     auth_version = auth_version + 1,
+                     updated_at = NOW()
+                 WHERE id = $1 AND tenant_id = $2 AND auth_version = $3
+                 RETURNING auth_version AS "authVersion"`,
+                [userId, tenantId, expectedAuthVersion],
+            );
+            if (!updated.rows[0]) throw new Error('MFA enrollment changed concurrently. Sign in again.');
+            await insertMfaAudit(client, {
+                userId,
+                tenantId,
+                description: 'Activated MFA and revoked other sessions.',
+                beforeState: { mfaEnabled: false },
+                afterState: { mfaEnabled: true, sessionsRevoked: true },
+            });
+            return updated.rows[0].authVersion;
+        });
+        return { success: true, authVersion };
+    } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to activate MFA.' };
     }
-
-    if (user.mfaEnabled) {
-        return { success: false, error: 'MFA is already active for this account.' };
-    }
-
-    const secret = decrypt(user.mfaSecret);
-    const isValid = authenticator.verify({ token: totpCode, secret });
-
-    if (!isValid) {
-        return { success: false, error: 'Invalid or expired code. Please try again.' };
-    }
-
-    await db
-        .update(users)
-        .set({ mfaEnabled: true })
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
-
-    return { success: true };
 }
 
 // ─── Verification (login challenge) ─────────────────────────
@@ -144,11 +240,16 @@ export async function verifyMFACode(
     tenantId: string,
     totpCode: string,
 ): Promise<{ success: boolean; error?: string }> {
-    const [user] = await db
-        .select({ mfaSecret: users.mfaSecret, mfaEnabled: users.mfaEnabled })
-        .from(users)
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
-        .limit(1);
+    const user = await runWithTenantContext(tenantId, async () => {
+        const result = await pool.query<Pick<MfaUserRow, 'mfaSecret' | 'mfaEnabled'>>(
+            `SELECT mfa_secret AS "mfaSecret", mfa_enabled AS "mfaEnabled"
+             FROM users
+             WHERE id = $1 AND tenant_id = $2
+             LIMIT 1`,
+            [userId, tenantId],
+        );
+        return result.rows[0];
+    });
 
     if (!user?.mfaEnabled || !user.mfaSecret) {
         // MFA not configured — pass through (enforcement happens at middleware level)
@@ -177,36 +278,58 @@ export async function redeemBackupCode(
     userId: string,
     tenantId: string,
     rawCode: string,
-): Promise<{ success: boolean; codesRemaining?: number; error?: string }> {
-    const [user] = await db
-        .select({ mfaBackupCodes: users.mfaBackupCodes })
-        .from(users)
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
-        .limit(1);
+    expectedAuthVersion: number,
+): Promise<{ success: boolean; codesRemaining?: number; authVersion?: number; error?: string }> {
+    try {
+        return await withMfaTransaction(tenantId, async (client) => {
+            const result = await client.query<MfaUserRow>(
+                `SELECT
+                    mfa_secret AS "mfaSecret",
+                    mfa_enabled AS "mfaEnabled",
+                    mfa_backup_codes AS "mfaBackupCodes",
+                    auth_version AS "authVersion"
+                 FROM users
+                 WHERE id = $1 AND tenant_id = $2 AND auth_version = $3
+                 LIMIT 1
+                 FOR UPDATE`,
+                [userId, tenantId, expectedAuthVersion],
+            );
+            const storedCodes = result.rows[0]?.mfaBackupCodes ?? [];
+            if (storedCodes.length === 0) throw new Error('No backup codes available.');
 
-    const storedCodes = user?.mfaBackupCodes ?? [];
-    if (storedCodes.length === 0) {
-        return { success: false, error: 'No backup codes available.' };
+            const normalised = rawCode.trim().toUpperCase();
+            const matchIndex = (
+                await Promise.all(storedCodes.map(codeHash => bcrypt.compare(normalised, codeHash)))
+            ).findIndex(Boolean);
+            if (matchIndex === -1) throw new Error('Invalid backup code.');
+
+            const remaining = storedCodes.filter((_, index) => index !== matchIndex);
+            const updated = await client.query<{ authVersion: number }>(
+                `UPDATE users
+                 SET mfa_backup_codes = $1::text[],
+                     auth_version = auth_version + 1,
+                     updated_at = NOW()
+                 WHERE id = $2 AND tenant_id = $3 AND auth_version = $4
+                 RETURNING auth_version AS "authVersion"`,
+                [remaining, userId, tenantId, expectedAuthVersion],
+            );
+            if (!updated.rows[0]) throw new Error('Backup-code state changed concurrently. Sign in again.');
+            await insertMfaAudit(client, {
+                userId,
+                tenantId,
+                description: 'Redeemed one MFA backup code and revoked other sessions.',
+                beforeState: { backupCodesRemaining: storedCodes.length },
+                afterState: { backupCodesRemaining: remaining.length, sessionsRevoked: true },
+            });
+            return {
+                success: true,
+                codesRemaining: remaining.length,
+                authVersion: updated.rows[0].authVersion,
+            };
+        });
+    } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to redeem backup code.' };
     }
-
-    // Find matching hashed code
-    const normalised = rawCode.trim().toUpperCase();
-    const matchIndex = (
-        await Promise.all(storedCodes.map(hash => bcrypt.compare(normalised, hash)))
-    ).findIndex(Boolean);
-
-    if (matchIndex === -1) {
-        return { success: false, error: 'Invalid backup code.' };
-    }
-
-    // Remove the consumed code (single-use)
-    const remaining = storedCodes.filter((_, i) => i !== matchIndex);
-    await db
-        .update(users)
-        .set({ mfaBackupCodes: remaining })
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
-
-    return { success: true, codesRemaining: remaining.length };
 }
 
 // ─── Disable MFA ─────────────────────────────────────────────
@@ -218,15 +341,35 @@ export async function redeemBackupCode(
 export async function disableMFA(
     userId: string,
     tenantId: string,
-): Promise<void> {
-    await db
-        .update(users)
-        .set({
-            mfaEnabled: false,
-            mfaSecret: null,
-            mfaBackupCodes: null,
-        })
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
+    expectedAuthVersion: number,
+): Promise<{ success: boolean; authVersion?: number; error?: string }> {
+    try {
+        const authVersion = await withMfaTransaction(tenantId, async (client) => {
+            const updated = await client.query<{ authVersion: number }>(
+                `UPDATE users
+                 SET mfa_enabled = FALSE,
+                     mfa_secret = NULL,
+                     mfa_backup_codes = NULL,
+                     auth_version = auth_version + 1,
+                     updated_at = NOW()
+                 WHERE id = $1 AND tenant_id = $2 AND auth_version = $3
+                 RETURNING auth_version AS "authVersion"`,
+                [userId, tenantId, expectedAuthVersion],
+            );
+            if (!updated.rows[0]) throw new Error('MFA state changed concurrently. Sign in again.');
+            await insertMfaAudit(client, {
+                userId,
+                tenantId,
+                description: 'Disabled MFA and revoked all existing sessions.',
+                beforeState: { mfaEnabled: true },
+                afterState: { mfaEnabled: false, sessionsRevoked: true },
+            });
+            return updated.rows[0].authVersion;
+        });
+        return { success: true, authVersion };
+    } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to disable MFA.' };
+    }
 }
 
 // ─── Middleware-level enforcement helper ──────────────────────

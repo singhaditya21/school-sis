@@ -120,8 +120,19 @@ export interface OperatorConsoleMetrics {
     };
     notifications?: {
         queued?: number;
+        sent?: number;
+        delivered?: number;
         failed?: number;
         deadLettered?: number;
+        suppressed?: number;
+        byChannel?: Record<string, {
+            queued: number;
+            sent: number;
+            delivered: number;
+            failed: number;
+            deadLettered: number;
+            suppressed: number;
+        }>;
     };
     payments?: {
         unreconciledOrders?: number;

@@ -56,7 +56,7 @@ secrets/
 # IDE
 .vscode/
 .idea/
-.codex/
+apps/web/artifacts/ai-evals/
 *.swp
 *.swo
 *~
