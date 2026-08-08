@@ -7,7 +7,7 @@
 #   ./scripts/install-pgvector.sh
 #
 set -euo pipefail
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+export PATH="/opt/homebrew/opt/postgresql@16/bin:/usr/local/opt/postgresql@16/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
 PGVECTOR_VERSION="${PGVECTOR_VERSION:-v0.8.0}"
 PG_CONFIG="$(command -v pg_config || true)"

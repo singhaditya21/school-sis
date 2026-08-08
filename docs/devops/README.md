@@ -2,18 +2,24 @@
 
 This guide covers local operations, database migrations, environment configuration, and the Vercel deployment workflow for School SIS.
 
+For a new development machine, start with
+[Continue School SIS on another laptop](../NEW_LAPTOP_SETUP.md). Commands in this
+guide describe operator concerns; do not place production credentials or data in
+the repository.
+
 ## Local Setup
 
 Prerequisites:
 
-- Node.js 20+
-- pnpm 9.15.9+
-- Docker and Docker Compose for optional local services
+- Node.js 24 (see `.nvmrc`)
+- pnpm 9.15.9
+- PostgreSQL 16 + pgvector for the full local runtime
 
 Install and run:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
+pnpm local:setup
 pnpm dev
 ```
 
@@ -50,11 +56,9 @@ pnpm db:push
 
 `db:push` is guarded. It is blocked in production and against remote databases unless `ALLOW_REMOTE_DB_PUSH=true` is set intentionally for non-production prototyping.
 
-Production migration:
-
-```bash
-DIRECT_URL="postgresql://..." CONFIRM_PRODUCTION_MIGRATION=school-sis pnpm db:migrate:prod
-```
+This checkout does not ship a `db:migrate:prod` shortcut. Production migrations
+must use the reviewed deployment runbook for the target environment; do not run
+an ad-hoc migration from a newly configured laptop.
 
 Rules:
 
@@ -77,9 +81,11 @@ DATABASE_SSL_MODE=verify-full
 SESSION_SECRET=replace_with_at_least_32_random_characters
 PII_ENCRYPTION_KEY=replace_with_at_least_32_random_characters
 NEXT_PUBLIC_APP_URL=https://school-sis-web.vercel.app
+TENANT_BASE_HOSTS=school-sis-web.vercel.app
 INTEGRATIONS_MODE=live
 JOB_QUEUE_MODE=database
 JOB_DISPATCH_SECRET=replace_with_at_least_32_random_characters
+CRON_SECRET=replace_with_at_least_32_random_characters
 METRICS_TOKEN=replace_with_at_least_32_random_characters
 RATE_LIMIT_BACKEND=postgres
 RATE_LIMIT_MEMORY_MAX_ENTRIES=10000
@@ -88,12 +94,9 @@ CSP_ENFORCE=true
 
 Leave external notification channels and online payments unconfigured until real provider credentials are present. Never set an integration or notification provider to `mock` in production. Production enforces the nonce CSP by default; `CSP_ENFORCE=false` is only a temporary rollback while investigating `/api/security/csp-report`, and must be restored to `true` after remediation. Import the rate-limit dashboard and alert rules from `ops/observability` when the production monitoring target is selected.
 
-Validate the production contract:
-
-```bash
-pnpm infra:check
-NODE_ENV=production pnpm --filter @school-sis/web run infra:check -- --strict
-```
+This checkout does not ship a standalone `infra:check` command. Use
+`apps/web/.env.example` as the contract, keep values in the deployment provider,
+and rely on production startup validation plus the `/api/ready` check.
 
 ## Vercel Deployment
 
@@ -103,7 +106,9 @@ Deploy from the repository root only.
 pnpm dlx vercel --prod --yes
 ```
 
-The Vercel project root is `apps/web`, so `apps/web/vercel.json` is the deployment source of truth:
+The Vercel project root is `apps/web`. That project setting and its secrets are
+external deployment configuration; there is no tracked `vercel.json` in this
+checkout. Verify the project dashboard before a production deployment:
 
 - Project: `school-sis-web`
 - Build command: `pnpm --filter @school-sis/web run build`
@@ -139,17 +144,9 @@ Uploads are tenant-prefixed and retrieved through authenticated signed URLs at `
 
 ## Backups and Restore Drills
 
-Create an operator backup:
-
-```bash
-DIRECT_URL="postgresql://..." pnpm backup:create
-```
-
-Restore drill:
-
-```bash
-DIRECT_URL="postgresql://..." CONFIRM_RESTORE=school-sis pnpm backup:restore -- ./backups/neon/file.dump
-```
+This checkout does not ship `backup:create` or `backup:restore` shortcuts. Use
+the approved database-provider backup and restore procedure for the target
+environment, and verify a restore in an isolated database before relying on it.
 
 Backup files contain sensitive data. Store production dumps outside the repository.
 

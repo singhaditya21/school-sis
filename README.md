@@ -4,6 +4,14 @@ Welcome to the **ScholarMind Administration Portal**, a multi-tenant, SaaS-based
 
 This repository enforces the **V6 PRD Enterprise Standard**, which radically restructures the platform into a centralized cloud deployment utilizing Drizzle ORM, Next.js Server Components, PostgreSQL Vector searching, and a dedicated AI swarm operated via Cerebras (`llama3.1-70b`).
 
+## Continue on another laptop
+
+All source code, migrations, tests, patches, and locked dependencies needed for
+a clean build are stored in GitHub. Follow the
+[new-laptop handoff guide](./docs/NEW_LAPTOP_SETUP.md) to select the current
+work branch, reproduce a database-free build, and create fresh local development
+state without copying secrets into Git.
+
 ---
 
 ## 🏛️ System Architecture
@@ -75,6 +83,7 @@ The complete documentation suite for ScholarMind is broken down by persona. Whet
 - **[End-User Guide](./docs/user-guide/README.md)**: For School Admins & Teachers. Learn about the Metadata Engine, Workflows, Fees, Attendance, and AI Integrations.
 - **[Developer & API Guide](./docs/api/README.md)**: For Integrators. Discover how to build on top of our Metadata Architecture, consume Webhooks, and integrate third-party tools (Stripe, Twilio, MSG91).
 - **[Running Locally](./RUNNING.md)**: Set up the self-contained local stack (Postgres + pgvector + the app) — no cloud services required.
+- **[New Laptop Setup](./docs/NEW_LAPTOP_SETUP.md)**: Clone the active work, reproduce the clean build, and recreate safe local state.
 - **[Sales & Marketing Enablement](./docs/sales/README.md)**: For the GTM Team. Access pitches for the "True Vertical OS for Education", value propositions, and strategies against monolithic competitors.
 
 ---

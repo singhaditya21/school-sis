@@ -11,8 +11,9 @@
 #
 set -euo pipefail
 
-# Postgres tools (Homebrew Apple-Silicon / Intel, then system).
-export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+# PostgreSQL 16 is keg-only in Homebrew, so include its versioned prefix on
+# Apple-Silicon and Intel Macs before the general Homebrew/system paths.
+export PATH="/opt/homebrew/opt/postgresql@16/bin:/usr/local/opt/postgresql@16/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 # macOS + PostgreSQL 16 needs a fixed locale or startup aborts with
 # "postmaster became multithreaded during startup".
 export LC_ALL=C
