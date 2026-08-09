@@ -1,6 +1,7 @@
 import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import type { QueryResult } from 'pg';
 import { shouldRequireMfaEnrollment } from './identity';
+import type { InstitutionType } from '@/lib/capabilities/types';
 
 type SSOCallbackResult =
     | {
@@ -15,6 +16,7 @@ type SSOCallbackResult =
         companyId?: string;
         subscriptionTier?: string;
         activeModules?: string[];
+        institutionType?: InstitutionType;
         mfaEnabled: boolean;
         mfaVerified: boolean;
     }
@@ -71,6 +73,7 @@ type IdentityUserRow = {
     companyIsActive: boolean | null;
     subscriptionTier: string | null;
     activeModules: string[] | null;
+    institutionType: InstitutionType;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
@@ -209,6 +212,7 @@ async function findExistingIdentityUser(
             u.tenant_id AS "tenantId",
             t.code AS "tenantCode",
             t.domain AS "tenantDomain",
+            t.institution_type AS "institutionType",
             u.email,
             u.role,
             u.first_name AS "firstName",
@@ -326,6 +330,7 @@ export async function handleSSOCallback(
         companyId: user.companyId || undefined,
         subscriptionTier: user.subscriptionTier || undefined,
         activeModules: Array.isArray(user.activeModules) ? user.activeModules : [],
+        institutionType: user.institutionType,
         mfaEnabled: Boolean(user.mfaEnabled),
         mfaVerified: config.assumeMfa,
     };

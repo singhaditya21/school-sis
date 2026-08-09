@@ -13,6 +13,7 @@ import {
     localRoleForLtiLaunch,
     verifyLtiLaunchToken,
 } from '@/lib/integrations/lti';
+import type { InstitutionType } from '@/lib/capabilities/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -31,6 +32,7 @@ type LocalLtiUser = {
     companyIsActive: boolean | null;
     subscriptionTier: string | null;
     activeModules: string[] | null;
+    institutionType: InstitutionType;
 };
 
 function stateCookieFrom(request: Request): string {
@@ -87,6 +89,7 @@ export async function POST(request: Request) {
                     u.mfa_enabled AS "mfaEnabled",
                     t.code AS "tenantCode",
                     t.domain AS "tenantDomain",
+                    t.institution_type AS "institutionType",
                     t.is_active AS "tenantIsActive",
                     c.id::text AS "companyId",
                     c.is_active AS "companyIsActive",
@@ -138,6 +141,7 @@ export async function POST(request: Request) {
             companyId: localUser.companyId || undefined,
             subscriptionTier: localUser.subscriptionTier || undefined,
             activeModules: localUser.activeModules || [],
+            institutionType: localUser.institutionType,
             mfaEnabled: false,
             mfaVerified: false,
         });

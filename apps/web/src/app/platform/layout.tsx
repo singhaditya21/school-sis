@@ -4,6 +4,9 @@ import { redirect } from 'next/navigation';
 import { logoutAction } from '@/lib/actions/auth';
 import { getSession } from '@/lib/auth/session';
 import { isPlatformRole } from '@/lib/auth/page-access';
+import { evaluateCapability } from '@/lib/capabilities/evaluator';
+import { configuredProviderRequirements } from '@/lib/capabilities/providers';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
     const session = await getSession();
@@ -15,6 +18,14 @@ export default async function PlatformLayout({ children }: { children: ReactNode
     if (!isPlatformRole(session.role)) {
         redirect('/unauthorized');
     }
+
+    const aiAvailable = evaluateCapability('ai', {
+        activeModules: session.activeModules || [],
+        institutionType: session.institutionType,
+        configuredProviders: configuredProviderRequirements(),
+        hasPermission: (permission) => hasPermission(session.role as UserRole, permission),
+        allowInternal: process.env.CAPABILITIES_INTERNAL_ACCESS === 'true',
+    }).available;
 
     return (
         <div className="min-h-screen bg-slate-50 flex">
@@ -42,9 +53,11 @@ export default async function PlatformLayout({ children }: { children: ReactNode
                     <Link href="/platform/billing" className="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition-colors">
                         <span className="text-xl">💳</span> Stripe Billing
                     </Link>
-                    <Link href="/platform/analytics" className="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition-colors">
-                        <span className="text-xl">🤖</span> AI Analytics
-                    </Link>
+                    {aiAvailable ? (
+                        <Link href="/platform/analytics" className="flex items-center gap-4 px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition-colors">
+                            <span className="text-xl">🤖</span> AI Analytics
+                        </Link>
+                    ) : null}
                 </nav>
             </aside>
 

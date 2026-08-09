@@ -1,11 +1,57 @@
 import { getSession } from '@/lib/auth/session';
-import { isStaff, UserRole } from '@/lib/rbac/permissions';
+import { hasPermission, isStaff, UserRole } from '@/lib/rbac/permissions';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { returnToHQAction } from '@/lib/actions/platform';
 import PlatformBroadcastTicker from '@/components/platform/PlatformBroadcastTicker';
-import { pool } from '@/lib/db';
 import { AICopilot } from '@/components/ui/ai-copilot';
+import { evaluateCapability } from '@/lib/capabilities/evaluator';
+import { configuredProviderRequirements } from '@/lib/capabilities/providers';
+import {
+    buildAdminNavigation,
+    type AdminNavigationIconId,
+} from '@/lib/capabilities/admin-navigation';
+import {
+    Building2,
+    CalendarCheck,
+    CalendarDays,
+    Circle,
+    ClipboardCheck,
+    FileCheck,
+    GraduationCap,
+    Landmark,
+    LayoutDashboard,
+    ListChecks,
+    Mail,
+    Plug,
+    ReceiptText,
+    School,
+    ShieldCheck,
+    UserRoundCog,
+    Users,
+    WalletCards,
+    type LucideIcon,
+} from 'lucide-react';
+
+const ADMIN_NAVIGATION_ICONS: Readonly<Record<AdminNavigationIconId, LucideIcon>> = {
+    'layout-dashboard': LayoutDashboard,
+    'clipboard-check': ClipboardCheck,
+    users: Users,
+    'user-round-cog': UserRoundCog,
+    'graduation-cap': GraduationCap,
+    'calendar-check': CalendarCheck,
+    'file-check': FileCheck,
+    'calendar-days': CalendarDays,
+    'wallet-cards': WalletCards,
+    'receipt-text': ReceiptText,
+    landmark: Landmark,
+    mail: Mail,
+    plug: Plug,
+    'list-checks': ListChecks,
+    'shield-check': ShieldCheck,
+    school: School,
+    'building-two': Building2,
+};
 
 export default async function AdminLayout({
     children,
@@ -25,22 +71,23 @@ export default async function AdminLayout({
 
     const isImpersonating = Boolean(session.impersonation?.actorUserId) || session.token?.startsWith('impersonating:');
 
-    // Safe DB fetch to prevent UUID parsing errors for Platform Admins without immediate tenants
-    let institutionType = 'K12';
-    if (session.tenantId && session.tenantId.trim() !== '') {
-        const tenantRes = await pool.query(`SELECT institution_type AS type FROM tenants WHERE id = $1 LIMIT 1`, [session.tenantId]);
-        const tenantRows = tenantRes.rows;
-        if (tenantRows.length > 0) {
-            institutionType = tenantRows[0].type;
-        }
-    }
+    const capabilityContext = {
+        activeModules: session.activeModules || [],
+        institutionType: session.institutionType,
+        configuredProviders: configuredProviderRequirements(),
+        hasPermission: (permission: string) => hasPermission(session.role as UserRole, permission),
+        allowInternal: session.role === 'PLATFORM_ADMIN'
+            && process.env.CAPABILITIES_INTERNAL_ACCESS === 'true',
+    };
+    const navigationGroups = buildAdminNavigation(capabilityContext, session.role);
+    const aiAvailable = evaluateCapability('ai', capabilityContext).available;
 
     return (
         <div className="min-h-screen bg-gray-50">
             {isImpersonating && (
                 <div className="bg-rose-600 text-white px-4 py-2 flex items-center justify-between sticky top-0 z-[60]">
                     <div className="flex items-center gap-2">
-                        <span className="animate-pulse">🔴</span>
+                        <Circle className="h-3 w-3 animate-pulse fill-current" aria-hidden="true" />
                         <span className="text-sm font-bold tracking-wider">IMPERSONATION ACTIVE</span>
                         <span className="text-xs opacity-80 border-l border-white/20 pl-2 ml-2">You are viewing {session.email}&apos;s dashboard</span>
                     </div>
@@ -63,11 +110,11 @@ export default async function AdminLayout({
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                                <span className="text-white text-xl">🎓</span>
+                                <GraduationCap className="h-6 w-6 text-white" aria-hidden="true" />
                             </div>
                             <div>
                                 <div className="text-xl font-bold text-gray-900">
-                                    School SIS
+                                    ScholarMind
                                 </div>
                                 <p className="text-sm text-gray-500">
                                     Administration Portal
@@ -97,110 +144,27 @@ export default async function AdminLayout({
             <div className="flex">
                 {/* Sidebar Navigation */}
                 <aside data-testid="sidebar" className="w-64 bg-white border-r border-gray-200 min-h-screen sticky top-16">
-                    <nav className="p-4 space-y-1">
-                        {/* --- CORE / SHARED MODULES --- */}
-                        <NavLink href="/dashboard" icon="📊">
-                            Dashboard
-                        </NavLink>
-                        <NavLink href="/chat" icon="🤖">
-                            AI Agent Chat
-                        </NavLink>
-                        <NavLink href="/approvals" icon="✅">
-                            Action Approvals
-                        </NavLink>
-                        <NavLink href="/fees" icon="💰">
-                            Fee Collections
-                        </NavLink>
-                        <NavLink href="/app/invoice" icon="🧾">
-                            Invoices
-                        </NavLink>
-                        <NavLink href="/treasury" icon="🏦">
-                            Treasury
-                        </NavLink>
-                        <NavLink href="/app/student" icon="👥">
-                            Students
-                        </NavLink>
-                        <NavLink href="/attendance" icon="✅">
-                            Attendance
-                        </NavLink>
-                        <NavLink href="/exams" icon="📝">
-                            Exams
-                        </NavLink>
-                        <NavLink href="/admissions" icon="🎓">
-                            Admissions
-                        </NavLink>
-                        <NavLink href="/messages/templates" icon="✉️">
-                            Messages
-                        </NavLink>
-                        <NavLink href="/app/staff" icon="👥">
-                            Faculty & Staff
-                        </NavLink>
-                        <NavLink href="/analytics" icon="📊">
-                            Analytics
-                        </NavLink>
-                        <NavLink href="/reports" icon="📑">
-                            Reports Engine
-                        </NavLink>
-                        <NavLink href="/credentials" icon="📜">
-                            Trust Registry
-                        </NavLink>
-                        <NavLink href="/integrations/tally" icon="📈">
-                            Tally ERP Sync
-                        </NavLink>
-
-                        {/* --- K-12 SPECIFIC MODULES --- */}
-                        {(institutionType === 'K12' || institutionType === 'HYBRID') && (
-                            <div className="pt-2 mt-2 border-t border-gray-100">
-                                <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">K-12 School</p>
-                                <NavLink href="/timetable" icon="📅">Timetable</NavLink>
-                                <NavLink href="/transport" icon="🚌">Transport</NavLink>
-                                <NavLink href="/homework" icon="📝">Homework</NavLink>
-                                <NavLink href="/lesson-plans" icon="📚">Lesson Plans</NavLink>
-                                <NavLink href="/diary" icon="📓">Digital Diary</NavLink>
-                                <NavLink href="/health" icon="🏥">Health Records</NavLink>
+                    <nav className="p-4 space-y-2" aria-label="Administration">
+                        {navigationGroups.map((group, index) => (
+                            <div
+                                key={group.id}
+                                className={index === 0 ? 'space-y-1' : 'space-y-1 border-t border-gray-100 pt-3 mt-3'}
+                            >
+                                {group.label ? (
+                                    <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                                        {group.label}
+                                    </p>
+                                ) : null}
+                                {group.items.map((item) => (
+                                    <NavLink
+                                        key={item.id}
+                                        href={item.href}
+                                        icon={item.icon}
+                                        label={item.label}
+                                    />
+                                ))}
                             </div>
-                        )}
-
-                        {/* --- HIGHER EDUCATION MODULES --- */}
-                        {(institutionType === 'COLLEGE' || institutionType === 'UNIVERSITY' || institutionType === 'HYBRID') && (
-                            <div className="pt-2 mt-2 border-t border-gray-100">
-                                <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Higher Ed</p>
-                                <NavLink href="/university/courses" icon="🎓">Course Registration</NavLink>
-                                <NavLink href="/university/advising" icon="👨‍🏫">Academic Advising</NavLink>
-                                <NavLink href="/university/research" icon="🔬">Research Grants</NavLink>
-                                <NavLink href="/university/placement" icon="💼">Placements</NavLink>
-                            </div>
-                        )}
-
-                        {/* --- COACHING MODULES --- */}
-                        {(institutionType === 'COACHING' || institutionType === 'HYBRID') && (
-                            <div className="pt-2 mt-2 border-t border-gray-100">
-                                <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Coaching</p>
-                                <NavLink href="/coaching/batches" icon="📚">Batches</NavLink>
-                                <NavLink href="/coaching/tests" icon="📋">Test Series</NavLink>
-                                <NavLink href="/coaching/doubts" icon="❓">Doubt Portal</NavLink>
-                            </div>
-                        )}
-
-                        {/* --- SYSTEM SETTINGS --- */}
-                        <div className="pt-2 mt-2 border-t border-gray-100">
-                            <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Settings</p>
-                            <NavLink href="/settings/objects" icon="⚙️">Object Manager</NavLink>
-                            <NavLink href="/automation" icon="⚡">Automations</NavLink>
-                            <NavLink href="/marketplace" icon="🧩">Marketplace</NavLink>
-                        </div>
-
-                        {/* --- HQ COMMAND CENTER --- */}
-                        {session.role === 'PLATFORM_ADMIN' || session.role === 'SUPER_ADMIN' || session.role === 'GROUP_EXECUTIVE' ? (
-                            <div className="pt-2 mt-2 border-t border-gray-100">
-                                <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Group HQ</p>
-                                <NavLink href="/hq-overview" icon="🏢">Command Center</NavLink>
-                                <NavLink href="/procurement" icon="🔐">Trust Center</NavLink>
-                                <NavLink href="/international" icon="🌍">International Ops</NavLink>
-                                <NavLink href="/schools" icon="🏫">Campuses</NavLink>
-                                <NavLink href="/settings/users" icon="👤">Users & Roles</NavLink>
-                            </div>
-                        ) : null}
+                        ))}
                     </nav>
                 </aside>
 
@@ -209,7 +173,7 @@ export default async function AdminLayout({
                     <div suppressHydrationWarning>{children}</div>
                 </main>
             </div>
-            <AICopilot />
+            {aiAvailable ? <AICopilot /> : null}
         </div>
     );
 }
@@ -217,19 +181,21 @@ export default async function AdminLayout({
 function NavLink({
     href,
     icon,
-    children,
+    label,
 }: {
     href: string;
-    icon: string;
-    children: React.ReactNode;
+    icon: AdminNavigationIconId;
+    label: string;
 }) {
+    const Icon = ADMIN_NAVIGATION_ICONS[icon];
+
     return (
         <Link
             href={href}
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
         >
-            <span>{icon}</span>
-            <span className="text-sm font-medium">{children}</span>
+            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="text-sm font-medium">{label}</span>
         </Link>
     );
 }

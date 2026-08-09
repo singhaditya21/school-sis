@@ -32,6 +32,13 @@ export const STUDENT_PAGE_ROLES = ['STUDENT'] as const;
 export const OPERATOR_PAGE_ROLES = ['PLATFORM_ADMIN', 'SUPER_ADMIN', 'SCHOOL_ADMIN'] as const;
 
 export const PUBLIC_PAGE_PREFIXES = ['/', '/login', '/register', '/setup'] as const;
+export const CAPABILITY_SUPPORT_PAGE_PREFIXES = [
+    '/lti',
+    '/mfa',
+    '/unauthorized',
+    '/unavailable',
+    '/upgrade',
+] as const;
 
 const ADMIN_PAGE_PREFIXES = [
     '/admissions',
@@ -146,7 +153,7 @@ export const PAGE_ACCESS_POLICIES = [
     },
     {
         name: 'authenticated-support',
-        prefixes: ['/lti', '/unauthorized', '/upgrade'],
+        prefixes: CAPABILITY_SUPPORT_PAGE_PREFIXES,
         level: 'authenticated',
     },
 ] as const satisfies readonly PageAccessPolicy[];
@@ -186,6 +193,11 @@ export function getPageAccessPolicy(pathname: string): PageAccessPolicy {
 
 export function isPublicPageRoute(pathname: string): boolean {
     return getPageAccessPolicy(pathname).level === 'public';
+}
+
+/** Routes needed to explain or complete access checks are not product capabilities. */
+export function isCapabilitySupportPageRoute(pathname: string): boolean {
+    return CAPABILITY_SUPPORT_PAGE_PREFIXES.some((prefix) => pagePathMatchesPrefix(pathname, prefix));
 }
 
 export function isRoleAllowedForPage(role: string | null | undefined, policy: PageAccessPolicy): boolean {

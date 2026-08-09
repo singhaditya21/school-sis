@@ -9,6 +9,7 @@ import {
 } from './lib/auth/session-options';
 import {
     getPageAccessPolicy,
+    isCapabilitySupportPageRoute,
     isPublicPageRoute,
     isRoleAllowedForPage,
 } from './lib/auth/page-access';
@@ -19,6 +20,14 @@ import {
     createContentSecurityPolicy,
     createCspNonce,
 } from './lib/security/headers';
+import {
+    evaluateCapabilityDefinition,
+    findCapabilityForApiPath,
+    findCapabilityForRoute,
+} from './lib/capabilities/evaluator';
+import { configuredProviderRequirements } from './lib/capabilities/providers';
+import { CAPABILITY_REGISTRY_REVISION } from './lib/capabilities/registry';
+import { hasPermission, UserRole } from './lib/rbac/permissions';
 
 const MFA_REQUIRED_ROLES = new Set<string>(MFA_REQUIRED_ROLE_NAMES);
 const RESERVED_TENANT_HOSTS = new Set(['localhost', '127.0.0.1', '::1', 'www']);
@@ -101,6 +110,12 @@ function tenantHostMatchesSession(hostHint: string, session: SessionData): boole
 
 export async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl;
+    const apiCapability = pathname.startsWith('/api/')
+        ? findCapabilityForApiPath(pathname)
+        : null;
+    const pageCapability = pathname.startsWith('/api/')
+        ? null
+        : findCapabilityForRoute(pathname);
     const nonce = createCspNonce();
     const contentSecurityPolicy = createContentSecurityPolicy(nonce, {
         isDevelopment: process.env.NODE_ENV === 'development',
@@ -138,6 +153,9 @@ export async function middleware(request: NextRequest) {
 
     // Check if user is authenticated
     if (!session.isLoggedIn) {
+        if (apiCapability) {
+            return respond(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }));
+        }
         const loginUrl = new URL('/login', request.url);
         loginUrl.searchParams.set('redirect', pathname);
         return respond(NextResponse.redirect(loginUrl));
@@ -150,11 +168,34 @@ export async function middleware(request: NextRequest) {
         return respond(NextResponse.redirect(loginUrl));
     }
 
-    const productionMfaRequired = process.env.NODE_ENV === 'production' && MFA_REQUIRED_ROLES.has(session.role);
-    if ((session.mfaRequired || productionMfaRequired) && !session.mfaVerified && MFA_REQUIRED_ROLES.has(session.role)) {
+    if (session.capabilityRevision !== CAPABILITY_REGISTRY_REVISION) {
+        if (apiCapability) {
+            return respond(NextResponse.json({
+                error: 'Session capability context is stale',
+                code: 'CAPABILITY_SESSION_STALE',
+            }, { status: 401 }));
+        }
         const loginUrl = new URL('/login', request.url);
-        loginUrl.searchParams.set('mfa', 'required');
+        loginUrl.searchParams.set('redirect', pathname);
+        loginUrl.searchParams.set('reason', 'capabilities_changed');
         return respond(NextResponse.redirect(loginUrl));
+    }
+
+    const productionMfaRequired = process.env.NODE_ENV === 'production' && MFA_REQUIRED_ROLES.has(session.role);
+    const mfaEnrollmentPending = (session.mfaRequired || productionMfaRequired)
+        && !session.mfaVerified
+        && MFA_REQUIRED_ROLES.has(session.role);
+    const isMfaEnrollmentPath = pathname === '/mfa/enroll' || pathname.startsWith('/mfa/enroll/');
+    if (mfaEnrollmentPending && !isMfaEnrollmentPath) {
+        if (pathname.startsWith('/api/')) {
+            return respond(NextResponse.json({
+                error: 'MFA enrollment required',
+                code: 'MFA_ENROLLMENT_REQUIRED',
+            }, { status: 403 }));
+        }
+        const enrollmentUrl = new URL('/mfa/enroll', request.url);
+        enrollmentUrl.searchParams.set('redirect', pathname);
+        return respond(NextResponse.redirect(enrollmentUrl));
     }
 
     const hostHint = tenantHostHint(request.nextUrl.hostname, session);
@@ -164,44 +205,64 @@ export async function middleware(request: NextRequest) {
 
     const pagePolicy = getPageAccessPolicy(pathname);
     if (!isRoleAllowedForPage(session.role, pagePolicy)) {
+        if (apiCapability) {
+            return respond(NextResponse.json({ error: 'Forbidden' }, { status: 403 }));
+        }
         return respond(NextResponse.redirect(new URL('/unauthorized', request.url)));
     }
 
-    // ─── SaaS Paywall & Feature Flagging (Phase 5) ─────────────
-    // Note: In production, `activeModules` is injected into the JWT/Session
-    // during login from the `tenants` DB table.
-    const activeModules = session.role === 'PLATFORM_ADMIN'
-        ? ['ATTENDANCE', 'FEES', 'COMMUNICATION', 'AI_AGENTS', 'HIGHER_ED', 'COACHING', 'INTERNATIONAL', 'MULTI_CAMPUS', 'ENTERPRISE']
-        : (session.activeModules || ['ATTENDANCE', 'FEES']); 
-    
-    // Group HQ Command Center (Super Admin Only + Multi-Campus Tier)
-    if (pathname.startsWith('/hq')) {
-        if (session.role !== 'SUPER_ADMIN' && session.role !== 'PLATFORM_ADMIN') {
-            return respond(NextResponse.redirect(new URL('/unauthorized', request.url)));
+    if (
+        process.env.NODE_ENV === 'production'
+        && !apiCapability
+        && !pageCapability
+        && !isCapabilitySupportPageRoute(pathname)
+    ) {
+        const unavailableUrl = new URL('/unavailable', request.url);
+        unavailableUrl.searchParams.set('reason', 'UNCLASSIFIED');
+        return respond(NextResponse.redirect(unavailableUrl));
+    }
+
+    const capability = apiCapability || pageCapability;
+    if (capability) {
+        const decision = evaluateCapabilityDefinition(capability, {
+            // companies.active_modules is copied into the signed session at login.
+            // Missing entitlement data fails closed rather than inventing defaults.
+            activeModules: session.activeModules || [],
+            institutionType: session.institutionType,
+            configuredProviders: configuredProviderRequirements(),
+            hasPermission: (permission) => hasPermission(session.role as UserRole, permission),
+            allowInternal: session.role === 'PLATFORM_ADMIN'
+                && process.env.CAPABILITIES_INTERNAL_ACCESS === 'true',
+        });
+
+        if (!decision.available) {
+            if (apiCapability) {
+                const status = decision.reason === 'HIDDEN'
+                    ? 404
+                    : decision.reason === 'UNCONFIGURED'
+                        ? 503
+                        : 403;
+                return respond(NextResponse.json({
+                    error: 'Capability unavailable',
+                    capability: decision.id,
+                    reason: decision.reason,
+                }, { status }));
+            }
+
+            if (decision.reason === 'FORBIDDEN') {
+                return respond(NextResponse.redirect(new URL('/unauthorized', request.url)));
+            }
+            if (decision.reason === 'NOT_ENTITLED') {
+                const upgradeUrl = new URL('/upgrade', request.url);
+                upgradeUrl.searchParams.set('feature', decision.id);
+                return respond(NextResponse.redirect(upgradeUrl));
+            }
+
+            const unavailableUrl = new URL('/unavailable', request.url);
+            unavailableUrl.searchParams.set('capability', decision.id);
+            if (decision.reason) unavailableUrl.searchParams.set('reason', decision.reason);
+            return respond(NextResponse.redirect(unavailableUrl));
         }
-        if (session.role !== 'PLATFORM_ADMIN' && !activeModules.includes('MULTI_CAMPUS') && !activeModules.includes('ENTERPRISE')) {
-            return respond(NextResponse.redirect(new URL('/upgrade?feature=hq', request.url)));
-        }
-    }
-
-    // Higher Education Paywall
-    if (pathname.startsWith('/university') && !activeModules.includes('HIGHER_ED')) {
-        return respond(NextResponse.redirect(new URL('/upgrade?feature=university', request.url)));
-    }
-
-    // Coaching Paywall
-    if (pathname.startsWith('/coaching') && !activeModules.includes('COACHING')) {
-        return respond(NextResponse.redirect(new URL('/upgrade?feature=coaching', request.url)));
-    }
-
-    // International / Visa Paywall
-    if (pathname.startsWith('/international') && !activeModules.includes('INTERNATIONAL')) {
-        return respond(NextResponse.redirect(new URL('/upgrade?feature=international', request.url)));
-    }
-
-    // AI Agents Paywall
-    if (pathname.startsWith('/chat') && !activeModules.includes('AI_AGENTS') && session.subscriptionTier === 'CORE') {
-        return respond(NextResponse.redirect(new URL('/upgrade?feature=ai', request.url)));
     }
 
     return respond(response);
@@ -218,5 +279,28 @@ export const config = {
          * - public files
          */
         '/((?!api|_next/static|_next/image|favicon.ico|.*\\..*|public).*)',
+        '/api/agents/:path*',
+        '/api/admissions/:path*',
+        '/api/attendance/:path*',
+        '/api/chat/:path*',
+        '/api/coaching/:path*',
+        '/api/compliance/:path*',
+        '/api/copilot/:path*',
+        '/api/exams/:path*',
+        '/api/exports/:path*',
+        '/api/fee-plans/:path*',
+        '/api/finance/:path*',
+        '/api/international/:path*',
+        '/api/mobile/:path*',
+        '/api/parent/:path*',
+        '/api/payments',
+        '/api/payments/orders/:path*',
+        '/api/payments/stripe/:path*',
+        '/api/payments/verify/:path*',
+        '/api/quiz/:path*',
+        '/api/receipts/:path*',
+        '/api/report-cards/:path*',
+        '/api/students/:path*',
+        '/api/university/:path*',
     ],
 };

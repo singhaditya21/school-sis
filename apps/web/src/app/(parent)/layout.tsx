@@ -1,5 +1,9 @@
 import { getSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
+import { evaluateCapability } from '@/lib/capabilities/evaluator';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
+import Link from 'next/link';
+import { CalendarCheck, GraduationCap, Home, IndianRupee, LineChart, type LucideIcon } from 'lucide-react';
 
 export default async function ParentLayout({
     children,
@@ -16,6 +20,12 @@ export default async function ParentLayout({
         redirect('/unauthorized');
     }
 
+    const paymentsAvailable = evaluateCapability('payments', {
+        activeModules: session.activeModules || [],
+        institutionType: session.institutionType,
+        hasPermission: (permission) => hasPermission(session.role as UserRole, permission),
+    }).available;
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
             {/* Top Bar */}
@@ -24,9 +34,9 @@ export default async function ParentLayout({
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
                             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                                <span className="text-white text-lg">🎓</span>
+                                <GraduationCap className="h-5 w-5 text-white" aria-hidden="true" />
                             </div>
-                            <div className="text-lg font-bold text-gray-900">School SIS</div>
+                            <div className="text-lg font-bold text-gray-900">ScholarMind</div>
                         </div>
                         <div className="text-sm text-gray-700">{session.email}</div>
                     </div>
@@ -39,11 +49,10 @@ export default async function ParentLayout({
             {/* Bottom Navigation (Mobile-First) */}
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 safe-area-pb">
                 <div className="flex justify-around items-center max-w-lg mx-auto">
-                    <NavItem href="/overview" icon="🏠" label="Home" />
-                    <NavItem href="/my-attendance" icon="📅" label="Attendance" />
-                    <NavItem href="/my-results" icon="📊" label="Results" />
-                    <NavItem href="/my-fees" icon="💰" label="Fees" />
-                    <NavItem href="/my-transport" icon="🚌" label="Transport" />
+                    <NavItem href="/overview" icon={Home} label="Home" />
+                    <NavItem href="/my-attendance" icon={CalendarCheck} label="Attendance" />
+                    <NavItem href="/my-results" icon={LineChart} label="Results" />
+                    {paymentsAvailable ? <NavItem href="/my-fees" icon={IndianRupee} label="Fees" /> : null}
                 </div>
             </nav>
         </div>
@@ -52,17 +61,17 @@ export default async function ParentLayout({
 
 function NavItem({
     href,
-    icon,
+    icon: Icon,
     label,
 }: {
     href: string;
-    icon: string;
+    icon: LucideIcon;
     label: string;
 }) {
     return (
-        <a href={href} className="flex flex-col items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors">
-            <span className="text-2xl">{icon}</span>
+        <Link href={href} className="flex flex-col items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors">
+            <Icon className="h-6 w-6" aria-hidden="true" />
             <span className="text-xs font-medium">{label}</span>
-        </a>
+        </Link>
     );
 }

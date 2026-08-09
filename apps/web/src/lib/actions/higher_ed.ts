@@ -1,18 +1,17 @@
 'use server';
 
 import { pool } from '@/lib/db';
-import { getSession } from '@/lib/auth/session';
+import { requireCapability } from '@/lib/capabilities/server';
 
 /**
  * Fetch all degree programs for the university.
  */
 export async function getUniversityProgramsAction() {
-    const session = await getSession();
-    if (!session.tenantId) throw new Error('Unauthorized');
+    const { tenantId } = await requireCapability('higher-education', 'academic:read');
 
     const result = await pool.query(
         'SELECT id, tenant_id AS "tenantId", name, degree_type AS "degreeType", duration_years AS "durationYears", total_credits AS "totalCredits", created_at AS "createdAt" FROM university_programs WHERE tenant_id = $1',
-        [session.tenantId]
+        [tenantId]
     );
     
     return result.rows;
@@ -22,8 +21,7 @@ export async function getUniversityProgramsAction() {
  * Fetch all university courses with their parent program names.
  */
 export async function getUniversityCoursesAction() {
-    const session = await getSession();
-    if (!session.tenantId) throw new Error('Unauthorized');
+    const { tenantId } = await requireCapability('higher-education', 'academic:read');
 
     const result = await pool.query(
         `SELECT 
@@ -36,7 +34,7 @@ export async function getUniversityCoursesAction() {
          FROM university_courses uc
          LEFT JOIN university_programs up ON uc.program_id = up.id
          WHERE uc.tenant_id = $1`,
-        [session.tenantId]
+        [tenantId]
     );
     
     return result.rows;
@@ -46,17 +44,16 @@ export async function getUniversityCoursesAction() {
  * Super lightweight analytics summary for the Higher Ed dashboard.
  */
 export async function getUniversityDashboardSummaryAction() {
-    const session = await getSession();
-    if (!session.tenantId) throw new Error('Unauthorized');
+    const { tenantId } = await requireCapability('higher-education', 'academic:read');
 
     const programsCountResult = await pool.query(
         'SELECT COUNT(*) as count FROM university_programs WHERE tenant_id = $1',
-        [session.tenantId]
+        [tenantId]
     );
     
     const coursesCountResult = await pool.query(
         'SELECT COUNT(*) as count FROM university_courses WHERE tenant_id = $1',
-        [session.tenantId]
+        [tenantId]
     );
 
     return {

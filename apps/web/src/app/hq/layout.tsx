@@ -1,6 +1,9 @@
 import { getSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { evaluateCapability } from '@/lib/capabilities/evaluator';
+import { configuredProviderRequirements } from '@/lib/capabilities/providers';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 
 export default async function HQLayout({
     children,
@@ -17,6 +20,16 @@ export default async function HQLayout({
     if (session.role !== 'PLATFORM_ADMIN') {
         redirect('/unauthorized');
     }
+
+    const capabilityContext = {
+        activeModules: session.activeModules || [],
+        institutionType: session.institutionType,
+        configuredProviders: configuredProviderRequirements(),
+        hasPermission: (permission: string) => hasPermission(session.role as UserRole, permission),
+        allowInternal: process.env.CAPABILITIES_INTERNAL_ACCESS === 'true',
+    };
+    const aiAvailable = evaluateCapability('ai', capabilityContext).available;
+    const complianceAvailable = evaluateCapability('compliance', capabilityContext).available;
 
     return (
         <div className="min-h-screen bg-slate-900 text-slate-100">
@@ -72,9 +85,11 @@ export default async function HQLayout({
                             <NavLink href="/hq/leads" icon="📥">
                                 Lead Pipeline
                             </NavLink>
-                            <NavLink href="/hq/ai-governance" icon="🧠">
-                                AI Governance
-                            </NavLink>
+                            {aiAvailable ? (
+                                <NavLink href="/hq/ai-governance" icon="🧠">
+                                    AI Governance
+                                </NavLink>
+                            ) : null}
                         </div>
 
                         <div className="pb-4 mb-2 border-b border-slate-800">
@@ -82,9 +97,11 @@ export default async function HQLayout({
                             <NavLink href="/hq/treasury" icon="🏦">
                                 Treasury Routing
                             </NavLink>
-                            <NavLink href="/hq/compliance" icon="⚖️">
-                                Global Compliance
-                            </NavLink>
+                            {complianceAvailable ? (
+                                <NavLink href="/hq/compliance" icon="⚖️">
+                                    Global Compliance
+                                </NavLink>
+                            ) : null}
                             <NavLink href="/hq/broadcasts" icon="📢">
                                 Broadcasts
                             </NavLink>

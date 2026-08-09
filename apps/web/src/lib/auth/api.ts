@@ -47,6 +47,16 @@ export async function requireApiAuth(allowedRoles?: readonly string[]): Promise<
         };
     }
 
+    if (session.mfaRequired && !session.mfaVerified) {
+        return {
+            ok: false,
+            response: NextResponse.json({
+                error: 'MFA enrollment required',
+                code: 'MFA_ENROLLMENT_REQUIRED',
+            }, { status: 403 }),
+        };
+    }
+
     if (allowedRoles && !allowedRoles.includes(session.role)) {
         return {
             ok: false,

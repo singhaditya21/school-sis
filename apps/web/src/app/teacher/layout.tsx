@@ -1,6 +1,15 @@
 import { getSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import {
+    CalendarDays,
+    ClipboardCheck,
+    GraduationCap,
+    Home,
+    UserRound,
+    UsersRound,
+    type LucideIcon,
+} from 'lucide-react';
 
 export default async function TeacherLayout({
     children,
@@ -24,27 +33,22 @@ export default async function TeacherLayout({
                 <div className="p-4 border-b border-gray-200">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
-                            <span className="text-white text-xl">👨‍🏫</span>
+                            <GraduationCap className="h-6 w-6 text-white" aria-hidden="true" />
                         </div>
                         <div>
                             <h1 className="font-bold text-gray-900">Teacher Portal</h1>
-                            <p className="text-xs text-gray-500">School SIS</p>
+                            <p className="text-xs text-gray-500">ScholarMind</p>
                         </div>
                     </div>
                 </div>
 
                 <nav className="p-3 space-y-1">
-                    <NavLink href="/teacher" icon="🏠" label="Dashboard" />
-                    <NavLink href="/teacher/my-classes" icon="📚" label="My Classes" />
-                    <NavLink href="/teacher/attendance" icon="✅" label="Attendance" />
-                    <NavLink href="/teacher/gradebook" icon="📝" label="Gradebook" />
-                    <NavLink href="/teacher/assignments" icon="📋" label="Assignments" />
-                    <NavLink href="/teacher/lesson-plans" icon="📖" label="Lesson Plans" />
-
+                    <NavLink href="/teacher" icon={Home} label="Dashboard" />
+                    <NavLink href="/teacher/my-classes" icon={UsersRound} label="My Classes" />
+                    <NavLink href="/teacher/gradebook" icon={ClipboardCheck} label="Gradebook" />
                     <div className="pt-4 mt-4 border-t border-gray-200">
-                        <NavLink href="/teacher/schedule" icon="📅" label="My Schedule" />
-                        <NavLink href="/teacher/messages" icon="💬" label="Messages" />
-                        <NavLink href="/teacher/profile" icon="👤" label="Profile" />
+                        <NavLink href="/teacher/schedule" icon={CalendarDays} label="My Schedule" />
+                        <NavLink href="/teacher/profile" icon={UserRound} label="Profile" />
                     </div>
                 </nav>
 
@@ -69,7 +73,7 @@ export default async function TeacherLayout({
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
                             <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
-                                <span className="text-white text-lg">👨‍🏫</span>
+                                <GraduationCap className="h-5 w-5 text-white" aria-hidden="true" />
                             </div>
                             <h1 className="text-lg font-bold text-gray-900">Teacher Portal</h1>
                         </div>
@@ -86,11 +90,11 @@ export default async function TeacherLayout({
             {/* Mobile Bottom Navigation */}
             <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-2 safe-area-pb">
                 <div className="flex justify-around items-center max-w-lg mx-auto">
-                    <MobileNavItem href="/teacher" icon="🏠" label="Home" />
-                    <MobileNavItem href="/teacher/my-classes" icon="📚" label="Classes" />
-                    <MobileNavItem href="/teacher/attendance" icon="✅" label="Attend" />
-                    <MobileNavItem href="/teacher/gradebook" icon="📝" label="Grades" />
-                    <MobileNavItem href="/teacher/profile" icon="👤" label="Profile" />
+                    <MobileNavItem href="/teacher" icon={Home} label="Home" />
+                    <MobileNavItem href="/teacher/my-classes" icon={UsersRound} label="Classes" />
+                    <MobileNavItem href="/teacher/gradebook" icon={ClipboardCheck} label="Grades" />
+                    <MobileNavItem href="/teacher/schedule" icon={CalendarDays} label="Schedule" />
+                    <MobileNavItem href="/teacher/profile" icon={UserRound} label="Profile" />
                 </div>
             </nav>
         </div>
@@ -99,11 +103,11 @@ export default async function TeacherLayout({
 
 function NavLink({
     href,
-    icon,
+    icon: Icon,
     label,
 }: {
     href: string;
-    icon: string;
+    icon: LucideIcon;
     label: string;
 }) {
     return (
@@ -111,7 +115,7 @@ function NavLink({
             href={href}
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
         >
-            <span className="text-xl">{icon}</span>
+            <Icon className="h-5 w-5" aria-hidden="true" />
             <span className="font-medium">{label}</span>
         </Link>
     );
@@ -119,16 +123,16 @@ function NavLink({
 
 function MobileNavItem({
     href,
-    icon,
+    icon: Icon,
     label,
 }: {
     href: string;
-    icon: string;
+    icon: LucideIcon;
     label: string;
 }) {
     return (
         <Link href={href} className="flex flex-col items-center gap-0.5 text-gray-600 hover:text-emerald-600 transition-colors px-2">
-            <span className="text-xl">{icon}</span>
+            <Icon className="h-5 w-5" aria-hidden="true" />
             <span className="text-[10px] font-medium">{label}</span>
         </Link>
     );

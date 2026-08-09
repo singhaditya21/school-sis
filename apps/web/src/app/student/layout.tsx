@@ -1,6 +1,71 @@
 import { getSession } from '@/lib/auth/session';
+import { pool } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { GraduationCap, Home } from 'lucide-react';
+
+interface StudentIdentity {
+    name: string;
+    academicContext: string;
+    initials: string;
+}
+
+function initialsFor(name: string): string {
+    const initials = name
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(part => part.charAt(0).toUpperCase())
+        .join('');
+
+    return initials || 'S';
+}
+
+async function loadStudentIdentity(input: {
+    userId: string;
+    tenantId: string;
+    displayName?: string;
+    email: string;
+}): Promise<StudentIdentity> {
+    const accountName = input.displayName?.trim() || input.email || 'Student account';
+
+    try {
+        const { rows } = await pool.query(`
+            SELECT
+                TRIM(CONCAT(s.first_name, ' ', s.last_name)) AS name,
+                g.name AS "gradeName",
+                sec.name AS "sectionName"
+            FROM students s
+            LEFT JOIN grades g ON g.id = s.grade_id AND g.tenant_id = s.tenant_id
+            LEFT JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = s.tenant_id
+            WHERE s.user_id = $1 AND s.tenant_id = $2
+            LIMIT 1
+        `, [input.userId, input.tenantId]);
+
+        const profile = rows[0] as { name?: string; gradeName?: string | null; sectionName?: string | null } | undefined;
+        if (!profile) {
+            return {
+                name: accountName,
+                academicContext: 'Student profile not linked',
+                initials: initialsFor(accountName),
+            };
+        }
+
+        const name = profile.name?.trim() || accountName;
+        const academicContext = [profile.gradeName, profile.sectionName]
+            .filter(Boolean)
+            .join(' • ') || 'Academic placement not provided';
+
+        return { name, academicContext, initials: initialsFor(name) };
+    } catch (error) {
+        console.error('Unable to load student identity:', error);
+        return {
+            name: accountName,
+            academicContext: 'Student profile unavailable',
+            initials: initialsFor(accountName),
+        };
+    }
+}
 
 export default async function StudentLayout({
     children,
@@ -17,6 +82,17 @@ export default async function StudentLayout({
         redirect('/unauthorized');
     }
 
+    if (!session.userId || !session.tenantId) {
+        redirect('/unauthorized');
+    }
+
+    const identity = await loadStudentIdentity({
+        userId: session.userId,
+        tenantId: session.tenantId,
+        displayName: session.displayName,
+        email: session.email,
+    });
+
     return (
         <div className="min-h-screen bg-slate-50">
             {/* Mobile-first Header */}
@@ -25,7 +101,7 @@ export default async function StudentLayout({
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-xl flex items-center justify-center">
-                                <span className="text-white text-lg md:text-xl">🎓</span>
+                                <GraduationCap className="h-5 w-5 text-white md:h-6 md:w-6" aria-hidden="true" />
                             </div>
                             <div>
                                 <h1 className="text-lg md:text-xl font-bold text-gray-900 leading-tight">
@@ -38,11 +114,14 @@ export default async function StudentLayout({
                         </div>
                         <div className="flex items-center gap-3">
                             <div className="hidden md:flex flex-col items-end mr-2">
-                                <span className="text-sm font-semibold text-gray-700">Aarav Sharma</span>
-                                <span className="text-xs text-violet-600 font-medium bg-violet-50 px-2 py-0.5 rounded">B.Tech CS • Yr 2</span>
+                                <span className="text-sm font-semibold text-gray-700">{identity.name}</span>
+                                <span className="text-xs text-violet-600 font-medium bg-violet-50 px-2 py-0.5 rounded">{identity.academicContext}</span>
                             </div>
-                            <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-bold border border-violet-200 shadow-sm cursor-pointer hover:bg-violet-200 transition-colors">
-                                AS
+                            <div
+                                aria-label={`${identity.name} profile`}
+                                className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-bold border border-violet-200 shadow-sm"
+                            >
+                                {identity.initials}
                             </div>
                         </div>
                     </div>
@@ -53,23 +132,8 @@ export default async function StudentLayout({
                 {/* Mobile Bottom Nav / Desktop Sidebar Navigation */}
                 <aside className="fixed bottom-0 left-0 right-0 md:relative md:w-64 bg-white border-t md:border-t-0 md:border-r border-gray-200 z-40">
                     <nav className="flex md:flex-col justify-around md:justify-start p-2 md:p-4 space-x-1 md:space-x-0 md:space-y-1 overflow-x-auto md:overflow-visible">
-                        <NavLink href="/student" icon="📊" active={true}>
-                            Overview
-                        </NavLink>
-                        <NavLink href="/student/homework" icon="📝">
-                            Assignments
-                        </NavLink>
-                        <NavLink href="/student/courses" icon="📚">
-                            My Courses
-                        </NavLink>
-                        <NavLink href="/student/ai-tutor" icon="🤖">
-                            AI Tutor
-                        </NavLink>
-                        <NavLink href="/student/wallet" icon="💳">
-                            Skills Wallet
-                        </NavLink>
-                        <NavLink href="/student/placements" icon="💼">
-                            Placements
+                        <NavLink href="/student" icon={Home}>
+                            Home
                         </NavLink>
                     </nav>
                 </aside>
@@ -83,26 +147,20 @@ export default async function StudentLayout({
 
 function NavLink({
     href,
-    icon,
+    icon: Icon,
     children,
-    active = false
 }: {
     href: string;
-    icon: string;
+    icon: typeof Home;
     children: React.ReactNode;
-    active?: boolean;
 }) {
     return (
         <Link
             href={href}
-            className={`flex flex-col md:flex-row items-center gap-1 md:gap-3 px-3 py-2 md:py-3 rounded-lg transition-colors min-w-[72px] md:min-w-0 ${
-                active 
-                ? 'text-violet-700 bg-violet-50 md:bg-gray-50 md:text-gray-900 border-t-2 md:border-t-0 md:border-l-4 border-violet-600' 
-                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-            }`}
+            className="flex min-w-[72px] flex-col items-center gap-1 rounded-lg px-3 py-2 text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 md:min-w-0 md:flex-row md:gap-3 md:py-3"
         >
-            <span className={`text-xl md:text-lg ${active ? 'md:text-violet-600' : ''}`}>{icon}</span>
-            <span className={`text-[10px] md:text-sm font-medium ${active ? 'font-semibold' : ''}`}>{children}</span>
+            <Icon className="h-5 w-5" aria-hidden="true" />
+            <span className="text-[10px] font-medium md:text-sm">{children}</span>
         </Link>
     );
 }

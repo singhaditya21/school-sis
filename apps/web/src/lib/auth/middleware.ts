@@ -38,6 +38,10 @@ export async function requireAuth(permission?: string): Promise<AuthContext> {
         throw new Error('Session missing tenantId. This should not happen.');
     }
 
+    if (session.mfaRequired && !session.mfaVerified) {
+        redirect('/mfa/enroll');
+    }
+
     // Check permission if specified
     if (permission) {
         const role = session.role as UserRole;

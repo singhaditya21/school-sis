@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { createCoachingBatch } from '@/actions/coaching';
-import { v4 as uuidv4 } from 'uuid'; // Mocking tenant ID for UI demonstration
 
 export default function CreateBatchForm() {
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -11,20 +10,21 @@ export default function CreateBatchForm() {
     async function formAction(formData: FormData) {
         setIsSubmitting(true);
         setMessage(null);
-        
-        // Inject a mock tenant ID to satisfy the Drizzle schema constraints for this demo
-        formData.append('tenantId', uuidv4());
 
-        const result = await createCoachingBatch(formData);
+        try {
+            const result = await createCoachingBatch(formData);
 
-        if (result.success) {
-            setMessage({ type: 'success', text: `Batch "${result.data?.name}" created successfully!` });
-            (document.getElementById('coaching-batch-form') as HTMLFormElement).reset();
-        } else {
-            console.error(result.errors || result.message);
-            setMessage({ type: 'error', text: result.message || 'Validation failed. Check console.' });
+            if (result.success) {
+                setMessage({ type: 'success', text: `Batch "${result.data?.name}" created successfully!` });
+                (document.getElementById('coaching-batch-form') as HTMLFormElement).reset();
+            } else {
+                setMessage({ type: 'error', text: result.message || 'Validation failed.' });
+            }
+        } catch {
+            setMessage({ type: 'error', text: 'Batch creation is unavailable or you do not have access.' });
+        } finally {
+            setIsSubmitting(false);
         }
-        setIsSubmitting(false);
     }
 
     return (
@@ -61,6 +61,9 @@ export default function CreateBatchForm() {
                             <option value="UPSC">UPSC CSE</option>
                             <option value="CAT">CAT / MBA</option>
                             <option value="CLAT">CLAT (Law)</option>
+                            <option value="GMAT">GMAT</option>
+                            <option value="GRE">GRE</option>
+                            <option value="OTHER">Other</option>
                         </select>
                     </div>
                 </div>
@@ -76,14 +79,11 @@ export default function CreateBatchForm() {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Max Capacity</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">End Date</label>
                         <input 
-                            name="capacity" 
-                            type="number" 
-                            min="1" 
-                            max="500"
-                            required 
-                            defaultValue={40}
+                            name="endDate"
+                            type="date"
+                            required
                             className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                         />
                     </div>

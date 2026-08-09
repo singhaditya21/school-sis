@@ -1,6 +1,7 @@
 import { getIronSession } from 'iron-session';
 import { cookies } from 'next/headers';
 import { isSessionDataExpired, sessionOptions, type SessionData } from './session-options';
+import { CAPABILITY_REGISTRY_REVISION } from '@/lib/capabilities/registry';
 
 export { sessionOptions };
 export type { SessionData };
@@ -33,6 +34,8 @@ function resetSessionData(session: SessionData): void {
     session.companyId = undefined;
     session.subscriptionTier = undefined;
     session.activeModules = undefined;
+    session.institutionType = undefined;
+    session.capabilityRevision = undefined;
     session.mfaRequired = false;
     session.mfaVerified = false;
     session.ssoState = undefined;
@@ -45,7 +48,10 @@ export async function getSession() {
 
     if (!session.isLoggedIn) {
         resetSessionData(session);
-    } else if (isSessionDataExpired(session)) {
+    } else if (
+        isSessionDataExpired(session)
+        || session.capabilityRevision !== CAPABILITY_REGISTRY_REVISION
+    ) {
         session.destroy();
         resetSessionData(session);
     } else {

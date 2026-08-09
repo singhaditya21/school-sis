@@ -1,4 +1,5 @@
 import type { SessionOptions } from 'iron-session';
+import type { InstitutionType } from '@/lib/capabilities/types';
 
 export type SessionData = {
     userId: string;
@@ -17,6 +18,8 @@ export type SessionData = {
     companyId?: string;
     subscriptionTier?: string;
     activeModules?: string[];
+    institutionType?: InstitutionType;
+    capabilityRevision?: string;
     mfaRequired?: boolean;
     mfaVerified?: boolean;
     ssoState?: {

@@ -74,6 +74,7 @@ const COMMON_STAFF_READ_PERMISSIONS = grants([
 ]);
 
 const CORE_SCHOOL_ADMIN_PERMISSIONS = grants([
+    'dashboard:read',
     'admissions:*',
     'students:*',
     'guardians:*',

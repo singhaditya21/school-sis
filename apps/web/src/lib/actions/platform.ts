@@ -7,6 +7,7 @@ import { hash } from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
 import { getSession } from '@/lib/auth/session';
 import { establishSession, impersonationExpiresAt, legacyImpersonationActorId } from '@/lib/auth/identity';
+import { requireCapability } from '@/lib/capabilities/server';
 import crypto from 'crypto';
 
 export interface PlatformTenant {
@@ -250,6 +251,7 @@ export async function impersonateTenantAction(tenantId: string) {
         `SELECT 
             t.code AS "tenantCode",
             t.domain AS "tenantDomain",
+            t.institution_type AS "institutionType",
             t.company_id AS "companyId", 
             c.subscription_tier AS "subscriptionTier", 
             c.active_modules AS "activeModules" 
@@ -280,6 +282,7 @@ export async function impersonateTenantAction(tenantId: string) {
         companyId: targetCompany?.companyId,
         subscriptionTier: targetCompany?.subscriptionTier,
         activeModules: targetCompany?.activeModules || [],
+        institutionType: targetCompany?.institutionType,
         mfaEnabled: true,
         mfaVerified: true,
         token: `impersonating:${originalId}`,
@@ -310,6 +313,7 @@ export async function returnToHQAction() {
             u.tenant_id AS "tenantId",
             t.code AS "tenantCode",
             t.domain AS "tenantDomain",
+            t.institution_type AS "institutionType",
             u.email,
             u.first_name AS "firstName",
             u.last_name AS "lastName",
@@ -337,6 +341,7 @@ export async function returnToHQAction() {
         displayName: [founder.firstName, founder.lastName].filter(Boolean).join(' ') || founder.email,
         subscriptionTier: 'ENTERPRISE',
         activeModules: ['ATTENDANCE', 'FEES', 'COMMUNICATION', 'AI_AGENTS', 'HIGHER_ED', 'COACHING', 'INTERNATIONAL', 'MULTI_CAMPUS', 'ENTERPRISE'],
+        institutionType: founder.institutionType || undefined,
         mfaEnabled: Boolean(founder.mfaEnabled),
         mfaVerified: Boolean(founder.mfaEnabled),
     });
@@ -500,6 +505,7 @@ export async function fetchActiveBroadcasts() {
  * Stage 1: AI Metering
  */
 export async function logAITokenUsage(companyId: string, tenantId: string, agentType: string, model: string, tokensUsed: number, costCostMs: number) {
+    await requireCapability('ai', 'agents:write');
     const queryCostUsd = (tokensUsed / 1000) * 0.002; // Assuming $0.002 per 1k tokens
 
     await pool.query(
@@ -510,6 +516,7 @@ export async function logAITokenUsage(companyId: string, tenantId: string, agent
 }
 
 export async function getPlatformAIAnalytics() {
+    await requireCapability('ai', 'agents:read');
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
 
     const { rows: logs } = await pool.query(

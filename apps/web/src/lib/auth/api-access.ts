@@ -279,6 +279,12 @@ export const API_ACCESS_POLICIES = [
         expectedGuardSnippets: ['requireApiAuth'],
     },
     {
+        prefix: '/api/v1/capabilities',
+        boundary: 'session',
+        description: 'Caller-safe capability availability endpoint.',
+        expectedGuardSnippets: ['getSession'],
+    },
+    {
         prefix: '/api/v1/integrations/status',
         boundary: 'integration',
         description: 'Versioned integration status API.',

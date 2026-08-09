@@ -1,12 +1,12 @@
 'use server';
 
 import { pool } from '@/lib/db';
-import { requireAuth } from '@/lib/auth/middleware';
+import { requireCapability } from '@/lib/capabilities/server';
 
 // ─── Get Quizzes ─────────────────────────────────────────────
 
 export async function getQuizzes(filters?: { status?: string }) {
-    const { tenantId } = await requireAuth('quiz:read');
+    const { tenantId } = await requireCapability('coaching', 'quiz:read');
 
     let query = `
         SELECT 
@@ -50,7 +50,7 @@ export async function createQuiz(data: {
     totalMarks: number;
     instructions?: string;
 }) {
-    const { tenantId, userId } = await requireAuth('quiz:write');
+    const { tenantId, userId } = await requireCapability('coaching', 'quiz:write');
 
     const { rows } = await pool.query(
         `INSERT INTO quizzes (
@@ -80,7 +80,7 @@ export async function addQuestion(quizId: string, data: {
     correctAnswer: string;
     marks: number;
 }) {
-    const { tenantId } = await requireAuth('quiz:write');
+    const { tenantId } = await requireCapability('coaching', 'quiz:write');
 
     const { rows: maxRows } = await pool.query(
         `SELECT COALESCE(MAX(ordering), 0) AS m FROM quiz_questions WHERE quiz_id = $1`,
@@ -109,7 +109,7 @@ export async function addQuestion(quizId: string, data: {
 // ─── Get Quiz By ID ──────────────────────────────────────────
 
 export async function getQuizById(quizId: string) {
-    const { tenantId } = await requireAuth('quiz:read');
+    const { tenantId } = await requireCapability('coaching', 'quiz:read');
 
     const { rows: quizzes } = await pool.query(
         `SELECT 
@@ -141,7 +141,7 @@ export async function getQuizById(quizId: string) {
 // ─── Publish Quiz ────────────────────────────────────────────
 
 export async function publishQuiz(quizId: string) {
-    const { tenantId } = await requireAuth('quiz:write');
+    const { tenantId } = await requireCapability('coaching', 'quiz:write');
 
     await pool.query(
         `UPDATE quizzes SET status = 'PUBLISHED', updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
@@ -154,7 +154,7 @@ export async function publishQuiz(quizId: string) {
 // ─── Submit Attempt ──────────────────────────────────────────
 
 export async function submitAttempt(quizId: string, studentId: string, answers: Record<string, string | number>) {
-    const { tenantId } = await requireAuth('quiz:write');
+    const { tenantId } = await requireCapability('coaching', 'quiz:write');
 
     const { rows: questions } = await pool.query(
         `SELECT id, type, correct_answer AS "correctAnswer", marks, negative_marks AS "negativeMarks", section FROM quiz_questions WHERE quiz_id = $1`,
@@ -217,7 +217,7 @@ export async function submitAttempt(quizId: string, studentId: string, answers: 
 // ─── Get Quiz Analytics ──────────────────────────────────────
 
 export async function getQuizAnalytics(quizId: string) {
-    const { tenantId } = await requireAuth('quiz:read');
+    const { tenantId } = await requireCapability('coaching', 'quiz:read');
 
     const { rows: attempts } = await pool.query(
         `SELECT percentage FROM quiz_attempts WHERE quiz_id = $1 AND tenant_id = $2`,
@@ -241,7 +241,7 @@ export async function getQuizAnalytics(quizId: string) {
 // ─── Get Quiz Stats ──────────────────────────────────────────
 
 export async function getQuizStats() {
-    const { tenantId } = await requireAuth('quiz:read');
+    const { tenantId } = await requireCapability('coaching', 'quiz:read');
 
     const { rows: all } = await pool.query(
         `SELECT status FROM quizzes WHERE tenant_id = $1`,
@@ -259,7 +259,7 @@ export async function getQuizStats() {
 // ─── Get Quiz Attempts ───────────────────────────────────────
 
 export async function getQuizAttemptsByQuizId(quizId: string) {
-    const { tenantId } = await requireAuth('quiz:read');
+    const { tenantId } = await requireCapability('coaching', 'quiz:read');
     
     const { rows } = await pool.query(`
         SELECT 
@@ -274,4 +274,3 @@ export async function getQuizAttemptsByQuizId(quizId: string) {
     `, [quizId, tenantId]);
     return rows;
 }
-

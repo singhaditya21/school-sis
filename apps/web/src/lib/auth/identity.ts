@@ -1,4 +1,6 @@
 import type { SessionData } from './session-options';
+import type { InstitutionType } from '@/lib/capabilities/types';
+import { CAPABILITY_REGISTRY_REVISION } from '@/lib/capabilities/registry';
 import { isMFARequired } from './mfa';
 
 const DEFAULT_SESSION_TTL_MINUTES = 12 * 60;
@@ -19,6 +21,7 @@ export type EstablishSessionInput = {
     companyId?: string;
     subscriptionTier?: string;
     activeModules?: string[];
+    institutionType?: InstitutionType;
     mfaEnabled?: boolean;
     mfaVerified?: boolean;
     token?: string;
@@ -78,6 +81,8 @@ export function establishSession(session: SessionData, input: EstablishSessionIn
     session.companyId = input.companyId;
     session.subscriptionTier = input.subscriptionTier;
     session.activeModules = input.activeModules || [];
+    session.institutionType = input.institutionType;
+    session.capabilityRevision = CAPABILITY_REGISTRY_REVISION;
     session.mfaRequired = mfaRequired;
     session.mfaVerified = !mfaRequired || Boolean(input.mfaVerified);
     session.impersonation = input.impersonation;
