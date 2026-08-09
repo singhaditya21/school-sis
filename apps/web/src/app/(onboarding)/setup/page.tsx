@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Building2, Mail, Lock, User, Globe, ArrowRight } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Building2, Lock, Mail, User } from 'lucide-react';
 import { setupSchoolWorkspace } from '@/lib/actions/onboarding';
 
 export default function SetupWorkspacePage() {
@@ -22,13 +22,11 @@ export default function SetupWorkspacePage() {
         
         try {
             const res = await setupSchoolWorkspace(formData);
-            if (res.error) {
+            if ('error' in res) {
                 setError(res.error);
                 setLoading(false);
             } else {
-                // Successfully created tenant and signed in
-                // Immediate redirect to pricing for checkout
-                router.push('/pricing');
+                router.push(res.redirectTo);
             }
         } catch (err: unknown) {
             setError((err as { message?: string }).message || 'An unexpected error occurred.');
@@ -48,7 +46,7 @@ export default function SetupWorkspacePage() {
                     Onboard your school
                 </h2>
                 <p className="mt-2 text-center text-sm text-slate-600">
-                    Set up your dedicated workspace in seconds.
+                    Create a tenant-scoped ScholarMind workspace for your pilot.
                 </p>
             </div>
 
@@ -56,14 +54,21 @@ export default function SetupWorkspacePage() {
                 <Card className="border-0 shadow-2xl shadow-blue-900/5 ring-1 ring-slate-200">
                     <CardHeader className="pb-4">
                         <CardTitle className="text-xl">Workspace Details</CardTitle>
-                        <CardDescription>We'll provision an isolated database for your data.</CardDescription>
+                        <CardDescription>
+                            Company, school, administrator, and audit records are committed together or not at all.
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-6">
                             
                             {error && (
-                                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 flex items-start">
-                                    <span className="mr-2">⚠️</span> {error}
+                                <div
+                                    role="alert"
+                                    aria-live="polite"
+                                    className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-start gap-2"
+                                >
+                                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                                    <span>{error}</span>
                                 </div>
                             )}
 
@@ -78,6 +83,7 @@ export default function SetupWorkspacePage() {
                                             type="text"
                                             name="schoolName"
                                             id="schoolName"
+                                            autoComplete="organization"
                                             required
                                             className="pl-10 block w-full sm:text-sm h-11"
                                             placeholder="St. Jude's Academy"
@@ -92,12 +98,28 @@ export default function SetupWorkspacePage() {
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                 <User className="h-5 w-5 text-slate-400" />
                                             </div>
-                                            <Input required type="text" name="adminFirstName" className="pl-10 h-11" placeholder="John" />
+                                            <Input
+                                                required
+                                                type="text"
+                                                name="adminFirstName"
+                                                id="adminFirstName"
+                                                autoComplete="given-name"
+                                                className="pl-10 h-11"
+                                                placeholder="John"
+                                            />
                                         </div>
                                     </div>
                                     <div>
                                         <label htmlFor="adminLastName" className="block text-sm font-medium text-slate-700">Admin Last Name</label>
-                                        <Input required type="text" name="adminLastName" className="mt-1 h-11" placeholder="Doe" />
+                                        <Input
+                                            required
+                                            type="text"
+                                            name="adminLastName"
+                                            id="adminLastName"
+                                            autoComplete="family-name"
+                                            className="mt-1 h-11"
+                                            placeholder="Doe"
+                                        />
                                     </div>
                                 </div>
 
@@ -107,7 +129,15 @@ export default function SetupWorkspacePage() {
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <Mail className="h-5 w-5 text-slate-400" />
                                         </div>
-                                        <Input required type="email" name="email" className="pl-10 h-11" placeholder="admin@stjudes.edu" />
+                                        <Input
+                                            required
+                                            type="email"
+                                            name="email"
+                                            id="email"
+                                            autoComplete="email"
+                                            className="pl-10 h-11"
+                                            placeholder="admin@stjudes.edu"
+                                        />
                                     </div>
                                 </div>
 
@@ -117,7 +147,16 @@ export default function SetupWorkspacePage() {
                                         <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-slate-300 bg-slate-50 text-slate-500 sm:text-sm">
                                             https://
                                         </span>
-                                        <Input required type="text" name="domain" className="flex-1 rounded-none rounded-r-md h-11" placeholder="stjudes" />
+                                        <Input
+                                            required
+                                            type="text"
+                                            name="domain"
+                                            id="domain"
+                                            autoCapitalize="none"
+                                            autoCorrect="off"
+                                            className="flex-1 rounded-none rounded-r-md h-11"
+                                            placeholder="stjudes"
+                                        />
                                         <span className="inline-flex items-center px-3 rounded-l-md border border-l-0 border-slate-300 bg-slate-50 text-slate-500 sm:text-sm">
                                             .scholarmind.app
                                         </span>
@@ -130,7 +169,17 @@ export default function SetupWorkspacePage() {
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <Lock className="h-5 w-5 text-slate-400" />
                                         </div>
-                                        <Input required type="password" name="password" className="pl-10 h-11" placeholder="Minimum 12 characters" minLength={12} />
+                                        <Input
+                                            required
+                                            type="password"
+                                            name="password"
+                                            id="password"
+                                            autoComplete="new-password"
+                                            className="pl-10 h-11"
+                                            placeholder="Minimum 12 characters"
+                                            minLength={12}
+                                            maxLength={128}
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -142,8 +191,8 @@ export default function SetupWorkspacePage() {
                             >
                                 {loading ? (
                                     <span className="flex items-center gap-2">
-                                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                                        Provisioning Database...
+                                        <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" aria-hidden="true" />
+                                        Creating workspace...
                                     </span>
                                 ) : (
                                     <span className="flex items-center gap-2">

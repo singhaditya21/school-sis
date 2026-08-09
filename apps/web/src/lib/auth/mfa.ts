@@ -21,7 +21,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { encrypt, decrypt } from '@/lib/encryption';
 import { db } from '@/lib/db';
-import { users } from '@/lib/db/schema';
+import { auditLogs, users } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 
 // ─── Constants ───────────────────────────────────────────────
@@ -38,6 +38,17 @@ export const MFA_REQUIRED_ROLES = new Set([
 const BACKUP_CODE_COUNT = 10;
 const BCRYPT_ROUNDS = 12;
 
+function backupCodesForSecret(secret: string): string[] {
+    return Array.from({ length: BACKUP_CODE_COUNT }, (_, index) => (
+        crypto
+            .createHmac('sha256', secret)
+            .update(`ScholarMind recovery code ${index + 1}`)
+            .digest('hex')
+            .slice(0, 10)
+            .toUpperCase()
+    ));
+}
+
 // ─── Types ───────────────────────────────────────────────────
 
 export interface MFAEnrollmentResult {
@@ -45,7 +56,7 @@ export interface MFAEnrollmentResult {
     secret: string;
     /** SVG/PNG data-URI for the QR code to scan in an authenticator app */
     qrCodeDataUrl: string;
-    /** Plain-text backup codes — shown ONCE, then hashed and stored */
+    /** Plain-text backup codes — available only during pending enrollment, then stored as hashes */
     backupCodes: string[];
 }
 
@@ -55,41 +66,51 @@ export interface MFAEnrollmentResult {
  * Generate a new TOTP secret and QR code for a user.
  * Call this when the user initiates MFA setup.
  *
- * IMPORTANT: The returned `secret` and `backupCodes` must be shown to the
- * user immediately. After calling `activateMFA()`, only the hashed/encrypted
- * versions remain in the DB.
+ * The returned material is stable across retries while enrollment is pending,
+ * which prevents concurrent tabs from invalidating one another. Once activated,
+ * the enrollment action can no longer retrieve it.
  */
 export async function generateMFAEnrollment(
     userId: string,
     tenantId: string,
     userEmail: string,
 ): Promise<MFAEnrollmentResult> {
-    const secret = authenticator.generateSecret(32); // 160-bit secret
+    const { secret, backupCodes } = await db.transaction(async (tx) => {
+        // Serialize enrollment for a user. A second tab or a retry reuses the
+        // pending secret and deterministically regenerates the same recovery
+        // material instead of invalidating what the first tab displayed.
+        const [user] = await tx
+            .select({ mfaSecret: users.mfaSecret, mfaEnabled: users.mfaEnabled })
+            .from(users)
+            .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
+            .limit(1)
+            .for('update');
+
+        if (!user) throw new Error('User not found for MFA enrollment.');
+        if (user.mfaEnabled) throw new Error('MFA is already active for this account.');
+
+        const pendingSecret = user.mfaSecret
+            ? decrypt(user.mfaSecret)
+            : authenticator.generateSecret(32);
+        const pendingBackupCodes = backupCodesForSecret(pendingSecret);
+        const hashedBackupCodes = await Promise.all(
+            pendingBackupCodes.map(code => bcrypt.hash(code, BCRYPT_ROUNDS)),
+        );
+
+        await tx
+            .update(users)
+            .set({
+                mfaSecret: encrypt(pendingSecret),
+                mfaEnabled: false,
+                mfaBackupCodes: hashedBackupCodes,
+            })
+            .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
+
+        return { secret: pendingSecret, backupCodes: pendingBackupCodes };
+    });
 
     const otpAuthUrl = authenticator.keyuri(userEmail, 'ScholarMind', secret);
     const qrCodeDataUrl = await QRCode.toDataURL(otpAuthUrl);
-
-    // Generate plain-text backup codes
-    const backupCodes: string[] = Array.from(
-        { length: BACKUP_CODE_COUNT },
-        () => crypto.randomBytes(5).toString('hex').toUpperCase(), // e.g. "A3F7C2B901"
-    );
-
-    // Store the encrypted secret temporarily (mfa_enabled stays FALSE until verified)
-    const encryptedSecret = encrypt(secret);
-    const hashedBackupCodes = await Promise.all(
-        backupCodes.map(code => bcrypt.hash(code, BCRYPT_ROUNDS))
-    );
-
-    await db
-        .update(users)
-        .set({
-            mfaSecret: encryptedSecret,
-            mfaEnabled: false, // not active until user verifies a code
-            mfaBackupCodes: hashedBackupCodes,
-        })
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
-
     return { secret, qrCodeDataUrl, backupCodes };
 }
 
@@ -104,33 +125,42 @@ export async function activateMFA(
     tenantId: string,
     totpCode: string,
 ): Promise<{ success: boolean; error?: string }> {
-    const [user] = await db
-        .select({ mfaSecret: users.mfaSecret, mfaEnabled: users.mfaEnabled })
-        .from(users)
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
-        .limit(1);
+    return db.transaction(async (tx) => {
+        const [user] = await tx
+            .select({ mfaSecret: users.mfaSecret, mfaEnabled: users.mfaEnabled })
+            .from(users)
+            .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
+            .limit(1)
+            .for('update');
 
-    if (!user?.mfaSecret) {
-        return { success: false, error: 'MFA enrollment not started. Call generateMFAEnrollment first.' };
-    }
+        if (!user?.mfaSecret) {
+            return { success: false, error: 'MFA enrollment not started. Call generateMFAEnrollment first.' };
+        }
+        if (user.mfaEnabled) {
+            return { success: false, error: 'MFA is already active for this account.' };
+        }
 
-    if (user.mfaEnabled) {
-        return { success: false, error: 'MFA is already active for this account.' };
-    }
+        const secret = decrypt(user.mfaSecret);
+        if (!authenticator.verify({ token: totpCode, secret })) {
+            return { success: false, error: 'Invalid or expired code. Please try again.' };
+        }
 
-    const secret = decrypt(user.mfaSecret);
-    const isValid = authenticator.verify({ token: totpCode, secret });
+        await tx
+            .update(users)
+            .set({ mfaEnabled: true })
+            .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
+        await tx.insert(auditLogs).values({
+            tenantId,
+            userId,
+            action: 'UPDATE',
+            entityType: 'MFA_ENROLLMENT',
+            entityId: userId,
+            description: 'Multi-factor authentication enrolled',
+            afterState: { mfaEnabled: true },
+        });
 
-    if (!isValid) {
-        return { success: false, error: 'Invalid or expired code. Please try again.' };
-    }
-
-    await db
-        .update(users)
-        .set({ mfaEnabled: true })
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
-
-    return { success: true };
+        return { success: true };
+    });
 }
 
 // ─── Verification (login challenge) ─────────────────────────
@@ -178,35 +208,46 @@ export async function redeemBackupCode(
     tenantId: string,
     rawCode: string,
 ): Promise<{ success: boolean; codesRemaining?: number; error?: string }> {
-    const [user] = await db
-        .select({ mfaBackupCodes: users.mfaBackupCodes })
-        .from(users)
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
-        .limit(1);
+    return db.transaction(async (tx) => {
+        const [user] = await tx
+            .select({
+                mfaEnabled: users.mfaEnabled,
+                mfaBackupCodes: users.mfaBackupCodes,
+            })
+            .from(users)
+            .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
+            .limit(1)
+            .for('update');
 
-    const storedCodes = user?.mfaBackupCodes ?? [];
-    if (storedCodes.length === 0) {
-        return { success: false, error: 'No backup codes available.' };
-    }
+        const storedCodes = user?.mfaEnabled ? user.mfaBackupCodes ?? [] : [];
+        if (storedCodes.length === 0) {
+            return { success: false, error: 'No backup codes available.' };
+        }
 
-    // Find matching hashed code
-    const normalised = rawCode.trim().toUpperCase();
-    const matchIndex = (
-        await Promise.all(storedCodes.map(hash => bcrypt.compare(normalised, hash)))
-    ).findIndex(Boolean);
+        const normalised = rawCode.replace(/[\s-]/g, '').toUpperCase();
+        const matches = await Promise.all(storedCodes.map(hash => bcrypt.compare(normalised, hash)));
+        const matchIndex = matches.findIndex(Boolean);
+        if (matchIndex === -1) {
+            return { success: false, error: 'Invalid backup code.' };
+        }
 
-    if (matchIndex === -1) {
-        return { success: false, error: 'Invalid backup code.' };
-    }
+        const remaining = storedCodes.filter((_, index) => index !== matchIndex);
+        await tx
+            .update(users)
+            .set({ mfaBackupCodes: remaining })
+            .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
+        await tx.insert(auditLogs).values({
+            tenantId,
+            userId,
+            action: 'UPDATE',
+            entityType: 'MFA_BACKUP_CODE',
+            entityId: userId,
+            description: 'Single-use MFA recovery code redeemed',
+            afterState: { codesRemaining: remaining.length },
+        });
 
-    // Remove the consumed code (single-use)
-    const remaining = storedCodes.filter((_, i) => i !== matchIndex);
-    await db
-        .update(users)
-        .set({ mfaBackupCodes: remaining })
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
-
-    return { success: true, codesRemaining: remaining.length };
+        return { success: true, codesRemaining: remaining.length };
+    });
 }
 
 // ─── Disable MFA ─────────────────────────────────────────────

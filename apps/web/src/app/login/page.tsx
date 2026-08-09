@@ -1,47 +1,43 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { useSearchParams } from 'next/navigation';
+import { Building2, GraduationCap, KeyRound, Network, ShieldCheck } from 'lucide-react';
 import { loginActionV2 } from '@/lib/actions/auth';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { APP_NAME, APP_TAGLINE, VALUE_PROPS, TRUST_BADGES } from '@/lib/constants';
 
 function SubmitButton() {
     const { pending } = useFormStatus();
     return (
         <Button type="submit" className="w-full" disabled={pending} data-testid="login-button">
-            {pending ? (
-                <span className="flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    Signing in...
-                </span>
-            ) : (
-                'Sign in'
-            )}
+            {pending ? 'Signing in…' : 'Sign in securely'}
         </Button>
     );
 }
 
-export default function LoginPage() {
+function LoginForm() {
+    const searchParams = useSearchParams();
     const [error, setError] = useState<string | null>(null);
-    const [schoolCode, setSchoolCode] = useState('GREENWOOD');
+    const [schoolCode, setSchoolCode] = useState('');
     const [loginMode, setLoginMode] = useState<'school' | 'platform'>('school');
-    const [authTab, setAuthTab] = useState<'password' | 'otp'>('password');
     const [mfaRequired, setMfaRequired] = useState(false);
+    const mfaActivationCommitted = searchParams.get('mfa') === 'enabled';
+
+    const changeMode = (mode: 'school' | 'platform') => {
+        setLoginMode(mode);
+        setError(null);
+        setMfaRequired(false);
+    };
 
     async function handleSubmit(formData: FormData) {
         setError(null);
-        setMfaRequired(false);
-        // Architecturally sound: Manually bind the React state to the FormData payload
-        // This guarantees the server action receives the exact active tab state.
-        formData.append('loginMode', loginMode);
-        
+        formData.set('loginMode', loginMode);
+
         const result = await loginActionV2(formData);
         if (result?.error) {
             setError(result.error);
@@ -50,292 +46,187 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950">
-            {/* Background Pattern */}
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiM5NDk0OTQiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyem0wLTRoLTEydjJoMTJ2LTJ6bTAtNGgtMTJ2MmgxMnYtMnptMC00aC0xMnYyaDEydi0yem0tMTgtNHYyaDEydi0ySDEyem0xOCAwaC0xMnYyaDEydi0yem0wIDR2LTJIMTh2MmgxMnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-50" />
+        <Card className="w-full max-w-md shadow-lg">
+            <CardHeader className="space-y-3">
+                <div className="flex items-center gap-3 lg:hidden">
+                    <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                        <GraduationCap className="size-5" aria-hidden="true" />
+                    </span>
+                    <span className="text-lg font-semibold">ScholarMind</span>
+                </div>
+                <div>
+                    <CardTitle className="text-2xl">Welcome back</CardTitle>
+                    <CardDescription className="mt-1">
+                        Use the account and organization context issued by your administrator.
+                    </CardDescription>
+                </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                {mfaActivationCommitted ? (
+                    <div role="status" className="rounded-lg border border-success/30 bg-success-muted p-3 text-sm text-success">
+                        MFA was activated. Your secure session could not be renewed, so sign in again with your authenticator code.
+                    </div>
+                ) : null}
 
-            <div className="relative flex min-h-screen">
-                {/* Left Panel - Brand & Value Props (hidden on mobile) */}
-                <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] flex-col justify-between p-8 xl:p-12">
-                    <div>
-                        {/* Logo */}
-                        <div className="flex items-center gap-3 mb-12">
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                                <span className="text-white text-2xl">🎓</span>
-                            </div>
-                            <div>
-                                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{APP_NAME}</h1>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">School Management Platform</p>
-                            </div>
+                <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1" aria-label="Sign-in context">
+                    <Button
+                        type="button"
+                        variant={loginMode === 'school' ? 'default' : 'ghost'}
+                        onClick={() => changeMode('school')}
+                        aria-pressed={loginMode === 'school'}
+                    >
+                        <Building2 className="mr-2 size-4" aria-hidden="true" />
+                        School staff
+                    </Button>
+                    <Button
+                        type="button"
+                        variant={loginMode === 'platform' ? 'default' : 'ghost'}
+                        onClick={() => changeMode('platform')}
+                        aria-pressed={loginMode === 'platform'}
+                    >
+                        <Network className="mr-2 size-4" aria-hidden="true" />
+                        Platform admin
+                    </Button>
+                </div>
+
+                <form action={handleSubmit} className="space-y-4">
+                    {loginMode === 'school' ? (
+                        <div className="space-y-2">
+                            <Label htmlFor="schoolCode">School code</Label>
+                            <Input
+                                id="schoolCode"
+                                name="schoolCode"
+                                value={schoolCode}
+                                onChange={(event) => setSchoolCode(event.target.value.toUpperCase())}
+                                autoComplete="organization"
+                                className="uppercase"
+                                required
+                            />
+                            <p className="text-xs text-muted-foreground">Your school administrator provides this code.</p>
                         </div>
+                    ) : null}
 
-                        {/* Hero Text - Changes based on login mode */}
-                        <div className="max-w-md mb-10">
-                            <h2 className="text-4xl xl:text-5xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">
-                                {loginMode === 'platform'
-                                    ? 'Your SaaS Command Center'
-                                    : 'Fees-First Intelligence for Modern Schools'}
-                            </h2>
-                            <p className="text-lg text-gray-600 dark:text-gray-300">
-                                {loginMode === 'platform'
-                                    ? 'Monitor all tenant schools, track ARR growth, and manage subscription tiers from a single unified dashboard.'
-                                    : 'Streamline fee collections, automate reminders, and gain actionable insights into your school\u0027s financial health.'}
+                    <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <Input
+                            id="email"
+                            name="email"
+                            type="email"
+                            autoComplete="email"
+                            required
+                            aria-invalid={Boolean(error)}
+                            data-testid="email-input"
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="password">Password</Label>
+                        <Input
+                            id="password"
+                            name="password"
+                            type="password"
+                            autoComplete="current-password"
+                            minLength={8}
+                            required
+                            aria-invalid={Boolean(error)}
+                            data-testid="password-input"
+                        />
+                    </div>
+
+                    {mfaRequired ? (
+                        <div className="space-y-2">
+                            <Label htmlFor="mfaCode">Authenticator or recovery code</Label>
+                            <div className="relative">
+                                <KeyRound className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" aria-hidden="true" />
+                                <Input
+                                    id="mfaCode"
+                                    name="mfaCode"
+                                    inputMode="numeric"
+                                    autoComplete="one-time-code"
+                                    pattern="(?:[0-9]{6}|[0-9A-Fa-f]{10}|[0-9A-Fa-f]{5}-[0-9A-Fa-f]{5})"
+                                    maxLength={11}
+                                    className="pl-9"
+                                    aria-describedby="mfa-code-help"
+                                    required
+                                />
+                            </div>
+                            <p id="mfa-code-help" className="text-xs text-muted-foreground">
+                                Enter six digits from your authenticator, or one unused recovery code.
                             </p>
                         </div>
+                    ) : null}
 
-                        {/* Value Props */}
-                        <div className="space-y-4 mb-8">
-                            {VALUE_PROPS.map((prop, i) => (
-                                <div key={i} className="flex items-start gap-4 p-4 rounded-xl bg-white/60 dark:bg-slate-800/40 backdrop-blur-sm border border-gray-200/50 dark:border-slate-700/50">
-                                    <span className="text-2xl">{prop.icon}</span>
-                                    <div>
-                                        <h3 className="font-semibold text-gray-900 dark:text-white">{prop.title}</h3>
-                                        <p className="text-sm text-gray-600 dark:text-gray-400">{prop.description}</p>
-                                    </div>
-                                </div>
-                            ))}
+                    {error ? (
+                        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive" data-testid="login-error">
+                            {error}
                         </div>
+                    ) : null}
 
-                        {/* Trust Badges */}
-                        <div className="flex flex-wrap gap-2">
-                            {TRUST_BADGES.map((badge, i) => (
-                                <Badge key={i} variant="secondary" className="bg-white/80 dark:bg-slate-800 text-gray-700 dark:text-gray-300">
-                                    ✓ {badge}
-                                </Badge>
-                            ))}
-                        </div>
-                    </div>
+                    <SubmitButton />
+                </form>
+            </CardContent>
+            <CardFooter className="flex-col gap-4 text-center text-xs text-muted-foreground">
+                <Separator />
+                <p>Access is limited by your role, tenant, enabled capabilities, and provider readiness.</p>
+            </CardFooter>
+        </Card>
+    );
+}
 
-                    {/* Preview Card */}
-                    <div className="mt-8 p-6 rounded-2xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-gray-200/50 dark:border-slate-700/50 shadow-xl">
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wide">Live Insights Preview</p>
-                        <div className="grid grid-cols-3 gap-4">
-                            <div>
-                                <p className="text-2xl font-bold text-red-600 dark:text-red-400">₹12.4L</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Overdue</p>
-                            </div>
-                            <div>
-                                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">₹8.2L</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Due this week</p>
-                            </div>
-                            <div>
-                                <p className="text-2xl font-bold text-green-600 dark:text-green-400">78%</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Collection rate</p>
-                            </div>
+export default function LoginPage() {
+    return (
+        <div className="grid min-h-screen bg-background text-foreground lg:grid-cols-2">
+            <aside className="hidden border-r bg-muted/30 p-12 lg:flex lg:flex-col lg:justify-between">
+                <div className="space-y-12">
+                    <div className="flex items-center gap-3">
+                        <span className="flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                            <GraduationCap className="size-6" aria-hidden="true" />
+                        </span>
+                        <div>
+                            <p className="text-xl font-semibold">ScholarMind</p>
+                            <p className="text-sm text-muted-foreground">Governed education operations</p>
                         </div>
                     </div>
-                </div>
 
-                {/* Right Panel - Login Form */}
-                <div className="flex-1 flex items-center justify-center p-6 lg:p-8">
-                    <div className="w-full max-w-md">
-                        {/* Mobile Logo */}
-                        <div className="flex items-center justify-center gap-3 mb-8 lg:hidden">
-                            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                                <span className="text-white text-xl">🎓</span>
+                    <div className="max-w-lg space-y-4">
+                        <h1 className="text-4xl font-semibold tracking-tight">Secure access starts with verified context.</h1>
+                        <p className="text-lg text-muted-foreground">
+                            ScholarMind binds every enabled workflow to an authenticated actor, tenant, permission, and capability decision.
+                        </p>
+                    </div>
+
+                    <div className="max-w-lg space-y-4">
+                        <div className="flex gap-3 rounded-xl border bg-card p-4">
+                            <Building2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+                            <div>
+                                <p className="font-medium">Tenant-bound access</p>
+                                <p className="text-sm text-muted-foreground">School records and mutations remain scoped to the signed-in tenant.</p>
                             </div>
-                            <h1 className="text-xl font-bold text-gray-900 dark:text-white">{APP_NAME}</h1>
                         </div>
-
-                        <Card className="shadow-xl border-gray-200/50 dark:border-slate-700/50">
-                            <CardHeader className="space-y-1 pb-4">
-                                <CardTitle className="text-2xl font-bold text-center">Welcome back</CardTitle>
-                                <CardDescription className="text-center">
-                                    {loginMode === 'platform'
-                                        ? 'Sign in to your Platform Command Center'
-                                        : 'Sign in to access your school dashboard'}
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                {/* Login Mode Toggle */}
-                                <div className="flex rounded-xl bg-gray-100 dark:bg-slate-800 p-1 mb-6">
-                                    <button
-                                        type="button"
-                                        onClick={() => setLoginMode('school')}
-                                        className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
-                                            loginMode === 'school'
-                                                ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
-                                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
-                                        }`}
-                                    >
-                                        🏫 School Staff
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setLoginMode('platform')}
-                                        className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
-                                            loginMode === 'platform'
-                                                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
-                                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
-                                        }`}
-                                    >
-                                        🌍 Platform Admin
-                                    </button>
-                                </div>
-
-                                <form action={handleSubmit} className="space-y-4">
-                                    {/* Hidden field to pass loginMode to server action */}
-                                    <input type="hidden" name="loginMode" value={loginMode} />
-                                    {/* School Code - Only visible for School Staff mode */}
-                                    {loginMode === 'school' && (
-                                        <div className="space-y-2">
-                                            <Label htmlFor="schoolCode">School Code</Label>
-                                            <Input
-                                                id="schoolCode"
-                                                name="schoolCode"
-                                                type="text"
-                                                placeholder="Enter your school code"
-                                                value={schoolCode}
-                                                onChange={(e) => setSchoolCode(e.target.value.toUpperCase())}
-                                                required
-                                                className="uppercase"
-                                                aria-describedby="schoolCode-hint"
-                                            />
-                                            <p id="schoolCode-hint" className="text-xs text-muted-foreground">
-                                                Contact your school administrator for the code
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {loginMode === 'school' && <Separator className="my-4" />}
-
-                                    {/* Auth Tabs */}
-                                    <div className="w-full">
-                                        <div className="grid w-full grid-cols-2 rounded-lg bg-muted p-1 text-muted-foreground">
-                                            <button
-                                                type="button"
-                                                onClick={() => setAuthTab('password')}
-                                                className={`inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all ${authTab === 'password' ? 'bg-background text-foreground shadow-sm' : 'hover:bg-muted/80'}`}
-                                            >
-                                                Password
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setAuthTab('otp')}
-                                                className={`inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all ${authTab === 'otp' ? 'bg-background text-foreground shadow-sm' : 'hover:bg-muted/80'}`}
-                                            >
-                                                OTP
-                                            </button>
-                                        </div>
-
-                                        {/* Password Tab */}
-                                        {authTab === 'password' && (
-                                            <div className="space-y-4 mt-4 animate-in fade-in slide-in-from-bottom-1 duration-300">
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="email">Email</Label>
-                                                    <Input
-                                                        id="email"
-                                                        name="email"
-                                                        type="email"
-                                                        placeholder={loginMode === 'platform' ? 'founder@scholarmind.com' : 'you@school.edu'}
-                                                        required
-                                                        autoComplete="email"
-                                                        aria-invalid={error ? 'true' : 'false'}
-                                                        data-testid="email-input"
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center justify-between">
-                                                        <Label htmlFor="password">Password</Label>
-                                                        <a href="/forgot-password" className="text-xs text-blue-600 hover:underline dark:text-blue-400">
-                                                            Forgot password?
-                                                        </a>
-                                                    </div>
-                                                    <Input
-                                                        id="password"
-                                                        name="password"
-                                                        type="password"
-                                                        placeholder="••••••••"
-                                                        required
-                                                        autoComplete="current-password"
-                                                        aria-invalid={error ? 'true' : 'false'}
-                                                        data-testid="password-input"
-                                                    />
-                                                </div>
-                                                {mfaRequired && (
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="mfaCode">Authenticator code</Label>
-                                                        <Input
-                                                            id="mfaCode"
-                                                            name="mfaCode"
-                                                            type="text"
-                                                            inputMode="numeric"
-                                                            autoComplete="one-time-code"
-                                                            maxLength={6}
-                                                            placeholder="123456"
-                                                            required
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* OTP Tab */}
-                                        {authTab === 'otp' && (
-                                            <div className="space-y-4 mt-4 animate-in fade-in slide-in-from-bottom-1 duration-300">
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="otp-email">Email or Phone</Label>
-                                                    <Input
-                                                        id="otp-email"
-                                                        name="otpEmail"
-                                                        type="text"
-                                                        placeholder="you@school.edu or +91 98765..."
-                                                    />
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <Input
-                                                        id="otp"
-                                                        name="otp"
-                                                        type="text"
-                                                        placeholder="Enter OTP"
-                                                        maxLength={6}
-                                                        className="flex-1"
-                                                    />
-                                                    <Button type="button" variant="outline" className="shrink-0">
-                                                        Send OTP
-                                                    </Button>
-                                                </div>
-                                                <p className="text-xs text-muted-foreground">
-                                                    OTP will be sent to your registered email or phone
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Remember Me */}
-                                    <div className="flex items-center space-x-2">
-                                        <Checkbox id="remember" name="remember" />
-                                        <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
-                                            Remember me for 30 days
-                                        </Label>
-                                    </div>
-
-                                    {/* Error Message */}
-                                    {error && (
-                                        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800" data-testid="login-error">
-                                            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-                                        </div>
-                                    )}
-
-                                    {/* Submit Button */}
-                                    <SubmitButton />
-                                </form>
-
-                            </CardContent>
-                            <CardFooter className="flex-col gap-4 pt-0">
-                                <Separator />
-                                <p className="text-xs text-center text-muted-foreground">
-                                    {APP_TAGLINE}
-                                </p>
-                                <div className="flex gap-4 text-xs text-muted-foreground">
-                                    <a href="/privacy" className="hover:underline">Privacy Policy</a>
-                                    <a href="/terms" className="hover:underline">Terms of Service</a>
-                                </div>
-                            </CardFooter>
-                        </Card>
+                        <div className="flex gap-3 rounded-xl border bg-card p-4">
+                            <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+                            <div>
+                                <p className="font-medium">Fail-closed capabilities</p>
+                                <p className="text-sm text-muted-foreground">Unavailable or unconfigured workflows cannot be reached through direct URLs.</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-3 rounded-xl border bg-card p-4">
+                            <KeyRound className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+                            <div>
+                                <p className="font-medium">MFA for privileged roles</p>
+                                <p className="text-sm text-muted-foreground">Authenticator verification protects administrative and financial access.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
+                <p className="text-sm text-muted-foreground">ScholarMind managed SaaS</p>
+            </aside>
+
+            <main className="flex items-center justify-center px-4 py-10 sm:px-8">
+                <Suspense fallback={<div className="text-sm text-muted-foreground">Loading secure sign-in…</div>}>
+                    <LoginForm />
+                </Suspense>
+            </main>
         </div>
     );
 }

@@ -1,8 +1,25 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { CalendarCheck2, FileText, GraduationCap, WalletCards } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { getParentOverview } from '@/lib/services/parent/parent.service';
+import { getSession } from '@/lib/auth/session';
+import { evaluateCapability } from '@/lib/capabilities/evaluator';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default async function ParentOverviewPage() {
+    const session = await getSession();
+    if (!session.isLoggedIn || session.role !== 'PARENT') {
+        redirect('/login');
+    }
+
+    const paymentsAvailable = evaluateCapability('payments', {
+        activeModules: session.activeModules || [],
+        institutionType: session.institutionType,
+        hasPermission: (permission) => hasPermission(session.role as UserRole, permission),
+    }).available;
+
     let data;
     try {
         data = await getParentOverview();
@@ -17,56 +34,80 @@ export default async function ParentOverviewPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Welcome, Parent</h1>
+                <h1 className="text-2xl font-bold text-foreground">Welcome, Parent</h1>
                 <p className="text-muted-foreground mt-1">
                     Here&apos;s an overview of your child&apos;s information
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white rounded-xl shadow-sm border p-6">
-                    <h3 className="font-semibold text-gray-900 mb-2">Student Info</h3>
-                    <p className="text-xl font-bold">{studentDisplay.name}</p>
-                    <p className="text-sm text-gray-500">{studentDisplay.class}</p>
+            <div className={`grid grid-cols-1 gap-6 ${paymentsAvailable ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <GraduationCap className="size-5 text-primary" aria-hidden="true" />
+                        <CardDescription>Student information</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-xl font-bold">{studentDisplay.name}</p>
+                        <p className="text-sm text-muted-foreground">{studentDisplay.class || 'Class not provided'}</p>
                     {data.students.length > 1 && (
-                        <p className="text-xs text-blue-600 mt-2">+{data.students.length - 1} more</p>
+                            <p className="mt-2 text-xs text-primary">+{data.students.length - 1} more</p>
                     )}
-                </div>
+                    </CardContent>
+                </Card>
 
-                <div className="bg-white rounded-xl shadow-sm border p-6">
-                    <h3 className="font-semibold text-gray-900 mb-2">Attendance</h3>
-                    <p className="text-3xl font-bold text-green-600">{data.attendanceRate}%</p>
-                    <p className="text-sm text-gray-500">This month</p>
-                </div>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CalendarCheck2 className="size-5 text-success" aria-hidden="true" />
+                        <CardDescription>Attendance this month</CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-3xl font-bold text-success">{data.attendanceRate}%</CardContent>
+                </Card>
 
-                <div className="bg-amber-50 rounded-xl border border-amber-200 p-6">
-                    <h3 className="font-semibold text-amber-900 mb-2">Pending Fees</h3>
-                    <p className="text-3xl font-bold text-amber-700">{formatCurrency(data.pendingFees.totalAmount)}</p>
-                    <p className="text-sm text-amber-600">
-                        {data.pendingFees.nearestDueDate
-                            ? `Due by ${data.pendingFees.nearestDueDate}`
-                            : 'No pending fees'}
-                    </p>
-                </div>
+                {paymentsAvailable ? (
+                    <Card className="border-warning/30 bg-warning-muted">
+                        <CardHeader className="pb-2">
+                            <WalletCards className="size-5 text-warning" aria-hidden="true" />
+                            <CardDescription className="text-warning">Pending fees</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-3xl font-bold text-warning">{formatCurrency(data.pendingFees.totalAmount)}</p>
+                            <p className="text-sm text-warning">
+                            {data.pendingFees.nearestDueDate
+                                ? `Due by ${data.pendingFees.nearestDueDate}`
+                                : 'No pending fees'}
+                            </p>
+                        </CardContent>
+                    </Card>
+                ) : null}
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <a href="/my-fees" className="bg-white rounded-xl shadow-sm border p-4 hover:shadow-md transition-shadow text-center">
-                    <div className="text-2xl mb-2">💰</div>
-                    <p className="font-medium">My Fees</p>
-                </a>
-                <a href="/my-transport" className="bg-white rounded-xl shadow-sm border p-4 hover:shadow-md transition-shadow text-center">
-                    <div className="text-2xl mb-2">🚌</div>
-                    <p className="font-medium">Transport</p>
-                </a>
-                <a href="/my-attendance" className="bg-white rounded-xl shadow-sm border p-4 hover:shadow-md transition-shadow text-center">
-                    <div className="text-2xl mb-2">📊</div>
-                    <p className="font-medium">Attendance</p>
-                </a>
-                <a href="/my-report-cards" className="bg-white rounded-xl shadow-sm border p-4 hover:shadow-md transition-shadow text-center">
-                    <div className="text-2xl mb-2">📄</div>
-                    <p className="font-medium">Report Cards</p>
-                </a>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                {paymentsAvailable ? (
+                    <Link href="/my-fees" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        <Card className="h-full transition-shadow hover:shadow-md">
+                            <CardHeader className="items-center text-center">
+                                <WalletCards className="size-6 text-primary" aria-hidden="true" />
+                                <CardTitle className="text-base">My Fees</CardTitle>
+                            </CardHeader>
+                        </Card>
+                    </Link>
+                ) : null}
+                <Link href="/my-attendance" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <Card className="h-full transition-shadow hover:shadow-md">
+                        <CardHeader className="items-center text-center">
+                            <CalendarCheck2 className="size-6 text-primary" aria-hidden="true" />
+                            <CardTitle className="text-base">Attendance</CardTitle>
+                        </CardHeader>
+                    </Card>
+                </Link>
+                <Link href="/my-results" className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <Card className="h-full transition-shadow hover:shadow-md">
+                        <CardHeader className="items-center text-center">
+                            <FileText className="size-6 text-primary" aria-hidden="true" />
+                            <CardTitle className="text-base">Report Cards</CardTitle>
+                        </CardHeader>
+                    </Card>
+                </Link>
             </div>
         </div>
     );

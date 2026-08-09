@@ -1,11 +1,12 @@
 'use server';
 
-import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { hash } from 'bcryptjs';
 import { cookies } from 'next/headers';
 import { getIronSession } from 'iron-session';
-import { sessionOptions, SessionData } from '@/lib/auth/session';
+import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
+import { establishSession } from '@/lib/auth/identity';
+import { sessionOptions, type SessionData } from '@/lib/auth/session';
 
 type OnboardingInput = {
     schoolName: string;
@@ -16,7 +17,19 @@ type OnboardingInput = {
     password: string;
 };
 
+type ProvisionedWorkspace = {
+    companyId: string;
+    tenantId: string;
+    tenantCode: string;
+    tenantDomain: string;
+    adminUserId: string;
+    adminEmail: string;
+    adminRole: string;
+    displayName: string;
+};
+
 const DOMAIN_RE = /^[a-z0-9][a-z0-9-]{2,48}[a-z0-9]$/;
+const CORE_MODULES = ['ATTENDANCE', 'FEES', 'COMMUNICATION'] as const;
 
 function valueFrom(formData: FormData, key: string): string {
     return String(formData.get(key) || '').trim();
@@ -72,66 +85,189 @@ export async function setupSchoolWorkspace(formData: FormData) {
     );
 }
 
-async function setupSchoolWorkspaceWithBypass(formData: FormData) {
+async function provisionWorkspace(input: OnboardingInput, passwordHash: string): Promise<ProvisionedWorkspace> {
+    const client = await pool.connect();
+    const tenantCode = input.domain.toUpperCase();
+    const tenantDomain = `${input.domain}.scholarmind.app`;
+
     try {
-        const input = normalizeOnboardingInput(formData);
-        if (input.ok === false) return { error: input.error };
+        await client.query('BEGIN');
 
-        const limitError = await enforceOnboardingRateLimits(input.data);
-        if (limitError) return { error: limitError };
-
-        const { schoolName, firstName, lastName, email, domain, password } = input.data;
-        const domainUrl = `${domain}.scholarmind.app`;
-
-        // Ensure email isn't already used
-        const { rows: existingUser } = await pool.query('SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1', [email]);
-        if (existingUser.length > 0) {
-            return { error: 'An administrator with this email already exists.' };
+        // Serialize competing requests for either identity. The users table intentionally
+        // scopes most identities by tenant, so onboarding must enforce its global admin
+        // uniqueness contract explicitly.
+        const lockKeys = [`onboarding:domain:${tenantCode}`, `onboarding:email:${input.email}`].sort();
+        for (const lockKey of lockKeys) {
+            await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [lockKey]);
         }
 
-        const { rows: existingDomain } = await pool.query('SELECT id FROM tenants WHERE code = $1 OR domain = $2 LIMIT 1', [domain, domainUrl]);
-        if (existingDomain.length > 0) {
-            return { error: 'This workspace subdomain is already taken. Please choose another.' };
+        const { rowCount: existingUsers } = await client.query(
+            'SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1',
+            [input.email],
+        );
+        if (existingUsers) {
+            throw new OnboardingConflictError('An administrator with this email already exists.');
         }
 
-        // Generate tenant record. Defaults to 'TRIALING' billing status and 'isActive=true' for now
-        // so they can log in, or we can make it false and let Stripe activate it.
-        const { rows: tenantRows } = await pool.query(
-            `INSERT INTO tenants (name, code, domain, email, billing_status, is_active) 
-             VALUES ($1, $2, $3, $4, $5, $6) 
-             RETURNING id, name, code, domain, email, billing_status AS "billingStatus", is_active AS "isActive"`,
-            [schoolName, domain, domainUrl, email, 'INCOMPLETE', false]
+        const { rowCount: existingDomains } = await client.query(
+            'SELECT id FROM tenants WHERE code = $1 OR lower(domain) = lower($2) LIMIT 1',
+            [tenantCode, tenantDomain],
+        );
+        if (existingDomains) {
+            throw new OnboardingConflictError('This workspace subdomain is already taken. Please choose another.');
+        }
+
+        const { rows: companyRows } = await client.query<{ id: string }>(
+            `INSERT INTO companies (
+                name,
+                billing_status,
+                subscription_tier,
+                active_modules,
+                region,
+                is_active
+             ) VALUES ($1, 'TRIALING', 'CORE', $2::text[], 'IN-MUMBAI', true)
+             RETURNING id`,
+            [input.schoolName, [...CORE_MODULES]],
+        );
+        const company = companyRows[0];
+        if (!company) throw new Error('Company provisioning did not return a record.');
+
+        const { rows: tenantRows } = await client.query<{ id: string }>(
+            `INSERT INTO tenants (
+                company_id,
+                name,
+                code,
+                domain,
+                email,
+                institution_type,
+                is_active
+             ) VALUES ($1, $2, $3, $4, $5, 'K12', true)
+             RETURNING id`,
+            [company.id, input.schoolName, tenantCode, tenantDomain, input.email],
         );
         const tenant = tenantRows[0];
+        if (!tenant) throw new Error('Tenant provisioning did not return a record.');
 
-        // Hash admin password
-        const passwordHash = await hash(password, 12);
-
-        // Create the founding administrator user
-        const { rows: adminUserRows } = await pool.query(
-            `INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role, is_active) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7) 
-             RETURNING id, tenant_id AS "tenantId", email, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", role, is_active AS "isActive"`,
-            [tenant.id, email, passwordHash, firstName, lastName, 'SCHOOL_ADMIN', true]
+        const { rows: adminRows } = await client.query<{
+            id: string;
+            email: string;
+            role: string;
+            firstName: string;
+            lastName: string;
+        }>(
+            `INSERT INTO users (
+                tenant_id,
+                email,
+                password_hash,
+                first_name,
+                last_name,
+                role,
+                is_active
+             ) VALUES ($1, $2, $3, $4, $5, 'SCHOOL_ADMIN', true)
+             RETURNING
+                id,
+                email,
+                role,
+                first_name AS "firstName",
+                last_name AS "lastName"`,
+            [tenant.id, input.email, passwordHash, input.firstName, input.lastName],
         );
-        const adminUser = adminUserRows[0];
+        const admin = adminRows[0];
+        if (!admin) throw new Error('Administrator provisioning did not return a record.');
 
-        // Automatically log them in immediately so the checkout API route succeeds
-        const c = await cookies();
-        const session = await getIronSession<SessionData>(c, sessionOptions);
-        
-        session.isLoggedIn = true;
-        session.userId = adminUser.id;
-        session.tenantId = tenant.id;
-        session.role = adminUser.role;
-        session.email = adminUser.email;
-        session.displayName = `${adminUser.firstName} ${adminUser.lastName}`;
-        
-        await session.save();
+        await client.query(
+            `INSERT INTO audit_logs (
+                tenant_id,
+                user_id,
+                action,
+                entity_type,
+                entity_id,
+                description,
+                after_state
+             ) VALUES ($1, $2, 'CREATE', 'TENANT', $1, $3, $4::jsonb)`,
+            [
+                tenant.id,
+                admin.id,
+                'Initial K-12 workspace provisioned through transactional onboarding.',
+                JSON.stringify({ companyId: company.id, tenantCode, institutionType: 'K12' }),
+            ],
+        );
 
-        return { success: true, tenantId: tenant.id };
+        await client.query('COMMIT');
+
+        return {
+            companyId: company.id,
+            tenantId: tenant.id,
+            tenantCode,
+            tenantDomain,
+            adminUserId: admin.id,
+            adminEmail: admin.email,
+            adminRole: admin.role,
+            displayName: `${admin.firstName} ${admin.lastName}`,
+        };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+class OnboardingConflictError extends Error {}
+
+async function setupSchoolWorkspaceWithBypass(formData: FormData) {
+    const normalized = normalizeOnboardingInput(formData);
+    if (normalized.ok === false) return { error: normalized.error };
+
+    const limitError = await enforceOnboardingRateLimits(normalized.data);
+    if (limitError) return { error: limitError };
+
+    try {
+        // Hash before acquiring a database connection so CPU work does not lengthen the
+        // provisioning transaction or hold its advisory locks.
+        const passwordHash = await hash(normalized.data.password, 12);
+        const workspace = await provisionWorkspace(normalized.data, passwordHash);
+
+        const session = await getIronSession<SessionData>(await cookies(), sessionOptions);
+        establishSession(session, {
+            userId: workspace.adminUserId,
+            tenantId: workspace.tenantId,
+            tenantCode: workspace.tenantCode,
+            tenantDomain: workspace.tenantDomain,
+            role: workspace.adminRole,
+            email: workspace.adminEmail,
+            provider: 'password',
+            displayName: workspace.displayName,
+            companyId: workspace.companyId,
+            subscriptionTier: 'CORE',
+            activeModules: [...CORE_MODULES],
+            institutionType: 'K12',
+            mfaEnabled: false,
+            mfaVerified: false,
+        });
+
+        try {
+            await session.save();
+            return { success: true as const, tenantId: workspace.tenantId, redirectTo: '/onboarding' };
+        } catch (sessionError) {
+            console.error('[ONBOARDING_SESSION_ERROR]', sessionError);
+            // The transaction is already durable. Direct the administrator to sign in
+            // instead of falsely reporting that workspace creation failed.
+            return {
+                success: true as const,
+                tenantId: workspace.tenantId,
+                redirectTo: '/login',
+                notice: `Workspace ${workspace.tenantCode} was created. Sign in to continue setup.`,
+            };
+        }
     } catch (error: unknown) {
         console.error('[ONBOARDING_ERROR]', error);
-        return { error: (error as { message?: string }).message || 'Failed to create workspace database. Please try again later.' };
+        if (error instanceof OnboardingConflictError) {
+            return { error: error.message };
+        }
+        if ((error as { code?: string }).code === '23505') {
+            return { error: 'This administrator or workspace already exists. Sign in or choose another subdomain.' };
+        }
+        return { error: 'Workspace creation failed before completion. No partial workspace was kept. Please try again.' };
     }
 }

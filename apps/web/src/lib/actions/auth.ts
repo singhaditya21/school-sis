@@ -8,7 +8,7 @@ import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { compare } from 'bcryptjs';
 import { z } from 'zod';
 import { generateSSOAuthorizationUrl, handleSSOCallback } from '@/lib/auth/enterprise';
-import { verifyMFACode } from '@/lib/auth/mfa';
+import { verifyLoginSecondFactor } from '@/lib/auth/mfa-login';
 import { establishSession, shouldRequireMfaEnrollment } from '@/lib/auth/identity';
 
 /**
@@ -25,7 +25,7 @@ const loginSchema = z.object({
     email: z.string().email('Invalid email address'),
     password: z.string().min(8, 'Password must be at least 8 characters'),
     schoolCode: z.string().optional(),
-    mfaCode: z.string().optional(),
+    mfaCode: z.string().max(32).optional(),
 });
 
 const PLATFORM_ACTIVE_MODULES = [
@@ -89,6 +89,7 @@ async function loginActionV2WithBypass(formData: FormData) {
                     u.tenant_id as "tenantId",
                     t.code as "tenantCode",
                     t.domain as "tenantDomain",
+                    t.institution_type as "institutionType",
                     u.email,
                     u.password_hash as "passwordHash",
                     u.role,
@@ -115,16 +116,15 @@ async function loginActionV2WithBypass(formData: FormData) {
                 return { error: 'Invalid credentials' };
             }
 
+            const requiresMfaEnrollment = shouldRequireMfaEnrollment(user.role, Boolean(user.mfaEnabled));
             if (user.mfaEnabled) {
                 if (!mfaCode) {
-                    return { error: 'Enter your authenticator code to continue', mfaRequired: true };
+                    return { error: 'Enter your authenticator or recovery code to continue', mfaRequired: true };
                 }
-                const mfaResult = await verifyMFACode(user.id, user.tenantId, mfaCode);
+                const mfaResult = await verifyLoginSecondFactor(user.id, user.tenantId, mfaCode);
                 if (!mfaResult.success) {
                     return { error: mfaResult.error || 'Invalid MFA code', mfaRequired: true };
                 }
-            } else if (shouldRequireMfaEnrollment(user.role, Boolean(user.mfaEnabled))) {
-                return { error: 'MFA enrollment is required for this account before login.' };
             }
 
             await clearRateLimit(email);
@@ -140,12 +140,13 @@ async function loginActionV2WithBypass(formData: FormData) {
                 displayName: displayNameFor(user),
                 subscriptionTier: 'ENTERPRISE',
                 activeModules: PLATFORM_ACTIVE_MODULES,
+                institutionType: user.institutionType || undefined,
                 mfaEnabled: Boolean(user.mfaEnabled),
                 mfaVerified: Boolean(user.mfaEnabled),
             });
             await session.save();
 
-            redirectPath = '/hq';
+            redirectPath = requiresMfaEnrollment ? '/mfa/enroll' : '/hq';
 
         } else {
             // School staff login — requires school code
@@ -156,7 +157,7 @@ async function loginActionV2WithBypass(formData: FormData) {
             // Look up tenant by school code and join company for features
             const { rows: tenantRows } = await pool.query(
                 `SELECT 
-                    t.id as "tenantId", t.code as "tenantCode", t.domain as "tenantDomain", t.is_active as "tenantIsActive",
+                    t.id as "tenantId", t.code as "tenantCode", t.domain as "tenantDomain", t.institution_type as "institutionType", t.is_active as "tenantIsActive",
                     c.id as "companyId", c.is_active as "companyIsActive", c.subscription_tier as "subscriptionTier", c.active_modules as "activeModules"
                  FROM tenants t
                  LEFT JOIN companies c ON t.company_id = c.id
@@ -203,16 +204,15 @@ async function loginActionV2WithBypass(formData: FormData) {
                 return { error: 'Invalid email or password' };
             }
 
+            const requiresMfaEnrollment = shouldRequireMfaEnrollment(user.role, Boolean(user.mfaEnabled));
             if (user.mfaEnabled) {
                 if (!mfaCode) {
-                    return { error: 'Enter your authenticator code to continue', mfaRequired: true };
+                    return { error: 'Enter your authenticator or recovery code to continue', mfaRequired: true };
                 }
-                const mfaResult = await verifyMFACode(user.id, tenantRecord.tenantId, mfaCode);
+                const mfaResult = await verifyLoginSecondFactor(user.id, tenantRecord.tenantId, mfaCode);
                 if (!mfaResult.success) {
                     return { error: mfaResult.error || 'Invalid MFA code', mfaRequired: true };
                 }
-            } else if (shouldRequireMfaEnrollment(user.role, Boolean(user.mfaEnabled))) {
-                return { error: 'MFA enrollment is required for this account before login.' };
             }
 
             // Create session — clear rate limit on success
@@ -230,6 +230,7 @@ async function loginActionV2WithBypass(formData: FormData) {
                 companyId: tenantRecord.companyId || undefined,
                 subscriptionTier: tenantRecord.subscriptionTier,
                 activeModules: tenantRecord.activeModules || [],
+                institutionType: tenantRecord.institutionType,
                 mfaEnabled: Boolean(user.mfaEnabled),
                 mfaVerified: Boolean(user.mfaEnabled),
             });
@@ -243,10 +244,12 @@ async function loginActionV2WithBypass(formData: FormData) {
             );
 
             // Route based on role
-            if (user.role === 'PARENT') {
+            if (requiresMfaEnrollment) {
+                redirectPath = '/mfa/enroll';
+            } else if (user.role === 'PARENT') {
                 redirectPath = '/overview';
             } else if (user.role === 'STUDENT') {
-                redirectPath = '/profile';
+                redirectPath = '/student';
             } else {
                 redirectPath = '/dashboard';
             }
@@ -328,6 +331,7 @@ export async function processSSOCallback(code: string, provider: string, state?:
             companyId: ssoResult.companyId,
             subscriptionTier: ssoResult.subscriptionTier,
             activeModules: ssoResult.activeModules,
+            institutionType: ssoResult.institutionType,
             mfaEnabled: ssoResult.mfaEnabled,
             mfaVerified: ssoResult.mfaVerified,
         });

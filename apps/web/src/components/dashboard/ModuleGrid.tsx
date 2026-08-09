@@ -1,15 +1,29 @@
 'use client';
 
 import Link from 'next/link';
+import type { LucideIcon } from 'lucide-react';
+import {
+    BookOpen,
+    CalendarDays,
+    CheckSquare,
+    ClipboardList,
+    FileText,
+    ReceiptText,
+    ShieldCheck,
+    UsersRound,
+    WalletCards,
+} from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import type { CapabilityId } from '@/lib/capabilities/types';
 
 interface Module {
     id: string;
+    capabilityId: CapabilityId;
     title: string;
     description: string;
-    icon: string;
+    icon: LucideIcon;
     href: string;
     actions?: { label: string; href: string }[];
     featured?: boolean;
@@ -19,23 +33,25 @@ interface Module {
 const ADMIN_MODULES: Module[] = [
     {
         id: 'fees',
+        capabilityId: 'payments',
         title: 'Fees & Dues Intelligence',
         description: 'Track collections, analyze defaulters, and automate reminders',
-        icon: '💰',
+        icon: WalletCards,
         href: '/fees',
         featured: true,
         badge: 'Primary',
         actions: [
-            { label: 'Generate Invoices', href: '/invoices' },
-            { label: 'Record Payment', href: '/invoices' },
+            { label: 'Generate Invoices', href: '/app/invoice' },
+            { label: 'Record Payment', href: '/app/invoice' },
             { label: 'Send Reminder', href: '/fees/defaulters' },
         ],
     },
     {
         id: 'admissions',
+        capabilityId: 'core-sis',
         title: 'Admissions CRM',
         description: 'Manage leads, applications, and enrollment pipeline',
-        icon: '📝',
+        icon: ClipboardList,
         href: '/admissions',
         actions: [
             { label: 'New Lead', href: '/admissions/new' },
@@ -44,26 +60,21 @@ const ADMIN_MODULES: Module[] = [
     },
     {
         id: 'timetable',
+        capabilityId: 'core-sis',
         title: 'Timetable & Substitution',
         description: 'Schedule classes, manage periods, and assign substitutes',
-        icon: '📅',
+        icon: CalendarDays,
         href: '/timetable',
         actions: [
             { label: 'View Grid', href: '/timetable/grid' },
         ],
     },
     {
-        id: 'transport',
-        title: 'Transport',
-        description: 'Routes, stops, vehicle tracking, and parent notifications',
-        icon: '🚌',
-        href: '/transport',
-    },
-    {
         id: 'consent',
+        capabilityId: 'core-sis',
         title: 'Consent & Audit',
         description: 'Guardian consent management and comprehensive audit logs',
-        icon: '✅',
+        icon: ShieldCheck,
         href: '/consent',
     },
 ];
@@ -71,17 +82,19 @@ const ADMIN_MODULES: Module[] = [
 const PARENT_MODULES: Module[] = [
     {
         id: 'children',
+        capabilityId: 'portals',
         title: 'My Children',
         description: 'View profiles, attendance, and academic progress',
-        icon: '👨‍👩‍👧‍👦',
+        icon: UsersRound,
         href: '/overview',
         featured: true,
     },
     {
         id: 'invoices',
+        capabilityId: 'payments',
         title: 'Invoices & Dues',
         description: 'View all pending and past invoices',
-        icon: '🧾',
+        icon: ReceiptText,
         href: '/my-fees',
         actions: [
             { label: 'Pay Now', href: '/my-fees/pay' },
@@ -89,50 +102,48 @@ const PARENT_MODULES: Module[] = [
     },
     {
         id: 'receipts',
+        capabilityId: 'payments',
         title: 'Payment Receipts',
         description: 'Download and print payment receipts',
-        icon: '📄',
+        icon: FileText,
         href: '/my-fees',
-    },
-    {
-        id: 'transport',
-        title: 'Transport Tracker',
-        description: 'Track your child\'s bus in real-time',
-        icon: '🚌',
-        href: '/my-transport',
     },
 ];
 
 const TEACHER_MODULES: Module[] = [
     {
         id: 'timetable',
+        capabilityId: 'core-sis',
         title: "Today's Timetable",
         description: 'Your classes for today',
-        icon: '📅',
+        icon: CalendarDays,
         href: '/timetable',
         featured: true,
     },
     {
         id: 'attendance',
+        capabilityId: 'core-sis',
         title: 'Attendance Draft',
         description: 'Mark and submit attendance',
-        icon: '✓',
+        icon: CheckSquare,
         href: '/attendance',
     },
     {
         id: 'classes',
+        capabilityId: 'portals',
         title: 'My Classes',
         description: 'Manage your assigned classes',
-        icon: '📚',
-        href: '/classes',
+        icon: BookOpen,
+        href: '/teacher/my-classes',
     },
 ];
 
 interface ModuleGridProps {
     role: string;
+    availableCapabilities: readonly CapabilityId[];
 }
 
-export function ModuleGrid({ role }: ModuleGridProps) {
+export function ModuleGrid({ role, availableCapabilities }: ModuleGridProps) {
     const getModules = () => {
         switch (role) {
             case 'PARENT':
@@ -144,22 +155,26 @@ export function ModuleGrid({ role }: ModuleGridProps) {
         }
     };
 
-    const modules = getModules();
+    const modules = getModules().filter((module) => availableCapabilities.includes(module.capabilityId));
 
     return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {modules.map((module) => (
-                <Card
-                    key={module.id}
-                    className={`transition-all hover:shadow-md ${module.featured
-                            ? 'md:col-span-2 lg:col-span-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-blue-950/30 dark:to-purple-950/30'
+            {modules.map((module) => {
+                const ModuleIcon = module.icon;
+                return (
+                    <Card
+                        key={module.id}
+                        className={`transition-shadow hover:shadow-md ${module.featured
+                            ? 'border-primary/20 bg-primary/5 md:col-span-2 lg:col-span-2'
                             : ''
                         }`}
-                >
+                    >
                     <CardHeader className="pb-2">
                         <div className="flex items-start justify-between">
                             <div className="flex items-center gap-3">
-                                <span className="text-3xl">{module.icon}</span>
+                                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                    <ModuleIcon className="size-5" aria-hidden="true" />
+                                </span>
                                 <div>
                                     <CardTitle className="text-lg flex items-center gap-2">
                                         {module.title}
@@ -186,8 +201,9 @@ export function ModuleGrid({ role }: ModuleGridProps) {
                             ))}
                         </div>
                     </CardContent>
-                </Card>
-            ))}
+                    </Card>
+                );
+            })}
         </div>
     );
 }

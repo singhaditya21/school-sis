@@ -3,9 +3,13 @@ import { redirect } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { KpiCards, ModuleGrid, RecentActivity } from '@/components/dashboard';
-import { ROLE_LABELS, ROLE_COLORS } from '@/lib/constants';
+import { ROLE_LABELS } from '@/lib/constants';
 import { isAdminRole, getDashboardType } from '@/lib/rbac';
 import { getDashboardStats, getTenantInfo } from '@/lib/actions/dashboard';
+import { listCapabilityDecisions } from '@/lib/capabilities/evaluator';
+import { configuredProviderRequirements } from '@/lib/capabilities/providers';
+import type { CapabilityId } from '@/lib/capabilities/types';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -19,6 +23,18 @@ export default async function DashboardPage() {
 
     const role = session.role || 'STUDENT';
     const dashboardType = getDashboardType(role);
+    const capabilityDecisions = listCapabilityDecisions({
+        activeModules: session.activeModules || [],
+        institutionType: session.institutionType,
+        configuredProviders: configuredProviderRequirements(),
+        hasPermission: (permission) => hasPermission(role as UserRole, permission),
+        allowInternal: role === 'PLATFORM_ADMIN'
+            && process.env.CAPABILITIES_INTERNAL_ACCESS === 'true',
+    });
+    const availableCapabilities = capabilityDecisions
+        .filter(({ available }) => available)
+        .map(({ id }) => id) as CapabilityId[];
+    const paymentsAvailable = availableCapabilities.includes('payments');
 
     // Fetch real data from database
     let kpiData = {
@@ -30,7 +46,7 @@ export default async function DashboardPage() {
 
     let tenant = { name: 'School', slug: 'SCH' };
 
-    if (isAdminRole(role)) {
+    if (isAdminRole(role) && paymentsAvailable) {
         try {
             const stats = await getDashboardStats();
             kpiData = {
@@ -65,7 +81,7 @@ export default async function DashboardPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <h1 className="text-2xl font-bold text-foreground">
                         {greeting}, {session.email?.split('@')[0] || 'User'}
                     </h1>
                     <p className="text-muted-foreground mt-1">
@@ -74,14 +90,14 @@ export default async function DashboardPage() {
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="text-right">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        <p className="text-sm font-medium text-foreground">
                             {tenant.name}
                         </p>
                         <p className="text-xs text-muted-foreground">
                             {tenant.slug.toUpperCase()}
                         </p>
                     </div>
-                    <Badge className={ROLE_COLORS[role] || 'bg-slate-100'}>
+                    <Badge variant="secondary">
                         {ROLE_LABELS[role] || role}
                     </Badge>
                 </div>
@@ -93,19 +109,21 @@ export default async function DashboardPage() {
             {dashboardType === 'admin' && (
                 <>
                     {/* KPI Cards */}
-                    <section>
-                        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-                            Fee Intelligence
-                        </h2>
-                        <KpiCards data={kpiData} />
-                    </section>
+                    {paymentsAvailable ? (
+                        <section>
+                            <h2 className="mb-4 text-lg font-semibold text-foreground">
+                                Fee Intelligence
+                            </h2>
+                            <KpiCards data={kpiData} />
+                        </section>
+                    ) : null}
 
                     {/* Modules Grid */}
                     <section>
-                        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                        <h2 className="mb-4 text-lg font-semibold text-foreground">
                             Quick Access
                         </h2>
-                        <ModuleGrid role={role} />
+                        <ModuleGrid role={role} availableCapabilities={availableCapabilities} />
                     </section>
 
                     {/* Recent Activity */}
@@ -119,10 +137,10 @@ export default async function DashboardPage() {
             {dashboardType === 'teacher' && (
                 <>
                     <section>
-                        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                        <h2 className="mb-4 text-lg font-semibold text-foreground">
                             Today&apos;s Schedule
                         </h2>
-                        <ModuleGrid role={role} />
+                        <ModuleGrid role={role} availableCapabilities={availableCapabilities} />
                     </section>
                 </>
             )}
@@ -131,10 +149,10 @@ export default async function DashboardPage() {
             {dashboardType === 'parent' && (
                 <>
                     <section>
-                        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                        <h2 className="mb-4 text-lg font-semibold text-foreground">
                             Quick Actions
                         </h2>
-                        <ModuleGrid role={role} />
+                        <ModuleGrid role={role} availableCapabilities={availableCapabilities} />
                     </section>
                 </>
             )}
@@ -143,7 +161,7 @@ export default async function DashboardPage() {
             {dashboardType === 'student' && (
                 <>
                     <section>
-                        <ModuleGrid role={role} />
+                        <ModuleGrid role={role} availableCapabilities={availableCapabilities} />
                     </section>
                 </>
             )}
