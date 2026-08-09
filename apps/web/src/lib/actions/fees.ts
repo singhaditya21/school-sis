@@ -2,6 +2,9 @@
 
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { randomUUID } from 'crypto';
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
 export interface FeePlanListItem {
     id: string;
@@ -21,6 +24,28 @@ export interface FeeComponentItem {
     frequency: string;
     isOptional: boolean;
 }
+
+export interface FeePlanForEdit {
+    id: string;
+    name: string;
+    description: string | null;
+    isActive: boolean;
+    academicYearName: string;
+    updatedAt: string;
+    components: FeeComponentItem[];
+}
+
+export type UpdateFeePlanResult =
+    | { success: true; updatedAt: string }
+    | { success: false; code: 'INVALID_INPUT' | 'NOT_FOUND' | 'CONFLICT' | 'FAILED'; error: string };
+
+const updateFeePlanSchema = z.object({
+    id: z.string().uuid(),
+    name: z.string().trim().min(1, 'Plan name is required.').max(255),
+    description: z.string().trim().max(2_000).nullable(),
+    isActive: z.boolean(),
+    updatedAt: z.string().datetime({ offset: true }),
+});
 
 export interface InvoiceListItem {
     id: string;
@@ -77,21 +102,185 @@ export async function getFeePlans(): Promise<FeePlanListItem[]> {
 }
 
 export async function getFeePlanComponents(planId: string): Promise<FeeComponentItem[]> {
-    await requireAuth('fees:read');
+    const { tenantId } = await requireAuth('fees:read');
 
     const result = await pool.query(`
         SELECT 
-            id, 
-            name, 
-            amount, 
-            frequency, 
-            is_optional AS "isOptional"
-        FROM fee_components
-        WHERE fee_plan_id = $1
-        ORDER BY created_at ASC
-    `, [planId]);
+            c.id,
+            c.name,
+            c.amount,
+            c.frequency,
+            c.is_optional AS "isOptional"
+        FROM fee_components c
+        INNER JOIN fee_plans p ON p.id = c.fee_plan_id
+        WHERE c.fee_plan_id = $1 AND p.tenant_id = $2
+        ORDER BY c.created_at ASC
+    `, [planId, tenantId]);
 
     return result.rows;
+}
+
+export async function getFeePlanForEdit(planId: string): Promise<FeePlanForEdit | null> {
+    const { tenantId } = await requireAuth('fees:read');
+
+    const { rows } = await pool.query<{
+        id: string;
+        name: string;
+        description: string | null;
+        isActive: boolean;
+        academicYearName: string;
+        updatedAt: Date | string;
+    }>(
+        `SELECT
+            p.id,
+            p.name,
+            p.description,
+            p.is_active AS "isActive",
+            a.name AS "academicYearName",
+            p.updated_at AS "updatedAt"
+         FROM fee_plans p
+         INNER JOIN academic_years a
+            ON a.id = p.academic_year_id
+           AND a.tenant_id = p.tenant_id
+         WHERE p.id = $1 AND p.tenant_id = $2
+         LIMIT 1`,
+        [planId, tenantId],
+    );
+    const plan = rows[0];
+    if (!plan) return null;
+
+    const { rows: components } = await pool.query<FeeComponentItem>(
+        `SELECT
+            c.id,
+            c.name,
+            c.amount,
+            c.frequency,
+            c.is_optional AS "isOptional"
+         FROM fee_components c
+         INNER JOIN fee_plans p ON p.id = c.fee_plan_id
+         WHERE c.fee_plan_id = $1 AND p.tenant_id = $2
+         ORDER BY c.created_at ASC`,
+        [planId, tenantId],
+    );
+
+    return {
+        ...plan,
+        updatedAt: new Date(plan.updatedAt).toISOString(),
+        components,
+    };
+}
+
+export async function updateFeePlan(input: unknown): Promise<UpdateFeePlanResult> {
+    const { tenantId, userId } = await requireAuth('fees:write');
+    const parsed = updateFeePlanSchema.safeParse(input);
+    if (!parsed.success) {
+        return {
+            success: false,
+            code: 'INVALID_INPUT',
+            error: parsed.error.issues[0]?.message || 'Enter valid fee-plan details.',
+        };
+    }
+
+    const client = await pool.connect();
+    let durableUpdatedAt: string | null = null;
+    try {
+        await client.query('BEGIN');
+        const { rows: existingRows } = await client.query<{
+            name: string;
+            description: string | null;
+            isActive: boolean;
+            updatedAt: Date | string;
+        }>(
+            `SELECT
+                name,
+                description,
+                is_active AS "isActive",
+                updated_at AS "updatedAt"
+             FROM fee_plans
+             WHERE id = $1 AND tenant_id = $2
+             FOR UPDATE`,
+            [parsed.data.id, tenantId],
+        );
+        const existing = existingRows[0];
+        if (!existing) {
+            await client.query('ROLLBACK');
+            return { success: false, code: 'NOT_FOUND', error: 'Fee plan not found.' };
+        }
+
+        if (new Date(existing.updatedAt).toISOString() !== new Date(parsed.data.updatedAt).toISOString()) {
+            await client.query('ROLLBACK');
+            return {
+                success: false,
+                code: 'CONFLICT',
+                error: 'This fee plan changed after you opened it. Reload before saving your changes.',
+            };
+        }
+
+        const description = parsed.data.description || null;
+        const { rows: updatedRows } = await client.query<{ updatedAt: Date | string }>(
+            `UPDATE fee_plans
+             SET name = $1,
+                 description = $2,
+                 is_active = $3,
+                 updated_at = NOW()
+             WHERE id = $4 AND tenant_id = $5
+             RETURNING updated_at AS "updatedAt"`,
+            [parsed.data.name, description, parsed.data.isActive, parsed.data.id, tenantId],
+        );
+        const updated = updatedRows[0];
+        if (!updated) throw new Error('Fee-plan update did not return a record.');
+
+        await client.query(
+            `INSERT INTO audit_logs (
+                id,
+                tenant_id,
+                user_id,
+                action,
+                entity_type,
+                entity_id,
+                description,
+                before_state,
+                after_state
+             ) VALUES ($1, $2, $3, 'UPDATE', 'FEE_PLAN', $4, $5, $6::jsonb, $7::jsonb)`,
+            [
+                randomUUID(),
+                tenantId,
+                userId,
+                parsed.data.id,
+                'Fee plan details updated.',
+                JSON.stringify({
+                    name: existing.name,
+                    description: existing.description,
+                    isActive: existing.isActive,
+                    updatedAt: new Date(existing.updatedAt).toISOString(),
+                }),
+                JSON.stringify({
+                    name: parsed.data.name,
+                    description,
+                    isActive: parsed.data.isActive,
+                    updatedAt: new Date(updated.updatedAt).toISOString(),
+                }),
+            ],
+        );
+        await client.query('COMMIT');
+        durableUpdatedAt = new Date(updated.updatedAt).toISOString();
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('[FEE_PLAN_UPDATE_ERROR]', error);
+        return { success: false, code: 'FAILED', error: 'Fee plan changes were not saved. Please try again.' };
+    } finally {
+        client.release();
+    }
+
+    // Cache invalidation happens only after the transaction is durable. A cache failure
+    // must not turn a committed update into a misleading persistence error.
+    try {
+        revalidatePath('/fees');
+        revalidatePath(`/fees/plans/${parsed.data.id}/edit`);
+    } catch (error) {
+        console.error('[FEE_PLAN_REVALIDATE_ERROR]', error);
+    }
+    return { success: true, updatedAt: durableUpdatedAt! };
 }
 
 export async function getInvoices(options?: {

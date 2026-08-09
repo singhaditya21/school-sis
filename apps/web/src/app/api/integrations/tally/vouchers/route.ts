@@ -9,10 +9,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
+import { z } from 'zod';
 import { ROLE_GROUPS } from '@/lib/auth/api';
 import {
     authenticateIntegrationRequest,
-    ensureIntegrationConnection,
     integrationApiHeaders,
     integrationJson,
     recordIntegrationAudit,
@@ -21,6 +21,38 @@ import {
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
 
 export const dynamic = "force-dynamic";
+
+const exportRequestSchema = z.object({
+    fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'fromDate must use YYYY-MM-DD.'),
+    toDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'toDate must use YYYY-MM-DD.'),
+}).superRefine((value, context) => {
+    const from = isoCalendarDateTimestamp(value.fromDate);
+    const to = isoCalendarDateTimestamp(value.toDate);
+    if (from === null || to === null) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: 'Enter valid export dates.' });
+        return;
+    }
+    if (from > to) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: 'fromDate must be on or before toDate.' });
+    }
+    if (to - from > 366 * 24 * 60 * 60 * 1000) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: 'Export range cannot exceed 366 days.' });
+    }
+});
+
+function isoCalendarDateTimestamp(value: string): number | null {
+    const [year, month, day] = value.split('-').map(Number);
+    if (!year || !month || !day) return null;
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (
+        date.getUTCFullYear() !== year
+        || date.getUTCMonth() !== month - 1
+        || date.getUTCDate() !== day
+    ) {
+        return null;
+    }
+    return date.getTime();
+}
 
 export async function POST(request: NextRequest) {
     const startedAt = Date.now();
@@ -36,22 +68,29 @@ export async function POST(request: NextRequest) {
     return runWithIntegrationTenant(auth.context, async () => {
 
     try {
-        await ensureIntegrationConnection({
-            tenantId,
-            provider: 'TALLY',
-            scopes: ['tally:export'],
-            userId: auth.context.userId,
-        });
-
         const json = await readTenantScopedJson<Record<string, unknown>>(request, tenantId);
         if (json.ok === false) return json.response;
-
-        const fromDate = typeof json.data.fromDate === 'string'
-            ? json.data.fromDate
-            : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const toDate = typeof json.data.toDate === 'string'
-            ? json.data.toDate
-            : new Date().toISOString().slice(0, 10);
+        const parsed = exportRequestSchema.safeParse(json.data);
+        if (!parsed.success) {
+            const details = parsed.error.issues.map((issue) => issue.message);
+            await recordIntegrationAudit({
+                tenantId,
+                provider: 'TALLY',
+                action: 'tally.vouchers.export',
+                status: 'FAILED',
+                request,
+                context: auth.context,
+                statusCode: 400,
+                durationMs: Date.now() - startedAt,
+                error: details.join(' '),
+            });
+            return integrationJson({
+                error: 'Invalid export range',
+                code: 'INVALID_EXPORT_RANGE',
+                details,
+            }, { status: 400 });
+        }
+        const { fromDate, toDate } = parsed.data;
 
         const { rows: payments } = await pool.query(`
             SELECT

@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { getSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import TallyExportForm from './TallyExportForm';
-import { ArrowRightLeft, FileSpreadsheet, Server, Settings2 } from 'lucide-react';
+import { ArrowRightLeft, FileSpreadsheet, Settings2 } from 'lucide-react';
 
 export default async function TallyIntegrationPage() {
     const session = await getSession();
@@ -17,11 +17,10 @@ export default async function TallyIntegrationPage() {
                         <FileSpreadsheet className="w-8 h-8 text-green-600" />
                         Tally ERP 9 / Prime Integration
                     </h1>
-                    <p className="text-slate-500 mt-1">Export daily collections and accounting vouchers directly to Tally format.</p>
+                    <p className="text-slate-500 mt-1">Generate Tally-compatible XML from completed tenant payment records.</p>
                 </div>
                 <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 px-3 py-1 uppercase tracking-widest text-xs font-bold">
-                    <span className="w-2 h-2 rounded-full bg-green-500 mr-2 inline-block animate-pulse"></span>
-                    Active Integration
+                    Export available
                 </Badge>
             </div>
 
@@ -39,31 +38,9 @@ export default async function TallyIntegrationPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="border border-slate-200 shadow-sm rounded-xl">
-                        <CardHeader className="bg-slate-50 border-b border-slate-100 pb-4">
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <Server className="w-5 h-5 text-slate-500" /> Sync History
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <div className="divide-y divide-slate-100">
-                                <div className="p-4 flex items-center justify-between text-sm">
-                                    <div>
-                                        <p className="font-semibold text-slate-900">Yesterday's Collections</p>
-                                        <p className="text-slate-500 text-xs">24 Vouchers • 1.2MB XML</p>
-                                    </div>
-                                    <Badge variant="secondary" className="bg-slate-100 text-slate-700">Downloaded</Badge>
-                                </div>
-                                <div className="p-4 flex items-center justify-between text-sm">
-                                    <div>
-                                        <p className="font-semibold text-slate-900">Last Week Batch</p>
-                                        <p className="text-slate-500 text-xs">156 Vouchers • 4.8MB XML</p>
-                                    </div>
-                                    <Badge variant="secondary" className="bg-slate-100 text-slate-700">Downloaded</Badge>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <div role="note" className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                        Export history is not yet stored. Each successful export is recorded in the integration audit log; this screen does not invent prior downloads.
+                    </div>
                 </div>
 
                 {/* Right Column - Ledger Mapping Settings */}
@@ -72,15 +49,12 @@ export default async function TallyIntegrationPage() {
                         <CardHeader className="bg-white border-b border-slate-100 pb-4 flex flex-row items-center justify-between">
                             <div>
                                 <CardTitle className="text-xl flex items-center gap-2">
-                                    <Settings2 className="w-5 h-5 text-slate-700" /> Ledger Mapping configuration
+                                    <Settings2 className="w-5 h-5 text-slate-700" /> Built-in export mapping
                                 </CardTitle>
                                 <CardDescription className="mt-1">
-                                    Map ScholarMind payment methods to your exact Tally Ledger names.
+                                    Current server-side mappings used in the generated XML.
                                 </CardDescription>
                             </div>
-                            <button className="text-sm font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-md transition-colors">
-                                Edit Mappings
-                            </button>
                         </CardHeader>
                         <CardContent className="p-6">
                             <div className="space-y-6">
@@ -124,7 +98,7 @@ export default async function TallyIntegrationPage() {
                                     </div>
 
                                     <div className="space-y-1 mt-2">
-                                        <div className="font-medium text-slate-900 py-2 border-b border-slate-100">ONLINE_GATEWAY</div>
+                                        <div className="font-medium text-slate-900 py-2 border-b border-slate-100">ONLINE</div>
                                     </div>
                                     <div className="space-y-1 mt-2">
                                         <div className="font-medium text-green-700 bg-green-50 px-3 py-2 rounded-md">Online Payments</div>

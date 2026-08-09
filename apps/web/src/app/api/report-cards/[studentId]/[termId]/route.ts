@@ -1,14 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
 import { requireApiAuth } from '@/lib/auth/api';
+import { loadReportCardDocument, renderReportCardPdf } from '@/lib/documents/native-pdf';
 
 export const dynamic = "force-dynamic";
 
-/**
- * Report card PDF. This previously proxied to a Java backend on localhost:8080
- * that is no longer deployed. Set PDF_SERVICE_URL to an external renderer to
- * re-enable proxying; otherwise this returns 501 (native PDF is a follow-up).
- */
 export async function GET(
     _request: Request,
     { params }: { params: Promise<{ studentId: string; termId: string }> }
@@ -17,37 +12,28 @@ export async function GET(
     const auth = await requireApiAuth();
     if (auth.ok === false) return auth.response;
 
-    const pdfServiceUrl = process.env.PDF_SERVICE_URL;
-    if (!pdfServiceUrl) {
-        return NextResponse.json(
-            { error: 'Report card PDF generation is not available in this deployment.' },
-            { status: 501 },
-        );
-    }
-
-    const session = await getSession();
     try {
-        const response = await fetch(`${pdfServiceUrl}/api/v1/exams/report-cards/${studentId}/${termId}/pdf`, {
-            headers: {
-                'Authorization': `Bearer ${session.token}`,
-                'X-Tenant-Id': auth.context.tenantId,
-            },
-        });
-
-        if (!response.ok) {
+        const reportCard = await loadReportCardDocument(auth.context, studentId, termId);
+        if (reportCard.kind === 'forbidden') {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+        if (reportCard.kind === 'not_found') {
             return NextResponse.json({ error: 'Report card not found' }, { status: 404 });
         }
 
-        const pdfBuffer = await response.arrayBuffer();
-        return new NextResponse(pdfBuffer, {
+        const pdf = renderReportCardPdf(reportCard.data);
+        return new NextResponse(pdf, {
             status: 200,
             headers: {
                 'Content-Type': 'application/pdf',
                 'Content-Disposition': `attachment; filename="report-card-${studentId}.pdf"`,
+                'Content-Length': String(pdf.byteLength),
+                'Cache-Control': 'private, no-store',
+                'X-Content-Type-Options': 'nosniff',
             },
         });
     } catch (error) {
         console.error('[Report Card PDF] Error:', error);
-        return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 502 });
+        return NextResponse.json({ error: 'Failed to generate report card PDF' }, { status: 500 });
     }
 }

@@ -16,6 +16,10 @@ export default function TallyExportForm() {
 
     const handleExport = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (fromDate > toDate) {
+            toast.error('From date must be on or before the to date.');
+            return;
+        }
         setIsLoading(true);
 
         try {
@@ -26,7 +30,8 @@ export default function TallyExportForm() {
             });
 
             if (!response.ok) {
-                throw new Error('Export failed');
+                const body = await response.json().catch(() => null) as { details?: string[] } | null;
+                throw new Error(body?.details?.[0] || 'Export failed');
             }
 
             // Trigger file download
@@ -42,7 +47,7 @@ export default function TallyExportForm() {
 
         } catch (error) {
             console.error('Failed to export Tally XML:', error);
-            toast.error('Failed to generate Tally export. Please check the date range and try again.');
+            toast.error(error instanceof Error ? error.message : 'Failed to generate Tally export.');
         } finally {
             setIsLoading(false);
         }

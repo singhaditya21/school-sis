@@ -48,9 +48,9 @@ test.describe('Financial & Treasury E2E Tests', () => {
         await page.goto('/treasury');
         
         await expect(page.locator('h1')).toContainText('Payment Orchestration');
-        await expect(page.getByText('Total Collected (YTD)')).toBeVisible();
+        await expect(page.getByText('Recorded Payment Amount')).toBeVisible();
         await expect(page.getByText('Outstanding Receivables')).toBeVisible();
-        await expect(page.getByText('High Risk Overdue')).toBeVisible();
+        await expect(page.getByText('Overdue Invoice Amount')).toBeVisible();
     });
 
     test('E2E-TR-102: View Reconciliation Exceptions table with transactions', async ({ page }) => {
@@ -59,12 +59,12 @@ test.describe('Financial & Treasury E2E Tests', () => {
         
         await expect(page.locator('h3:has-text("Reconciliation Exceptions")')).toBeVisible();
         await expect(page.locator('table th:has-text("Transaction ID")').first()).toBeVisible();
-        await expect(page.locator('table th:has-text("Gateway")')).toBeVisible();
+        await expect(page.locator('table th:has-text("Payment Method")')).toBeVisible();
         await expect(page.locator('table th:has-text("Amount")').first()).toBeVisible();
-        
-        // Assert the seeded exceptions exist in the view
-        await expect(page.locator('table td:has-text("txn_74h284jf")')).toBeVisible();
-        await expect(page.locator('table td:has-text("txn_p398d2jk")')).toBeVisible();
+
+        // Fabricated gateway exceptions must never be merged into database results.
+        await expect(page.getByText('txn_74h284jf')).toHaveCount(0);
+        await expect(page.getByText('txn_p398d2jk')).toHaveCount(0);
     });
 
     test('E2E-TR-103: Sync Vouchers form default dates populated', async ({ page }) => {
@@ -89,7 +89,7 @@ test.describe('Financial & Treasury E2E Tests', () => {
         await loginAsAdmin(page);
         await page.goto('/integrations/tally');
         
-        await expect(page.locator('h3:has-text("Ledger Mapping configuration")')).toBeVisible();
+        await expect(page.locator('h3:has-text("Built-in export mapping")')).toBeVisible();
         await expect(page.getByText('ScholarMind System Method')).toBeVisible();
         await expect(page.getByText('Tally Target Ledger Name')).toBeVisible();
         
@@ -99,16 +99,12 @@ test.describe('Financial & Treasury E2E Tests', () => {
         await expect(page.getByText('UPI Collections', { exact: true })).toBeVisible();
     });
 
-    test('E2E-TR-105: Trigger Challenge action button in exception table', async ({ page }) => {
+    test('E2E-TR-105: Unimplemented exception actions are not exposed', async ({ page }) => {
         await loginAsAdmin(page);
         await page.goto('/treasury');
-        
-        const challengeBtn = page.locator('table tr:has-text("txn_74h284jf") button:has-text("Challenge")');
-        await expect(challengeBtn).toBeVisible();
-        await challengeBtn.click();
-        
-        // Should trigger settlement challenge flow or state indicator. 
-        // As it is scaffolded, check that it can be clicked without error.
+
+        await expect(page.getByRole('button', { name: /challenge/i })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: /retry/i })).toHaveCount(0);
     });
 
     // TIER 2: Boundary & Corner Cases (5 tests)
@@ -160,9 +156,9 @@ test.describe('Financial & Treasury E2E Tests', () => {
             await loginAsAdmin(page);
             await page.goto('/treasury');
             
-            // Check that outstanding receivables and high risk overdue shows 0 or $0
-            await expect(page.locator('.text-4xl:near(:text("Outstanding Receivables"))').first()).toContainText('0');
-            await expect(page.locator('.text-4xl:near(:text("High Risk Overdue"))').first()).toContainText('0');
+            // Check that persisted outstanding and overdue totals resolve to zero.
+            await expect(page.getByText('Outstanding Receivables').locator('..').locator('.text-4xl')).toContainText('0.00');
+            await expect(page.getByText('Overdue Invoice Amount').locator('..').locator('.text-4xl')).toContainText('0.00');
         } finally {
             // Restore database invoices
             for (const inv of originalInvoices.rows) {
@@ -181,13 +177,8 @@ test.describe('Financial & Treasury E2E Tests', () => {
         await page.fill('#fromDate', '2026-06-30');
         await page.fill('#toDate', '2026-06-01');
         
-        // Listen to alert dialog or API response handling
-        page.on('dialog', async dialog => {
-            expect(dialog.message()).toContain('Failed to generate Tally export');
-            await dialog.dismiss();
-        });
-        
         await page.click('button:has-text("Download Tally XML")');
+        await expect(page.getByText('From date must be on or before the to date.')).toBeVisible();
     });
 
     test('E2E-TR-205: View mappings configuration empty state or backup mappings', async ({ page }) => {
@@ -200,15 +191,13 @@ test.describe('Financial & Treasury E2E Tests', () => {
 
     // TIER 3: Cross-Feature Combinations (1 test)
 
-    test('E2E-COM-310: Treasury ledger export integrates with Tally sync history records', async ({ page }) => {
+    test('E2E-COM-310: Tally export does not fabricate download history', async ({ page }) => {
         await loginAsAdmin(page);
         await page.goto('/integrations/tally');
-        
-        // Verify sync history list matches previous exports
-        const syncHistory = page.locator('h3:has-text("Sync History")');
-        await expect(syncHistory).toBeVisible();
-        await expect(page.locator('text=Yesterday\'s Collections')).toBeVisible();
-        await expect(page.locator('text=24 Vouchers')).toBeVisible();
+
+        await expect(page.getByText(/Export history is not yet stored/)).toBeVisible();
+        await expect(page.getByText("Yesterday's Collections")).toHaveCount(0);
+        await expect(page.getByText('24 Vouchers')).toHaveCount(0);
     });
 
     // TIER 4: Real-World Application Scenarios (1 test)
@@ -217,11 +206,9 @@ test.describe('Financial & Treasury E2E Tests', () => {
         await loginAsAdmin(page);
         await page.goto('/treasury');
         
-        // Admin reviews payment exceptions
-        await expect(page.locator('table td:has-text("txn_74h284jf")')).toBeVisible();
-        
-        // Action: Click Challenge dispute
-        await page.click('table tr:has-text("txn_74h284jf") button:has-text("Challenge")');
+        // Admin reviews persisted payment and exception data without synthetic rows.
+        await expect(page.locator('h3:has-text("Reconciliation Exceptions")')).toBeVisible();
+        await expect(page.getByText('txn_74h284jf')).toHaveCount(0);
         
         // Navigate to Tally Integration to export vouchers
         await page.goto('/integrations/tally');
