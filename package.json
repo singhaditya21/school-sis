@@ -34,7 +34,8 @@
     "audit:debt": "node scripts/check-risk-debt.mjs",
     "audit:migrations": "node scripts/check-destructive-migrations.mjs",
     "audit:rls-matrix": "node scripts/check-rls-policy-matrix.mjs",
-    "audit:ci": "pnpm audit:security && pnpm audit:secrets && pnpm audit:hygiene && pnpm audit:debt && pnpm audit:migrations && pnpm audit:rls-matrix",
+    "audit:product-truth": "node scripts/check-product-truth.mjs",
+    "audit:ci": "pnpm audit:security && pnpm audit:secrets && pnpm audit:hygiene && pnpm audit:debt && pnpm audit:migrations && pnpm audit:rls-matrix && pnpm audit:product-truth",
     "prepare": "husky"
   },
   "devDependencies": {

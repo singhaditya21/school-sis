@@ -1,211 +1,104 @@
-# School SIS DevOps & Deployment Guide
+# ScholarMind Operations Guide
 
-This guide covers local operations, database migrations, environment configuration, and the Vercel deployment workflow for School SIS.
+This document describes the operations that are available in the repository today. Production cloud deployment remains gated until infrastructure, provider, backup, restore, and ownership evidence is committed and verified.
 
-## Local Setup
+## Supported runtime
+
+ScholarMind currently runs as a local Next.js application with a local PostgreSQL 16 database and pgvector. It does not currently have a supported Vercel, Neon, Render, R2, or AWS production deployment definition.
 
 Prerequisites:
 
 - Node.js 20+
-- pnpm 9.15.9+
-- Docker and Docker Compose for optional local services
-
-Install and run:
+- Corepack with pnpm 9.15.9
+- PostgreSQL 16 with pgvector
 
 ```bash
+corepack enable
 pnpm install
+pnpm local:setup
 pnpm dev
 ```
 
-## Database Management
+See [../../RUNNING.md](../../RUNNING.md) for database paths, test accounts, and the exact local lifecycle.
 
-The production database is Neon Postgres with `pgvector`. The ORM and migration system is Drizzle.
+## Database operations
 
-Schema source:
-
-```text
-packages/api/src/db/schema/
-```
-
-Migration output:
-
-```text
-apps/web/drizzle/
-```
-
-Common commands from the repository root:
+The schema source is `packages/api/src/db/schema/`; the migration chain is under `apps/web/drizzle/`.
 
 ```bash
-pnpm db:generate
+pnpm db:up
 pnpm db:migrate
 pnpm db:seed
 pnpm db:studio
+pnpm db:down
 ```
 
-Local/prototype schema push:
-
-```bash
-pnpm db:push
-```
-
-`db:push` is guarded. It is blocked in production and against remote databases unless `ALLOW_REMOTE_DB_PUSH=true` is set intentionally for non-production prototyping.
-
-Production migration:
-
-```bash
-DIRECT_URL="postgresql://..." CONFIRM_PRODUCTION_MIGRATION=school-sis pnpm db:migrate:prod
-```
+`pnpm db:reset` is destructive and is intended only for an explicitly selected local development database.
 
 Rules:
 
-- Use `DATABASE_URL` for app runtime.
-- Use `DIRECT_URL` for migrations, backups, and restore drills.
-- Runtime RLS context uses `SET LOCAL` in the same transaction as each protected query, so `DATABASE_URL` supports direct or transaction-pooled connections.
-- Set `DATABASE_SSL_MODE=verify-full` (the remote default). Use `require` only as a documented provider compatibility waiver.
-- Do not use Neon pooler URLs for `DIRECT_URL`.
+- Use `DATABASE_URL` for the application and migrations in the current local runtime.
+- Remote database connections default to certificate verification.
+- Tenant-bearing tables must be added to the RLS policy matrix and non-superuser isolation test.
+- Destructive migrations must pass `pnpm audit:migrations`.
+- Production migrations, backups, and restores must not be inferred from undocumented commands.
 
-## Environment Variables
+## Environment
 
-Use `apps/web/.env.example` as the canonical template.
+Use `apps/web/.env.example` as the canonical template. External payments, messaging, storage, AI, and webhook delivery remain unavailable until their required credentials and readiness checks pass.
 
-Minimum production variables:
+Production must never enable mock integrations or notification providers. A missing provider must yield an explicit unavailable state rather than a simulated success.
 
-```env
-DATABASE_URL=postgresql://...neon.tech/db
-DIRECT_URL=postgresql://...neon.tech/db
-DATABASE_SSL_MODE=verify-full
-SESSION_SECRET=replace_with_at_least_32_random_characters
-PII_ENCRYPTION_KEY=replace_with_at_least_32_random_characters
-NEXT_PUBLIC_APP_URL=https://school-sis-web.vercel.app
-INTEGRATIONS_MODE=live
-JOB_QUEUE_MODE=database
-JOB_DISPATCH_SECRET=replace_with_at_least_32_random_characters
-METRICS_TOKEN=replace_with_at_least_32_random_characters
-RATE_LIMIT_BACKEND=postgres
-RATE_LIMIT_MEMORY_MAX_ENTRIES=10000
-CSP_ENFORCE=true
-```
+## Scheduler and background jobs
 
-Leave external notification channels and online payments unconfigured until real provider credentials are present. Never set an integration or notification provider to `mock` in production. Production enforces the nonce CSP by default; `CSP_ENFORCE=false` is only a temporary rollback while investigating `/api/security/csp-report`, and must be restored to `true` after remediation. Import the rate-limit dashboard and alert rules from `ops/observability` when the production monitoring target is selected.
-
-Validate the production contract:
+Jobs and notifications are persisted in PostgreSQL. Run one local dispatch cycle with:
 
 ```bash
-pnpm infra:check
-NODE_ENV=production pnpm --filter @school-sis/web run infra:check -- --strict
+pnpm jobs:tick
 ```
 
-## Vercel Deployment
-
-Deploy from the repository root only.
+Run the local scheduler loop with:
 
 ```bash
-pnpm dlx vercel --prod --yes
+pnpm scheduler
 ```
 
-The Vercel project root is `apps/web`, so `apps/web/vercel.json` is the deployment source of truth:
+The scheduler is a required production workload, but no production scheduler deployment is defined yet.
 
-- Project: `school-sis-web`
-- Build command: `pnpm --filter @school-sis/web run build`
-- Install command: `pnpm install --frozen-lockfile`
-- Primary region: `iad1`
-
-Run the deploy command from the repository root. Do not run `vercel` from `apps/web`; that can target a stale local project link.
-
-## Storage and CDN
-
-Cloudflare R2 is the preferred S3-compatible store. AWS S3 is a fallback.
-
-R2:
-
-```env
-R2_ACCOUNT_ID=...
-R2_ACCESS_KEY_ID=...
-R2_SECRET_ACCESS_KEY=...
-R2_BUCKET_NAME=school-sis-uploads
-STORAGE_CDN_BASE_URL=https://cdn.example.com
-```
-
-AWS fallback:
-
-```env
-AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-AWS_S3_BUCKET=school-sis-uploads
-```
-
-Uploads are tenant-prefixed and retrieved through authenticated signed URLs at `/api/files/...`.
-
-## Backups and Restore Drills
-
-Create an operator backup:
+## Validation
 
 ```bash
-DIRECT_URL="postgresql://..." pnpm backup:create
-```
-
-Restore drill:
-
-```bash
-DIRECT_URL="postgresql://..." CONFIRM_RESTORE=school-sis pnpm backup:restore -- ./backups/neon/file.dump
-```
-
-Backup files contain sensitive data. Store production dumps outside the repository.
-
-## CI Expectations
-
-CI should pass:
-
-```bash
-pnpm test:architecture
-pnpm test:unit
 pnpm build
+pnpm lint
+pnpm test:unit
+pnpm test:architecture
+pnpm audit:ci
+pnpm test:e2e:smoke
 pnpm perf:bundle
-pnpm --filter @school-sis/web run perf:load -- --dry-run
-pnpm --filter @school-sis/web exec drizzle-kit check
-pnpm --filter @school-sis/web exec eslint src --quiet
+pnpm perf:load -- --dry-run
 ```
 
-Deployments should occur only after reviewed migrations are applied or confirmed unnecessary.
+The complete Playwright suite is currently separate from the required smoke gate while scheduled coverage is stabilized.
 
-## Testing and Quality
+## Production target
 
-See [../TESTING_QUALITY_ARCHITECTURE.md](../TESTING_QUALITY_ARCHITECTURE.md) for the unit, E2E, coverage, and CI quality gate model.
+The approved target architecture is a managed AWS deployment in Mumbai, but it is a roadmap item rather than current repository behavior. Its release gate requires reviewed infrastructure-as-code for:
 
-## Performance and Scale
+- containerized Next.js workloads behind a load balancer, WAF, and CDN;
+- PostgreSQL/pgvector, object storage, Redis, secrets, and encryption keys;
+- scheduler ownership, logs, metrics, traces, alerts, and on-call routing;
+- migration jobs, encrypted backups, restore drills, and rollback evidence;
+- verified payment and notification providers;
+- measured availability before any public SLO claim.
 
-See [../PERFORMANCE_SCALE_ARCHITECTURE.md](../PERFORMANCE_SCALE_ARCHITECTURE.md) for query/index hygiene, rate limiting, caching, bundle budgets, and load-test commands.
+Until that evidence exists, local operation remains the only supported deployment and issue #18 remains open.
 
-Production auth rate limiting uses Upstash Redis when configured and the shared Postgres `rate_limit_buckets` fallback otherwise. Set these when available:
+## Observability endpoints
 
-```env
-UPSTASH_REDIS_REST_URL=...
-UPSTASH_REDIS_REST_TOKEN=...
-```
+When configured locally, the application exposes health, readiness, metrics, and SRE status endpoints. Protected operational endpoints require their documented bearer token; never publish them without authentication.
 
-## Background Jobs
+Rate-limit alert rules and the Grafana dashboard live under `ops/observability/` and should be imported only after a production monitoring owner and target are selected.
 
-Jobs and notifications are persisted in Postgres. Run the dispatcher with a service bearer token:
+## Release rule
 
-```bash
-curl -X POST "$NEXT_PUBLIC_APP_URL/api/jobs/dispatch" \
-  -H "Authorization: Bearer $JOB_DISPATCH_SECRET" \
-  -H "Content-Type: application/json" \
-  -d '{"limit":25,"notificationLimit":50}'
-```
-
-Use `JOB_QUEUE_MODE=database`; the web runtime uses the built-in Postgres dispatcher.
-
-## Observability & SRE
-
-Core checks:
-
-```bash
-curl "$NEXT_PUBLIC_APP_URL/api/health"
-curl "$NEXT_PUBLIC_APP_URL/api/ready" -H "Authorization: Bearer $METRICS_TOKEN"
-curl "$NEXT_PUBLIC_APP_URL/api/metrics" -H "Authorization: Bearer $METRICS_TOKEN"
-curl "$NEXT_PUBLIC_APP_URL/api/sre/status" -H "Authorization: Bearer $METRICS_TOKEN"
-```
-
-Dead-lettered jobs and notifications automatically create SRE incidents. External monitors can create incidents with `POST /api/sre/incidents` using the same bearer token.
+A capability may be enabled for production only when its application route, API, provider prerequisites, tests, documentation, and operational owner all agree on its readiness. Navigation visibility alone is never evidence of availability.
