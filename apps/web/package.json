@@ -43,6 +43,8 @@
         "@radix-ui/react-tooltip": "^1.2.8",
         "@remixicon/react": "^4.9.0",
         "@school-sis/api": "workspace:*",
+        "@school-sis/design-tokens": "workspace:*",
+        "@school-sis/ui-web": "workspace:*",
         "@stripe/stripe-js": "^9.8.0",
         "@tremor/react": "^3.18.7",
         "@upstash/redis": "^1.37.0",

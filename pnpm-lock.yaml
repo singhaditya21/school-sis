@@ -65,6 +65,12 @@ importers:
       '@react-navigation/native-stack':
         specifier: ^7.17.6
         version: 7.17.6(@react-navigation/native@7.3.4(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3))(react@19.2.3))(react-native-safe-area-context@5.8.0(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3))(react@19.2.3))(react-native-screens@4.25.2(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3))(react@19.2.3))(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3))(react@19.2.3)
+      '@school-sis/design-tokens':
+        specifier: workspace:*
+        version: link:../../packages/design-tokens
+      '@school-sis/ui-native':
+        specifier: workspace:*
+        version: link:../../packages/ui-native
       '@stripe/stripe-react-native':
         specifier: ^0.67.0
         version: 0.67.0(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3))(react@19.2.3)
@@ -153,6 +159,12 @@ importers:
       '@school-sis/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@school-sis/design-tokens':
+        specifier: workspace:*
+        version: link:../../packages/design-tokens
+      '@school-sis/ui-web':
+        specifier: workspace:*
+        version: link:../../packages/ui-web
       '@stripe/stripe-js':
         specifier: ^9.8.0
         version: 9.8.0
@@ -322,6 +334,12 @@ importers:
 
   apps/website:
     dependencies:
+      '@school-sis/design-tokens':
+        specifier: workspace:*
+        version: link:../../packages/design-tokens
+      '@school-sis/ui-web':
+        specifier: workspace:*
+        version: link:../../packages/ui-web
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -384,6 +402,59 @@ importers:
       pg:
         specifier: ^8.22.0
         version: 8.22.0
+
+  packages/design-tokens:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/ui-native:
+    dependencies:
+      '@school-sis/design-tokens':
+        specifier: workspace:*
+        version: link:../design-tokens
+    devDependencies:
+      '@types/react':
+        specifier: ~19.2.2
+        version: 19.2.14
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      react-native:
+        specifier: 0.85.3
+        version: 0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3)
+      react-native-safe-area-context:
+        specifier: ^5.8.0
+        version: 5.8.0(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.3))(react@19.2.3)
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
+  packages/ui-web:
+    dependencies:
+      '@radix-ui/react-slot':
+        specifier: ^1.2.4
+        version: 1.2.4(@types/react@19.2.14)(react@19.2.5)
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      tailwind-merge:
+        specifier: ^2.6.1
+        version: 2.6.1
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
 packages:
 

@@ -6,6 +6,7 @@ const config: Config = {
         "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
         "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
         "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+        "../../packages/ui-web/src/**/*.{js,ts,jsx,tsx}",
         "./node_modules/@tremor/**/*.{js,ts,jsx,tsx}",
     ],
     darkMode: ["class", "class"],
@@ -40,6 +41,10 @@ const config: Config = {
     ],
     theme: {
     	extend: {
+			fontFamily: {
+				sans: ['var(--sm-font-family-sans)'],
+				mono: ['var(--sm-font-family-mono)'],
+			},
     		colors: {
     			border: 'hsl(var(--border))',
     			input: 'hsl(var(--input))',
@@ -70,11 +75,26 @@ const config: Config = {
     				DEFAULT: 'hsl(var(--popover))',
     				foreground: 'hsl(var(--popover-foreground))'
     			},
-    			card: {
-    				DEFAULT: 'hsl(var(--card))',
-    				foreground: 'hsl(var(--card-foreground))'
-    			},
-    			chart: {
+				card: {
+					DEFAULT: 'hsl(var(--card))',
+					foreground: 'hsl(var(--card-foreground))'
+				},
+				success: {
+					DEFAULT: 'var(--sm-color-success)',
+					foreground: 'var(--sm-color-success-foreground)',
+					muted: 'var(--sm-color-success-muted)'
+				},
+				warning: {
+					DEFAULT: 'var(--sm-color-warning)',
+					foreground: 'var(--sm-color-warning-foreground)',
+					muted: 'var(--sm-color-warning-muted)'
+				},
+				info: {
+					DEFAULT: 'var(--sm-color-info)',
+					foreground: 'var(--sm-color-info-foreground)',
+					muted: 'var(--sm-color-info-muted)'
+				},
+				chart: {
     				'1': 'hsl(var(--chart-1))',
     				'2': 'hsl(var(--chart-2))',
     				'3': 'hsl(var(--chart-3))',

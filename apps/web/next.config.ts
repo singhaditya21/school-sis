@@ -17,7 +17,11 @@ const nextConfig: NextConfig = {
     typescript: {
         ignoreBuildErrors: process.env.NEXT_IGNORE_TYPE_ERRORS === 'true',
     },
-    transpilePackages: ['@school-sis/api'],
+    transpilePackages: [
+        '@school-sis/api',
+        '@school-sis/design-tokens',
+        '@school-sis/ui-web',
+    ],
     webpack(config) {
         config.resolve ??= {};
         config.resolve.alias = {
