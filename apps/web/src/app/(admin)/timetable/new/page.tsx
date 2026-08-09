@@ -70,7 +70,9 @@ export default function NewTimetablePage() {
                     router.push('/timetable');
                 }, 1000);
             } else {
-                if (res.conflicts && res.conflicts.length > 0) {
+                if ('error' in res) {
+                    setErrorMessage(res.error);
+                } else if (res.conflicts && res.conflicts.length > 0) {
                     setErrorMessage(res.conflicts[0].details);
                 } else {
                     setErrorMessage('Conflict detected or failed to create entry.');

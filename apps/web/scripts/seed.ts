@@ -383,13 +383,16 @@ async function seed() {
         tenantId: tenant.id,
         name: 'Standard GPA (4.0)',
         type: 'GPA',
+        description: 'Development fixture for the standard four-point scale.',
+        isDefault: true,
+        isActive: true,
     }).returning();
 
     await db.insert(schema.gradingRubrics).values([
-        { scaleId: gpaScale.id, label: 'A', minScore: '90', maxScore: '100', gpaValue: '4.0' },
-        { scaleId: gpaScale.id, label: 'B', minScore: '80', maxScore: '89.9', gpaValue: '3.0' },
-        { scaleId: gpaScale.id, label: 'C', minScore: '70', maxScore: '79.9', gpaValue: '2.0' },
-        { scaleId: gpaScale.id, label: 'F', minScore: '0', maxScore: '69.9', gpaValue: '0.0' },
+        { scaleId: gpaScale.id, label: 'A', minScore: '90', maxScore: '100', gpaValue: '4.0', displayOrder: 0 },
+        { scaleId: gpaScale.id, label: 'B', minScore: '80', maxScore: '90', gpaValue: '3.0', displayOrder: 1 },
+        { scaleId: gpaScale.id, label: 'C', minScore: '70', maxScore: '80', gpaValue: '2.0', displayOrder: 2 },
+        { scaleId: gpaScale.id, label: 'F', minScore: '0', maxScore: '70', gpaValue: '0.0', displayOrder: 3 },
     ]);
 
     // ─── 12. Homework ─────────────────────────────────────────

@@ -78,7 +78,7 @@ export default async function ExamDetailPage({ params }: { params: Promise<{ exa
                                     <td className="px-4 py-3 text-center">{sched.maxMarks}</td>
                                     <td className="px-4 py-3 text-center">{sched.passingMarks}</td>
                                     <td className="px-4 py-3 text-center">
-                                        <Link href={`/exams/${examId}/marks/${sched.gradeId}`} className="text-blue-600 hover:underline text-xs">Enter Marks</Link>
+                                        <Link href={`/exams/${examId}/marks/${sched.gradeId}`} className="text-blue-600 hover:underline text-xs">View marks coverage</Link>
                                     </td>
                                 </tr>
                             ))}

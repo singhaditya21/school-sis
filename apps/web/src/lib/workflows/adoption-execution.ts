@@ -46,6 +46,9 @@ export type ExamSnapshot = {
     status: ExamStatus;
     resultCount: number;
     lockedResultCount: number;
+    pendingResultCount?: number;
+    verifiedResultCount?: number;
+    rejectedResultCount?: number;
     scheduleCount: number;
     publishedAt: string | null;
 };
@@ -656,8 +659,11 @@ async function fetchExamSnapshot(
     const stats = await queryable.query(
         `SELECT
             COUNT(DISTINCT es.id)::int AS "scheduleCount",
-            COUNT(sr.id)::int AS "resultCount",
-            COUNT(erh.id)::int AS "lockedResultCount"
+            COUNT(DISTINCT sr.id)::int AS "resultCount",
+            COUNT(DISTINCT erh.result_id)::int AS "lockedResultCount",
+            COUNT(DISTINCT sr.id) FILTER (WHERE sr.review_status = 'PENDING')::int AS "pendingResultCount",
+            COUNT(DISTINCT sr.id) FILTER (WHERE sr.review_status = 'VERIFIED')::int AS "verifiedResultCount",
+            COUNT(DISTINCT sr.id) FILTER (WHERE sr.review_status = 'REJECTED')::int AS "rejectedResultCount"
          FROM exam_schedules es
          LEFT JOIN student_results sr
             ON sr.exam_schedule_id = es.id
@@ -676,6 +682,9 @@ async function fetchExamSnapshot(
         scheduleCount: Number(stats.rows[0]?.scheduleCount ?? 0),
         resultCount: Number(stats.rows[0]?.resultCount ?? 0),
         lockedResultCount: Number(stats.rows[0]?.lockedResultCount ?? 0),
+        pendingResultCount: Number(stats.rows[0]?.pendingResultCount ?? 0),
+        verifiedResultCount: Number(stats.rows[0]?.verifiedResultCount ?? 0),
+        rejectedResultCount: Number(stats.rows[0]?.rejectedResultCount ?? 0),
     };
 }
 
@@ -701,6 +710,7 @@ async function lockMissingExamResultHashes(
            AND erh.tenant_id = sr.tenant_id
          WHERE sr.tenant_id = $1
            AND es.exam_id = $2
+           AND sr.review_status = 'VERIFIED'
            AND erh.id IS NULL
          FOR UPDATE OF sr`,
         [tenantId, examId],
@@ -709,8 +719,7 @@ async function lockMissingExamResultHashes(
     for (const result of rows) {
         await client.query(
             `INSERT INTO exam_result_hashes (tenant_id, result_id, hash, locked_at, locked_by)
-             VALUES ($1, $2, $3, NOW(), $4)
-             ON CONFLICT (result_id) DO NOTHING`,
+             VALUES ($1, $2, $3, NOW(), $4)`,
             [tenantId, result.id, hashExamResult(result), actorUserId],
         );
     }
@@ -807,6 +816,17 @@ function assertExamPublishable(exam: ExamSnapshot): void {
     }
     if (exam.status === 'PUBLISHED') {
         throw new WorkflowAdoptionExecutionError('Exam results are already published.', 409);
+    }
+    const pendingResultCount = exam.pendingResultCount
+        ?? Math.max(0, exam.resultCount - exam.lockedResultCount);
+    const rejectedResultCount = exam.rejectedResultCount ?? 0;
+    const verifiedResultCount = exam.verifiedResultCount
+        ?? Math.max(0, exam.resultCount - pendingResultCount - rejectedResultCount);
+    if (rejectedResultCount > 0) {
+        throw new WorkflowAdoptionExecutionError('Rejected exam results must be corrected and re-verified before publication.', 409);
+    }
+    if (pendingResultCount > 0 || verifiedResultCount !== exam.resultCount) {
+        throw new WorkflowAdoptionExecutionError('Every exam result must be verified before publication.', 409);
     }
     try {
         assertDomainTransition('examLifecycle', exam.status, 'PUBLISHED');

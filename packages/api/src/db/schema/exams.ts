@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, numeric, integer, date, pgEnum, jsonb, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, numeric, integer, date, pgEnum, jsonb, boolean, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { tenants, users } from './core';
 import { academicYears, grades, sections, subjects } from './academic';
@@ -7,6 +7,7 @@ import { students } from './students';
 // ─── Enums ───────────────────────────────────────────────────
 
 export const examTypeEnum = pgEnum('exam_type', ['UNIT_TEST', 'MID_TERM', 'FINAL', 'PRACTICE', 'BOARD_PREP']);
+export const examResultReviewStatusEnum = pgEnum('exam_result_review_status', ['PENDING', 'VERIFIED', 'REJECTED']);
 
 // ─── Exams ───────────────────────────────────────────────────
 
@@ -54,9 +55,19 @@ export const studentResults = pgTable('student_results', {
     remarks: text('remarks'),
     isAbsent: boolean('is_absent').default(false).notNull(),
     enteredBy: uuid('entered_by').references(() => users.id),
+    reviewStatus: examResultReviewStatusEnum('review_status').default('PENDING').notNull(),
+    rejectionReason: text('rejection_reason'),
+    reviewedBy: uuid('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+    tenantReviewStatusIdx: index('idx_student_results_tenant_review_status').on(
+        table.tenantId,
+        table.reviewStatus,
+        table.reviewedAt,
+    ),
+}));
 
 // ─── Exam Compliance & Verification ──────────────────────────
 
@@ -99,6 +110,7 @@ export const studentResultsRelations = relations(studentResults, ({ one }) => ({
     examSchedule: one(examSchedules, { fields: [studentResults.examScheduleId], references: [examSchedules.id] }),
     student: one(students, { fields: [studentResults.studentId], references: [students.id] }),
     enteredByUser: one(users, { fields: [studentResults.enteredBy], references: [users.id] }),
+    reviewedByUser: one(users, { fields: [studentResults.reviewedBy], references: [users.id] }),
 }));
 
 export const examResultHashesRelations = relations(examResultHashes, ({ one }) => ({

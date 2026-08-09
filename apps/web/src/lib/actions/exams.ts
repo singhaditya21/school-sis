@@ -2,8 +2,9 @@
 
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
-import { randomUUID, createHash } from 'crypto';
+import { randomUUID } from 'crypto';
 import { redirect } from 'next/navigation';
+import { gradeFromScale, loadDefaultGradingScale } from '@/lib/grading/calculator';
 
 export interface ExamListItem {
     id: string;
@@ -18,6 +19,7 @@ export interface ExamListItem {
 
 export interface ExamScheduleItem {
     id: string;
+    gradeId: string;
     gradeName: string;
     subjectName: string;
     examDate: string;
@@ -67,6 +69,7 @@ export async function getExamSchedules(examId: string): Promise<ExamScheduleItem
     const { rows } = await pool.query(`
         SELECT 
             es.id,
+            es.grade_id AS "gradeId",
             g.name AS "gradeName",
             s.name AS "subjectName",
             es.exam_date AS "examDate",
@@ -88,8 +91,8 @@ export async function getExamSchedules(examId: string): Promise<ExamScheduleItem
         const resultCountRes = await pool.query(`
             SELECT COUNT(*) AS count
             FROM student_results
-            WHERE exam_schedule_id = $1
-        `, [sched.id]);
+            WHERE exam_schedule_id = $1 AND tenant_id = $2
+        `, [sched.id, tenantId]);
 
         result.push({ ...sched, resultCount: parseInt(resultCountRes.rows[0].count, 10) });
     }
@@ -216,16 +219,6 @@ export async function addExamSchedule(data: {
 
 // ─── Save Marks ──────────────────────────────────────────────
 
-function calculateGrade(percentage: number): string {
-    if (percentage >= 90) return 'A+';
-    if (percentage >= 80) return 'A';
-    if (percentage >= 70) return 'B+';
-    if (percentage >= 60) return 'B';
-    if (percentage >= 50) return 'C';
-    if (percentage >= 40) return 'D';
-    return 'F';
-}
-
 export async function saveMarks(
     examScheduleId: string,
     marks: { studentId: string; marksObtained: number | null; isAbsent: boolean; remarks?: string }[],
@@ -245,10 +238,13 @@ export async function saveMarks(
         throw new Error('Exam schedule not found or unauthorized');
     }
     const maxMarks = Number(schedule?.maxMarks || 100);
+    const gradingScale = marks.some(entry => !entry.isAbsent)
+        ? await loadDefaultGradingScale(pool.query.bind(pool), tenantId)
+        : null;
 
     for (const entry of marks) {
-        const percentage = entry.marksObtained !== null ? (entry.marksObtained / maxMarks) * 100 : 0;
-        const grade = entry.isAbsent ? 'AB' : calculateGrade(percentage);
+        const normalizedMarks = entry.isAbsent ? null : entry.marksObtained;
+        const grade = gradeFromScale(gradingScale, normalizedMarks, maxMarks, entry.isAbsent);
 
         // Check if result already exists
         const existingRes = await pool.query(`
@@ -261,16 +257,27 @@ export async function saveMarks(
 
         if (existing) {
             await pool.query(`
-                UPDATE student_results
-                SET marks_obtained = $1,
-                    grade = $2,
-                    is_absent = $3,
-                    remarks = $4,
-                    entered_by = $5,
-                    updated_at = NOW()
-                WHERE id = $6 AND tenant_id = $7
+                WITH reset_result AS (
+                    UPDATE student_results
+                    SET marks_obtained = $1,
+                        grade = $2,
+                        is_absent = $3,
+                        remarks = $4,
+                        entered_by = $5,
+                        review_status = 'PENDING',
+                        rejection_reason = NULL,
+                        reviewed_by = NULL,
+                        reviewed_at = NULL,
+                        updated_at = NOW()
+                    WHERE id = $6 AND tenant_id = $7
+                    RETURNING id
+                )
+                DELETE FROM exam_result_hashes hash
+                USING reset_result
+                WHERE hash.result_id = reset_result.id
+                  AND hash.tenant_id = $7
             `, [
-                entry.marksObtained !== null ? String(entry.marksObtained) : null,
+                normalizedMarks !== null ? String(normalizedMarks) : null,
                 grade,
                 entry.isAbsent,
                 entry.remarks || null,
@@ -288,7 +295,7 @@ export async function saveMarks(
                 tenantId,
                 examScheduleId,
                 entry.studentId,
-                entry.marksObtained !== null ? String(entry.marksObtained) : null,
+                normalizedMarks !== null ? String(normalizedMarks) : null,
                 grade,
                 entry.isAbsent,
                 entry.remarks || null,
@@ -467,6 +474,10 @@ export async function getAdvancedGradebook(subjectId: string, gradeId: string) {
         WHERE es.subject_id = $1 AND es.grade_id = $2 AND e.tenant_id = $3
     `, [subjectId, gradeId, tenantId]);
     const schedules = schedulesRes.rows;
+    const gradingScale = schedules.length > 0
+        ? await loadDefaultGradingScale(pool.query.bind(pool), tenantId)
+        : null;
+    const totalMaximumMarks = schedules.reduce((sum, schedule) => sum + Number(schedule.maxMarks), 0);
 
     // 3. Get all results for these schedules
     const resultsByStudent: Record<string, Record<string, number>> = {};
@@ -503,7 +514,9 @@ export async function getAdvancedGradebook(subjectId: string, gradeId: string) {
             student,
             examScores,
             total,
-            absoluteGrade: calculateGrade((total / (schedules.reduce((acc, s) => acc + Number(s.maxMarks), 0) || 100)) * 100),
+            absoluteGrade: schedules.length > 0
+                ? gradeFromScale(gradingScale, total, totalMaximumMarks, false)
+                : 'Not available',
             zScore: 0,
             relativeGrade: '',
         };
@@ -537,101 +550,6 @@ function getRelativeGrade(z: number): string {
     if (z >= -0.5) return 'B';
     if (z >= -1.5) return 'C';
     return 'D';
-}
-
-// ─── Exam Verification & Compliance ──────────────────────────
-
-export async function getPendingVerifications() {
-    const { tenantId } = await requireAuth('exams:read');
-    
-    const { rows } = await pool.query(`
-        SELECT 
-            sr.id AS "markId",
-            s.first_name || ' ' || s.last_name AS "studentName",
-            sub.name AS "subject",
-            sr.marks_obtained AS "marksObtained",
-            es.max_marks AS "maxMarks",
-            u.first_name || ' ' || u.last_name AS "enteredBy",
-            sr.created_at AS "enteredAt"
-        FROM student_results sr
-        INNER JOIN students s ON sr.student_id = s.id
-        INNER JOIN exam_schedules es ON sr.exam_schedule_id = es.id
-        INNER JOIN subjects sub ON es.subject_id = sub.id
-        LEFT JOIN users u ON sr.entered_by = u.id
-        LEFT JOIN exam_result_hashes erh ON sr.id = erh.result_id
-        WHERE sr.tenant_id = $1 AND erh.id IS NULL
-        ORDER BY sr.created_at ASC
-    `, [tenantId]);
-    
-    // Convert Dates to strings for Client Component
-    return rows.map(r => ({
-        ...r,
-        enteredAt: r.enteredAt ? new Date(r.enteredAt).toISOString().split('T')[0] : null
-    }));
-}
-
-export async function getVerificationStats() {
-    const { tenantId } = await requireAuth('exams:read');
-    
-    const pendingRes = await pool.query(`
-        SELECT COUNT(*) as count 
-        FROM student_results sr
-        LEFT JOIN exam_result_hashes erh ON sr.id = erh.result_id
-        WHERE sr.tenant_id = $1 AND erh.id IS NULL
-    `, [tenantId]);
-    
-    const verifiedRes = await pool.query(`
-        SELECT COUNT(*) as count 
-        FROM exam_result_hashes
-        WHERE tenant_id = $1
-    `, [tenantId]);
-    
-    return {
-        pending: parseInt(pendingRes.rows[0].count, 10),
-        verified: parseInt(verifiedRes.rows[0].count, 10),
-        rejected: 0 // Mocked since we don't track rejections formally yet
-    };
-}
-
-export async function verifyExamResults(resultIds: string[]) {
-    const { tenantId, userId } = await requireAuth('exams:write');
-    
-    for (const resultId of resultIds) {
-        const res = await pool.query(`
-            SELECT * FROM student_results WHERE id = $1 AND tenant_id = $2
-        `, [resultId, tenantId]);
-        
-        const result = res.rows[0];
-        if (!result) continue;
-        
-        const payload = JSON.stringify({
-            studentId: result.student_id,
-            examScheduleId: result.exam_schedule_id,
-            marksObtained: result.marks_obtained,
-            grade: result.grade,
-            isAbsent: result.is_absent
-        });
-        const hash = createHash('sha256').update(payload).digest('hex');
-        
-        await pool.query(`
-            INSERT INTO exam_result_hashes (
-                id, tenant_id, result_id, hash, locked_at, locked_by
-            ) VALUES ($1, $2, $3, $4, NOW(), $5)
-        `, [randomUUID(), tenantId, resultId, hash, userId]);
-    }
-    
-    return { success: true };
-}
-
-export async function rejectExamResults(resultIds: string[]) {
-    const { tenantId } = await requireAuth('exams:write');
-    // For now we just delete rejected results to force re-entry
-    for (const resultId of resultIds) {
-        await pool.query(`
-            DELETE FROM student_results WHERE id = $1 AND tenant_id = $2
-        `, [resultId, tenantId]);
-    }
-    return { success: true };
 }
 
 export async function getProctoringLogs() {

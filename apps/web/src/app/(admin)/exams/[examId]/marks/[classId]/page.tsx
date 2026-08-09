@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/session';
 import Link from 'next/link';
-import { getStudentsBySection } from '@/lib/actions/queries';
-import { getExamResults, getExamSchedules } from '@/lib/actions/exams';
+import { getExamSchedules } from '@/lib/actions/exams';
 
 export default async function ExamMarksPage({ params }: { params: Promise<{ examId: string; classId: string }> }) {
     const { examId, classId: gradeId } = await params;
@@ -10,21 +9,24 @@ export default async function ExamMarksPage({ params }: { params: Promise<{ exam
     if (!session.isLoggedIn) redirect('/login');
 
     const schedules = await getExamSchedules(examId);
-    const gradeSchedules = schedules.filter(s => s.gradeName.includes(gradeId) || true); // Show all for now
+    const gradeSchedules = schedules.filter(schedule => schedule.gradeId === gradeId);
+    const recordedResultCount = gradeSchedules.reduce((total, schedule) => total + schedule.resultCount, 0);
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold">Enter Marks</h1>
-                    <p className="text-gray-600">{schedules.length} subjects scheduled</p>
+                    <h1 className="text-2xl font-bold">Grade marks coverage</h1>
+                    <p className="text-gray-600">
+                        {gradeSchedules.length} scheduled subject{gradeSchedules.length === 1 ? '' : 's'} · {recordedResultCount} persisted result{recordedResultCount === 1 ? '' : 's'}
+                    </p>
                 </div>
                 <Link href={`/exams/${examId}`} className="text-blue-600 hover:underline">← Back</Link>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border">
                 <div className="p-4 border-b">
-                    <h2 className="font-semibold">Subject-wise Marks Entry</h2>
+                    <h2 className="font-semibold">Subject-wise persisted results</h2>
                 </div>
                 <div className="divide-y">
                     {gradeSchedules.map(sched => (
@@ -44,8 +46,8 @@ export default async function ExamMarksPage({ params }: { params: Promise<{ exam
                 </div>
             </div>
 
-            <div className="bg-yellow-50 rounded-lg border border-yellow-200 p-4">
-                <p className="text-sm text-yellow-800">ℹ️ Marks entry form with inline editing will be implemented in the next phase.</p>
+            <div className="rounded-lg border border-warning/30 bg-warning-muted p-4">
+                <p className="text-sm text-warning">Marks editing is unavailable on this route. The counts above come from tenant-scoped persisted result records.</p>
             </div>
         </div>
     );

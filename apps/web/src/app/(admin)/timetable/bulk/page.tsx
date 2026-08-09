@@ -45,7 +45,9 @@ export default function BulkUploadTimetablePage() {
                 }, 1500);
             } else {
                 setConflicts(res.conflicts || []);
-                if (skipConflicts) {
+                if ('error' in res) {
+                    setErrorMessage(res.error);
+                } else if (skipConflicts) {
                     setSuccessMessage(`Bulk upload completed with some conflicts skipped! Successfully inserted ${res.inserted} entries.`);
                     setTimeout(() => {
                         router.push('/timetable');

@@ -7,6 +7,7 @@
 
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { gradeFromScale, loadDefaultGradingScale } from '@/lib/grading/calculator';
 import { randomUUID } from 'crypto';
 import { recordManualPayment } from '@/lib/payments/ledger';
 
@@ -338,9 +339,12 @@ export async function enterMarks(
     examId: string,
     marksData: { studentId: string; subjectId: string; marksObtained: number; isAbsent: boolean }[]
 ) {
-    const { tenantId } = await requireAuth('exams:write');
+    const { tenantId, userId } = await requireAuth('exams:write');
     await assertExamBelongsToTenant(tenantId, examId);
     await assertStudentsBelongToTenant(tenantId, marksData.map((entry) => entry.studentId));
+    const gradingScale = marksData.some(entry => !entry.isAbsent)
+        ? await loadDefaultGradingScale(pool.query.bind(pool), tenantId)
+        : null;
 
     // Look up exam schedules for this exam
     for (const entry of marksData) {
@@ -348,7 +352,7 @@ export async function enterMarks(
 
         // Find schedule for this subject
         const scheduleRes = await pool.query(
-            `SELECT es.id
+            `SELECT es.id, es.max_marks AS "maxMarks"
              FROM exam_schedules es
              INNER JOIN exams e ON e.id = es.exam_id
              WHERE es.exam_id = $1
@@ -359,6 +363,13 @@ export async function enterMarks(
         const schedule = scheduleRes.rows[0];
 
         if (!schedule) continue;
+        const normalizedMarks = entry.isAbsent ? null : entry.marksObtained;
+        const grade = gradeFromScale(
+            gradingScale,
+            normalizedMarks,
+            Number(schedule.maxMarks),
+            entry.isAbsent,
+        );
 
         // Upsert result
         const existingRes = await pool.query(
@@ -368,14 +379,31 @@ export async function enterMarks(
 
         if (existingRes.rows.length > 0) {
             await pool.query(
-                `UPDATE student_results SET marks_obtained = $1, is_absent = $2 WHERE id = $3 AND tenant_id = $4`,
-                [String(entry.marksObtained), entry.isAbsent, existingRes.rows[0].id, tenantId]
+                `WITH reset_result AS (
+                    UPDATE student_results
+                    SET marks_obtained = $1,
+                        is_absent = $2,
+                        grade = $3,
+                        entered_by = $4,
+                        review_status = 'PENDING',
+                        rejection_reason = NULL,
+                        reviewed_by = NULL,
+                        reviewed_at = NULL,
+                        updated_at = NOW()
+                    WHERE id = $5 AND tenant_id = $6
+                    RETURNING id
+                 )
+                 DELETE FROM exam_result_hashes hash
+                 USING reset_result
+                 WHERE hash.result_id = reset_result.id
+                   AND hash.tenant_id = $6`,
+                [normalizedMarks === null ? null : String(normalizedMarks), entry.isAbsent, grade, userId, existingRes.rows[0].id, tenantId]
             );
         } else {
             await pool.query(
-                `INSERT INTO student_results (id, tenant_id, exam_schedule_id, student_id, marks_obtained, is_absent)
-                 VALUES ($1, $2, $3, $4, $5, $6)`,
-                [randomUUID(), tenantId, schedule.id, entry.studentId, String(entry.marksObtained), entry.isAbsent]
+                `INSERT INTO student_results (id, tenant_id, exam_schedule_id, student_id, marks_obtained, grade, is_absent, entered_by)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [randomUUID(), tenantId, schedule.id, entry.studentId, normalizedMarks === null ? null : String(normalizedMarks), grade, entry.isAbsent, userId]
             );
         }
     }
