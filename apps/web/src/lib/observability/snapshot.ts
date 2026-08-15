@@ -1,6 +1,13 @@
-import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass } from "@/lib/db";
+import { EXPECTED_DATABASE_MIGRATIONS } from "@/generated/migration-manifest";
+import {
+  evaluateMigrationLedger,
+  migrationCheckFailure,
+  type AppliedMigration,
+  type MigrationHealth,
+} from "@/lib/observability/migration-health";
 
-export type ComponentStatus = 'healthy' | 'degraded' | 'unhealthy';
+export type ComponentStatus = "healthy" | "degraded" | "unhealthy";
 
 export type OperationalSnapshot = {
   status: ComponentStatus;
@@ -32,30 +39,64 @@ export type OperationalSnapshot = {
   };
 };
 
-function rowsToCountMap(rows: Array<{ key: string; count: number | string }>): Record<string, number> {
+function rowsToCountMap(
+  rows: Array<{ key: string; count: number | string }>,
+): Record<string, number> {
   return Object.fromEntries(rows.map((row) => [row.key, Number(row.count)]));
 }
 
-function statusFrom(snapshot: Omit<OperationalSnapshot, 'status'>): ComponentStatus {
-  if (snapshot.database.status === 'unhealthy' || snapshot.incidents.critical > 0) return 'unhealthy';
+function statusFrom(
+  snapshot: Omit<OperationalSnapshot, "status">,
+): ComponentStatus {
+  if (
+    snapshot.database.status === "unhealthy" ||
+    snapshot.incidents.critical > 0
+  )
+    return "unhealthy";
   if (
     snapshot.jobs.deadLettered > 0 ||
     snapshot.notifications.deadLettered > 0 ||
     snapshot.incidents.open > 0 ||
     snapshot.slo.latestBreaches > 0
   ) {
-    return 'degraded';
+    return "degraded";
   }
-  return 'healthy';
+  return "healthy";
 }
 
-export async function getDatabaseHealth(): Promise<{ status: ComponentStatus; latencyMs: number | null }> {
+export async function getDatabaseHealth(): Promise<{
+  status: ComponentStatus;
+  latencyMs: number | null;
+}> {
   const startedAt = Date.now();
   try {
-    await pool.query('SELECT 1');
-    return { status: 'healthy', latencyMs: Date.now() - startedAt };
+    await pool.query("SELECT 1");
+    return { status: "healthy", latencyMs: Date.now() - startedAt };
   } catch {
-    return { status: 'unhealthy', latencyMs: null };
+    return { status: "unhealthy", latencyMs: null };
+  }
+}
+
+export async function getMigrationHealth(): Promise<MigrationHealth> {
+  try {
+    const tableResult = await pool.query<{ migrationTable: string | null }>(
+      `SELECT to_regclass('drizzle.__drizzle_migrations')::text AS "migrationTable"`,
+    );
+    if (!tableResult.rows[0]?.migrationTable) {
+      return evaluateMigrationLedger(EXPECTED_DATABASE_MIGRATIONS, null);
+    }
+
+    const ledger = await pool.query<{ hash: string; createdAt: string }>(
+      `SELECT hash, created_at::text AS "createdAt"
+       FROM drizzle.__drizzle_migrations
+       ORDER BY created_at ASC, id ASC`,
+    );
+    return evaluateMigrationLedger(
+      EXPECTED_DATABASE_MIGRATIONS,
+      ledger.rows satisfies AppliedMigration[],
+    );
+  } catch {
+    return migrationCheckFailure(EXPECTED_DATABASE_MIGRATIONS);
   }
 }
 
@@ -114,7 +155,10 @@ export async function collectOperationalSnapshot(): Promise<OperationalSnapshot>
     };
   };
 
-  const counts = await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.OPERATIONAL_SNAPSHOT, query);
+  const counts = await runWithRlsBypass(
+    RLS_BYPASS_JUSTIFICATIONS.OPERATIONAL_SNAPSHOT,
+    query,
+  );
   const base = {
     generatedAt: new Date().toISOString(),
     database,
@@ -122,16 +166,23 @@ export async function collectOperationalSnapshot(): Promise<OperationalSnapshot>
       byStatus: counts.jobsByStatus,
       deadLettered: counts.jobsByStatus.DEAD_LETTER || 0,
       failed: counts.jobsByStatus.FAILED || 0,
-      queued: (counts.jobsByStatus.QUEUED || 0) + (counts.jobsByStatus.SCHEDULED || 0),
+      queued:
+        (counts.jobsByStatus.QUEUED || 0) +
+        (counts.jobsByStatus.SCHEDULED || 0),
     },
     notifications: {
       byStatus: counts.notificationsByStatus,
       deadLettered: counts.notificationsByStatus.DEAD_LETTER || 0,
       failed: counts.notificationsByStatus.FAILED || 0,
-      queued: (counts.notificationsByStatus.PENDING || 0) + (counts.notificationsByStatus.QUEUED || 0),
+      queued:
+        (counts.notificationsByStatus.PENDING || 0) +
+        (counts.notificationsByStatus.QUEUED || 0),
     },
     incidents: {
-      open: Object.values(counts.incidentsBySeverity).reduce((sum, count) => sum + count, 0),
+      open: Object.values(counts.incidentsBySeverity).reduce(
+        (sum, count) => sum + count,
+        0,
+      ),
       critical: counts.incidentsBySeverity.CRITICAL || 0,
       bySeverity: counts.incidentsBySeverity,
     },

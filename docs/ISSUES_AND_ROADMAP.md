@@ -1,9 +1,9 @@
 # School SIS — Issues & Roadmap
 
-> **Document version**: 2.3.0
-> **Last updated**: 2026-08-07
-> **Source of truth**: [`audits/reports/2026-07-04-full-application-audit.md`](../audits/reports/2026-07-04-full-application-audit.md), re-verified against the live GitHub issue/PR state and `main` on 2026-08-07.
-> **Runtime**: Local-first — the app runs on localhost with a local Postgres cluster (`scripts/local-db.sh`); no cloud target.
+> **Document version**: 2.4.0
+> **Last updated**: 2026-08-15
+> **Source of truth**: [`audits/reports/2026-07-04-full-application-audit.md`](../audits/reports/2026-07-04-full-application-audit.md), re-verified against the live GitHub issue/PR state and the Vercel/Neon release-remediation branch on 2026-08-15.
+> **Runtime**: Local-first development with Vercel (`iad1`) and Neon Postgres selected for production. GitHub Actions owns preview and production release ordering.
 > **Supersedes**: v1.0.0 (2026-04-26) dependency/security audit — its still-open items are folded into the security, hygiene, and testing issues below.
 
 This roadmap is the human-readable index over the live GitHub issues. Every item below links to a tracked issue with re-verified evidence and residual done-criteria. Issues are grouped into three milestones by launch priority.
@@ -12,15 +12,15 @@ This roadmap is the human-readable index over the live GitHub issues. Every item
 
 The platform has crossed the prototype line for most of the web app: core builds and CI are green, payment architecture (idempotency, invoice ownership, webhooks, row-locking) is strong, and the priority security sequence is complete. Access control is centralized, runtime mock/fixture ambiguity is removed, CSP is nonce-based and enforced by default in production, distributed rate limiting fails closed or stricter on outage, and the 144-table RLS policy surface is covered by a real non-superuser Postgres test.
 
-It runs entirely locally now (no cloud target). Production runtime evidence remains open but is formally deferred until a hosting/database/provider target and owner are selected; none of its launch criteria are waived. The next product path is provider evidence and service-surface cleanup (#25, #24, #23), followed by the remaining Phase 1 and scale work.
+It still runs entirely locally for development. Vercel and Neon are now the selected production targets, so production runtime evidence is an active P0 gate. Provider configuration, the one-time Neon baseline reconciliation, and a verified staged release must complete before #18 can close.
 
-| Milestone | Focus | Open items |
-|---|---|---:|
-| [Phase 0 — Launch Blockers (P0)](https://github.com/singhaditya21/school-sis/milestone/1) | Must fix before any production launch | 1 (formally deferred) |
-| [Phase 1 — Production Hardening (P1)](https://github.com/singhaditya21/school-sis/milestone/2) | Security/reliability/provider evidence at launch | 7 |
-| [Phase 2 — Quality, Maintainability & Scale (P2)](https://github.com/singhaditya21/school-sis/milestone/3) | Debt reduction & scale readiness | 6 |
+| Milestone                                                                                                  | Focus                                            | Open items |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ---------: |
+| [Phase 0 — Launch Blockers (P0)](https://github.com/singhaditya21/school-sis/milestone/1)                  | Must fix before any production launch            |   1 active |
+| [Phase 1 — Production Hardening (P1)](https://github.com/singhaditya21/school-sis/milestone/2)             | Security/reliability/provider evidence at launch |          7 |
+| [Phase 2 — Quality, Maintainability & Scale (P2)](https://github.com/singhaditya21/school-sis/milestone/3) | Debt reduction & scale readiness                 |          6 |
 
-**Post-remediation live totals (2026-08-07)**: 14 open GitHub issues — 1 deferred P0, 7 P1, and 6 P2. Issues #16, #17, #19, #20, #22, #26, and #29 are closed. The nine stale/superseded pull requests were dispositioned through [`OPEN_PR_TRIAGE_2026-08-07.md`](./OPEN_PR_TRIAGE_2026-08-07.md).
+**Post-remediation live totals (2026-08-15)**: 14 open GitHub issues — 1 active P0, 7 P1, and 6 P2. Issues #16, #17, #19, #20, #22, #26, and #29 are closed. The nine stale/superseded pull requests were dispositioned through [`OPEN_PR_TRIAGE_2026-08-07.md`](./OPEN_PR_TRIAGE_2026-08-07.md).
 
 **Status legend**: 🔴 Open · 🟡 In progress (partially addressed) · ⏸️ Formally deferred (criteria retained) · 🟢 Done (verified).
 
@@ -30,40 +30,40 @@ It runs entirely locally now (no cloud target). Production runtime evidence rema
 
 These block production go-live. Target: close first.
 
-| Issue | Title | Status | Areas |
-|---|---|---|---|
-| [#17](https://github.com/singhaditya21/school-sis/issues/17) | Remove or hard-isolate mock/demo/fixture surfaces from runtime integration code | 🟢 Done | `integrations`, `security`, `notifications` |
-| [#18](https://github.com/singhaditya21/school-sis/issues/18) | Capture strict production runtime evidence and add a strict infra release gate | ⏸️ Formally deferred until a production target is selected | `infra`, `observability`, `database` |
+| Issue                                                        | Title                                                                           | Status                                                           | Areas                                       |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------- |
+| [#17](https://github.com/singhaditya21/school-sis/issues/17) | Remove or hard-isolate mock/demo/fixture surfaces from runtime integration code | 🟢 Done                                                          | `integrations`, `security`, `notifications` |
+| [#18](https://github.com/singhaditya21/school-sis/issues/18) | Capture strict production runtime evidence and add a strict infra release gate  | 🚨 Active P0 — Vercel/Neon selected; activation evidence pending | `infra`, `observability`, `database`        |
 
 ## Phase 1 — Production hardening (P1) · [milestone](https://github.com/singhaditya21/school-sis/milestone/2)
 
 Required at or immediately around launch.
 
-| Issue | Title | Status | Areas |
-|---|---|---|---|
-| [#20](https://github.com/singhaditya21/school-sis/issues/20) | Tighten Content-Security-Policy: remove script-src unsafe-inline/unsafe-eval | 🟢 Done | `security`, `frontend`, `payments` |
-| [#21](https://github.com/singhaditya21/school-sis/issues/21) | Make the mobile app production-ready (real auth, secure payment context) or gate it | 🟡 In progress | `mobile`, `payments`, `security` |
-| [#23](https://github.com/singhaditya21/school-sis/issues/23) | Decide the Go gateway: secure it as a real edge or remove it from production | 🔴 Open | `services`, `security`, `rate-limiting` |
-| [#24](https://github.com/singhaditya21/school-sis/issues/24) | Remove the unused legacy R2 storage adapter that uploads via unsigned raw fetch | 🔴 Open | `storage`, `security` |
-| [#25](https://github.com/singhaditya21/school-sis/issues/25) | Provide notification provider evidence or disable unsupported channels (WhatsApp/push mock; no delivery-receipt ingestion) | 🟡 In progress | `notifications`, `integrations`, `observability` |
-| [#26](https://github.com/singhaditya21/school-sis/issues/26) | Formalize RLS/database security: policy matrix, real Postgres isolation tests, bypass review, verify-full SSL, migration gates | 🟢 Done | `database`, `security`, `testing` |
-| [#27](https://github.com/singhaditya21/school-sis/issues/27) | Stop tracking generated/session artifacts (.agents/**, *.tsbuildinfo, build.log, server.log) | 🔴 Open | `hygiene`, `devex` |
-| [#28](https://github.com/singhaditya21/school-sis/issues/28) | Add AI eval suites, per-tenant token/cost budgets, model fallback, and red-team tests for agent/copilot | 🟡 In progress | `ai`, `testing`, `rate-limiting` |
-| [#29](https://github.com/singhaditya21/school-sis/issues/29) | Make rate limiting fail closed (or degrade stricter) on backend outage for public/AI endpoints | 🟢 Done | `rate-limiting`, `security`, `services` |
-| [#42](https://github.com/singhaditya21/school-sis/issues/42) | Reimplement PDF generation and user/role management natively after Java backend removal | 🔴 Open | `payments`, `identity`, `security` |
+| Issue                                                        | Title                                                                                                                          | Status                                                                                                                                  | Areas                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| [#20](https://github.com/singhaditya21/school-sis/issues/20) | Tighten Content-Security-Policy: remove script-src unsafe-inline/unsafe-eval                                                   | 🟢 Done                                                                                                                                 | `security`, `frontend`, `payments`               |
+| [#21](https://github.com/singhaditya21/school-sis/issues/21) | Make the mobile app production-ready (real auth, secure payment context) or gate it                                            | 🟡 In progress — two mobile-build-only `image-size` advisories are narrowly excepted through 2026-09-15 while no patched release exists | `mobile`, `payments`, `security`                 |
+| [#23](https://github.com/singhaditya21/school-sis/issues/23) | Decide the Go gateway: secure it as a real edge or remove it from production                                                   | 🔴 Open                                                                                                                                 | `services`, `security`, `rate-limiting`          |
+| [#24](https://github.com/singhaditya21/school-sis/issues/24) | Remove the unused legacy R2 storage adapter that uploads via unsigned raw fetch                                                | 🔴 Open                                                                                                                                 | `storage`, `security`                            |
+| [#25](https://github.com/singhaditya21/school-sis/issues/25) | Provide notification provider evidence or disable unsupported channels (WhatsApp/push mock; no delivery-receipt ingestion)     | 🟡 In progress                                                                                                                          | `notifications`, `integrations`, `observability` |
+| [#26](https://github.com/singhaditya21/school-sis/issues/26) | Formalize RLS/database security: policy matrix, real Postgres isolation tests, bypass review, verify-full SSL, migration gates | 🟢 Done                                                                                                                                 | `database`, `security`, `testing`                |
+| [#27](https://github.com/singhaditya21/school-sis/issues/27) | Stop tracking generated/session artifacts (.agents/\*_, _.tsbuildinfo, build.log, server.log)                                  | 🔴 Open                                                                                                                                 | `hygiene`, `devex`                               |
+| [#28](https://github.com/singhaditya21/school-sis/issues/28) | Add AI eval suites, per-tenant token/cost budgets, model fallback, and red-team tests for agent/copilot                        | 🟡 In progress                                                                                                                          | `ai`, `testing`, `rate-limiting`                 |
+| [#29](https://github.com/singhaditya21/school-sis/issues/29) | Make rate limiting fail closed (or degrade stricter) on backend outage for public/AI endpoints                                 | 🟢 Done                                                                                                                                 | `rate-limiting`, `security`, `services`          |
+| [#42](https://github.com/singhaditya21/school-sis/issues/42) | Reimplement PDF generation and user/role management natively after Java backend removal                                        | 🔴 Open                                                                                                                                 | `payments`, `identity`, `security`               |
 
 ## Phase 2 — Quality, maintainability & scale (P2) · [milestone](https://github.com/singhaditya21/school-sis/milestone/3)
 
 Debt reduction and scale-readiness; parallelizable with pilot operations.
 
-| Issue | Title | Status | Areas |
-|---|---|---|---|
-| [#30](https://github.com/singhaditya21/school-sis/issues/30) | Reduce static risk debt (console.*, any, raw SQL, alerts) with downward-only CI thresholds | 🟡 In progress | `hygiene`, `observability`, `devex` |
-| [#31](https://github.com/singhaditya21/school-sis/issues/31) | Harden website lead capture: production API env, anti-bot controls, consent, CRM routing | 🟡 In progress | `website`, `integrations`, `observability` |
-| [#32](https://github.com/singhaditya21/school-sis/issues/32) | Enforce pnpm toolchain via Corepack and a preflight guard; document in dev guide | 🟡 In progress | `devex`, `infra`, `hygiene` |
-| [#33](https://github.com/singhaditya21/school-sis/issues/33) | Migrate middleware to proxy convention and revisit static cache headers for Next.js 16 | 🔴 Open | `infra`, `devex` |
-| [#34](https://github.com/singhaditya21/school-sis/issues/34) | Complete side-service test tooling and CI for Python/Go/Rust services | 🟡 In progress | `testing`, `services`, `devex` |
-| [#37](https://github.com/singhaditya21/school-sis/issues/37) | Stabilize the full Playwright E2E suite and restore reliable scheduled coverage | 🔴 Open | `testing`, `quality`, `ci` |
+| Issue                                                        | Title                                                                                       | Status         | Areas                                      |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------ |
+| [#30](https://github.com/singhaditya21/school-sis/issues/30) | Reduce static risk debt (console.\*, any, raw SQL, alerts) with downward-only CI thresholds | 🟡 In progress | `hygiene`, `observability`, `devex`        |
+| [#31](https://github.com/singhaditya21/school-sis/issues/31) | Harden website lead capture: production API env, anti-bot controls, consent, CRM routing    | 🟡 In progress | `website`, `integrations`, `observability` |
+| [#32](https://github.com/singhaditya21/school-sis/issues/32) | Enforce pnpm toolchain via Corepack and a preflight guard; document in dev guide            | 🟡 In progress | `devex`, `infra`, `hygiene`                |
+| [#33](https://github.com/singhaditya21/school-sis/issues/33) | Migrate middleware to proxy convention and revisit static cache headers for Next.js 16      | 🔴 Open        | `infra`, `devex`                           |
+| [#34](https://github.com/singhaditya21/school-sis/issues/34) | Complete side-service test tooling and CI for Python/Go/Rust services                       | 🟡 In progress | `testing`, `services`, `devex`             |
+| [#37](https://github.com/singhaditya21/school-sis/issues/37) | Stabilize the full Playwright E2E suite and restore reliable scheduled coverage             | 🔴 Open        | `testing`, `quality`, `ci`                 |
 
 ---
 
@@ -73,7 +73,7 @@ Debt reduction and scale-readiness; parallelizable with pilot operations.
 - **#20 — enforced nonce CSP**: production now enforces a per-request nonce policy by default, removes `unsafe-inline`/`unsafe-eval` from script execution, serves Sonner styling statically, bounds and normalizes CSP reports, and covers hydration plus violation-free navigation in Playwright.
 - **#29 — strict distributed rate limiting**: memory, Redis Lua, and Postgres implementations are atomic; production requires an explicit shared backend and degrades to a stricter bounded fallback. Readiness, metrics, alerts, a dashboard, and an outage runbook cover the remaining web/API entrypoints. The retired Python agent service has no live ingress.
 - **#26 — formal database isolation**: all 144 documented tenant-bearing tables are covered by policy review and a real non-superuser Postgres test. The query wrapper applies pooler-safe transaction-local context, rejects unsafe transaction/context patterns, audits bypasses, defaults remote TLS to `verify-full`, and gates destructive migrations.
-- **#18 — explicit decision**: production runtime evidence remains open and formally deferred, with all acceptance criteria retained. It automatically returns to active P0 when a production host, database, providers, and accountable owner are selected.
+- **#18 — explicit decision**: Vercel/Neon and GitHub Actions are selected. The issue is active P0 until account configuration, legacy-ledger reconciliation, snapshot evidence, and an authenticated production readiness proof are complete.
 - **Open PR triage**: useful encryption coverage and current GitHub Actions upgrades were consolidated into the remediation branch; stale/non-mergeable and failed dependency mega-groups are retired only after the replacement PR passes current CI.
 
 ## Earlier progress (2026-07-18)
@@ -89,16 +89,16 @@ Adjacent hygiene also landed: 13 unused dependencies removed and the pnpm store/
 
 ## Verified done since the audit
 
-| Audit finding | Outcome | Evidence |
-|---|---|---|
-| P0 #1 — Single enforced access-control model | 🟢 Done | Centralized `lib/auth/page-access.ts` + `lib/auth/api-access.ts`; middleware classifies by real emitted URLs; student guard restored in `app/student/layout.tsx`; NextAuth removed (unified on Iron Session); route-inventory + wrong-role test suites (`__tests__/page-access-policy.test.ts`, `api-access-policy.test.ts`). Commits `5880d317`, `96b4553f`. |
-| [#16](https://github.com/singhaditya21/school-sis/issues/16) — Dynamic metadata API audit logging | 🟢 Closed | GitHub issue closed as completed on 2026-07-17. |
-| [#19](https://github.com/singhaditya21/school-sis/issues/19) — Operational migration/seed HTTP endpoints | 🟢 Closed | GitHub issue closed as completed on 2026-07-17. |
-| [#22](https://github.com/singhaditya21/school-sis/issues/22) — Legacy payment create-order proxy | 🟢 Closed | GitHub issue closed as completed on 2026-07-18; remaining native PDF/user-role work is tracked in #42. |
-| [#17](https://github.com/singhaditya21/school-sis/issues/17) — Runtime mock/demo/fixture isolation | 🟢 Done | Production guard + startup audit; live providers fail loudly; LTI OIDC/JWKS/session and signed webhook tests; no runtime mock endpoint or shared fixture module. |
-| [#20](https://github.com/singhaditya21/school-sis/issues/20) — Strict Content-Security-Policy | 🟢 Done | Per-request nonces, production enforcement by default, bounded report ingestion, static Sonner CSS, response/unit coverage, and a browser hydration/CSP smoke test. |
-| [#29](https://github.com/singhaditya21/school-sis/issues/29) — Strict rate-limit outage behavior | 🟢 Done | Atomic shared backends, explicit production backend selection, bounded strict fallback, entrypoint tests, readiness/metrics, Prometheus alerts, Grafana dashboard, and runbook. |
-| [#26](https://github.com/singhaditya21/school-sis/issues/26) — Formal RLS/database security | 🟢 Done | 144-table matrix; non-superuser Postgres isolation test; transaction-local context; bypass registry; remote `verify-full` TLS default; destructive-migration gates. |
+| Audit finding                                                                                            | Outcome   | Evidence                                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0 #1 — Single enforced access-control model                                                             | 🟢 Done   | Centralized `lib/auth/page-access.ts` + `lib/auth/api-access.ts`; middleware classifies by real emitted URLs; student guard restored in `app/student/layout.tsx`; NextAuth removed (unified on Iron Session); route-inventory + wrong-role test suites (`__tests__/page-access-policy.test.ts`, `api-access-policy.test.ts`). Commits `5880d317`, `96b4553f`. |
+| [#16](https://github.com/singhaditya21/school-sis/issues/16) — Dynamic metadata API audit logging        | 🟢 Closed | GitHub issue closed as completed on 2026-07-17.                                                                                                                                                                                                                                                                                                               |
+| [#19](https://github.com/singhaditya21/school-sis/issues/19) — Operational migration/seed HTTP endpoints | 🟢 Closed | GitHub issue closed as completed on 2026-07-17.                                                                                                                                                                                                                                                                                                               |
+| [#22](https://github.com/singhaditya21/school-sis/issues/22) — Legacy payment create-order proxy         | 🟢 Closed | GitHub issue closed as completed on 2026-07-18; remaining native PDF/user-role work is tracked in #42.                                                                                                                                                                                                                                                        |
+| [#17](https://github.com/singhaditya21/school-sis/issues/17) — Runtime mock/demo/fixture isolation       | 🟢 Done   | Production guard + startup audit; live providers fail loudly; LTI OIDC/JWKS/session and signed webhook tests; no runtime mock endpoint or shared fixture module.                                                                                                                                                                                              |
+| [#20](https://github.com/singhaditya21/school-sis/issues/20) — Strict Content-Security-Policy            | 🟢 Done   | Per-request nonces, production enforcement by default, bounded report ingestion, static Sonner CSS, response/unit coverage, and a browser hydration/CSP smoke test.                                                                                                                                                                                           |
+| [#29](https://github.com/singhaditya21/school-sis/issues/29) — Strict rate-limit outage behavior         | 🟢 Done   | Atomic shared backends, explicit production backend selection, bounded strict fallback, entrypoint tests, readiness/metrics, Prometheus alerts, Grafana dashboard, and runbook.                                                                                                                                                                               |
+| [#26](https://github.com/singhaditya21/school-sis/issues/26) — Formal RLS/database security              | 🟢 Done   | 144-table matrix; non-superuser Postgres isolation test; transaction-local context; bypass registry; remote `verify-full` TLS default; destructive-migration gates.                                                                                                                                                                                           |
 
 _Minor residual hygiene from #1 (delete dead `app/(platform)/layout.tsx` and the empty `app/api/auth/[...nextauth]` dir) is folded into the repository-hygiene issue._
 
@@ -111,7 +111,7 @@ Adapted from the audit's closure plan and updated after completion of the priori
 ### Completed decision gate and security sequence
 
 1. Runtime mock ambiguity removed — issue #17.
-2. Production runtime evidence formally deferred without waiving criteria — issue #18. Reactivate it as P0 immediately when a production hosting/database/provider target is selected.
+2. Finish the Vercel/Neon activation and capture strict production runtime evidence — issue #18.
 3. Nine legacy pull requests triaged; useful work consolidated and retirement gated on current replacement CI.
 4. Nonce-based production CSP completed — issue #20.
 5. Strict distributed rate-limit outage behavior completed — issue #29.
@@ -135,18 +135,18 @@ Adapted from the audit's closure plan and updated after completion of the priori
 
 ## Domain & module readiness (from audit)
 
-| Domain/module | Launch readiness |
-|---|---|
-| Fees & payments | Strong ledger/verification/webhook/idempotency; legacy route #22 is closed. Production-provider evidence becomes part of reactivated #18 when a target is selected. |
-| Admissions / Attendance / Exams / Timetable / Library / HR | Database tenant isolation is verified; pilot after module RBAC and end-to-end workflow tests. |
-| Transport | Database tenant isolation is verified; pilot after route/stop authorization review and workflow tests. |
-| Parent portal | Web pilot after payment-provider UAT; mobile remains gated by #21. |
-| Student portal | Access guard restored (done); pilot after portal workflow coverage. |
-| AI / copilot / agents | Not launch-ready for regulated customers until eval/leakage/fallback/budget evidence (#28). |
-| Integrations | Runtime mocks are removed; pilot requires configured provider credentials, delivery evidence (#25), and integration-specific UAT. |
-| Mobile app | Not production-ready until real auth + secure payments (#21). |
-| Operator/SRE console | Internal-only until incident/runbook/UAT evidence. |
-| Marketing website | Launch-ready after lead-capture ops evidence (#31). |
+| Domain/module                                              | Launch readiness                                                                                                                      |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Fees & payments                                            | Strong ledger/verification/webhook/idempotency; legacy route #22 is closed. Production-provider evidence is part of active issue #18. |
+| Admissions / Attendance / Exams / Timetable / Library / HR | Database tenant isolation is verified; pilot after module RBAC and end-to-end workflow tests.                                         |
+| Transport                                                  | Database tenant isolation is verified; pilot after route/stop authorization review and workflow tests.                                |
+| Parent portal                                              | Web pilot after payment-provider UAT; mobile remains gated by #21.                                                                    |
+| Student portal                                             | Access guard restored (done); pilot after portal workflow coverage.                                                                   |
+| AI / copilot / agents                                      | Not launch-ready for regulated customers until eval/leakage/fallback/budget evidence (#28).                                           |
+| Integrations                                               | Runtime mocks are removed; pilot requires configured provider credentials, delivery evidence (#25), and integration-specific UAT.     |
+| Mobile app                                                 | Not production-ready until real auth + secure payments (#21).                                                                         |
+| Operator/SRE console                                       | Internal-only until incident/runbook/UAT evidence.                                                                                    |
+| Marketing website                                          | Launch-ready after lead-capture ops evidence (#31).                                                                                   |
 
 ---
 

@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 permissions:
   contents: read
@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Detect Dependency Graph Availability
         id: dependency_graph
@@ -43,22 +43,22 @@ jobs:
 
       - name: Review dependency changes
         if: steps.dependency_graph.outputs.available == 'true'
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
         with:
           fail-on-severity: high
 
       - name: Install pnpm for fallback audit
         if: steps.dependency_graph.outputs.available != 'true'
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js for fallback audit
         if: steps.dependency_graph.outputs.available != 'true'
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Install dependencies for fallback audit
         if: steps.dependency_graph.outputs.available != 'true'
@@ -94,50 +94,47 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Enable pgvector Extension
-        run: PGPASSWORD=postgres psql -h localhost -U postgres -d school_sis_test -c 'CREATE EXTENSION IF NOT EXISTS vector;'
-
-      - name: Apply Schema and Tenant RLS
+      - name: Exercise the locked deployment migration path twice
         run: |
-          pnpm --filter @school-sis/web run db:migrate
-          pnpm --filter @school-sis/web run db:rls
+          pnpm db:migrate:deploy -- --target ci
+          pnpm db:migrate:deploy -- --target ci
 
       - name: Verify Tenant Isolation
         run: pnpm --filter @school-sis/web run db:test:rls
 
   validate:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
@@ -156,8 +153,14 @@ jobs:
       - name: Validate Drizzle Migrations
         run: pnpm --filter @school-sis/web exec drizzle-kit check
 
+      - name: Validate Runtime Migration Manifest
+        run: pnpm db:manifest:check
+
       - name: Reject Unapproved Destructive Migrations
         run: pnpm audit:migrations
+
+      - name: Enforce Expand-Only Automated Releases
+        run: pnpm audit:migrations:release
 
       - name: Validate RLS Policy Matrix
         run: pnpm audit:rls-matrix
@@ -187,7 +190,7 @@ jobs:
 
       - name: Upload CI Evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ci-evidence-${{ github.run_id }}
           path: |

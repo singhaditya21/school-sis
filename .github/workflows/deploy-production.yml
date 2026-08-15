@@ -1,0 +1,695 @@
+name: Production Release
+
+on:
+  workflow_run:
+    workflows: ["E2E Tests"]
+    branches: [main]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    name: Verify, migrate, stage, and promote production
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    env:
+      NODE_VERSION: "24"
+      PNPM_VERSION: "9.15.9"
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+      TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+
+    steps:
+      - name: Fail closed on missing production configuration
+        env:
+          VERCEL_TOKEN_VALUE: ${{ secrets.VERCEL_TOKEN }}
+          NEON_API_KEY_VALUE: ${{ secrets.NEON_API_KEY }}
+          NEON_DIRECT_URL_VALUE: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
+          METRICS_TOKEN_VALUE: ${{ secrets.METRICS_TOKEN }}
+          VERCEL_BYPASS_VALUE: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          NEON_PROJECT_ID_VALUE: ${{ vars.NEON_PROJECT_ID }}
+          NEON_BRANCH_ID_VALUE: ${{ vars.NEON_PRODUCTION_BRANCH_ID }}
+          NEON_DATABASE_VALUE: ${{ vars.NEON_DATABASE_NAME }}
+          NEON_ROLE_VALUE: ${{ vars.NEON_MIGRATION_ROLE }}
+          NEON_RUNTIME_ROLE_VALUE: ${{ vars.NEON_RUNTIME_ROLE }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in \
+            VERCEL_TOKEN_VALUE NEON_API_KEY_VALUE NEON_DIRECT_URL_VALUE \
+            METRICS_TOKEN_VALUE VERCEL_BYPASS_VALUE VERCEL_ORG_ID \
+            VERCEL_PROJECT_ID PRODUCTION_URL NEON_PROJECT_ID_VALUE \
+            NEON_BRANCH_ID_VALUE NEON_DATABASE_VALUE NEON_ROLE_VALUE \
+            NEON_RUNTIME_ROLE_VALUE; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+          if [ "${#missing[@]}" -ne 0 ]; then
+            echo "Missing required production configuration: ${missing[*]}" >&2
+            exit 1
+          fi
+          if [ "${#METRICS_TOKEN_VALUE}" -lt 32 ]; then
+            echo "METRICS_TOKEN must be at least 32 characters." >&2
+            exit 1
+          fi
+          if [ "${#VERCEL_BYPASS_VALUE}" -lt 16 ]; then
+            echo "VERCEL_AUTOMATION_BYPASS_SECRET must be at least 16 characters." >&2
+            exit 1
+          fi
+          node --input-type=module <<'NODE'
+          const sha = process.env.TARGET_SHA || '';
+          if (!/^[0-9a-f]{40}$/i.test(sha)) throw new Error('workflow_run did not provide a full commit SHA.');
+          const productionUrl = new URL(process.env.PRODUCTION_URL);
+          if (
+            productionUrl.protocol !== 'https:' || productionUrl.pathname !== '/' ||
+            productionUrl.search || productionUrl.hash || productionUrl.port ||
+            productionUrl.username || productionUrl.password
+          ) {
+            throw new Error('PRODUCTION_URL must be a canonical HTTPS origin without credentials, a custom port, path, query, or fragment.');
+          }
+          const direct = new URL(process.env.NEON_DIRECT_URL_VALUE);
+          const forbidden = new Set([
+            'database', 'db', 'host', 'options', 'password', 'port', 'ssl',
+            'sslcert', 'sslkey', 'sslnegotiation', 'sslpassword', 'sslrootcert',
+            'user', 'uselibpqcompat'
+          ]);
+          const queryEntries = [...direct.searchParams.entries()];
+          const forbiddenKeys = queryEntries
+            .map(([key]) => key.toLowerCase())
+            .filter((key) => forbidden.has(key));
+          if (forbiddenKeys.length > 0) {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL must not contain connection identity, session, or TLS query overrides.');
+          }
+          const sslModes = queryEntries
+            .filter(([key]) => key.toLowerCase() === 'sslmode')
+            .map(([, value]) => value.toLowerCase());
+          if (sslModes.length > 1 || sslModes.some((value) => value !== 'verify-full')) {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL may only specify sslmode=verify-full.');
+          }
+          const channelBindings = queryEntries
+            .filter(([key]) => key.toLowerCase() === 'channel_binding')
+            .map(([, value]) => value.toLowerCase());
+          if (channelBindings.length > 1 || channelBindings.some((value) => value !== 'require')) {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL may only specify channel_binding=require.');
+          }
+          if (!direct.hostname.endsWith('.neon.tech') || direct.hostname.includes('-pooler')) {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL must use a direct Neon endpoint.');
+          }
+          if (direct.port && direct.port !== '5432') {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL must use PostgreSQL port 5432.');
+          }
+          if (decodeURIComponent(direct.username) !== process.env.NEON_ROLE_VALUE) {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL must use NEON_MIGRATION_ROLE.');
+          }
+          if (decodeURIComponent(direct.pathname.replace(/^\/+/, '')) !== process.env.NEON_DATABASE_VALUE) {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL must use NEON_DATABASE_NAME.');
+          }
+          for (const value of [process.env.NEON_PROJECT_ID_VALUE, process.env.NEON_BRANCH_ID_VALUE]) {
+            if (!/^[A-Za-z0-9_-]+$/.test(value || '')) throw new Error('Neon IDs contain unsupported characters.');
+          }
+          for (const value of [process.env.NEON_DATABASE_VALUE, process.env.NEON_ROLE_VALUE, process.env.NEON_RUNTIME_ROLE_VALUE]) {
+            if (!/^[a-z_][a-z0-9_]{0,62}$/.test(value || '')) {
+              throw new Error('Neon database and role names must be lowercase PostgreSQL identifiers.');
+            }
+          }
+          NODE
+
+      - name: Bind the production URL to the configured Neon project and root branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_DIRECT_URL: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_PRODUCTION_BRANCH_ID: ${{ vars.NEON_PRODUCTION_BRANCH_ID }}
+        run: |
+          set -euo pipefail
+          branch_file="$RUNNER_TEMP/neon-production-branch.json"
+          endpoint_file="$RUNNER_TEMP/neon-production-endpoints.json"
+          branch_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $NEON_API_KEY" \
+            --header 'Accept: application/json' \
+            --output "$branch_file" \
+            --write-out '%{http_code}' \
+            "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${NEON_PRODUCTION_BRANCH_ID}")"
+          endpoint_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $NEON_API_KEY" \
+            --header 'Accept: application/json' \
+            --output "$endpoint_file" \
+            --write-out '%{http_code}' \
+            "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${NEON_PRODUCTION_BRANCH_ID}/endpoints")"
+          if [ "$branch_http" != "200" ] || [ "$endpoint_http" != "200" ]; then
+            echo "Could not verify the configured Neon production branch and endpoint." >&2
+            exit 1
+          fi
+          jq -e --arg branch "$NEON_PRODUCTION_BRANCH_ID" \
+            '.branch.id == $branch and .branch.parent_id == null' "$branch_file" >/dev/null
+          direct_host="$(NEON_DIRECT_URL="$NEON_DIRECT_URL" node -e "process.stdout.write(new URL(process.env.NEON_DIRECT_URL).hostname)")"
+          jq -e --arg branch "$NEON_PRODUCTION_BRANCH_ID" --arg host "$direct_host" \
+            '[.endpoints[] | select(.branch_id == $branch and .type == "read_write" and .host == $host)] | length == 1' \
+            "$endpoint_file" >/dev/null
+
+      - name: Checkout the successful main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Verify triggering SHA and all required CI
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REQUIRED_CHECKS: >-
+            ["validate","Tenant RLS Integration","Build & Lint","Migration Chain","Playwright Smoke"]
+          REQUIRED_WORKFLOWS: '["CI/CD Pipeline","E2E Tests"]'
+          EXPECTED_TRIGGER_WORKFLOW_RUN_ID: ${{ env.TRIGGER_RUN_ID }}
+        run: |
+          set -euo pipefail
+          node scripts/wait-for-required-checks.mjs \
+            --repository "$GITHUB_REPOSITORY" \
+            --sha "$TARGET_SHA" \
+            --ref main \
+            --trigger-workflow "E2E Tests" \
+            --trigger-event push \
+            --checks "$REQUIRED_CHECKS" \
+            --workflows "$REQUIRED_WORKFLOWS" \
+            --trigger-run-id "$TRIGGER_RUN_ID"
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce production migration release policy
+        run: |
+          set -euo pipefail
+          pnpm audit:migrations:release
+          pnpm db:manifest:check
+
+      - name: Verify pinned deployment tooling
+        run: |
+          set -euo pipefail
+          configured_version="$(node -p "require('./package.json').devDependencies.vercel || ''")"
+          if [ "$configured_version" != "59.0.0" ]; then
+            echo "Root devDependency vercel must be pinned exactly to 59.0.0." >&2
+            exit 1
+          fi
+          pnpm exec vercel --version | grep -Eq '(^|[^0-9])59\.0\.0([^0-9]|$)'
+
+      - name: Pull Vercel production settings
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          pnpm exec vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Verify pooled Vercel runtime binding and credential separation
+        env:
+          NEON_DIRECT_URL: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
+          EXPECTED_RUNTIME_ROLE: ${{ vars.NEON_RUNTIME_ROLE }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { createRequire } from 'node:module';
+          import { existsSync, readFileSync } from 'node:fs';
+          import { dirname, resolve } from 'node:path';
+
+          const linkCandidates = [
+            '.vercel/project.json',
+            'apps/web/.vercel/project.json'
+          ].filter(existsSync);
+          if (linkCandidates.length !== 1) {
+            throw new Error(`Expected exactly one Vercel project link, found ${linkCandidates.length}.`);
+          }
+          const link = JSON.parse(readFileSync(linkCandidates[0], 'utf8'));
+          if (
+            link.orgId !== process.env.VERCEL_ORG_ID ||
+            link.projectId !== process.env.VERCEL_PROJECT_ID
+          ) {
+            throw new Error('Pulled Vercel settings do not belong to the configured production project.');
+          }
+
+          const environmentPath = resolve(
+            dirname(linkCandidates[0]),
+            '.env.production.local'
+          );
+          if (!existsSync(environmentPath)) {
+            throw new Error('Vercel did not create the production environment cache.');
+          }
+          const require = createRequire(resolve('apps/web/package.json'));
+          const { parse } = require('dotenv');
+          const pulled = parse(readFileSync(environmentPath));
+          for (const forbidden of ['DIRECT_URL', 'DATABASE_URL_UNPOOLED']) {
+            if (pulled[forbidden]) {
+              throw new Error(`${forbidden} must be removed from Vercel; migration credentials belong only in GitHub.`);
+            }
+          }
+
+          const runtime = new URL(pulled.DATABASE_URL || '');
+          const direct = new URL(process.env.NEON_DIRECT_URL);
+          const configuredOrigin = new URL(process.env.PRODUCTION_URL);
+          const applicationOrigin = new URL(pulled.NEXT_PUBLIC_APP_URL || '');
+          if (
+            applicationOrigin.origin !== configuredOrigin.origin ||
+            applicationOrigin.pathname !== '/' || applicationOrigin.search ||
+            applicationOrigin.hash || applicationOrigin.username ||
+            applicationOrigin.password
+          ) {
+            throw new Error('Vercel NEXT_PUBLIC_APP_URL must exactly match PRODUCTION_URL.');
+          }
+          if (
+            !runtime.hostname.includes('-pooler.') ||
+            runtime.hostname.replace('-pooler.', '.') !== direct.hostname ||
+            decodeURIComponent(runtime.pathname) !== decodeURIComponent(direct.pathname)
+          ) {
+            throw new Error('Vercel DATABASE_URL and the GitHub direct URL must identify the same Neon branch and database.');
+          }
+          if (decodeURIComponent(runtime.username) !== process.env.EXPECTED_RUNTIME_ROLE) {
+            throw new Error('Vercel DATABASE_URL does not use NEON_RUNTIME_ROLE.');
+          }
+          NODE
+
+      - name: Build immutable production output before database mutation
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TARGET_ENV: production
+          DEPLOYMENT_RUNTIME_ROLE: ${{ vars.NEON_RUNTIME_ROLE }}
+          DEPLOYMENT_MIGRATION_ROLE: ${{ vars.NEON_MIGRATION_ROLE }}
+          DATABASE_SSL_MODE: verify-full
+          METRICS_TOKEN: ${{ secrets.METRICS_TOKEN }}
+          GIT_COMMIT_SHA: ${{ env.TARGET_SHA }}
+        run: |
+          set -euo pipefail
+          pnpm exec vercel build --prod --yes --token="$VERCEL_TOKEN"
+
+      - name: Capture current production deployment for rollback
+        id: prior
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          production_host="$(PRODUCTION_URL="$PRODUCTION_URL" node -e "process.stdout.write(new URL(process.env.PRODUCTION_URL).hostname)")"
+          inspection="$RUNNER_TEMP/vercel-prior-production.json"
+          inspection_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header 'Accept: application/json' \
+            --output "$inspection" \
+            --write-out '%{http_code}' \
+            "https://api.vercel.com/v13/deployments/${production_host}?teamId=${VERCEL_ORG_ID}")"
+          if [ "$inspection_http" != "200" ]; then
+            echo "Could not resolve PRODUCTION_URL through the configured Vercel team (HTTP $inspection_http)." >&2
+            exit 1
+          fi
+          jq -e \
+            --arg project "$VERCEL_PROJECT_ID" \
+            --arg alias "$production_host" \
+            '.projectId == $project and
+             .target == "production" and
+             .readyState == "READY" and
+             ([.alias[]? | ascii_downcase] | index($alias) != null)' \
+            "$inspection" >/dev/null
+          prior_id="$(jq -er '.id | select(type == "string" and test("^dpl_[A-Za-z0-9]+$"))' "$inspection")"
+          prior_url="$(jq -er '.url | select(type == "string" and length > 0)' "$inspection")"
+          echo "prior_id=$prior_id" >> "$GITHUB_OUTPUT"
+          echo "prior_url=$prior_url" >> "$GITHUB_OUTPUT"
+
+      - name: Create pre-migration Neon snapshot
+        id: snapshot
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_PRODUCTION_BRANCH_ID: ${{ vars.NEON_PRODUCTION_BRANCH_ID }}
+        run: |
+          set -euo pipefail
+          snapshot_name="pre-migrate-${TARGET_SHA:0:12}-${GITHUB_RUN_ID}"
+          expires_at="$(date -u -d '+7 days' '+%Y-%m-%dT%H:%M:%SZ')"
+          encoded_name="$(jq -rn --arg value "$snapshot_name" '$value|@uri')"
+          encoded_expiry="$(jq -rn --arg value "$expires_at" '$value|@uri')"
+          response_file="$RUNNER_TEMP/neon-snapshot-create.json"
+          snapshot_url="https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${NEON_PRODUCTION_BRANCH_ID}/snapshot?name=${encoded_name}&expires_at=${encoded_expiry}"
+
+          set +e
+          http_code="$(curl --silent --show-error --max-time 30 \
+            --request POST \
+            --header "Authorization: Bearer $NEON_API_KEY" \
+            --header 'Accept: application/json' \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            "$snapshot_url")"
+          curl_status=$?
+          set -e
+          if [ "$curl_status" -ne 0 ]; then
+            echo "Neon snapshot request had an ambiguous transport failure; not retrying. Inspect snapshot name $snapshot_name." >&2
+            exit 1
+          fi
+          if [ "$http_code" != "200" ]; then
+            echo "Neon snapshot creation failed with HTTP $http_code; not retrying POST." >&2
+            exit 1
+          fi
+
+          snapshot_id="$(jq -er \
+            --arg branch "$NEON_PRODUCTION_BRANCH_ID" \
+            --arg name "$snapshot_name" \
+            '.snapshot | select(.source_branch_id == $branch and .name == $name and .manual == true) | .id | select(type == "string" and length > 0)' \
+            "$response_file")"
+          jq -e '.operations | type == "array"' "$response_file" >/dev/null
+          mapfile -t operation_ids < <(jq -r '.operations[]?.id // empty' "$response_file")
+          for operation_id in "${operation_ids[@]}"; do
+            if ! [[ "$operation_id" =~ ^[A-Za-z0-9_-]+$ ]]; then
+              echo "Neon returned an invalid snapshot operation ID." >&2
+              exit 1
+            fi
+            settled=false
+            for attempt in $(seq 1 60); do
+              operation_file="$RUNNER_TEMP/neon-operation-${operation_id}.json"
+              operation_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+                --header "Authorization: Bearer $NEON_API_KEY" \
+                --header 'Accept: application/json' \
+                --output "$operation_file" \
+                --write-out '%{http_code}' \
+                "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/operations/${operation_id}")"
+              if [ "$operation_http" != "200" ]; then
+                echo "Neon snapshot operation polling failed with HTTP $operation_http." >&2
+                exit 1
+              fi
+              status="$(jq -er '.operation.status | select(type == "string")' "$operation_file")"
+              case "$status" in
+                finished|skipped)
+                  settled=true
+                  break
+                  ;;
+                scheduling|running)
+                  ;;
+                failed|cancelled|cancelling)
+                  echo "Neon snapshot operation entered terminal state $status." >&2
+                  exit 1
+                  ;;
+                *)
+                  echo "Neon snapshot operation returned unknown state $status." >&2
+                  exit 1
+                  ;;
+              esac
+              sleep 5
+            done
+            if [ "$settled" != "true" ]; then
+              echo "Timed out waiting for Neon snapshot operation." >&2
+              exit 1
+            fi
+          done
+
+          snapshots_file="$RUNNER_TEMP/neon-snapshots.json"
+          snapshots_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $NEON_API_KEY" \
+            --header 'Accept: application/json' \
+            --output "$snapshots_file" \
+            --write-out '%{http_code}' \
+            "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/snapshots")"
+          if [ "$snapshots_http" != "200" ]; then
+            echo "Neon snapshot verification failed with HTTP $snapshots_http." >&2
+            exit 1
+          fi
+          jq -e \
+            --arg id "$snapshot_id" \
+            --arg branch "$NEON_PRODUCTION_BRANCH_ID" \
+            --arg name "$snapshot_name" \
+            '[.snapshots[] | select(
+              .id == $id and
+              .source_branch_id == $branch and
+              .name == $name and
+              .manual == true
+            )] | length == 1' \
+            "$snapshots_file" >/dev/null
+
+          echo "snapshot_id=$snapshot_id" >> "$GITHUB_OUTPUT"
+          echo "snapshot_name=$snapshot_name" >> "$GITHUB_OUTPUT"
+          snapshot_metadata="$RUNNER_TEMP/neon-snapshot-metadata.json"
+          jq -n \
+            --arg id "$snapshot_id" \
+            --arg name "$snapshot_name" \
+            --arg source_branch_id "$NEON_PRODUCTION_BRANCH_ID" \
+            --arg expires_at "$expires_at" \
+            '{snapshot_id: $id, snapshot_name: $name, source_branch_id: $source_branch_id, expires_at: $expires_at}' \
+            > "$snapshot_metadata"
+          echo "metadata_path=$snapshot_metadata" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Pre-migration Neon snapshot"
+            echo "- Snapshot: \`$snapshot_id\`"
+            echo "- Name: \`$snapshot_name\`"
+            echo "- Expires: \`$expires_at\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Preserve snapshot recovery metadata before migration
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: neon-pre-migration-snapshot-${{ github.run_id }}
+          path: ${{ steps.snapshot.outputs.metadata_path }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Apply locked production migrations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIRECT_URL: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
+          DATABASE_SSL_MODE: verify-full
+          DEPLOYMENT_RUNTIME_ROLE: ${{ vars.NEON_RUNTIME_ROLE }}
+        run: |
+          set -euo pipefail
+          current_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          if [ "$current_sha" != "$TARGET_SHA" ]; then
+            echo "main advanced to $current_sha before migration; refusing stale release $TARGET_SHA." >&2
+            exit 1
+          fi
+          pnpm db:migrate:deploy -- --target production
+
+      - name: Deploy prebuilt production candidate without assigning domains
+        id: candidate
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          METRICS_TOKEN: ${{ secrets.METRICS_TOKEN }}
+        run: |
+          set -euo pipefail
+          deployment_json="$RUNNER_TEMP/vercel-production-candidate.json"
+          pnpm exec vercel deploy \
+            --prebuilt \
+            --prod \
+            --skip-domain \
+            --yes \
+            --json \
+            --token="$VERCEL_TOKEN" \
+            --meta "githubDeployment=1" \
+            --meta "githubCommitRef=main" \
+            --meta "gitCommitSha=$TARGET_SHA" \
+            --meta "githubCommitSha=$TARGET_SHA" \
+            --meta "githubCommitOrg=${{ github.repository_owner }}" \
+            --meta "githubCommitRepo=${{ github.event.repository.name }}" \
+            --meta "githubRunId=$GITHUB_RUN_ID" \
+            --env METRICS_TOKEN \
+            --env "GIT_COMMIT_SHA=$TARGET_SHA" \
+            >"$deployment_json"
+          candidate_url="$(jq -er '(.deployment // .).url | select(type == "string" and length > 0)' "$deployment_json")"
+          candidate_id="$(jq -er '(.deployment // .).id | select(type == "string" and length > 0)' "$deployment_json")"
+          case "$candidate_url" in
+            https://*) ;;
+            *) candidate_url="https://$candidate_url" ;;
+          esac
+          echo "candidate_url=$candidate_url" >> "$GITHUB_OUTPUT"
+          echo "candidate_id=$candidate_id" >> "$GITHUB_OUTPUT"
+
+      - name: Verify staged production candidate
+        env:
+          DEPLOYMENT_URL: ${{ steps.candidate.outputs.candidate_url }}
+          EXPECTED_GIT_SHA: ${{ env.TARGET_SHA }}
+          METRICS_TOKEN: ${{ secrets.METRICS_TOKEN }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node scripts/verify-deployment.mjs --require-bypass true --attempts 18
+
+      - name: Promote verified candidate
+        id: promote
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
+        run: |
+          set -euo pipefail
+          current_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          if [ "$current_sha" != "$TARGET_SHA" ]; then
+            echo "main advanced to $current_sha after migration; leaving the expand-only schema change in place but refusing stale promotion $TARGET_SHA." >&2
+            exit 1
+          fi
+          echo "attempted=true" >> "$GITHUB_OUTPUT"
+          pnpm exec vercel promote "$CANDIDATE_ID" --yes --timeout 5m --token="$VERCEL_TOKEN"
+          echo "succeeded=true" >> "$GITHUB_OUTPUT"
+
+      - name: Verify canonical production after promotion
+        env:
+          DEPLOYMENT_URL: ${{ env.PRODUCTION_URL }}
+          EXPECTED_GIT_SHA: ${{ env.TARGET_SHA }}
+          METRICS_TOKEN: ${{ secrets.METRICS_TOKEN }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node scripts/verify-deployment.mjs --attempts 18
+
+      - name: Roll back Vercel to captured production on promotion failure
+        id: rollback
+        if: >-
+          failure() &&
+          steps.promote.outputs.attempted == 'true' &&
+          steps.prior.outputs.prior_id != ''
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PRIOR_DEPLOYMENT_ID: ${{ steps.prior.outputs.prior_id }}
+          SNAPSHOT_ID: ${{ steps.snapshot.outputs.snapshot_id }}
+        run: |
+          set -euo pipefail
+          echo "Promotion failed; rolling Vercel back. Neon snapshot $SNAPSHOT_ID is retained for manual database recovery." >&2
+          pnpm exec vercel rollback "$PRIOR_DEPLOYMENT_ID" --yes --timeout 5m --token="$VERCEL_TOKEN"
+
+      - name: Verify rollback restored the captured deployment
+        if: >-
+          always() &&
+          steps.rollback.outcome == 'success' &&
+          steps.prior.outputs.prior_id != '' &&
+          steps.promote.outputs.attempted == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PRIOR_DEPLOYMENT_ID: ${{ steps.prior.outputs.prior_id }}
+        run: |
+          set -euo pipefail
+          inspection="$RUNNER_TEMP/vercel-after-rollback.json"
+          pnpm exec vercel inspect "$PRODUCTION_URL" --json --token="$VERCEL_TOKEN" >"$inspection"
+          current_id="$(jq -er '(.id // .deployment.id) | select(type == "string" and length > 0)' "$inspection")"
+          if [ "$current_id" != "$PRIOR_DEPLOYMENT_ID" ]; then
+            echo "Canonical production does not point to the captured rollback deployment." >&2
+            exit 1
+          fi
+
+      - name: Delete an unpromoted or rolled-back production candidate
+        if: >-
+          always() &&
+          failure() &&
+          steps.candidate.outcome != 'skipped' &&
+          (steps.promote.outputs.attempted != 'true' || steps.rollback.outcome == 'success')
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
+          CANDIDATE_STEP_OUTCOME: ${{ steps.candidate.outcome }}
+        run: |
+          set -euo pipefail
+          candidate_ids="$RUNNER_TEMP/vercel-failed-candidate-ids.txt"
+          : > "$candidate_ids"
+          if [ -n "$CANDIDATE_ID" ]; then
+            if ! [[ "$CANDIDATE_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]; then
+              echo "Ignoring malformed candidate output and reconciling through the Vercel API." >&2
+            else
+              echo "$CANDIDATE_ID" >> "$candidate_ids"
+            fi
+          fi
+          deployment_json="$RUNNER_TEMP/vercel-production-candidate.json"
+          if [ -s "$deployment_json" ]; then
+            if parsed_candidate="$(jq -er '(.deployment // .).id | select(type == "string" and test("^dpl_[A-Za-z0-9]+$"))' "$deployment_json" 2>/dev/null)"; then
+              echo "$parsed_candidate" >> "$candidate_ids"
+            fi
+          fi
+
+          for attempt in 1 2 3; do
+            list_file="$RUNNER_TEMP/vercel-production-candidates-${attempt}.json"
+            list_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --header 'Accept: application/json' \
+              --output "$list_file" \
+              --write-out '%{http_code}' \
+              "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_ORG_ID}&target=production&limit=100")"
+            if [ "$list_http" != "200" ]; then
+              echo "Candidate reconciliation failed with HTTP $list_http." >&2
+              exit 1
+            fi
+            jq -r \
+              --arg project "$VERCEL_PROJECT_ID" \
+              --arg sha "$TARGET_SHA" \
+              --arg run "$GITHUB_RUN_ID" \
+              '.deployments[] |
+               select(
+                 .projectId == $project and .target == "production" and
+                 .meta.githubCommitSha == $sha and .meta.githubRunId == $run
+               ) |
+               (.uid // .id) |
+               select(type == "string" and test("^dpl_[A-Za-z0-9]+$"))' \
+              "$list_file" >> "$candidate_ids"
+            if [ "$attempt" != "3" ]; then sleep 5; fi
+          done
+          sort -u "$candidate_ids" -o "$candidate_ids"
+          if [ ! -s "$candidate_ids" ]; then
+            echo "Could not prove whether the $CANDIDATE_STEP_OUTCOME candidate step created a deployment. Manually reconcile Vercel project $VERCEL_PROJECT_ID for run $GITHUB_RUN_ID before the next release." >&2
+            exit 1
+          fi
+
+          production_host="$(PRODUCTION_URL="$PRODUCTION_URL" node -e "process.stdout.write(new URL(process.env.PRODUCTION_URL).hostname)")"
+          while IFS= read -r candidate_id; do
+            candidate_file="$RUNNER_TEMP/vercel-failed-candidate-${candidate_id}.json"
+            candidate_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --header 'Accept: application/json' \
+              --output "$candidate_file" \
+              --write-out '%{http_code}' \
+              "https://api.vercel.com/v13/deployments/${candidate_id}?teamId=${VERCEL_ORG_ID}")"
+            if [ "$candidate_http" = "404" ]; then
+              continue
+            fi
+            if [ "$candidate_http" != "200" ]; then
+              echo "Could not verify failed candidate ownership (HTTP $candidate_http)." >&2
+              exit 1
+            fi
+            jq -e \
+              --arg id "$candidate_id" \
+              --arg project "$VERCEL_PROJECT_ID" \
+              --arg sha "$TARGET_SHA" \
+              --arg run "$GITHUB_RUN_ID" \
+              --arg production "$production_host" \
+              '.id == $id and .projectId == $project and .target == "production" and
+               .meta.githubCommitSha == $sha and .meta.githubRunId == $run and
+               ([.alias[]? | ascii_downcase] | index($production) == null)' \
+              "$candidate_file" >/dev/null
+
+            delete_file="$RUNNER_TEMP/vercel-failed-candidate-delete-${candidate_id}.json"
+            set +e
+            delete_http="$(curl --silent --show-error --max-time 30 \
+              --request DELETE \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --header 'Accept: application/json' \
+              --output "$delete_file" \
+              --write-out '%{http_code}' \
+              "https://api.vercel.com/v13/deployments/${candidate_id}?teamId=${VERCEL_ORG_ID}")"
+            delete_status=$?
+            set -e
+            if [ "$delete_status" -ne 0 ]; then
+              echo "Candidate deletion had an ambiguous transport failure; inspect $candidate_id." >&2
+              exit 1
+            fi
+            case "$delete_http" in
+              200|204|404) ;;
+              *)
+                echo "Candidate deletion failed with HTTP $delete_http." >&2
+                exit 1
+                ;;
+            esac
+          done < "$candidate_ids"

@@ -3,9 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "deployment:check": "pnpm --filter @school-sis/web run deployment:check",
+    "deployment:verify": "node scripts/verify-deployment.mjs",
+    "vercel-build": "pnpm --filter @school-sis/web run vercel-build",
     "start": "turbo run start",
     "lint": "turbo run lint",
     "test": "turbo run test",
@@ -19,7 +25,10 @@
     "db:down": "bash scripts/local-db.sh down",
     "db:reset": "bash scripts/local-db.sh reset",
     "db:generate": "pnpm --filter @school-sis/web run db:generate",
+    "db:manifest": "pnpm --filter @school-sis/web run db:manifest",
+    "db:manifest:check": "pnpm --filter @school-sis/web run db:manifest:check",
     "db:migrate": "pnpm --filter @school-sis/web run db:migrate",
+    "db:migrate:deploy": "pnpm --filter @school-sis/web run db:migrate:deploy",
     "db:push": "pnpm --filter @school-sis/web run db:push",
     "db:seed": "pnpm --filter @school-sis/web run db:seed",
     "db:studio": "pnpm --filter @school-sis/web run db:studio",
@@ -33,6 +42,7 @@
     "audit:hygiene": "node scripts/check-repository-hygiene.mjs",
     "audit:debt": "node scripts/check-risk-debt.mjs",
     "audit:migrations": "node scripts/check-destructive-migrations.mjs",
+    "audit:migrations:release": "node scripts/check-destructive-migrations.mjs --release",
     "audit:rls-matrix": "node scripts/check-rls-policy-matrix.mjs",
     "audit:ci": "pnpm audit:security && pnpm audit:secrets && pnpm audit:hygiene && pnpm audit:debt && pnpm audit:migrations && pnpm audit:rls-matrix",
     "prepare": "husky"
@@ -46,7 +56,8 @@
     "next": "16.2.11",
     "prettier": "^3.2.0",
     "ts-jest": "^29.4.9",
-    "turbo": "^2.0.0"
+    "turbo": "^2.0.0",
+    "vercel": "59.0.0"
   },
   "pnpm": {
     "patchedDependencies": {
@@ -65,8 +76,15 @@
       "postcss": "8.5.26",
       "fast-xml-parser": "5.10.1",
       "brace-expansion@5.0.5": "5.0.9",
+      "nanoid@3.3.15": "3.3.18",
+      "nanoid@3.3.17": "3.3.18",
+      "path-to-regexp@8.2.0": "8.4.2",
+      "path-to-regexp@8.3.0": "8.4.2",
       "js-yaml@3.14.2": "3.15.1",
-      "js-yaml@4.1.1": "4.3.1"
+      "js-yaml@4.1.1": "4.3.1",
+      "tar@7.5.7": "7.5.22",
+      "undici@5.28.4": "6.28.0",
+      "undici@5.29.0": "6.28.0"
     }
   }
 }

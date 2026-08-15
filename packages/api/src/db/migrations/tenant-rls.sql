@@ -1,5 +1,5 @@
-BEGIN;
-
+-- The deployment and standalone RLS runners own the transaction boundary.
+-- Keep this file free of BEGIN/COMMIT so schema, ledger, RLS, and grants share one commit.
 SET LOCAL app.bypass_rls = 'on';
 SET LOCAL app.current_tenant = '';
 
@@ -1034,5 +1034,3 @@ BEGIN
             );
     END IF;
 END $$;
-
-COMMIT;
