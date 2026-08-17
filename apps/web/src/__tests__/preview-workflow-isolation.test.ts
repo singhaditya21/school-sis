@@ -137,7 +137,7 @@ describe("preview Vercel project isolation workflow", () => {
       "PREVIEW_BRANCH_NAME: preview/pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}",
     );
     expect(cleanupWorkflow).toContain(
-      '.name == $name and .parent_id == null and .init_source == "schema-only"',
+      '.name == $name and .parent_id == null and .init_source == "parent-schema"',
     );
     expect(cleanupWorkflow).not.toContain("--arg parent");
 
@@ -162,7 +162,7 @@ describe("preview Vercel project isolation workflow", () => {
     );
     expect(refreshScript).toContain("payload?.branch?.parent_id === null");
     expect(refreshScript).toContain(
-      "payload.branch.init_source === 'schema-only'",
+      "payload.branch.init_source === 'parent-schema'",
     );
     expect(refreshScript).toContain(
       "actualExpiresAt.getTime() === expiresAt.getTime()",
@@ -174,10 +174,6 @@ describe("preview Vercel project isolation workflow", () => {
     expect(refreshScript).toContain(
       "PATCH is not retried after an ambiguous transport result",
     );
-    expect(refreshScript).toContain("idMatches:");
-    expect(refreshScript).toContain("nameMatches:");
-    expect(refreshScript).toContain("initSource:");
-    expect(refreshScript).toContain("expiresAt:");
     expect(workflow).toContain('sub("\\\\.[0-9]+Z$"; "Z") | fromdateiso8601');
   });
 
@@ -249,10 +245,10 @@ describe("preview Vercel project isolation workflow", () => {
       expect(workflow).toContain(`Neon output validation: ${stage}.`);
     }
     expect(workflow).toContain(
-      "Neon branch metadata validation failed for the expected id, root schema-only source, name, or expiry.",
+      "Neon branch metadata validation failed for the expected id, root parent-schema source, name, or expiry.",
     );
     expect(workflow).toContain(".branch.parent_id == null");
-    expect(workflow).toContain('.branch.init_source == "schema-only"');
+    expect(workflow).toContain('.branch.init_source == "parent-schema"');
     expect(workflow).not.toContain(".branch.parent_id == $parent");
   });
 

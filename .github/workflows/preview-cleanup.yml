@@ -65,7 +65,7 @@ jobs:
 
           branch_id="$(jq -er \
             --arg name "$PREVIEW_BRANCH_NAME" \
-            '.branches[] | select(.name == $name and .parent_id == null and .init_source == "schema-only") | .id' \
+            '.branches[] | select(.name == $name and .parent_id == null and .init_source == "parent-schema") | .id' \
             "$branches_file")"
           if ! [[ "$branch_id" =~ ^br-[a-z0-9-]+$ ]]; then
             echo "Refusing to delete an unexpected Neon branch ID or parent." >&2

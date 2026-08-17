@@ -474,7 +474,6 @@ jobs:
           }
 
           let verified = false;
-          let lastObservation = { result: 'no-successful-get' };
           for (let attempt = 1; attempt <= 20; attempt += 1) {
             try {
               const verification = await fetch(endpoint, {
@@ -487,21 +486,11 @@ jobs:
                 const parentIsRoot =
                   payload?.branch?.parent_id === null ||
                   !Object.prototype.hasOwnProperty.call(payload?.branch ?? {}, 'parent_id');
-                lastObservation = {
-                  result: `HTTP ${verification.status}`,
-                  idMatches: payload?.branch?.id === process.env.PREVIEW_BRANCH_ID,
-                  nameMatches: payload?.branch?.name === process.env.EXPECTED_BRANCH_NAME,
-                  parentId: Object.prototype.hasOwnProperty.call(payload?.branch ?? {}, 'parent_id')
-                    ? payload.branch.parent_id
-                    : 'omitted',
-                  initSource: payload?.branch?.init_source ?? 'omitted',
-                  expiresAt: payload?.branch?.expires_at ?? 'omitted',
-                };
                 verified =
                   payload?.branch?.id === process.env.PREVIEW_BRANCH_ID &&
                   payload.branch.name === process.env.EXPECTED_BRANCH_NAME &&
                   parentIsRoot &&
-                  payload.branch.init_source === 'schema-only' &&
+                  payload.branch.init_source === 'parent-schema' &&
                   !Number.isNaN(actualExpiresAt.getTime()) &&
                   actualExpiresAt.getTime() === expiresAt.getTime();
               }
@@ -512,9 +501,7 @@ jobs:
             await new Promise((resolve) => setTimeout(resolve, 1_000));
           }
           if (!verified) {
-            throw new Error(
-              `Could not prove exact preview branch expiry after PATCH (${patchStatus}): ${JSON.stringify(lastObservation)}`,
-            );
+            throw new Error(`Could not prove exact preview branch expiry after PATCH (${patchStatus}).`);
           }
           NODE
 
@@ -1014,9 +1001,9 @@ jobs:
               --arg id "$PREVIEW_MIGRATION_BRANCH_ID" \
               --arg name "$EXPECTED_BRANCH_NAME" \
               --arg expires "$EXPECTED_EXPIRES_AT" \
-              '.branch.id == $id and .branch.parent_id == null and .branch.init_source == "schema-only" and .branch.name == $name and (.branch.expires_at | type == "string") and ((.branch.expires_at | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) == ($expires | fromdateiso8601))' \
+              '.branch.id == $id and .branch.parent_id == null and .branch.init_source == "parent-schema" and .branch.name == $name and (.branch.expires_at | type == "string") and ((.branch.expires_at | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) == ($expires | fromdateiso8601))' \
               "$branch_file" >/dev/null; then
-            echo "Neon branch metadata validation failed for the expected id, root schema-only source, name, or expiry." >&2
+            echo "Neon branch metadata validation failed for the expected id, root parent-schema source, name, or expiry." >&2
             exit 1
           fi
           echo "Neon output validation: branch metadata matches." >&2
