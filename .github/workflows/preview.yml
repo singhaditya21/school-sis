@@ -458,7 +458,7 @@ jobs:
             Authorization: `Bearer ${process.env.NEON_API_KEY_VALUE}`,
             'Content-Type': 'application/json',
           };
-          let payload;
+          let patchStatus = 'transport-error';
           try {
             const response = await fetch(endpoint, {
               method: 'PATCH',
@@ -466,30 +466,39 @@ jobs:
               body: JSON.stringify({ branch: { expires_at: process.env.EXPECTED_EXPIRES_AT } }),
               signal: AbortSignal.timeout(20_000),
             });
-            if (!response.ok) {
-              throw new Error(`HTTP ${response.status}`);
-            }
-            payload = await response.json();
+            patchStatus = `HTTP ${response.status}`;
+            await response.arrayBuffer();
           } catch {
-            const verification = await fetch(endpoint, {
-              headers,
-              signal: AbortSignal.timeout(20_000),
-            });
-            if (!verification.ok) {
-              throw new Error(`Could not prove preview branch expiry after PATCH (HTTP ${verification.status}).`);
-            }
-            payload = await verification.json();
+            // PATCH is not retried after an ambiguous transport result. The
+            // idempotent GET proof below settles whether Neon applied it.
           }
-          const actualExpiresAt = new Date(payload?.branch?.expires_at);
-          if (
-            payload?.branch?.id !== process.env.PREVIEW_BRANCH_ID ||
-            payload.branch.name !== process.env.EXPECTED_BRANCH_NAME ||
-            payload.branch.parent_id !== null ||
-            payload.branch.init_source !== 'schema-only' ||
-            Number.isNaN(actualExpiresAt.getTime()) ||
-            actualExpiresAt.getTime() !== expiresAt.getTime()
-          ) {
-            throw new Error('Preview branch expiry or schema-only identity did not match the exact requested state.');
+
+          let verified = false;
+          for (let attempt = 1; attempt <= 20; attempt += 1) {
+            try {
+              const verification = await fetch(endpoint, {
+                headers,
+                signal: AbortSignal.timeout(5_000),
+              });
+              if (verification.ok) {
+                const payload = await verification.json();
+                const actualExpiresAt = new Date(payload?.branch?.expires_at);
+                verified =
+                  payload?.branch?.id === process.env.PREVIEW_BRANCH_ID &&
+                  payload.branch.name === process.env.EXPECTED_BRANCH_NAME &&
+                  payload.branch.parent_id === null &&
+                  payload.branch.init_source === 'schema-only' &&
+                  !Number.isNaN(actualExpiresAt.getTime()) &&
+                  actualExpiresAt.getTime() === expiresAt.getTime();
+              }
+            } catch {
+              // A GET is safe to retry and never mutates branch state.
+            }
+            if (verified) break;
+            await new Promise((resolve) => setTimeout(resolve, 1_000));
+          }
+          if (!verified) {
+            throw new Error(`Could not prove exact preview branch expiry after PATCH (${patchStatus}).`);
           }
           NODE
 

@@ -157,12 +157,19 @@ describe("preview Vercel project isolation workflow", () => {
     expect(refreshScript).toContain(
       "JSON.stringify({ branch: { expires_at: process.env.EXPECTED_EXPIRES_AT } })",
     );
-    expect(refreshScript).toContain("payload.branch.parent_id !== null");
+    expect(refreshScript).toContain("payload.branch.parent_id === null");
     expect(refreshScript).toContain(
-      "payload.branch.init_source !== 'schema-only'",
+      "payload.branch.init_source === 'schema-only'",
     );
     expect(refreshScript).toContain(
-      "actualExpiresAt.getTime() !== expiresAt.getTime()",
+      "actualExpiresAt.getTime() === expiresAt.getTime()",
+    );
+    expect(refreshScript).toContain(
+      "for (let attempt = 1; attempt <= 20; attempt += 1)",
+    );
+    expect(refreshScript.match(/method: 'PATCH'/g)).toHaveLength(1);
+    expect(refreshScript).toContain(
+      "PATCH is not retried after an ambiguous transport result",
     );
     expect(workflow).toContain('sub("\\\\.[0-9]+Z$"; "Z") | fromdateiso8601');
   });
