@@ -125,8 +125,9 @@ test("readiness validation fails closed on degraded dependencies or stale migrat
 });
 
 test("verifyVercelProtection requires the exact Vercel Authentication challenge", async () => {
+  const protectedUrl = "https://example.vercel.app/api/health";
   await verifyVercelProtection(
-    "https://example.vercel.app/api/health",
+    protectedUrl,
     1000,
     async () =>
       new Response(null, {
@@ -138,6 +139,31 @@ test("verifyVercelProtection requires the exact Vercel Authentication challenge"
           "x-vercel-id": "iad1::example",
         },
       }),
+  );
+
+  await verifyVercelProtection(
+    protectedUrl,
+    1000,
+    async () =>
+      new Response(
+        JSON.stringify({
+          error: { code: "401", message: "Protected deployment" },
+          protection: {
+            auto_vercel_auth_redirect: true,
+            password_enabled: false,
+            vercel_auth_enabled: true,
+            vercel_auth_callback: `https://vercel.com/sso-api?url=${encodeURIComponent(protectedUrl)}&nonce=example`,
+          },
+        }),
+        {
+          status: 401,
+          headers: {
+            "content-type": "application/json",
+            server: "Vercel",
+            "x-vercel-id": "iad1::example",
+          },
+        },
+      ),
   );
 
   await assert.rejects(
@@ -161,6 +187,23 @@ test("verifyVercelProtection requires the exact Vercel Authentication challenge"
           status: 302,
           headers: {
             location: "https://attacker.example/sso-api",
+            server: "Vercel",
+            "x-vercel-id": "iad1::example",
+          },
+        }),
+    ),
+    /expected Vercel Authentication challenge/,
+  );
+  await assert.rejects(
+    verifyVercelProtection(
+      protectedUrl,
+      1000,
+      async () =>
+        new Response(null, {
+          status: 302,
+          headers: {
+            location:
+              "https://vercel.com/sso-api?url=https%3A%2F%2Fother.vercel.app%2Fapi%2Fhealth",
             server: "Vercel",
             "x-vercel-id": "iad1::example",
           },

@@ -313,6 +313,21 @@ async function fetchHtmlProbe(url, headers, timeoutMs, fetchImpl, label) {
   }
 }
 
+function isExactVercelAuthCallback(value, protectedUrl) {
+  let callback;
+  try {
+    callback = new URL(value);
+  } catch {
+    return false;
+  }
+  return (
+    callback.protocol === "https:" &&
+    callback.hostname === "vercel.com" &&
+    callback.pathname === "/sso-api" &&
+    callback.searchParams.get("url") === protectedUrl
+  );
+}
+
 export async function verifyVercelProtection(url, timeoutMs, fetchImpl) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -329,20 +344,35 @@ export async function verifyVercelProtection(url, timeoutMs, fetchImpl) {
     const location = response.headers.get("location") ?? "";
     const server = response.headers.get("server") ?? "";
     const vercelId = response.headers.get("x-vercel-id") ?? "";
-    let redirect;
-    try {
-      redirect = new URL(location);
-    } catch {
-      redirect = null;
-    }
-    const protectedByVercel =
+    const commonVercelHeaders =
+      server.toLowerCase() === "vercel" && vercelId.length > 0;
+    const protectedByRedirect =
       [302, 303, 307, 308].includes(response.status) &&
-      server.toLowerCase() === "vercel" &&
-      vercelId.length > 0 &&
-      redirect?.protocol === "https:" &&
-      redirect.hostname === "vercel.com" &&
-      redirect.pathname === "/sso-api";
-    if (!protectedByVercel) {
+      commonVercelHeaders &&
+      isExactVercelAuthCallback(location, url);
+    let protectedByJson = false;
+    if (response.status === 401 && commonVercelHeaders) {
+      const contentType = response.headers.get("content-type") ?? "";
+      if (contentType.toLowerCase().includes("application/json")) {
+        const body = await response.text();
+        if (body.length <= 65_536) {
+          try {
+            const payload = JSON.parse(body);
+            protectedByJson =
+              payload?.error?.code === "401" &&
+              payload.error.message === "Protected deployment" &&
+              payload?.protection?.vercel_auth_enabled === true &&
+              isExactVercelAuthCallback(
+                payload.protection.vercel_auth_callback,
+                url,
+              );
+          } catch {
+            protectedByJson = false;
+          }
+        }
+      }
+    }
+    if (!protectedByRedirect && !protectedByJson) {
       throw new Error(
         "deployment URL is publicly reachable or did not return the expected Vercel Authentication challenge",
       );
