@@ -1385,16 +1385,6 @@ function assertSignedTenantContextTargetCatalog(
           "CHECK",
         ],
       },
-      notNullConstraints: {
-        tenant_context_rollout_state_enforcement_phase_not_null: [
-          "NOT NULL",
-          "enforcement_phase",
-        ],
-        tenant_context_rollout_state_singleton_not_null: [
-          "NOT NULL",
-          "singleton",
-        ],
-      },
       index: "tenant_context_rollout_state_pkey",
     },
     tenant_context_signing_keys: {
@@ -1420,15 +1410,6 @@ function assertSignedTenantContextTargetCatalog(
           "<= 128",
           "CHECK",
         ],
-      },
-      notNullConstraints: {
-        tenant_context_signing_keys_audience_not_null: ["NOT NULL", "audience"],
-        tenant_context_signing_keys_created_at_not_null: [
-          "NOT NULL",
-          "created_at",
-        ],
-        tenant_context_signing_keys_key_id_not_null: ["NOT NULL", "key_id"],
-        tenant_context_signing_keys_secret_not_null: ["NOT NULL", "secret"],
       },
       index: "tenant_context_signing_keys_pkey",
     },
@@ -1493,21 +1474,15 @@ function assertSignedTenantContextTargetCatalog(
 
     const constraints = catalogRows.constraints
       .filter(
-        (row) => row.schema === "app_private" && row.relation === tableName,
+        (row) =>
+          row.schema === "app_private" &&
+          row.relation === tableName &&
+          row.type !== "n",
       )
       .map((row) => {
-        const ordinaryTokens =
+        const expectedTokens =
           expected.constraints[row.name as keyof typeof expected.constraints];
-        const notNullTokens =
-          expected.notNullConstraints[
-            row.name as keyof typeof expected.notNullConstraints
-          ];
-        const expectedTokens = ordinaryTokens ?? notNullTokens;
-        const expectedType = notNullTokens
-          ? "n"
-          : row.name.endsWith("_pkey")
-            ? "p"
-            : "c";
+        const expectedType = row.name.endsWith("_pkey") ? "p" : "c";
         if (
           !expectedTokens ||
           row.type !== expectedType ||
@@ -1524,10 +1499,7 @@ function assertSignedTenantContextTargetCatalog(
         return row.name;
       })
       .sort();
-    const expectedConstraints = [
-      ...Object.keys(expected.constraints),
-      ...Object.keys(expected.notNullConstraints),
-    ].sort();
+    const expectedConstraints = Object.keys(expected.constraints).sort();
     if (
       constraints.length !== expectedConstraints.length ||
       constraints.some(
@@ -2426,6 +2398,7 @@ export function assertTenantContextCredentialContract(input: {
 export function assertExactTransitionInputContents(input: {
   deploymentMigrationsSource: Buffer | string;
   tenantContextKeyContract: Buffer | string;
+  tenantRlsSql: Buffer | string;
 }): void {
   if (
     createHash("sha256")
@@ -2440,6 +2413,12 @@ export function assertExactTransitionInputContents(input: {
       .digest("hex") !== EXACT_TENANT_CONTEXT_KEY_CONTRACT_SHA256
   ) {
     throw new Error("The reviewed tenant-context key contract has changed.");
+  }
+  if (
+    createHash("sha256").update(input.tenantRlsSql).digest("hex") !==
+    EXACT_TENANT_RLS_SHA256
+  ) {
+    throw new Error("The reviewed tenant-RLS SQL has changed.");
   }
 }
 
@@ -2484,12 +2463,6 @@ export function assertExactAdoptionFileContents(input: {
       .join(",")
   ) {
     throw new Error("The reviewed SQL input set is not exact.");
-  }
-  if (
-    createHash("sha256").update(input.tenantRlsSql).digest("hex") !==
-    EXACT_TENANT_RLS_SHA256
-  ) {
-    throw new Error("The reviewed tenant-RLS SQL has changed.");
   }
   assertExactTransitionInputContents(input);
 }

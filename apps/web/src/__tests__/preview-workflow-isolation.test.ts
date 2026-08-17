@@ -27,6 +27,19 @@ const tenantContextKeyContract = JSON.parse(
     "utf8",
   ),
 ) as Record<string, unknown>;
+const rootPackage = JSON.parse(
+  readFileSync(resolve(process.cwd(), "../..", "package.json"), "utf8"),
+) as {
+  pnpm?: { patchedDependencies?: Record<string, string> };
+};
+const rootLockfile = readFileSync(
+  resolve(process.cwd(), "../..", "pnpm-lock.yaml"),
+  "utf8",
+);
+const vercelPatch = readFileSync(
+  resolve(process.cwd(), "../..", "patches/vercel@59.0.0.patch"),
+  "utf8",
+);
 
 describe("preview Vercel project isolation workflow", () => {
   it("allows a shared team only when the preview project differs", () => {
@@ -61,6 +74,22 @@ describe("preview Vercel project isolation workflow", () => {
     );
     expect(workflow).toContain(
       "Could not prove that the preview token is isolated from production",
+    );
+  });
+
+  it("keeps Vercel pull on the project-scoped owner-lookup fallback", () => {
+    expect(rootPackage.pnpm?.patchedDependencies?.["vercel@59.0.0"]).toBe(
+      "patches/vercel@59.0.0.patch",
+    );
+    expect(rootLockfile).toContain("vercel@59.0.0:");
+    expect(rootLockfile).toContain("path: patches/vercel@59.0.0.patch");
+    expect(vercelPatch).toContain("chunk-L6NIIAB7.js");
+    expect(vercelPatch).toContain("pullCommandLogic");
+    expect(vercelPatch).toContain("allowOwnerLookupFallback: true");
+    expect(workflow).toContain('VERCEL_CLI_USE_NATIVE_BINARY: "0"');
+    expect(workflow).toContain("chunk-L6NIIAB7.js");
+    expect(workflow).toContain(
+      "The pinned Vercel project-scoped pull patch is not installed.",
     );
   });
 

@@ -31,6 +31,9 @@ patchedDependencies:
   sonner@2.0.7:
     hash: awurtk6wqdhshbci24mpff43ni
     path: patches/sonner@2.0.7.patch
+  vercel@59.0.0:
+    hash: ehswyiexyud7zky4azfgb4gh6e
+    path: patches/vercel@59.0.0.patch
 
 importers:
 
@@ -65,7 +68,7 @@ importers:
         version: 2.7.5
       vercel:
         specifier: 59.0.0
-        version: 59.0.0(@emnapi/core@1.8.1)(@emnapi/runtime@1.11.3)
+        version: 59.0.0(patch_hash=ehswyiexyud7zky4azfgb4gh6e)(@emnapi/core@1.8.1)(@emnapi/runtime@1.11.3)
 
   apps/mobile:
     dependencies:
@@ -18824,7 +18827,7 @@ snapshots:
 
   vary@1.1.2: {}
 
-  vercel@59.0.0(@emnapi/core@1.8.1)(@emnapi/runtime@1.11.3):
+  vercel@59.0.0(patch_hash=ehswyiexyud7zky4azfgb4gh6e)(@emnapi/core@1.8.1)(@emnapi/runtime@1.11.3):
     dependencies:
       '@vercel/backends': 0.8.37(@emnapi/core@1.8.1)(@emnapi/runtime@1.11.3)
       '@vercel/blob': 2.8.0

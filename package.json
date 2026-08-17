@@ -63,7 +63,8 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "sonner@2.0.7": "patches/sonner@2.0.7.patch"
+      "sonner@2.0.7": "patches/sonner@2.0.7.patch",
+      "vercel@59.0.0": "patches/vercel@59.0.0.patch"
     },
     "overrides": {
       "minimatch": ">=9.0.7",

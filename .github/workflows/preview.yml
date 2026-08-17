@@ -96,6 +96,7 @@ jobs:
       PREVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_PREVIEW_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PREVIEW_PROJECT_ID }}
+      VERCEL_CLI_USE_NATIVE_BINARY: "0"
       DATABASE_SSL_MODE: verify-full
       RATE_LIMIT_BACKEND: postgres
       INTEGRATIONS_MODE: live
@@ -398,6 +399,30 @@ jobs:
             exit 1
           fi
           pnpm exec vercel --version | grep -Eq '(^|[^0-9])59\.0\.0([^0-9]|$)'
+          node --input-type=module <<'NODE'
+          import { createRequire } from 'node:module';
+          import { readFileSync } from 'node:fs';
+          import { dirname, join } from 'node:path';
+
+          const require = createRequire(import.meta.url);
+          const vercelRoot = dirname(require.resolve('vercel/package.json'));
+          const pullChunk = readFileSync(
+            join(vercelRoot, 'dist/chunks/chunk-L6NIIAB7.js'),
+            'utf8',
+          );
+          const callStart = pullChunk.indexOf('const link = await ensureLink("pull"');
+          const callEnd = pullChunk.indexOf('});', callStart);
+          if (callStart < 0 || callEnd < 0) {
+            throw new Error('Could not locate the pinned Vercel pull link contract.');
+          }
+          const pullLinkContract = pullChunk.slice(callStart, callEnd + 3);
+          if (!pullLinkContract.includes('allowOwnerLookupFallback: true')) {
+            throw new Error('The pinned Vercel project-scoped pull patch is not installed.');
+          }
+          if (process.env.VERCEL_CLI_USE_NATIVE_BINARY !== '0') {
+            throw new Error('Preview CI must execute the reviewed JavaScript Vercel CLI.');
+          }
+          NODE
 
       - name: Set preview database expiry backstop
         id: expiry

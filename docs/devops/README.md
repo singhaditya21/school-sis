@@ -307,6 +307,12 @@ rejects any unexpected pulled Preview variable, then removes downloaded Vercel
 environment files before pull-request code runs. Database and core secrets are
 created or supplied for one deployment only.
 
+Vercel CLI 59.0.0 is pinned and patched through pnpm so `vercel pull` accepts
+the CLI's existing project-scoped owner-lookup fallback when the exact Project
+is readable but its owning Team is intentionally not. Preview CI forces the
+reviewed JavaScript CLI path and verifies the installed patch before any
+provider mutation; do not replace this with a Team-wide preview token.
+
 Production Vercel environment variables must include:
 
 ```env

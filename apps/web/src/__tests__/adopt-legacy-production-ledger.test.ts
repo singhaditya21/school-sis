@@ -822,8 +822,36 @@ describe("one-time historical ledger identity", () => {
       assertExactTransitionInputContents({
         deploymentMigrationsSource,
         tenantContextKeyContract,
+        tenantRlsSql,
       }),
     ).not.toThrow();
+    expect(() =>
+      assertExactTransitionInputContents({
+        deploymentMigrationsSource: Buffer.concat([
+          deploymentMigrationsSource,
+          Buffer.from("\n// tampered\n"),
+        ]),
+        tenantContextKeyContract,
+        tenantRlsSql,
+      }),
+    ).toThrow("deployment migrator source has changed");
+    expect(() =>
+      assertExactTransitionInputContents({
+        deploymentMigrationsSource,
+        tenantContextKeyContract: Buffer.concat([
+          tenantContextKeyContract,
+          Buffer.from("\n"),
+        ]),
+        tenantRlsSql,
+      }),
+    ).toThrow("tenant-context key contract has changed");
+    expect(() =>
+      assertExactTransitionInputContents({
+        deploymentMigrationsSource,
+        tenantContextKeyContract,
+        tenantRlsSql: Buffer.concat([tenantRlsSql, Buffer.from("\n")]),
+      }),
+    ).toThrow("tenant-RLS SQL has changed");
     expect(() =>
       assertExactAdoptionFileContents({
         deploymentMigrationsSource,
@@ -1584,6 +1612,76 @@ describe("provider and target-reference evidence", () => {
         configurationForTargetReport(internallyConsistentUnsigned),
       ),
     ).toThrow("reviewed pgcrypto extension");
+
+    const targetWithoutPostgres18NotNullConstraints = structuredClone(report);
+    targetWithoutPostgres18NotNullConstraints.schema.sections.constraints.rows =
+      targetWithoutPostgres18NotNullConstraints.schema.sections.constraints.rows.filter(
+        (constraint) =>
+          constraint.schema !== "app_private" || constraint.type !== "n",
+      );
+    const internallyConsistentTargetWithoutPostgres18NotNullConstraints =
+      buildReconciliationCatalogReport({
+        catalogRows: Object.fromEntries(
+          Object.entries(
+            targetWithoutPostgres18NotNullConstraints.schema.sections,
+          ).map(([name, section]) => [name, section.rows]),
+        ) as Parameters<
+          typeof buildReconciliationCatalogReport
+        >[0]["catalogRows"],
+        ledgerEntries:
+          targetWithoutPostgres18NotNullConstraints.ledger.entries.map(
+            (entry) => ({
+              created_at: entry.createdAt,
+              hash: entry.hash,
+            }),
+          ),
+        ledgerExists: true,
+      });
+    expect(() =>
+      assertTargetReconciliationEvidence(
+        internallyConsistentTargetWithoutPostgres18NotNullConstraints,
+        configurationForTargetReport(
+          internallyConsistentTargetWithoutPostgres18NotNullConstraints,
+        ),
+      ),
+    ).not.toThrow();
+
+    const targetWithNullablePrivateColumn = structuredClone(report);
+    const privateSecretColumn =
+      targetWithNullablePrivateColumn.schema.sections.columns.rows.find(
+        (column) =>
+          column.schema === "app_private" &&
+          column.relation === "tenant_context_signing_keys" &&
+          column.name === "secret",
+      );
+    privateSecretColumn!.notNull = false;
+    const internallyConsistentTargetWithNullablePrivateColumn =
+      buildReconciliationCatalogReport({
+        catalogRows: Object.fromEntries(
+          Object.entries(targetWithNullablePrivateColumn.schema.sections).map(
+            ([name, section]) => [name, section.rows],
+          ),
+        ) as Parameters<
+          typeof buildReconciliationCatalogReport
+        >[0]["catalogRows"],
+        ledgerEntries: targetWithNullablePrivateColumn.ledger.entries.map(
+          (entry) => ({
+            created_at: entry.createdAt,
+            hash: entry.hash,
+          }),
+        ),
+        ledgerExists: true,
+      });
+    expect(() =>
+      assertTargetReconciliationEvidence(
+        internallyConsistentTargetWithNullablePrivateColumn,
+        configurationForTargetReport(
+          internallyConsistentTargetWithNullablePrivateColumn,
+        ),
+      ),
+    ).toThrow(
+      "Target private table tenant_context_signing_keys columns are not exact",
+    );
 
     const writablePrivateState = structuredClone(report);
     const signingKeys =
