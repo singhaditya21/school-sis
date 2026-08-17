@@ -162,8 +162,9 @@ describe("preview Vercel project isolation workflow", () => {
       "payload.branch.init_source !== 'schema-only'",
     );
     expect(refreshScript).toContain(
-      "payload.branch.expires_at !== process.env.EXPECTED_EXPIRES_AT",
+      "actualExpiresAt.getTime() !== expiresAt.getTime()",
     );
+    expect(workflow).toContain('sub("\\\\.[0-9]+Z$"; "Z") | fromdateiso8601');
   });
 
   it("rotates and verifies both isolated preview application credentials", () => {

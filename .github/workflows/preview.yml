@@ -480,12 +480,14 @@ jobs:
             }
             payload = await verification.json();
           }
+          const actualExpiresAt = new Date(payload?.branch?.expires_at);
           if (
             payload?.branch?.id !== process.env.PREVIEW_BRANCH_ID ||
             payload.branch.name !== process.env.EXPECTED_BRANCH_NAME ||
             payload.branch.parent_id !== null ||
             payload.branch.init_source !== 'schema-only' ||
-            payload.branch.expires_at !== process.env.EXPECTED_EXPIRES_AT
+            Number.isNaN(actualExpiresAt.getTime()) ||
+            actualExpiresAt.getTime() !== expiresAt.getTime()
           ) {
             throw new Error('Preview branch expiry or schema-only identity did not match the exact requested state.');
           }
@@ -987,7 +989,7 @@ jobs:
               --arg id "$PREVIEW_MIGRATION_BRANCH_ID" \
               --arg name "$EXPECTED_BRANCH_NAME" \
               --arg expires "$EXPECTED_EXPIRES_AT" \
-              '.branch.id == $id and .branch.parent_id == null and .branch.init_source == "schema-only" and .branch.name == $name and .branch.expires_at == $expires' \
+              '.branch.id == $id and .branch.parent_id == null and .branch.init_source == "schema-only" and .branch.name == $name and (.branch.expires_at | type == "string") and ((.branch.expires_at | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) == ($expires | fromdateiso8601))' \
               "$branch_file" >/dev/null; then
             echo "Neon branch metadata validation failed for the expected id, root schema-only source, name, or expiry." >&2
             exit 1
