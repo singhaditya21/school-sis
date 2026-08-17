@@ -174,6 +174,10 @@ describe("preview Vercel project isolation workflow", () => {
     expect(refreshScript).toContain(
       "PATCH is not retried after an ambiguous transport result",
     );
+    expect(refreshScript).toContain("idMatches:");
+    expect(refreshScript).toContain("nameMatches:");
+    expect(refreshScript).toContain("initSource:");
+    expect(refreshScript).toContain("expiresAt:");
     expect(workflow).toContain('sub("\\\\.[0-9]+Z$"; "Z") | fromdateiso8601');
   });
 

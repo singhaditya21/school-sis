@@ -474,6 +474,7 @@ jobs:
           }
 
           let verified = false;
+          let lastObservation = { result: 'no-successful-get' };
           for (let attempt = 1; attempt <= 20; attempt += 1) {
             try {
               const verification = await fetch(endpoint, {
@@ -486,6 +487,16 @@ jobs:
                 const parentIsRoot =
                   payload?.branch?.parent_id === null ||
                   !Object.prototype.hasOwnProperty.call(payload?.branch ?? {}, 'parent_id');
+                lastObservation = {
+                  result: `HTTP ${verification.status}`,
+                  idMatches: payload?.branch?.id === process.env.PREVIEW_BRANCH_ID,
+                  nameMatches: payload?.branch?.name === process.env.EXPECTED_BRANCH_NAME,
+                  parentId: Object.prototype.hasOwnProperty.call(payload?.branch ?? {}, 'parent_id')
+                    ? payload.branch.parent_id
+                    : 'omitted',
+                  initSource: payload?.branch?.init_source ?? 'omitted',
+                  expiresAt: payload?.branch?.expires_at ?? 'omitted',
+                };
                 verified =
                   payload?.branch?.id === process.env.PREVIEW_BRANCH_ID &&
                   payload.branch.name === process.env.EXPECTED_BRANCH_NAME &&
@@ -501,7 +512,9 @@ jobs:
             await new Promise((resolve) => setTimeout(resolve, 1_000));
           }
           if (!verified) {
-            throw new Error(`Could not prove exact preview branch expiry after PATCH (${patchStatus}).`);
+            throw new Error(
+              `Could not prove exact preview branch expiry after PATCH (${patchStatus}): ${JSON.stringify(lastObservation)}`,
+            );
           }
           NODE
 
