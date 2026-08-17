@@ -707,7 +707,7 @@ Static release checks:
 ```bash
 pnpm db:manifest:check
 pnpm audit:migrations:release
-pnpm deployment:check -- --target production
+pnpm deployment:check --target production
 pnpm test:unit
 pnpm build
 ```

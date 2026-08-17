@@ -27,7 +27,6 @@ console.info(`[vercel-build] Validating the ${target} deployment contract.`);
 run([
   "run",
   "deployment:check",
-  "--",
   "--target",
   target,
   ...(target === "production" ? ["--runtime-only"] : []),
@@ -41,7 +40,7 @@ if (target === "preview") {
   console.info(
     "[vercel-build] Build passed; applying migrations to the isolated preview database.",
   );
-  run(["run", "db:migrate:deploy", "--", "--target", "preview"]);
+  run(["run", "db:migrate:deploy", "--target", "preview"]);
 } else {
   console.info(
     "[vercel-build] Production migration is owned by the staged GitHub release workflow; no database mutation performed.",
