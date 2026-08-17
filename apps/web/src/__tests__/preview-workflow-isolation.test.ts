@@ -157,7 +157,10 @@ describe("preview Vercel project isolation workflow", () => {
     expect(refreshScript).toContain(
       "JSON.stringify({ branch: { expires_at: process.env.EXPECTED_EXPIRES_AT } })",
     );
-    expect(refreshScript).toContain("payload.branch.parent_id === null");
+    expect(refreshScript).toContain(
+      "!Object.prototype.hasOwnProperty.call(payload?.branch ?? {}, 'parent_id')",
+    );
+    expect(refreshScript).toContain("payload?.branch?.parent_id === null");
     expect(refreshScript).toContain(
       "payload.branch.init_source === 'schema-only'",
     );

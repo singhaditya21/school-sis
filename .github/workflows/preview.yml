@@ -483,10 +483,13 @@ jobs:
               if (verification.ok) {
                 const payload = await verification.json();
                 const actualExpiresAt = new Date(payload?.branch?.expires_at);
+                const parentIsRoot =
+                  payload?.branch?.parent_id === null ||
+                  !Object.prototype.hasOwnProperty.call(payload?.branch ?? {}, 'parent_id');
                 verified =
                   payload?.branch?.id === process.env.PREVIEW_BRANCH_ID &&
                   payload.branch.name === process.env.EXPECTED_BRANCH_NAME &&
-                  payload.branch.parent_id === null &&
+                  parentIsRoot &&
                   payload.branch.init_source === 'schema-only' &&
                   !Number.isNaN(actualExpiresAt.getTime()) &&
                   actualExpiresAt.getTime() === expiresAt.getTime();
