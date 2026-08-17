@@ -424,7 +424,7 @@ For approved, same-repository, non-draft pull requests,
    the configured preview target, and proves through the Neon API that the
    preview key gets `200` for the exact preview project but `403`/`404` for
    production;
-2. creates `preview/pr-<number>-<head-sha>`, a schema-only branch of the empty preview template;
+2. creates or reuses `preview/pr-<number>`, a schema-only root branch initialized from the empty preview template, and refreshes its exact one-day expiry on every approved run;
 3. pulls only the isolated Vercel preview project settings and deletes downloaded environment files;
 4. validates the complete deployment contract;
 5. builds before any database mutation;

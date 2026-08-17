@@ -92,7 +92,7 @@ jobs:
       PNPM_VERSION: "9.15.9"
       TARGET_SHA: ${{ github.event.pull_request.head.sha }}
       PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-      PREVIEW_BRANCH_NAME: preview/pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+      PREVIEW_BRANCH_NAME: preview/pr-${{ github.event.pull_request.number }}
       PREVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_PREVIEW_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PREVIEW_PROJECT_ID }}
@@ -416,6 +416,80 @@ jobs:
           role: ${{ vars.NEON_PREVIEW_MIGRATION_ROLE }}
           ssl: verify-full
           expires_at: ${{ steps.expiry.outputs.expires_at }}
+
+      - name: Refresh exact preview branch expiry
+        env:
+          NEON_API_KEY_VALUE: ${{ secrets.NEON_PREVIEW_API_KEY }}
+          NEON_PROJECT_ID_VALUE: ${{ vars.NEON_PREVIEW_PROJECT_ID }}
+          PREVIEW_BRANCH_ID: ${{ steps.neon_migration.outputs.branch_id }}
+          EXPECTED_BRANCH_NAME: ${{ env.PREVIEW_BRANCH_NAME }}
+          EXPECTED_EXPIRES_AT: ${{ steps.expiry.outputs.expires_at }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const required = [
+            'NEON_API_KEY_VALUE', 'NEON_PROJECT_ID_VALUE', 'PREVIEW_BRANCH_ID',
+            'EXPECTED_BRANCH_NAME', 'EXPECTED_EXPIRES_AT'
+          ];
+          for (const name of required) {
+            if (!process.env[name]) throw new Error(`Missing preview expiry value ${name}.`);
+          }
+          for (const name of ['NEON_PROJECT_ID_VALUE', 'PREVIEW_BRANCH_ID']) {
+            if (!/^[a-z0-9-]{1,60}$/.test(process.env[name])) {
+              throw new Error(`${name} is not a canonical Neon identifier.`);
+            }
+          }
+          if (!/^preview\/pr-[1-9][0-9]*$/.test(process.env.EXPECTED_BRANCH_NAME)) {
+            throw new Error('Preview branch name must be stable and PR-scoped.');
+          }
+          const expiresAt = new Date(process.env.EXPECTED_EXPIRES_AT);
+          if (
+            Number.isNaN(expiresAt.getTime()) ||
+            expiresAt.toISOString().replace('.000Z', 'Z') !== process.env.EXPECTED_EXPIRES_AT
+          ) {
+            throw new Error('Preview branch expiry must be a canonical UTC timestamp.');
+          }
+
+          const endpoint = new URL(
+            `https://console.neon.tech/api/v2/projects/${process.env.NEON_PROJECT_ID_VALUE}/branches/${process.env.PREVIEW_BRANCH_ID}`,
+          );
+          const headers = {
+            Accept: 'application/json',
+            Authorization: `Bearer ${process.env.NEON_API_KEY_VALUE}`,
+            'Content-Type': 'application/json',
+          };
+          let payload;
+          try {
+            const response = await fetch(endpoint, {
+              method: 'PATCH',
+              headers,
+              body: JSON.stringify({ branch: { expires_at: process.env.EXPECTED_EXPIRES_AT } }),
+              signal: AbortSignal.timeout(20_000),
+            });
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}`);
+            }
+            payload = await response.json();
+          } catch {
+            const verification = await fetch(endpoint, {
+              headers,
+              signal: AbortSignal.timeout(20_000),
+            });
+            if (!verification.ok) {
+              throw new Error(`Could not prove preview branch expiry after PATCH (HTTP ${verification.status}).`);
+            }
+            payload = await verification.json();
+          }
+          if (
+            payload?.branch?.id !== process.env.PREVIEW_BRANCH_ID ||
+            payload.branch.name !== process.env.EXPECTED_BRANCH_NAME ||
+            payload.branch.parent_id !== null ||
+            payload.branch.init_source !== 'schema-only' ||
+            payload.branch.expires_at !== process.env.EXPECTED_EXPIRES_AT
+          ) {
+            throw new Error('Preview branch expiry or schema-only identity did not match the exact requested state.');
+          }
+          NODE
 
       - name: Wait for exact preview roles to become resolvable
         env:
@@ -805,6 +879,7 @@ jobs:
           NEON_API_KEY: ${{ secrets.NEON_PREVIEW_API_KEY }}
           NEON_PROJECT_ID: ${{ vars.NEON_PREVIEW_PROJECT_ID }}
           EXPECTED_BRANCH_NAME: ${{ env.PREVIEW_BRANCH_NAME }}
+          EXPECTED_EXPIRES_AT: ${{ steps.expiry.outputs.expires_at }}
           PREVIEW_DIRECT_URL: ${{ steps.neon_application_credentials.outputs.migration_direct_url }}
           PREVIEW_POOLED_URL: ${{ steps.neon_application_credentials.outputs.runtime_pooled_url }}
           PREVIEW_PLATFORM_POOLED_URL: ${{ steps.neon_application_credentials.outputs.platform_pooled_url }}
@@ -911,7 +986,8 @@ jobs:
           if ! jq -e \
               --arg id "$PREVIEW_MIGRATION_BRANCH_ID" \
               --arg name "$EXPECTED_BRANCH_NAME" \
-              '.branch.id == $id and .branch.parent_id == null and .branch.init_source == "schema-only" and .branch.name == $name and (.branch.expires_at | type == "string")' \
+              --arg expires "$EXPECTED_EXPIRES_AT" \
+              '.branch.id == $id and .branch.parent_id == null and .branch.init_source == "schema-only" and .branch.name == $name and .branch.expires_at == $expires' \
               "$branch_file" >/dev/null; then
             echo "Neon branch metadata validation failed for the expected id, root schema-only source, name, or expiry." >&2
             exit 1

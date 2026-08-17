@@ -9,6 +9,10 @@ const productionWorkflow = readFileSync(
   resolve(process.cwd(), "../..", ".github/workflows/deploy-production.yml"),
   "utf8",
 );
+const cleanupWorkflow = readFileSync(
+  resolve(process.cwd(), "../..", ".github/workflows/preview-cleanup.yml"),
+  "utf8",
+);
 const productionProvenanceGate = readFileSync(
   resolve(
     process.cwd(),
@@ -119,6 +123,47 @@ describe("preview Vercel project isolation workflow", () => {
     );
     expect(readinessScript).not.toContain("CREATE ROLE");
     expect(readinessScript).not.toContain("ALTER ROLE");
+  });
+
+  it("uses one PR-scoped branch and refreshes its exact expiry before role resolution", () => {
+    const stableName =
+      "PREVIEW_BRANCH_NAME: preview/pr-${{ github.event.pull_request.number }}";
+    expect(workflow).toContain(stableName);
+    expect(cleanupWorkflow).toContain(stableName);
+    expect(workflow).not.toContain(
+      "PREVIEW_BRANCH_NAME: preview/pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}",
+    );
+    expect(cleanupWorkflow).not.toContain(
+      "PREVIEW_BRANCH_NAME: preview/pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}",
+    );
+    expect(cleanupWorkflow).toContain(
+      '.name == $name and .parent_id == null and .init_source == "schema-only"',
+    );
+    expect(cleanupWorkflow).not.toContain("--arg parent");
+
+    const branchCreation = workflow.indexOf(
+      "Create or reuse schema-only Neon branch for migrations",
+    );
+    const expiryRefresh = workflow.indexOf(
+      "Refresh exact preview branch expiry",
+    );
+    const roleReadiness = workflow.indexOf(
+      "Wait for exact preview roles to become resolvable",
+    );
+    expect(expiryRefresh).toBeGreaterThan(branchCreation);
+    expect(roleReadiness).toBeGreaterThan(expiryRefresh);
+    const refreshScript = workflow.slice(expiryRefresh, roleReadiness);
+    expect(refreshScript).toContain("method: 'PATCH'");
+    expect(refreshScript).toContain(
+      "JSON.stringify({ branch: { expires_at: process.env.EXPECTED_EXPIRES_AT } })",
+    );
+    expect(refreshScript).toContain("payload.branch.parent_id !== null");
+    expect(refreshScript).toContain(
+      "payload.branch.init_source !== 'schema-only'",
+    );
+    expect(refreshScript).toContain(
+      "payload.branch.expires_at !== process.env.EXPECTED_EXPIRES_AT",
+    );
   });
 
   it("rotates and verifies both isolated preview application credentials", () => {
