@@ -342,6 +342,76 @@ function approvalLineBefore(source, offset) {
   return null;
 }
 
+function isTenantRlsSecurityHardening(repoPath, source, finding) {
+  if (repoPath !== "packages/api/src/db/migrations/tenant-rls.sql") {
+    return false;
+  }
+  if (finding.kind === "revoke-privilege") {
+    const statementEnd = source.indexOf(";", finding.index);
+    if (statementEnd < 0) return false;
+    const statementStart = source.lastIndexOf(";", finding.index - 1) + 1;
+    const statement = source
+      .slice(statementStart, statementEnd + 1)
+      .replace(/\s+/gu, " ")
+      .trim();
+    const match = statement.match(
+      /^REVOKE ALL ON TABLE app_private\.(tenant_context_signing_keys|tenant_context_rollout_state) FROM PUBLIC;$/u,
+    );
+    if (!match) return false;
+    return new RegExp(
+      String.raw`CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+app_private\.${match[1]}\s*\(`,
+      "iu",
+    ).test(source);
+  }
+  if (
+    finding.kind === "drop-rls-policy" &&
+    finding.text.replace(/\s+/gu, " ").toLowerCase() ===
+      "drop policy %i on %i.%i"
+  ) {
+    const lockBlocks = [
+      ...source.matchAll(
+        /DO\s+\$\$\s*DECLARE\s+table_record\s+record\s*;\s*BEGIN\s+FOR\s+table_record\s+IN\s+SELECT\s+namespaces\.nspname\s+AS\s+schema_name\s*,\s*classes\.relname\s+AS\s+table_name\s+FROM\s+pg_catalog\.pg_class\s+classes\s+JOIN\s+pg_catalog\.pg_namespace\s+namespaces\s+ON\s+namespaces\.oid\s*=\s*classes\.relnamespace\s+WHERE\s+namespaces\.nspname\s*=\s*'public'\s+AND\s+classes\.relkind\s+IN\s*\(\s*'r'\s*,\s*'p'\s*\)\s+ORDER\s+BY\s+namespaces\.nspname\s*,\s*classes\.relname\s*,\s*classes\.oid\s+LOOP\s+EXECUTE\s+format\s*\(\s*'LOCK TABLE %I\.%I IN ACCESS EXCLUSIVE MODE'\s*,\s*table_record\.schema_name\s*,\s*table_record\.table_name\s*\)\s*;\s*END\s+LOOP\s*;\s*END\s+\$\$\s*;/giu,
+      ),
+    ];
+    const dropBlocks = [
+      ...source.matchAll(
+        /DO\s+\$\$\s*DECLARE\s+policy_record\s+record\s*;\s*BEGIN\s+FOR\s+policy_record\s+IN\s+SELECT\s+namespaces\.nspname\s+AS\s+schema_name\s*,\s*classes\.relname\s+AS\s+table_name\s*,\s*policies\.polname\s+AS\s+policy_name\s+FROM\s+pg_catalog\.pg_policy\s+policies\s+JOIN\s+pg_catalog\.pg_class\s+classes\s+ON\s+classes\.oid\s*=\s*policies\.polrelid\s+JOIN\s+pg_catalog\.pg_namespace\s+namespaces\s+ON\s+namespaces\.oid\s*=\s*classes\.relnamespace\s+WHERE\s+namespaces\.nspname\s*=\s*'public'\s+AND\s+classes\.relkind\s+IN\s*\(\s*'r'\s*,\s*'p'\s*\)\s+LOOP\s+EXECUTE\s+format\s*\(\s*'DROP POLICY %I ON %I\.%I'\s*,\s*policy_record\.policy_name\s*,\s*policy_record\.schema_name\s*,\s*policy_record\.table_name\s*\)\s*;\s*END\s+LOOP\s*;\s*END\s+\$\$\s*;/giu,
+      ),
+    ];
+    const dropBlock = dropBlocks.find(
+      (match) =>
+        match.index !== undefined &&
+        finding.index >= match.index &&
+        finding.index < match.index + match[0].length,
+    );
+    const lockBlock = dropBlock
+      ? lockBlocks.find(
+          (match) =>
+            match.index !== undefined &&
+            match.index + match[0].length <= dropBlock.index &&
+            maskComments(
+              source.slice(match.index + match[0].length, dropBlock.index),
+            ).trim() === "",
+        )
+      : undefined;
+    const rebuildsTenantPolicy =
+      /CREATE\s+POLICY\s+tenant_isolation_policy\s+ON\s+%I\.%I[\s\S]*?USING\s*\([\s\S]*?app_private\.current_tenant_id\(\)[\s\S]*?\)[\s\S]*?WITH\s+CHECK\s*\([\s\S]*?app_private\.current_tenant_id\(\)/iu.test(
+        source.slice((dropBlock?.index ?? 0) + (dropBlock?.[0].length ?? 0)),
+      );
+    return Boolean(dropBlock && lockBlock && rebuildsTenantPolicy);
+  }
+  if (
+    finding.kind === "drop-rls-policy" &&
+    finding.text.replace(/\s+/gu, " ").toLowerCase() ===
+      "drop policy if exists rate_limit_buckets_platform_access on public.rate_limit_buckets"
+  ) {
+    return /CREATE\s+POLICY\s+rate_limit_buckets_platform_only\s+ON\s+public\.rate_limit_buckets[\s\S]*?USING\s*\(app_private\.rls_bypass\(\)\)[\s\S]*?WITH\s+CHECK\s*\(app_private\.rls_bypass\(\)\)/iu.test(
+      source,
+    );
+  }
+  return false;
+}
+
 function readJson(path, label) {
   let value;
   try {
@@ -457,6 +527,9 @@ export function evaluateMigrationPolicy({ repoRoot, releaseMode = false }) {
   for (const file of sqlFiles) {
     const record = recordsByPath.get(file.repoPath);
     for (const finding of findBackwardIncompatibleStatements(file.source)) {
+      if (isTenantRlsSecurityHardening(file.repoPath, file.source, finding)) {
+        continue;
+      }
       const approvalLine = approvalLineBefore(file.source, finding.index);
       const approvedForDevelopment =
         record !== undefined ||

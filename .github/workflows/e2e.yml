@@ -72,7 +72,7 @@ jobs:
     # scratch as of the 0000_init_baseline reset — issue #45).
     services:
       postgres:
-        image: pgvector/pgvector:pg15
+        image: pgvector/pgvector:pg18@sha256:2ba9ca5f2e7daa0f0e7723cba1ee9167bab54efd3640516a44ac1a928dd67e7a
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
@@ -129,7 +129,7 @@ jobs:
 
     services:
       postgres:
-        image: pgvector/pgvector:pg15
+        image: pgvector/pgvector:pg18@sha256:2ba9ca5f2e7daa0f0e7723cba1ee9167bab54efd3640516a44ac1a928dd67e7a
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
@@ -199,7 +199,7 @@ jobs:
     # Run Postgres as a service container for the tests
     services:
       postgres:
-        image: pgvector/pgvector:pg15
+        image: pgvector/pgvector:pg18@sha256:2ba9ca5f2e7daa0f0e7723cba1ee9167bab54efd3640516a44ac1a928dd67e7a
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password

@@ -1,95 +1,115 @@
-import { execFileSync } from 'child_process';
-import { Client } from 'pg';
-import path from 'path';
-import fs from 'fs';
+import { execFileSync } from "child_process";
+import { Client } from "pg";
+import path from "path";
+import fs from "fs";
 import {
-    enableVectorExtension,
-    ensurePlaywrightTestEnvironment,
-    recreateDatabase,
-} from './test-environment';
+  enableVectorExtension,
+  ensurePlaywrightTestEnvironment,
+  PLAYWRIGHT_PLATFORM_ROLE,
+  PLAYWRIGHT_RUNTIME_ROLE,
+  recreateDatabase,
+} from "./test-environment";
 
 export default async function globalSetup() {
-    console.log('\n🚀 [Test Setup] Initializing isolated database environment (Worker)...');
+  console.log(
+    "\n🚀 [Test Setup] Initializing isolated database environment (Worker)...",
+  );
 
-    const environment = ensurePlaywrightTestEnvironment({
-        envFileName: '.env.test.worker',
-        defaultDatabaseName: 'school_sis_test_worker',
-    });
-    console.log(`📦 Recreating test database: ${environment.databaseName}`);
-    await recreateDatabase(environment);
-    console.log('🧩 Enabling vector extension in test database...');
-    await enableVectorExtension(environment);
-    console.log(`📝 Wrote test environment variables to ${path.basename(environment.envFilePath)}`);
+  const environment = ensurePlaywrightTestEnvironment({
+    envFileName: ".env.test.worker",
+    defaultDatabaseName: "school_sis_test_worker",
+  });
+  console.log(`📦 Recreating test database: ${environment.databaseName}`);
+  await recreateDatabase(environment);
+  console.log("🧩 Enabling vector extension in test database...");
+  await enableVectorExtension(environment);
+  console.log(
+    `📝 Wrote test environment variables to ${path.basename(environment.envFilePath)}`,
+  );
 
-    console.log('🏗️  Applying migrations to test database...');
-    execFileSync('pnpm', ['exec', 'drizzle-kit', 'migrate'], {
-        env: { ...process.env, DATABASE_URL: environment.databaseUrl },
-        stdio: 'inherit',
-        cwd: path.resolve(__dirname, '..')
-    });
+  console.log("🏗️  Applying the locked migration and RLS chain...");
+  execFileSync("pnpm", ["run", "db:migrate:deploy", "--", "--target", "ci"], {
+    env: {
+      ...process.env,
+      DATABASE_URL: environment.databaseUrl,
+      PLATFORM_DATABASE_URL: environment.platformDatabaseUrl,
+      DIRECT_URL: environment.directUrl,
+      DEPLOYMENT_RUNTIME_ROLE: PLAYWRIGHT_RUNTIME_ROLE,
+      DEPLOYMENT_PLATFORM_ROLE: PLAYWRIGHT_PLATFORM_ROLE,
+    },
+    stdio: "inherit",
+    cwd: path.resolve(__dirname, ".."),
+  });
 
-    console.log('🏗️  Running metadata engine migrations...');
-    const dbClient = new Client({ connectionString: environment.databaseUrl });
-    await dbClient.connect();
-    try {
-        const migrationsDir = path.resolve(__dirname, '../src/lib/db/migrations');
-        const migrationFiles = [
-            'metadata-foundation.sql',
-            'seed-students-metadata.sql',
-            'seed-staff-invoices.sql',
-            'automation.sql'
-        ];
-        for (const file of migrationFiles) {
-            const sqlPath = path.join(migrationsDir, file);
-            if (fs.existsSync(sqlPath)) {
-                console.log(`  Executing migration: ${file}`);
-                const sql = fs.readFileSync(sqlPath, 'utf8');
-                await dbClient.query(sql);
-            }
-        }
-        console.log('✅ Metadata engine migrations complete!');
-    } catch (e) {
-        console.error('❌ Failed to run metadata engine migrations:', e);
-    } finally {
-        await dbClient.end();
+  console.log("🏗️  Running metadata engine migrations...");
+  const dbClient = new Client({ connectionString: environment.directUrl });
+  await dbClient.connect();
+  try {
+    const migrationsDir = path.resolve(__dirname, "../src/lib/db/migrations");
+    const migrationFiles = [
+      "metadata-foundation.sql",
+      "seed-students-metadata.sql",
+      "seed-staff-invoices.sql",
+      "automation.sql",
+    ];
+    for (const file of migrationFiles) {
+      const sqlPath = path.join(migrationsDir, file);
+      if (fs.existsSync(sqlPath)) {
+        console.log(`  Executing migration: ${file}`);
+        const sql = fs.readFileSync(sqlPath, "utf8");
+        await dbClient.query(sql);
+      }
     }
+    console.log("✅ Metadata engine migrations complete!");
+  } catch (e) {
+    console.error("❌ Failed to run metadata engine migrations:", e);
+  } finally {
+    await dbClient.end();
+  }
 
-    console.log('🌱 Seeding test database...');
-    // Run the standard seeder (which seeds tenants, users, students, etc.)
-    execFileSync('pnpm', ['exec', 'tsx', 'scripts/seed.ts'], {
-        env: { ...process.env, DATABASE_URL: environment.databaseUrl },
-        stdio: 'inherit',
-        cwd: path.resolve(__dirname, '..')
-    });
+  console.log("🌱 Seeding test database...");
+  // Run the standard seeder (which seeds tenants, users, students, etc.)
+  execFileSync("pnpm", ["exec", "tsx", "scripts/seed.ts"], {
+    env: { ...process.env, DATABASE_URL: environment.directUrl },
+    stdio: "inherit",
+    cwd: path.resolve(__dirname, ".."),
+  });
 
-    console.log('👤 Seeding E2E test users...');
-    execFileSync('pnpm', ['exec', 'tsx', 'scripts/run-e2e-sql.ts'], {
-        env: { ...process.env, DATABASE_URL: environment.databaseUrl },
-        stdio: 'inherit',
-        cwd: path.resolve(__dirname, '..')
-    });
+  console.log("👤 Seeding E2E test users...");
+  execFileSync("pnpm", ["exec", "tsx", "scripts/run-e2e-sql.ts"], {
+    env: { ...process.env, DATABASE_URL: environment.directUrl },
+    stdio: "inherit",
+    cwd: path.resolve(__dirname, ".."),
+  });
 
-    console.log('🏢 Setting up Greenwood International School Company Context (Worker)...');
-    const greenwoodClient = new Client({ connectionString: environment.databaseUrl });
-    await greenwoodClient.connect();
-    try {
-        const { rows: companyRows } = await greenwoodClient.query(`
+  console.log(
+    "🏢 Setting up Greenwood International School Company Context (Worker)...",
+  );
+  const greenwoodClient = new Client({
+    connectionString: environment.directUrl,
+  });
+  await greenwoodClient.connect();
+  try {
+    const { rows: companyRows } = await greenwoodClient.query(`
             INSERT INTO companies (name, subscription_tier, is_active, active_modules) 
             VALUES ('Greenwood International School Org', 'ENTERPRISE', true, '{"ATTENDANCE","FEES","COMMUNICATION","AI_AGENTS"}') 
             RETURNING id
         `);
-        const companyId = companyRows[0].id;
-        await greenwoodClient.query(`
+    const companyId = companyRows[0].id;
+    await greenwoodClient.query(
+      `
             UPDATE tenants 
             SET company_id = $1 
             WHERE id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35'
-        `, [companyId]);
-        console.log('✅ Greenwood Company Context bound successfully!');
-    } catch (err) {
-        console.error('❌ Failed to setup Greenwood Company Context:', err);
-    } finally {
-        await greenwoodClient.end();
-    }
+        `,
+      [companyId],
+    );
+    console.log("✅ Greenwood Company Context bound successfully!");
+  } catch (err) {
+    console.error("❌ Failed to setup Greenwood Company Context:", err);
+  } finally {
+    await greenwoodClient.end();
+  }
 
-    console.log('✅ Global setup complete!\n');
+  console.log("✅ Global setup complete!\n");
 }

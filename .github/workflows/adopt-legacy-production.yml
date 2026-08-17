@@ -1,0 +1,486 @@
+name: One-time Legacy Production Ledger Adoption
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Full protected-main SHA containing the reviewed adoption code and evidence
+        required: true
+        type: string
+      approved_pull_request_url:
+        description: Reviewed school-sis pull request URL authorizing this one-time operation
+        required: true
+        type: string
+      approve_exact_legacy_ledger_adoption:
+        description: Approve the exact ledger swap after cancelling the initial Production Release at its production-environment gate
+        required: true
+        default: false
+        type: boolean
+      attest_restore_drill_and_same_run_snapshot:
+        description: Attest the non-production restore drill/runbook is current and approve a retained same-run HEAD snapshot under the write freeze
+        required: true
+        default: false
+        type: boolean
+      historical_commit_sha:
+        description: Immutable commit containing the reviewed historical ledger
+        required: true
+        type: string
+      source_schema_fingerprint:
+        description: Approved live-production source schema fingerprint
+        required: true
+        type: string
+      source_evidence_fingerprint:
+        description: Approved live-production source evidence fingerprint
+        required: true
+        type: string
+      target_schema_fingerprint:
+        description: Approved source-clone canonical-runner target schema fingerprint
+        required: true
+        type: string
+      target_evidence_fingerprint:
+        description: Approved source-clone canonical-runner target evidence fingerprint
+        required: true
+        type: string
+      target_artifact_sha256:
+        description: SHA-256 of the tracked canonical target evidence JSON
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  adopt-legacy-ledger:
+    name: Create recovery snapshot and adopt the exact legacy ledger
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      NODE_VERSION: "24"
+      PNPM_VERSION: "9.15.9"
+      TARGET_SHA: ${{ inputs.target_sha }}
+      TARGET_EVIDENCE_PATH: docs/devops/evidence/legacy-production-transition-target-v2.json
+
+    steps:
+      - name: Fail closed on dispatch identity and typed approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVE_ADOPTION: ${{ inputs.approve_exact_legacy_ledger_adoption }}
+          CONFIRM_RECOVERY: ${{ inputs.attest_restore_drill_and_same_run_snapshot }}
+          APPROVED_PULL_REQUEST_URL: ${{ inputs.approved_pull_request_url }}
+          HISTORICAL_COMMIT_SHA: ${{ inputs.historical_commit_sha }}
+          SOURCE_SCHEMA_FINGERPRINT: ${{ inputs.source_schema_fingerprint }}
+          SOURCE_EVIDENCE_FINGERPRINT: ${{ inputs.source_evidence_fingerprint }}
+          TARGET_SCHEMA_FINGERPRINT: ${{ inputs.target_schema_fingerprint }}
+          TARGET_EVIDENCE_FINGERPRINT: ${{ inputs.target_evidence_fingerprint }}
+          TARGET_ARTIFACT_SHA256: ${{ inputs.target_artifact_sha256 }}
+        run: |
+          set -euo pipefail
+          if [ "$APPROVE_ADOPTION" != "true" ] || [ "$CONFIRM_RECOVERY" != "true" ]; then
+            echo "Both the one-time adoption approval and recovery attestation must be true." >&2
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ] || \
+             [ "$GITHUB_REF" != "refs/heads/main" ] || \
+             [ "$GITHUB_REF_NAME" != "main" ] || \
+             [ "$GITHUB_REF_TYPE" != "branch" ] || \
+             [ "$GITHUB_REF_PROTECTED" != "true" ]; then
+            echo "Adoption requires a manual dispatch from protected main." >&2
+            exit 1
+          fi
+          if [ "$GITHUB_ACTOR" != "$GITHUB_TRIGGERING_ACTOR" ]; then
+            echo "The dispatching and triggering actors must be identical." >&2
+            exit 1
+          fi
+          if [ "${GITHUB_RUN_ATTEMPT:-}" != "1" ]; then
+            echo "Ledger adoption refuses workflow reruns; inspect any prior outcome and use a fresh dispatch." >&2
+            exit 1
+          fi
+          node --input-type=module <<'NODE'
+          const sha = process.env.TARGET_SHA || '';
+          const historical = process.env.HISTORICAL_COMMIT_SHA || '';
+          const fingerprints = [
+            process.env.SOURCE_SCHEMA_FINGERPRINT,
+            process.env.SOURCE_EVIDENCE_FINGERPRINT,
+            process.env.TARGET_SCHEMA_FINGERPRINT,
+            process.env.TARGET_EVIDENCE_FINGERPRINT,
+            process.env.TARGET_ARTIFACT_SHA256,
+          ];
+          if (!/^[a-f0-9]{40}$/.test(sha) || sha !== process.env.GITHUB_SHA) {
+            throw new Error('target_sha must equal this workflow run\'s full main SHA.');
+          }
+          if (!/^[a-f0-9]{40}$/.test(historical)) {
+            throw new Error('historical_commit_sha must be a lowercase full SHA.');
+          }
+          if (fingerprints.some((value) => !/^[a-f0-9]{64}$/.test(value || ''))) {
+            throw new Error('Every reviewed evidence input must be a lowercase SHA-256.');
+          }
+          const pull = new URL(process.env.APPROVED_PULL_REQUEST_URL || '');
+          const expectedPrefix = `/${process.env.GITHUB_REPOSITORY}/pull/`;
+          if (
+            pull.protocol !== 'https:' || pull.hostname !== 'github.com' ||
+            pull.username || pull.password || pull.search || pull.hash ||
+            !pull.pathname.startsWith(expectedPrefix) ||
+            !/^[1-9][0-9]*\/?$/.test(pull.pathname.slice(expectedPrefix.length))
+          ) {
+            throw new Error('approved_pull_request_url must identify a pull request in this repository.');
+          }
+          NODE
+          branch_file="$RUNNER_TEMP/github-main-before-checkout.json"
+          gh api --method GET \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "repos/${GITHUB_REPOSITORY}/branches/main" > "$branch_file"
+          jq -e --arg sha "$TARGET_SHA" \
+            '.name == "main" and .protected == true and .commit.sha == $sha' \
+            "$branch_file" >/dev/null
+          pull_number="${APPROVED_PULL_REQUEST_URL%/}"
+          pull_number="${pull_number##*/}"
+          pull_file="$RUNNER_TEMP/github-approved-adoption-pull.json"
+          gh api --method GET \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "repos/${GITHUB_REPOSITORY}/pulls/${pull_number}" > "$pull_file"
+          jq -e --arg sha "$TARGET_SHA" \
+            '.state == "closed" and (.merged_at | type == "string") and
+             .base.ref == "main" and .base.repo.full_name == env.GITHUB_REPOSITORY and
+             .merge_commit_sha == $sha' \
+            "$pull_file" >/dev/null
+          pull_author="$(jq -er '.user.login | select(type == "string" and length > 0)' "$pull_file")"
+          pull_head_sha="$(jq -er '.head.sha | select(type == "string" and test("^[a-f0-9]{40}$"))' "$pull_file")"
+          reviews_file="$RUNNER_TEMP/github-approved-adoption-reviews.json"
+          gh api --method GET --paginate --slurp \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "repos/${GITHUB_REPOSITORY}/pulls/${pull_number}/reviews?per_page=100" > "$reviews_file"
+          approved_reviewer="$(jq -er --arg author "$pull_author" --arg head "$pull_head_sha" '
+            if type == "array" and all(.[]; type == "array") and all(.[][];
+                (.user.login | type == "string") and
+                (.submitted_at | type == "string") and
+                (.id | type == "number") and
+                (.state | type == "string") and
+                (.commit_id | type == "string")
+            ) then
+              ([.[][]]
+               | sort_by(.user.login, .submitted_at, .id)
+               | group_by(.user.login)
+               | map(last)
+               | map(select(
+                   .user.login != $author and
+                   .state == "APPROVED" and
+                   .commit_id == $head
+                 ))
+               | first
+               | .user.login) // error("no current non-author approval")
+            else error("malformed review evidence") end
+          ' "$reviews_file")"
+          if ! [[ "$approved_reviewer" =~ ^[A-Za-z0-9-]{1,39}$ ]]; then
+            echo "The approving reviewer identity is malformed." >&2
+            exit 1
+          fi
+          reviewer_permission_file="$RUNNER_TEMP/github-approved-reviewer-permission.json"
+          gh api --method GET \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "repos/${GITHUB_REPOSITORY}/collaborators/${approved_reviewer}/permission" > "$reviewer_permission_file"
+          jq -e --arg reviewer "$approved_reviewer" '
+            .user.login == $reviewer and
+            (.permission == "write" or .permission == "maintain" or .permission == "admin")
+          ' "$reviewer_permission_file" >/dev/null
+
+      - name: Checkout only the verified protected-main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify checked-out tooling and copy immutable target evidence
+        env:
+          EXPECTED_ARTIFACT_SHA256: ${{ inputs.target_artifact_sha256 }}
+        run: |
+          set -euo pipefail
+          if [ "$(git rev-parse HEAD)" != "$TARGET_SHA" ]; then
+            echo "Checked-out commit does not match the approved protected-main SHA." >&2
+            exit 1
+          fi
+          pnpm db:manifest:check
+          pnpm exec prettier --check \
+            apps/web/scripts/adopt-legacy-production-ledger.ts \
+            apps/web/src/__tests__/adopt-legacy-production-ledger.test.ts \
+            .github/workflows/adopt-legacy-production.yml
+          if [ ! -f "$TARGET_EVIDENCE_PATH" ] || [ -L "$TARGET_EVIDENCE_PATH" ]; then
+            echo "Tracked target evidence must be a regular, non-symlink file." >&2
+            exit 1
+          fi
+          actual_sha="$(sha256sum "$TARGET_EVIDENCE_PATH" | awk '{print $1}')"
+          if [ "$actual_sha" != "$EXPECTED_ARTIFACT_SHA256" ]; then
+            echo "Tracked target evidence SHA-256 does not match dispatch approval." >&2
+            exit 1
+          fi
+          artifact="$RUNNER_TEMP/legacy-production-transition-target.json"
+          cp "$TARGET_EVIDENCE_PATH" "$artifact"
+          chmod 600 "$artifact"
+          TARGET_ARTIFACT_PATH="$artifact" \
+          SOURCE_SCHEMA_FINGERPRINT="${{ inputs.source_schema_fingerprint }}" \
+          SOURCE_EVIDENCE_FINGERPRINT="${{ inputs.source_evidence_fingerprint }}" \
+          TARGET_SCHEMA_FINGERPRINT="${{ inputs.target_schema_fingerprint }}" \
+          TARGET_EVIDENCE_FINGERPRINT="${{ inputs.target_evidence_fingerprint }}" \
+          HISTORICAL_COMMIT_SHA="${{ inputs.historical_commit_sha }}" \
+          pnpm --silent --filter @school-sis/web exec tsx -e '
+            import {
+              LEGACY_LEDGER_PROVENANCE_COMMIT,
+              REVIEWED_FORWARD_RECONCILIATION,
+              loadAndAssertTargetReconciliationEvidence,
+            } from "./scripts/adopt-legacy-production-ledger.ts";
+            if (
+              process.env.HISTORICAL_COMMIT_SHA !== LEGACY_LEDGER_PROVENANCE_COMMIT ||
+              process.env.SOURCE_SCHEMA_FINGERPRINT !== REVIEWED_FORWARD_RECONCILIATION.sourceSchemaFingerprint ||
+              process.env.SOURCE_EVIDENCE_FINGERPRINT !== REVIEWED_FORWARD_RECONCILIATION.sourceEvidenceFingerprint ||
+              process.env.TARGET_SCHEMA_FINGERPRINT !== REVIEWED_FORWARD_RECONCILIATION.targetSchemaFingerprint ||
+              process.env.TARGET_EVIDENCE_FINGERPRINT !== REVIEWED_FORWARD_RECONCILIATION.targetEvidenceFingerprint ||
+              process.env.EXPECTED_ARTIFACT_SHA256 !== REVIEWED_FORWARD_RECONCILIATION.targetEvidenceArtifactSha256
+            ) throw new Error("Dispatch evidence does not equal the reviewed adoption pins.");
+            loadAndAssertTargetReconciliationEvidence({
+              targetEvidenceArtifactPath: process.env.TARGET_ARTIFACT_PATH,
+              targetEvidenceArtifactSha256: process.env.EXPECTED_ARTIFACT_SHA256,
+              targetSchemaFingerprint: process.env.TARGET_SCHEMA_FINGERPRINT,
+              targetEvidenceFingerprint: process.env.TARGET_EVIDENCE_FINGERPRINT,
+            }, { RUNNER_TEMP: process.env.RUNNER_TEMP });
+          '
+          echo "LEGACY_LEDGER_ADOPTION_TARGET_EVIDENCE_ARTIFACT_PATH=$artifact" >> "$GITHUB_ENV"
+
+      - name: Validate production identity before locked adoption
+        env:
+          NEON_API_KEY_VALUE: ${{ secrets.NEON_API_KEY }}
+          NEON_DIRECT_URL_VALUE: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
+          NEON_PROJECT_ID_VALUE: ${{ vars.NEON_PROJECT_ID }}
+          NEON_BRANCH_ID_VALUE: ${{ vars.NEON_PRODUCTION_BRANCH_ID }}
+          NEON_DATABASE_VALUE: ${{ vars.NEON_DATABASE_NAME }}
+          NEON_ROLE_VALUE: ${{ vars.NEON_MIGRATION_ROLE }}
+          NEON_RUNTIME_ROLE_VALUE: ${{ vars.NEON_RUNTIME_ROLE }}
+          NEON_PLATFORM_ROLE_VALUE: ${{ vars.NEON_PLATFORM_ROLE }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in \
+            NEON_API_KEY_VALUE NEON_DIRECT_URL_VALUE NEON_PROJECT_ID_VALUE \
+            NEON_BRANCH_ID_VALUE NEON_DATABASE_VALUE NEON_ROLE_VALUE \
+            NEON_RUNTIME_ROLE_VALUE NEON_PLATFORM_ROLE_VALUE; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+          if [ "${#missing[@]}" -ne 0 ]; then
+            echo "Missing required production adoption configuration: ${missing[*]}" >&2
+            exit 1
+          fi
+          node --input-type=module <<'NODE'
+          const direct = new URL(process.env.NEON_DIRECT_URL_VALUE);
+          const entries = [...direct.searchParams.entries()];
+          const keys = entries.map(([key]) => key.toLowerCase());
+          if (
+            !['postgres:', 'postgresql:'].includes(direct.protocol) ||
+            !/^ep-[a-z0-9-]+(?:\.[a-z0-9-]+)+\.aws\.neon\.tech$/.test(direct.hostname) ||
+            direct.hostname.includes('-pooler') ||
+            (direct.port && direct.port !== '5432') ||
+            direct.hash || keys.some((key) => !['sslmode', 'channel_binding'].includes(key)) ||
+            direct.searchParams.getAll('sslmode').length !== 1 ||
+            direct.searchParams.get('sslmode') !== 'verify-full' ||
+            direct.searchParams.getAll('channel_binding').length !== 1 ||
+            direct.searchParams.get('channel_binding') !== 'require'
+          ) {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL is not the strict direct TLS endpoint required for adoption.');
+          }
+          if (
+            decodeURIComponent(direct.username) !== process.env.NEON_ROLE_VALUE ||
+            decodeURIComponent(direct.pathname.replace(/^\/+/, '')) !== process.env.NEON_DATABASE_VALUE
+          ) {
+            throw new Error('The direct URL role or database does not match production variables.');
+          }
+          const roles = [
+            process.env.NEON_ROLE_VALUE,
+            process.env.NEON_RUNTIME_ROLE_VALUE,
+            process.env.NEON_PLATFORM_ROLE_VALUE,
+          ];
+          if (
+            roles.some((role) => !/^[a-z_][a-z0-9_]{0,62}$/.test(role || '')) ||
+            new Set(roles).size !== 3 ||
+            process.env.NEON_PLATFORM_ROLE_VALUE !== 'school_sis_platform'
+          ) {
+            throw new Error('Production migration, tenant, and platform roles are not the exact distinct identities.');
+          }
+          NODE
+          direct_host="$(node --input-type=module -e 'process.stdout.write(new URL(process.env.NEON_DIRECT_URL_VALUE).hostname)')"
+          echo "LEGACY_LEDGER_ADOPTION_EXPECTED_NEON_HOST=$direct_host" >> "$GITHUB_ENV"
+
+      - name: Recheck protected main immediately before locked adoption
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch_file="$RUNNER_TEMP/github-main-before-adoption.json"
+          gh api --method GET \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "repos/${GITHUB_REPOSITORY}/branches/main" > "$branch_file"
+          jq -e --arg sha "$TARGET_SHA" \
+            '.name == "main" and .protected == true and .commit.sha == $sha' \
+            "$branch_file" >/dev/null
+
+      - name: Adopt only the exact reviewed legacy ledger
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LEGACY_LEDGER_ADOPTION_CONFIRMATION: ADOPT_EXACT_F5D781CA_LEGACY_LEDGER_ONCE
+          LEGACY_LEDGER_ADOPTION_SNAPSHOT_CONFIRMATION: CREATE_AND_RETAIN_HEAD_SNAPSHOT_UNDER_ADOPTION_WRITE_FREEZE
+          LEGACY_LEDGER_ADOPTION_RESTORE_DRILL_ATTESTATION: NON_PRODUCTION_NEON_SNAPSHOT_RESTORE_DRILL_VERIFIED_AND_RUNBOOK_CURRENT
+          LEGACY_LEDGER_ADOPTION_DATABASE_URL: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
+          LEGACY_LEDGER_ADOPTION_NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          LEGACY_LEDGER_ADOPTION_SSL_MODE: verify-full
+          LEGACY_LEDGER_ADOPTION_APPROVED_BY: ${{ github.actor }}
+          LEGACY_LEDGER_ADOPTION_EXPECTED_NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          LEGACY_LEDGER_ADOPTION_EXPECTED_NEON_BRANCH_ID: ${{ vars.NEON_PRODUCTION_BRANCH_ID }}
+          LEGACY_LEDGER_ADOPTION_EXPECTED_DATABASE: ${{ vars.NEON_DATABASE_NAME }}
+          LEGACY_LEDGER_ADOPTION_EXPECTED_ROLE: ${{ vars.NEON_MIGRATION_ROLE }}
+          LEGACY_LEDGER_ADOPTION_EXPECTED_RUNTIME_ROLE: ${{ vars.NEON_RUNTIME_ROLE }}
+          LEGACY_LEDGER_ADOPTION_EXPECTED_PLATFORM_ROLE: ${{ vars.NEON_PLATFORM_ROLE }}
+          LEGACY_LEDGER_ADOPTION_EXPECTED_TENANT_CONTEXT_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          LEGACY_LEDGER_ADOPTION_EXPECTED_TENANT_CONTEXT_SECRET_SHA256: ${{ vars.PRODUCTION_TENANT_CONTEXT_SIGNING_SECRET_SHA256 }}
+          LEGACY_LEDGER_ADOPTION_TENANT_CONTEXT_SIGNING_SECRET: ${{ secrets.TENANT_CONTEXT_SIGNING_SECRET }}
+          LEGACY_LEDGER_ADOPTION_EXPECTED_HISTORICAL_COMMIT_SHA: ${{ inputs.historical_commit_sha }}
+          LEGACY_LEDGER_ADOPTION_GITHUB_COMMIT_SHA: ${{ inputs.target_sha }}
+          LEGACY_LEDGER_ADOPTION_GITHUB_PULL_REQUEST_URL: ${{ inputs.approved_pull_request_url }}
+          LEGACY_LEDGER_ADOPTION_GITHUB_REPOSITORY: ${{ github.repository }}
+          LEGACY_LEDGER_ADOPTION_GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          LEGACY_LEDGER_ADOPTION_RECONCILIATION_DISPOSITION: FORWARD_RECONCILIATION_0001_REVIEWED
+          LEGACY_LEDGER_ADOPTION_NEON_SNAPSHOT_CONSOLE_URL: https://console.neon.tech/app/projects/${{ vars.NEON_PROJECT_ID }}/branches/${{ vars.NEON_PRODUCTION_BRANCH_ID }}
+          LEGACY_LEDGER_ADOPTION_APPROVED_SOURCE_SCHEMA_FINGERPRINT: ${{ inputs.source_schema_fingerprint }}
+          LEGACY_LEDGER_ADOPTION_APPROVED_SOURCE_EVIDENCE_FINGERPRINT: ${{ inputs.source_evidence_fingerprint }}
+          LEGACY_LEDGER_ADOPTION_SOURCE_EVIDENCE_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          LEGACY_LEDGER_ADOPTION_APPROVED_TARGET_SCHEMA_FINGERPRINT: ${{ inputs.target_schema_fingerprint }}
+          LEGACY_LEDGER_ADOPTION_APPROVED_TARGET_EVIDENCE_FINGERPRINT: ${{ inputs.target_evidence_fingerprint }}
+          LEGACY_LEDGER_ADOPTION_TARGET_EVIDENCE_ARTIFACT_SHA256: ${{ inputs.target_artifact_sha256 }}
+          LEGACY_LEDGER_ADOPTION_TARGET_EVIDENCE_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          export LEGACY_LEDGER_ADOPTION_APPROVED_AT="$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')"
+          export LEGACY_LEDGER_ADOPTION_NEON_SNAPSHOT_NAME="legacy-adoption-${TARGET_SHA:0:12}-${GITHUB_RUN_ID}"
+          approval_fingerprint="$(pnpm --silent --filter @school-sis/web exec tsx -e '
+            import { computeAdoptionApprovalFingerprintFromEnvironment } from "./scripts/adopt-legacy-production-ledger.ts";
+            process.stdout.write(computeAdoptionApprovalFingerprintFromEnvironment(process.env));
+          ')"
+          if ! [[ "$approval_fingerprint" =~ ^[a-f0-9]{64}$ ]]; then
+            echo "Could not compute the exact approval-envelope fingerprint." >&2
+            exit 1
+          fi
+          export LEGACY_LEDGER_ADOPTION_APPROVAL_FINGERPRINT="$approval_fingerprint"
+          result_file="$RUNNER_TEMP/legacy-adoption-result.json"
+          source_evidence_file="$RUNNER_TEMP/legacy-production-source-audit-v2.json"
+          echo "LEGACY_LEDGER_ADOPTION_RESULT_PATH=$result_file" >> "$GITHUB_ENV"
+          echo "LEGACY_LEDGER_ADOPTION_SOURCE_EVIDENCE_ARTIFACT_PATH=$source_evidence_file" >> "$GITHUB_ENV"
+          pnpm --silent db:adopt:legacy-production | tee "$result_file"
+          source_evidence_sha="$(sha256sum "$source_evidence_file" | awk '{print $1}')"
+          jq -e --arg source_sha "$source_evidence_sha" '
+            (.status == "adopted" or .status == "adopted-with-lock-cleanup-warning") and
+            .pendingMigration == "0001_reconcile_production_integrity" and
+            .sourceEvidenceArtifactSha256 == $source_sha' \
+            "$result_file" >/dev/null
+
+      - name: Preserve the actual retained snapshot metadata
+        if: always()
+        env:
+          NEON_API_KEY_VALUE: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID_VALUE: ${{ vars.NEON_PROJECT_ID }}
+          NEON_BRANCH_ID_VALUE: ${{ vars.NEON_PRODUCTION_BRANCH_ID }}
+        run: |
+          set -euo pipefail
+          export SNAPSHOT_NAME="legacy-adoption-${TARGET_SHA:0:12}-${GITHUB_RUN_ID}"
+          export SNAPSHOT_METADATA_PATH="$RUNNER_TEMP/legacy-adoption-recovery-snapshot.json"
+          echo "LEGACY_LEDGER_ADOPTION_SNAPSHOT_METADATA_PATH=$SNAPSHOT_METADATA_PATH" >> "$GITHUB_ENV"
+          node --input-type=module <<'NODE'
+          import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+
+          const evidencePath = process.env.SNAPSHOT_METADATA_PATH;
+          const resultPath = process.env.LEGACY_LEDGER_ADOPTION_RESULT_PATH;
+          const safeFailure = (reason) => {
+            writeFileSync(evidencePath, `${JSON.stringify({ status: 'snapshot-evidence-unavailable', reason })}\n`, { mode: 0o600 });
+          };
+          try {
+            const response = await fetch(
+              `https://console.neon.tech/api/v2/projects/${process.env.NEON_PROJECT_ID_VALUE}/snapshots`,
+              {
+                headers: {
+                  Accept: 'application/json',
+                  Authorization: `Bearer ${process.env.NEON_API_KEY_VALUE}`,
+                },
+                redirect: 'error',
+                signal: AbortSignal.timeout(20_000),
+              },
+            );
+            const body = await response.text();
+            if (!response.ok || body.length > 5_000_000) throw new Error('provider-read-failed');
+            const parsed = JSON.parse(body);
+            const matches = Array.isArray(parsed.snapshots)
+              ? parsed.snapshots.filter((snapshot) =>
+                  snapshot && snapshot.id && snapshot.name === process.env.SNAPSHOT_NAME &&
+                  snapshot.source_branch_id === process.env.NEON_BRANCH_ID_VALUE && snapshot.manual === true)
+              : [];
+            if (matches.length !== 1) throw new Error('exact-snapshot-not-found');
+            const snapshot = matches[0];
+            if (
+              typeof snapshot.created_at !== 'string' ||
+              typeof snapshot.full_size !== 'number' ||
+              !Number.isSafeInteger(snapshot.full_size) || snapshot.full_size < 0
+            ) throw new Error('snapshot-metadata-malformed');
+            const evidence = {
+              createdAt: new Date(Date.parse(snapshot.created_at)).toISOString(),
+              fullSize: String(snapshot.full_size),
+              id: snapshot.id,
+              manual: true,
+              name: snapshot.name,
+              sourceBranchId: snapshot.source_branch_id,
+            };
+            if (!Number.isFinite(Date.parse(evidence.createdAt))) throw new Error('snapshot-created-at-malformed');
+            writeFileSync(evidencePath, `${JSON.stringify(evidence)}\n`, { mode: 0o600 });
+            if (resultPath && existsSync(resultPath) && readFileSync(resultPath, 'utf8').trim()) {
+              const result = JSON.parse(readFileSync(resultPath, 'utf8'));
+              if (result.recoverySnapshot && JSON.stringify(result.recoverySnapshot) !== JSON.stringify(evidence)) {
+                throw new Error('snapshot-result-mismatch');
+              }
+            }
+          } catch (error) {
+            safeFailure(error instanceof Error ? error.message : 'unknown-provider-read-failure');
+            if (resultPath && existsSync(resultPath) && readFileSync(resultPath, 'utf8').trim()) throw error;
+          }
+          NODE
+
+      - name: Preserve nonsecret recovery and adoption evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: legacy-production-ledger-adoption-${{ github.run_id }}
+          path: |
+            ${{ env.LEGACY_LEDGER_ADOPTION_SOURCE_EVIDENCE_ARTIFACT_PATH }}
+            ${{ env.LEGACY_LEDGER_ADOPTION_TARGET_EVIDENCE_ARTIFACT_PATH }}
+            ${{ env.LEGACY_LEDGER_ADOPTION_SNAPSHOT_METADATA_PATH }}
+            ${{ env.LEGACY_LEDGER_ADOPTION_RESULT_PATH }}
+          if-no-files-found: warn
+          retention-days: 90

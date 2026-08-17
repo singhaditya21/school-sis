@@ -7,6 +7,11 @@ import {
   resolveDatabaseConnectionOptions,
   type DatabaseSslMode,
 } from "../../../packages/api/src/db/ssl";
+import {
+  LOCAL_TENANT_CONTEXT_AUDIENCE,
+  LOCAL_TENANT_CONTEXT_KEY_ID,
+  LOCAL_TENANT_CONTEXT_SECRET,
+} from "../../../packages/api/src/db/tenant-context-config";
 
 export const DEPLOYMENT_TARGETS = ["ci", "preview", "production"] as const;
 export type DeploymentTarget = (typeof DEPLOYMENT_TARGETS)[number];
@@ -14,6 +19,23 @@ export type DeploymentTarget = (typeof DEPLOYMENT_TARGETS)[number];
 export const DEPLOYMENT_MIGRATION_LOCK_NAME =
   "school-sis:deployment-migrations:v1";
 export const DEPLOYMENT_RUNTIME_ROLE_ENV = "DEPLOYMENT_RUNTIME_ROLE";
+export const DEPLOYMENT_PLATFORM_ROLE_ENV = "DEPLOYMENT_PLATFORM_ROLE";
+export const REQUIRED_RUNTIME_ROLE = "school_sis_runtime";
+export const REQUIRED_PLATFORM_ROLE = "school_sis_platform";
+export const TENANT_CONTEXT_SIGNING_KEY_ID_ENV =
+  "TENANT_CONTEXT_SIGNING_KEY_ID";
+export const TENANT_CONTEXT_SIGNING_SECRET_ENV =
+  "TENANT_CONTEXT_SIGNING_SECRET";
+export const TENANT_CONTEXT_PREVIOUS_KEY_ID_ENV =
+  "TENANT_CONTEXT_PREVIOUS_KEY_ID";
+export const TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET_ENV =
+  "TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET";
+export const TENANT_CONTEXT_RETIRE_PREVIOUS_KEY_ENV =
+  "TENANT_CONTEXT_RETIRE_PREVIOUS_KEY";
+// Phase 1 ships the signer and verifier while preserving rollback compatibility.
+// The reviewed phase-2 follow-up changes only this constant to 2 after the
+// production workflow has recorded a successfully promoted signing runtime.
+export const PRODUCTION_TENANT_CONTEXT_ENFORCEMENT_PHASE: 1 | 2 = 1;
 export const DEFAULT_MIGRATION_LOCK_TIMEOUT_MS = 60_000;
 export const DEFAULT_MIGRATION_LOCK_RETRY_MS = 1_000;
 
@@ -23,6 +45,15 @@ const MAINTENANCE_RECORD_PATH =
   "scripts/destructive-migration-maintenance.json";
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const SAFE_POSTGRES_IDENTIFIER_PATTERN = /^[a-z_][a-z0-9_]{0,62}$/;
+const TENANT_CONTEXT_KEY_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,31}$/;
+const TENANT_CONTEXT_AUDIENCE_PATTERN = /^[a-z0-9][a-z0-9:._-]{2,191}$/;
+const TENANT_CONTEXT_SECRET_PATTERN = /^[A-Za-z0-9_-]{43,128}$/;
+// Regenerate only from a clean application of tenant-rls.sql. The canonical
+// catalog payload includes every public r/p policy's table, name, command,
+// roles, permissiveness, USING expression, and WITH CHECK expression.
+const EXPECTED_RLS_POLICY_COUNT = 179;
+const EXPECTED_RLS_POLICY_CATALOG_SHA256 =
+  "4751f1c65c25755cea92c46f8a4eed3892f3973035fde9d802cf0ecacfb090a6";
 const MAINTENANCE_OWNER_PATTERN = /^[A-Za-z0-9_.@/-]{2,100}$/;
 const MIGRATION_PATH_PATTERN = /^apps\/web\/drizzle\/[A-Za-z0-9_-]+\.sql$/;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
@@ -47,6 +78,15 @@ export interface DeploymentEnvironment {
   DATABASE_URL_UNPOOLED?: string;
   DATABASE_SSL_MODE?: string;
   DEPLOYMENT_RUNTIME_ROLE?: string;
+  DEPLOYMENT_PLATFORM_ROLE?: string;
+  TENANT_CONTEXT_SIGNING_KEY_ID?: string;
+  TENANT_CONTEXT_SIGNING_SECRET?: string;
+  TENANT_CONTEXT_AUDIENCE?: string;
+  TENANT_CONTEXT_PREVIOUS_KEY_ID?: string;
+  TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET?: string;
+  TENANT_CONTEXT_RETIRE_PREVIOUS_KEY?: string;
+  CURRENT_PRODUCTION_DEPLOYMENT_ID?: string;
+  GIT_COMMIT_SHA?: string;
 }
 
 export interface DeploymentConnection {
@@ -94,6 +134,17 @@ export interface RlsCoverageRow {
   row_security: boolean;
   force_row_security: boolean;
   policies: string[];
+  policy_contract_count: number;
+  policy_contract_sha256: string;
+}
+
+export interface DeploymentRoleMembershipEdge {
+  member_role: string;
+  granted_role: string;
+  grantor_role: string;
+  admin_option: boolean;
+  inherit_option: boolean;
+  set_option: boolean;
 }
 
 export interface DeploymentRuntimeRoleAttributes {
@@ -105,7 +156,12 @@ export interface DeploymentRuntimeRoleAttributes {
   create_role: boolean;
   create_db: boolean;
   replication: boolean;
-  has_role_memberships: boolean;
+  role_config: string[];
+  database_role_setting_count: number;
+  role_memberships: DeploymentRoleMembershipEdge[];
+  owned_object_count: number;
+  can_create_in_current_database: boolean;
+  can_create_temporary_tables: boolean;
   owns_current_database: boolean;
   owns_public_schema: boolean;
   owns_drizzle_schema: boolean;
@@ -118,21 +174,47 @@ export interface DeploymentRuntimeRoleAttributes {
   can_create_in_app_private_schema: boolean;
 }
 
+export interface TenantContextSigningKey {
+  keyId: string;
+  secret: string;
+}
+
+export interface TenantContextSigningKeyConfiguration {
+  audience: string;
+  current: TenantContextSigningKey;
+  previous?: TenantContextSigningKey;
+  retirePrevious: boolean;
+  currentProductionDeploymentId?: string;
+  releaseSha?: string;
+}
+
 export interface DeploymentRuntimeRolePrivileges {
   public_schema_usage: boolean;
   drizzle_schema_usage: boolean;
   app_private_schema_usage: boolean;
   public_tables_dml: boolean;
   public_sequences_usage: boolean;
+  public_sequences_only_runtime_privileges: boolean;
+  no_unsupported_public_relations: boolean;
   migration_ledger_select: boolean;
   public_tables_only_dml: boolean;
   migration_ledger_only_select: boolean;
   required_app_private_function_execute: boolean;
   only_required_app_private_function_execute: boolean;
+  tenant_context_private_tables_inaccessible: boolean;
+  no_unapproved_owner_security_definer_execute: boolean;
+  no_unapproved_security_definer_triggers: boolean;
+  no_unapproved_public_rewrite_rules: boolean;
   default_table_privileges: boolean;
   default_table_privileges_only_dml: boolean;
   default_sequence_privileges: boolean;
   default_app_private_functions_restricted: boolean;
+}
+
+export interface DeploymentMigrationOwnerAttributes {
+  role_name: string;
+  is_superuser: boolean;
+  bypass_rls: boolean;
 }
 
 export interface MigrationRunResult {
@@ -237,7 +319,136 @@ export function resolveDeploymentRuntimeRole(
       `${DEPLOYMENT_RUNTIME_ROLE_ENV} must be a lowercase PostgreSQL identifier containing only letters, digits, and underscores, beginning with a letter or underscore, with at most 63 characters.`,
     );
   }
+  if (runtimeRole !== REQUIRED_RUNTIME_ROLE) {
+    throw new Error(
+      `${DEPLOYMENT_RUNTIME_ROLE_ENV} must equal ${REQUIRED_RUNTIME_ROLE} because the phase-1 rollback bridge pins that exact legacy identity.`,
+    );
+  }
   return runtimeRole;
+}
+
+export function resolveDeploymentPlatformRole(
+  target: DeploymentTarget,
+  environment: DeploymentEnvironment,
+): string | undefined {
+  const platformRole = nonBlank(environment.DEPLOYMENT_PLATFORM_ROLE);
+  if (!platformRole) {
+    if (target === "ci") return undefined;
+    throw new Error(
+      `${target} deployment migrations require ${DEPLOYMENT_PLATFORM_ROLE_ENV}.`,
+    );
+  }
+  if (!SAFE_POSTGRES_IDENTIFIER_PATTERN.test(platformRole)) {
+    throw new Error(
+      `${DEPLOYMENT_PLATFORM_ROLE_ENV} must be a lowercase PostgreSQL identifier containing only letters, digits, and underscores, beginning with a letter or underscore, with at most 63 characters.`,
+    );
+  }
+  if (platformRole !== REQUIRED_PLATFORM_ROLE) {
+    throw new Error(
+      `${DEPLOYMENT_PLATFORM_ROLE_ENV} must equal ${REQUIRED_PLATFORM_ROLE} because the RLS policy function pins that exact trusted identity.`,
+    );
+  }
+  return platformRole;
+}
+
+function assertTenantContextKey(
+  keyId: string | undefined,
+  secret: string | undefined,
+  idVariable: string,
+  secretVariable: string,
+): TenantContextSigningKey {
+  if (!keyId || !TENANT_CONTEXT_KEY_ID_PATTERN.test(keyId)) {
+    throw new Error(
+      `${idVariable} must be a lowercase 1-32 character rotation identifier.`,
+    );
+  }
+  if (!secret || !TENANT_CONTEXT_SECRET_PATTERN.test(secret)) {
+    throw new Error(
+      `${secretVariable} must be a 43-128 character base64url secret generated from at least 32 random bytes.`,
+    );
+  }
+  return { keyId, secret };
+}
+
+export function resolveTenantContextSigningKeyConfiguration(
+  target: DeploymentTarget,
+  environment: DeploymentEnvironment,
+  localConnection: boolean,
+): TenantContextSigningKeyConfiguration {
+  let currentKeyId = nonBlank(environment.TENANT_CONTEXT_SIGNING_KEY_ID);
+  let currentSecret = environment.TENANT_CONTEXT_SIGNING_SECRET;
+  let audience = nonBlank(environment.TENANT_CONTEXT_AUDIENCE);
+  if (target === "ci" && localConnection && !currentKeyId && !currentSecret) {
+    currentKeyId = LOCAL_TENANT_CONTEXT_KEY_ID;
+    currentSecret = LOCAL_TENANT_CONTEXT_SECRET;
+    audience = audience || LOCAL_TENANT_CONTEXT_AUDIENCE;
+  }
+  if (!audience || !TENANT_CONTEXT_AUDIENCE_PATTERN.test(audience)) {
+    throw new Error(
+      "TENANT_CONTEXT_AUDIENCE must be a lowercase deployment-specific audience.",
+    );
+  }
+  const current = assertTenantContextKey(
+    currentKeyId,
+    currentSecret,
+    TENANT_CONTEXT_SIGNING_KEY_ID_ENV,
+    TENANT_CONTEXT_SIGNING_SECRET_ENV,
+  );
+
+  const previousKeyId = nonBlank(environment.TENANT_CONTEXT_PREVIOUS_KEY_ID);
+  const previousSecret = environment.TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET;
+  if (Boolean(previousKeyId) !== Boolean(previousSecret)) {
+    throw new Error(
+      `${TENANT_CONTEXT_PREVIOUS_KEY_ID_ENV} and ${TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET_ENV} must be configured together.`,
+    );
+  }
+  const previous = previousKeyId
+    ? assertTenantContextKey(
+        previousKeyId,
+        previousSecret,
+        TENANT_CONTEXT_PREVIOUS_KEY_ID_ENV,
+        TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET_ENV,
+      )
+    : undefined;
+  if (previous?.keyId === current.keyId) {
+    throw new Error("Current and previous tenant-context key IDs must differ.");
+  }
+  if (previous?.secret === current.secret) {
+    throw new Error("Current and previous tenant-context secrets must differ.");
+  }
+
+  const retireValue = nonBlank(environment.TENANT_CONTEXT_RETIRE_PREVIOUS_KEY);
+  if (retireValue && retireValue !== "true") {
+    throw new Error(
+      `${TENANT_CONTEXT_RETIRE_PREVIOUS_KEY_ENV} must be unset or exactly true.`,
+    );
+  }
+  const retirePrevious = retireValue === "true";
+  if (retirePrevious && previous) {
+    throw new Error(
+      `${TENANT_CONTEXT_RETIRE_PREVIOUS_KEY_ENV}=true cannot be combined with a previous verification key.`,
+    );
+  }
+  const currentProductionDeploymentId = nonBlank(
+    environment.CURRENT_PRODUCTION_DEPLOYMENT_ID,
+  );
+  if (
+    currentProductionDeploymentId &&
+    !/^dpl_[A-Za-z0-9]+$/.test(currentProductionDeploymentId)
+  ) {
+    throw new Error(
+      "CURRENT_PRODUCTION_DEPLOYMENT_ID must be an exact Vercel deployment ID.",
+    );
+  }
+
+  return {
+    audience,
+    current,
+    previous,
+    retirePrevious,
+    currentProductionDeploymentId,
+    releaseSha: nonBlank(environment.GIT_COMMIT_SHA),
+  };
 }
 
 function assertNoConnectionIdentityOverrides(url: URL, source: string): void {
@@ -312,6 +523,20 @@ function assertNoRemoteSslDowngrade(
   }
 }
 
+function assertRequiredRemoteChannelBinding(url: URL): void {
+  const channelBindingValues = [...url.searchParams.entries()]
+    .filter(([key]) => key.toLowerCase() === "channel_binding")
+    .map(([, value]) => value.toLowerCase());
+  if (
+    channelBindingValues.length !== 1 ||
+    channelBindingValues[0] !== "require"
+  ) {
+    throw new Error(
+      "Remote deployment URLs require exactly one channel_binding=require parameter.",
+    );
+  }
+}
+
 export function resolveDeploymentConnection(
   target: DeploymentTarget,
   environment: DeploymentEnvironment,
@@ -368,7 +593,10 @@ export function resolveDeploymentConnection(
   }
 
   const configuredMode = parseConfiguredSslMode(environment.DATABASE_SSL_MODE);
-  if (!local) assertNoRemoteSslDowngrade(parsed, configuredMode);
+  if (!local) {
+    assertNoRemoteSslDowngrade(parsed, configuredMode);
+    assertRequiredRemoteChannelBinding(parsed);
+  }
 
   return {
     connectionString,
@@ -991,6 +1219,9 @@ export function assertMigrationLedger(
 }
 
 export function assertRlsCoverage(rows: readonly RlsCoverageRow[]): void {
+  if (rows.length === 0) {
+    throw new Error("RLS coverage returned no governed public tables.");
+  }
   const byTable = new Map<string, RlsCoverageRow>();
   for (const row of rows) {
     if (byTable.has(row.table_name)) {
@@ -1010,9 +1241,17 @@ export function assertRlsCoverage(rows: readonly RlsCoverageRow[]): void {
         `RLS must be enabled and forced on public.${row.table_name}.`,
       );
     }
-    if (row.has_tenant_id && row.policies.length === 0) {
+    if (row.policies.length === 0) {
       throw new Error(
-        `Tenant table public.${row.table_name} has no RLS policy.`,
+        `Public table public.${row.table_name} has no RLS policy.`,
+      );
+    }
+    if (
+      row.policy_contract_count !== EXPECTED_RLS_POLICY_COUNT ||
+      row.policy_contract_sha256 !== EXPECTED_RLS_POLICY_CATALOG_SHA256
+    ) {
+      throw new Error(
+        "The exact public RLS policy catalog does not match the reviewed tenant-RLS artifact.",
       );
     }
   }
@@ -1042,6 +1281,7 @@ export function assertDeploymentRuntimeRoleIsSafe(
   target: DeploymentTarget,
   runtimeRole: string,
   rows: readonly DeploymentRuntimeRoleAttributes[],
+  allowDefaultTemporaryPrivilege = false,
 ): DeploymentRuntimeRoleAttributes {
   if (rows.length !== 1) {
     throw new Error(
@@ -1070,13 +1310,50 @@ export function assertDeploymentRuntimeRoleIsSafe(
     );
   }
 
+  const permittedProviderManagementEdge = (
+    edge: DeploymentRoleMembershipEdge,
+  ): boolean =>
+    edge.member_role === attributes.migration_owner &&
+    edge.granted_role === attributes.role_name &&
+    typeof edge.grantor_role === "string" &&
+    edge.grantor_role.length > 0 &&
+    edge.admin_option === true &&
+    edge.inherit_option === false &&
+    edge.set_option === false;
+
+  const roleMemberships = attributes.role_memberships;
+  const hasOnlyPermittedRoleMembership =
+    Array.isArray(roleMemberships) &&
+    roleMemberships.length <= 1 &&
+    roleMemberships.every(permittedProviderManagementEdge);
+  const hasEmptyRoleConfig =
+    Array.isArray(attributes.role_config) &&
+    attributes.role_config.length === 0;
+
   const unsafeAttributes = [
     ["SUPERUSER", attributes.is_superuser],
     ["BYPASSRLS", attributes.bypass_rls],
     ["CREATEROLE", attributes.create_role],
     ["CREATEDB", attributes.create_db],
     ["REPLICATION", attributes.replication],
-    ["role membership", attributes.has_role_memberships],
+    ["role membership", !hasOnlyPermittedRoleMembership],
+    ["role settings (rolconfig)", !hasEmptyRoleConfig],
+    [
+      "database/role settings (pg_db_role_setting)",
+      attributes.database_role_setting_count !== 0,
+    ],
+    [
+      "ownership of catalog-visible database objects",
+      attributes.owned_object_count !== 0,
+    ],
+    [
+      "CREATE on the current database",
+      attributes.can_create_in_current_database,
+    ],
+    [
+      "TEMPORARY on the current database",
+      attributes.can_create_temporary_tables && !allowDefaultTemporaryPrivilege,
+    ],
     ["ownership of the current database", attributes.owns_current_database],
     ["ownership of schema public", attributes.owns_public_schema],
     ["ownership of schema drizzle", attributes.owns_drizzle_schema],
@@ -1111,6 +1388,17 @@ export function assertDeploymentRuntimeRoleIsSafe(
   return attributes;
 }
 
+export function assertDeploymentApplicationRolesAreDistinct(
+  runtimeRole: string | undefined,
+  platformRole: string | undefined,
+): void {
+  if (runtimeRole && platformRole && runtimeRole === platformRole) {
+    throw new Error(
+      `${DEPLOYMENT_RUNTIME_ROLE_ENV} and ${DEPLOYMENT_PLATFORM_ROLE_ENV} must be distinct roles.`,
+    );
+  }
+}
+
 export function assertDeploymentRuntimeRolePrivileges(
   runtimeRole: string,
   rows: readonly DeploymentRuntimeRolePrivileges[],
@@ -1128,7 +1416,15 @@ export function assertDeploymentRuntimeRolePrivileges(
     ["USAGE on schema app_private", privileges?.app_private_schema_usage],
     ["DML on all public tables", privileges?.public_tables_dml],
     ["only DML on public tables", privileges?.public_tables_only_dml],
+    [
+      "no public views, materialized views, or foreign tables",
+      privileges?.no_unsupported_public_relations,
+    ],
     ["sequence privileges in public", privileges?.public_sequences_usage],
+    [
+      "only non-grantable app-role sequence privileges",
+      privileges?.public_sequences_only_runtime_privileges,
+    ],
     [
       "SELECT on drizzle.__drizzle_migrations",
       privileges?.migration_ledger_select,
@@ -1144,6 +1440,22 @@ export function assertDeploymentRuntimeRolePrivileges(
     [
       "only required app_private function EXECUTE",
       privileges?.only_required_app_private_function_execute,
+    ],
+    [
+      "no access to tenant-context private state",
+      privileges?.tenant_context_private_tables_inaccessible,
+    ],
+    [
+      "no unapproved executable SECURITY DEFINER functions",
+      privileges?.no_unapproved_owner_security_definer_execute,
+    ],
+    [
+      "no SECURITY DEFINER trigger functions",
+      privileges?.no_unapproved_security_definer_triggers,
+    ],
+    [
+      "no user rewrite rules on public tables",
+      privileges?.no_unapproved_public_rewrite_rules,
     ],
     ["default public table DML", privileges?.default_table_privileges],
     [
@@ -1299,6 +1611,65 @@ export async function withDeploymentTransaction<T>(
   }
 }
 
+export async function assertTenantContextPreDdlContract(
+  client: SqlClient,
+): Promise<void> {
+  const inventory = await client.query<{
+    app_private_schema_safe: boolean;
+    event_trigger_count: number;
+    key_table_exists: boolean;
+    rollout_table_exists: boolean;
+  }>(`
+      SELECT
+          (SELECT count(*)::integer FROM pg_catalog.pg_event_trigger)
+              AS event_trigger_count,
+          to_regclass('app_private.tenant_context_signing_keys') IS NOT NULL
+              AS key_table_exists,
+          to_regclass('app_private.tenant_context_rollout_state') IS NOT NULL
+              AS rollout_table_exists,
+          COALESCE((
+              SELECT
+                  namespaces.nspowner = (
+                      SELECT roles.oid
+                      FROM pg_catalog.pg_roles roles
+                      WHERE roles.rolname = current_user
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM aclexplode(COALESCE(
+                          namespaces.nspacl,
+                          acldefault('n', namespaces.nspowner)
+                      )) grants
+                      WHERE grants.grantee <> namespaces.nspowner
+                        AND (grants.privilege_type <> 'USAGE' OR grants.is_grantable)
+                  )
+              FROM pg_catalog.pg_namespace namespaces
+              WHERE namespaces.nspname = 'app_private'
+          ), true) AS app_private_schema_safe
+  `);
+  const row = inventory.rows[0];
+  if (
+    inventory.rows.length !== 1 ||
+    !row ||
+    row.event_trigger_count !== 0 ||
+    row.app_private_schema_safe !== true ||
+    row.key_table_exists !== row.rollout_table_exists
+  ) {
+    throw new Error(
+      "Tenant-context pre-DDL state is unsafe; refusing to execute migrations while private storage or event triggers are untrusted.",
+    );
+  }
+  if (row.key_table_exists) {
+    await client.query(
+      `LOCK TABLE
+         app_private.tenant_context_signing_keys,
+         app_private.tenant_context_rollout_state
+       IN ACCESS EXCLUSIVE MODE`,
+    );
+    await assertTenantContextPreProvisionContract(client);
+  }
+}
+
 export async function applyDeploymentSchemaTransaction(
   client: SqlClient,
   migrations: readonly DeploymentMigration[],
@@ -1322,6 +1693,7 @@ export async function applyDeploymentSchemaTransaction(
   assertNoEmbeddedTransactionControl(tenantRlsSql, "Tenant RLS SQL");
 
   await withDeploymentTransaction(client, async () => {
+    await assertTenantContextPreDdlContract(client);
     await client.query("CREATE EXTENSION IF NOT EXISTS vector");
     await client.query(`CREATE SCHEMA IF NOT EXISTS ${MIGRATIONS_SCHEMA}`);
     await client.query(
@@ -1533,43 +1905,66 @@ async function readMigrationDatabaseState(
   };
 }
 
-async function readRlsCoverage(client: SqlClient): Promise<RlsCoverageRow[]> {
+export async function readRlsCoverage(
+  client: SqlClient,
+): Promise<RlsCoverageRow[]> {
   const result = await client.query<RlsCoverageRow>(`
-        WITH tenant_tables AS (
-            SELECT DISTINCT columns.table_name
-            FROM information_schema.columns columns
-            JOIN information_schema.tables tables
-              ON tables.table_schema = columns.table_schema
-             AND tables.table_name = columns.table_name
-            WHERE columns.table_schema = 'public'
-              AND columns.column_name = 'tenant_id'
-              AND tables.table_type = 'BASE TABLE'
-        ), required_tables AS (
-            SELECT table_name FROM tenant_tables
-            UNION
-            SELECT unnest(ARRAY['tenants', 'companies'])
+        WITH policy_rows AS (
+            SELECT jsonb_build_object(
+                'table', classes.relname,
+                'policy', policies.polname,
+                'permissive', policies.polpermissive,
+                'command', policies.polcmd,
+                'roles', policies.polroles::text,
+                'using', pg_get_expr(policies.polqual, policies.polrelid, false),
+                'check', pg_get_expr(policies.polwithcheck, policies.polrelid, false)
+            )::text AS contract,
+            classes.relname::text AS table_name,
+            policies.polname::text AS policy_name
+            FROM pg_catalog.pg_policy policies
+            JOIN pg_catalog.pg_class classes ON classes.oid = policies.polrelid
+            JOIN pg_catalog.pg_namespace namespaces ON namespaces.oid = classes.relnamespace
+            WHERE namespaces.nspname = 'public'
+              AND classes.relkind IN ('r', 'p')
+        ), policy_contract AS (
+            SELECT
+                count(*)::integer AS policy_contract_count,
+                encode(public.digest(
+                    convert_to(string_agg(
+                        contract,
+                        E'\\n' ORDER BY table_name, policy_name
+                    ), 'UTF8'),
+                    'sha256'
+                ), 'hex') AS policy_contract_sha256
+            FROM policy_rows
         )
         SELECT
-            required.table_name,
-            classes.oid IS NOT NULL AS table_exists,
-            tenant.table_name IS NOT NULL AS has_tenant_id,
-            COALESCE(classes.relrowsecurity, false) AS row_security,
-            COALESCE(classes.relforcerowsecurity, false) AS force_row_security,
+            classes.relname::text AS table_name,
+            true AS table_exists,
+            EXISTS (
+                SELECT 1
+                FROM pg_attribute attributes
+                WHERE attributes.attrelid = classes.oid
+                  AND attributes.attname = 'tenant_id'
+                  AND attributes.attnum > 0
+                  AND NOT attributes.attisdropped
+            ) AS has_tenant_id,
+            classes.relrowsecurity AS row_security,
+            classes.relforcerowsecurity AS force_row_security,
             ARRAY(
-                SELECT policies.policyname::text
-                FROM pg_policies policies
-                WHERE policies.schemaname = 'public'
-                  AND policies.tablename = required.table_name
-                ORDER BY policies.policyname
-            ) AS policies
-        FROM required_tables required
-        LEFT JOIN tenant_tables tenant ON tenant.table_name = required.table_name
-        LEFT JOIN pg_namespace namespaces ON namespaces.nspname = 'public'
-        LEFT JOIN pg_class classes
-          ON classes.relnamespace = namespaces.oid
-         AND classes.relname = required.table_name
-         AND classes.relkind IN ('r', 'p')
-        ORDER BY required.table_name
+                SELECT policies.polname::text
+                FROM pg_policy policies
+                WHERE policies.polrelid = classes.oid
+                ORDER BY policies.polname
+            ) AS policies,
+            policy_contract.policy_contract_count,
+            policy_contract.policy_contract_sha256
+        FROM pg_class classes
+        JOIN pg_namespace namespaces ON namespaces.oid = classes.relnamespace
+        CROSS JOIN policy_contract
+        WHERE namespaces.nspname = 'public'
+          AND classes.relkind IN ('r', 'p')
+        ORDER BY classes.relname
     `);
   return result.rows;
 }
@@ -1578,7 +1973,66 @@ function quotePostgresIdentifier(identifier: string): string {
   return `"${identifier.replaceAll('"', '""')}"`;
 }
 
-async function readDeploymentRuntimeRoleAttributes(
+export async function assertMigrationOwnerCanMaintainForcedRls(
+  client: SqlClient,
+  target: DeploymentTarget,
+): Promise<void> {
+  const result = await client.query<DeploymentMigrationOwnerAttributes>(`
+      SELECT
+          roles.rolname::text AS role_name,
+          roles.rolsuper AS is_superuser,
+          roles.rolbypassrls AS bypass_rls
+      FROM pg_catalog.pg_roles roles
+      WHERE roles.rolname = current_user
+  `);
+  const owner = result.rows[0];
+  if (result.rows.length !== 1 || !owner?.role_name) {
+    throw new Error("Could not verify the connected migration owner.");
+  }
+  if (
+    (target === "preview" || target === "production") &&
+    owner.bypass_rls !== true
+  ) {
+    throw new Error(
+      `The ${target} migration owner must have BYPASSRLS so locked migrations can maintain FORCE RLS tables without an application-visible owner bypass.`,
+    );
+  }
+  if (
+    target === "ci" &&
+    owner.bypass_rls !== true &&
+    owner.is_superuser !== true
+  ) {
+    throw new Error(
+      "The CI migration owner must be SUPERUSER or BYPASSRLS for FORCE RLS maintenance.",
+    );
+  }
+}
+
+export async function assertMigrationOwnerCanDrainApplicationBackends(
+  client: SqlClient,
+  target: DeploymentTarget,
+): Promise<void> {
+  if (target === "ci") return;
+  const capability = await client.query<{
+    can_signal_backends: boolean;
+    migration_owner: string;
+  }>(`
+      SELECT
+          current_user::text AS migration_owner,
+          pg_has_role(current_user, 'pg_signal_backend', 'USAGE')
+              AS can_signal_backends
+  `);
+  if (
+    capability.rows.length !== 1 ||
+    capability.rows[0]?.can_signal_backends !== true
+  ) {
+    throw new Error(
+      "The migration owner must have effective pg_signal_backend capability before the TEMP cutover can mutate the database.",
+    );
+  }
+}
+
+export async function readDeploymentRuntimeRoleAttributes(
   client: SqlClient,
   runtimeRole: string,
 ): Promise<DeploymentRuntimeRoleAttributes[]> {
@@ -1592,11 +2046,167 @@ async function readDeploymentRuntimeRoleAttributes(
             roles.rolcreaterole AS create_role,
             roles.rolcreatedb AS create_db,
             roles.rolreplication AS replication,
-            EXISTS (
-                SELECT 1
+            COALESCE(roles.rolconfig, ARRAY[]::text[]) AS role_config,
+            (
+                SELECT count(*)::integer
+                FROM pg_catalog.pg_db_role_setting settings
+                WHERE settings.setrole = roles.oid
+                   OR (
+                        settings.setrole = 0
+                        AND settings.setdatabase IN (
+                            0,
+                            (
+                                SELECT databases.oid
+                                FROM pg_catalog.pg_database databases
+                                WHERE databases.datname = current_database()
+                            )
+                        )
+                   )
+            ) AS database_role_setting_count,
+            COALESCE((
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'member_role', member_roles.rolname::text,
+                        'granted_role', granted_roles.rolname::text,
+                        'grantor_role', grantor_roles.rolname::text,
+                        'admin_option', memberships.admin_option,
+                        'inherit_option', memberships.inherit_option,
+                        'set_option', memberships.set_option
+                    )
+                    ORDER BY
+                        member_roles.rolname,
+                        granted_roles.rolname,
+                        grantor_roles.rolname
+                )
                 FROM pg_catalog.pg_auth_members memberships
+                JOIN pg_catalog.pg_roles member_roles
+                  ON member_roles.oid = memberships.member
+                JOIN pg_catalog.pg_roles granted_roles
+                  ON granted_roles.oid = memberships.roleid
+                JOIN pg_catalog.pg_roles grantor_roles
+                  ON grantor_roles.oid = memberships.grantor
                 WHERE memberships.member = roles.oid
-            ) AS has_role_memberships,
+                   OR memberships.roleid = roles.oid
+            ), '[]'::jsonb) AS role_memberships,
+            (
+                SELECT count(*)::integer
+                FROM (
+                    SELECT 1
+                    FROM pg_catalog.pg_namespace objects
+                    WHERE objects.nspowner = roles.oid
+                      AND objects.nspname <> 'information_schema'
+                      AND objects.nspname !~ '^pg_'
+                    UNION ALL
+                    SELECT 1
+                    FROM pg_catalog.pg_class objects
+                    JOIN pg_catalog.pg_namespace namespaces
+                      ON namespaces.oid = objects.relnamespace
+                    WHERE objects.relowner = roles.oid
+                      AND namespaces.nspname <> 'information_schema'
+                      AND namespaces.nspname !~ '^pg_'
+                    UNION ALL
+                    SELECT 1
+                    FROM pg_catalog.pg_proc objects
+                    JOIN pg_catalog.pg_namespace namespaces
+                      ON namespaces.oid = objects.pronamespace
+                    WHERE objects.proowner = roles.oid
+                      AND namespaces.nspname <> 'information_schema'
+                      AND namespaces.nspname !~ '^pg_'
+                    UNION ALL
+                    SELECT 1
+                    FROM pg_catalog.pg_type objects
+                    JOIN pg_catalog.pg_namespace namespaces
+                      ON namespaces.oid = objects.typnamespace
+                    WHERE objects.typowner = roles.oid
+                      AND namespaces.nspname <> 'information_schema'
+                      AND namespaces.nspname !~ '^pg_'
+                    UNION ALL
+                    SELECT 1
+                    FROM pg_catalog.pg_collation objects
+                    JOIN pg_catalog.pg_namespace namespaces
+                      ON namespaces.oid = objects.collnamespace
+                    WHERE objects.collowner = roles.oid
+                      AND namespaces.nspname <> 'information_schema'
+                      AND namespaces.nspname !~ '^pg_'
+                    UNION ALL
+                    SELECT 1
+                    FROM pg_catalog.pg_conversion objects
+                    JOIN pg_catalog.pg_namespace namespaces
+                      ON namespaces.oid = objects.connamespace
+                    WHERE objects.conowner = roles.oid
+                      AND namespaces.nspname <> 'information_schema'
+                      AND namespaces.nspname !~ '^pg_'
+                    UNION ALL
+                    SELECT 1
+                    FROM pg_catalog.pg_operator objects
+                    JOIN pg_catalog.pg_namespace namespaces
+                      ON namespaces.oid = objects.oprnamespace
+                    WHERE objects.oprowner = roles.oid
+                      AND namespaces.nspname <> 'information_schema'
+                      AND namespaces.nspname !~ '^pg_'
+                    UNION ALL
+                    SELECT 1
+                    FROM pg_catalog.pg_opclass objects
+                    JOIN pg_catalog.pg_namespace namespaces
+                      ON namespaces.oid = objects.opcnamespace
+                    WHERE objects.opcowner = roles.oid
+                      AND namespaces.nspname <> 'information_schema'
+                      AND namespaces.nspname !~ '^pg_'
+                    UNION ALL
+                    SELECT 1
+                    FROM pg_catalog.pg_opfamily objects
+                    JOIN pg_catalog.pg_namespace namespaces
+                      ON namespaces.oid = objects.opfnamespace
+                    WHERE objects.opfowner = roles.oid
+                      AND namespaces.nspname <> 'information_schema'
+                      AND namespaces.nspname !~ '^pg_'
+                    UNION ALL
+                    SELECT 1
+                    FROM pg_catalog.pg_ts_config objects
+                    JOIN pg_catalog.pg_namespace namespaces
+                      ON namespaces.oid = objects.cfgnamespace
+                    WHERE objects.cfgowner = roles.oid
+                      AND namespaces.nspname <> 'information_schema'
+                      AND namespaces.nspname !~ '^pg_'
+                    UNION ALL
+                    SELECT 1
+                    FROM pg_catalog.pg_ts_dict objects
+                    JOIN pg_catalog.pg_namespace namespaces
+                      ON namespaces.oid = objects.dictnamespace
+                    WHERE objects.dictowner = roles.oid
+                      AND namespaces.nspname <> 'information_schema'
+                      AND namespaces.nspname !~ '^pg_'
+                    UNION ALL
+                    SELECT 1
+                    FROM pg_catalog.pg_statistic_ext objects
+                    JOIN pg_catalog.pg_namespace namespaces
+                      ON namespaces.oid = objects.stxnamespace
+                    WHERE objects.stxowner = roles.oid
+                      AND namespaces.nspname <> 'information_schema'
+                      AND namespaces.nspname !~ '^pg_'
+                    UNION ALL SELECT 1 FROM pg_catalog.pg_extension objects WHERE objects.extowner = roles.oid
+                    UNION ALL SELECT 1 FROM pg_catalog.pg_database objects WHERE objects.datdba = roles.oid
+                    UNION ALL SELECT 1 FROM pg_catalog.pg_tablespace objects WHERE objects.spcowner = roles.oid
+                    UNION ALL SELECT 1 FROM pg_catalog.pg_language objects WHERE objects.lanowner = roles.oid
+                    UNION ALL SELECT 1 FROM pg_catalog.pg_foreign_data_wrapper objects WHERE objects.fdwowner = roles.oid
+                    UNION ALL SELECT 1 FROM pg_catalog.pg_foreign_server objects WHERE objects.srvowner = roles.oid
+                    UNION ALL SELECT 1 FROM pg_catalog.pg_event_trigger objects WHERE objects.evtowner = roles.oid
+                    UNION ALL SELECT 1 FROM pg_catalog.pg_publication objects WHERE objects.pubowner = roles.oid
+                    UNION ALL SELECT 1 FROM pg_catalog.pg_subscription objects WHERE objects.subowner = roles.oid
+                    UNION ALL SELECT 1 FROM pg_catalog.pg_largeobject_metadata objects WHERE objects.lomowner = roles.oid
+                    UNION ALL SELECT 1 FROM pg_catalog.pg_default_acl objects WHERE objects.defaclrole = roles.oid
+                ) owned_objects
+            ) AS owned_object_count,
+            has_database_privilege(
+                roles.oid,
+                current_database(),
+                'CREATE'
+            ) AS can_create_in_current_database,
+            has_database_privilege(
+                roles.oid,
+                current_database(),
+                'TEMPORARY'
+            ) AS can_create_temporary_tables,
             EXISTS (
                 SELECT 1
                 FROM pg_catalog.pg_database databases
@@ -1667,7 +2277,7 @@ async function readDeploymentRuntimeRoleAttributes(
   return result.rows;
 }
 
-async function readDeploymentRuntimeRolePrivileges(
+export async function readDeploymentRuntimeRolePrivileges(
   client: SqlClient,
   runtimeRole: string,
 ): Promise<DeploymentRuntimeRolePrivileges[]> {
@@ -1678,9 +2288,16 @@ async function readDeploymentRuntimeRolePrivileges(
             JOIN pg_catalog.pg_namespace namespaces
               ON namespaces.oid = classes.relnamespace
             WHERE namespaces.nspname = 'public'
-              AND classes.relkind IN ('r', 'p', 'v', 'm', 'f')
-        ), public_sequences AS (
+              AND classes.relkind IN ('r', 'p')
+        ), unsupported_public_relations AS (
             SELECT classes.oid
+            FROM pg_catalog.pg_class classes
+            JOIN pg_catalog.pg_namespace namespaces
+              ON namespaces.oid = classes.relnamespace
+            WHERE namespaces.nspname = 'public'
+              AND classes.relkind IN ('v', 'm', 'f')
+        ), public_sequences AS (
+            SELECT classes.oid, classes.relacl, classes.relowner
             FROM pg_catalog.pg_class classes
             JOIN pg_catalog.pg_namespace namespaces
               ON namespaces.oid = classes.relnamespace
@@ -1690,6 +2307,10 @@ async function readDeploymentRuntimeRolePrivileges(
             SELECT roles.oid
             FROM pg_catalog.pg_roles roles
             WHERE roles.rolname = $1
+        ), application_roles AS (
+            SELECT roles.oid
+            FROM pg_catalog.pg_roles roles
+            WHERE roles.rolname IN ('school_sis_runtime', 'school_sis_platform')
         ), migration_owner AS (
             SELECT roles.oid
             FROM pg_catalog.pg_roles roles
@@ -1697,6 +2318,7 @@ async function readDeploymentRuntimeRolePrivileges(
         ), effective_public_relation_privileges AS (
             SELECT
                 relations.oid,
+                grants.grantee,
                 grants.privilege_type::text AS privilege_type,
                 grants.is_grantable
             FROM public_relations relations
@@ -1704,24 +2326,36 @@ async function readDeploymentRuntimeRolePrivileges(
                 relations.relacl,
                 acldefault('r', relations.relowner)
             )) grants
-            CROSS JOIN runtime_role
-            WHERE grants.grantee IN (0, runtime_role.oid)
+            WHERE grants.grantee <> relations.relowner
 
             UNION ALL
 
             SELECT
                 attributes.attrelid AS oid,
+                grants.grantee,
                 grants.privilege_type::text AS privilege_type,
                 grants.is_grantable
             FROM pg_catalog.pg_attribute attributes
             JOIN public_relations relations
               ON relations.oid = attributes.attrelid
             CROSS JOIN LATERAL aclexplode(attributes.attacl) grants
-            CROSS JOIN runtime_role
             WHERE attributes.attacl IS NOT NULL
-              AND grants.grantee IN (0, runtime_role.oid)
+              AND grants.grantee <> relations.relowner
+        ), effective_public_sequence_privileges AS (
+            SELECT
+                sequences.oid,
+                grants.grantee,
+                grants.privilege_type::text AS privilege_type,
+                grants.is_grantable
+            FROM public_sequences sequences
+            CROSS JOIN LATERAL aclexplode(COALESCE(
+                sequences.relacl,
+                acldefault('s', sequences.relowner)
+            )) grants
+            WHERE grants.grantee <> sequences.relowner
         ), effective_ledger_privileges AS (
             SELECT
+                grants.grantee,
                 grants.privilege_type::text AS privilege_type,
                 grants.is_grantable
             FROM pg_catalog.pg_class ledger
@@ -1731,15 +2365,15 @@ async function readDeploymentRuntimeRolePrivileges(
                 ledger.relacl,
                 acldefault('r', ledger.relowner)
             )) grants
-            CROSS JOIN runtime_role
             WHERE namespaces.nspname = 'drizzle'
               AND ledger.relname = '__drizzle_migrations'
               AND ledger.relkind IN ('r', 'p')
-              AND grants.grantee IN (0, runtime_role.oid)
+              AND grants.grantee <> ledger.relowner
 
             UNION ALL
 
             SELECT
+                grants.grantee,
                 grants.privilege_type::text AS privilege_type,
                 grants.is_grantable
             FROM pg_catalog.pg_attribute attributes
@@ -1747,12 +2381,11 @@ async function readDeploymentRuntimeRolePrivileges(
             JOIN pg_catalog.pg_namespace namespaces
               ON namespaces.oid = ledger.relnamespace
             CROSS JOIN LATERAL aclexplode(attributes.attacl) grants
-            CROSS JOIN runtime_role
             WHERE namespaces.nspname = 'drizzle'
               AND ledger.relname = '__drizzle_migrations'
               AND ledger.relkind IN ('r', 'p')
               AND attributes.attacl IS NOT NULL
-              AND grants.grantee IN (0, runtime_role.oid)
+              AND grants.grantee <> ledger.relowner
         ), app_private_functions AS (
             SELECT
                 functions.oid,
@@ -1764,7 +2397,9 @@ async function readDeploymentRuntimeRolePrivileges(
                     functions.pronargs = 0
                     AND functions.proname IN (
                         'current_tenant_id',
+                        'verified_tenant_id',
                         'has_tenant_context',
+                        'tenant_context_enforcement_phase',
                         'rls_bypass'
                     )
                 ) AS is_required
@@ -1776,6 +2411,7 @@ async function readDeploymentRuntimeRolePrivileges(
             SELECT
                 functions.oid,
                 functions.is_required,
+                grants.grantee,
                 grants.privilege_type::text AS privilege_type,
                 grants.is_grantable
             FROM app_private_functions functions
@@ -1783,8 +2419,7 @@ async function readDeploymentRuntimeRolePrivileges(
                 functions.proacl,
                 acldefault('f', functions.proowner)
             )) grants
-            CROSS JOIN runtime_role
-            WHERE grants.grantee IN (0, runtime_role.oid)
+            WHERE grants.grantee <> functions.proowner
         ), required_default_privileges(object_type, privilege_type) AS (
             VALUES
                 ('r', 'SELECT'),
@@ -1797,25 +2432,25 @@ async function readDeploymentRuntimeRolePrivileges(
         ), actual_default_privileges AS (
             SELECT
                 defaults.defaclobjtype::text AS object_type,
+                grants.grantee,
                 grants.privilege_type::text AS privilege_type,
                 grants.is_grantable
             FROM pg_catalog.pg_default_acl defaults
             CROSS JOIN LATERAL aclexplode(defaults.defaclacl) grants
-            CROSS JOIN runtime_role
             WHERE defaults.defaclrole = (SELECT oid FROM migration_owner)
               AND defaults.defaclnamespace = (
                   SELECT namespaces.oid
                   FROM pg_catalog.pg_namespace namespaces
                   WHERE namespaces.nspname = 'public'
               )
-              AND grants.grantee IN (0, runtime_role.oid)
+              AND grants.grantee <> defaults.defaclrole
         ), actual_app_private_default_function_privileges AS (
             SELECT
+                grants.grantee,
                 grants.privilege_type::text AS privilege_type,
                 grants.is_grantable
             FROM pg_catalog.pg_default_acl defaults
             CROSS JOIN LATERAL aclexplode(defaults.defaclacl) grants
-            CROSS JOIN runtime_role
             WHERE defaults.defaclrole = (SELECT oid FROM migration_owner)
               AND defaults.defaclobjtype = 'f'
               AND defaults.defaclnamespace = (
@@ -1823,7 +2458,7 @@ async function readDeploymentRuntimeRolePrivileges(
                   FROM pg_catalog.pg_namespace namespaces
                   WHERE namespaces.nspname = 'app_private'
               )
-              AND grants.grantee IN (0, runtime_role.oid)
+              AND grants.grantee <> defaults.defaclrole
         )
         SELECT
             COALESCE(has_schema_privilege($1, 'public', 'USAGE'), false)
@@ -1832,6 +2467,8 @@ async function readDeploymentRuntimeRolePrivileges(
                 AS drizzle_schema_usage,
             COALESCE(has_schema_privilege($1, 'app_private', 'USAGE'), false)
                 AS app_private_schema_usage,
+            NOT EXISTS (SELECT 1 FROM unsupported_public_relations)
+                AS no_unsupported_public_relations,
             COALESCE((
                 SELECT bool_and(has_table_privilege(
                     $1,
@@ -1843,7 +2480,11 @@ async function readDeploymentRuntimeRolePrivileges(
             NOT EXISTS (
                 SELECT 1
                 FROM effective_public_relation_privileges privileges
-                WHERE privileges.privilege_type NOT IN (
+                WHERE NOT EXISTS (
+                          SELECT 1 FROM application_roles roles
+                          WHERE roles.oid = privileges.grantee
+                      )
+                   OR privileges.privilege_type NOT IN (
                     'SELECT', 'INSERT', 'UPDATE', 'DELETE'
                 )
                    OR privileges.is_grantable
@@ -1856,6 +2497,16 @@ async function readDeploymentRuntimeRolePrivileges(
                 ))
                 FROM public_sequences sequences
             ), true) AS public_sequences_usage,
+            NOT EXISTS (
+                SELECT 1
+                FROM effective_public_sequence_privileges privileges
+                WHERE NOT EXISTS (
+                          SELECT 1 FROM application_roles roles
+                          WHERE roles.oid = privileges.grantee
+                      )
+                   OR privileges.privilege_type NOT IN ('USAGE', 'SELECT', 'UPDATE')
+                   OR privileges.is_grantable
+            ) AS public_sequences_only_runtime_privileges,
             (
                 to_regclass('drizzle.__drizzle_migrations') IS NOT NULL
                 AND COALESCE(has_table_privilege(
@@ -1867,12 +2518,16 @@ async function readDeploymentRuntimeRolePrivileges(
             NOT EXISTS (
                 SELECT 1
                 FROM effective_ledger_privileges privileges
-                WHERE privileges.privilege_type <> 'SELECT'
+                WHERE NOT EXISTS (
+                          SELECT 1 FROM application_roles roles
+                          WHERE roles.oid = privileges.grantee
+                      )
+                   OR privileges.privilege_type <> 'SELECT'
                    OR privileges.is_grantable
             ) AS migration_ledger_only_select,
             (
                 SELECT
-                    count(*) = 3
+                    count(*) = 5
                     AND bool_and(
                         has_function_privilege($1, functions.oid, 'EXECUTE')
                         AND EXISTS (
@@ -1892,10 +2547,82 @@ async function readDeploymentRuntimeRolePrivileges(
             NOT EXISTS (
                 SELECT 1
                 FROM effective_app_private_function_privileges privileges
-                WHERE NOT privileges.is_required
+                WHERE NOT EXISTS (
+                          SELECT 1 FROM application_roles roles
+                          WHERE roles.oid = privileges.grantee
+                      )
+                   OR NOT privileges.is_required
                    OR privileges.privilege_type <> 'EXECUTE'
                    OR privileges.is_grantable
             ) AS only_required_app_private_function_execute,
+            (
+                to_regclass('app_private.tenant_context_signing_keys') IS NOT NULL
+                AND to_regclass('app_private.tenant_context_rollout_state') IS NOT NULL
+                AND NOT has_table_privilege(
+                    $1,
+                    to_regclass('app_private.tenant_context_signing_keys'),
+                    'SELECT'
+                )
+                AND NOT has_table_privilege(
+                    $1,
+                    to_regclass('app_private.tenant_context_signing_keys'),
+                    'INSERT'
+                )
+                AND NOT has_table_privilege(
+                    $1,
+                    to_regclass('app_private.tenant_context_signing_keys'),
+                    'UPDATE'
+                )
+                AND NOT has_table_privilege(
+                    $1,
+                    to_regclass('app_private.tenant_context_signing_keys'),
+                    'DELETE'
+                )
+                AND NOT has_any_column_privilege(
+                    $1,
+                    to_regclass('app_private.tenant_context_signing_keys'),
+                    'SELECT,INSERT,UPDATE,REFERENCES'
+                )
+                AND NOT has_table_privilege(
+                    $1,
+                    to_regclass('app_private.tenant_context_rollout_state'),
+                    'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+                )
+                AND NOT has_any_column_privilege(
+                    $1,
+                    to_regclass('app_private.tenant_context_rollout_state'),
+                    'SELECT,INSERT,UPDATE,REFERENCES'
+                )
+            ) AS tenant_context_private_tables_inaccessible,
+            NOT EXISTS (
+                SELECT 1
+                FROM pg_catalog.pg_proc functions
+                JOIN pg_catalog.pg_namespace namespaces
+                  ON namespaces.oid = functions.pronamespace
+                WHERE functions.prosecdef
+                  AND namespaces.nspname <> 'information_schema'
+                  AND namespaces.nspname !~ '^pg_'
+                  AND has_function_privilege($1, functions.oid, 'EXECUTE')
+                  AND functions.oid NOT IN (
+                      'app_private.current_tenant_id()'::regprocedure,
+                      'app_private.verified_tenant_id()'::regprocedure,
+                      'app_private.tenant_context_enforcement_phase()'::regprocedure
+                  )
+            ) AS no_unapproved_owner_security_definer_execute,
+            NOT EXISTS (
+                SELECT 1
+                FROM pg_catalog.pg_trigger triggers
+                JOIN public_relations relations ON relations.oid = triggers.tgrelid
+                JOIN pg_catalog.pg_proc functions ON functions.oid = triggers.tgfoid
+                WHERE NOT triggers.tgisinternal
+                  AND functions.prosecdef
+            ) AS no_unapproved_security_definer_triggers,
+            NOT EXISTS (
+                SELECT 1
+                FROM pg_catalog.pg_rewrite rules
+                JOIN public_relations relations ON relations.oid = rules.ev_class
+                WHERE rules.rulename <> '_RETURN'
+            ) AS no_unapproved_public_rewrite_rules,
             NOT EXISTS (
                 SELECT 1
                 FROM required_default_privileges required
@@ -1904,6 +2631,7 @@ async function readDeploymentRuntimeRolePrivileges(
                       SELECT 1
                       FROM actual_default_privileges actual
                       WHERE actual.object_type = required.object_type
+                        AND actual.grantee = (SELECT oid FROM runtime_role)
                         AND actual.privilege_type = required.privilege_type
                   )
             ) AS default_table_privileges,
@@ -1912,6 +2640,11 @@ async function readDeploymentRuntimeRolePrivileges(
                 FROM actual_default_privileges actual
                 WHERE actual.object_type = 'r'
                   AND (
+                      NOT EXISTS (
+                          SELECT 1 FROM application_roles roles
+                          WHERE roles.oid = actual.grantee
+                      )
+                      OR
                       actual.privilege_type NOT IN (
                           'SELECT', 'INSERT', 'UPDATE', 'DELETE'
                       )
@@ -1926,7 +2659,21 @@ async function readDeploymentRuntimeRolePrivileges(
                       SELECT 1
                       FROM actual_default_privileges actual
                       WHERE actual.object_type = required.object_type
+                        AND actual.grantee = (SELECT oid FROM runtime_role)
                         AND actual.privilege_type = required.privilege_type
+                  )
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM actual_default_privileges actual
+                WHERE actual.object_type = 'S'
+                  AND (
+                      NOT EXISTS (
+                          SELECT 1 FROM application_roles roles
+                          WHERE roles.oid = actual.grantee
+                      )
+                      OR actual.privilege_type NOT IN ('USAGE', 'SELECT', 'UPDATE')
+                      OR actual.is_grantable
                   )
             ) AS default_sequence_privileges,
             NOT EXISTS (
@@ -1940,14 +2687,30 @@ async function readDeploymentRuntimeRolePrivileges(
 
 async function grantAndVerifyDeploymentRuntimeRole(
   client: SqlClient,
+  target: DeploymentTarget,
   runtimeRole: string,
   migrationOwner: string,
 ): Promise<void> {
   const quotedRuntimeRole = quotePostgresIdentifier(runtimeRole);
   const quotedMigrationOwner = quotePostgresIdentifier(migrationOwner);
+  const database = await client.query<{ database_name: string }>(
+    `SELECT current_database()::text AS database_name`,
+  );
+  const databaseName = database.rows[0]?.database_name;
+  if (database.rows.length !== 1 || !databaseName) {
+    throw new Error("Could not resolve the exact deployment database name.");
+  }
+  await client.query(
+    `REVOKE TEMPORARY ON DATABASE ${quotePostgresIdentifier(databaseName)}
+       FROM PUBLIC, ${quotedRuntimeRole}`,
+  );
 
   await client.query(
     `GRANT USAGE ON SCHEMA public, drizzle, app_private TO ${quotedRuntimeRole}`,
+  );
+  await client.query(`REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC`);
+  await client.query(
+    `REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC`,
   );
   await client.query(
     `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${quotedRuntimeRole}`,
@@ -1962,9 +2725,17 @@ async function grantAndVerifyDeploymentRuntimeRole(
     `REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA app_private FROM PUBLIC, ${quotedRuntimeRole}`,
   );
   await client.query(
+    `REVOKE ALL PRIVILEGES ON TABLE
+         app_private.tenant_context_signing_keys,
+         app_private.tenant_context_rollout_state
+       FROM PUBLIC, ${quotedRuntimeRole}`,
+  );
+  await client.query(
     `GRANT EXECUTE ON FUNCTION
           app_private.current_tenant_id(),
+          app_private.verified_tenant_id(),
           app_private.has_tenant_context(),
+          app_private.tenant_context_enforcement_phase(),
           app_private.rls_bypass()
        TO ${quotedRuntimeRole}`,
   );
@@ -1974,16 +2745,837 @@ async function grantAndVerifyDeploymentRuntimeRole(
   );
   await client.query(
     `ALTER DEFAULT PRIVILEGES FOR ROLE ${quotedMigrationOwner} IN SCHEMA public
+       REVOKE ALL ON TABLES FROM PUBLIC`,
+  );
+  await client.query(
+    `ALTER DEFAULT PRIVILEGES FOR ROLE ${quotedMigrationOwner} IN SCHEMA public
        GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO ${quotedRuntimeRole}`,
+  );
+  await client.query(
+    `ALTER DEFAULT PRIVILEGES FOR ROLE ${quotedMigrationOwner} IN SCHEMA public
+       REVOKE ALL ON SEQUENCES FROM PUBLIC`,
   );
   await client.query(
     `ALTER DEFAULT PRIVILEGES FOR ROLE ${quotedMigrationOwner} IN SCHEMA app_private
        REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, ${quotedRuntimeRole}`,
   );
+  assertDeploymentRuntimeRoleIsSafe(
+    target,
+    runtimeRole,
+    await readDeploymentRuntimeRoleAttributes(client, runtimeRole),
+  );
   assertDeploymentRuntimeRolePrivileges(
     runtimeRole,
     await readDeploymentRuntimeRolePrivileges(client, runtimeRole),
   );
+}
+
+interface TenantContextKeyMatchRow {
+  key_id: string;
+  secret_matches: boolean;
+}
+
+interface TenantContextVerificationContractRow {
+  all_helpers_owned_by_migration_role: boolean;
+  invoker_helpers_exact: boolean;
+  security_definer_helpers_exact: boolean;
+}
+
+interface TenantContextPreProvisionContractRow {
+  pgcrypto_hmac_is_trusted_extension_member: boolean;
+  key_storage_contract_exact: boolean;
+  private_schema_contract_exact: boolean;
+  rollout_storage_contract_exact: boolean;
+}
+
+export async function assertTenantContextPreProvisionContract(
+  client: SqlClient,
+): Promise<void> {
+  const contract = await client.query<TenantContextPreProvisionContractRow>(`
+      WITH key_relation AS (
+          SELECT classes.*
+          FROM pg_catalog.pg_class classes
+          WHERE classes.oid = 'app_private.tenant_context_signing_keys'::regclass
+      ), key_columns AS (
+          SELECT
+              attributes.attname,
+              attributes.atttypid,
+              attributes.attnotnull,
+              attributes.attidentity,
+              attributes.attgenerated,
+              attributes.attacl,
+              pg_catalog.pg_get_expr(defaults.adbin, defaults.adrelid) AS default_expression
+          FROM pg_catalog.pg_attribute attributes
+          LEFT JOIN pg_catalog.pg_attrdef defaults
+            ON defaults.adrelid = attributes.attrelid
+           AND defaults.adnum = attributes.attnum
+          WHERE attributes.attrelid = 'app_private.tenant_context_signing_keys'::regclass
+            AND attributes.attnum > 0
+            AND NOT attributes.attisdropped
+      ), key_constraints AS (
+          SELECT
+              constraints.conname,
+              constraints.contype,
+              constraints.conkey,
+              constraints.condeferrable,
+              constraints.condeferred,
+              constraints.convalidated,
+              constraints.connoinherit,
+              pg_catalog.pg_get_constraintdef(constraints.oid, false) AS definition
+          FROM pg_catalog.pg_constraint constraints
+          WHERE constraints.conrelid = 'app_private.tenant_context_signing_keys'::regclass
+            AND constraints.contype <> 'n'
+      ), rollout_relation AS (
+          SELECT classes.*
+          FROM pg_catalog.pg_class classes
+          WHERE classes.oid = 'app_private.tenant_context_rollout_state'::regclass
+      ), rollout_columns AS (
+          SELECT
+              attributes.attname,
+              attributes.atttypid,
+              attributes.attnotnull,
+              attributes.attidentity,
+              attributes.attgenerated,
+              attributes.attacl,
+              pg_catalog.pg_get_expr(defaults.adbin, defaults.adrelid) AS default_expression
+          FROM pg_catalog.pg_attribute attributes
+          LEFT JOIN pg_catalog.pg_attrdef defaults
+            ON defaults.adrelid = attributes.attrelid
+           AND defaults.adnum = attributes.attnum
+          WHERE attributes.attrelid = 'app_private.tenant_context_rollout_state'::regclass
+            AND attributes.attnum > 0
+            AND NOT attributes.attisdropped
+      ), rollout_constraints AS (
+          SELECT
+              constraints.conname,
+              constraints.contype,
+              constraints.conkey,
+              constraints.condeferrable,
+              constraints.condeferred,
+              constraints.convalidated,
+              constraints.connoinherit,
+              pg_catalog.pg_get_constraintdef(constraints.oid, false) AS definition
+          FROM pg_catalog.pg_constraint constraints
+          WHERE constraints.conrelid = 'app_private.tenant_context_rollout_state'::regclass
+            AND constraints.contype <> 'n'
+      ), pgcrypto_extension AS (
+          SELECT extensions.oid, extensions.extowner
+          FROM pg_catalog.pg_extension extensions
+          JOIN pg_catalog.pg_namespace namespaces
+            ON namespaces.oid = extensions.extnamespace
+          WHERE extensions.extname = 'pgcrypto'
+            AND namespaces.nspname = 'public'
+      ), hmac_function AS (
+          SELECT functions.*
+          FROM pg_catalog.pg_proc functions
+          WHERE functions.oid = 'public.hmac(bytea,bytea,text)'::regprocedure
+      )
+      SELECT
+          (
+              (SELECT count(*) FROM pgcrypto_extension) = 1
+              AND (SELECT count(*) FROM hmac_function) = 1
+              AND EXISTS (
+                  SELECT 1
+                  FROM hmac_function functions
+                  JOIN pg_catalog.pg_language languages
+                    ON languages.oid = functions.prolang
+                  CROSS JOIN pgcrypto_extension extensions
+                  JOIN pg_catalog.pg_depend dependencies
+                    ON dependencies.classid = 'pg_catalog.pg_proc'::regclass
+                   AND dependencies.objid = functions.oid
+                   AND dependencies.refclassid = 'pg_catalog.pg_extension'::regclass
+                   AND dependencies.refobjid = extensions.oid
+                   AND dependencies.deptype = 'e'
+                  WHERE functions.prorettype = 'bytea'::regtype
+                    AND functions.proargtypes = ARRAY[
+                        'bytea'::regtype::oid,
+                        'bytea'::regtype::oid,
+                        'text'::regtype::oid
+                    ]::oidvector
+                    AND functions.prosecdef = false
+                    AND functions.provolatile = 'i'
+                    AND languages.lanname = 'c'
+                    AND functions.probin = '$libdir/pgcrypto'
+                    AND functions.prosrc = 'pg_hmac'
+              )
+          ) AS pgcrypto_hmac_is_trusted_extension_member,
+          (
+              (SELECT count(*) FROM key_relation) = 1
+              AND EXISTS (
+                  SELECT 1
+                  FROM key_relation relations
+                  JOIN pg_catalog.pg_am access_methods
+                    ON access_methods.oid = relations.relam
+                  WHERE relations.relkind = 'r'
+                    AND relations.relpersistence = 'p'
+                    AND relations.relowner = (
+                        SELECT roles.oid FROM pg_catalog.pg_roles roles WHERE roles.rolname = current_user
+                    )
+                    AND relations.relrowsecurity = false
+                    AND relations.relforcerowsecurity = false
+                    AND relations.reloptions IS NULL
+                    AND access_methods.amname = 'heap'
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM aclexplode(COALESCE(relations.relacl, acldefault('r', relations.relowner))) grants
+                        WHERE grants.grantee <> relations.relowner
+                    )
+              )
+              AND (SELECT count(*) FROM key_columns) = 4
+              AND EXISTS (
+                  SELECT 1 FROM key_columns columns
+                  WHERE columns.attname = 'audience'
+                    AND columns.atttypid = 'text'::regtype
+                    AND columns.attnotnull
+                    AND columns.attidentity = ''
+                    AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL
+                    AND columns.default_expression IS NULL
+              )
+              AND EXISTS (
+                  SELECT 1 FROM key_columns columns
+                  WHERE columns.attname = 'key_id'
+                    AND columns.atttypid = 'text'::regtype
+                    AND columns.attnotnull
+                    AND columns.attidentity = ''
+                    AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL
+                    AND columns.default_expression IS NULL
+              )
+              AND EXISTS (
+                  SELECT 1 FROM key_columns columns
+                  WHERE columns.attname = 'secret'
+                    AND columns.atttypid = 'bytea'::regtype
+                    AND columns.attnotnull
+                    AND columns.attidentity = ''
+                    AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL
+                    AND columns.default_expression IS NULL
+              )
+              AND EXISTS (
+                  SELECT 1 FROM key_columns columns
+                  WHERE columns.attname = 'created_at'
+                    AND columns.atttypid = 'timestamp with time zone'::regtype
+                    AND columns.attnotnull
+                    AND columns.attidentity = ''
+                    AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL
+                    AND columns.default_expression = 'clock_timestamp()'
+              )
+              AND (SELECT count(*) FROM key_constraints) = 4
+              AND EXISTS (
+                  SELECT 1 FROM key_constraints constraints
+                  WHERE constraints.conname = 'tenant_context_signing_keys_audience_format'
+                    AND constraints.contype = 'c'
+                    AND constraints.convalidated
+                    AND NOT constraints.connoinherit
+                    AND constraints.definition =
+                        'CHECK ((audience ~ ''^[a-z0-9][a-z0-9:._-]{2,191}$''::text))'
+              )
+              AND EXISTS (
+                  SELECT 1 FROM key_constraints constraints
+                  WHERE constraints.contype = 'p'
+                    AND constraints.conkey = ARRAY[
+                        (SELECT attributes.attnum
+                         FROM pg_catalog.pg_attribute attributes
+                         WHERE attributes.attrelid = 'app_private.tenant_context_signing_keys'::regclass
+                           AND attributes.attname = 'key_id')
+                    ]::smallint[]
+                    AND NOT constraints.condeferrable
+                    AND NOT constraints.condeferred
+                    AND constraints.convalidated
+              )
+              AND EXISTS (
+                  SELECT 1 FROM key_constraints constraints
+                  WHERE constraints.conname = 'tenant_context_signing_keys_key_id_format'
+                    AND constraints.contype = 'c'
+                    AND constraints.convalidated
+                    AND NOT constraints.connoinherit
+                    AND constraints.definition =
+                        'CHECK ((key_id ~ ''^[a-z0-9][a-z0-9._-]{0,31}$''::text))'
+              )
+              AND EXISTS (
+                  SELECT 1 FROM key_constraints constraints
+                  WHERE constraints.conname = 'tenant_context_signing_keys_secret_length'
+                    AND constraints.contype = 'c'
+                    AND constraints.convalidated
+                    AND NOT constraints.connoinherit
+                    AND constraints.definition =
+                        'CHECK (((octet_length(secret) >= 32) AND (octet_length(secret) <= 128)))'
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_catalog.pg_trigger triggers
+                  WHERE triggers.tgrelid = 'app_private.tenant_context_signing_keys'::regclass
+                    AND NOT triggers.tgisinternal
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_catalog.pg_rewrite rules
+                  WHERE rules.ev_class = 'app_private.tenant_context_signing_keys'::regclass
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_catalog.pg_policy policies
+                  WHERE policies.polrelid = 'app_private.tenant_context_signing_keys'::regclass
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_catalog.pg_publication_rel publications
+                  WHERE publications.prrelid = 'app_private.tenant_context_signing_keys'::regclass
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_catalog.pg_publication publications
+                  WHERE publications.puballtables
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_catalog.pg_publication_namespace publications
+                  WHERE publications.pnnspid = 'app_private'::regnamespace
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_catalog.pg_inherits inheritance
+                  WHERE inheritance.inhrelid = 'app_private.tenant_context_signing_keys'::regclass
+                     OR inheritance.inhparent = 'app_private.tenant_context_signing_keys'::regclass
+              )
+              AND (
+                  SELECT count(*)
+                  FROM pg_catalog.pg_index indexes
+                  WHERE indexes.indrelid = 'app_private.tenant_context_signing_keys'::regclass
+              ) = 1
+          ) AS key_storage_contract_exact,
+          EXISTS (
+              SELECT 1
+              FROM pg_catalog.pg_namespace namespaces
+              WHERE namespaces.nspname = 'app_private'
+                AND namespaces.nspowner = (
+                    SELECT roles.oid FROM pg_catalog.pg_roles roles WHERE roles.rolname = current_user
+                )
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM aclexplode(COALESCE(namespaces.nspacl, acldefault('n', namespaces.nspowner))) grants
+                    WHERE grants.grantee <> namespaces.nspowner
+                      AND (
+                          grants.privilege_type <> 'USAGE'
+                          OR grants.is_grantable
+                      )
+                )
+          ) AS private_schema_contract_exact,
+          (
+              (SELECT count(*) FROM rollout_relation) = 1
+              AND EXISTS (
+                  SELECT 1
+                  FROM rollout_relation relations
+                  JOIN pg_catalog.pg_am access_methods ON access_methods.oid = relations.relam
+                  WHERE relations.relkind = 'r'
+                    AND relations.relpersistence = 'p'
+                    AND relations.relowner = (
+                        SELECT roles.oid FROM pg_catalog.pg_roles roles WHERE roles.rolname = current_user
+                    )
+                    AND NOT relations.relrowsecurity
+                    AND NOT relations.relforcerowsecurity
+                    AND relations.reloptions IS NULL
+                    AND access_methods.amname = 'heap'
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM aclexplode(COALESCE(relations.relacl, acldefault('r', relations.relowner))) grants
+                        WHERE grants.grantee <> relations.relowner
+                    )
+              )
+              AND (SELECT count(*) FROM rollout_columns) = 9
+              AND EXISTS (
+                  SELECT 1 FROM rollout_columns columns
+                  WHERE columns.attname = 'singleton'
+                    AND columns.atttypid = 'boolean'::regtype
+                    AND columns.attnotnull
+                    AND columns.attidentity = '' AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL AND columns.default_expression = 'true'
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_columns columns
+                  WHERE columns.attname = 'enforcement_phase'
+                    AND columns.atttypid = 'smallint'::regtype
+                    AND columns.attnotnull
+                    AND columns.attidentity = '' AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL AND columns.default_expression = '1'
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_columns columns
+                  WHERE columns.attname = 'signed_runtime_sha'
+                    AND columns.atttypid = 'text'::regtype
+                    AND NOT columns.attnotnull
+                    AND columns.attidentity = '' AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL AND columns.default_expression IS NULL
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_columns columns
+                  WHERE columns.attname = 'promoted_key_id'
+                    AND columns.atttypid = 'text'::regtype
+                    AND NOT columns.attnotnull
+                    AND columns.attidentity = '' AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL AND columns.default_expression IS NULL
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_columns columns
+                  WHERE columns.attname = 'promoted_audience'
+                    AND columns.atttypid = 'text'::regtype
+                    AND NOT columns.attnotnull
+                    AND columns.attidentity = '' AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL AND columns.default_expression IS NULL
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_columns columns
+                  WHERE columns.attname = 'promoted_deployment_id'
+                    AND columns.atttypid = 'text'::regtype
+                    AND NOT columns.attnotnull
+                    AND columns.attidentity = '' AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL AND columns.default_expression IS NULL
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_columns columns
+                  WHERE columns.attname = 'promoted_at'
+                    AND columns.atttypid = 'timestamp with time zone'::regtype
+                    AND NOT columns.attnotnull
+                    AND columns.attidentity = '' AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL AND columns.default_expression IS NULL
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_columns columns
+                  WHERE columns.attname = 'temp_revoked_at'
+                    AND columns.atttypid = 'timestamp with time zone'::regtype
+                    AND NOT columns.attnotnull
+                    AND columns.attidentity = '' AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL AND columns.default_expression IS NULL
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_columns columns
+                  WHERE columns.attname = 'temp_drain_completed_at'
+                    AND columns.atttypid = 'timestamp with time zone'::regtype
+                    AND NOT columns.attnotnull
+                    AND columns.attidentity = '' AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL AND columns.default_expression IS NULL
+              )
+              AND (SELECT count(*) FROM rollout_constraints) = 9
+              AND EXISTS (
+                  SELECT 1 FROM rollout_constraints constraints
+                  WHERE constraints.contype = 'p'
+                    AND constraints.conkey = ARRAY[
+                        (SELECT attributes.attnum
+                         FROM pg_catalog.pg_attribute attributes
+                         WHERE attributes.attrelid = 'app_private.tenant_context_rollout_state'::regclass
+                           AND attributes.attname = 'singleton')
+                    ]::smallint[]
+                    AND NOT constraints.condeferrable
+                    AND NOT constraints.condeferred
+                    AND constraints.convalidated
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_constraints constraints
+                  WHERE constraints.conname = 'tenant_context_rollout_state_singleton'
+                    AND constraints.contype = 'c' AND constraints.convalidated
+                    AND NOT constraints.connoinherit
+                    AND constraints.definition = 'CHECK (singleton)'
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_constraints constraints
+                  WHERE constraints.conname = 'tenant_context_rollout_state_phase'
+                    AND constraints.contype = 'c' AND constraints.convalidated
+                    AND NOT constraints.connoinherit
+                    AND constraints.definition =
+                        'CHECK ((enforcement_phase = ANY (ARRAY[1, 2])))'
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_constraints constraints
+                  WHERE constraints.conname = 'tenant_context_rollout_state_sha'
+                    AND constraints.contype = 'c' AND constraints.convalidated
+                    AND NOT constraints.connoinherit
+                    AND constraints.definition =
+                        'CHECK (((signed_runtime_sha IS NULL) OR (signed_runtime_sha ~ ''^[0-9a-f]{40}$''::text)))'
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_constraints constraints
+                  WHERE constraints.conname = 'tenant_context_rollout_state_key_id'
+                    AND constraints.contype = 'c' AND constraints.convalidated
+                    AND NOT constraints.connoinherit
+                    AND constraints.definition =
+                        'CHECK (((promoted_key_id IS NULL) OR (promoted_key_id ~ ''^[a-z0-9][a-z0-9._-]{0,31}$''::text)))'
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_constraints constraints
+                  WHERE constraints.conname = 'tenant_context_rollout_state_audience'
+                    AND constraints.contype = 'c' AND constraints.convalidated
+                    AND NOT constraints.connoinherit
+                    AND constraints.definition =
+                        'CHECK (((promoted_audience IS NULL) OR (promoted_audience ~ ''^[a-z0-9][a-z0-9:._-]{2,191}$''::text)))'
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_constraints constraints
+                  WHERE constraints.conname = 'tenant_context_rollout_state_deployment_id'
+                    AND constraints.contype = 'c' AND constraints.convalidated
+                    AND NOT constraints.connoinherit
+                    AND constraints.definition =
+                        'CHECK (((promoted_deployment_id IS NULL) OR (promoted_deployment_id ~ ''^dpl_[A-Za-z0-9]+$''::text)))'
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_constraints constraints
+                  WHERE constraints.conname = 'tenant_context_rollout_state_temp_drain_order'
+                    AND constraints.contype = 'c' AND constraints.convalidated
+                    AND NOT constraints.connoinherit
+                    AND constraints.definition =
+                        'CHECK (((temp_drain_completed_at IS NULL) OR (temp_revoked_at IS NOT NULL)))'
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_constraints constraints
+                  WHERE constraints.conname = 'tenant_context_rollout_state_promotion_complete'
+                    AND constraints.contype = 'c' AND constraints.convalidated
+                    AND NOT constraints.connoinherit
+                    AND constraints.definition =
+                        'CHECK ((((signed_runtime_sha IS NULL) AND (promoted_key_id IS NULL) AND (promoted_audience IS NULL) AND (promoted_deployment_id IS NULL) AND (promoted_at IS NULL)) OR ((signed_runtime_sha IS NOT NULL) AND (promoted_key_id IS NOT NULL) AND (promoted_audience IS NOT NULL) AND (promoted_deployment_id IS NOT NULL) AND (promoted_at IS NOT NULL))))'
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_catalog.pg_trigger triggers
+                  WHERE triggers.tgrelid = 'app_private.tenant_context_rollout_state'::regclass
+                    AND NOT triggers.tgisinternal
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_catalog.pg_rewrite rules
+                  WHERE rules.ev_class = 'app_private.tenant_context_rollout_state'::regclass
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_catalog.pg_policy policies
+                  WHERE policies.polrelid = 'app_private.tenant_context_rollout_state'::regclass
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_catalog.pg_publication_rel publications
+                  WHERE publications.prrelid = 'app_private.tenant_context_rollout_state'::regclass
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_catalog.pg_publication publications
+                  WHERE publications.puballtables
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_catalog.pg_publication_namespace publications
+                  WHERE publications.pnnspid = 'app_private'::regnamespace
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_catalog.pg_inherits inheritance
+                  WHERE inheritance.inhrelid = 'app_private.tenant_context_rollout_state'::regclass
+                     OR inheritance.inhparent = 'app_private.tenant_context_rollout_state'::regclass
+              )
+              AND (
+                  SELECT count(*) FROM pg_catalog.pg_index indexes
+                  WHERE indexes.indrelid = 'app_private.tenant_context_rollout_state'::regclass
+              ) = 1
+          ) AS rollout_storage_contract_exact
+  `);
+  const row = contract.rows[0];
+  if (
+    contract.rows.length !== 1 ||
+    row?.pgcrypto_hmac_is_trusted_extension_member !== true ||
+    row.key_storage_contract_exact !== true ||
+    row.private_schema_contract_exact !== true ||
+    row.rollout_storage_contract_exact !== true
+  ) {
+    const failedContracts = row
+      ? Object.entries(row)
+          .filter(([, value]) => value !== true)
+          .map(([name]) => name)
+          .join(", ")
+      : "missing_contract_row";
+    throw new Error(
+      `Tenant-context key storage or the pgcrypto HMAC dependency is malformed (${failedContracts}); refusing to handle key material.`,
+    );
+  }
+}
+
+export async function provisionTenantContextSigningKeys(
+  client: SqlClient,
+  configuration: TenantContextSigningKeyConfiguration,
+): Promise<void> {
+  const expectedKeys = [
+    configuration.current,
+    ...(configuration.previous ? [configuration.previous] : []),
+  ];
+  const expectedIds = expectedKeys.map((key) => key.keyId).sort();
+
+  await client.query(
+    `LOCK TABLE
+         app_private.tenant_context_signing_keys,
+         app_private.tenant_context_rollout_state
+       IN ACCESS EXCLUSIVE MODE`,
+  );
+  await assertTenantContextPreProvisionContract(client);
+  await client.query(
+    `INSERT INTO app_private.tenant_context_rollout_state
+         (singleton, enforcement_phase)
+     VALUES (true, 1)
+     ON CONFLICT (singleton) DO NOTHING`,
+  );
+  for (const key of expectedKeys) {
+    await client.query(
+      `INSERT INTO app_private.tenant_context_signing_keys (key_id, audience, secret)
+       VALUES ($1, $2, convert_to($3, 'UTF8'))
+       ON CONFLICT (key_id) DO NOTHING`,
+      [key.keyId, configuration.audience, key.secret],
+    );
+    // Compare HMACs instead of the raw key bytes so even a driver/debugger
+    // inspecting returned rows cannot receive verification-key material.
+    const storedMatches = await client.query<TenantContextKeyMatchRow>(
+      `SELECT
+          keys.key_id,
+          (
+              public.hmac(
+                  convert_to('school-sis:key-provisioning:v1', 'UTF8'),
+                  keys.secret,
+                  'sha256'
+              ) =
+              public.hmac(
+                  convert_to('school-sis:key-provisioning:v1', 'UTF8'),
+                  convert_to($3, 'UTF8'),
+                  'sha256'
+              )
+          ) AS secret_matches
+       FROM app_private.tenant_context_signing_keys keys
+       WHERE keys.key_id = $1
+         AND keys.audience = $2`,
+      [key.keyId, configuration.audience, key.secret],
+    );
+    if (
+      storedMatches.rows.length !== 1 ||
+      storedMatches.rows[0]?.secret_matches !== true
+    ) {
+      throw new Error(
+        `Tenant-context key ${key.keyId} already exists with different key material; rotate to a new key ID.`,
+      );
+    }
+  }
+
+  const currentRows = await client.query<{ audience: string; key_id: string }>(
+    `SELECT keys.key_id, keys.audience
+     FROM app_private.tenant_context_signing_keys keys
+     ORDER BY keys.key_id`,
+  );
+  const unexpectedIds = currentRows.rows
+    .filter(
+      (row) =>
+        row.audience !== configuration.audience ||
+        !expectedIds.includes(row.key_id),
+    )
+    .map((row) => row.key_id);
+  if (unexpectedIds.length > 0 && !configuration.retirePrevious) {
+    throw new Error(
+      `Database still accepts tenant-context key(s) ${unexpectedIds.join(", ")}; preserve them as the previous key or explicitly acknowledge retirement with ${TENANT_CONTEXT_RETIRE_PREVIOUS_KEY_ENV}=true.`,
+    );
+  }
+  if (configuration.retirePrevious && unexpectedIds.length === 0) {
+    throw new Error(
+      `${TENANT_CONTEXT_RETIRE_PREVIOUS_KEY_ENV}=true was set but there is no previous key to retire.`,
+    );
+  }
+  if (unexpectedIds.length > 0) {
+    if (configuration.retirePrevious) {
+      if (!/^[0-9a-f]{40}$/.test(configuration.releaseSha || "")) {
+        throw new Error(
+          "Tenant-context key retirement requires the full lowercase GIT_COMMIT_SHA.",
+        );
+      }
+      const promotion = await client.query<{
+        promoted_audience: string | null;
+        promoted_at: Date | string | null;
+        promoted_deployment_id: string | null;
+        promoted_key_id: string | null;
+        signed_runtime_sha: string | null;
+      }>(
+        `SELECT
+            state.promoted_key_id,
+            state.promoted_audience,
+            state.promoted_deployment_id,
+            state.signed_runtime_sha,
+            state.promoted_at
+         FROM app_private.tenant_context_rollout_state state
+         WHERE state.singleton = true
+         FOR UPDATE`,
+      );
+      const evidence = promotion.rows[0];
+      if (
+        promotion.rows.length !== 1 ||
+        evidence?.promoted_key_id !== configuration.current.keyId ||
+        evidence.promoted_audience !== configuration.audience ||
+        !evidence.promoted_deployment_id ||
+        !/^dpl_[A-Za-z0-9]+$/.test(evidence.promoted_deployment_id) ||
+        evidence.promoted_deployment_id !==
+          configuration.currentProductionDeploymentId ||
+        !evidence.signed_runtime_sha ||
+        !/^[0-9a-f]{40}$/.test(evidence.signed_runtime_sha) ||
+        evidence.signed_runtime_sha === configuration.releaseSha ||
+        !evidence.promoted_at
+      ) {
+        throw new Error(
+          "Tenant-context key retirement requires an earlier verified production promotion using the current key ID.",
+        );
+      }
+    }
+    await client.query(
+      `DELETE FROM app_private.tenant_context_signing_keys
+       WHERE NOT (key_id = ANY($1::text[]))`,
+      [expectedIds],
+    );
+  }
+
+  const finalRows = await client.query<{ audience: string; key_id: string }>(
+    `SELECT keys.key_id, keys.audience
+     FROM app_private.tenant_context_signing_keys keys
+     ORDER BY keys.key_id`,
+  );
+  if (
+    finalRows.rows.length !== expectedIds.length ||
+    finalRows.rows.some(
+      (row, index) =>
+        row.key_id !== expectedIds[index] ||
+        row.audience !== configuration.audience,
+    )
+  ) {
+    throw new Error(
+      "Tenant-context verification-key reconciliation did not reach the exact expected key set.",
+    );
+  }
+
+  await assertTenantContextPreProvisionContract(client);
+  const contract = await client.query<TenantContextVerificationContractRow>(`
+      SELECT
+          (
+              SELECT count(*) = 7
+                 AND bool_and(functions.proowner = (
+                     SELECT oid FROM pg_catalog.pg_roles WHERE rolname = current_user
+                 ))
+              FROM pg_catalog.pg_proc functions
+              WHERE functions.oid IN (
+                  'app_private.constant_time_equal_32(bytea,bytea)'::regprocedure,
+                  'app_private.verified_tenant_id()'::regprocedure,
+                  'app_private.current_tenant_id()'::regprocedure,
+                  'app_private.has_tenant_context()'::regprocedure,
+                  'app_private.tenant_context_enforcement_phase()'::regprocedure,
+                  'app_private.rls_bypass()'::regprocedure,
+                  'app_private.table_exists(text)'::regprocedure
+              )
+          ) AS all_helpers_owned_by_migration_role,
+          (
+              SELECT count(*) = 5
+                 AND bool_and(NOT functions.prosecdef)
+              FROM pg_catalog.pg_proc functions
+              WHERE functions.oid IN (
+                  'app_private.constant_time_equal_32(bytea,bytea)'::regprocedure,
+                  'app_private.current_tenant_id()'::regprocedure,
+                  'app_private.has_tenant_context()'::regprocedure,
+                  'app_private.rls_bypass()'::regprocedure,
+                  'app_private.table_exists(text)'::regprocedure
+              )
+          ) AS invoker_helpers_exact,
+          (
+              SELECT count(*) = 2
+                 AND bool_and(
+                     functions.prosecdef
+                     AND functions.proconfig =
+                         ARRAY['search_path=pg_catalog, pg_temp']::text[]
+                 )
+              FROM pg_catalog.pg_proc functions
+              WHERE functions.oid IN (
+                  'app_private.verified_tenant_id()'::regprocedure,
+                  'app_private.tenant_context_enforcement_phase()'::regprocedure
+              )
+          ) AS security_definer_helpers_exact
+  `);
+  const verified = contract.rows[0];
+  if (
+    contract.rows.length !== 1 ||
+    !verified ||
+    Object.values(verified).some((value) => value !== true)
+  ) {
+    throw new Error(
+      "Tenant-context database verifier ownership, ACL, pgcrypto schema, or SECURITY DEFINER contract is unsafe.",
+    );
+  }
+}
+
+interface TenantContextRolloutStateRow {
+  enforcement_phase: number;
+  promoted_audience: string | null;
+  promoted_at: Date | string | null;
+  promoted_deployment_id: string | null;
+  promoted_key_id: string | null;
+  signed_runtime_sha: string | null;
+}
+
+export async function reconcileTenantContextEnforcementPhase(
+  client: SqlClient,
+  target: DeploymentTarget,
+  environment: DeploymentEnvironment,
+): Promise<1 | 2> {
+  const desiredPhase =
+    target === "production" ? PRODUCTION_TENANT_CONTEXT_ENFORCEMENT_PHASE : 2;
+  const state = await client.query<TenantContextRolloutStateRow>(
+    `SELECT
+        state.enforcement_phase,
+        state.promoted_key_id,
+        state.promoted_audience,
+        state.promoted_deployment_id,
+        state.signed_runtime_sha,
+        state.promoted_at
+     FROM app_private.tenant_context_rollout_state state
+     WHERE state.singleton = true
+     FOR UPDATE`,
+  );
+  if (
+    state.rows.length !== 1 ||
+    !state.rows[0] ||
+    ![1, 2].includes(state.rows[0].enforcement_phase)
+  ) {
+    throw new Error(
+      "Tenant-context rollout state must contain exactly one valid singleton row.",
+    );
+  }
+  const current = state.rows[0];
+  if (current.enforcement_phase === 2) return 2;
+  if (desiredPhase === 1) return 1;
+
+  if (target === "production") {
+    const releaseSha = nonBlank(environment.GIT_COMMIT_SHA) || "";
+    const configuredKeyId = nonBlank(environment.TENANT_CONTEXT_SIGNING_KEY_ID);
+    const configuredAudience = nonBlank(environment.TENANT_CONTEXT_AUDIENCE);
+    const currentProductionDeploymentId = nonBlank(
+      environment.CURRENT_PRODUCTION_DEPLOYMENT_ID,
+    );
+    if (!/^[0-9a-f]{40}$/.test(releaseSha)) {
+      throw new Error(
+        "Strict tenant-context enforcement requires the full lowercase GIT_COMMIT_SHA.",
+      );
+    }
+    if (
+      !current.signed_runtime_sha ||
+      !/^[0-9a-f]{40}$/.test(current.signed_runtime_sha) ||
+      !current.promoted_at ||
+      !current.promoted_deployment_id ||
+      !/^dpl_[A-Za-z0-9]+$/.test(current.promoted_deployment_id) ||
+      current.promoted_deployment_id !== currentProductionDeploymentId ||
+      !current.promoted_key_id ||
+      !current.promoted_audience ||
+      current.promoted_key_id !== configuredKeyId ||
+      current.promoted_audience !== configuredAudience ||
+      current.signed_runtime_sha === releaseSha
+    ) {
+      throw new Error(
+        "Phase 2 requires a signing runtime from an earlier commit to have been promoted and recorded by the production workflow.",
+      );
+    }
+  }
+
+  const updated = await client.query<{ enforcement_phase: number }>(
+    `UPDATE app_private.tenant_context_rollout_state
+     SET enforcement_phase = 2
+     WHERE singleton = true AND enforcement_phase = 1
+     RETURNING enforcement_phase`,
+  );
+  if (updated.rows.length !== 1 || updated.rows[0]?.enforcement_phase !== 2) {
+    throw new Error(
+      "Tenant-context enforcement phase did not advance atomically to strict mode.",
+    );
+  }
+  return 2;
 }
 
 async function configureMigrationSession(client: SqlClient): Promise<void> {
@@ -1995,13 +3587,175 @@ async function configureMigrationSession(client: SqlClient): Promise<void> {
   );
 }
 
+type AuthenticationSaslMessage = { mechanisms?: unknown };
+type ObservablePgConnection = {
+  on(
+    event: "authenticationSASL",
+    listener: (message: AuthenticationSaslMessage) => void,
+  ): unknown;
+};
+
+/**
+ * Install this probe before connect(), then invoke the returned assertion
+ * immediately after authentication and before issuing any SQL. Enabling channel
+ * binding alone is not proof that the server offered SCRAM-SHA-256-PLUS.
+ */
+export function installRequiredChannelBindingProbe(client: Client): () => void {
+  const internals = client as unknown as {
+    connection?: Partial<ObservablePgConnection>;
+    enableChannelBinding?: unknown;
+  };
+  if (
+    internals.enableChannelBinding !== true ||
+    typeof internals.connection?.on !== "function"
+  ) {
+    throw new Error(
+      "The PostgreSQL driver cannot prove required channel-binding negotiation.",
+    );
+  }
+  let plusWasOffered = false;
+  internals.connection.on("authenticationSASL", (message) => {
+    plusWasOffered =
+      Array.isArray(message.mechanisms) &&
+      message.mechanisms.includes("SCRAM-SHA-256-PLUS");
+  });
+  return () => {
+    if (!plusWasOffered) {
+      throw new Error(
+        "PostgreSQL did not negotiate the required SCRAM-SHA-256-PLUS channel binding.",
+      );
+    }
+  };
+}
+
+export async function drainPreTemporaryPrivilegeBackends(
+  client: SqlClient,
+  applicationRoles: readonly string[],
+  cutoffValue: string,
+): Promise<number> {
+  const uniqueRoles = [...new Set(applicationRoles)];
+  if (
+    uniqueRoles.length !== 2 ||
+    uniqueRoles.some((role) => !SAFE_POSTGRES_IDENTIFIER_PATTERN.test(role))
+  ) {
+    throw new Error(
+      "TEMP cutover drain requires the two exact validated application roles.",
+    );
+  }
+  if (!cutoffValue || !/^\d{4}-\d{2}-\d{2}/u.test(cutoffValue)) {
+    throw new Error(
+      "TEMP cutover requires a persisted database-clock boundary.",
+    );
+  }
+  const terminated = await client.query<{
+    pid: number;
+    terminated: boolean;
+  }>(
+    `WITH targets AS MATERIALIZED (
+        SELECT activity.pid
+        FROM pg_catalog.pg_stat_activity activity
+        WHERE activity.datid = (SELECT oid FROM pg_catalog.pg_database WHERE datname = current_database())
+          AND activity.usename = ANY($1::text[])
+          AND activity.backend_start <= $2::timestamptz
+          AND activity.pid <> pg_backend_pid()
+     )
+     SELECT targets.pid, pg_catalog.pg_terminate_backend(targets.pid) AS terminated
+     FROM targets
+     ORDER BY targets.pid`,
+    [uniqueRoles, cutoffValue],
+  );
+  if (terminated.rows.some((row) => row.terminated !== true)) {
+    throw new Error(
+      "Could not terminate every pre-cutover application backend after revoking TEMPORARY.",
+    );
+  }
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const remaining = await client.query<{ remaining: number }>(
+      `SELECT count(*)::integer AS remaining
+       FROM pg_catalog.pg_stat_activity activity
+       WHERE activity.datid = (SELECT oid FROM pg_catalog.pg_database WHERE datname = current_database())
+         AND activity.usename = ANY($1::text[])
+         AND activity.backend_start <= $2::timestamptz
+         AND activity.pid <> pg_backend_pid()`,
+      [uniqueRoles, cutoffValue],
+    );
+    if (remaining.rows.length !== 1 || !remaining.rows[0]) {
+      throw new Error("Could not verify the TEMP cutover backend drain.");
+    }
+    if (remaining.rows[0].remaining === 0) return terminated.rows.length;
+    await sleepFor(250);
+  }
+  throw new Error(
+    "Pre-cutover application backends remain after revoking TEMPORARY.",
+  );
+}
+
+export async function completeTemporaryPrivilegeCutover(
+  client: SqlClient,
+  target: DeploymentTarget,
+  applicationRoles: readonly string[],
+): Promise<number> {
+  if (target === "ci") return 0;
+  const state = await client.query<{
+    temp_drain_completed_at: string | null;
+    temp_revoked_at: string;
+  }>(
+    `UPDATE app_private.tenant_context_rollout_state
+     SET temp_revoked_at = COALESCE(temp_revoked_at, clock_timestamp())
+     WHERE singleton = true
+     RETURNING
+         temp_revoked_at::text AS temp_revoked_at,
+         temp_drain_completed_at::text AS temp_drain_completed_at`,
+  );
+  const row = state.rows[0];
+  if (state.rows.length !== 1 || !row?.temp_revoked_at) {
+    throw new Error("Could not persist the TEMP privilege cutover boundary.");
+  }
+  if (row.temp_drain_completed_at) return 0;
+
+  const drained = await drainPreTemporaryPrivilegeBackends(
+    client,
+    applicationRoles,
+    row.temp_revoked_at,
+  );
+  const completed = await client.query<{ temp_drain_completed_at: string }>(
+    `UPDATE app_private.tenant_context_rollout_state
+     SET temp_drain_completed_at = clock_timestamp()
+     WHERE singleton = true
+       AND temp_revoked_at = $1::timestamptz
+       AND temp_drain_completed_at IS NULL
+     RETURNING temp_drain_completed_at::text AS temp_drain_completed_at`,
+    [row.temp_revoked_at],
+  );
+  if (
+    completed.rows.length !== 1 ||
+    !completed.rows[0]?.temp_drain_completed_at
+  ) {
+    throw new Error(
+      "Could not atomically record the completed TEMP backend drain.",
+    );
+  }
+  return drained;
+}
+
 export async function runDeploymentMigrations(
   options: RunDeploymentMigrationsOptions,
 ): Promise<MigrationRunResult> {
   const environment = options.environment ?? process.env;
   const logger = options.logger ?? console;
   const connection = resolveDeploymentConnection(options.target, environment);
+  const tenantContextSigningKeys = resolveTenantContextSigningKeyConfiguration(
+    options.target,
+    environment,
+    isLocalHostname(connection.hostname),
+  );
   const runtimeRole = resolveDeploymentRuntimeRole(options.target, environment);
+  const platformRole = resolveDeploymentPlatformRole(
+    options.target,
+    environment,
+  );
+  assertDeploymentApplicationRolesAreDistinct(runtimeRole, platformRole);
   const paths = resolveDeploymentPaths(options.cwd ?? process.cwd());
   const deploymentMigrations = readDeploymentMigrations(paths);
   const expectedMigrations = normalizeExpectedMigrations(deploymentMigrations);
@@ -2023,13 +3777,18 @@ export async function runDeploymentMigrations(
       connection.sslMode,
     ),
     application_name: `school-sis-deployment-migrations-${options.target}`,
+    enableChannelBinding: true,
   });
 
   let result: MigrationRunResult | undefined;
   let runFailed = false;
   let runError: unknown;
   try {
+    const assertRequiredChannelBinding = isLocalHostname(connection.hostname)
+      ? undefined
+      : installRequiredChannelBindingProbe(client);
     await client.connect();
+    assertRequiredChannelBinding?.();
     await configureMigrationSession(client);
     result = await withMigrationLock(
       client,
@@ -2042,6 +3801,11 @@ export async function runDeploymentMigrations(
         );
         logger.info(
           `Migration preflight accepted ${appliedBefore}/${expectedMigrations.length} exact ledger entries.`,
+        );
+        await assertMigrationOwnerCanMaintainForcedRls(client, options.target);
+        await assertMigrationOwnerCanDrainApplicationBackends(
+          client,
+          options.target,
         );
 
         if (options.target === "production") {
@@ -2060,6 +3824,15 @@ export async function runDeploymentMigrations(
             options.target,
             runtimeRole,
             await readDeploymentRuntimeRoleAttributes(client, runtimeRole),
+            true,
+          );
+        }
+        if (platformRole) {
+          assertDeploymentRuntimeRoleIsSafe(
+            options.target,
+            platformRole,
+            await readDeploymentRuntimeRoleAttributes(client, platformRole),
+            true,
           );
         }
 
@@ -2069,6 +3842,16 @@ export async function runDeploymentMigrations(
           appliedBefore,
           tenantRlsSql,
           async () => {
+            await provisionTenantContextSigningKeys(
+              client,
+              tenantContextSigningKeys,
+            );
+            const tenantContextPhase =
+              await reconcileTenantContextEnforcementPhase(
+                client,
+                options.target,
+                environment,
+              );
             const postflight = await readMigrationDatabaseState(client);
             assertMigrationLedger(expectedMigrations, postflight, "postflight");
             assertRlsCoverage(await readRlsCoverage(client));
@@ -2077,18 +3860,52 @@ export async function runDeploymentMigrations(
                 options.target,
                 runtimeRole,
                 await readDeploymentRuntimeRoleAttributes(client, runtimeRole),
+                true,
               );
               await grantAndVerifyDeploymentRuntimeRole(
                 client,
+                options.target,
                 runtimeRole,
                 runtimeRoleAttributes.migration_owner,
               );
             }
+            if (platformRole) {
+              const platformRoleAttributes = assertDeploymentRuntimeRoleIsSafe(
+                options.target,
+                platformRole,
+                await readDeploymentRuntimeRoleAttributes(client, platformRole),
+                true,
+              );
+              await grantAndVerifyDeploymentRuntimeRole(
+                client,
+                options.target,
+                platformRole,
+                platformRoleAttributes.migration_owner,
+              );
+            }
+            logger.info(
+              `Tenant-context verifier is provisioned at enforcement phase ${tenantContextPhase}.`,
+            );
           },
         );
         logger.info(
-          `Atomic migration commit verified ${expectedMigrations.length} ledger entries, tenant RLS coverage${runtimeRole ? ", and runtime-role privileges" : ""}.`,
+          `Atomic migration commit verified ${expectedMigrations.length} ledger entries, tenant RLS coverage${runtimeRole && platformRole ? ", and tenant/platform runtime-role privileges" : ""}.`,
         );
+        if (options.target !== "ci") {
+          if (!runtimeRole || !platformRole) {
+            throw new Error(
+              "The TEMP cutover requires both exact application roles.",
+            );
+          }
+          const drained = await completeTemporaryPrivilegeCutover(
+            client,
+            options.target,
+            [runtimeRole, platformRole],
+          );
+          logger.info(
+            `Application TEMP cutover is complete; drained ${drained} pre-revocation backend(s) on this run.`,
+          );
+        }
 
         return {
           appliedBefore,

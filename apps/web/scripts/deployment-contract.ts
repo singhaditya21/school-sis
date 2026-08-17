@@ -19,6 +19,7 @@ export type DeploymentContractOptions = {
 type ParsedDatabaseUrl = {
   hostname: string;
   database: string;
+  password: string;
   username: string;
 };
 
@@ -296,6 +297,7 @@ function parseDatabaseUrl(
   return {
     hostname,
     database,
+    password: decodeURIComponent(parsed.password),
     username: decodeURIComponent(parsed.username),
   };
 }
@@ -594,6 +596,12 @@ export function validateDeploymentContract(
     env.DATABASE_URL,
     "pooled",
   );
+  const platformDatabase = parseDatabaseUrl(
+    issues,
+    "PLATFORM_DATABASE_URL",
+    env.PLATFORM_DATABASE_URL,
+    "pooled",
+  );
 
   const directDatabaseVariable = env.DIRECT_URL?.trim()
     ? "DIRECT_URL"
@@ -617,9 +625,11 @@ export function validateDeploymentContract(
       );
 
   const runtimeRole = requireValue(env, issues, "DEPLOYMENT_RUNTIME_ROLE");
+  const platformRole = requireValue(env, issues, "DEPLOYMENT_PLATFORM_ROLE");
   const migrationRole = requireValue(env, issues, "DEPLOYMENT_MIGRATION_ROLE");
   for (const [variable, role] of [
     ["DEPLOYMENT_RUNTIME_ROLE", runtimeRole],
+    ["DEPLOYMENT_PLATFORM_ROLE", platformRole],
     ["DEPLOYMENT_MIGRATION_ROLE", migrationRole],
   ] as const) {
     if (role && !SAFE_POSTGRES_IDENTIFIER.test(role)) {
@@ -630,11 +640,30 @@ export function validateDeploymentContract(
       );
     }
   }
-  if (runtimeRole && migrationRole && runtimeRole === migrationRole) {
+  if (platformRole && platformRole !== "school_sis_platform") {
     addIssue(
       issues,
-      "DEPLOYMENT_RUNTIME_ROLE and DEPLOYMENT_MIGRATION_ROLE",
-      "must be distinct least-privilege runtime and DDL-owner roles.",
+      "DEPLOYMENT_PLATFORM_ROLE",
+      "must equal school_sis_platform because the RLS policy function pins that exact trusted identity.",
+    );
+  }
+  if (runtimeRole && runtimeRole !== "school_sis_runtime") {
+    addIssue(
+      issues,
+      "DEPLOYMENT_RUNTIME_ROLE",
+      "must equal school_sis_runtime because the phase-1 rollback bridge pins that exact legacy identity.",
+    );
+  }
+  if (
+    runtimeRole &&
+    platformRole &&
+    migrationRole &&
+    new Set([runtimeRole, platformRole, migrationRole]).size !== 3
+  ) {
+    addIssue(
+      issues,
+      "DEPLOYMENT_RUNTIME_ROLE, DEPLOYMENT_PLATFORM_ROLE, and DEPLOYMENT_MIGRATION_ROLE",
+      "must be three distinct tenant-runtime, platform-runtime, and DDL-owner roles.",
     );
   }
   if (
@@ -646,6 +675,17 @@ export function validateDeploymentContract(
       issues,
       "DATABASE_URL and DEPLOYMENT_RUNTIME_ROLE",
       "must use the configured runtime role.",
+    );
+  }
+  if (
+    platformDatabase &&
+    platformRole &&
+    platformDatabase.username !== platformRole
+  ) {
+    addIssue(
+      issues,
+      "PLATFORM_DATABASE_URL and DEPLOYMENT_PLATFORM_ROLE",
+      "must use the configured platform role.",
     );
   }
   if (
@@ -670,6 +710,55 @@ export function validateDeploymentContract(
         issues,
         "DATABASE_URL and direct database URL",
         "must identify the pooled and direct endpoints for the same Neon branch and database.",
+      );
+    }
+  }
+  if (runtimeDatabase && platformDatabase) {
+    if (!sameDatabase(runtimeDatabase, platformDatabase)) {
+      addIssue(
+        issues,
+        "DATABASE_URL and PLATFORM_DATABASE_URL",
+        "must identify the same pooled Neon branch and database.",
+      );
+    }
+    if (runtimeDatabase.username === platformDatabase.username) {
+      addIssue(
+        issues,
+        "DATABASE_URL and PLATFORM_DATABASE_URL",
+        "must use distinct tenant-runtime and platform-runtime credentials.",
+      );
+    }
+  }
+  if (platformDatabase && directDatabase) {
+    const expectedDirectHost = directHostForPooled(platformDatabase.hostname);
+    if (
+      expectedDirectHost !== directDatabase.hostname ||
+      platformDatabase.database !== directDatabase.database
+    ) {
+      addIssue(
+        issues,
+        "PLATFORM_DATABASE_URL and direct database URL",
+        "must identify the pooled and direct endpoints for the same Neon branch and database.",
+      );
+    }
+  }
+
+  const requiredDatabaseCredentials = [runtimeDatabase, platformDatabase];
+  if (!options.runtimeOnly) requiredDatabaseCredentials.push(directDatabase);
+  if (requiredDatabaseCredentials.every(Boolean)) {
+    const passwords = requiredDatabaseCredentials.map(
+      (database) => database!.password,
+    );
+    if (
+      passwords.some((password) => password.length === 0) ||
+      new Set(passwords).size !== passwords.length
+    ) {
+      addIssue(
+        issues,
+        options.runtimeOnly
+          ? "DATABASE_URL and PLATFORM_DATABASE_URL"
+          : "DATABASE_URL, PLATFORM_DATABASE_URL, and direct database URL",
+        "must use nonempty, pairwise-distinct decoded database passwords.",
       );
     }
   }
@@ -706,6 +795,126 @@ export function validateDeploymentContract(
   requireOneSecret(env, issues, ["PII_ENCRYPTION_KEY", "ENCRYPTION_KEY"]);
   requireSecret(env, issues, "METRICS_TOKEN");
   requireSecret(env, issues, "JOB_DISPATCH_SECRET");
+  const tenantContextAudience = requireValue(
+    env,
+    issues,
+    "TENANT_CONTEXT_AUDIENCE",
+  );
+  if (
+    tenantContextAudience &&
+    !/^[a-z0-9][a-z0-9:._-]{2,191}$/.test(tenantContextAudience)
+  ) {
+    addIssue(
+      issues,
+      "TENANT_CONTEXT_AUDIENCE",
+      "must be a lowercase deployment-specific audience.",
+    );
+  }
+  const tenantContextKeyId = requireValue(
+    env,
+    issues,
+    "TENANT_CONTEXT_SIGNING_KEY_ID",
+  );
+  if (
+    tenantContextKeyId &&
+    !/^[a-z0-9][a-z0-9._-]{0,31}$/.test(tenantContextKeyId)
+  ) {
+    addIssue(
+      issues,
+      "TENANT_CONTEXT_SIGNING_KEY_ID",
+      "must be a lowercase 1-32 character rotation identifier.",
+    );
+  }
+  const tenantContextSecret = env.TENANT_CONTEXT_SIGNING_SECRET;
+  if (
+    validateSecretValue(
+      issues,
+      "TENANT_CONTEXT_SIGNING_SECRET",
+      tenantContextSecret,
+      43,
+    ) &&
+    !/^[A-Za-z0-9_-]{43,128}$/.test(tenantContextSecret || "")
+  ) {
+    addIssue(
+      issues,
+      "TENANT_CONTEXT_SIGNING_SECRET",
+      "must be base64url text generated from at least 32 random bytes.",
+    );
+  }
+  const previousTenantContextKeyId = env.TENANT_CONTEXT_PREVIOUS_KEY_ID?.trim();
+  const previousTenantContextSecret =
+    env.TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET;
+  if (
+    Boolean(previousTenantContextKeyId) !== Boolean(previousTenantContextSecret)
+  ) {
+    addIssue(
+      issues,
+      "TENANT_CONTEXT_PREVIOUS_KEY_ID and TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET",
+      "must be configured together.",
+    );
+  }
+  if (
+    previousTenantContextKeyId &&
+    !/^[a-z0-9][a-z0-9._-]{0,31}$/.test(previousTenantContextKeyId)
+  ) {
+    addIssue(
+      issues,
+      "TENANT_CONTEXT_PREVIOUS_KEY_ID",
+      "must be a lowercase 1-32 character rotation identifier.",
+    );
+  }
+  if (
+    previousTenantContextSecret &&
+    (previousTenantContextSecret.length < 43 ||
+      previousTenantContextSecret.length > 128 ||
+      !/^[A-Za-z0-9_-]+$/.test(previousTenantContextSecret) ||
+      looksLikePlaceholder(previousTenantContextSecret))
+  ) {
+    addIssue(
+      issues,
+      "TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET",
+      "must be 43-128 characters of non-placeholder base64url text.",
+    );
+  }
+  if (
+    previousTenantContextKeyId &&
+    previousTenantContextKeyId === tenantContextKeyId
+  ) {
+    addIssue(
+      issues,
+      "TENANT_CONTEXT_PREVIOUS_KEY_ID",
+      "must differ from TENANT_CONTEXT_SIGNING_KEY_ID.",
+    );
+  }
+  if (
+    previousTenantContextSecret &&
+    previousTenantContextSecret === tenantContextSecret
+  ) {
+    addIssue(
+      issues,
+      "TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET",
+      "must differ from TENANT_CONTEXT_SIGNING_SECRET.",
+    );
+  }
+  const retirePreviousTenantContextKey =
+    env.TENANT_CONTEXT_RETIRE_PREVIOUS_KEY?.trim();
+  if (
+    retirePreviousTenantContextKey &&
+    retirePreviousTenantContextKey !== "true"
+  ) {
+    addIssue(
+      issues,
+      "TENANT_CONTEXT_RETIRE_PREVIOUS_KEY",
+      "must be unset or exactly true.",
+    );
+  }
+  if (retirePreviousTenantContextKey === "true" && previousTenantContextKeyId) {
+    addIssue(
+      issues,
+      "TENANT_CONTEXT_RETIRE_PREVIOUS_KEY",
+      "cannot be true while a previous verification key is configured.",
+    );
+  }
 
   const applicationHost = validateApplicationUrl(env, issues);
   validateTenantHosts(env, issues, applicationHost);

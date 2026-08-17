@@ -1,4 +1,5 @@
 import { assertProductionMockModesDisabled } from "@/lib/integrations/runtime-mode";
+import { resolveTenantContextSigningEnvironment } from "@/lib/db/tenant-context-config";
 
 type EnvIssue = {
   name: string;
@@ -52,20 +53,54 @@ function requireValue(name: string): EnvIssue | null {
   return process.env[name] ? null : { name, message: `${name} must be set.` };
 }
 
-function validateDatabaseUrlShape() {
+function validateTenantContextSigningCredential(): EnvIssue[] {
+  const issues: EnvIssue[] = [];
+  const signingEnvironment = resolveTenantContextSigningEnvironment(
+    process.env,
+  );
+  const audience = signingEnvironment.TENANT_CONTEXT_AUDIENCE || "";
+  const keyId = signingEnvironment.TENANT_CONTEXT_SIGNING_KEY_ID || "";
+  const secret = signingEnvironment.TENANT_CONTEXT_SIGNING_SECRET || "";
+  if (!/^[a-z0-9][a-z0-9:._-]{2,191}$/.test(audience)) {
+    issues.push({
+      name: "TENANT_CONTEXT_AUDIENCE",
+      message:
+        "TENANT_CONTEXT_AUDIENCE must be a lowercase deployment-specific audience.",
+    });
+  }
+  if (!/^[a-z0-9][a-z0-9._-]{0,31}$/.test(keyId)) {
+    issues.push({
+      name: "TENANT_CONTEXT_SIGNING_KEY_ID",
+      message:
+        "TENANT_CONTEXT_SIGNING_KEY_ID must be a lowercase 1-32 character rotation identifier.",
+    });
+  }
+  if (!/^[A-Za-z0-9_-]{43,128}$/.test(secret)) {
+    issues.push({
+      name: "TENANT_CONTEXT_SIGNING_SECRET",
+      message:
+        "TENANT_CONTEXT_SIGNING_SECRET must be a 43-128 character base64url secret generated from at least 32 random bytes.",
+    });
+  }
+  return issues;
+}
+
+function validateDatabaseUrlShape(
+  name: "DATABASE_URL" | "PLATFORM_DATABASE_URL",
+) {
   // Local-first: no cloud SSL is enforced. Just validate the URL shape.
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = process.env[name];
   if (!databaseUrl) return;
 
   let parsed: URL;
   try {
     parsed = new URL(databaseUrl);
   } catch {
-    throw new Error("DATABASE_URL must be a valid Postgres URL.");
+    throw new Error(`${name} must be a valid Postgres URL.`);
   }
 
   if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
-    throw new Error("DATABASE_URL must use postgres:// or postgresql://.");
+    throw new Error(`${name} must use postgres:// or postgresql://.`);
   }
 }
 
@@ -128,10 +163,14 @@ export function validateSecurityEnvironment() {
 
   const issues = [
     requireValue("DATABASE_URL"),
+    ...(process.env.NODE_ENV === "production"
+      ? [requireValue("PLATFORM_DATABASE_URL")]
+      : []),
     requireSecret("SESSION_SECRET"),
     requireOneOf(["PII_ENCRYPTION_KEY", "ENCRYPTION_KEY"]),
   ].filter(Boolean) as EnvIssue[];
   issues.push(...validateRateLimitConfiguration());
+  issues.push(...validateTenantContextSigningCredential());
 
   if (issues.length > 0) {
     throw new Error(
@@ -141,7 +180,8 @@ export function validateSecurityEnvironment() {
     );
   }
 
-  validateDatabaseUrlShape();
+  validateDatabaseUrlShape("DATABASE_URL");
+  validateDatabaseUrlShape("PLATFORM_DATABASE_URL");
 }
 
 export function getSecurityFeatureStatus() {

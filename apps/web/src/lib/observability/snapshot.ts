@@ -1,4 +1,9 @@
-import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass } from "@/lib/db";
+import {
+  pool,
+  RLS_BYPASS_JUSTIFICATIONS,
+  runWithRlsBypass,
+  runWithTenantContext,
+} from "@/lib/db";
 import { EXPECTED_DATABASE_MIGRATIONS } from "@/generated/migration-manifest";
 import {
   evaluateMigrationLedger,
@@ -74,6 +79,132 @@ export async function getDatabaseHealth(): Promise<{
     return { status: "healthy", latencyMs: Date.now() - startedAt };
   } catch {
     return { status: "unhealthy", latencyMs: null };
+  }
+}
+
+const TENANT_CONTEXT_READINESS_TENANT = "00000000-0000-4000-8000-000000000000";
+
+export type TenantContextHealth = {
+  status: ComponentStatus;
+  audience: string | null;
+  bypassVerified: boolean;
+  keyId: string | null;
+  role: string | null;
+};
+
+export type PlatformDatabaseHealth = {
+  status: ComponentStatus;
+  role: string | null;
+  bypassVerified: boolean;
+};
+
+/** Proves the deployed platform credential reaches only the pinned bypass role. */
+export async function getPlatformDatabaseHealth(): Promise<PlatformDatabaseHealth> {
+  try {
+    const result = await runWithRlsBypass<{
+      rows: Array<{ bypassVerified: boolean; role: string }>;
+    }>(
+      RLS_BYPASS_JUSTIFICATIONS.PLATFORM_READINESS,
+      () =>
+        pool.query<{ bypassVerified: boolean; role: string }>(
+          `SELECT
+              current_user::text AS role,
+              app_private.rls_bypass() AS "bypassVerified"`,
+        ) as Promise<{
+          rows: Array<{ bypassVerified: boolean; role: string }>;
+        }>,
+    );
+    const row = result.rows[0];
+    if (
+      result.rows.length !== 1 ||
+      row?.role !== "school_sis_platform" ||
+      row.bypassVerified !== true
+    ) {
+      return { status: "unhealthy", role: null, bypassVerified: false };
+    }
+    return {
+      status: "healthy",
+      role: row.role,
+      bypassVerified: true,
+    };
+  } catch {
+    return { status: "unhealthy", role: null, bypassVerified: false };
+  }
+}
+
+/**
+ * Proves that this exact runtime can sign a transaction-bound tenant context
+ * which the connected database verifies. The synthetic UUID need not exist and
+ * no tenant row is read or written.
+ */
+export async function getTenantContextHealth(): Promise<TenantContextHealth> {
+  try {
+    const result = await runWithTenantContext<{
+      rows: Array<{
+        audience: string;
+        bypassVerified: boolean;
+        keyId: string;
+        role: string;
+        verifiedTenantId: string | null;
+      }>;
+    }>(
+      TENANT_CONTEXT_READINESS_TENANT,
+      () =>
+        pool.query<{
+          audience: string;
+          bypassVerified: boolean;
+          keyId: string;
+          role: string;
+          verifiedTenantId: string | null;
+        }>(
+          `SELECT
+              app_private.verified_tenant_id()::text AS "verifiedTenantId",
+              current_user::text AS role,
+              app_private.rls_bypass() AS "bypassVerified",
+              current_setting('app.tenant_context_audience', true) AS audience,
+              current_setting('app.tenant_context_key_id', true) AS "keyId"`,
+        ) as Promise<{
+          rows: Array<{
+            audience: string;
+            bypassVerified: boolean;
+            keyId: string;
+            role: string;
+            verifiedTenantId: string | null;
+          }>;
+        }>,
+    );
+    const row = result.rows[0];
+    if (
+      result.rows.length !== 1 ||
+      row?.verifiedTenantId !== TENANT_CONTEXT_READINESS_TENANT ||
+      row.role !== "school_sis_runtime" ||
+      row.bypassVerified !== false ||
+      !row.audience ||
+      !row.keyId
+    ) {
+      return {
+        status: "unhealthy",
+        audience: null,
+        bypassVerified: false,
+        keyId: null,
+        role: null,
+      };
+    }
+    return {
+      status: "healthy",
+      audience: row.audience,
+      bypassVerified: false,
+      keyId: row.keyId,
+      role: row.role,
+    };
+  } catch {
+    return {
+      status: "unhealthy",
+      audience: null,
+      bypassVerified: false,
+      keyId: null,
+      role: null,
+    };
   }
 }
 

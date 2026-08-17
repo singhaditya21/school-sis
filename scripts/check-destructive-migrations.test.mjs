@@ -120,6 +120,114 @@ test("does not treat an atomic same-table RLS policy replacement as removal", ()
   );
 });
 
+test("release mode narrowly allows the tenant-context private ACL and rate-policy hardening", () => {
+  const root = fixture();
+  writeFileSync(
+    join(root, "packages/api/src/db/migrations/tenant-rls.sql"),
+    `
+      CREATE TABLE IF NOT EXISTS app_private.tenant_context_signing_keys (key_id text);
+      REVOKE ALL ON TABLE app_private.tenant_context_signing_keys FROM PUBLIC;
+      CREATE TABLE IF NOT EXISTS app_private.tenant_context_rollout_state (singleton boolean);
+      REVOKE ALL ON TABLE app_private.tenant_context_rollout_state FROM PUBLIC;
+      DROP POLICY IF EXISTS rate_limit_buckets_platform_access ON public.rate_limit_buckets;
+      CREATE POLICY rate_limit_buckets_platform_only ON public.rate_limit_buckets
+        USING (app_private.rls_bypass())
+        WITH CHECK (app_private.rls_bypass());
+    `,
+  );
+  assert.deepEqual(
+    evaluateMigrationPolicy({ repoRoot: root, releaseMode: true }).failures,
+    [],
+  );
+});
+
+test("tenant-RLS hardening exceptions reject near-miss revokes and policy removal", () => {
+  const root = fixture();
+  writeFileSync(
+    join(root, "packages/api/src/db/migrations/tenant-rls.sql"),
+    `
+      CREATE TABLE IF NOT EXISTS app_private.tenant_context_signing_keys (key_id text);
+      REVOKE ALL ON TABLE public.students FROM PUBLIC;
+      DROP POLICY IF EXISTS allow_all ON public.rate_limit_buckets;
+      CREATE POLICY rate_limit_buckets_platform_only ON public.rate_limit_buckets
+        USING (app_private.rls_bypass())
+        WITH CHECK (app_private.rls_bypass());
+    `,
+  );
+  const failures = evaluateMigrationPolicy({
+    repoRoot: root,
+    releaseMode: true,
+  }).failures.join("\n");
+  assert.match(failures, /revoke-privilege/u);
+  assert.match(failures, /drop-rls-policy/u);
+});
+
+const exactPolicyReconciliation = `
+  DO $$
+  DECLARE table_record record;
+  BEGIN
+    FOR table_record IN
+      SELECT namespaces.nspname AS schema_name, classes.relname AS table_name
+      FROM pg_catalog.pg_class classes
+      JOIN pg_catalog.pg_namespace namespaces ON namespaces.oid = classes.relnamespace
+      WHERE namespaces.nspname = 'public'
+        AND classes.relkind IN ('r', 'p')
+      ORDER BY namespaces.nspname, classes.relname, classes.oid
+    LOOP
+      EXECUTE format('LOCK TABLE %I.%I IN ACCESS EXCLUSIVE MODE', table_record.schema_name, table_record.table_name);
+    END LOOP;
+  END $$;
+  DO $$
+  DECLARE policy_record record;
+  BEGIN
+    FOR policy_record IN
+      SELECT namespaces.nspname AS schema_name, classes.relname AS table_name, policies.polname AS policy_name
+      FROM pg_catalog.pg_policy policies
+      JOIN pg_catalog.pg_class classes ON classes.oid = policies.polrelid
+      JOIN pg_catalog.pg_namespace namespaces ON namespaces.oid = classes.relnamespace
+      WHERE namespaces.nspname = 'public'
+        AND classes.relkind IN ('r', 'p')
+    LOOP
+      EXECUTE format('DROP POLICY %I ON %I.%I', policy_record.policy_name, policy_record.schema_name, policy_record.table_name);
+    END LOOP;
+  END $$;
+  EXECUTE format(
+    'CREATE POLICY tenant_isolation_policy ON %I.%I
+       USING (app_private.rls_bypass() OR tenant_id = (SELECT app_private.current_tenant_id()))
+       WITH CHECK (app_private.rls_bypass() OR tenant_id = (SELECT app_private.current_tenant_id()))',
+    table_record.schema_name,
+    table_record.table_name
+  );
+`;
+
+test("release mode narrowly accepts locked full-policy reconciliation", () => {
+  const root = fixture();
+  writeFileSync(
+    join(root, "packages/api/src/db/migrations/tenant-rls.sql"),
+    exactPolicyReconciliation,
+  );
+  assert.deepEqual(
+    evaluateMigrationPolicy({ repoRoot: root, releaseMode: true }).failures,
+    [],
+  );
+});
+
+test("locked policy exception rejects missing lock order and unrelated dynamic drops", () => {
+  const root = fixture();
+  writeFileSync(
+    join(root, "packages/api/src/db/migrations/tenant-rls.sql"),
+    `${exactPolicyReconciliation.replace(
+      "ORDER BY namespaces.nspname, classes.relname, classes.oid",
+      "ORDER BY classes.oid",
+    )}\nEXECUTE format('DROP POLICY %I ON %I.%I', arbitrary.policy, arbitrary.schema, arbitrary.table);`,
+  );
+  const failures = evaluateMigrationPolicy({
+    repoRoot: root,
+    releaseMode: true,
+  }).failures.join("\n");
+  assert.match(failures, /drop-rls-policy/u);
+});
+
 test("detects removal of a named policy despite another policy on the table", () => {
   const findings = findBackwardIncompatibleStatements(`
     DROP POLICY IF EXISTS students_delete_policy ON public.students;

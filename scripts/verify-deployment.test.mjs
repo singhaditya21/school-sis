@@ -10,6 +10,10 @@ import {
 } from "./verify-deployment.mjs";
 
 const SHA = "a".repeat(40);
+const TENANT_CONTEXT = {
+  audience: "production:project:branch",
+  keyId: "production-v1",
+};
 
 function healthPayload(overrides = {}) {
   return {
@@ -17,6 +21,7 @@ function healthPayload(overrides = {}) {
     service: "school-sis-web",
     timestamp: "2026-08-15T00:00:00.000Z",
     commit: SHA,
+    region: "sin1",
     ...overrides,
   };
 }
@@ -28,7 +33,18 @@ function readyPayload(overrides = {}) {
     commit: SHA,
     database: { status: "healthy", latencyMs: 1 },
     migrations: { status: "healthy", reason: "current" },
+    platformDatabase: {
+      status: "healthy",
+      role: "school_sis_platform",
+      bypassVerified: true,
+    },
     rateLimit: { status: "healthy" },
+    tenantContext: {
+      status: "healthy",
+      role: "school_sis_runtime",
+      bypassVerified: false,
+      ...TENANT_CONTEXT,
+    },
     ...overrides,
   };
 }
@@ -53,31 +69,59 @@ test("normalizeBaseUrl rejects credentials, paths, and HTTP by default", () => {
   );
 });
 
-test("health validation requires service identity and an exact release SHA", () => {
-  assert.deepEqual(validateHealthPayload(healthPayload(), SHA), []);
+test("health validation requires service identity, release SHA, and exact region", () => {
+  assert.deepEqual(validateHealthPayload(healthPayload(), SHA, "sin1"), []);
   assert.match(
-    validateHealthPayload(healthPayload({ commit: "b".repeat(40) }), SHA).join(
+    validateHealthPayload(
+      healthPayload({ commit: "b".repeat(40) }),
+      SHA,
+      "sin1",
+    ).join(";"),
+    /commit/,
+  );
+  assert.match(
+    validateHealthPayload(healthPayload({ region: "iad1" }), SHA, "sin1").join(
       ";",
     ),
-    /commit/,
+    /region/,
   );
 });
 
 test("readiness validation fails closed on degraded dependencies or stale migrations", () => {
-  assert.deepEqual(validateReadyPayload(readyPayload(), SHA), []);
+  assert.deepEqual(
+    validateReadyPayload(readyPayload(), SHA, TENANT_CONTEXT),
+    [],
+  );
   const problems = validateReadyPayload(
     readyPayload({
       status: "not_ready",
       migrations: { status: "unhealthy", reason: "migration_count_mismatch" },
       rateLimit: { status: "degraded" },
+      platformDatabase: {
+        status: "unhealthy",
+        role: "school_sis_runtime",
+        bypassVerified: false,
+      },
+      tenantContext: {
+        status: "healthy",
+        role: "school_sis_platform",
+        bypassVerified: true,
+        ...TENANT_CONTEXT,
+      },
     }),
     SHA,
+    TENANT_CONTEXT,
   );
-  assert.equal(problems.length, 4);
+  assert.equal(problems.length, 9);
   assert.match(problems.join(";"), /strictly ready/);
   assert.match(problems.join(";"), /migration readiness/);
   assert.match(problems.join(";"), /migration ledger/);
   assert.match(problems.join(";"), /rate-limit readiness/);
+  assert.match(problems.join(";"), /platform database readiness/);
+  assert.match(problems.join(";"), /platform database role/);
+  assert.match(problems.join(";"), /platform database bypass/);
+  assert.match(problems.join(";"), /tenant database role/);
+  assert.match(problems.join(";"), /unexpectedly permits RLS bypass/);
 });
 
 test("verifyVercelProtection requires the exact Vercel Authentication challenge", async () => {
@@ -159,6 +203,9 @@ test("verifyDeployment proves protection, then sends secrets only as headers", a
     {
       baseUrl: "https://example.vercel.app",
       expectedSha: SHA,
+      expectedTenantContextAudience: TENANT_CONTEXT.audience,
+      expectedTenantContextKeyId: TENANT_CONTEXT.keyId,
+      expectedRegion: "sin1",
       metricsToken: "m".repeat(32),
       bypassSecret: "b".repeat(16),
       requireBypass: true,

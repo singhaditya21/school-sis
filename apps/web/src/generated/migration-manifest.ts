@@ -4,5 +4,10 @@ export const EXPECTED_DATABASE_MIGRATIONS = [
     "tag": "0000_init_baseline",
     "createdAt": "1784378219195",
     "hash": "3dcdb89f02d6e39635bf288b760c44aa2c6b59d32411ce44ecf25f117c10d927"
+  },
+  {
+    "tag": "0001_reconcile_production_integrity",
+    "createdAt": "1786893284933",
+    "hash": "72b8ac66c6114b24a858d701a2f0fcfa44c3aed7d0c6d6fec53ba094a95bab5a"
   }
 ] as const;

@@ -14,8 +14,73 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  tenant-context-key-contract:
+    name: Pin distinct tenant-context key fingerprints
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      production_fingerprint: ${{ steps.pins.outputs.production_fingerprint }}
+      production_key_id: ${{ steps.pins.outputs.production_key_id }}
+      preview_fingerprint: ${{ steps.pins.outputs.preview_fingerprint }}
+      preview_key_id: ${{ steps.pins.outputs.preview_key_id }}
+    steps:
+      - name: Read the reviewed key contract from protected main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      # This job deliberately has no GitHub Environment. Both protected jobs
+      # consume the same reviewed file, so environment variable precedence
+      # cannot present a different key/fingerprint pair to each deployment.
+      - name: Validate tracked signing-key contract
+        id: pins
+        env:
+          PINNED_PRODUCTION_FINGERPRINT: ${{ vars.PRODUCTION_TENANT_CONTEXT_SIGNING_SECRET_SHA256 }}
+          PINNED_PREVIEW_FINGERPRINT: ${{ vars.PREVIEW_TENANT_CONTEXT_SIGNING_SECRET_SHA256 }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          const exactKeys = (value, keys, label) => {
+            if (!value || typeof value !== 'object' || Array.isArray(value) ||
+                JSON.stringify(Object.keys(value).sort()) !== JSON.stringify([...keys].sort())) {
+              throw new Error(`${label} has unexpected or missing keys.`);
+            }
+          };
+          const contract = JSON.parse(readFileSync('.github/tenant-context-key-contract.json', 'utf8'));
+          exactKeys(contract, ['version', 'production', 'preview'], 'tenant-context key contract');
+          if (contract.version !== 1) throw new Error('Unsupported tenant-context key contract version.');
+          for (const environment of ['production', 'preview']) {
+            const entry = contract[environment];
+            exactKeys(entry, ['keyId', 'secretSha256'], `${environment} tenant-context key contract`);
+            if (!/^[a-z0-9][a-z0-9._-]{0,31}$/.test(entry.keyId) ||
+                !/^[0-9a-f]{64}$/.test(entry.secretSha256)) {
+              throw new Error(`${environment} tenant-context key contract is malformed.`);
+            }
+          }
+          if (contract.production.keyId === contract.preview.keyId ||
+              contract.production.secretSha256 === contract.preview.secretSha256) {
+            throw new Error('Production and preview tenant-context key contracts must be distinct.');
+          }
+          if (contract.production.secretSha256 !== process.env.PINNED_PRODUCTION_FINGERPRINT ||
+              contract.preview.secretSha256 !== process.env.PINNED_PREVIEW_FINGERPRINT) {
+            throw new Error('Tracked tenant-context fingerprints do not match the shared repository pins.');
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT,
+            `production_fingerprint=${contract.production.secretSha256}\n` +
+            `production_key_id=${contract.production.keyId}\n` +
+            `preview_fingerprint=${contract.preview.secretSha256}\n` +
+            `preview_key_id=${contract.preview.keyId}\n`);
+          NODE
+
   deploy-preview:
     name: Build, migrate, and deploy isolated preview
+    needs: tenant-context-key-contract
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.draft == false
@@ -48,10 +113,19 @@ jobs:
           NEON_DATABASE_VALUE: ${{ vars.NEON_PREVIEW_DATABASE_NAME }}
           NEON_ROLE_VALUE: ${{ vars.NEON_PREVIEW_MIGRATION_ROLE }}
           NEON_RUNTIME_ROLE_VALUE: ${{ vars.NEON_PREVIEW_RUNTIME_ROLE }}
+          NEON_PLATFORM_ROLE_VALUE: ${{ vars.NEON_PREVIEW_PLATFORM_ROLE }}
           PREVIEW_APP_URL_TEMPLATE_VALUE: ${{ vars.VERCEL_PREVIEW_APP_URL_TEMPLATE }}
           PRODUCTION_VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           PRODUCTION_VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
           PRODUCTION_NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          TENANT_CONTEXT_KEY_ID_VALUE: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          EXPECTED_TENANT_CONTEXT_KEY_ID: ${{ needs.tenant-context-key-contract.outputs.preview_key_id }}
+          TENANT_CONTEXT_SECRET_VALUE: ${{ secrets.TENANT_CONTEXT_SIGNING_SECRET }}
+          TENANT_CONTEXT_PREVIOUS_KEY_ID_VALUE: ${{ vars.TENANT_CONTEXT_PREVIOUS_KEY_ID }}
+          TENANT_CONTEXT_PREVIOUS_SECRET_VALUE: ${{ secrets.TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET }}
+          TENANT_CONTEXT_RETIRE_PREVIOUS_KEY_VALUE: ${{ vars.TENANT_CONTEXT_RETIRE_PREVIOUS_KEY }}
+          PRODUCTION_TENANT_CONTEXT_SECRET_SHA256: ${{ needs.tenant-context-key-contract.outputs.production_fingerprint }}
+          PREVIEW_TENANT_CONTEXT_SECRET_SHA256: ${{ needs.tenant-context-key-contract.outputs.preview_fingerprint }}
         run: |
           set -euo pipefail
           missing=()
@@ -60,9 +134,14 @@ jobs:
             VERCEL_BYPASS_VALUE VERCEL_ORG_ID VERCEL_PROJECT_ID \
             NEON_PROJECT_ID_VALUE NEON_PREVIEW_PARENT_VALUE \
             NEON_DATABASE_VALUE NEON_ROLE_VALUE NEON_RUNTIME_ROLE_VALUE \
+            NEON_PLATFORM_ROLE_VALUE \
             PREVIEW_APP_URL_TEMPLATE_VALUE PREVIEW_PR_NUMBER \
             PRODUCTION_VERCEL_ORG_ID PRODUCTION_VERCEL_PROJECT_ID \
-            PRODUCTION_NEON_PROJECT_ID; do
+            PRODUCTION_NEON_PROJECT_ID TENANT_CONTEXT_KEY_ID_VALUE \
+            EXPECTED_TENANT_CONTEXT_KEY_ID \
+            TENANT_CONTEXT_SECRET_VALUE \
+            PRODUCTION_TENANT_CONTEXT_SECRET_SHA256 \
+            PREVIEW_TENANT_CONTEXT_SECRET_SHA256; do
             if [ -z "${!name:-}" ]; then missing+=("$name"); fi
           done
           if [ "${#missing[@]}" -ne 0 ]; then
@@ -73,9 +152,20 @@ jobs:
             echo "VERCEL_PREVIEW_AUTOMATION_BYPASS_SECRET must be at least 16 characters." >&2
             exit 1
           fi
-          if [ "$VERCEL_ORG_ID" = "$PRODUCTION_VERCEL_ORG_ID" ] || \
-             [ "$VERCEL_PROJECT_ID" = "$PRODUCTION_VERCEL_PROJECT_ID" ]; then
-            echo "Preview Vercel must use a separate team and project that cannot affect production." >&2
+          if ! [[ "$TENANT_CONTEXT_KEY_ID_VALUE" =~ ^[a-z0-9][a-z0-9._-]{0,31}$ ]]; then
+            echo "TENANT_CONTEXT_SIGNING_KEY_ID has an invalid rotation identifier." >&2
+            exit 1
+          fi
+          if [ "$TENANT_CONTEXT_KEY_ID_VALUE" != "$EXPECTED_TENANT_CONTEXT_KEY_ID" ]; then
+            echo "Preview TENANT_CONTEXT_SIGNING_KEY_ID does not match the reviewed key contract." >&2
+            exit 1
+          fi
+          if ! [[ "$TENANT_CONTEXT_SECRET_VALUE" =~ ^[A-Za-z0-9_-]{43,128}$ ]]; then
+            echo "TENANT_CONTEXT_SIGNING_SECRET must be a 43-128 character base64url secret." >&2
+            exit 1
+          fi
+          if [ "$VERCEL_PROJECT_ID" = "$PRODUCTION_VERCEL_PROJECT_ID" ]; then
+            echo "Preview Vercel must use a project separate from production." >&2
             exit 1
           fi
           if [ "$NEON_PROJECT_ID_VALUE" = "$PRODUCTION_NEON_PROJECT_ID" ]; then
@@ -83,22 +173,76 @@ jobs:
             exit 1
           fi
           node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
           const identifiers = [
-            'VERCEL_ORG_ID', 'VERCEL_PROJECT_ID', 'NEON_PROJECT_ID_VALUE',
-            'NEON_PREVIEW_PARENT_VALUE'
+            'VERCEL_ORG_ID', 'VERCEL_PROJECT_ID',
+            'PRODUCTION_VERCEL_ORG_ID', 'PRODUCTION_VERCEL_PROJECT_ID',
+            'NEON_PROJECT_ID_VALUE', 'NEON_PREVIEW_PARENT_VALUE'
           ];
           for (const name of identifiers) {
             if (!/^[A-Za-z0-9_-]+$/.test(process.env[name] || '')) {
               throw new Error(`${name} contains unsupported characters.`);
             }
           }
-          for (const name of ['NEON_DATABASE_VALUE', 'NEON_ROLE_VALUE', 'NEON_RUNTIME_ROLE_VALUE']) {
+          for (const name of ['NEON_DATABASE_VALUE', 'NEON_ROLE_VALUE', 'NEON_RUNTIME_ROLE_VALUE', 'NEON_PLATFORM_ROLE_VALUE']) {
             if (!/^[a-z_][a-z0-9_]{0,62}$/.test(process.env[name] || '')) {
               throw new Error(`${name} must be a lowercase PostgreSQL identifier.`);
             }
           }
           if (process.env.NEON_ROLE_VALUE === process.env.NEON_RUNTIME_ROLE_VALUE) {
-            throw new Error('Preview migration and runtime roles must be distinct.');
+            throw new Error('Preview migration and tenant-runtime roles must be distinct.');
+          }
+          if (process.env.NEON_PLATFORM_ROLE_VALUE !== 'school_sis_platform') {
+            throw new Error('NEON_PREVIEW_PLATFORM_ROLE must equal school_sis_platform.');
+          }
+          if (process.env.NEON_RUNTIME_ROLE_VALUE !== 'school_sis_runtime') {
+            throw new Error('NEON_PREVIEW_RUNTIME_ROLE must equal school_sis_runtime.');
+          }
+          if (new Set([
+            process.env.NEON_ROLE_VALUE,
+            process.env.NEON_RUNTIME_ROLE_VALUE,
+            process.env.NEON_PLATFORM_ROLE_VALUE
+          ]).size !== 3) {
+            throw new Error('Preview migration, tenant-runtime, and platform-runtime roles must be distinct.');
+          }
+          const productionFingerprint = process.env.PRODUCTION_TENANT_CONTEXT_SECRET_SHA256 || '';
+          const previewFingerprint = process.env.PREVIEW_TENANT_CONTEXT_SECRET_SHA256 || '';
+          if (
+            !/^[0-9a-f]{64}$/.test(productionFingerprint) ||
+            !/^[0-9a-f]{64}$/.test(previewFingerprint) ||
+            productionFingerprint === previewFingerprint
+          ) {
+            throw new Error('Production and preview tenant-context secret fingerprints must be valid and distinct.');
+          }
+          const actualFingerprint = createHash('sha256')
+            .update(process.env.TENANT_CONTEXT_SECRET_VALUE, 'utf8')
+            .digest('hex');
+          if (actualFingerprint !== previewFingerprint) {
+            throw new Error('Preview tenant-context secret does not match its configured SHA-256 fingerprint.');
+          }
+          const previousKeyId = process.env.TENANT_CONTEXT_PREVIOUS_KEY_ID_VALUE || '';
+          const previousSecret = process.env.TENANT_CONTEXT_PREVIOUS_SECRET_VALUE || '';
+          const retirePrevious = process.env.TENANT_CONTEXT_RETIRE_PREVIOUS_KEY_VALUE || '';
+          if (Boolean(previousKeyId) !== Boolean(previousSecret)) {
+            throw new Error('TENANT_CONTEXT_PREVIOUS_KEY_ID and TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET must be configured together.');
+          }
+          if (previousKeyId && !/^[a-z0-9][a-z0-9._-]{0,31}$/.test(previousKeyId)) {
+            throw new Error('TENANT_CONTEXT_PREVIOUS_KEY_ID has an invalid rotation identifier.');
+          }
+          if (previousSecret && !/^[A-Za-z0-9_-]{43,128}$/.test(previousSecret)) {
+            throw new Error('TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET must be a 43-128 character base64url secret.');
+          }
+          if (previousKeyId === process.env.TENANT_CONTEXT_KEY_ID_VALUE && previousKeyId) {
+            throw new Error('Current and previous tenant-context key IDs must differ.');
+          }
+          if (previousSecret === process.env.TENANT_CONTEXT_SECRET_VALUE && previousSecret) {
+            throw new Error('Current and previous tenant-context secrets must differ.');
+          }
+          if (retirePrevious && retirePrevious !== 'true') {
+            throw new Error('TENANT_CONTEXT_RETIRE_PREVIOUS_KEY must be unset or exactly true.');
+          }
+          if (retirePrevious === 'true' && previousKeyId) {
+            throw new Error('TENANT_CONTEXT_RETIRE_PREVIOUS_KEY=true cannot be combined with a previous verification key.');
           }
           const template = process.env.PREVIEW_APP_URL_TEMPLATE_VALUE;
           if ((template.match(/\{pr\}/g) || []).length !== 1) {
@@ -122,6 +266,98 @@ jobs:
             `NEXT_PUBLIC_APP_URL=${appUrl.origin}\nTENANT_BASE_HOSTS=${appUrl.hostname}\nPREVIEW_ALIAS_HOST=${appUrl.hostname}\n`,
           );
           NODE
+
+      - name: Prove Vercel preview token project isolation
+        env:
+          VERCEL_TOKEN_VALUE: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+          PRODUCTION_VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          PRODUCTION_VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          preview_response="$RUNNER_TEMP/vercel-preview-project.json"
+          production_response="$RUNNER_TEMP/vercel-production-project.json"
+          trap 'rm -f "$preview_response" "$production_response"' EXIT
+
+          preview_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $VERCEL_TOKEN_VALUE" \
+            --header 'Accept: application/json' \
+            --output "$preview_response" \
+            --write-out '%{http_code}' \
+            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}")"
+          if [ "$preview_http" != "200" ]; then
+            echo "The preview token cannot access the configured preview Vercel project (HTTP $preview_http)." >&2
+            exit 1
+          fi
+          if ! jq -e \
+            --arg project "$VERCEL_PROJECT_ID" \
+            --arg team "$VERCEL_ORG_ID" \
+            '.id == $project and .accountId == $team' \
+            "$preview_response" >/dev/null; then
+            echo "The preview token resolved a Vercel project outside the configured preview target." >&2
+            exit 1
+          fi
+
+          production_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $VERCEL_TOKEN_VALUE" \
+            --header 'Accept: application/json' \
+            --output "$production_response" \
+            --write-out '%{http_code}' \
+            "https://api.vercel.com/v9/projects/${PRODUCTION_VERCEL_PROJECT_ID}?teamId=${PRODUCTION_VERCEL_ORG_ID}")"
+          case "$production_http" in
+            403|404)
+              ;;
+            200)
+              echo "The preview token can access the configured production Vercel project." >&2
+              exit 1
+              ;;
+            *)
+              echo "Could not prove that the preview token is isolated from production (HTTP $production_http)." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Prove Neon preview token project isolation
+        env:
+          NEON_PREVIEW_API_KEY: ${{ secrets.NEON_PREVIEW_API_KEY }}
+          NEON_PREVIEW_PROJECT_ID: ${{ vars.NEON_PREVIEW_PROJECT_ID }}
+          PRODUCTION_NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          preview_response="$RUNNER_TEMP/neon-preview-project.json"
+          production_response="$RUNNER_TEMP/neon-production-project-denied.json"
+          trap 'rm -f "$preview_response" "$production_response"' EXIT
+          preview_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $NEON_PREVIEW_API_KEY" \
+            --header 'Accept: application/json' \
+            --output "$preview_response" \
+            --write-out '%{http_code}' \
+            "https://console.neon.tech/api/v2/projects/${NEON_PREVIEW_PROJECT_ID}")"
+          if [ "$preview_http" != "200" ]; then
+            echo "The preview Neon token cannot access the exact preview project (HTTP $preview_http)." >&2
+            exit 1
+          fi
+          jq -e --arg project "$NEON_PREVIEW_PROJECT_ID" \
+            '.project.id == $project' "$preview_response" >/dev/null
+
+          production_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $NEON_PREVIEW_API_KEY" \
+            --header 'Accept: application/json' \
+            --output "$production_response" \
+            --write-out '%{http_code}' \
+            "https://console.neon.tech/api/v2/projects/${PRODUCTION_NEON_PROJECT_ID}")"
+          case "$production_http" in
+            403|404) ;;
+            200)
+              echo "The preview Neon token can access the production Neon project." >&2
+              exit 1
+              ;;
+            *)
+              echo "Could not prove preview Neon token isolation from production (HTTP $production_http)." >&2
+              exit 1
+              ;;
+          esac
 
       - name: Generate per-run preview application secrets
         run: |
@@ -195,6 +431,151 @@ jobs:
           ssl: verify-full
           expires_at: ${{ steps.expiry.outputs.expires_at }}
 
+      - name: Resolve pooled Neon URL for the platform role
+        id: neon_platform
+        uses: neondatabase/create-branch-action@72ed4f69a12b6be9c16aebfad893f6a21e9aba8b
+        with:
+          api_key: ${{ secrets.NEON_PREVIEW_API_KEY }}
+          project_id: ${{ vars.NEON_PREVIEW_PROJECT_ID }}
+          parent_branch: ${{ vars.NEON_PREVIEW_TEMPLATE_BRANCH_ID }}
+          branch_name: ${{ env.PREVIEW_BRANCH_NAME }}
+          branch_type: schema-only
+          database: ${{ vars.NEON_PREVIEW_DATABASE_NAME }}
+          role: ${{ vars.NEON_PREVIEW_PLATFORM_ROLE }}
+          ssl: verify-full
+          expires_at: ${{ steps.expiry.outputs.expires_at }}
+
+      - name: Rotate the isolated preview platform-role password
+        id: neon_platform_credentials
+        env:
+          PREVIEW_DIRECT_URL: ${{ steps.neon_migration.outputs.db_url }}
+          PREVIEW_PLATFORM_POOLED_URL: ${{ steps.neon_platform.outputs.db_url_pooled }}
+          PREVIEW_MIGRATION_BRANCH_ID: ${{ steps.neon_migration.outputs.branch_id }}
+          PREVIEW_RUNTIME_BRANCH_ID: ${{ steps.neon_runtime.outputs.branch_id }}
+          PREVIEW_PLATFORM_BRANCH_ID: ${{ steps.neon_platform.outputs.branch_id }}
+          EXPECTED_MIGRATION_ROLE: ${{ vars.NEON_PREVIEW_MIGRATION_ROLE }}
+          EXPECTED_PLATFORM_ROLE: ${{ vars.NEON_PREVIEW_PLATFORM_ROLE }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { randomBytes } from 'node:crypto';
+          import { appendFileSync } from 'node:fs';
+          import { createRequire } from 'node:module';
+          import { resolve } from 'node:path';
+
+          const require = createRequire(resolve('apps/web/package.json'));
+          const { Client } = require('pg');
+          const forbiddenQueryParameters = new Set([
+            'database', 'db', 'host', 'hostaddr', 'options', 'password', 'port', 'user'
+          ]);
+          const parseDatabaseUrl = (value, label) => {
+            const url = new URL(value || '');
+            if (url.protocol !== 'postgresql:' && url.protocol !== 'postgres:') {
+              throw new Error(`${label} must be a PostgreSQL URL.`);
+            }
+            const overrides = [...url.searchParams.keys()].filter((key) =>
+              forbiddenQueryParameters.has(key.toLowerCase())
+            );
+            if (overrides.length > 0) {
+              throw new Error(`${label} contains a forbidden connection-identity query override.`);
+            }
+            return url;
+          };
+
+          const direct = parseDatabaseUrl(process.env.PREVIEW_DIRECT_URL, 'PREVIEW_DIRECT_URL');
+          const platformPooled = parseDatabaseUrl(
+            process.env.PREVIEW_PLATFORM_POOLED_URL,
+            'PREVIEW_PLATFORM_POOLED_URL',
+          );
+          if (
+            !process.env.PREVIEW_MIGRATION_BRANCH_ID ||
+            process.env.PREVIEW_MIGRATION_BRANCH_ID !== process.env.PREVIEW_RUNTIME_BRANCH_ID ||
+            process.env.PREVIEW_MIGRATION_BRANCH_ID !== process.env.PREVIEW_PLATFORM_BRANCH_ID
+          ) {
+            throw new Error('Preview credential rotation requires one exact Neon branch.');
+          }
+          if (
+            !direct.hostname.endsWith('.neon.tech') || direct.hostname.includes('-pooler') ||
+            decodeURIComponent(direct.username) !== process.env.EXPECTED_MIGRATION_ROLE ||
+            !decodeURIComponent(direct.password)
+          ) {
+            throw new Error('Preview platform credential rotation requires the exact direct migration-owner URL.');
+          }
+          if (
+            !platformPooled.hostname.endsWith('.neon.tech') ||
+            !platformPooled.hostname.includes('-pooler') ||
+            decodeURIComponent(platformPooled.username) !== process.env.EXPECTED_PLATFORM_ROLE ||
+            process.env.EXPECTED_PLATFORM_ROLE !== 'school_sis_platform'
+          ) {
+            throw new Error('Preview platform credential rotation requires the exact pooled platform-role URL.');
+          }
+          if (
+            platformPooled.hostname.replace('-pooler.', '.') !== direct.hostname ||
+            decodeURIComponent(direct.pathname) !== decodeURIComponent(platformPooled.pathname)
+          ) {
+            throw new Error('Preview direct and platform URLs must identify the same branch and database.');
+          }
+
+          const platformPassword = randomBytes(48).toString('base64url');
+          console.log(`::add-mask::${platformPassword}`);
+          const owner = new Client({ connectionString: direct.toString() });
+          await owner.connect();
+          try {
+            const role = await owner.query(
+              'SELECT rolname, rolcanlogin FROM pg_roles WHERE rolname = $1',
+              [process.env.EXPECTED_PLATFORM_ROLE],
+            );
+            if (
+              role.rowCount !== 1 || role.rows[0].rolname !== 'school_sis_platform' ||
+              role.rows[0].rolcanlogin !== true
+            ) {
+              throw new Error('The exact preview platform LOGIN role does not exist.');
+            }
+            await owner.query(
+              "SELECT set_config('app.preview_platform_role', $1, false), set_config('app.preview_platform_password', $2, false)",
+              [process.env.EXPECTED_PLATFORM_ROLE, platformPassword],
+            );
+            await owner.query(`
+              DO $rotate_preview_platform_password$
+              DECLARE
+                target_role text := current_setting('app.preview_platform_role');
+                target_password text := current_setting('app.preview_platform_password');
+              BEGIN
+                IF target_role <> 'school_sis_platform' OR target_password = '' THEN
+                  RAISE EXCEPTION 'Invalid preview platform credential rotation target';
+                END IF;
+                EXECUTE format('ALTER ROLE %I PASSWORD %L', target_role, target_password);
+              END
+              $rotate_preview_platform_password$
+            `);
+          } finally {
+            await owner.end();
+          }
+
+          platformPooled.password = platformPassword;
+          const encodedPlatformPassword = encodeURIComponent(platformPassword);
+          const rotatedPlatformUrl = platformPooled.toString();
+          if (!rotatedPlatformUrl.includes(`:${encodedPlatformPassword}@`)) {
+            throw new Error('Could not encode the rotated platform password in its pooled URL.');
+          }
+          console.log(`::add-mask::${rotatedPlatformUrl}`);
+
+          const verifier = new Client({ connectionString: rotatedPlatformUrl });
+          await verifier.connect();
+          try {
+            const identity = await verifier.query('SELECT current_user AS current_user');
+            if (identity.rows[0]?.current_user !== 'school_sis_platform') {
+              throw new Error('Rotated preview platform credentials resolved to the wrong role.');
+            }
+          } finally {
+            await verifier.end();
+          }
+          appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `platform_pooled_url=${rotatedPlatformUrl}\n`,
+          );
+          NODE
+
       - name: Validate Neon action outputs
         env:
           NEON_API_KEY: ${{ secrets.NEON_PREVIEW_API_KEY }}
@@ -203,25 +584,33 @@ jobs:
           EXPECTED_BRANCH_NAME: ${{ env.PREVIEW_BRANCH_NAME }}
           PREVIEW_DIRECT_URL: ${{ steps.neon_migration.outputs.db_url }}
           PREVIEW_POOLED_URL: ${{ steps.neon_runtime.outputs.db_url_pooled }}
+          PREVIEW_PLATFORM_POOLED_URL: ${{ steps.neon_platform_credentials.outputs.platform_pooled_url }}
           PREVIEW_MIGRATION_BRANCH_ID: ${{ steps.neon_migration.outputs.branch_id }}
           PREVIEW_RUNTIME_BRANCH_ID: ${{ steps.neon_runtime.outputs.branch_id }}
+          PREVIEW_PLATFORM_BRANCH_ID: ${{ steps.neon_platform.outputs.branch_id }}
           EXPECTED_MIGRATION_ROLE: ${{ vars.NEON_PREVIEW_MIGRATION_ROLE }}
           EXPECTED_RUNTIME_ROLE: ${{ vars.NEON_PREVIEW_RUNTIME_ROLE }}
+          EXPECTED_PLATFORM_ROLE: ${{ vars.NEON_PREVIEW_PLATFORM_ROLE }}
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
           const required = [
-            'PREVIEW_DIRECT_URL', 'PREVIEW_POOLED_URL',
+            'PREVIEW_DIRECT_URL', 'PREVIEW_POOLED_URL', 'PREVIEW_PLATFORM_POOLED_URL',
             'PREVIEW_MIGRATION_BRANCH_ID', 'PREVIEW_RUNTIME_BRANCH_ID',
-            'EXPECTED_MIGRATION_ROLE', 'EXPECTED_RUNTIME_ROLE'
+            'PREVIEW_PLATFORM_BRANCH_ID', 'EXPECTED_MIGRATION_ROLE',
+            'EXPECTED_RUNTIME_ROLE', 'EXPECTED_PLATFORM_ROLE'
           ];
           for (const name of required) {
             if (!process.env[name]) throw new Error(`Neon action did not return ${name}.`);
           }
           const direct = new URL(process.env.PREVIEW_DIRECT_URL);
           const pooled = new URL(process.env.PREVIEW_POOLED_URL);
-          if (process.env.PREVIEW_MIGRATION_BRANCH_ID !== process.env.PREVIEW_RUNTIME_BRANCH_ID) {
-            throw new Error('Neon migration and runtime URLs do not belong to the same branch.');
+          const platformPooled = new URL(process.env.PREVIEW_PLATFORM_POOLED_URL);
+          if (
+            process.env.PREVIEW_MIGRATION_BRANCH_ID !== process.env.PREVIEW_RUNTIME_BRANCH_ID ||
+            process.env.PREVIEW_MIGRATION_BRANCH_ID !== process.env.PREVIEW_PLATFORM_BRANCH_ID
+          ) {
+            throw new Error('Neon migration, tenant-runtime, and platform-runtime URLs do not belong to the same branch.');
           }
           if (!direct.hostname.endsWith('.neon.tech') || direct.hostname.includes('-pooler')) {
             throw new Error('Neon direct URL output is not a direct Neon endpoint.');
@@ -229,11 +618,28 @@ jobs:
           if (!pooled.hostname.endsWith('.neon.tech') || !pooled.hostname.includes('-pooler')) {
             throw new Error('Neon pooled URL output is not a pooled Neon endpoint.');
           }
+          if (
+            !platformPooled.hostname.endsWith('.neon.tech') ||
+            !platformPooled.hostname.includes('-pooler') ||
+            platformPooled.hostname !== pooled.hostname ||
+            decodeURIComponent(platformPooled.pathname) !== decodeURIComponent(pooled.pathname)
+          ) {
+            throw new Error('Neon platform URL is not the same branch/database pooled endpoint.');
+          }
           if (decodeURIComponent(direct.username) !== process.env.EXPECTED_MIGRATION_ROLE) {
             throw new Error('Neon direct URL does not use the configured migration role.');
           }
           if (decodeURIComponent(pooled.username) !== process.env.EXPECTED_RUNTIME_ROLE) {
             throw new Error('Neon pooled URL does not use the configured runtime role.');
+          }
+          if (decodeURIComponent(platformPooled.username) !== process.env.EXPECTED_PLATFORM_ROLE) {
+            throw new Error('Neon platform pooled URL does not use the configured platform role.');
+          }
+          const passwords = [direct, pooled, platformPooled].map((url) =>
+            decodeURIComponent(url.password)
+          );
+          if (passwords.some((password) => password.length === 0) || new Set(passwords).size !== 3) {
+            throw new Error('Preview migration, tenant-runtime, and platform-runtime database passwords must be nonempty and pairwise distinct.');
           }
           NODE
 
@@ -254,16 +660,33 @@ jobs:
             --arg name "$EXPECTED_BRANCH_NAME" \
             '.branch.id == $id and .branch.parent_id == $parent and .branch.name == $name and (.branch.expires_at | type == "string")' \
             "$branch_file" >/dev/null
+          tenant_context_audience="preview:${NEON_PROJECT_ID}:${PREVIEW_MIGRATION_BRANCH_ID}"
+          if ! [[ "$tenant_context_audience" =~ ^[a-z0-9][a-z0-9:._-]{2,191}$ ]]; then
+            echo "Derived preview tenant-context audience is invalid." >&2
+            exit 1
+          fi
+          echo "TENANT_CONTEXT_AUDIENCE=$tenant_context_audience" >> "$GITHUB_ENV"
 
       - name: Pull Vercel preview settings
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
           DATABASE_URL: ${{ steps.neon_runtime.outputs.db_url_pooled }}
+          PLATFORM_DATABASE_URL: ${{ steps.neon_platform_credentials.outputs.platform_pooled_url }}
           DIRECT_URL: ${{ steps.neon_migration.outputs.db_url }}
           DEPLOYMENT_RUNTIME_ROLE: ${{ vars.NEON_PREVIEW_RUNTIME_ROLE }}
+          DEPLOYMENT_PLATFORM_ROLE: ${{ vars.NEON_PREVIEW_PLATFORM_ROLE }}
           DEPLOYMENT_MIGRATION_ROLE: ${{ vars.NEON_PREVIEW_MIGRATION_ROLE }}
           EXPECTED_VERCEL_BYPASS_SECRET: ${{ secrets.VERCEL_PREVIEW_AUTOMATION_BYPASS_SECRET }}
           GIT_COMMIT_SHA: ${{ env.TARGET_SHA }}
+          TENANT_CONTEXT_SIGNING_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          TENANT_CONTEXT_SIGNING_SECRET: ${{ secrets.TENANT_CONTEXT_SIGNING_SECRET }}
+          TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
+          EXPECTED_TENANT_CONTEXT_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          EXPECTED_TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
+          EXPECTED_VERCEL_REGION: iad1
+          TENANT_CONTEXT_PREVIOUS_KEY_ID: ${{ vars.TENANT_CONTEXT_PREVIOUS_KEY_ID }}
+          TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET: ${{ secrets.TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET }}
+          TENANT_CONTEXT_RETIRE_PREVIOUS_KEY: ${{ vars.TENANT_CONTEXT_RETIRE_PREVIOUS_KEY }}
         run: |
           set -euo pipefail
           pnpm exec vercel pull \
@@ -340,12 +763,22 @@ jobs:
           }
 
           const environmentNames = [
-            'DATABASE_URL', 'DIRECT_URL', 'DEPLOYMENT_RUNTIME_ROLE',
+            'DATABASE_URL', 'PLATFORM_DATABASE_URL', 'DIRECT_URL',
+            'DEPLOYMENT_RUNTIME_ROLE', 'DEPLOYMENT_PLATFORM_ROLE',
             'DEPLOYMENT_MIGRATION_ROLE', 'DATABASE_SSL_MODE', 'SESSION_SECRET',
             'PII_ENCRYPTION_KEY', 'JOB_DISPATCH_SECRET', 'METRICS_TOKEN',
             'NEXT_PUBLIC_APP_URL', 'TENANT_BASE_HOSTS', 'RATE_LIMIT_BACKEND',
-            'INTEGRATIONS_MODE', 'JOB_QUEUE_MODE', 'CSP_ENFORCE', 'GIT_COMMIT_SHA'
+            'INTEGRATIONS_MODE', 'JOB_QUEUE_MODE', 'CSP_ENFORCE', 'GIT_COMMIT_SHA',
+            'TENANT_CONTEXT_AUDIENCE', 'TENANT_CONTEXT_SIGNING_KEY_ID',
+            'TENANT_CONTEXT_SIGNING_SECRET'
           ];
+          for (const optionalName of [
+            'TENANT_CONTEXT_PREVIOUS_KEY_ID',
+            'TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET',
+            'TENANT_CONTEXT_RETIRE_PREVIOUS_KEY'
+          ]) {
+            if (process.env[optionalName]) environmentNames.push(optionalName);
+          }
           const lines = environmentNames.map((name) => {
             const value = process.env[name];
             if (!value) throw new Error(`Missing isolated preview value ${name}.`);
@@ -359,10 +792,18 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
           VERCEL_TARGET_ENV: preview
           DATABASE_URL: ${{ steps.neon_runtime.outputs.db_url_pooled }}
+          PLATFORM_DATABASE_URL: ${{ steps.neon_platform_credentials.outputs.platform_pooled_url }}
           DIRECT_URL: ${{ steps.neon_migration.outputs.db_url }}
           DEPLOYMENT_RUNTIME_ROLE: ${{ vars.NEON_PREVIEW_RUNTIME_ROLE }}
+          DEPLOYMENT_PLATFORM_ROLE: ${{ vars.NEON_PREVIEW_PLATFORM_ROLE }}
           DEPLOYMENT_MIGRATION_ROLE: ${{ vars.NEON_PREVIEW_MIGRATION_ROLE }}
           GIT_COMMIT_SHA: ${{ env.TARGET_SHA }}
+          TENANT_CONTEXT_SIGNING_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          TENANT_CONTEXT_SIGNING_SECRET: ${{ secrets.TENANT_CONTEXT_SIGNING_SECRET }}
+          TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
+          TENANT_CONTEXT_PREVIOUS_KEY_ID: ${{ vars.TENANT_CONTEXT_PREVIOUS_KEY_ID }}
+          TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET: ${{ secrets.TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET }}
+          TENANT_CONTEXT_RETIRE_PREVIOUS_KEY: ${{ vars.TENANT_CONTEXT_RETIRE_PREVIOUS_KEY }}
         run: |
           set -euo pipefail
           pnpm exec vercel build --target=preview --yes --token="$VERCEL_TOKEN"
@@ -376,9 +817,23 @@ jobs:
           if (outputCandidates.length !== 1) {
             throw new Error(`Expected exactly one Vercel build output, found ${outputCandidates.length}.`);
           }
-          const directUrl = process.env.DIRECT_URL;
-          const directPassword = decodeURIComponent(new URL(directUrl).password);
-          const needles = [directUrl, directPassword].filter((value) => value.length >= 12);
+          const databaseVariables = [
+            'DATABASE_URL',
+            'PLATFORM_DATABASE_URL',
+            'DIRECT_URL'
+          ];
+          const needles = databaseVariables.flatMap((name) => {
+            const value = process.env[name];
+            if (!value) throw new Error(`Missing ${name} during credential scan.`);
+            return [value, decodeURIComponent(new URL(value).password)];
+          });
+          needles.push(
+            process.env.TENANT_CONTEXT_SIGNING_SECRET,
+            process.env.TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET,
+          );
+          const protectedNeedles = needles.filter(
+            (value) => typeof value === 'string' && value.length >= 12,
+          );
           const pending = [outputCandidates[0]];
           while (pending.length > 0) {
             const current = pending.pop();
@@ -388,25 +843,34 @@ jobs:
               if (stats.isDirectory()) pending.push(path);
               if (!stats.isFile()) continue;
               const contents = readFileSync(path);
-              if (needles.some((needle) => contents.includes(Buffer.from(needle)))) {
-                throw new Error('The preview build output contains a direct migration credential.');
+              if (protectedNeedles.some((needle) => contents.includes(Buffer.from(needle)))) {
+                throw new Error('The preview build output contains a protected credential.');
               }
             }
           }
           NODE
+          pnpm db:migrate:deploy -- --target preview
 
-      - name: Deploy prebuilt preview with pooled runtime connection only
+      - name: Deploy prebuilt preview with pooled application connections only
         id: deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
           DATABASE_URL: ${{ steps.neon_runtime.outputs.db_url_pooled }}
+          PLATFORM_DATABASE_URL: ${{ steps.neon_platform_credentials.outputs.platform_pooled_url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_PREVIEW_AUTOMATION_BYPASS_SECRET }}
+          TENANT_CONTEXT_SIGNING_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          TENANT_CONTEXT_SIGNING_SECRET: ${{ secrets.TENANT_CONTEXT_SIGNING_SECRET }}
+          TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
+          EXPECTED_TENANT_CONTEXT_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          EXPECTED_TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
+          EXPECTED_VERCEL_REGION: iad1
         run: |
           set -euo pipefail
           deployment_json="$RUNNER_TEMP/vercel-preview-deployment.json"
           pnpm exec vercel deploy \
             --prebuilt \
             --target=preview \
+            --regions iad1 \
             --yes \
             --json \
             --token="$VERCEL_TOKEN" \
@@ -419,12 +883,16 @@ jobs:
             --meta "githubPrId=${{ github.event.pull_request.number }}" \
             --meta "schoolSisPreview=1" \
             --env DATABASE_URL \
+            --env PLATFORM_DATABASE_URL \
             --env "DATABASE_SSL_MODE=verify-full" \
             --env "RATE_LIMIT_BACKEND=postgres" \
             --env SESSION_SECRET \
             --env PII_ENCRYPTION_KEY \
             --env JOB_DISPATCH_SECRET \
             --env METRICS_TOKEN \
+            --env TENANT_CONTEXT_AUDIENCE \
+            --env TENANT_CONTEXT_SIGNING_KEY_ID \
+            --env TENANT_CONTEXT_SIGNING_SECRET \
             --env NEXT_PUBLIC_APP_URL \
             --env TENANT_BASE_HOSTS \
             --env "INTEGRATIONS_MODE=live" \

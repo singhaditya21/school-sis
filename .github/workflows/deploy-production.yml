@@ -10,14 +10,81 @@ permissions:
   contents: read
   actions: read
   checks: read
+  pull-requests: read
 
 concurrency:
   group: production-release
   cancel-in-progress: false
 
 jobs:
+  tenant-context-key-contract:
+    name: Pin distinct tenant-context key fingerprints
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      production_fingerprint: ${{ steps.pins.outputs.production_fingerprint }}
+      production_key_id: ${{ steps.pins.outputs.production_key_id }}
+      preview_fingerprint: ${{ steps.pins.outputs.preview_fingerprint }}
+      preview_key_id: ${{ steps.pins.outputs.preview_key_id }}
+    steps:
+      - name: Read the reviewed key contract from the release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      # This job deliberately has no GitHub Environment. Both protected jobs
+      # consume the same reviewed file, so environment variable precedence
+      # cannot present a different key/fingerprint pair to each deployment.
+      - name: Validate tracked signing-key contract
+        id: pins
+        env:
+          PINNED_PRODUCTION_FINGERPRINT: ${{ vars.PRODUCTION_TENANT_CONTEXT_SIGNING_SECRET_SHA256 }}
+          PINNED_PREVIEW_FINGERPRINT: ${{ vars.PREVIEW_TENANT_CONTEXT_SIGNING_SECRET_SHA256 }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          const exactKeys = (value, keys, label) => {
+            if (!value || typeof value !== 'object' || Array.isArray(value) ||
+                JSON.stringify(Object.keys(value).sort()) !== JSON.stringify([...keys].sort())) {
+              throw new Error(`${label} has unexpected or missing keys.`);
+            }
+          };
+          const contract = JSON.parse(readFileSync('.github/tenant-context-key-contract.json', 'utf8'));
+          exactKeys(contract, ['version', 'production', 'preview'], 'tenant-context key contract');
+          if (contract.version !== 1) throw new Error('Unsupported tenant-context key contract version.');
+          for (const environment of ['production', 'preview']) {
+            const entry = contract[environment];
+            exactKeys(entry, ['keyId', 'secretSha256'], `${environment} tenant-context key contract`);
+            if (!/^[a-z0-9][a-z0-9._-]{0,31}$/.test(entry.keyId) ||
+                !/^[0-9a-f]{64}$/.test(entry.secretSha256)) {
+              throw new Error(`${environment} tenant-context key contract is malformed.`);
+            }
+          }
+          if (contract.production.keyId === contract.preview.keyId ||
+              contract.production.secretSha256 === contract.preview.secretSha256) {
+            throw new Error('Production and preview tenant-context key contracts must be distinct.');
+          }
+          if (contract.production.secretSha256 !== process.env.PINNED_PRODUCTION_FINGERPRINT ||
+              contract.preview.secretSha256 !== process.env.PINNED_PREVIEW_FINGERPRINT) {
+            throw new Error('Tracked tenant-context fingerprints do not match the shared repository pins.');
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT,
+            `production_fingerprint=${contract.production.secretSha256}\n` +
+            `production_key_id=${contract.production.keyId}\n` +
+            `preview_fingerprint=${contract.preview.secretSha256}\n` +
+            `preview_key_id=${contract.preview.keyId}\n`);
+          NODE
+
   deploy-production:
     name: Verify, migrate, stage, and promote production
+    needs: tenant-context-key-contract
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -33,6 +100,7 @@ jobs:
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+      TENANT_CONTEXT_AUDIENCE: production:${{ vars.NEON_PROJECT_ID }}:${{ vars.NEON_PRODUCTION_BRANCH_ID }}
 
     steps:
       - name: Fail closed on missing production configuration
@@ -47,6 +115,15 @@ jobs:
           NEON_DATABASE_VALUE: ${{ vars.NEON_DATABASE_NAME }}
           NEON_ROLE_VALUE: ${{ vars.NEON_MIGRATION_ROLE }}
           NEON_RUNTIME_ROLE_VALUE: ${{ vars.NEON_RUNTIME_ROLE }}
+          NEON_PLATFORM_ROLE_VALUE: ${{ vars.NEON_PLATFORM_ROLE }}
+          TENANT_CONTEXT_KEY_ID_VALUE: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          EXPECTED_TENANT_CONTEXT_KEY_ID: ${{ needs.tenant-context-key-contract.outputs.production_key_id }}
+          TENANT_CONTEXT_SECRET_VALUE: ${{ secrets.TENANT_CONTEXT_SIGNING_SECRET }}
+          TENANT_CONTEXT_PREVIOUS_KEY_ID_VALUE: ${{ vars.TENANT_CONTEXT_PREVIOUS_KEY_ID }}
+          TENANT_CONTEXT_PREVIOUS_SECRET_VALUE: ${{ secrets.TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET }}
+          TENANT_CONTEXT_RETIRE_PREVIOUS_KEY_VALUE: ${{ vars.TENANT_CONTEXT_RETIRE_PREVIOUS_KEY }}
+          PRODUCTION_TENANT_CONTEXT_SECRET_SHA256: ${{ needs.tenant-context-key-contract.outputs.production_fingerprint }}
+          PREVIEW_TENANT_CONTEXT_SECRET_SHA256: ${{ needs.tenant-context-key-contract.outputs.preview_fingerprint }}
         run: |
           set -euo pipefail
           missing=()
@@ -55,7 +132,11 @@ jobs:
             METRICS_TOKEN_VALUE VERCEL_BYPASS_VALUE VERCEL_ORG_ID \
             VERCEL_PROJECT_ID PRODUCTION_URL NEON_PROJECT_ID_VALUE \
             NEON_BRANCH_ID_VALUE NEON_DATABASE_VALUE NEON_ROLE_VALUE \
-            NEON_RUNTIME_ROLE_VALUE; do
+            NEON_RUNTIME_ROLE_VALUE NEON_PLATFORM_ROLE_VALUE \
+            TENANT_CONTEXT_KEY_ID_VALUE EXPECTED_TENANT_CONTEXT_KEY_ID \
+            TENANT_CONTEXT_SECRET_VALUE \
+            PRODUCTION_TENANT_CONTEXT_SECRET_SHA256 \
+            PREVIEW_TENANT_CONTEXT_SECRET_SHA256; do
             if [ -z "${!name:-}" ]; then missing+=("$name"); fi
           done
           if [ "${#missing[@]}" -ne 0 ]; then
@@ -70,7 +151,20 @@ jobs:
             echo "VERCEL_AUTOMATION_BYPASS_SECRET must be at least 16 characters." >&2
             exit 1
           fi
+          if ! [[ "$TENANT_CONTEXT_KEY_ID_VALUE" =~ ^[a-z0-9][a-z0-9._-]{0,31}$ ]]; then
+            echo "TENANT_CONTEXT_SIGNING_KEY_ID has an invalid rotation identifier." >&2
+            exit 1
+          fi
+          if [ "$TENANT_CONTEXT_KEY_ID_VALUE" != "$EXPECTED_TENANT_CONTEXT_KEY_ID" ]; then
+            echo "Production TENANT_CONTEXT_SIGNING_KEY_ID does not match the reviewed key contract." >&2
+            exit 1
+          fi
+          if ! [[ "$TENANT_CONTEXT_SECRET_VALUE" =~ ^[A-Za-z0-9_-]{43,128}$ ]]; then
+            echo "TENANT_CONTEXT_SIGNING_SECRET must be a 43-128 character base64url secret." >&2
+            exit 1
+          fi
           node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
           const sha = process.env.TARGET_SHA || '';
           if (!/^[0-9a-f]{40}$/i.test(sha)) throw new Error('workflow_run did not provide a full commit SHA.');
           const productionUrl = new URL(process.env.PRODUCTION_URL);
@@ -121,10 +215,62 @@ jobs:
           for (const value of [process.env.NEON_PROJECT_ID_VALUE, process.env.NEON_BRANCH_ID_VALUE]) {
             if (!/^[A-Za-z0-9_-]+$/.test(value || '')) throw new Error('Neon IDs contain unsupported characters.');
           }
-          for (const value of [process.env.NEON_DATABASE_VALUE, process.env.NEON_ROLE_VALUE, process.env.NEON_RUNTIME_ROLE_VALUE]) {
+          for (const value of [process.env.NEON_DATABASE_VALUE, process.env.NEON_ROLE_VALUE, process.env.NEON_RUNTIME_ROLE_VALUE, process.env.NEON_PLATFORM_ROLE_VALUE]) {
             if (!/^[a-z_][a-z0-9_]{0,62}$/.test(value || '')) {
               throw new Error('Neon database and role names must be lowercase PostgreSQL identifiers.');
             }
+          }
+          if (process.env.NEON_PLATFORM_ROLE_VALUE !== 'school_sis_platform') {
+            throw new Error('NEON_PLATFORM_ROLE must equal school_sis_platform.');
+          }
+          if (process.env.NEON_RUNTIME_ROLE_VALUE !== 'school_sis_runtime') {
+            throw new Error('NEON_RUNTIME_ROLE must equal school_sis_runtime.');
+          }
+          if (new Set([
+            process.env.NEON_ROLE_VALUE,
+            process.env.NEON_RUNTIME_ROLE_VALUE,
+            process.env.NEON_PLATFORM_ROLE_VALUE
+          ]).size !== 3) {
+            throw new Error('Migration, tenant-runtime, and platform-runtime roles must be distinct.');
+          }
+          const productionFingerprint = process.env.PRODUCTION_TENANT_CONTEXT_SECRET_SHA256 || '';
+          const previewFingerprint = process.env.PREVIEW_TENANT_CONTEXT_SECRET_SHA256 || '';
+          if (
+            !/^[0-9a-f]{64}$/.test(productionFingerprint) ||
+            !/^[0-9a-f]{64}$/.test(previewFingerprint) ||
+            productionFingerprint === previewFingerprint
+          ) {
+            throw new Error('Production and preview tenant-context secret fingerprints must be valid and distinct.');
+          }
+          const actualFingerprint = createHash('sha256')
+            .update(process.env.TENANT_CONTEXT_SECRET_VALUE, 'utf8')
+            .digest('hex');
+          if (actualFingerprint !== productionFingerprint) {
+            throw new Error('Production tenant-context secret does not match its configured SHA-256 fingerprint.');
+          }
+          const previousKeyId = process.env.TENANT_CONTEXT_PREVIOUS_KEY_ID_VALUE || '';
+          const previousSecret = process.env.TENANT_CONTEXT_PREVIOUS_SECRET_VALUE || '';
+          const retirePrevious = process.env.TENANT_CONTEXT_RETIRE_PREVIOUS_KEY_VALUE || '';
+          if (Boolean(previousKeyId) !== Boolean(previousSecret)) {
+            throw new Error('TENANT_CONTEXT_PREVIOUS_KEY_ID and TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET must be configured together.');
+          }
+          if (previousKeyId && !/^[a-z0-9][a-z0-9._-]{0,31}$/.test(previousKeyId)) {
+            throw new Error('TENANT_CONTEXT_PREVIOUS_KEY_ID has an invalid rotation identifier.');
+          }
+          if (previousSecret && !/^[A-Za-z0-9_-]{43,128}$/.test(previousSecret)) {
+            throw new Error('TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET must be a 43-128 character base64url secret.');
+          }
+          if (previousKeyId === process.env.TENANT_CONTEXT_KEY_ID_VALUE && previousKeyId) {
+            throw new Error('Current and previous tenant-context key IDs must differ.');
+          }
+          if (previousSecret === process.env.TENANT_CONTEXT_SECRET_VALUE && previousSecret) {
+            throw new Error('Current and previous tenant-context secrets must differ.');
+          }
+          if (retirePrevious && retirePrevious !== 'true') {
+            throw new Error('TENANT_CONTEXT_RETIRE_PREVIOUS_KEY must be unset or exactly true.');
+          }
+          if (retirePrevious === 'true' && previousKeyId) {
+            throw new Error('TENANT_CONTEXT_RETIRE_PREVIOUS_KEY=true cannot be combined with a previous verification key.');
           }
           NODE
 
@@ -155,7 +301,7 @@ jobs:
             exit 1
           fi
           jq -e --arg branch "$NEON_PRODUCTION_BRANCH_ID" \
-            '.branch.id == $branch and .branch.parent_id == null' "$branch_file" >/dev/null
+            '.branch.id == $branch and .branch.parent_id == null and .branch.protected == true' "$branch_file" >/dev/null
           direct_host="$(NEON_DIRECT_URL="$NEON_DIRECT_URL" node -e "process.stdout.write(new URL(process.env.NEON_DIRECT_URL).hostname)")"
           jq -e --arg branch "$NEON_PRODUCTION_BRANCH_ID" --arg host "$direct_host" \
             '[.endpoints[] | select(.branch_id == $branch and .type == "read_write" and .host == $host)] | length == 1' \
@@ -178,6 +324,15 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
+
+      - name: Verify protected main release provenance
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          node scripts/verify-production-release-provenance.mjs
+          --repository "$GITHUB_REPOSITORY"
+          --sha "$TARGET_SHA"
+          --ref main
 
       - name: Verify triggering SHA and all required CI
         env:
@@ -228,6 +383,10 @@ jobs:
         env:
           NEON_DIRECT_URL: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
           EXPECTED_RUNTIME_ROLE: ${{ vars.NEON_RUNTIME_ROLE }}
+          EXPECTED_PLATFORM_ROLE: ${{ vars.NEON_PLATFORM_ROLE }}
+          EXPECTED_TENANT_CONTEXT_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          EXPECTED_TENANT_CONTEXT_SECRET: ${{ secrets.TENANT_CONTEXT_SIGNING_SECRET }}
+          EXPECTED_TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
@@ -267,6 +426,7 @@ jobs:
           }
 
           const runtime = new URL(pulled.DATABASE_URL || '');
+          const platform = new URL(pulled.PLATFORM_DATABASE_URL || '');
           const direct = new URL(process.env.NEON_DIRECT_URL);
           const configuredOrigin = new URL(process.env.PRODUCTION_URL);
           const applicationOrigin = new URL(pulled.NEXT_PUBLIC_APP_URL || '');
@@ -288,6 +448,32 @@ jobs:
           if (decodeURIComponent(runtime.username) !== process.env.EXPECTED_RUNTIME_ROLE) {
             throw new Error('Vercel DATABASE_URL does not use NEON_RUNTIME_ROLE.');
           }
+          if (
+            !platform.hostname.includes('-pooler.') ||
+            platform.hostname !== runtime.hostname ||
+            decodeURIComponent(platform.pathname) !== decodeURIComponent(runtime.pathname)
+          ) {
+            throw new Error('Vercel PLATFORM_DATABASE_URL must identify the same pooled Neon branch and database as DATABASE_URL.');
+          }
+          if (decodeURIComponent(platform.username) !== process.env.EXPECTED_PLATFORM_ROLE) {
+            throw new Error('Vercel PLATFORM_DATABASE_URL does not use NEON_PLATFORM_ROLE.');
+          }
+          if (decodeURIComponent(platform.username) === decodeURIComponent(runtime.username)) {
+            throw new Error('Vercel tenant and platform database URLs must use distinct roles.');
+          }
+          const passwords = [direct, runtime, platform].map((url) =>
+            decodeURIComponent(url.password)
+          );
+          if (passwords.some((password) => password.length === 0) || new Set(passwords).size !== 3) {
+            throw new Error('Migration, tenant-runtime, and platform-runtime database passwords must be nonempty and pairwise distinct.');
+          }
+          if (
+            pulled.TENANT_CONTEXT_AUDIENCE !== process.env.EXPECTED_TENANT_CONTEXT_AUDIENCE ||
+            pulled.TENANT_CONTEXT_SIGNING_KEY_ID !== process.env.EXPECTED_TENANT_CONTEXT_KEY_ID ||
+            pulled.TENANT_CONTEXT_SIGNING_SECRET !== process.env.EXPECTED_TENANT_CONTEXT_SECRET
+          ) {
+            throw new Error('Vercel tenant-context signing credential does not match the protected GitHub Environment configuration.');
+          }
           NODE
 
       - name: Build immutable production output before database mutation
@@ -295,6 +481,10 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_TARGET_ENV: production
           DEPLOYMENT_RUNTIME_ROLE: ${{ vars.NEON_RUNTIME_ROLE }}
+          DEPLOYMENT_PLATFORM_ROLE: ${{ vars.NEON_PLATFORM_ROLE }}
+          TENANT_CONTEXT_SIGNING_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          TENANT_CONTEXT_SIGNING_SECRET: ${{ secrets.TENANT_CONTEXT_SIGNING_SECRET }}
+          TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
           DEPLOYMENT_MIGRATION_ROLE: ${{ vars.NEON_MIGRATION_ROLE }}
           DATABASE_SSL_MODE: verify-full
           METRICS_TOKEN: ${{ secrets.METRICS_TOKEN }}
@@ -302,6 +492,50 @@ jobs:
         run: |
           set -euo pipefail
           pnpm exec vercel build --prod --yes --token="$VERCEL_TOKEN"
+
+      - name: Prove production build output contains no credentials
+        env:
+          NEON_DIRECT_URL: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
+          TENANT_CONTEXT_SIGNING_SECRET: ${{ secrets.TENANT_CONTEXT_SIGNING_SECRET }}
+          TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET: ${{ secrets.TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { createRequire } from 'node:module';
+          import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+          import { dirname, join, resolve } from 'node:path';
+
+          const linkCandidates = ['.vercel/project.json', 'apps/web/.vercel/project.json'].filter(existsSync);
+          const outputCandidates = ['.vercel/output', 'apps/web/.vercel/output'].filter(existsSync);
+          if (linkCandidates.length !== 1 || outputCandidates.length !== 1) {
+            throw new Error('Expected exactly one Vercel link and one production build output.');
+          }
+          const environmentPath = resolve(dirname(linkCandidates[0]), '.env.production.local');
+          const require = createRequire(resolve('apps/web/package.json'));
+          const { parse } = require('dotenv');
+          const pulled = parse(readFileSync(environmentPath));
+          const databaseValues = [pulled.DATABASE_URL, pulled.PLATFORM_DATABASE_URL, process.env.NEON_DIRECT_URL]
+            .filter(Boolean);
+          const needles = [
+            ...databaseValues.flatMap((value) => [value, decodeURIComponent(new URL(value).password)]),
+            process.env.TENANT_CONTEXT_SIGNING_SECRET,
+            process.env.TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET,
+          ].filter((value) => typeof value === 'string' && value.length >= 12);
+          const pending = [outputCandidates[0]];
+          while (pending.length > 0) {
+            const current = pending.pop();
+            for (const entry of readdirSync(current)) {
+              const path = join(current, entry);
+              const stats = statSync(path);
+              if (stats.isDirectory()) pending.push(path);
+              if (!stats.isFile()) continue;
+              const contents = readFileSync(path);
+              if (needles.some((needle) => contents.includes(Buffer.from(needle)))) {
+                throw new Error('The production build output contains a protected credential.');
+              }
+            }
+          }
+          NODE
 
       - name: Capture current production deployment for rollback
         id: prior
@@ -333,6 +567,15 @@ jobs:
           prior_url="$(jq -er '.url | select(type == "string" and length > 0)' "$inspection")"
           echo "prior_id=$prior_id" >> "$GITHUB_OUTPUT"
           echo "prior_url=$prior_url" >> "$GITHUB_OUTPUT"
+
+      - name: Re-verify protected main before Neon mutation
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          node scripts/verify-production-release-provenance.mjs
+          --repository "$GITHUB_REPOSITORY"
+          --sha "$TARGET_SHA"
+          --ref main
 
       - name: Create pre-migration Neon snapshot
         id: snapshot
@@ -469,17 +712,25 @@ jobs:
 
       - name: Apply locked production migrations
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
           DIRECT_URL: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
           DATABASE_SSL_MODE: verify-full
           DEPLOYMENT_RUNTIME_ROLE: ${{ vars.NEON_RUNTIME_ROLE }}
+          DEPLOYMENT_PLATFORM_ROLE: ${{ vars.NEON_PLATFORM_ROLE }}
+          TENANT_CONTEXT_SIGNING_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          TENANT_CONTEXT_SIGNING_SECRET: ${{ secrets.TENANT_CONTEXT_SIGNING_SECRET }}
+          TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
+          TENANT_CONTEXT_PREVIOUS_KEY_ID: ${{ vars.TENANT_CONTEXT_PREVIOUS_KEY_ID }}
+          TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET: ${{ secrets.TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET }}
+          TENANT_CONTEXT_RETIRE_PREVIOUS_KEY: ${{ vars.TENANT_CONTEXT_RETIRE_PREVIOUS_KEY }}
+          CURRENT_PRODUCTION_DEPLOYMENT_ID: ${{ steps.prior.outputs.prior_id }}
+          GIT_COMMIT_SHA: ${{ env.TARGET_SHA }}
         run: |
           set -euo pipefail
-          current_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
-          if [ "$current_sha" != "$TARGET_SHA" ]; then
-            echo "main advanced to $current_sha before migration; refusing stale release $TARGET_SHA." >&2
-            exit 1
-          fi
+          node scripts/verify-production-release-provenance.mjs \
+            --repository "$GITHUB_REPOSITORY" \
+            --sha "$TARGET_SHA" \
+            --ref main
           pnpm db:migrate:deploy -- --target production
 
       - name: Deploy prebuilt production candidate without assigning domains
@@ -487,12 +738,16 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           METRICS_TOKEN: ${{ secrets.METRICS_TOKEN }}
+          TENANT_CONTEXT_SIGNING_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          TENANT_CONTEXT_SIGNING_SECRET: ${{ secrets.TENANT_CONTEXT_SIGNING_SECRET }}
+          TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
         run: |
           set -euo pipefail
           deployment_json="$RUNNER_TEMP/vercel-production-candidate.json"
           pnpm exec vercel deploy \
             --prebuilt \
             --prod \
+            --regions sin1 \
             --skip-domain \
             --yes \
             --json \
@@ -505,6 +760,9 @@ jobs:
             --meta "githubCommitRepo=${{ github.event.repository.name }}" \
             --meta "githubRunId=$GITHUB_RUN_ID" \
             --env METRICS_TOKEN \
+            --env TENANT_CONTEXT_AUDIENCE \
+            --env TENANT_CONTEXT_SIGNING_KEY_ID \
+            --env TENANT_CONTEXT_SIGNING_SECRET \
             --env "GIT_COMMIT_SHA=$TARGET_SHA" \
             >"$deployment_json"
           candidate_url="$(jq -er '(.deployment // .).url | select(type == "string" and length > 0)' "$deployment_json")"
@@ -517,37 +775,72 @@ jobs:
           echo "candidate_id=$candidate_id" >> "$GITHUB_OUTPUT"
 
       - name: Verify staged production candidate
+        id: candidate_verify
         env:
           DEPLOYMENT_URL: ${{ steps.candidate.outputs.candidate_url }}
           EXPECTED_GIT_SHA: ${{ env.TARGET_SHA }}
           METRICS_TOKEN: ${{ secrets.METRICS_TOKEN }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          EXPECTED_TENANT_CONTEXT_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          EXPECTED_TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
+          EXPECTED_VERCEL_REGION: sin1
         run: node scripts/verify-deployment.mjs --require-bypass true --attempts 18
 
       - name: Promote verified candidate
         id: promote
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
         run: |
           set -euo pipefail
-          current_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
-          if [ "$current_sha" != "$TARGET_SHA" ]; then
-            echo "main advanced to $current_sha after migration; leaving the expand-only schema change in place but refusing stale promotion $TARGET_SHA." >&2
-            exit 1
-          fi
+          node scripts/verify-production-release-provenance.mjs \
+            --repository "$GITHUB_REPOSITORY" \
+            --sha "$TARGET_SHA" \
+            --ref main
           echo "attempted=true" >> "$GITHUB_OUTPUT"
           pnpm exec vercel promote "$CANDIDATE_ID" --yes --timeout 5m --token="$VERCEL_TOKEN"
           echo "succeeded=true" >> "$GITHUB_OUTPUT"
 
       - name: Verify canonical production after promotion
+        id: canonical_verify
         env:
           DEPLOYMENT_URL: ${{ env.PRODUCTION_URL }}
           EXPECTED_GIT_SHA: ${{ env.TARGET_SHA }}
           METRICS_TOKEN: ${{ secrets.METRICS_TOKEN }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          EXPECTED_TENANT_CONTEXT_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          EXPECTED_TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
+          EXPECTED_VERCEL_REGION: sin1
         run: node scripts/verify-deployment.mjs --attempts 18
+
+      - name: Bind canonical production to the verified candidate
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
+        run: |
+          set -euo pipefail
+          inspection="$RUNNER_TEMP/vercel-canonical-after-promotion.json"
+          pnpm exec vercel inspect "$PRODUCTION_URL" --json --token="$VERCEL_TOKEN" >"$inspection"
+          canonical_id="$(jq -er '(.id // .deployment.id) | select(type == "string" and length > 0)' "$inspection")"
+          if [ "$canonical_id" != "$CANDIDATE_ID" ]; then
+            echo "Canonical production does not point to the verified candidate." >&2
+            exit 1
+          fi
+
+      - name: Record the promoted signing-runtime contract
+        env:
+          DIRECT_URL: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
+          DATABASE_SSL_MODE: verify-full
+          TENANT_CONTEXT_SIGNING_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
+          TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
+        run: >-
+          pnpm --filter @school-sis/web exec tsx
+          scripts/mark-tenant-context-runtime.ts
+          --sha "$TARGET_SHA"
+          --deployment-id "${{ steps.candidate.outputs.candidate_id }}"
+          --attested-key-id "${{ steps.canonical_verify.outputs.verified_tenant_context_key_id }}"
+          --attested-audience "${{ steps.canonical_verify.outputs.verified_tenant_context_audience }}"
 
       - name: Roll back Vercel to captured production on promotion failure
         id: rollback

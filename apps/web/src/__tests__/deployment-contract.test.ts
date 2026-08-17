@@ -7,16 +7,23 @@ import {
 function validEnvironment(): NodeJS.ProcessEnv {
   return {
     DATABASE_URL:
-      "postgresql://runtime:runtime-pass-8Nw7zQ2k@ep-blue-pooler.ap-south-1.aws.neon.tech/school_sis?sslmode=verify-full&channel_binding=require",
+      "postgresql://school_sis_runtime:runtime-pass-8Nw7zQ2k@ep-blue-pooler.ap-south-1.aws.neon.tech/school_sis?sslmode=verify-full&channel_binding=require",
+    PLATFORM_DATABASE_URL:
+      "postgresql://school_sis_platform:platform-pass-3Lm8qR1x@ep-blue-pooler.ap-south-1.aws.neon.tech/school_sis?sslmode=verify-full&channel_binding=require",
     DIRECT_URL:
       "postgresql://migrator:migrator-pass-4Qp9vT6m@ep-blue.ap-south-1.aws.neon.tech/school_sis?sslmode=verify-full&channel_binding=require",
-    DEPLOYMENT_RUNTIME_ROLE: "runtime",
+    DEPLOYMENT_RUNTIME_ROLE: "school_sis_runtime",
+    DEPLOYMENT_PLATFORM_ROLE: "school_sis_platform",
     DEPLOYMENT_MIGRATION_ROLE: "migrator",
     DATABASE_SSL_MODE: "verify-full",
     SESSION_SECRET: "session-8nR4zQ2vK7mP9xT6cW3jH5sL1fD0aB",
     PII_ENCRYPTION_KEY: "pii-6qT1vN8mR3xP7kW9cH2jF5sL4dA0bZ",
     METRICS_TOKEN: "metrics-5mP9xT2vK7qR4nW8cH3jF6sL1dA0bZ",
     JOB_DISPATCH_SECRET: "jobs-7vK2qR9mP4xT6nW1cH8jF3sL5dA0bZ",
+    TENANT_CONTEXT_AUDIENCE: "production:project:branch",
+    TENANT_CONTEXT_SIGNING_KEY_ID: "production-v1",
+    TENANT_CONTEXT_SIGNING_SECRET:
+      "8Nw7zQ2kLm4P6vR9xT1cF3hJ5sD0aB7eG2uY4iO6pWq",
     NEXT_PUBLIC_APP_URL: "https://school-sis-web.vercel.app",
     TENANT_BASE_HOSTS: "school-sis-web.vercel.app,portal.school.edu",
     RATE_LIMIT_BACKEND: "postgres",
@@ -72,6 +79,70 @@ describe("deployment environment contract", () => {
     );
   });
 
+  it("requires a distinct, exact platform role on the same pooled database", () => {
+    const missing = validEnvironment();
+    delete missing.PLATFORM_DATABASE_URL;
+    expect(issueVariables(missing)).toContain("PLATFORM_DATABASE_URL");
+
+    const tenantCredential = validEnvironment();
+    tenantCredential.PLATFORM_DATABASE_URL = tenantCredential.DATABASE_URL;
+    expect(issueVariables(tenantCredential)).toContain(
+      "PLATFORM_DATABASE_URL and DEPLOYMENT_PLATFORM_ROLE",
+    );
+    expect(issueVariables(tenantCredential)).toContain(
+      "DATABASE_URL and PLATFORM_DATABASE_URL",
+    );
+
+    const wrongRole = validEnvironment();
+    wrongRole.DEPLOYMENT_PLATFORM_ROLE = "other_platform";
+    expect(issueVariables(wrongRole)).toContain("DEPLOYMENT_PLATFORM_ROLE");
+
+    const wrongBranch = validEnvironment();
+    wrongBranch.PLATFORM_DATABASE_URL =
+      wrongBranch.PLATFORM_DATABASE_URL?.replace(
+        "ep-blue-pooler.",
+        "ep-other-pooler.",
+      );
+    expect(issueVariables(wrongBranch)).toContain(
+      "DATABASE_URL and PLATFORM_DATABASE_URL",
+    );
+  });
+
+  it("requires nonempty pairwise-distinct decoded database passwords", () => {
+    const sharedRuntimeAndPlatform = validEnvironment();
+    sharedRuntimeAndPlatform.PLATFORM_DATABASE_URL =
+      sharedRuntimeAndPlatform.PLATFORM_DATABASE_URL?.replace(
+        "platform-pass-3Lm8qR1x",
+        "runtime-pass-8Nw7zQ2k",
+      );
+    expect(issueVariables(sharedRuntimeAndPlatform)).toContain(
+      "DATABASE_URL, PLATFORM_DATABASE_URL, and direct database URL",
+    );
+
+    const sharedRuntimeAndMigration = validEnvironment();
+    sharedRuntimeAndMigration.DIRECT_URL =
+      sharedRuntimeAndMigration.DIRECT_URL?.replace(
+        "migrator-pass-4Qp9vT6m",
+        "runtime-pass-8Nw7zQ2k",
+      );
+    expect(issueVariables(sharedRuntimeAndMigration)).toContain(
+      "DATABASE_URL, PLATFORM_DATABASE_URL, and direct database URL",
+    );
+
+    const runtimeOnly = validEnvironment();
+    delete runtimeOnly.DIRECT_URL;
+    runtimeOnly.PLATFORM_DATABASE_URL =
+      runtimeOnly.PLATFORM_DATABASE_URL?.replace(
+        "platform-pass-3Lm8qR1x",
+        "runtime-pass-8Nw7zQ2k",
+      );
+    expect(
+      validateDeploymentContract(runtimeOnly, "production", {
+        runtimeOnly: true,
+      }).issues.map((issue) => issue.variable),
+    ).toContain("DATABASE_URL and PLATFORM_DATABASE_URL");
+  });
+
   it("keeps production migration credentials out of runtime-only builds", () => {
     const isolatedRuntime = validEnvironment();
     delete isolatedRuntime.DIRECT_URL;
@@ -87,6 +158,73 @@ describe("deployment environment contract", () => {
         runtimeOnly: true,
       }).issues.map((issue) => issue.variable),
     ).toContain("DIRECT_URL");
+  });
+
+  it("requires a versioned 256-bit base64url tenant-context credential", () => {
+    const missing = validEnvironment();
+    delete missing.TENANT_CONTEXT_AUDIENCE;
+    delete missing.TENANT_CONTEXT_SIGNING_KEY_ID;
+    delete missing.TENANT_CONTEXT_SIGNING_SECRET;
+    expect(issueVariables(missing)).toEqual(
+      expect.arrayContaining([
+        "TENANT_CONTEXT_AUDIENCE",
+        "TENANT_CONTEXT_SIGNING_KEY_ID",
+        "TENANT_CONTEXT_SIGNING_SECRET",
+      ]),
+    );
+
+    const malformed = validEnvironment();
+    malformed.TENANT_CONTEXT_AUDIENCE = "Production Audience";
+    malformed.TENANT_CONTEXT_SIGNING_KEY_ID = "Production Key";
+    malformed.TENANT_CONTEXT_SIGNING_SECRET = "+".repeat(64);
+    expect(issueVariables(malformed)).toEqual(
+      expect.arrayContaining([
+        "TENANT_CONTEXT_AUDIENCE",
+        "TENANT_CONTEXT_SIGNING_KEY_ID",
+        "TENANT_CONTEXT_SIGNING_SECRET",
+      ]),
+    );
+  });
+
+  it("rejects incomplete, reused, malformed, and contradictory previous keys", () => {
+    const incomplete = validEnvironment();
+    incomplete.TENANT_CONTEXT_PREVIOUS_KEY_ID = "production-v0";
+    expect(issueVariables(incomplete)).toContain(
+      "TENANT_CONTEXT_PREVIOUS_KEY_ID and TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET",
+    );
+
+    const reused = validEnvironment();
+    reused.TENANT_CONTEXT_PREVIOUS_KEY_ID =
+      reused.TENANT_CONTEXT_SIGNING_KEY_ID;
+    reused.TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET =
+      reused.TENANT_CONTEXT_SIGNING_SECRET;
+    expect(issueVariables(reused)).toEqual(
+      expect.arrayContaining([
+        "TENANT_CONTEXT_PREVIOUS_KEY_ID",
+        "TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET",
+      ]),
+    );
+
+    const malformed = validEnvironment();
+    malformed.TENANT_CONTEXT_PREVIOUS_KEY_ID = "Previous Key";
+    malformed.TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET = "+".repeat(64);
+    malformed.TENANT_CONTEXT_RETIRE_PREVIOUS_KEY = "false";
+    expect(issueVariables(malformed)).toEqual(
+      expect.arrayContaining([
+        "TENANT_CONTEXT_PREVIOUS_KEY_ID",
+        "TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET",
+        "TENANT_CONTEXT_RETIRE_PREVIOUS_KEY",
+      ]),
+    );
+
+    const contradictory = validEnvironment();
+    contradictory.TENANT_CONTEXT_PREVIOUS_KEY_ID = "production-v0";
+    contradictory.TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET =
+      "previous_2kLm4P6vR9xT1cF3hJ5sD0aB7eG8uY4iO6pWq";
+    contradictory.TENANT_CONTEXT_RETIRE_PREVIOUS_KEY = "true";
+    expect(issueVariables(contradictory)).toContain(
+      "TENANT_CONTEXT_RETIRE_PREVIOUS_KEY",
+    );
   });
 
   it("rejects non-pooled runtime URLs and branch-mismatched direct URLs", () => {
@@ -140,10 +278,10 @@ describe("deployment environment contract", () => {
 
   it("requires distinct URLs to use the configured runtime and migration roles", () => {
     const sharedRole = validEnvironment();
-    sharedRole.DEPLOYMENT_MIGRATION_ROLE = "runtime";
+    sharedRole.DEPLOYMENT_MIGRATION_ROLE = "school_sis_runtime";
     expect(issueVariables(sharedRole)).toEqual(
       expect.arrayContaining([
-        "DEPLOYMENT_RUNTIME_ROLE and DEPLOYMENT_MIGRATION_ROLE",
+        "DEPLOYMENT_RUNTIME_ROLE, DEPLOYMENT_PLATFORM_ROLE, and DEPLOYMENT_MIGRATION_ROLE",
         "direct database URL and DEPLOYMENT_MIGRATION_ROLE",
       ]),
     );

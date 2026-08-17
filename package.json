@@ -27,6 +27,8 @@
     "db:generate": "pnpm --filter @school-sis/web run db:generate",
     "db:manifest": "pnpm --filter @school-sis/web run db:manifest",
     "db:manifest:check": "pnpm --filter @school-sis/web run db:manifest:check",
+    "db:adopt:legacy-production": "pnpm --filter @school-sis/web run db:adopt:legacy-production",
+    "db:reconciliation:audit": "pnpm --silent --filter @school-sis/web exec node --import tsx scripts/run-migration-reconciliation-audit.ts",
     "db:migrate": "pnpm --filter @school-sis/web run db:migrate",
     "db:migrate:deploy": "pnpm --filter @school-sis/web run db:migrate:deploy",
     "db:push": "pnpm --filter @school-sis/web run db:push",

@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: pgvector/pgvector:pg15
+        image: pgvector/pgvector:pg18@sha256:2ba9ca5f2e7daa0f0e7723cba1ee9167bab54efd3640516a44ac1a928dd67e7a
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -91,6 +91,8 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/school_sis_test
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/school_sis_test
       DATABASE_SSL_MODE: disable
+      DEPLOYMENT_RUNTIME_ROLE: school_sis_runtime
+      DEPLOYMENT_PLATFORM_ROLE: school_sis_platform
 
     steps:
       - name: Checkout Code
@@ -109,6 +111,13 @@ jobs:
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Create exact least-privilege application roles
+        run: |
+          psql "$DATABASE_URL" --set ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE school_sis_runtime LOGIN PASSWORD 'ci-tenant-runtime-password';
+          CREATE ROLE school_sis_platform LOGIN PASSWORD 'ci-platform-runtime-password';
+          SQL
 
       - name: Exercise the locked deployment migration path twice
         run: |

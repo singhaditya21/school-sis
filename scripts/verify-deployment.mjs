@@ -16,7 +16,12 @@ Options:
   --delay-ms N                 VERIFY_DELAY_MS (default: 5000)
   --request-timeout-ms N       VERIFY_REQUEST_TIMEOUT_MS (default: 15000)
   --require-bypass true|false  REQUIRE_VERCEL_BYPASS (default: false)
+  --region REGION              EXPECTED_VERCEL_REGION (for example sin1)
   --allow-http true|false      VERIFY_ALLOW_HTTP (default: false; tests/local only)
+
+Required environment-only attestation inputs:
+  EXPECTED_TENANT_CONTEXT_KEY_ID
+  EXPECTED_TENANT_CONTEXT_AUDIENCE
 
 METRICS_TOKEN is required through the environment. When require-bypass is true,
 VERCEL_AUTOMATION_BYPASS_SECRET is also required. Secrets are never accepted on
@@ -71,6 +76,7 @@ export function parseArgs(argv, env = process.env) {
     "delay-ms",
     "request-timeout-ms",
     "require-bypass",
+    "region",
     "allow-http",
   ]);
   for (let index = 0; index < argv.length; index += 1) {
@@ -103,6 +109,11 @@ export function parseArgs(argv, env = process.env) {
     values.get("require-bypass") ?? env.REQUIRE_VERCEL_BYPASS,
     "require-bypass",
   );
+  const expectedTenantContextKeyId = env.EXPECTED_TENANT_CONTEXT_KEY_ID ?? "";
+  const expectedTenantContextAudience =
+    env.EXPECTED_TENANT_CONTEXT_AUDIENCE ?? "";
+  const expectedRegion =
+    values.get("region") ?? env.EXPECTED_VERCEL_REGION ?? "";
 
   if (!/^[0-9a-f]{40}$/.test(expectedSha)) {
     throw new Error("sha must be a full 40-character Git commit SHA.");
@@ -117,6 +128,21 @@ export function parseArgs(argv, env = process.env) {
       "VERCEL_AUTOMATION_BYPASS_SECRET is required and must contain at least 16 characters.",
     );
   }
+  if (!/^[a-z0-9][a-z0-9._-]{0,31}$/.test(expectedTenantContextKeyId)) {
+    throw new Error(
+      "EXPECTED_TENANT_CONTEXT_KEY_ID must identify the deployed signing key.",
+    );
+  }
+  if (!/^[a-z0-9][a-z0-9:._-]{2,191}$/.test(expectedTenantContextAudience)) {
+    throw new Error(
+      "EXPECTED_TENANT_CONTEXT_AUDIENCE must identify the deployed database audience.",
+    );
+  }
+  if (!/^[a-z]{3}[1-9][0-9]*$/.test(expectedRegion)) {
+    throw new Error(
+      "region/EXPECTED_VERCEL_REGION must identify the exact Vercel function region.",
+    );
+  }
 
   return {
     help: false,
@@ -128,6 +154,9 @@ export function parseArgs(argv, env = process.env) {
     metricsToken,
     bypassSecret,
     requireBypass,
+    expectedTenantContextAudience,
+    expectedTenantContextKeyId,
+    expectedRegion,
     attempts: positiveInteger(
       values.get("attempts") ?? env.VERIFY_ATTEMPTS,
       "attempts",
@@ -150,7 +179,7 @@ function commitMatches(value, expectedSha) {
   return typeof value === "string" && value.toLowerCase() === expectedSha;
 }
 
-export function validateHealthPayload(payload, expectedSha) {
+export function validateHealthPayload(payload, expectedSha, expectedRegion) {
   const problems = [];
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return ["health response is not a JSON object"];
@@ -160,13 +189,19 @@ export function validateHealthPayload(payload, expectedSha) {
     problems.push("health service identity is invalid");
   if (!commitMatches(payload.commit, expectedSha))
     problems.push("health commit does not match the release SHA");
+  if (expectedRegion && payload.region !== expectedRegion)
+    problems.push("health region does not match the expected Vercel region");
   if (!payload.timestamp || !Number.isFinite(Date.parse(payload.timestamp))) {
     problems.push("health timestamp is missing or invalid");
   }
   return problems;
 }
 
-export function validateReadyPayload(payload, expectedSha) {
+export function validateReadyPayload(
+  payload,
+  expectedSha,
+  expectedTenantContext,
+) {
   const problems = [];
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return ["readiness response is not a JSON object"];
@@ -181,8 +216,24 @@ export function validateReadyPayload(payload, expectedSha) {
     problems.push("migration readiness is not healthy");
   if (payload.migrations?.reason !== "current")
     problems.push("migration ledger is not current");
+  if (payload.platformDatabase?.status !== "healthy")
+    problems.push("platform database readiness is not healthy");
+  if (payload.platformDatabase?.role !== "school_sis_platform")
+    problems.push("platform database role is not the pinned platform identity");
+  if (payload.platformDatabase?.bypassVerified !== true)
+    problems.push("platform database bypass was not verified");
   if (payload.rateLimit?.status !== "healthy")
     problems.push("rate-limit readiness is not healthy");
+  if (payload.tenantContext?.status !== "healthy")
+    problems.push("tenant-context readiness is not healthy");
+  if (payload.tenantContext?.role !== "school_sis_runtime")
+    problems.push("tenant database role is not the pinned runtime identity");
+  if (payload.tenantContext?.bypassVerified !== false)
+    problems.push("tenant database unexpectedly permits RLS bypass");
+  if (payload.tenantContext?.keyId !== expectedTenantContext.keyId)
+    problems.push("tenant-context key ID does not match the release");
+  if (payload.tenantContext?.audience !== expectedTenantContext.audience)
+    problems.push("tenant-context audience does not match the release");
   if (
     !payload.generatedAt ||
     !Number.isFinite(Date.parse(payload.generatedAt))
@@ -341,7 +392,11 @@ export async function verifyDeployment(options, dependencies = {}) {
         fetchImpl,
         "health endpoint",
       );
-      const healthProblems = validateHealthPayload(health, options.expectedSha);
+      const healthProblems = validateHealthPayload(
+        health,
+        options.expectedSha,
+        options.expectedRegion,
+      );
       if (healthProblems.length > 0) throw new Error(healthProblems.join("; "));
 
       const ready = await fetchProbe(
@@ -351,7 +406,10 @@ export async function verifyDeployment(options, dependencies = {}) {
         fetchImpl,
         "readiness endpoint",
       );
-      const readyProblems = validateReadyPayload(ready, options.expectedSha);
+      const readyProblems = validateReadyPayload(ready, options.expectedSha, {
+        audience: options.expectedTenantContextAudience,
+        keyId: options.expectedTenantContextKeyId,
+      });
       if (readyProblems.length > 0) throw new Error(readyProblems.join("; "));
 
       await fetchHtmlProbe(
@@ -366,6 +424,9 @@ export async function verifyDeployment(options, dependencies = {}) {
         attempts: attempt,
         baseUrl: options.baseUrl,
         sha: options.expectedSha,
+        region: health.region,
+        tenantContextAudience: ready.tenantContext.audience,
+        tenantContextKeyId: ready.tenantContext.keyId,
       };
     } catch (error) {
       lastFailure =
@@ -397,6 +458,12 @@ async function main() {
     await appendFile(
       process.env.GITHUB_OUTPUT,
       `verified_sha=${result.sha}\n`,
+      { encoding: "utf8" },
+    );
+    await appendFile(
+      process.env.GITHUB_OUTPUT,
+      `verified_tenant_context_key_id=${result.tenantContextKeyId}\n` +
+        `verified_tenant_context_audience=${result.tenantContextAudience}\n`,
       { encoding: "utf8" },
     );
   }

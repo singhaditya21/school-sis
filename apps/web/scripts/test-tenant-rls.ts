@@ -1,3 +1,4 @@
+import { createHmac, randomBytes } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
 import { resolveDatabaseConnectionOptions } from "../../../packages/api/src/db/ssl";
 
@@ -44,17 +45,98 @@ const FIELD_A = "90000000-0000-4000-8000-000000000009";
 const FIELD_A_OTHER = "a0000000-0000-4000-8000-00000000000a";
 const FIELD_B = "b0000000-0000-4000-8000-00000000000b";
 const RECORD_A = "c0000000-0000-4000-8000-00000000000c";
-const TEST_ROLE = "school_sis_rls_test";
+const TEST_ROLE = "school_sis_runtime";
+const PLATFORM_ROLE = "school_sis_platform";
+const SIGNING_KEY_ID =
+  process.env.TENANT_CONTEXT_SIGNING_KEY_ID || "local-ci-v1";
+const SIGNING_AUDIENCE =
+  process.env.TENANT_CONTEXT_AUDIENCE || "ci:local:database";
+const SIGNING_SECRET =
+  process.env.TENANT_CONTEXT_SIGNING_SECRET ||
+  "localCI_0123456789abcdefghijklmnopqrstuvwxyzABCDEF";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-async function setTenant(client: PoolClient, tenantId: string): Promise<void> {
-  await client.query(
-    "SELECT set_config('app.current_tenant', $1, true), set_config('app.bypass_rls', 'off', true)",
-    [tenantId],
+interface SignedContext {
+  audience: string;
+  expiresAt: string;
+  keyId: string;
+  nonce: string;
+  signature: string;
+  tenantId: string;
+  transactionId: string;
+}
+
+async function signContext(
+  client: PoolClient,
+  tenantId: string,
+  overrides: Partial<Omit<SignedContext, "signature">> = {},
+): Promise<SignedContext> {
+  const identity = await client.query<{
+    database_epoch_seconds: string;
+    transaction_id: string;
+  }>(
+    "SELECT floor(extract(epoch FROM clock_timestamp()))::bigint::text AS database_epoch_seconds, pg_current_xact_id()::text AS transaction_id",
   );
+  const transactionId =
+    overrides.transactionId || identity.rows[0]?.transaction_id;
+  const databaseEpoch = Number(identity.rows[0]?.database_epoch_seconds);
+  assert(
+    transactionId && /^[1-9][0-9]{0,19}$/.test(transactionId),
+    "Missing transaction ID.",
+  );
+  assert(Number.isSafeInteger(databaseEpoch), "Missing database clock.");
+  const context = {
+    audience: overrides.audience || SIGNING_AUDIENCE,
+    expiresAt: overrides.expiresAt || String(databaseEpoch + 300),
+    keyId: overrides.keyId || SIGNING_KEY_ID,
+    nonce: overrides.nonce || randomBytes(16).toString("hex"),
+    tenantId: (overrides.tenantId || tenantId).toLowerCase(),
+    transactionId,
+  };
+  const payload = [
+    "school-sis:tenant-context:v1",
+    context.audience,
+    context.keyId,
+    context.transactionId,
+    context.tenantId,
+    context.expiresAt,
+    context.nonce,
+  ].join("\n");
+  return {
+    ...context,
+    signature: createHmac("sha256", SIGNING_SECRET)
+      .update(payload)
+      .digest("hex"),
+  };
+}
+
+async function installContext(
+  client: PoolClient,
+  context: SignedContext,
+): Promise<void> {
+  await client.query(
+    "SELECT set_config('app.current_tenant', $1, true), set_config('app.tenant_context_audience', $2, true), set_config('app.tenant_context_key_id', $3, true), set_config('app.tenant_context_expires_at', $4, true), set_config('app.tenant_context_nonce', $5, true), set_config('app.tenant_context_signature', $6, true), set_config('app.bypass_rls', 'off', true)",
+    [
+      context.tenantId,
+      context.audience,
+      context.keyId,
+      context.expiresAt,
+      context.nonce,
+      context.signature,
+    ],
+  );
+}
+
+async function setTenant(
+  client: PoolClient,
+  tenantId: string,
+): Promise<SignedContext> {
+  const context = await signContext(client, tenantId);
+  await installContext(client, context);
+  return context;
 }
 
 async function main(): Promise<void> {
@@ -117,11 +199,14 @@ async function main(): Promise<void> {
                 IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${TEST_ROLE}') THEN
                     CREATE ROLE ${TEST_ROLE} NOLOGIN;
                 END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${PLATFORM_ROLE}') THEN
+                    CREATE ROLE ${PLATFORM_ROLE} NOLOGIN;
+                END IF;
             END
             $block$;
         `);
     await client.query(
-      `GRANT USAGE ON SCHEMA public, app_private TO ${TEST_ROLE}`,
+      `GRANT USAGE ON SCHEMA public, app_private TO ${TEST_ROLE}, ${PLATFORM_ROLE}`,
     );
     await client.query(`
             GRANT SELECT, INSERT, UPDATE, DELETE ON
@@ -131,8 +216,17 @@ async function main(): Promise<void> {
                 public.metadata_fields,
                 public.metadata_records,
                 public.metadata_values
-            TO ${TEST_ROLE}
+            TO ${TEST_ROLE}, ${PLATFORM_ROLE}
         `);
+    await client.query(
+      `GRANT EXECUTE ON FUNCTION
+          app_private.current_tenant_id(),
+          app_private.verified_tenant_id(),
+          app_private.has_tenant_context(),
+          app_private.tenant_context_enforcement_phase(),
+          app_private.rls_bypass()
+       TO ${TEST_ROLE}, ${PLATFORM_ROLE}`,
+    );
 
     await client.query(
       `INSERT INTO companies (id, name) VALUES ($1, 'RLS Integration Company') ON CONFLICT (id) DO NOTHING`,
@@ -177,8 +271,165 @@ async function main(): Promise<void> {
       [RECORD_A, TENANT_A, OBJECT_A],
     );
 
+    // Phase 1 is the deliberate zero-downtime bridge for the already-live
+    // unsigned runtime. It is restricted to the one exact tenant role.
+    await client.query(
+      "UPDATE app_private.tenant_context_rollout_state SET enforcement_phase = 1 WHERE singleton = true",
+    );
     await client.query(`SET ROLE ${TEST_ROLE}`);
-    await setTenant(client, TENANT_A);
+    await client.query(
+      "SELECT set_config('app.current_tenant', $1, true), set_config('app.tenant_context_audience', '', true), set_config('app.tenant_context_key_id', '', true), set_config('app.tenant_context_expires_at', '', true), set_config('app.tenant_context_nonce', '', true), set_config('app.tenant_context_signature', '', true), set_config('app.bypass_rls', 'off', true)",
+      [TENANT_A],
+    );
+    const phaseOneTenant = await client.query<{ tenant_id: string | null }>(
+      "SELECT app_private.current_tenant_id()::text AS tenant_id",
+    );
+    assert(
+      phaseOneTenant.rows[0]?.tenant_id === TENANT_A,
+      "Phase 1 must preserve unsigned access for the exact legacy runtime role.",
+    );
+    const phaseOneRows = await client.query<{ id: string }>(
+      "SELECT id FROM academic_years WHERE id = ANY($1::uuid[]) ORDER BY id",
+      [[YEAR_A, YEAR_B]],
+    );
+    assert(
+      phaseOneRows.rows.length === 1 && phaseOneRows.rows[0]?.id === YEAR_A,
+      "Phase 1 unsigned runtime context must remain tenant-scoped.",
+    );
+    await client.query("SELECT set_config('app.bypass_rls', 'on', true)");
+    const phaseOneBypass = await client.query<{ bypass: boolean }>(
+      "SELECT app_private.rls_bypass() AS bypass",
+    );
+    assert(
+      phaseOneBypass.rows[0]?.bypass === true,
+      "Phase 1 must preserve the exact legacy runtime bypass during rollout.",
+    );
+    const phaseOneBypassRows = await client.query<{ id: string }>(
+      "SELECT id FROM academic_years WHERE id = ANY($1::uuid[]) ORDER BY id",
+      [[YEAR_A, YEAR_B]],
+    );
+    assert(
+      phaseOneBypassRows.rows.length === 2,
+      "Phase 1 legacy runtime bypass must remain rollback-compatible.",
+    );
+
+    await client.query("RESET ROLE");
+    await client.query(`SET ROLE ${PLATFORM_ROLE}`);
+    await client.query(
+      "SELECT set_config('app.current_tenant', $1, true), set_config('app.tenant_context_audience', '', true), set_config('app.tenant_context_key_id', '', true), set_config('app.tenant_context_expires_at', '', true), set_config('app.tenant_context_nonce', '', true), set_config('app.tenant_context_signature', '', true), set_config('app.bypass_rls', 'off', true)",
+      [TENANT_A],
+    );
+    const phaseOnePlatformTenant = await client.query<{
+      tenant_id: string | null;
+    }>("SELECT app_private.current_tenant_id()::text AS tenant_id");
+    assert(
+      phaseOnePlatformTenant.rows[0]?.tenant_id === null,
+      "Phase 1 unsigned tenant fallback must not extend to the platform role.",
+    );
+    await client.query("RESET ROLE");
+    await client.query(
+      "UPDATE app_private.tenant_context_rollout_state SET enforcement_phase = 2 WHERE singleton = true",
+    );
+    await client.query(`SET ROLE ${TEST_ROLE}`);
+    await client.query(
+      "SELECT set_config('app.current_tenant', $1, true), set_config('app.tenant_context_audience', '', true), set_config('app.tenant_context_key_id', '', true), set_config('app.tenant_context_expires_at', '', true), set_config('app.tenant_context_nonce', '', true), set_config('app.tenant_context_signature', '', true), set_config('app.bypass_rls', 'off', true)",
+      [TENANT_B],
+    );
+    const strictUnsignedTenant = await client.query<{
+      tenant_id: string | null;
+    }>("SELECT app_private.current_tenant_id()::text AS tenant_id");
+    assert(
+      strictUnsignedTenant.rows[0]?.tenant_id === null,
+      "Phase 2 must reject an unsigned victim-tenant GUC.",
+    );
+    const strictUnsignedRows = await client.query(
+      "SELECT id FROM academic_years WHERE id = $1",
+      [YEAR_B],
+    );
+    assert(
+      strictUnsignedRows.rowCount === 0,
+      "A raw victim-tenant GUC must expose zero rows in phase 2.",
+    );
+
+    const validContext = await setTenant(client, TENANT_A);
+    const verifiedContext = await client.query<{
+      tenant_id: string | null;
+    }>("SELECT app_private.verified_tenant_id()::text AS tenant_id");
+    assert(
+      verifiedContext.rows[0]?.tenant_id === TENANT_A,
+      "The exact Node HMAC vector must be accepted by PostgreSQL.",
+    );
+
+    const invalidContexts: Array<[string, SignedContext]> = [
+      ["tenant", { ...validContext, tenantId: TENANT_B }],
+      ["audience", { ...validContext, audience: "ci:other:database" }],
+      ["key ID", { ...validContext, keyId: "forged-v2" }],
+      [
+        "expiry",
+        {
+          ...validContext,
+          expiresAt: String(Number(validContext.expiresAt) + 1),
+        },
+      ],
+      ["nonce", { ...validContext, nonce: "f".repeat(32) }],
+      [
+        "signature",
+        {
+          ...validContext,
+          signature: `${validContext.signature.slice(0, 63)}${
+            validContext.signature.endsWith("0") ? "1" : "0"
+          }`,
+        },
+      ],
+      [
+        "transaction ID",
+        await signContext(client, TENANT_A, {
+          transactionId: String(BigInt(validContext.transactionId) + 1n),
+        }),
+      ],
+      [
+        "cross-audience signed context",
+        await signContext(client, TENANT_A, {
+          audience: "ci:other:database",
+        }),
+      ],
+    ];
+    for (const [field, context] of invalidContexts) {
+      await installContext(client, context);
+      const rejected = await client.query<{ tenant_id: string | null }>(
+        "SELECT app_private.verified_tenant_id()::text AS tenant_id",
+      );
+      assert(
+        rejected.rows[0]?.tenant_id === null,
+        `A forged ${field} must invalidate the signed tenant context.`,
+      );
+      const victimRows = await client.query(
+        "SELECT id FROM academic_years WHERE id = $1",
+        [YEAR_B],
+      );
+      assert(
+        victimRows.rowCount === 0,
+        `A forged ${field} must not expose a victim tenant row.`,
+      );
+    }
+    await installContext(client, validContext);
+
+    let privateStorageDenied = false;
+    await client.query("SAVEPOINT private_storage_access");
+    try {
+      await client.query(
+        "SELECT key_id FROM app_private.tenant_context_signing_keys UNION ALL SELECT promoted_key_id FROM app_private.tenant_context_rollout_state",
+      );
+      await client.query("RELEASE SAVEPOINT private_storage_access");
+    } catch (error) {
+      privateStorageDenied = (error as { code?: string }).code === "42501";
+      await client.query("ROLLBACK TO SAVEPOINT private_storage_access");
+      await client.query("RELEASE SAVEPOINT private_storage_access");
+    }
+    assert(
+      privateStorageDenied,
+      "The runtime role must not read tenant-context keys or rollout evidence.",
+    );
 
     const visibleRows = await client.query<{ id: string }>(
       "SELECT id FROM academic_years ORDER BY id",
@@ -187,6 +438,24 @@ async function main(): Promise<void> {
       visibleRows.rows.length === 1 && visibleRows.rows[0].id === YEAR_A,
       "Tenant A must see only its own row.",
     );
+
+    await client.query("SELECT set_config('app.bypass_rls', 'on', true)");
+    const forgedRuntimeBypass = await client.query<{ bypass: boolean }>(
+      "SELECT app_private.rls_bypass() AS bypass",
+    );
+    assert(
+      forgedRuntimeBypass.rows[0]?.bypass === false,
+      "The tenant runtime role must not self-enable the RLS bypass GUC.",
+    );
+    const forgedRuntimeRows = await client.query<{ id: string }>(
+      "SELECT id FROM academic_years ORDER BY id",
+    );
+    assert(
+      forgedRuntimeRows.rows.length === 1 &&
+        forgedRuntimeRows.rows[0].id === YEAR_A,
+      "A forged bypass GUC must not widen tenant-runtime visibility.",
+    );
+    await client.query("SELECT set_config('app.bypass_rls', 'off', true)");
 
     const crossTenantRead = await client.query(
       "SELECT id FROM academic_years WHERE id = $1",
@@ -291,6 +560,34 @@ async function main(): Promise<void> {
       "A non-platform session without tenant context must see zero rows.",
     );
 
+    await client.query("RESET ROLE");
+    await client.query(`SET ROLE ${PLATFORM_ROLE}`);
+    await client.query(
+      "SELECT set_config('app.current_tenant', '', true), set_config('app.bypass_rls', 'off', true)",
+    );
+    const unscopedPlatformRows = await client.query(
+      "SELECT id FROM academic_years",
+    );
+    assert(
+      unscopedPlatformRows.rowCount === 0,
+      "The platform role must not bypass RLS without the reviewed context GUC.",
+    );
+    await client.query("SELECT set_config('app.bypass_rls', 'on', true)");
+    const platformBypass = await client.query<{ bypass: boolean }>(
+      "SELECT app_private.rls_bypass() AS bypass",
+    );
+    assert(
+      platformBypass.rows[0]?.bypass === true,
+      "The exact platform role must bypass RLS only after the context GUC is enabled.",
+    );
+    const platformRows = await client.query<{ id: string }>(
+      "SELECT id FROM academic_years WHERE id = ANY($1::uuid[]) ORDER BY id",
+      [[YEAR_A, YEAR_B]],
+    );
+    assert(
+      platformRows.rows.length === 2,
+      "The reviewed platform context must see records across tenants.",
+    );
     await client.query("RESET ROLE");
     await client.query("ROLLBACK");
     console.info(
