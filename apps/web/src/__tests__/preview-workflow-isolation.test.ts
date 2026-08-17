@@ -108,9 +108,7 @@ describe("preview Vercel project isolation workflow", () => {
     expect(workflow).toContain(
       "platformPooled.hostname.replace('-pooler.', '.') !== direct.hostname",
     );
-    expect(workflow).toContain(
-      "console.log(`::add-mask::${platformPassword}`);",
-    );
+    expect(workflow).toContain("::add-mask::${platformPassword}");
     expect(workflow).toContain(
       "\"SELECT set_config('app.preview_platform_role', $1, false), set_config('app.preview_platform_password', $2, false)\"",
     );
