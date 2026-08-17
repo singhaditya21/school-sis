@@ -417,6 +417,101 @@ jobs:
           ssl: verify-full
           expires_at: ${{ steps.expiry.outputs.expires_at }}
 
+      - name: Wait for exact preview roles to become resolvable
+        env:
+          NEON_API_KEY_VALUE: ${{ secrets.NEON_PREVIEW_API_KEY }}
+          NEON_PROJECT_ID_VALUE: ${{ vars.NEON_PREVIEW_PROJECT_ID }}
+          PREVIEW_BRANCH_ID: ${{ steps.neon_migration.outputs.branch_id }}
+          NEON_DATABASE_VALUE: ${{ vars.NEON_PREVIEW_DATABASE_NAME }}
+          EXPECTED_RUNTIME_ROLE: ${{ vars.NEON_PREVIEW_RUNTIME_ROLE }}
+          EXPECTED_PLATFORM_ROLE: ${{ vars.NEON_PREVIEW_PLATFORM_ROLE }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const required = [
+            'NEON_API_KEY_VALUE', 'NEON_PROJECT_ID_VALUE', 'PREVIEW_BRANCH_ID',
+            'NEON_DATABASE_VALUE', 'EXPECTED_RUNTIME_ROLE', 'EXPECTED_PLATFORM_ROLE'
+          ];
+          for (const name of required) {
+            if (!process.env[name]) throw new Error(`Missing preview role-readiness value ${name}.`);
+          }
+          for (const name of ['NEON_PROJECT_ID_VALUE', 'PREVIEW_BRANCH_ID']) {
+            if (!/^[a-z0-9-]{1,60}$/.test(process.env[name])) {
+              throw new Error(`${name} is not a canonical Neon identifier.`);
+            }
+          }
+          if (
+            !/^[a-z_][a-z0-9_]{0,62}$/.test(process.env.NEON_DATABASE_VALUE) ||
+            process.env.EXPECTED_RUNTIME_ROLE !== 'school_sis_runtime' ||
+            process.env.EXPECTED_PLATFORM_ROLE !== 'school_sis_platform'
+          ) {
+            throw new Error('Preview role readiness requires the exact database and application roles.');
+          }
+
+          const wait = (milliseconds) => new Promise((resolveWait) =>
+            setTimeout(resolveWait, milliseconds)
+          );
+          const roles = [
+            process.env.EXPECTED_RUNTIME_ROLE,
+            process.env.EXPECTED_PLATFORM_ROLE,
+          ];
+          const statusForRole = async (role) => {
+            const endpoint = new URL(
+              `https://console.neon.tech/api/v2/projects/${process.env.NEON_PROJECT_ID_VALUE}/connection_uri`,
+            );
+            endpoint.searchParams.set('branch_id', process.env.PREVIEW_BRANCH_ID);
+            endpoint.searchParams.set('database_name', process.env.NEON_DATABASE_VALUE);
+            endpoint.searchParams.set('role_name', role);
+            endpoint.searchParams.set('pooled', 'true');
+            let response;
+            try {
+              response = await fetch(endpoint, {
+                headers: {
+                  Accept: 'application/json',
+                  Authorization: `Bearer ${process.env.NEON_API_KEY_VALUE}`,
+                },
+                signal: AbortSignal.timeout(10_000),
+              });
+            } catch (error) {
+              return `network-${error instanceof Error ? error.name : 'failure'}`;
+            }
+            if (response.status === 401 || response.status === 403) {
+              throw new Error(`Neon rejected preview role-readiness authorization with HTTP ${response.status}.`);
+            }
+            if (!response.ok) return `http-${response.status}`;
+            try {
+              const payload = await response.json();
+              const pooled = new URL(payload.uri || '');
+              if (
+                pooled.hostname.endsWith('.neon.tech') &&
+                pooled.hostname.includes('-pooler') &&
+                decodeURIComponent(pooled.username) === role &&
+                decodeURIComponent(pooled.pathname.slice(1)) === process.env.NEON_DATABASE_VALUE &&
+                decodeURIComponent(pooled.password).length > 0
+              ) {
+                return 'ready';
+              }
+            } catch {
+              return 'invalid-metadata';
+            }
+            return 'mismatched-metadata';
+          };
+
+          const readinessDeadline = Date.now() + (5 * 60 * 1_000);
+          let lastStatuses = [];
+          for (;;) {
+            lastStatuses = await Promise.all(
+              roles.map(async (role) => [role, await statusForRole(role)]),
+            );
+            if (lastStatuses.every(([, status]) => status === 'ready')) break;
+            if (Date.now() >= readinessDeadline) {
+              const summary = lastStatuses.map(([role, status]) => `${role}=${status}`).join(', ');
+              throw new Error(`Neon preview roles did not become resolvable: ${summary}.`);
+            }
+            await wait(Math.min(3_000, Math.max(0, readinessDeadline - Date.now())));
+          }
+          NODE
+
       - name: Resolve pooled Neon URL for the runtime role
         id: neon_runtime
         uses: neondatabase/create-branch-action@72ed4f69a12b6be9c16aebfad893f6a21e9aba8b
@@ -445,15 +540,18 @@ jobs:
           ssl: verify-full
           expires_at: ${{ steps.expiry.outputs.expires_at }}
 
-      - name: Rotate the isolated preview platform-role password
-        id: neon_platform_credentials
+      - name: Rotate and verify isolated preview application credentials
+        id: neon_application_credentials
         env:
           PREVIEW_DIRECT_URL: ${{ steps.neon_migration.outputs.db_url }}
+          PREVIEW_RUNTIME_POOLED_URL: ${{ steps.neon_runtime.outputs.db_url_pooled }}
           PREVIEW_PLATFORM_POOLED_URL: ${{ steps.neon_platform.outputs.db_url_pooled }}
           PREVIEW_MIGRATION_BRANCH_ID: ${{ steps.neon_migration.outputs.branch_id }}
           PREVIEW_RUNTIME_BRANCH_ID: ${{ steps.neon_runtime.outputs.branch_id }}
           PREVIEW_PLATFORM_BRANCH_ID: ${{ steps.neon_platform.outputs.branch_id }}
+          EXPECTED_DATABASE: ${{ vars.NEON_PREVIEW_DATABASE_NAME }}
           EXPECTED_MIGRATION_ROLE: ${{ vars.NEON_PREVIEW_MIGRATION_ROLE }}
+          EXPECTED_RUNTIME_ROLE: ${{ vars.NEON_PREVIEW_RUNTIME_ROLE }}
           EXPECTED_PLATFORM_ROLE: ${{ vars.NEON_PREVIEW_PLATFORM_ROLE }}
         run: |
           set -euo pipefail
@@ -465,6 +563,34 @@ jobs:
 
           const require = createRequire(resolve('apps/web/package.json'));
           const { Client } = require('pg');
+          const required = [
+            'PREVIEW_DIRECT_URL', 'PREVIEW_RUNTIME_POOLED_URL',
+            'PREVIEW_PLATFORM_POOLED_URL', 'PREVIEW_MIGRATION_BRANCH_ID',
+            'PREVIEW_RUNTIME_BRANCH_ID', 'PREVIEW_PLATFORM_BRANCH_ID',
+            'EXPECTED_DATABASE', 'EXPECTED_MIGRATION_ROLE',
+            'EXPECTED_RUNTIME_ROLE', 'EXPECTED_PLATFORM_ROLE'
+          ];
+          for (const name of required) {
+            if (!process.env[name]) throw new Error(`Missing preview credential value ${name}.`);
+          }
+          if (
+            process.env.EXPECTED_RUNTIME_ROLE !== 'school_sis_runtime' ||
+            process.env.EXPECTED_PLATFORM_ROLE !== 'school_sis_platform' ||
+            new Set([
+              process.env.EXPECTED_MIGRATION_ROLE,
+              process.env.EXPECTED_RUNTIME_ROLE,
+              process.env.EXPECTED_PLATFORM_ROLE,
+            ]).size !== 3
+          ) {
+            throw new Error('Preview credential rotation requires three exact, distinct roles.');
+          }
+          if (
+            process.env.PREVIEW_MIGRATION_BRANCH_ID !== process.env.PREVIEW_RUNTIME_BRANCH_ID ||
+            process.env.PREVIEW_MIGRATION_BRANCH_ID !== process.env.PREVIEW_PLATFORM_BRANCH_ID
+          ) {
+            throw new Error('Preview credential rotation requires one exact Neon branch.');
+          }
+
           const forbiddenQueryParameters = new Set([
             'database', 'db', 'host', 'hostaddr', 'options', 'password', 'port', 'user'
           ]);
@@ -479,100 +605,198 @@ jobs:
             if (overrides.length > 0) {
               throw new Error(`${label} contains a forbidden connection-identity query override.`);
             }
+            const channelBindingKeys = [...url.searchParams.keys()].filter(
+              (key) => key.toLowerCase() === 'channel_binding',
+            );
+            if (
+              channelBindingKeys.length > 1 ||
+              channelBindingKeys.some((key) => url.searchParams.get(key) !== 'require')
+            ) {
+              throw new Error(`${label} has an invalid channel-binding override.`);
+            }
+            for (const key of channelBindingKeys) url.searchParams.delete(key);
+            url.searchParams.append('channel_binding', 'require');
+            if (url.searchParams.get('sslmode') !== 'verify-full') {
+              throw new Error(`${label} must require full TLS verification.`);
+            }
             return url;
           };
 
           const direct = parseDatabaseUrl(process.env.PREVIEW_DIRECT_URL, 'PREVIEW_DIRECT_URL');
+          const runtimePooled = parseDatabaseUrl(
+            process.env.PREVIEW_RUNTIME_POOLED_URL,
+            'PREVIEW_RUNTIME_POOLED_URL',
+          );
           const platformPooled = parseDatabaseUrl(
             process.env.PREVIEW_PLATFORM_POOLED_URL,
             'PREVIEW_PLATFORM_POOLED_URL',
           );
           if (
-            !process.env.PREVIEW_MIGRATION_BRANCH_ID ||
-            process.env.PREVIEW_MIGRATION_BRANCH_ID !== process.env.PREVIEW_RUNTIME_BRANCH_ID ||
-            process.env.PREVIEW_MIGRATION_BRANCH_ID !== process.env.PREVIEW_PLATFORM_BRANCH_ID
-          ) {
-            throw new Error('Preview credential rotation requires one exact Neon branch.');
-          }
-          if (
             !direct.hostname.endsWith('.neon.tech') || direct.hostname.includes('-pooler') ||
             decodeURIComponent(direct.username) !== process.env.EXPECTED_MIGRATION_ROLE ||
+            decodeURIComponent(direct.pathname.slice(1)) !== process.env.EXPECTED_DATABASE ||
             !decodeURIComponent(direct.password)
           ) {
-            throw new Error('Preview platform credential rotation requires the exact direct migration-owner URL.');
+            throw new Error('Preview credential rotation requires the exact direct migration-owner URL.');
+          }
+          if (
+            !runtimePooled.hostname.endsWith('.neon.tech') ||
+            !runtimePooled.hostname.includes('-pooler') ||
+            decodeURIComponent(runtimePooled.username) !== process.env.EXPECTED_RUNTIME_ROLE ||
+            !decodeURIComponent(runtimePooled.password)
+          ) {
+            throw new Error('Preview credential rotation requires the exact pooled tenant-runtime URL.');
           }
           if (
             !platformPooled.hostname.endsWith('.neon.tech') ||
             !platformPooled.hostname.includes('-pooler') ||
             decodeURIComponent(platformPooled.username) !== process.env.EXPECTED_PLATFORM_ROLE ||
-            process.env.EXPECTED_PLATFORM_ROLE !== 'school_sis_platform'
+            !decodeURIComponent(platformPooled.password)
           ) {
-            throw new Error('Preview platform credential rotation requires the exact pooled platform-role URL.');
+            throw new Error('Preview credential rotation requires the exact pooled platform-runtime URL.');
           }
           if (
-            platformPooled.hostname.replace('-pooler.', '.') !== direct.hostname ||
-            decodeURIComponent(direct.pathname) !== decodeURIComponent(platformPooled.pathname)
+            runtimePooled.hostname !== platformPooled.hostname ||
+            runtimePooled.hostname.replace('-pooler.', '.') !== direct.hostname ||
+            decodeURIComponent(runtimePooled.pathname) !== decodeURIComponent(direct.pathname) ||
+            decodeURIComponent(platformPooled.pathname) !== decodeURIComponent(direct.pathname)
           ) {
-            throw new Error('Preview direct and platform URLs must identify the same branch and database.');
+            throw new Error('Preview database URLs must identify one exact endpoint and database.');
           }
 
-          const platformPassword = randomBytes(48).toString('base64url');
-          console.log(`::add-mask::${platformPassword}`);
-          const owner = new Client({ connectionString: direct.toString() });
+          const migrationPassword = decodeURIComponent(direct.password);
+          const distinctPassword = (excluded) => {
+            let candidate;
+            do candidate = randomBytes(48).toString('base64url');
+            while (excluded.has(candidate));
+            return candidate;
+          };
+          const runtimePassword = distinctPassword(new Set([migrationPassword]));
+          const platformPassword = distinctPassword(
+            new Set([migrationPassword, runtimePassword]),
+          );
+          process.stdout.write(`::add-mask::${runtimePassword}\n::add-mask::${platformPassword}\n`);
+
+          const owner = new Client({
+            connectionString: direct.toString(),
+            application_name: 'school-sis-preview-credential-rotation',
+            enableChannelBinding: true,
+          });
           await owner.connect();
           try {
-            const role = await owner.query(
-              'SELECT rolname, rolcanlogin FROM pg_roles WHERE rolname = $1',
-              [process.env.EXPECTED_PLATFORM_ROLE],
+            const identity = await owner.query(
+              'SELECT current_user AS current_user, current_database() AS current_database',
             );
             if (
-              role.rowCount !== 1 || role.rows[0].rolname !== 'school_sis_platform' ||
-              role.rows[0].rolcanlogin !== true
+              identity.rows[0]?.current_user !== process.env.EXPECTED_MIGRATION_ROLE ||
+              identity.rows[0]?.current_database !== process.env.EXPECTED_DATABASE
             ) {
-              throw new Error('The exact preview platform LOGIN role does not exist.');
+              throw new Error('Preview credential rotation connected with the wrong owner identity.');
             }
-            await owner.query(
-              "SELECT set_config('app.preview_platform_role', $1, false), set_config('app.preview_platform_password', $2, false)",
-              [process.env.EXPECTED_PLATFORM_ROLE, platformPassword],
+            const roles = await owner.query(
+              `SELECT rolname, rolcanlogin, rolsuper, rolcreaterole, rolcreatedb,
+                      rolreplication, rolbypassrls
+               FROM pg_roles
+               WHERE rolname::text = ANY($1::text[])
+               ORDER BY rolname`,
+              [[process.env.EXPECTED_RUNTIME_ROLE, process.env.EXPECTED_PLATFORM_ROLE]],
             );
-            await owner.query(`
-              DO $rotate_preview_platform_password$
-              DECLARE
-                target_role text := current_setting('app.preview_platform_role');
-                target_password text := current_setting('app.preview_platform_password');
-              BEGIN
-                IF target_role <> 'school_sis_platform' OR target_password = '' THEN
-                  RAISE EXCEPTION 'Invalid preview platform credential rotation target';
-                END IF;
-                EXECUTE format('ALTER ROLE %I PASSWORD %L', target_role, target_password);
-              END
-              $rotate_preview_platform_password$
-            `);
+            const byName = new Map(roles.rows.map((role) => [role.rolname, role]));
+            for (const roleName of [
+              process.env.EXPECTED_RUNTIME_ROLE,
+              process.env.EXPECTED_PLATFORM_ROLE,
+            ]) {
+              const role = byName.get(roleName);
+              if (
+                !role || role.rolcanlogin !== true || role.rolsuper !== false ||
+                role.rolcreaterole !== false || role.rolcreatedb !== false ||
+                role.rolreplication !== false || role.rolbypassrls !== false
+              ) {
+                throw new Error(`Preview application role ${roleName} is missing or has unsafe global attributes.`);
+              }
+            }
+
+            await owner.query('BEGIN');
+            try {
+              await owner.query(
+                "SELECT set_config('app.preview_runtime_role', $1, true), set_config('app.preview_runtime_password', $2, true), set_config('app.preview_platform_role', $3, true), set_config('app.preview_platform_password', $4, true)",
+                [
+                  process.env.EXPECTED_RUNTIME_ROLE,
+                  runtimePassword,
+                  process.env.EXPECTED_PLATFORM_ROLE,
+                  platformPassword,
+                ],
+              );
+              await owner.query(`
+                DO $rotate_preview_application_passwords$
+                DECLARE
+                  runtime_role text := current_setting('app.preview_runtime_role');
+                  runtime_password text := current_setting('app.preview_runtime_password');
+                  platform_role text := current_setting('app.preview_platform_role');
+                  platform_password text := current_setting('app.preview_platform_password');
+                BEGIN
+                  IF runtime_role <> 'school_sis_runtime' OR
+                     platform_role <> 'school_sis_platform' OR
+                     runtime_password = '' OR platform_password = '' OR
+                     runtime_password = platform_password THEN
+                    RAISE EXCEPTION 'Invalid preview application credential rotation target';
+                  END IF;
+                  EXECUTE format('ALTER ROLE %I PASSWORD %L', runtime_role, runtime_password);
+                  EXECUTE format('ALTER ROLE %I PASSWORD %L', platform_role, platform_password);
+                END
+                $rotate_preview_application_passwords$
+              `);
+              await owner.query('COMMIT');
+            } catch (error) {
+              await owner.query('ROLLBACK');
+              throw error;
+            }
           } finally {
             await owner.end();
           }
 
+          runtimePooled.password = runtimePassword;
           platformPooled.password = platformPassword;
-          const encodedPlatformPassword = encodeURIComponent(platformPassword);
+          const migrationDirectUrl = direct.toString();
+          const rotatedRuntimeUrl = runtimePooled.toString();
           const rotatedPlatformUrl = platformPooled.toString();
-          if (!rotatedPlatformUrl.includes(`:${encodedPlatformPassword}@`)) {
-            throw new Error('Could not encode the rotated platform password in its pooled URL.');
+          const finalPasswords = [migrationDirectUrl, rotatedRuntimeUrl, rotatedPlatformUrl].map(
+            (value) => decodeURIComponent(new URL(value).password),
+          );
+          if (
+            finalPasswords.some((password) => password.length === 0) ||
+            new Set(finalPasswords).size !== 3
+          ) {
+            throw new Error('Rotated preview database passwords are not pairwise distinct.');
           }
-          console.log(`::add-mask::${rotatedPlatformUrl}`);
+          process.stdout.write(
+            `::add-mask::${migrationDirectUrl}\n::add-mask::${rotatedRuntimeUrl}\n::add-mask::${rotatedPlatformUrl}\n`,
+          );
 
-          const verifier = new Client({ connectionString: rotatedPlatformUrl });
-          await verifier.connect();
-          try {
-            const identity = await verifier.query('SELECT current_user AS current_user');
-            if (identity.rows[0]?.current_user !== 'school_sis_platform') {
-              throw new Error('Rotated preview platform credentials resolved to the wrong role.');
+          const verifyRole = async (connectionString, expectedRole) => {
+            const verifier = new Client({ connectionString, enableChannelBinding: true });
+            await verifier.connect();
+            try {
+              const identity = await verifier.query(
+                'SELECT current_user AS current_user, current_database() AS current_database',
+              );
+              if (
+                identity.rows[0]?.current_user !== expectedRole ||
+                identity.rows[0]?.current_database !== process.env.EXPECTED_DATABASE
+              ) {
+                throw new Error(`Rotated preview credentials resolved to the wrong ${expectedRole} identity.`);
+              }
+            } finally {
+              await verifier.end();
             }
-          } finally {
-            await verifier.end();
-          }
+          };
+          await verifyRole(rotatedRuntimeUrl, process.env.EXPECTED_RUNTIME_ROLE);
+          await verifyRole(rotatedPlatformUrl, process.env.EXPECTED_PLATFORM_ROLE);
           appendFileSync(
             process.env.GITHUB_OUTPUT,
-            `platform_pooled_url=${rotatedPlatformUrl}\n`,
+            `migration_direct_url=${migrationDirectUrl}\n` +
+              `runtime_pooled_url=${rotatedRuntimeUrl}\n` +
+              `platform_pooled_url=${rotatedPlatformUrl}\n`,
           );
           NODE
 
@@ -580,11 +804,10 @@ jobs:
         env:
           NEON_API_KEY: ${{ secrets.NEON_PREVIEW_API_KEY }}
           NEON_PROJECT_ID: ${{ vars.NEON_PREVIEW_PROJECT_ID }}
-          EXPECTED_PARENT_BRANCH_ID: ${{ vars.NEON_PREVIEW_TEMPLATE_BRANCH_ID }}
           EXPECTED_BRANCH_NAME: ${{ env.PREVIEW_BRANCH_NAME }}
-          PREVIEW_DIRECT_URL: ${{ steps.neon_migration.outputs.db_url }}
-          PREVIEW_POOLED_URL: ${{ steps.neon_runtime.outputs.db_url_pooled }}
-          PREVIEW_PLATFORM_POOLED_URL: ${{ steps.neon_platform_credentials.outputs.platform_pooled_url }}
+          PREVIEW_DIRECT_URL: ${{ steps.neon_application_credentials.outputs.migration_direct_url }}
+          PREVIEW_POOLED_URL: ${{ steps.neon_application_credentials.outputs.runtime_pooled_url }}
+          PREVIEW_PLATFORM_POOLED_URL: ${{ steps.neon_application_credentials.outputs.platform_pooled_url }}
           PREVIEW_MIGRATION_BRANCH_ID: ${{ steps.neon_migration.outputs.branch_id }}
           PREVIEW_RUNTIME_BRANCH_ID: ${{ steps.neon_runtime.outputs.branch_id }}
           PREVIEW_PLATFORM_BRANCH_ID: ${{ steps.neon_platform.outputs.branch_id }}
@@ -603,9 +826,20 @@ jobs:
           for (const name of required) {
             if (!process.env[name]) throw new Error(`Neon action did not return ${name}.`);
           }
-          const direct = new URL(process.env.PREVIEW_DIRECT_URL);
-          const pooled = new URL(process.env.PREVIEW_POOLED_URL);
-          const platformPooled = new URL(process.env.PREVIEW_PLATFORM_POOLED_URL);
+          process.stderr.write('Neon output validation: required outputs are present.\n');
+          const parseUrl = (value, label) => {
+            try {
+              return new URL(value);
+            } catch {
+              throw new Error(`Neon output validation: ${label} is not a valid URL.`);
+            }
+          };
+          const direct = parseUrl(process.env.PREVIEW_DIRECT_URL, 'migration URL');
+          const pooled = parseUrl(process.env.PREVIEW_POOLED_URL, 'tenant-runtime URL');
+          const platformPooled = parseUrl(
+            process.env.PREVIEW_PLATFORM_POOLED_URL,
+            'platform-runtime URL',
+          );
           if (
             process.env.PREVIEW_MIGRATION_BRANCH_ID !== process.env.PREVIEW_RUNTIME_BRANCH_ID ||
             process.env.PREVIEW_MIGRATION_BRANCH_ID !== process.env.PREVIEW_PLATFORM_BRANCH_ID
@@ -626,6 +860,7 @@ jobs:
           ) {
             throw new Error('Neon platform URL is not the same branch/database pooled endpoint.');
           }
+          process.stderr.write('Neon output validation: branch and endpoint topology match.\n');
           if (decodeURIComponent(direct.username) !== process.env.EXPECTED_MIGRATION_ROLE) {
             throw new Error('Neon direct URL does not use the configured migration role.');
           }
@@ -635,15 +870,34 @@ jobs:
           if (decodeURIComponent(platformPooled.username) !== process.env.EXPECTED_PLATFORM_ROLE) {
             throw new Error('Neon platform pooled URL does not use the configured platform role.');
           }
+          process.stderr.write('Neon output validation: all role identities match.\n');
+          for (const [label, url] of [
+            ['migration', direct],
+            ['tenant-runtime', pooled],
+            ['platform-runtime', platformPooled],
+          ]) {
+            const channelBinding = [...url.searchParams.entries()].filter(
+              ([key]) => key.toLowerCase() === 'channel_binding',
+            );
+            if (
+              url.searchParams.get('sslmode') !== 'verify-full' ||
+              channelBinding.length !== 1 || channelBinding[0][1] !== 'require'
+            ) {
+              throw new Error(`Neon ${label} URL does not require full TLS and channel binding.`);
+            }
+          }
+          process.stderr.write('Neon output validation: TLS and channel binding are required.\n');
           const passwords = [direct, pooled, platformPooled].map((url) =>
             decodeURIComponent(url.password)
           );
           if (passwords.some((password) => password.length === 0) || new Set(passwords).size !== 3) {
             throw new Error('Preview migration, tenant-runtime, and platform-runtime database passwords must be nonempty and pairwise distinct.');
           }
+          process.stderr.write('Neon output validation: database credentials are pairwise distinct.\n');
           NODE
 
           branch_file="$RUNNER_TEMP/neon-preview-branch.json"
+          trap 'rm -f "$branch_file"' EXIT
           branch_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
             --header "Authorization: Bearer $NEON_API_KEY" \
             --header 'Accept: application/json' \
@@ -654,12 +908,15 @@ jobs:
             echo "Could not verify the isolated Neon preview branch." >&2
             exit 1
           fi
-          jq -e \
-            --arg id "$PREVIEW_MIGRATION_BRANCH_ID" \
-            --arg parent "$EXPECTED_PARENT_BRANCH_ID" \
-            --arg name "$EXPECTED_BRANCH_NAME" \
-            '.branch.id == $id and .branch.parent_id == $parent and .branch.name == $name and (.branch.expires_at | type == "string")' \
-            "$branch_file" >/dev/null
+          if ! jq -e \
+              --arg id "$PREVIEW_MIGRATION_BRANCH_ID" \
+              --arg name "$EXPECTED_BRANCH_NAME" \
+              '.branch.id == $id and .branch.parent_id == null and .branch.init_source == "schema-only" and .branch.name == $name and (.branch.expires_at | type == "string")' \
+              "$branch_file" >/dev/null; then
+            echo "Neon branch metadata validation failed for the expected id, root schema-only source, name, or expiry." >&2
+            exit 1
+          fi
+          echo "Neon output validation: branch metadata matches." >&2
           tenant_context_audience="preview:${NEON_PROJECT_ID}:${PREVIEW_MIGRATION_BRANCH_ID}"
           if ! [[ "$tenant_context_audience" =~ ^[a-z0-9][a-z0-9:._-]{2,191}$ ]]; then
             echo "Derived preview tenant-context audience is invalid." >&2
@@ -670,9 +927,9 @@ jobs:
       - name: Pull Vercel preview settings
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
-          DATABASE_URL: ${{ steps.neon_runtime.outputs.db_url_pooled }}
-          PLATFORM_DATABASE_URL: ${{ steps.neon_platform_credentials.outputs.platform_pooled_url }}
-          DIRECT_URL: ${{ steps.neon_migration.outputs.db_url }}
+          DATABASE_URL: ${{ steps.neon_application_credentials.outputs.runtime_pooled_url }}
+          PLATFORM_DATABASE_URL: ${{ steps.neon_application_credentials.outputs.platform_pooled_url }}
+          DIRECT_URL: ${{ steps.neon_application_credentials.outputs.migration_direct_url }}
           DEPLOYMENT_RUNTIME_ROLE: ${{ vars.NEON_PREVIEW_RUNTIME_ROLE }}
           DEPLOYMENT_PLATFORM_ROLE: ${{ vars.NEON_PREVIEW_PLATFORM_ROLE }}
           DEPLOYMENT_MIGRATION_ROLE: ${{ vars.NEON_PREVIEW_MIGRATION_ROLE }}
@@ -791,9 +1048,9 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
           VERCEL_TARGET_ENV: preview
-          DATABASE_URL: ${{ steps.neon_runtime.outputs.db_url_pooled }}
-          PLATFORM_DATABASE_URL: ${{ steps.neon_platform_credentials.outputs.platform_pooled_url }}
-          DIRECT_URL: ${{ steps.neon_migration.outputs.db_url }}
+          DATABASE_URL: ${{ steps.neon_application_credentials.outputs.runtime_pooled_url }}
+          PLATFORM_DATABASE_URL: ${{ steps.neon_application_credentials.outputs.platform_pooled_url }}
+          DIRECT_URL: ${{ steps.neon_application_credentials.outputs.migration_direct_url }}
           DEPLOYMENT_RUNTIME_ROLE: ${{ vars.NEON_PREVIEW_RUNTIME_ROLE }}
           DEPLOYMENT_PLATFORM_ROLE: ${{ vars.NEON_PREVIEW_PLATFORM_ROLE }}
           DEPLOYMENT_MIGRATION_ROLE: ${{ vars.NEON_PREVIEW_MIGRATION_ROLE }}
@@ -855,8 +1112,8 @@ jobs:
         id: deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
-          DATABASE_URL: ${{ steps.neon_runtime.outputs.db_url_pooled }}
-          PLATFORM_DATABASE_URL: ${{ steps.neon_platform_credentials.outputs.platform_pooled_url }}
+          DATABASE_URL: ${{ steps.neon_application_credentials.outputs.runtime_pooled_url }}
+          PLATFORM_DATABASE_URL: ${{ steps.neon_application_credentials.outputs.platform_pooled_url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_PREVIEW_AUTOMATION_BYPASS_SECRET }}
           TENANT_CONTEXT_SIGNING_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
           TENANT_CONTEXT_SIGNING_SECRET: ${{ secrets.TENANT_CONTEXT_SIGNING_SECRET }}

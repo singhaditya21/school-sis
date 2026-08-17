@@ -85,9 +85,45 @@ describe("preview Vercel project isolation workflow", () => {
     }
   });
 
-  it("rotates and verifies an isolated preview platform credential before validation or migration", () => {
+  it("waits for both inherited preview roles before requesting their action URLs", () => {
+    const branchCreation = workflow.indexOf(
+      "Create or reuse schema-only Neon branch for migrations",
+    );
+    const readiness = workflow.indexOf(
+      "Wait for exact preview roles to become resolvable",
+    );
+    const runtimeResolution = workflow.indexOf(
+      "Resolve pooled Neon URL for the runtime role",
+    );
+    const platformResolution = workflow.indexOf(
+      "Resolve pooled Neon URL for the platform role",
+    );
+    expect(readiness).toBeGreaterThan(branchCreation);
+    expect(runtimeResolution).toBeGreaterThan(readiness);
+    expect(platformResolution).toBeGreaterThan(runtimeResolution);
+
+    const readinessScript = workflow.slice(readiness, runtimeResolution);
+    expect(readinessScript).toContain("/connection_uri");
+    expect(readinessScript).toContain(
+      "endpoint.searchParams.set('branch_id', process.env.PREVIEW_BRANCH_ID);",
+    );
+    expect(readinessScript).toContain(
+      "endpoint.searchParams.set('role_name', role);",
+    );
+    expect(readinessScript).toContain(
+      "const readinessDeadline = Date.now() + (5 * 60 * 1_000);",
+    );
+    expect(readinessScript).toContain("Date.now() >= readinessDeadline");
+    expect(readinessScript).toContain(
+      "Neon preview roles did not become resolvable",
+    );
+    expect(readinessScript).not.toContain("CREATE ROLE");
+    expect(readinessScript).not.toContain("ALTER ROLE");
+  });
+
+  it("rotates and verifies both isolated preview application credentials", () => {
     const rotation = workflow.indexOf(
-      "Rotate the isolated preview platform-role password",
+      "Rotate and verify isolated preview application credentials",
     );
     const outputValidation = workflow.indexOf("Validate Neon action outputs");
     const migration = workflow.indexOf(
@@ -100,40 +136,64 @@ describe("preview Vercel project isolation workflow", () => {
     expect(migration).toBeGreaterThan(outputValidation);
 
     expect(workflow).toContain(
-      "const platformPassword = randomBytes(48).toString('base64url');",
-    );
-    expect(workflow).toContain(
       "Preview credential rotation requires one exact Neon branch.",
     );
     expect(workflow).toContain(
-      "platformPooled.hostname.replace('-pooler.', '.') !== direct.hostname",
+      "const runtimePassword = distinctPassword(new Set([migrationPassword]));",
     );
-    expect(workflow).toContain("::add-mask::${platformPassword}");
+    expect(workflow).toContain("new Set([migrationPassword, runtimePassword])");
     expect(workflow).toContain(
-      "\"SELECT set_config('app.preview_platform_role', $1, false), set_config('app.preview_platform_password', $2, false)\"",
-    );
-    expect(workflow).toContain(
-      "EXECUTE format('ALTER ROLE %I PASSWORD %L', target_role, target_password);",
+      "EXECUTE format('ALTER ROLE %I PASSWORD %L', runtime_role, runtime_password);",
     );
     expect(workflow).toContain(
-      "const encodedPlatformPassword = encodeURIComponent(platformPassword);",
+      "EXECUTE format('ALTER ROLE %I PASSWORD %L', platform_role, platform_password);",
     );
     expect(workflow).toContain(
-      "identity.rows[0]?.current_user !== 'school_sis_platform'",
+      "await verifyRole(rotatedRuntimeUrl, process.env.EXPECTED_RUNTIME_ROLE);",
     );
     expect(workflow).toContain(
-      "PREVIEW_PLATFORM_POOLED_URL: ${{ steps.neon_platform_credentials.outputs.platform_pooled_url }}",
+      "await verifyRole(rotatedPlatformUrl, process.env.EXPECTED_PLATFORM_ROLE);",
     );
+    expect(workflow).toContain(
+      "url.searchParams.append('channel_binding', 'require');",
+    );
+    expect(workflow).toContain("migration_direct_url=${migrationDirectUrl}");
+    expect(workflow).toContain("runtime_pooled_url=${rotatedRuntimeUrl}");
+    expect(workflow).toContain("platform_pooled_url=${rotatedPlatformUrl}");
     expect(
       workflow.match(
-        /\$\{\{ steps\.neon_platform\.outputs\.db_url_pooled \}\}/g,
-      ),
-    ).toHaveLength(1);
-    expect(
-      workflow.match(
-        /\$\{\{ steps\.neon_platform_credentials\.outputs\.platform_pooled_url \}\}/g,
+        /\$\{\{ steps\.neon_application_credentials\.outputs\.runtime_pooled_url \}\}/g,
       ),
     ).toHaveLength(4);
+    expect(
+      workflow.match(
+        /\$\{\{ steps\.neon_application_credentials\.outputs\.platform_pooled_url \}\}/g,
+      ),
+    ).toHaveLength(4);
+    expect(
+      workflow.match(
+        /\$\{\{ steps\.neon_application_credentials\.outputs\.migration_direct_url \}\}/g,
+      ),
+    ).toHaveLength(3);
+  });
+
+  it("emits safe stage diagnostics for Neon output and branch validation", () => {
+    for (const stage of [
+      "required outputs are present",
+      "branch and endpoint topology match",
+      "all role identities match",
+      "TLS and channel binding are required",
+      "database credentials are pairwise distinct",
+      "branch metadata matches",
+    ]) {
+      expect(workflow).toContain(`Neon output validation: ${stage}.`);
+    }
+    expect(workflow).toContain(
+      "Neon branch metadata validation failed for the expected id, root schema-only source, name, or expiry.",
+    );
+    expect(workflow).toContain(".branch.parent_id == null");
+    expect(workflow).toContain('.branch.init_source == "schema-only"');
+    expect(workflow).not.toContain(".branch.parent_id == $parent");
   });
 
   it("machine-attests cryptographically distinct preview and production signing keys", () => {
