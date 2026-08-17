@@ -42,6 +42,13 @@ const vercelPatch = readFileSync(
 );
 
 describe("preview Vercel project isolation workflow", () => {
+  it("can publish the verified preview on the pull request", () => {
+    expect(workflow).toMatch(
+      /permissions:\n  contents: read\n  issues: write\n  pull-requests: write/,
+    );
+    expect(workflow).toContain("Create or update pull-request preview comment");
+  });
+
   it("allows a shared team only when the preview project differs", () => {
     expect(workflow).toContain(
       'if [ "$VERCEL_PROJECT_ID" = "$PRODUCTION_VERCEL_PROJECT_ID" ]; then',

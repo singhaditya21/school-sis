@@ -454,9 +454,10 @@ For approved, same-repository, non-draft pull requests,
 
 `.github/workflows/preview-cleanup.yml` deletes the exact current Neon branch
 and every metadata-matched Vercel preview deployment when the pull request
-closes. Per-commit branch names prevent a rewritten migration or rebase from
-contaminating a later preview; prior commit branches expire automatically
-after one day.
+closes. The stable `preview/pr-<number>` name is serialized by the per-PR
+workflow concurrency group; every run revalidates its exact schema-only branch
+identity, refreshes its one-day expiry, and reapplies the complete migration
+chain before deployment.
 
 ## Production lifecycle
 
