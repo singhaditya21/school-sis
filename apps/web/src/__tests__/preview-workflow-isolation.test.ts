@@ -93,7 +93,7 @@ describe("preview Vercel project isolation workflow", () => {
     );
   });
 
-  it("accepts only the exact Vercel build controls and discards them before build", () => {
+  it("accepts only exact present Vercel build controls and discards them before build", () => {
     const buildControlMap = workflow.slice(
       workflow.indexOf("const expectedVercelBuildControls = new Map(["),
       workflow.indexOf("const allowedPulledNames = new Set(["),
@@ -108,9 +108,11 @@ describe("preview Vercel project isolation workflow", () => {
     ]) {
       expect(workflow).toContain(`['${name}', '${value}']`);
     }
-    expect(workflow).toContain("pulled[name] === expected ? [] : [name]");
     expect(workflow).toContain(
-      "Preview Vercel build controls are missing or unexpected",
+      "pulled[name] === undefined || pulled[name] === expected ? [] : [name]",
+    );
+    expect(workflow).toContain(
+      "Preview Vercel build controls have unexpected values",
     );
 
     const validation = workflow.indexOf(

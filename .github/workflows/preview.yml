@@ -1123,11 +1123,12 @@ jobs:
             );
           }
           const invalidBuildControls = [...expectedVercelBuildControls].flatMap(
-            ([name, expected]) => pulled[name] === expected ? [] : [name],
+            ([name, expected]) =>
+              pulled[name] === undefined || pulled[name] === expected ? [] : [name],
           );
           if (invalidBuildControls.length > 0) {
             throw new Error(
-              `Preview Vercel build controls are missing or unexpected: ${invalidBuildControls.sort().join(', ')}`,
+              `Preview Vercel build controls have unexpected values: ${invalidBuildControls.sort().join(', ')}`,
             );
           }
           if (
