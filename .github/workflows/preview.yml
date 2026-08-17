@@ -1295,10 +1295,14 @@ jobs:
             https://*) ;;
             *) deployment_url="https://$deployment_url" ;;
           esac
-          pnpm exec vercel alias set \
-            "$deployment_id" \
-            "$PREVIEW_ALIAS_HOST" \
-            --token="$VERCEL_TOKEN"
+          node scripts/assign-vercel-preview-alias.mjs \
+            --deployment-id "$deployment_id" \
+            --deployment-url "$deployment_url" \
+            --alias "$PREVIEW_ALIAS_HOST" \
+            --project-id "$VERCEL_PROJECT_ID" \
+            --team-id "$VERCEL_ORG_ID" \
+            --sha "$TARGET_SHA" \
+            --pr-number "$PREVIEW_PR_NUMBER"
           deployment_url="$NEXT_PUBLIC_APP_URL"
           unset VERCEL_TOKEN
           node scripts/verify-deployment.mjs \

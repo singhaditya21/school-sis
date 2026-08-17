@@ -93,6 +93,15 @@ describe("preview Vercel project isolation workflow", () => {
     );
   });
 
+  it("assigns the preview alias without an account-level CLI lookup", () => {
+    expect(workflow).toContain("node scripts/assign-vercel-preview-alias.mjs");
+    expect(workflow).toContain('--deployment-id "$deployment_id"');
+    expect(workflow).toContain('--deployment-url "$deployment_url"');
+    expect(workflow).toContain('--project-id "$VERCEL_PROJECT_ID"');
+    expect(workflow).toContain('--team-id "$VERCEL_ORG_ID"');
+    expect(workflow).not.toContain("pnpm exec vercel alias set");
+  });
+
   it("accepts only exact present Vercel build controls and discards them before build", () => {
     const buildControlMap = workflow.slice(
       workflow.indexOf("const expectedVercelBuildControls = new Map(["),

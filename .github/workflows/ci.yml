@@ -191,6 +191,9 @@ jobs:
       - name: Validate Testing Architecture
         run: pnpm test:architecture
 
+      - name: Run Workflow Helper Tests
+        run: pnpm test:workflow
+
       - name: Run Unit Tests
         run: pnpm test:unit
 
