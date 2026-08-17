@@ -723,7 +723,10 @@ curl "$PRODUCTION_URL/api/health"
 
 Readiness is private and returns 503 unless the database, exact migration
 ledger, shared rate limiter, signed tenant context, and dedicated platform
-connection are all healthy. The tenant probe signs a synthetic nonexistent
+connection are all healthy. It also audits persisted integration configuration
+across every tenant and requires zero mock-mode connections. This database
+audit runs only in authenticated readiness; process startup and `/api/health`
+remain database-independent. The tenant probe signs a synthetic nonexistent
 tenant inside a real transaction and requires exact `school_sis_runtime`, the
 configured key ID/audience, and bypass false. The platform probe requires exact
 `school_sis_platform` and bypass true without reading or changing tenant data:

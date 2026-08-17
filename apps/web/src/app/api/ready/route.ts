@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireBearerServiceAuth } from "@/lib/auth/api";
 import {
   getDatabaseHealth,
+  getIntegrationConfigurationHealth,
   getMigrationHealth,
   getPlatformDatabaseHealth,
   getTenantContextHealth,
@@ -18,16 +19,27 @@ export async function GET(request: Request) {
   });
   if (authError) return authError;
 
-  const [database, migrations, platformDatabase, rateLimit, tenantContext] =
-    await Promise.all([
-      getDatabaseHealth(),
-      getMigrationHealth(),
-      getPlatformDatabaseHealth(),
-      getRateLimitHealth(),
-      getTenantContextHealth(),
-    ]);
+  const [
+    database,
+    integrationConfiguration,
+    migrations,
+    platformDatabase,
+    rateLimit,
+    tenantContext,
+  ] = await Promise.all([
+    getDatabaseHealth(),
+    getIntegrationConfigurationHealth(),
+    getMigrationHealth(),
+    getPlatformDatabaseHealth(),
+    getRateLimitHealth(),
+    getTenantContextHealth(),
+  ]);
   const ready =
     database.status === "healthy" &&
+    integrationConfiguration.status === "healthy" &&
+    (process.env.NODE_ENV !== "production" ||
+      (integrationConfiguration.enforced === true &&
+        integrationConfiguration.mockConnectionCount === 0)) &&
     migrations.status === "healthy" &&
     platformDatabase.status === "healthy" &&
     rateLimit.status === "healthy" &&
@@ -41,6 +53,7 @@ export async function GET(request: Request) {
       commit:
         process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || null,
       database,
+      integrationConfiguration,
       migrations,
       platformDatabase,
       rateLimit,

@@ -212,6 +212,14 @@ export function validateReadyPayload(
     problems.push("readiness commit does not match the release SHA");
   if (payload.database?.status !== "healthy")
     problems.push("database readiness is not healthy");
+  if (payload.integrationConfiguration?.status !== "healthy")
+    problems.push("integration-configuration readiness is not healthy");
+  if (payload.integrationConfiguration?.enforced !== true)
+    problems.push(
+      "production integration-configuration audit was not enforced",
+    );
+  if (payload.integrationConfiguration?.mockConnectionCount !== 0)
+    problems.push("production mock integration connections remain configured");
   if (payload.migrations?.status !== "healthy")
     problems.push("migration readiness is not healthy");
   if (payload.migrations?.reason !== "current")

@@ -260,25 +260,6 @@ export async function ensureIntegrationConnection(params: {
     );
 }
 
-export async function assertNoProductionMockConnections(): Promise<void> {
-    if (process.env.NODE_ENV !== 'production') return;
-
-    const result = await runWithRlsBypass<QueryResult<{ count: number }>>(
-        RLS_BYPASS_JUSTIFICATIONS.PRODUCTION_INTEGRATION_AUDIT,
-        () => pool.query<{ count: number }>(
-        `SELECT COUNT(*)::int AS count
-         FROM integration_connections
-         WHERE mode = 'MOCK' OR config ->> 'mock' = 'true'`,
-        ),
-    );
-    const count = result.rows[0]?.count || 0;
-    if (count > 0) {
-        throw new Error(
-            `Production startup blocked: ${count} integration connection(s) are still configured in MOCK mode.`,
-        );
-    }
-}
-
 export async function recordIntegrationAudit(params: {
     tenantId: string;
     provider: IntegrationProvider;

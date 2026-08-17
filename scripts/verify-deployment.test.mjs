@@ -32,6 +32,11 @@ function readyPayload(overrides = {}) {
     generatedAt: "2026-08-15T00:00:00.000Z",
     commit: SHA,
     database: { status: "healthy", latencyMs: 1 },
+    integrationConfiguration: {
+      status: "healthy",
+      enforced: true,
+      mockConnectionCount: 0,
+    },
     migrations: { status: "healthy", reason: "current" },
     platformDatabase: {
       status: "healthy",
@@ -122,6 +127,34 @@ test("readiness validation fails closed on degraded dependencies or stale migrat
   assert.match(problems.join(";"), /platform database bypass/);
   assert.match(problems.join(";"), /tenant database role/);
   assert.match(problems.join(";"), /unexpectedly permits RLS bypass/);
+});
+
+test("readiness validation requires an enforced, mock-free integration audit", () => {
+  const problems = validateReadyPayload(
+    readyPayload({
+      integrationConfiguration: {
+        status: "unhealthy",
+        enforced: false,
+        mockConnectionCount: 2,
+      },
+    }),
+    SHA,
+    TENANT_CONTEXT,
+  );
+
+  assert.deepEqual(problems, [
+    "integration-configuration readiness is not healthy",
+    "production integration-configuration audit was not enforced",
+    "production mock integration connections remain configured",
+  ]);
+  assert.match(
+    validateReadyPayload(
+      readyPayload({ integrationConfiguration: undefined }),
+      SHA,
+      TENANT_CONTEXT,
+    ).join(";"),
+    /integration-configuration readiness|audit was not enforced|mock integration connections/,
+  );
 });
 
 test("verifyVercelProtection requires the exact Vercel Authentication challenge", async () => {

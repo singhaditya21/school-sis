@@ -4,6 +4,7 @@ import {
   runWithRlsBypass,
   runWithTenantContext,
 } from "@/lib/db";
+import type { QueryResult } from "pg";
 import { EXPECTED_DATABASE_MIGRATIONS } from "@/generated/migration-manifest";
 import {
   evaluateMigrationLedger,
@@ -97,6 +98,70 @@ export type PlatformDatabaseHealth = {
   role: string | null;
   bypassVerified: boolean;
 };
+
+export type IntegrationConfigurationHealth = {
+  status: ComponentStatus;
+  enforced: boolean;
+  mockConnectionCount: number | null;
+};
+
+/**
+ * Audits persisted integration configuration across every tenant. This belongs
+ * in authenticated readiness, never process startup or unauthenticated
+ * liveness, because reaching the database must not be a prerequisite for the
+ * runtime to start and report that it is alive.
+ */
+export async function getIntegrationConfigurationHealth(): Promise<IntegrationConfigurationHealth> {
+  if (process.env.NODE_ENV !== "production") {
+    return {
+      status: "healthy",
+      enforced: false,
+      mockConnectionCount: null,
+    };
+  }
+
+  try {
+    const result = await runWithRlsBypass<
+      QueryResult<{ count: number | string }>
+    >(RLS_BYPASS_JUSTIFICATIONS.PRODUCTION_INTEGRATION_AUDIT, () =>
+      pool.query<{ count: number | string }>(
+        `SELECT COUNT(*)::int AS count
+           FROM integration_connections
+           WHERE mode = 'MOCK' OR config ->> 'mock' = 'true'`,
+      ),
+    );
+    const rawCount = result.rows[0]?.count;
+    const mockConnectionCount =
+      typeof rawCount === "number"
+        ? rawCount
+        : typeof rawCount === "string" && /^(?:0|[1-9]\d*)$/.test(rawCount)
+          ? Number(rawCount)
+          : Number.NaN;
+    if (
+      result.rows.length !== 1 ||
+      !Number.isSafeInteger(mockConnectionCount) ||
+      mockConnectionCount < 0
+    ) {
+      return {
+        status: "unhealthy",
+        enforced: true,
+        mockConnectionCount: null,
+      };
+    }
+
+    return {
+      status: mockConnectionCount === 0 ? "healthy" : "unhealthy",
+      enforced: true,
+      mockConnectionCount,
+    };
+  } catch {
+    return {
+      status: "unhealthy",
+      enforced: true,
+      mockConnectionCount: null,
+    };
+  }
+}
 
 /** Proves the deployed platform credential reaches only the pinned bypass role. */
 export async function getPlatformDatabaseHealth(): Promise<PlatformDatabaseHealth> {

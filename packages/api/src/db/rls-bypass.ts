@@ -54,7 +54,7 @@ export const RLS_BYPASS_JUSTIFICATIONS = {
   ),
   PRODUCTION_INTEGRATION_AUDIT: defineJustification(
     "integration.production-audit",
-    "Production startup must scan every tenant for forbidden mock integration configuration.",
+    "Authenticated production readiness must scan every tenant for forbidden mock integration configuration.",
   ),
   NOTIFICATION_SWEEP: defineJustification(
     "worker.notification-sweep",

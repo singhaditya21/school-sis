@@ -58,6 +58,24 @@ afterAll(() => {
 });
 
 describe('production integration safety', () => {
+  it('keeps liveness database-independent and audits persisted mock configuration in readiness', () => {
+    const instrumentation = fs.readFileSync(path.join(process.cwd(), 'src/instrumentation.ts'), 'utf8');
+    const health = fs.readFileSync(path.join(process.cwd(), 'src/app/api/health/route.ts'), 'utf8');
+    const readiness = fs.readFileSync(path.join(process.cwd(), 'src/app/api/ready/route.ts'), 'utf8');
+    const snapshot = fs.readFileSync(path.join(process.cwd(), 'src/lib/observability/snapshot.ts'), 'utf8');
+
+    expect(instrumentation).not.toContain('assertNoProductionMockConnections');
+    expect(instrumentation).not.toContain('integration_connections');
+    expect(health).not.toContain('@/lib/db');
+    expect(health).not.toContain('integration_connections');
+    expect(readiness).toContain('getIntegrationConfigurationHealth');
+    expect(readiness).toContain('integrationConfiguration.status === "healthy"');
+    expect(readiness).toContain('integrationConfiguration.enforced === true');
+    expect(readiness).toContain('integrationConfiguration.mockConnectionCount === 0');
+    expect(snapshot).toContain('RLS_BYPASS_JUSTIFICATIONS.PRODUCTION_INTEGRATION_AUDIT');
+    expect(snapshot).toContain("mode = 'MOCK' OR config ->> 'mock' = 'true'");
+  });
+
   it('never emits the legacy mock integration header', () => {
     process.env.NODE_ENV = 'production';
     const headers = new Headers(integrationApiHeaders());
