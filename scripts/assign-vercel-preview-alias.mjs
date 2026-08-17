@@ -159,7 +159,7 @@ async function readJson(response, label) {
   }
 }
 
-export function validateDeployment(payload, expected, requireAlias = false) {
+export function validateDeployment(payload, expected) {
   const problems = [];
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return ["deployment response is not an object"];
@@ -198,15 +198,22 @@ export function validateDeployment(payload, expected, requireAlias = false) {
   if (payload.meta?.schoolSisPreview !== "1") {
     problems.push("deployment preview marker is missing");
   }
-  if (
-    requireAlias &&
-    (!Array.isArray(payload.alias) ||
-      !payload.alias.some(
-        (value) =>
-          typeof value === "string" && value.toLowerCase() === expected.alias,
-      ))
-  ) {
-    problems.push("deployment alias does not match");
+  return problems;
+}
+
+export function validateAlias(payload, expected) {
+  const problems = [];
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return ["alias response is not an object"];
+  }
+  if (String(payload.alias ?? "").toLowerCase() !== expected.alias) {
+    problems.push("alias hostname does not match");
+  }
+  if (payload.deploymentId !== expected.deploymentId) {
+    problems.push("alias deployment does not match");
+  }
+  if (payload.projectId !== expected.projectId) {
+    problems.push("alias project does not match");
   }
   return problems;
 }
@@ -235,6 +242,26 @@ async function inspectDeployment(options, fetchImpl) {
     );
   }
   return readJson(response, "Vercel deployment inspection");
+}
+
+async function inspectAlias(options, fetchImpl) {
+  const response = await fetchImpl(
+    apiUrl(`/v4/aliases/${encodeURIComponent(options.alias)}`, options.teamId),
+    {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${options.token}`,
+      },
+      redirect: "error",
+      signal: AbortSignal.timeout(options.requestTimeoutMs),
+    },
+  );
+  if (response.status !== 200) {
+    throw new Error(
+      `Vercel alias inspection returned HTTP ${response.status}.`,
+    );
+  }
+  return readJson(response, "Vercel alias inspection");
 }
 
 export async function assignPreviewAlias(
@@ -273,11 +300,11 @@ export async function assignPreviewAlias(
     // POST is not retried. A follow-up GET determines whether it committed.
   }
 
-  let lastProblems = ["deployment alias does not match"];
+  let lastProblems = ["alias record does not match"];
   for (let attempt = 1; attempt <= options.attempts; attempt += 1) {
     try {
-      const deployment = await inspectDeployment(options, fetchImpl);
-      lastProblems = validateDeployment(deployment, options, true);
+      const alias = await inspectAlias(options, fetchImpl);
+      lastProblems = validateAlias(alias, options);
       if (lastProblems.length === 0) {
         return {
           alias: options.alias,

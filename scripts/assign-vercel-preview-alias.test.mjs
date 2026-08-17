@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   assignPreviewAlias,
   parseArgs,
+  validateAlias,
   validateDeployment,
 } from "./assign-vercel-preview-alias.mjs";
 
@@ -76,12 +77,8 @@ test("parseArgs keeps the token environment-only and validates exact identifiers
   );
 });
 
-test("validateDeployment binds project, preview target, READY state, SHA, PR, and alias", () => {
+test("validateDeployment binds project, preview target, READY state, SHA, and PR", () => {
   assert.deepEqual(validateDeployment(deployment(), OPTIONS), []);
-  assert.deepEqual(
-    validateDeployment(deployment({ alias: [OPTIONS.alias] }), OPTIONS, true),
-    [],
-  );
   const problems = validateDeployment(
     deployment({
       projectId: "prj_other",
@@ -90,7 +87,6 @@ test("validateDeployment binds project, preview target, READY state, SHA, PR, an
       meta: {},
     }),
     OPTIONS,
-    true,
   );
   assert.match(problems.join("; "), /project/);
   assert.match(problems.join("; "), /production/);
@@ -98,7 +94,31 @@ test("validateDeployment binds project, preview target, READY state, SHA, PR, an
   assert.match(problems.join("; "), /commit metadata/);
   assert.match(problems.join("; "), /pull-request metadata/);
   assert.match(problems.join("; "), /preview marker/);
-  assert.match(problems.join("; "), /alias/);
+});
+
+test("validateAlias requires the exact hostname, deployment, and project", () => {
+  assert.deepEqual(
+    validateAlias(
+      {
+        alias: OPTIONS.alias,
+        deploymentId: OPTIONS.deploymentId,
+        projectId: OPTIONS.projectId,
+      },
+      OPTIONS,
+    ),
+    [],
+  );
+  assert.equal(
+    validateAlias(
+      {
+        alias: "other.vercel.app",
+        deploymentId: "dpl_other",
+        projectId: "prj_other",
+      },
+      OPTIONS,
+    ).length,
+    3,
+  );
 });
 
 test("assignPreviewAlias uses the team-scoped REST endpoint and proves the result", async () => {
@@ -106,13 +126,14 @@ test("assignPreviewAlias uses the team-scoped REST endpoint and proves the resul
   const fetchImpl = async (url, init) => {
     calls.push({ url, init });
     if (init.method === "POST") return jsonResponse({ alias: OPTIONS.alias });
-    return jsonResponse(
-      deployment({
-        alias: calls.some((call) => call.init.method === "POST")
-          ? [OPTIONS.alias]
-          : [],
-      }),
-    );
+    if (url.includes("/v4/aliases/")) {
+      return jsonResponse({
+        alias: OPTIONS.alias,
+        deploymentId: OPTIONS.deploymentId,
+        projectId: OPTIONS.projectId,
+      });
+    }
+    return jsonResponse(deployment());
   };
 
   const result = await assignPreviewAlias(OPTIONS, {
@@ -132,6 +153,10 @@ test("assignPreviewAlias uses the team-scoped REST endpoint and proves the resul
     calls[1].url,
     /\/v2\/deployments\/dpl_123abc\/aliases\?teamId=team_123abc$/,
   );
+  assert.match(
+    calls[2].url,
+    /\/v4\/aliases\/school-sis-preview-pr-59\.vercel\.app\?teamId=team_123abc$/,
+  );
   assert.equal(calls[1].init.headers.Authorization, `Bearer ${TOKEN}`);
   assert.equal(calls[1].init.body, JSON.stringify({ alias: OPTIONS.alias }));
 });
@@ -139,13 +164,20 @@ test("assignPreviewAlias uses the team-scoped REST endpoint and proves the resul
 test("assignPreviewAlias reconciles an ambiguous POST without retrying it", async () => {
   let posted = false;
   let postCount = 0;
-  const fetchImpl = async (_url, init) => {
+  const fetchImpl = async (url, init) => {
     if (init.method === "POST") {
       postCount += 1;
       posted = true;
       throw new Error("connection reset after commit");
     }
-    return jsonResponse(deployment({ alias: posted ? [OPTIONS.alias] : [] }));
+    if (posted && url.includes("/v4/aliases/")) {
+      return jsonResponse({
+        alias: OPTIONS.alias,
+        deploymentId: OPTIONS.deploymentId,
+        projectId: OPTIONS.projectId,
+      });
+    }
+    return jsonResponse(deployment());
   };
   await assignPreviewAlias(OPTIONS, { fetchImpl, sleep: async () => {} });
   assert.equal(postCount, 1);
@@ -154,16 +186,21 @@ test("assignPreviewAlias reconciles an ambiguous POST without retrying it", asyn
 test("assignPreviewAlias retries only safe GET verification failures", async () => {
   let inspectionCount = 0;
   let postCount = 0;
-  const fetchImpl = async (_url, init) => {
+  const fetchImpl = async (url, init) => {
     if (init.method === "POST") {
       postCount += 1;
       return jsonResponse({ alias: OPTIONS.alias });
     }
     inspectionCount += 1;
     if (inspectionCount === 2) throw new Error("temporary GET failure");
-    return jsonResponse(
-      deployment({ alias: inspectionCount >= 3 ? [OPTIONS.alias] : [] }),
-    );
+    if (url.includes("/v4/aliases/")) {
+      return jsonResponse({
+        alias: OPTIONS.alias,
+        deploymentId: OPTIONS.deploymentId,
+        projectId: OPTIONS.projectId,
+      });
+    }
+    return jsonResponse(deployment());
   };
   await assignPreviewAlias(OPTIONS, { fetchImpl, sleep: async () => {} });
   assert.equal(postCount, 1);
@@ -184,15 +221,24 @@ test("assignPreviewAlias refuses cross-project metadata before POST", async () =
 });
 
 test("assignPreviewAlias fails when the alias cannot be proven", async () => {
-  const fetchImpl = async (_url, init) =>
-    init.method === "POST"
-      ? jsonResponse({ error: { code: "forbidden" } }, 403)
-      : jsonResponse(deployment());
+  const fetchImpl = async (url, init) => {
+    if (init.method === "POST") {
+      return jsonResponse({ error: { code: "forbidden" } }, 403);
+    }
+    if (url.includes("/v4/aliases/")) {
+      return jsonResponse({
+        alias: "other.vercel.app",
+        deploymentId: "dpl_other",
+        projectId: "prj_other",
+      });
+    }
+    return jsonResponse(deployment());
+  };
   await assert.rejects(
     assignPreviewAlias(
       { ...OPTIONS, attempts: 1 },
       { fetchImpl, sleep: async () => {} },
     ),
-    /not proven after HTTP 403: deployment alias does not match/,
+    /not proven after HTTP 403: alias hostname does not match; alias deployment does not match; alias project does not match/,
   );
 });
