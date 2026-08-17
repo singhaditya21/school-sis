@@ -303,9 +303,14 @@ Automatic Git deployment remains disabled for both projects by
 `apps/web/vercel.json`; GitHub Actions is the only deployment owner. The
 preview project stores no persistent application configuration other than
 `ENABLE_EXPERIMENTAL_COREPACK=1`, and no production secrets. The workflow
-rejects any unexpected pulled Preview variable, then removes downloaded Vercel
-environment files before pull-request code runs. Database and core secrets are
-created or supplied for one deployment only.
+rejects any unexpected pulled Preview variable. It also requires Vercel's exact
+generated Nx/Turborepo build controls (`NX_DAEMON=false`,
+`TURBO_CACHE=remote:rw`, `TURBO_DOWNLOAD_LOCAL_ENABLED=true`,
+`TURBO_REMOTE_ONLY=true`, and `TURBO_RUN_SUMMARY=true`). The downloaded Vercel
+environment files—including those build controls—are then removed and rebuilt
+from the isolated per-deployment application allowlist before the application
+build or deployment runs. Database and core secrets are created or supplied for
+one deployment only.
 
 Vercel CLI 59.0.0 is pinned and patched through pnpm so `vercel pull` accepts
 the CLI's existing project-scoped owner-lookup fallback when the exact Project

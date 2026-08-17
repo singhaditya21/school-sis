@@ -1096,13 +1096,21 @@ jobs:
           const require = createRequire(resolve('apps/web/package.json'));
           const { parse } = require('dotenv');
           const pulled = parse(readFileSync(environmentPath));
+          const expectedVercelBuildControls = new Map([
+            ['NX_DAEMON', 'false'],
+            ['TURBO_CACHE', 'remote:rw'],
+            ['TURBO_DOWNLOAD_LOCAL_ENABLED', 'true'],
+            ['TURBO_REMOTE_ONLY', 'true'],
+            ['TURBO_RUN_SUMMARY', 'true'],
+          ]);
           const allowedPulledNames = new Set([
             'CI', 'ENABLE_EXPERIMENTAL_COREPACK', 'VERCEL', 'VERCEL_BRANCH_URL',
             'VERCEL_AUTOMATION_BYPASS_SECRET',
             'VERCEL_DEPLOYMENT_ID', 'VERCEL_ENV', 'VERCEL_OIDC_TOKEN',
             'VERCEL_PROJECT_ID', 'VERCEL_PROJECT_NAME',
             'VERCEL_PROJECT_PRODUCTION_URL', 'VERCEL_REGION',
-            'VERCEL_SKEW_PROTECTION_ENABLED', 'VERCEL_TARGET_ENV', 'VERCEL_URL'
+            'VERCEL_SKEW_PROTECTION_ENABLED', 'VERCEL_TARGET_ENV', 'VERCEL_URL',
+            ...expectedVercelBuildControls.keys(),
           ]);
           const unexpected = Object.keys(pulled).filter(
             (name) =>
@@ -1112,6 +1120,14 @@ jobs:
           if (unexpected.length > 0) {
             throw new Error(
               `Preview Vercel project contains persistent application variables; remove them before deploying: ${unexpected.sort().join(', ')}`,
+            );
+          }
+          const invalidBuildControls = [...expectedVercelBuildControls].flatMap(
+            ([name, expected]) => pulled[name] === expected ? [] : [name],
+          );
+          if (invalidBuildControls.length > 0) {
+            throw new Error(
+              `Preview Vercel build controls are missing or unexpected: ${invalidBuildControls.sort().join(', ')}`,
             );
           }
           if (

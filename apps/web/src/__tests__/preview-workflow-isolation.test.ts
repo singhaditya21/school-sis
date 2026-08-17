@@ -93,6 +93,56 @@ describe("preview Vercel project isolation workflow", () => {
     );
   });
 
+  it("accepts only the exact Vercel build controls and discards them before build", () => {
+    const buildControlMap = workflow.slice(
+      workflow.indexOf("const expectedVercelBuildControls = new Map(["),
+      workflow.indexOf("const allowedPulledNames = new Set(["),
+    );
+    expect(buildControlMap.match(/\['[A-Z_]+', '[^']+'\]/g)).toHaveLength(5);
+    for (const [name, value] of [
+      ["NX_DAEMON", "false"],
+      ["TURBO_CACHE", "remote:rw"],
+      ["TURBO_DOWNLOAD_LOCAL_ENABLED", "true"],
+      ["TURBO_REMOTE_ONLY", "true"],
+      ["TURBO_RUN_SUMMARY", "true"],
+    ]) {
+      expect(workflow).toContain(`['${name}', '${value}']`);
+    }
+    expect(workflow).toContain("pulled[name] === expected ? [] : [name]");
+    expect(workflow).toContain(
+      "Preview Vercel build controls are missing or unexpected",
+    );
+
+    const validation = workflow.indexOf(
+      "const invalidBuildControls = [...expectedVercelBuildControls]",
+    );
+    const environmentRemoval = workflow.indexOf(
+      "for (const directory of ['.vercel', 'apps/web/.vercel'])",
+    );
+    const isolatedRewrite = workflow.indexOf("writeFileSync(environmentPath");
+    const applicationBuild = workflow.indexOf(
+      "- name: Build, then migrate the isolated preview database",
+    );
+    expect(validation).toBeGreaterThan(0);
+    expect(environmentRemoval).toBeGreaterThan(validation);
+    expect(isolatedRewrite).toBeGreaterThan(environmentRemoval);
+    expect(applicationBuild).toBeGreaterThan(isolatedRewrite);
+
+    const isolatedEnvironment = workflow.slice(
+      workflow.indexOf("const environmentNames = ["),
+      workflow.indexOf("writeFileSync(environmentPath"),
+    );
+    for (const name of [
+      "NX_DAEMON",
+      "TURBO_CACHE",
+      "TURBO_DOWNLOAD_LOCAL_ENABLED",
+      "TURBO_REMOTE_ONLY",
+      "TURBO_RUN_SUMMARY",
+    ]) {
+      expect(isolatedEnvironment).not.toContain(`'${name}'`);
+    }
+  });
+
   it("proves the preview Neon token cannot access the production project", () => {
     expect(workflow).toContain("Prove Neon preview token project isolation");
     expect(workflow).toContain(
