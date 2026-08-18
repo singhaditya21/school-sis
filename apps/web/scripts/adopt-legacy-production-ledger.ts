@@ -2044,13 +2044,13 @@ export async function verifyNeonProviderIdentity(
     branch?.id !== configuration.expectedBranchId ||
     branch.project_id !== configuration.expectedProjectId ||
     branch.default !== true ||
-    branch.protected !== true ||
+    branch.protected !== false ||
     branch.current_state !== "ready" ||
     (branch.pending_state !== null && branch.pending_state !== undefined) ||
     (branch.parent_id !== null && branch.parent_id !== undefined)
   ) {
     throw new Error(
-      "Neon did not confirm the expected protected default root production branch.",
+      "Neon did not confirm the expected unprotected default root production branch required by Neon Free.",
     );
   }
 

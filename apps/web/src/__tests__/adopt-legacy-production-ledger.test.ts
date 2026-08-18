@@ -988,10 +988,26 @@ describe("one-time package and protected workflow integration", () => {
     );
     expect(workflow).toContain("attest_restore_drill_and_same_run_snapshot");
     expect(workflow).toContain(RESTORE_DRILL_ATTESTATION);
+    expect(workflow).toContain('repository_owner="${GITHUB_REPOSITORY%%/*}"');
+    expect(workflow).toContain('solo_release_owner="$repository_owner"');
+    expect(workflow).not.toContain("actions/variables/SOLO_RELEASE_OWNER");
+    expect(workflow).toContain('[ "$GITHUB_ACTOR" != "$repository_owner" ]');
+    expect(workflow).toContain(
+      '[ "$GITHUB_TRIGGERING_ACTOR" != "$repository_owner" ]',
+    );
     expect(workflow).toContain(".merge_commit_sha == $sha");
-    expect(workflow).toContain('.state == "APPROVED"');
-    expect(workflow).toContain(".commit_id == $head");
-    expect(workflow).toContain("collaborators/${approved_reviewer}/permission");
+    expect(workflow).toContain(".user.login == $owner");
+    expect(workflow).toContain(".head.repo.full_name == env.GITHUB_REPOSITORY");
+    expect(workflow).toContain("commits/${TARGET_SHA}/pulls?per_page=100");
+    expect(workflow).toContain(
+      "collaborators/${solo_release_owner}/permission",
+    );
+    expect(workflow).toContain("collaborators?affiliation=all&per_page=100");
+    expect(workflow).toContain(".permissions.push == true");
+    expect(workflow).toContain("($push_capable | length) == 1");
+    expect(workflow).toContain('.permission == "admin"');
+    expect(workflow).not.toContain("/reviews?per_page=100");
+    expect(workflow).not.toContain("approved_reviewer");
     expect(workflow).toContain('GITHUB_RUN_ATTEMPT:-}" != "1"');
     expect(workflow).not.toContain("--request POST");
     expect(workflow).not.toContain("/snapshot?name=");
@@ -1009,7 +1025,9 @@ describe("one-time package and protected workflow integration", () => {
     expect(productionWorkflow).toContain("group: production-release");
     expect(productionWorkflow).toContain("environment: production");
     expect(productionWorkflow.indexOf("environment: production")).toBeLessThan(
-      productionWorkflow.indexOf("Create pre-migration Neon snapshot"),
+      productionWorkflow.indexOf(
+        "Create and verify Free-tier recovery branch checkpoint",
+      ),
     );
   });
 
@@ -1315,7 +1333,7 @@ describe("provider and target-reference evidence", () => {
             id: "br-hidden-union-ao8rd4ha",
             project_id: "wispy-leaf-40556376",
             default: true,
-            protected: true,
+            protected: false,
             current_state: "ready",
             pending_state: null,
             ...overrides.branch,
@@ -1485,10 +1503,10 @@ describe("provider and target-reference evidence", () => {
       verifyNeonProviderIdentity(
         configuration,
         "secret",
-        neonFetch({ branch: { protected: false } }),
+        neonFetch({ branch: { protected: true } }),
         recoverySnapshot(),
       ),
-    ).rejects.toThrow("protected default root");
+    ).rejects.toThrow("unprotected default root");
     await expect(
       verifyNeonProviderIdentity(
         configuration,
@@ -1496,7 +1514,7 @@ describe("provider and target-reference evidence", () => {
         neonFetch({ branch: { current_state: "initializing" } }),
         recoverySnapshot(),
       ),
-    ).rejects.toThrow("protected default root");
+    ).rejects.toThrow("unprotected default root");
     await expect(
       verifyNeonProviderIdentity(
         configuration,

@@ -4,12 +4,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 const GITHUB_API_VERSION = "2022-11-28";
-const DECISIVE_REVIEW_STATES = new Set([
-  "APPROVED",
-  "CHANGES_REQUESTED",
-  "DISMISSED",
-]);
-const RELEASE_PERMISSIONS = new Set(["write", "maintain", "admin"]);
+const GITHUB_LOGIN_PATTERN = /^[A-Za-z0-9-]{1,39}$/;
 
 function usage() {
   return `Usage: node scripts/verify-production-release-provenance.mjs [options]
@@ -22,7 +17,8 @@ Options:
   --ref BRANCH                  EXPECTED_HEAD_BRANCH (default: main)
 
 Authentication is read only and must be supplied through GITHUB_TOKEN. The
-token is never accepted as a command-line argument or printed.`;
+token is never accepted as a command-line argument or printed. The repository
+owner is the exact solo release owner and must still have admin permission.`;
 }
 
 export function parseArgs(argv, env = process.env) {
@@ -113,54 +109,51 @@ async function githubList(path, token, fetchImpl) {
   );
 }
 
-function reviewTimestamp(review) {
-  const timestamp = Date.parse(review?.submitted_at ?? "");
-  return Number.isFinite(timestamp) ? timestamp : -1;
-}
-
-export function latestDecisiveReviews(reviews, headSha) {
-  const latest = new Map();
-  for (const review of reviews) {
-    const login = review?.user?.login;
-    const state = String(review?.state ?? "").toUpperCase();
-    if (
-      typeof login !== "string" ||
-      login.length === 0 ||
-      review?.commit_id?.toLowerCase() !== headSha ||
-      !DECISIVE_REVIEW_STATES.has(state) ||
-      reviewTimestamp(review) < 0
-    ) {
-      continue;
-    }
-
-    const current = latest.get(login.toLowerCase());
-    if (
-      !current ||
-      reviewTimestamp(review) > reviewTimestamp(current) ||
-      (reviewTimestamp(review) === reviewTimestamp(current) &&
-        Number(review.id ?? -1) > Number(current.id ?? -1))
-    ) {
-      latest.set(login.toLowerCase(), review);
-    }
+function readSoloReleaseOwner(options) {
+  const repositoryOwner = options.repository.slice(
+    0,
+    options.repository.indexOf("/"),
+  );
+  if (!GITHUB_LOGIN_PATTERN.test(repositoryOwner)) {
+    throw new Error("The repository owner is not a canonical GitHub login.");
   }
-  return latest;
+  return repositoryOwner;
 }
 
-async function collaboratorCanApprove(repository, login, token, fetchImpl) {
-  const response = await fetchImpl(
-    apiUrl(
-      `/repos/${repository}/collaborators/${encodeURIComponent(login)}/permission`,
-    ),
-    { headers: githubHeaders(token) },
+async function requireCurrentAdmin(options, owner, fetchImpl) {
+  const payload = await githubJson(
+    `/repos/${options.repository}/collaborators/${encodeURIComponent(owner)}/permission`,
+    options.token,
+    fetchImpl,
   );
-  if (response.status === 404) return false;
-  if (!response.ok) throw apiFailure(response);
+  if (payload?.user?.login !== owner || payload?.permission !== "admin") {
+    throw new Error(
+      "The solo repository owner must still have exact admin permission.",
+    );
+  }
+}
 
-  const payload = await response.json();
-  if (payload?.user?.login?.toLowerCase() !== login.toLowerCase()) return false;
-  return [payload.permission, payload.role_name].some((permission) =>
-    RELEASE_PERMISSIONS.has(String(permission ?? "").toLowerCase()),
+async function requireSoloRepositoryTopology(options, owner, fetchImpl) {
+  const collaborators = await githubList(
+    `/repos/${options.repository}/collaborators?affiliation=all`,
+    options.token,
+    fetchImpl,
   );
+  const pushCapable = collaborators.filter(
+    (collaborator) =>
+      collaborator?.permissions?.push === true ||
+      collaborator?.permissions?.maintain === true ||
+      collaborator?.permissions?.admin === true,
+  );
+  if (
+    pushCapable.length !== 1 ||
+    pushCapable[0]?.login !== owner ||
+    pushCapable[0]?.permissions?.admin !== true
+  ) {
+    throw new Error(
+      "Solo release policy requires exactly one push-capable collaborator: the repository owner with admin permission.",
+    );
+  }
 }
 
 export async function verifyProductionReleaseProvenance(
@@ -171,6 +164,8 @@ export async function verifyProductionReleaseProvenance(
   if (typeof fetchImpl !== "function") {
     throw new Error("A fetch implementation is required.");
   }
+
+  const soloReleaseOwner = readSoloReleaseOwner(options);
 
   const encodedRef = options.ref.split("/").map(encodeURIComponent).join("/");
   const branch = await githubJson(
@@ -202,6 +197,8 @@ export async function verifyProductionReleaseProvenance(
       pullRequest?.base?.ref === options.ref &&
       pullRequest?.base?.repo?.full_name?.toLowerCase() ===
         options.repository.toLowerCase() &&
+      pullRequest?.head?.repo?.full_name?.toLowerCase() ===
+        options.repository.toLowerCase() &&
       pullRequest?.merge_commit_sha?.toLowerCase() === options.sha,
   );
   if (mergedCandidates.length !== 1) {
@@ -218,58 +215,23 @@ export async function verifyProductionReleaseProvenance(
   if (!headSha || !/^[0-9a-f]{40}$/.test(headSha)) {
     throw new Error("Merged pull request has an invalid head SHA.");
   }
-  const authorLogin = pullRequest?.user?.login?.toLowerCase();
-  if (!authorLogin) {
-    throw new Error("Merged pull request has an invalid author identity.");
+  if (pullRequest?.user?.login !== soloReleaseOwner) {
+    throw new Error(
+      "The exact merged pull request must be authored by the solo repository owner.",
+    );
   }
   const mergedAt = Date.parse(pullRequest.merged_at);
   if (!Number.isFinite(mergedAt)) {
     throw new Error("Merged pull request has an invalid merge timestamp.");
   }
 
-  const reviews = await githubList(
-    `/repos/${options.repository}/pulls/${pullRequest.number}/reviews`,
-    options.token,
-    fetchImpl,
-  );
-  const latestReviews = latestDecisiveReviews(reviews, headSha);
-  if (
-    [...latestReviews.values()].some(
-      (review) => String(review.state).toUpperCase() === "CHANGES_REQUESTED",
-    )
-  ) {
-    throw new Error(
-      "The exact pull-request head SHA still has a latest CHANGES_REQUESTED review.",
-    );
-  }
-  const approvedReviews = [...latestReviews.values()].filter(
-    (review) =>
-      String(review.state).toUpperCase() === "APPROVED" &&
-      reviewTimestamp(review) <= mergedAt &&
-      review.user.login.toLowerCase() !== authorLogin,
-  );
-
-  for (const review of approvedReviews) {
-    const login = review.user.login;
-    if (
-      await collaboratorCanApprove(
-        options.repository,
-        login,
-        options.token,
-        fetchImpl,
-      )
-    ) {
-      return {
-        pullRequestNumber: pullRequest.number,
-        pullRequestHeadSha: headSha,
-        approver: login,
-      };
-    }
-  }
-
-  throw new Error(
-    "No latest APPROVED review on the exact pull-request head SHA came from a current write, maintain, or admin collaborator different from the pull-request author.",
-  );
+  await requireCurrentAdmin(options, soloReleaseOwner, fetchImpl);
+  await requireSoloRepositoryTopology(options, soloReleaseOwner, fetchImpl);
+  return {
+    pullRequestNumber: pullRequest.number,
+    pullRequestHeadSha: headSha,
+    soloReleaseOwner,
+  };
 }
 
 async function main() {

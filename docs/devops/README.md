@@ -6,10 +6,10 @@ The supported topology is:
 
 ```text
 local development  -> local Postgres on port 5433
-pull request       -> approval -> isolated preview credentials
+pull request       -> owner approval -> isolated preview credentials
                    -> fresh PII-free Neon branch -> separate Vercel preview -> readiness proof
 main               -> required CI -> staged Vercel production build
-                   -> Neon snapshot -> locked migration + RLS verification
+                   -> Neon Free recovery branch -> locked migration + RLS verification
                    -> candidate readiness -> promotion -> canonical readiness
 ```
 
@@ -57,8 +57,8 @@ Set `DATABASE_SSL_MODE=verify-full`. Remote migration commands reject local, non
 `db:push`, standalone `db:rls`, and the destructive RLS integration test are local-only. All remote changes must use:
 
 ```bash
-pnpm db:migrate:deploy -- --target preview
-pnpm db:migrate:deploy -- --target production
+pnpm db:migrate:deploy --target preview
+pnpm db:migrate:deploy --target production
 ```
 
 The deployment migrator:
@@ -88,7 +88,9 @@ migration prefix.
 
 For a destructive migration, use this reviewed maintenance sequence:
 
-1. Stop normal production releases and take a verified Neon snapshot.
+1. Stop normal production releases and create a verified, no-endpoint recovery
+   branch from the exact production root. Do not consume or replace the sole
+   Neon Free manual snapshot reserved for the one-time ledger adoption.
 2. Prove the current production ledger and schema match the expected prefix.
 3. Apply the reviewed SQL and its exact Drizzle ledger entry through a protected,
    single-session maintenance operation with the production advisory lock.
@@ -97,7 +99,7 @@ For a destructive migration, use this reviewed maintenance sequence:
 5. Preserve the approving GitHub review/run as evidence, then add the exact
    immutable record to `scripts/destructive-migration-maintenance.json`.
 6. Resume the normal release only after `pnpm audit:migrations:release` passes
-   and `db:migrate:deploy -- --target production` proves that no recorded
+   and `db:migrate:deploy --target production` proves that no recorded
    destructive migration is pending.
 
 Never add a maintenance record before the protected operation has completed.
@@ -114,7 +116,7 @@ Before enabling production release:
 3. Build the current baseline in a disposable Neon branch.
 4. Compare extensions, tables, columns, constraints, indexes, triggers, functions, and RLS policies.
 5. If the schemas are exactly equivalent, perform a separately reviewed ledger adoption. If not, write an explicit reconciliation migration.
-6. Run `db:migrate:deploy -- --target production` only after that review.
+6. Run `db:migrate:deploy --target production` only after that review.
 
 The automated migrator intentionally fails this case instead of guessing or marking the baseline applied.
 
@@ -169,15 +171,15 @@ can reach production.
 
 `production` Environment secrets:
 
-| Secret                                   | Purpose                                                       |
-| ---------------------------------------- | ------------------------------------------------------------- |
-| `VERCEL_TOKEN`                           | Token for the production Vercel workspace                     |
-| `NEON_API_KEY`                           | Project-scoped key for production snapshots and branch checks |
-| `NEON_PRODUCTION_DIRECT_URL`             | Direct migration-owner URL; never passed to Vercel runtime    |
-| `METRICS_TOKEN`                          | Same bearer token configured in Vercel production             |
-| `VERCEL_AUTOMATION_BYPASS_SECRET`        | Production candidate and canonical readiness probes           |
-| `TENANT_CONTEXT_SIGNING_SECRET`          | Current 256-bit-or-stronger production HMAC credential        |
-| `TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET` | Previous production HMAC credential during rotation only      |
+| Secret                                   | Purpose                                                                  |
+| ---------------------------------------- | ------------------------------------------------------------------------ |
+| `VERCEL_TOKEN`                           | Token for the production Vercel workspace                                |
+| `NEON_API_KEY`                           | Project-scoped key for production recovery checkpoints and branch checks |
+| `NEON_PRODUCTION_DIRECT_URL`             | Direct migration-owner URL; never passed to Vercel runtime               |
+| `METRICS_TOKEN`                          | Same bearer token configured in Vercel production                        |
+| `VERCEL_AUTOMATION_BYPASS_SECRET`        | Production candidate and canonical readiness probes                      |
+| `TENANT_CONTEXT_SIGNING_SECRET`          | Current 256-bit-or-stronger production HMAC credential                   |
+| `TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET` | Previous production HMAC credential during rotation only                 |
 
 `preview` Environment secrets:
 
@@ -203,7 +205,7 @@ Repository variables:
 | `VERCEL_PROJECT_ID`                               | Production Vercel project ID                                                                                      |
 | `PRODUCTION_URL`                                  | `https://school-sis-web.vercel.app`                                                                               |
 | `NEON_PROJECT_ID`                                 | Production Neon project ID                                                                                        |
-| `NEON_PRODUCTION_BRANCH_ID`                       | Protected production root-branch ID                                                                               |
+| `NEON_PRODUCTION_BRANCH_ID`                       | Exact unprotected production root-branch ID required by Neon Free                                                 |
 | `NEON_DATABASE_NAME`                              | Production database name                                                                                          |
 | `NEON_MIGRATION_ROLE`                             | Production DDL-owner role                                                                                         |
 | `NEON_RUNTIME_ROLE`                               | Production least-privilege runtime role                                                                           |
@@ -232,7 +234,7 @@ credential boundary even though audiences differ.
 The reviewed source of truth is
 `.github/tenant-context-key-contract.json`, whose exact version, keys, key-ID
 formats, fingerprint formats, and cross-environment differences are checked by
-both workflows. The two repository variables above are an exact public mirror
+both workflows. The two fingerprint repository variables above are an exact public mirror
 used by the no-Environment preflight job to prevent pull-request code from
 substituting that tracked artifact; never define same-named Environment
 variables. The JSON at the exact deployment SHA remains authoritative: mirror
@@ -249,13 +251,18 @@ together, both must have the canonical shapes and differ from the current key,
 and `TENANT_CONTEXT_RETIRE_PREVIOUS_KEY` must be unset or exactly `true`.
 Retirement cannot be requested while a previous verification key is still
 configured. Invalid intermediate rotation states therefore fail before a
-pre-migration snapshot is consumed.
+production recovery checkpoint is created.
 
 Keep these non-secret identifiers as repository variables so both isolated
-workflows can prove that preview and production IDs differ. Protect both the
-`production` and `preview` GitHub Environments with required reviewers.
-Protect `main` with pull requests, blocked force-push/deletion, and these
-required checks:
+workflows can prove that preview and production IDs differ. The repository is
+operated by one maintainer. Keep `main` PR-only, set the required approval
+count to zero, and block direct pushes through administrator enforcement.
+Protect both GitHub Environments with the sole maintainer as their required
+reviewer and with self-review prevention disabled. For `production`, disable
+administrator bypass so the exact workflow run still needs a recorded manual
+approval. Release and adoption gates also require the owner to remain the only
+push-capable collaborator. Keep force-push/deletion blocked and require these
+checks:
 
 - `Dependency Review` on pull requests
 - `validate`
@@ -350,16 +357,31 @@ Environment changes require a new deployment.
 
 ## Neon production configuration
 
-Use the paid production Neon project in Singapore `aws-ap-southeast-1`,
-colocated with Vercel `sin1`, and retain a pre-migration snapshot for every
-release. The PII-free preview Neon project remains in `aws-us-east-1` and its
-Vercel functions deploy explicitly to `iad1`. The
-protected production branch must be the project root branch because Neon
-snapshots cannot be created from child branches. Configure a recovery-history
-window and scheduled snapshots appropriate for school data, then test a
-restore into an inspectable branch before launch. A plan or branch that cannot
-create another manual snapshot intentionally blocks deployment before any
-schema change. Use a different PII-free Neon project for previews.
+Use only Neon Free. Keep the production project in Singapore
+`aws-ap-southeast-1`, colocated with Vercel `sin1`, and keep the separate,
+PII-free preview project in `aws-us-east-1` with Vercel preview functions in
+`iad1`. Neon branch protection and scheduled snapshots are paid features, so
+the production workflow requires the exact default root branch to report
+`protected: false`, `parent_id: null`, `current_state: ready`, and no pending
+state. Any different provider state fails before database mutation.
+See Neon’s [protected-branch limits](https://neon.com/docs/guides/protected-branches),
+[Free plan limits](https://neon.com/pricing), and
+[snapshot/restore documentation](https://neon.com/docs/ai/ai-database-versioning).
+
+Neon Free provides one manual snapshot and a limited restore-history window.
+Reserve that one snapshot for the one-time historical-ledger adoption. Normal
+releases [create a no-endpoint child branch](https://api-docs.neon.tech/reference/createprojectbranch)
+from the production root before
+migration. After the new branch is proven, the workflow deletes only older
+recovery branches whose exact pipeline-owned name, project, parent, state, and
+absence of endpoints are reverified. The `recovery/pre-migrate-<sha>-<run>`
+namespace is reserved exclusively for this workflow; never create manual
+branches in it. Branches outside that namespace are never deleted. The newest
+checkpoint is retained on success or failure until
+the next release rotates it or its seven-day TTL expires. This keeps every
+normal release recoverable during the release window without trying to create
+a second manual snapshot. Test both snapshot and branch recovery procedures
+before launch; neither workflow restores production automatically.
 
 Use three distinct database roles: the exact least-privilege
 `school_sis_runtime` role in Vercel's pooled `DATABASE_URL`, the exact
@@ -464,11 +486,13 @@ chain before deployment.
 After `E2E Tests` succeeds for the current `main` SHA, `.github/workflows/deploy-production.yml`:
 
 1. verifies that protected `main` still points to the exact triggering SHA and
-   that the SHA is the reviewed merge commit of one approved pull request;
+   that the SHA is the unique merged pull request authored by the configured
+   sole release owner;
 2. waits for all required CI workflows/checks for that SHA;
 3. pulls production Vercel settings and builds an immutable artifact;
 4. captures the currently promoted Vercel deployment;
-5. creates and verifies a pre-migration Neon snapshot;
+5. creates and verifies a no-endpoint Neon Free recovery branch before any
+   migration, then removes only older, exactly verified pipeline checkpoints;
 6. rechecks `main`, then runs the expand-only, locked migration and RLS postflight;
 7. deploys the prebuilt artifact to `sin1` with `--prod --skip-domain`;
 8. proves the generated candidate URL is protected by Vercel Authentication,
@@ -587,8 +611,9 @@ LEGACY_LEDGER_ADOPTION_TARGET_EVIDENCE_ARTIFACT_SHA256
 LEGACY_LEDGER_ADOPTION_TARGET_EVIDENCE_URL
 ```
 
-The `production` GitHub environment must have an independent required reviewer.
-It must provide `NEON_API_KEY` and the strict direct
+The `production` GitHub environment must require `singhaditya21`, the sole
+maintainer, as reviewer with self-review prevention disabled and administrator
+bypass disabled. It must provide `NEON_API_KEY` and the strict direct
 `NEON_PRODUCTION_DIRECT_URL` secrets, plus `NEON_PROJECT_ID`,
 `NEON_PRODUCTION_BRANCH_ID`, `NEON_DATABASE_NAME`, `NEON_MIGRATION_ROLE`,
 `NEON_RUNTIME_ROLE`, and `NEON_PLATFORM_ROLE` variables. The reviewed canonical
@@ -606,22 +631,28 @@ the `production` environment. Follow this order exactly:
 1. Do **not** approve the initial `Production Release`. Cancel or decline it
    while it is still waiting at the production-environment gate. That gate is
    on the whole job and precedes every step, so a release stopped there cannot
-   create its pre-migration snapshot or touch Neon. Wait until the run is
+   create its recovery branch or touch Neon. Wait until the run is
    concluded and the concurrency group is free.
-2. Confirm that the adoption PR is merged at the current protected `main` SHA,
-   and that a non-author reviewer whose current repository permission is
-   `write`, `maintain`, or `admin` approved the PR's exact final head commit.
-3. Freeze provider/IAM changes and manual DDL for the entire approved window.
-   Do not create, rename, restore, or delete Neon branches/snapshots; change
-   roles, grants, default privileges, GitHub configuration, or Vercel settings;
-   or run another migration. Coordinate an application maintenance window:
-   reads can continue, but the adoption transaction temporarily blocks writes
-   to all 144 public tables.
-4. Verify that a recent non-production Neon snapshot restore drill proved
+2. Confirm that the adoption PR is the unique merge at the current protected
+   `main` SHA, was authored by the repository owner, and all six required checks
+   passed. Peer approval is intentionally zero because there is one developer;
+   the owner-only dispatch attestations and recorded Production Environment
+   approval are the two deliberate production authorizations.
+3. Verify that a recent non-production Neon snapshot restore drill proved
    database readability and that the manual recovery runbook is current. The
    dispatch attestation is mandatory. Neon list metadata (`id`, `name`,
    `created_at`, `full_size`, `source_branch_id`, and `manual`) does **not** by
-   itself prove restorability.
+   itself prove restorability. Neon Free permits only one manual snapshot: after
+   preserving the drill evidence, delete the exact old manual snapshot and
+   verify the snapshot list is empty. Do not delete an unidentified snapshot.
+   The adoption transaction will create and retain its own fresh same-run
+   snapshot before changing the ledger.
+4. Freeze provider/IAM changes and manual DDL for the entire approved window
+   only after that exact cleanup. Do not create, rename, restore, or delete Neon
+   branches/snapshots; change roles, grants, default privileges, GitHub
+   configuration, or Vercel settings; or run another migration. Coordinate an
+   application maintenance window: reads can continue, but the adoption
+   transaction temporarily blocks writes to all 144 public tables.
 5. Dispatch the adoption from `main` with attempt 1 only. Copy every fingerprint
    from the reviewed constants/artifact; do not retype, normalize, or substitute
    a clean-build target:
@@ -644,14 +675,15 @@ the `production` environment. Follow this order exactly:
    `adopted-with-lock-cleanup-warning`, with only
    `0001_reconcile_production_integrity` pending. Then rerun the original
    cancelled release with `gh run rerun <production-release-run-id>`. The normal
-   production workflow takes its own pre-migration snapshot, applies the locked
-   migration and RLS postflight, stages and verifies Vercel, and promotes the
-   exact commit.
+   production workflow creates a no-endpoint recovery branch while retaining
+   the adoption snapshot, applies the locked migration and RLS postflight,
+   stages and verifies Vercel, and promotes the exact commit.
 
 The adoption CLI verifies the immutable historical SQL/ledger, current
 migration SQL/journal/RLS bytes, direct TLS Neon identity, role/ACL/ownership
 contract, canonical source and target evidence, data invariants, protected-main
-SHA, current first-attempt workflow, and reviewed PR. It then holds both
+SHA, current first-attempt workflow, and exact sole-owner merged PR. It then
+holds both
 migration advisory locks, takes an `ACCESS EXCLUSIVE` ledger lock and one
 `SHARE ROW EXCLUSIVE` lock across the exact 144-table set, repeats the audit,
 and writes the exact live pre-mutation source audit to `RUNNER_TEMP`. Only while
@@ -697,8 +729,8 @@ pnpm db:up
 DATABASE_URL=postgresql://postgres@localhost:5433/school_sis?sslmode=disable \
 PLATFORM_DATABASE_URL=postgresql://postgres@localhost:5433/school_sis?sslmode=disable \
 DATABASE_SSL_MODE=disable \
-pnpm db:migrate:deploy -- --target ci
-pnpm db:migrate:deploy -- --target ci
+pnpm db:migrate:deploy --target ci
+pnpm db:migrate:deploy --target ci
 pnpm --filter @school-sis/web run db:test:rls
 pnpm db:down
 ```
@@ -736,7 +768,9 @@ curl "$PRODUCTION_URL/api/ready" \
   -H "Authorization: Bearer $METRICS_TOKEN"
 ```
 
-Use the release workflow logs, snapshot ID, candidate URL, verified SHA, and canonical readiness result as the evidence bundle for issue #18.
+Use the release workflow logs, recovery-checkpoint ID, retained adoption
+snapshot ID when applicable, candidate URL, verified SHA, and canonical
+readiness result as the evidence bundle for issue #18.
 
 ## Related application operations
 

@@ -420,10 +420,67 @@ describe("preview Vercel project isolation workflow", () => {
     expect(productionWorkflow).toContain("EXPECTED_VERCEL_REGION: sin1");
   });
 
-  it("requires the exact production Neon root branch to be protected", () => {
-    expect(productionWorkflow).toContain(
-      ".branch.id == $branch and .branch.parent_id == null and .branch.protected == true",
+  it("requires the exact Free production root and its direct endpoint", () => {
+    const bindingStart = productionWorkflow.indexOf(
+      "Bind the production URL to the configured Neon project and root branch",
     );
+    const bindingEnd = productionWorkflow.indexOf(
+      "Checkout the successful main commit",
+    );
+    const bindingGate = productionWorkflow.slice(bindingStart, bindingEnd);
+
+    expect(bindingStart).toBeGreaterThan(0);
+    expect(bindingEnd).toBeGreaterThan(bindingStart);
+    for (const exactRootCheck of [
+      ".branch.id == $branch",
+      ".branch.project_id == $project",
+      ".branch.parent_id == null",
+      ".branch.default == true",
+      ".branch.protected == false",
+      '.branch.current_state == "ready"',
+      ".branch.pending_state == null",
+    ]) {
+      expect(bindingGate).toContain(exactRootCheck);
+    }
+    for (const exactEndpointCheck of [
+      ".project_id == $project",
+      ".branch_id == $branch",
+      '.type == "read_write"',
+      ".host == $host",
+      ".disabled == false",
+      '(.current_state == "active" or .current_state == "idle")',
+      ".pending_state == null",
+    ]) {
+      expect(bindingGate).toContain(exactEndpointCheck);
+    }
+  });
+
+  it("creates a no-endpoint rolling recovery branch before migration", () => {
+    const checkpointMutation = productionWorkflow.indexOf(
+      "Create and verify Free-tier recovery branch checkpoint",
+    );
+    const migrationMutation = productionWorkflow.indexOf(
+      "Apply locked production migrations",
+    );
+
+    expect(checkpointMutation).toBeGreaterThan(0);
+    expect(migrationMutation).toBeGreaterThan(checkpointMutation);
+    expect(productionWorkflow).toContain(
+      "node scripts/create-neon-free-recovery-checkpoint.mjs",
+    );
+    expect(productionWorkflow).toContain(
+      "neon-pre-migration-recovery-checkpoint-${{ github.run_id }}-${{ github.run_attempt }}",
+    );
+    expect(productionWorkflow).toContain(
+      "TRIGGER_WORKFLOW_CREATED_AT: ${{ github.event.workflow_run.created_at }}",
+    );
+    expect(productionWorkflow).toContain(
+      'date -u -d "$TRIGGER_WORKFLOW_CREATED_AT +7 days"',
+    );
+    expect(productionWorkflow).toContain(
+      "RECOVERY_CHECKPOINT_ID: ${{ steps.checkpoint.outputs.checkpoint_id }}",
+    );
+    expect(productionWorkflow).not.toContain("/snapshots");
   });
 
   it("pins the exact tenant and platform role identities in both workflows", () => {
@@ -483,7 +540,9 @@ describe("preview Vercel project isolation workflow", () => {
       expect(providerGate).toBeGreaterThan(configurationGate);
     }
     expect(
-      productionWorkflow.indexOf("Create pre-migration Neon snapshot"),
+      productionWorkflow.indexOf(
+        "Create and verify Free-tier recovery branch checkpoint",
+      ),
     ).toBeGreaterThan(
       productionWorkflow.indexOf(
         "Fail closed on missing production configuration",
@@ -491,7 +550,7 @@ describe("preview Vercel project isolation workflow", () => {
     );
   });
 
-  it("fails production closed on protected-main merge and approval provenance", () => {
+  it("fails production closed on protected-main merge and solo-owner provenance", () => {
     expect(productionWorkflow).toContain("pull-requests: read");
     expect(productionWorkflow).toContain(
       "Verify protected main release provenance",
@@ -509,23 +568,32 @@ describe("preview Vercel project isolation workflow", () => {
       "pullRequest?.merge_commit_sha?.toLowerCase() === options.sha",
     );
     expect(productionProvenanceGate).toContain(
-      "review?.commit_id?.toLowerCase() !== headSha",
+      "pullRequest?.head?.repo?.full_name?.toLowerCase()",
     );
     expect(productionProvenanceGate).toContain(
-      "review.user.login.toLowerCase() !== authorLogin",
+      "const soloReleaseOwner = readSoloReleaseOwner(options)",
+    );
+    expect(productionProvenanceGate).not.toContain("/actions/variables/");
+    expect(productionProvenanceGate).toContain(
+      "pullRequest?.user?.login !== soloReleaseOwner",
     );
     expect(productionProvenanceGate).toContain(
-      'new Set(["write", "maintain", "admin"])',
+      'payload?.permission !== "admin"',
     );
+    expect(productionProvenanceGate).toContain(
+      "/collaborators?affiliation=all",
+    );
+    expect(productionProvenanceGate).toContain("pushCapable.length !== 1");
+    expect(productionProvenanceGate).not.toContain("/reviews");
 
     const lateGate = productionWorkflow.indexOf(
       "Re-verify protected main before Neon mutation",
     );
-    const snapshotMutation = productionWorkflow.indexOf(
-      "Create pre-migration Neon snapshot",
+    const checkpointMutation = productionWorkflow.indexOf(
+      "Create and verify Free-tier recovery branch checkpoint",
     );
     expect(lateGate).toBeGreaterThan(0);
-    expect(snapshotMutation).toBeGreaterThan(lateGate);
+    expect(checkpointMutation).toBeGreaterThan(lateGate);
   });
 
   it("keeps API response bodies private and removes them", () => {
