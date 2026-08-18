@@ -17,15 +17,15 @@ School SIS now has a production operations layer for health checks, readiness, P
 
 ## Endpoint Contract
 
-| Endpoint | Auth | Purpose |
-| --- | --- | --- |
-| `GET /api/health` | Public | Minimal liveness check |
-| `GET /api/ready` | `Authorization: Bearer $METRICS_TOKEN` in production | DB readiness |
-| `GET /api/metrics` | `Authorization: Bearer $METRICS_TOKEN` in production | Prometheus scrape |
-| `GET /api/sre/status` | `Authorization: Bearer $METRICS_TOKEN` in production | Operational snapshot |
-| `GET /api/sre/incidents` | Tenant admin session | List tenant-visible incidents |
-| `POST /api/sre/incidents` | `Authorization: Bearer $METRICS_TOKEN` in production | Ingest external incident |
-| `PATCH /api/sre/incidents/{id}` | Platform admin session | Acknowledge, resolve, or suppress |
+| Endpoint                        | Auth                                                 | Purpose                           |
+| ------------------------------- | ---------------------------------------------------- | --------------------------------- |
+| `GET /api/health`               | Public                                               | Minimal liveness check            |
+| `GET /api/ready`                | `Authorization: Bearer $METRICS_TOKEN` in production | DB readiness                      |
+| `GET /api/metrics`              | `Authorization: Bearer $METRICS_TOKEN` in production | Prometheus scrape                 |
+| `GET /api/sre/status`           | `Authorization: Bearer $METRICS_TOKEN` in production | Operational snapshot              |
+| `GET /api/sre/incidents`        | Tenant admin session                                 | List tenant-visible incidents     |
+| `POST /api/sre/incidents`       | `Authorization: Bearer $METRICS_TOKEN` in production | Ingest external incident          |
+| `PATCH /api/sre/incidents/{id}` | Platform admin session                               | Acknowledge, resolve, or suppress |
 
 ## Metrics Added
 
@@ -39,7 +39,7 @@ School SIS now has a production operations layer for health checks, readiness, P
 - `school_sis_rate_limit_backend_healthy{backend}`
 - `school_sis_rate_limit_fallback_capacity_exhaustions_total{endpoint_class}`
 
-The importable Grafana dashboard is committed at `ops/observability/grafana/rate-limit-dashboard.json`, and the matching Prometheus alert rules are at `ops/observability/prometheus/rate-limit-alerts.yml`. A hosting target must load those files and route their `warning`/`critical` labels to the chosen on-call receiver; provider-specific import and notification routing remain part of deferred production-environment issue #18.
+The importable Grafana dashboard is committed at `ops/observability/grafana/rate-limit-dashboard.json`, and the matching Prometheus alert rules are at `ops/observability/prometheus/rate-limit-alerts.yml`. The selected Vercel/Neon production target must load those files and route their `warning`/`critical` labels to the chosen on-call receiver; provider import and notification routing remain acceptance evidence for active issue #18.
 
 ## SLO Baseline
 

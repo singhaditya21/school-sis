@@ -1,0 +1,224 @@
+name: Preview Cleanup
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  delete-preview-resources:
+    name: Delete isolated Neon and Vercel preview resources
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: preview-cleanup
+    env:
+      PREVIEW_BRANCH_NAME: preview/pr-${{ github.event.pull_request.number }}
+      PREVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_PREVIEW_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PREVIEW_PROJECT_ID }}
+
+    steps:
+      - name: Delete the exact Neon preview branch through the API
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_PREVIEW_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PREVIEW_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          for name in NEON_API_KEY NEON_PROJECT_ID PREVIEW_BRANCH_NAME; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required Neon cleanup configuration: $name" >&2
+              exit 1
+            fi
+          done
+
+          encoded_name="$(jq -rn --arg value "$PREVIEW_BRANCH_NAME" '$value|@uri')"
+          branches_file="$RUNNER_TEMP/neon-preview-branches.json"
+          list_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $NEON_API_KEY" \
+            --header 'Accept: application/json' \
+            --output "$branches_file" \
+            --write-out '%{http_code}' \
+            "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches?search=${encoded_name}&limit=100")"
+          if [ "$list_http" != "200" ]; then
+            echo "Neon branch lookup failed with HTTP $list_http." >&2
+            exit 1
+          fi
+
+          match_count="$(jq -er --arg name "$PREVIEW_BRANCH_NAME" \
+            '[.branches[] | select(.name == $name)] | length' "$branches_file")"
+          if [ "$match_count" = "0" ]; then
+            echo "Neon preview branch is already absent; cleanup is complete."
+            exit 0
+          fi
+          if [ "$match_count" != "1" ]; then
+            echo "Expected exactly one Neon preview branch, found $match_count." >&2
+            exit 1
+          fi
+
+          branch_id="$(jq -er \
+            --arg name "$PREVIEW_BRANCH_NAME" \
+            '.branches[] | select(.name == $name and .parent_id == null and .init_source == "parent-schema") | .id' \
+            "$branches_file")"
+          if ! [[ "$branch_id" =~ ^br-[a-z0-9-]+$ ]]; then
+            echo "Refusing to delete an unexpected Neon branch ID or parent." >&2
+            exit 1
+          fi
+
+          delete_file="$RUNNER_TEMP/neon-preview-delete.json"
+          set +e
+          delete_http="$(curl --silent --show-error --max-time 30 \
+            --request DELETE \
+            --header "Authorization: Bearer $NEON_API_KEY" \
+            --header 'Accept: application/json' \
+            --output "$delete_file" \
+            --write-out '%{http_code}' \
+            "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${branch_id}")"
+          delete_status=$?
+          set -e
+          if [ "$delete_status" -ne 0 ]; then
+            echo "Neon branch deletion had an ambiguous transport failure; inspect branch $branch_id." >&2
+            exit 1
+          fi
+          case "$delete_http" in
+            200|204|404)
+              echo "Neon preview branch cleanup settled with HTTP $delete_http."
+              ;;
+            *)
+              echo "Neon preview branch deletion failed with HTTP $delete_http." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Delete every matching Vercel preview deployment through the API
+        if: always()
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+        run: |
+          set -euo pipefail
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID PREVIEW_PR_NUMBER; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required Vercel cleanup configuration: $name" >&2
+              exit 1
+            fi
+          done
+          if ! [[ "$VERCEL_ORG_ID" =~ ^[A-Za-z0-9_-]+$ ]] || \
+             ! [[ "$VERCEL_PROJECT_ID" =~ ^[A-Za-z0-9_-]+$ ]] || \
+             ! [[ "$PREVIEW_PR_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "Vercel cleanup identifiers are malformed." >&2
+            exit 1
+          fi
+
+          deployment_ids="$RUNNER_TEMP/vercel-preview-deployment-ids.txt"
+          : > "$deployment_ids"
+          until_value=""
+          exhausted=false
+          for page in $(seq 1 20); do
+            list_file="$RUNNER_TEMP/vercel-preview-deployments-${page}.json"
+            list_url="https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_ORG_ID}&target=preview&limit=100"
+            if [ -n "$until_value" ]; then
+              list_url="${list_url}&until=${until_value}"
+            fi
+            list_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --header 'Accept: application/json' \
+              --output "$list_file" \
+              --write-out '%{http_code}' \
+              "$list_url")"
+            if [ "$list_http" != "200" ]; then
+              echo "Vercel deployment lookup failed with HTTP $list_http." >&2
+              exit 1
+            fi
+            jq -r \
+              --arg project "$VERCEL_PROJECT_ID" \
+              --arg pr "$PREVIEW_PR_NUMBER" \
+              '.deployments[] |
+                select(
+                  .projectId == $project and
+                  .target != "production" and
+                  .meta.schoolSisPreview == "1" and
+                  .meta.githubPrId == $pr
+                ) |
+                (.uid // .id) |
+                select(type == "string")' \
+              "$list_file" >> "$deployment_ids"
+            until_value="$(jq -r '.pagination.next // empty' "$list_file")"
+            if [ -z "$until_value" ]; then
+              exhausted=true
+              break
+            fi
+            if ! [[ "$until_value" =~ ^[0-9]+$ ]]; then
+              echo "Vercel returned an invalid pagination cursor." >&2
+              exit 1
+            fi
+          done
+          if [ "$exhausted" != "true" ]; then
+            echo "Vercel cleanup exceeded the 2,000-deployment pagination limit." >&2
+            exit 1
+          fi
+
+          sort -u "$deployment_ids" -o "$deployment_ids"
+          while IFS= read -r deployment_id; do
+            [ -n "$deployment_id" ] || continue
+            if ! [[ "$deployment_id" =~ ^dpl_[A-Za-z0-9]+$ ]]; then
+              echo "Refusing to delete malformed Vercel deployment ID." >&2
+              exit 1
+            fi
+
+            detail_file="$RUNNER_TEMP/vercel-preview-${deployment_id}.json"
+            detail_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --header 'Accept: application/json' \
+              --output "$detail_file" \
+              --write-out '%{http_code}' \
+              "https://api.vercel.com/v13/deployments/${deployment_id}?teamId=${VERCEL_ORG_ID}")"
+            if [ "$detail_http" = "404" ]; then
+              continue
+            fi
+            if [ "$detail_http" != "200" ]; then
+              echo "Vercel deployment verification failed with HTTP $detail_http." >&2
+              exit 1
+            fi
+            jq -e \
+              --arg id "$deployment_id" \
+              --arg project "$VERCEL_PROJECT_ID" \
+              --arg pr "$PREVIEW_PR_NUMBER" \
+              '(.id // .uid) == $id and
+               .projectId == $project and
+               .target != "production" and
+               .meta.schoolSisPreview == "1" and
+               .meta.githubPrId == $pr' \
+              "$detail_file" >/dev/null
+
+            delete_file="$RUNNER_TEMP/vercel-preview-delete-${deployment_id}.json"
+            set +e
+            delete_http="$(curl --silent --show-error --max-time 30 \
+              --request DELETE \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --header 'Accept: application/json' \
+              --output "$delete_file" \
+              --write-out '%{http_code}' \
+              "https://api.vercel.com/v13/deployments/${deployment_id}?teamId=${VERCEL_ORG_ID}")"
+            delete_status=$?
+            set -e
+            if [ "$delete_status" -ne 0 ]; then
+              echo "Vercel deletion had an ambiguous transport failure for $deployment_id." >&2
+              exit 1
+            fi
+            case "$delete_http" in
+              200|204|404) ;;
+              *)
+                echo "Vercel deployment deletion failed with HTTP $delete_http." >&2
+                exit 1
+                ;;
+            esac
+          done < "$deployment_ids"
+
+          echo "Vercel preview deployment cleanup is complete."

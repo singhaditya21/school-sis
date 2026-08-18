@@ -1,33 +1,271 @@
-BEGIN;
-
+-- The deployment and standalone RLS runners own the transaction boundary.
+-- Keep this file free of BEGIN/COMMIT so schema, ledger, RLS, and grants share one commit.
 SET LOCAL app.bypass_rls = 'on';
 SET LOCAL app.current_tenant = '';
+SET LOCAL app.tenant_context_key_id = '';
+SET LOCAL app.tenant_context_audience = '';
+SET LOCAL app.tenant_context_expires_at = '';
+SET LOCAL app.tenant_context_nonce = '';
+SET LOCAL app.tenant_context_signature = '';
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
 CREATE SCHEMA IF NOT EXISTS app_private;
+
+CREATE TABLE IF NOT EXISTS app_private.tenant_context_signing_keys (
+    key_id text PRIMARY KEY,
+    audience text NOT NULL,
+    secret bytea NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    CONSTRAINT tenant_context_signing_keys_key_id_format
+        CHECK (key_id ~ '^[a-z0-9][a-z0-9._-]{0,31}$'),
+    CONSTRAINT tenant_context_signing_keys_audience_format
+        CHECK (audience ~ '^[a-z0-9][a-z0-9:._-]{2,191}$'),
+    CONSTRAINT tenant_context_signing_keys_secret_length
+        CHECK (octet_length(secret) BETWEEN 32 AND 128)
+);
+
+REVOKE ALL ON TABLE app_private.tenant_context_signing_keys FROM PUBLIC;
+
+CREATE TABLE IF NOT EXISTS app_private.tenant_context_rollout_state (
+    singleton boolean PRIMARY KEY DEFAULT true,
+    enforcement_phase smallint NOT NULL DEFAULT 1,
+    signed_runtime_sha text,
+    promoted_key_id text,
+    promoted_audience text,
+    promoted_deployment_id text,
+    promoted_at timestamptz,
+    temp_revoked_at timestamptz,
+    temp_drain_completed_at timestamptz,
+    CONSTRAINT tenant_context_rollout_state_singleton CHECK (singleton),
+    CONSTRAINT tenant_context_rollout_state_phase CHECK (enforcement_phase IN (1, 2)),
+    CONSTRAINT tenant_context_rollout_state_sha
+        CHECK (signed_runtime_sha IS NULL OR signed_runtime_sha ~ '^[0-9a-f]{40}$'),
+    CONSTRAINT tenant_context_rollout_state_key_id
+        CHECK (promoted_key_id IS NULL OR promoted_key_id ~ '^[a-z0-9][a-z0-9._-]{0,31}$'),
+    CONSTRAINT tenant_context_rollout_state_audience
+        CHECK (promoted_audience IS NULL OR promoted_audience ~ '^[a-z0-9][a-z0-9:._-]{2,191}$'),
+    CONSTRAINT tenant_context_rollout_state_deployment_id
+        CHECK (promoted_deployment_id IS NULL OR promoted_deployment_id ~ '^dpl_[A-Za-z0-9]+$'),
+    CONSTRAINT tenant_context_rollout_state_temp_drain_order CHECK (
+        temp_drain_completed_at IS NULL OR temp_revoked_at IS NOT NULL
+    ),
+    CONSTRAINT tenant_context_rollout_state_promotion_complete CHECK (
+        (signed_runtime_sha IS NULL AND promoted_key_id IS NULL
+            AND promoted_audience IS NULL AND promoted_deployment_id IS NULL
+            AND promoted_at IS NULL)
+        OR
+        (signed_runtime_sha IS NOT NULL AND promoted_key_id IS NOT NULL
+            AND promoted_audience IS NOT NULL AND promoted_deployment_id IS NOT NULL
+            AND promoted_at IS NOT NULL)
+    )
+);
+
+REVOKE ALL ON TABLE app_private.tenant_context_rollout_state FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION app_private.constant_time_equal_32(
+    left_value bytea,
+    right_value bytea
+)
+RETURNS boolean
+LANGUAGE plpgsql
+IMMUTABLE
+STRICT
+SET search_path = pg_catalog, pg_temp
+AS $$
+DECLARE
+    difference integer := 0;
+    byte_index integer;
+BEGIN
+    -- Length is public protocol metadata. Once both values are fixed at the
+    -- HMAC-SHA-256 width, compare every byte without an early exit.
+    IF octet_length(left_value) <> 32 OR octet_length(right_value) <> 32 THEN
+        RETURN false;
+    END IF;
+
+    FOR byte_index IN 0..31 LOOP
+        difference := difference |
+            (get_byte(left_value, byte_index) # get_byte(right_value, byte_index));
+    END LOOP;
+    RETURN difference = 0;
+END
+$$;
+
+ALTER FUNCTION app_private.constant_time_equal_32(bytea, bytea)
+    OWNER TO CURRENT_USER;
+
+CREATE OR REPLACE FUNCTION app_private.verified_tenant_id()
+RETURNS uuid
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $$
+DECLARE
+    tenant_text text := NULLIF(current_setting('app.current_tenant', true), '');
+    key_id_text text := NULLIF(current_setting('app.tenant_context_key_id', true), '');
+    audience_text text := NULLIF(current_setting('app.tenant_context_audience', true), '');
+    expires_text text := NULLIF(current_setting('app.tenant_context_expires_at', true), '');
+    nonce_text text := NULLIF(current_setting('app.tenant_context_nonce', true), '');
+    signature_text text := NULLIF(current_setting('app.tenant_context_signature', true), '');
+    tenant_value uuid;
+    expires_value bigint;
+    database_epoch bigint := floor(extract(epoch FROM clock_timestamp()))::bigint;
+    signing_secret bytea;
+    expected_signature bytea;
+BEGIN
+    IF tenant_text IS NULL
+       OR tenant_text !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+       OR key_id_text IS NULL
+       OR key_id_text !~ '^[a-z0-9][a-z0-9._-]{0,31}$'
+       OR audience_text IS NULL
+       OR audience_text !~ '^[a-z0-9][a-z0-9:._-]{2,191}$'
+       OR expires_text IS NULL
+       OR expires_text !~ '^[0-9]{10}$'
+       OR nonce_text IS NULL
+       OR nonce_text !~ '^[0-9a-f]{32}$'
+       OR signature_text IS NULL
+       OR signature_text !~ '^[0-9a-f]{64}$'
+    THEN
+        RETURN NULL;
+    END IF;
+
+    tenant_value := tenant_text::uuid;
+    expires_value := expires_text::bigint;
+
+    -- Contexts live for five minutes. Thirty seconds of past skew keeps a
+    -- just-issued context stable across ordinary clock drift, while the upper
+    -- bound prevents a compromised runtime credential from minting a
+    -- practically permanent replay token.
+    IF expires_value < database_epoch - 30 OR expires_value > database_epoch + 600 THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT keys.secret
+    INTO signing_secret
+    FROM app_private.tenant_context_signing_keys AS keys
+    WHERE keys.key_id = key_id_text
+      AND keys.audience = audience_text;
+
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+
+    expected_signature := public.hmac(
+        convert_to(
+            'school-sis:tenant-context:v1' || E'\n' ||
+            audience_text || E'\n' ||
+            key_id_text || E'\n' ||
+            pg_current_xact_id()::text || E'\n' ||
+            tenant_value::text || E'\n' ||
+            expires_text || E'\n' ||
+            nonce_text,
+            'UTF8'
+        ),
+        signing_secret,
+        'sha256'
+    );
+
+    IF app_private.constant_time_equal_32(
+        expected_signature,
+        decode(signature_text, 'hex')
+    ) THEN
+        RETURN tenant_value;
+    END IF;
+    RETURN NULL;
+EXCEPTION
+    WHEN invalid_text_representation OR numeric_value_out_of_range THEN
+        RETURN NULL;
+END
+$$;
+
+ALTER FUNCTION app_private.verified_tenant_id()
+    OWNER TO CURRENT_USER;
 
 CREATE OR REPLACE FUNCTION app_private.current_tenant_id()
 RETURNS uuid
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
+SECURITY INVOKER
 AS $$
-    SELECT NULLIF(current_setting('app.current_tenant', true), '')::uuid
+DECLARE
+    verified_tenant uuid := app_private.verified_tenant_id();
+    rollout_phase smallint;
+    legacy_tenant text;
+BEGIN
+    IF verified_tenant IS NOT NULL THEN
+        RETURN verified_tenant;
+    END IF;
+
+    rollout_phase := app_private.tenant_context_enforcement_phase();
+
+    IF rollout_phase >= 2 OR current_user <> 'school_sis_runtime' THEN
+        RETURN NULL;
+    END IF;
+
+    -- Phase 1 is deliberately rollback-compatible with the already-live
+    -- unsigned application. The release workflow records a successfully
+    -- promoted signing runtime before a later reviewed release may atomically
+    -- advance the database to phase 2 (strict signatures only).
+    legacy_tenant := NULLIF(current_setting('app.current_tenant', true), '');
+    IF legacy_tenant IS NULL
+       OR legacy_tenant !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+    THEN
+        RETURN NULL;
+    END IF;
+    RETURN legacy_tenant::uuid;
+EXCEPTION
+    WHEN invalid_text_representation THEN
+        RETURN NULL;
+END
 $$;
+
+ALTER FUNCTION app_private.current_tenant_id()
+    OWNER TO CURRENT_USER;
 
 CREATE OR REPLACE FUNCTION app_private.has_tenant_context()
 RETURNS boolean
 LANGUAGE sql
 STABLE
 AS $$
-    SELECT NULLIF(current_setting('app.current_tenant', true), '') IS NOT NULL
+    SELECT app_private.current_tenant_id() IS NOT NULL
 $$;
+
+ALTER FUNCTION app_private.has_tenant_context()
+    OWNER TO CURRENT_USER;
+
+CREATE OR REPLACE FUNCTION app_private.tenant_context_enforcement_phase()
+RETURNS smallint
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $$
+    SELECT state.enforcement_phase
+    FROM app_private.tenant_context_rollout_state AS state
+    WHERE state.singleton = true
+$$;
+
+ALTER FUNCTION app_private.tenant_context_enforcement_phase()
+    OWNER TO CURRENT_USER;
 
 CREATE OR REPLACE FUNCTION app_private.rls_bypass()
 RETURNS boolean
 LANGUAGE sql
 STABLE
 AS $$
-    SELECT COALESCE(current_setting('app.bypass_rls', true) = 'on', false)
+    SELECT
+        COALESCE(current_setting('app.bypass_rls', true) = 'on', false)
+        AND (
+            current_user = 'school_sis_platform'
+            OR (
+                current_user = 'school_sis_runtime'
+                AND app_private.tenant_context_enforcement_phase() = 1
+            )
+        )
 $$;
+
+ALTER FUNCTION app_private.rls_bypass()
+    OWNER TO CURRENT_USER;
 
 CREATE OR REPLACE FUNCTION app_private.table_exists(table_name text)
 RETURNS boolean
@@ -36,6 +274,56 @@ STABLE
 AS $$
     SELECT to_regclass('public.' || table_name) IS NOT NULL
 $$;
+
+ALTER FUNCTION app_private.table_exists(text)
+    OWNER TO CURRENT_USER;
+
+-- Policy DDL takes an ACCESS EXCLUSIVE lock which is retained until the outer
+-- deployment transaction commits. Remove every pre-existing policy from the
+-- governed public tables before rebuilding the complete reviewed set below;
+-- otherwise an extra permissive policy could silently OR itself with RLS.
+DO $$
+DECLARE
+    table_record record;
+BEGIN
+    FOR table_record IN
+        SELECT namespaces.nspname AS schema_name, classes.relname AS table_name
+        FROM pg_catalog.pg_class classes
+        JOIN pg_catalog.pg_namespace namespaces ON namespaces.oid = classes.relnamespace
+        WHERE namespaces.nspname = 'public'
+          AND classes.relkind IN ('r', 'p')
+        ORDER BY namespaces.nspname, classes.relname, classes.oid
+    LOOP
+        EXECUTE format(
+            'LOCK TABLE %I.%I IN ACCESS EXCLUSIVE MODE',
+            table_record.schema_name,
+            table_record.table_name
+        );
+    END LOOP;
+END $$;
+
+DO $$
+DECLARE
+    policy_record record;
+BEGIN
+    FOR policy_record IN
+        SELECT namespaces.nspname AS schema_name,
+               classes.relname AS table_name,
+               policies.polname AS policy_name
+        FROM pg_catalog.pg_policy policies
+        JOIN pg_catalog.pg_class classes ON classes.oid = policies.polrelid
+        JOIN pg_catalog.pg_namespace namespaces ON namespaces.oid = classes.relnamespace
+        WHERE namespaces.nspname = 'public'
+          AND classes.relkind IN ('r', 'p')
+    LOOP
+        EXECUTE format(
+            'DROP POLICY %I ON %I.%I',
+            policy_record.policy_name,
+            policy_record.schema_name,
+            policy_record.table_name
+        );
+    END LOOP;
+END $$;
 
 DO $$
 DECLARE
@@ -61,12 +349,12 @@ BEGIN
                  AS PERMISSIVE FOR ALL
                  USING (
                     app_private.rls_bypass()
-                    OR tenant_id = app_private.current_tenant_id()
+                    OR tenant_id = (SELECT app_private.current_tenant_id())
                     OR (tenant_id IS NULL AND COALESCE(is_custom, false) = false)
                  )
                  WITH CHECK (
                     app_private.rls_bypass()
-                    OR tenant_id = app_private.current_tenant_id()
+                    OR tenant_id = (SELECT app_private.current_tenant_id())
                  )',
                 table_record.table_schema,
                 table_record.table_name
@@ -77,11 +365,11 @@ BEGIN
                  AS PERMISSIVE FOR ALL
                  USING (
                     app_private.rls_bypass()
-                    OR tenant_id = app_private.current_tenant_id()
+                    OR tenant_id = (SELECT app_private.current_tenant_id())
                  )
                  WITH CHECK (
                     app_private.rls_bypass()
-                    OR tenant_id = app_private.current_tenant_id()
+                    OR tenant_id = (SELECT app_private.current_tenant_id())
                  )',
                 table_record.table_schema,
                 table_record.table_name
@@ -98,14 +386,14 @@ DROP POLICY IF EXISTS tenants_tenant_isolation_update ON public.tenants;
 DROP POLICY IF EXISTS tenants_tenant_isolation_delete ON public.tenants;
 CREATE POLICY tenants_tenant_isolation_select ON public.tenants
     FOR SELECT
-    USING (app_private.rls_bypass() OR id = app_private.current_tenant_id());
+    USING (app_private.rls_bypass() OR id = (SELECT app_private.current_tenant_id()));
 CREATE POLICY tenants_tenant_isolation_insert ON public.tenants
     FOR INSERT
-    WITH CHECK (app_private.rls_bypass() OR id = app_private.current_tenant_id());
+    WITH CHECK (app_private.rls_bypass() OR id = (SELECT app_private.current_tenant_id()));
 CREATE POLICY tenants_tenant_isolation_update ON public.tenants
     FOR UPDATE
-    USING (app_private.rls_bypass() OR id = app_private.current_tenant_id())
-    WITH CHECK (app_private.rls_bypass() OR id = app_private.current_tenant_id());
+    USING (app_private.rls_bypass() OR id = (SELECT app_private.current_tenant_id()))
+    WITH CHECK (app_private.rls_bypass() OR id = (SELECT app_private.current_tenant_id()));
 CREATE POLICY tenants_tenant_isolation_delete ON public.tenants
     FOR DELETE
     USING (app_private.rls_bypass());
@@ -124,7 +412,7 @@ CREATE POLICY companies_tenant_isolation_select ON public.companies
             SELECT 1
             FROM public.tenants t
             WHERE t.company_id = companies.id
-              AND t.id = app_private.current_tenant_id()
+              AND t.id = (SELECT app_private.current_tenant_id())
         )
     );
 CREATE POLICY companies_tenant_isolation_insert ON public.companies
@@ -138,7 +426,7 @@ CREATE POLICY companies_tenant_isolation_update ON public.companies
             SELECT 1
             FROM public.tenants t
             WHERE t.company_id = companies.id
-              AND t.id = app_private.current_tenant_id()
+              AND t.id = (SELECT app_private.current_tenant_id())
         )
     )
     WITH CHECK (
@@ -147,7 +435,7 @@ CREATE POLICY companies_tenant_isolation_update ON public.companies
             SELECT 1
             FROM public.tenants t
             WHERE t.company_id = companies.id
-              AND t.id = app_private.current_tenant_id()
+              AND t.id = (SELECT app_private.current_tenant_id())
         )
     );
 CREATE POLICY companies_tenant_isolation_delete ON public.companies
@@ -169,8 +457,8 @@ BEGIN
                     FROM public.grades g
                     JOIN public.subjects s ON s.id = grade_subjects.subject_id
                     WHERE g.id = grade_subjects.grade_id
-                      AND g.tenant_id = app_private.current_tenant_id()
-                      AND s.tenant_id = app_private.current_tenant_id()
+                      AND g.tenant_id = (SELECT app_private.current_tenant_id())
+                      AND s.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             )
             WITH CHECK (
@@ -180,8 +468,8 @@ BEGIN
                     FROM public.grades g
                     JOIN public.subjects s ON s.id = grade_subjects.subject_id
                     WHERE g.id = grade_subjects.grade_id
-                      AND g.tenant_id = app_private.current_tenant_id()
-                      AND s.tenant_id = app_private.current_tenant_id()
+                      AND g.tenant_id = (SELECT app_private.current_tenant_id())
+                      AND s.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
     END IF;
@@ -198,7 +486,7 @@ BEGIN
                     SELECT 1
                     FROM public.fee_plans fp
                     WHERE fp.id = fee_components.fee_plan_id
-                      AND fp.tenant_id = app_private.current_tenant_id()
+                      AND fp.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             )
             WITH CHECK (
@@ -207,7 +495,7 @@ BEGIN
                     SELECT 1
                     FROM public.fee_plans fp
                     WHERE fp.id = fee_components.fee_plan_id
-                      AND fp.tenant_id = app_private.current_tenant_id()
+                      AND fp.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
     END IF;
@@ -224,7 +512,7 @@ BEGIN
                     SELECT 1
                     FROM public.exams e
                     WHERE e.id = exam_schedules.exam_id
-                      AND e.tenant_id = app_private.current_tenant_id()
+                      AND e.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             )
             WITH CHECK (
@@ -233,7 +521,7 @@ BEGIN
                     SELECT 1
                     FROM public.exams e
                     WHERE e.id = exam_schedules.exam_id
-                      AND e.tenant_id = app_private.current_tenant_id()
+                      AND e.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
     END IF;
@@ -250,7 +538,7 @@ BEGIN
                     SELECT 1
                     FROM public.routes r
                     WHERE r.id = stops.route_id
-                      AND r.tenant_id = app_private.current_tenant_id()
+                      AND r.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             )
             WITH CHECK (
@@ -259,7 +547,7 @@ BEGIN
                     SELECT 1
                     FROM public.routes r
                     WHERE r.id = stops.route_id
-                      AND r.tenant_id = app_private.current_tenant_id()
+                      AND r.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
     END IF;
@@ -272,11 +560,11 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 
@@ -288,11 +576,11 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 
@@ -304,11 +592,11 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 
@@ -320,11 +608,11 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 
@@ -336,11 +624,11 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 
@@ -352,11 +640,11 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 
@@ -368,11 +656,11 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 
@@ -384,11 +672,11 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 
@@ -400,11 +688,11 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 
@@ -416,11 +704,11 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 
@@ -432,11 +720,11 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 
@@ -448,11 +736,11 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 
@@ -468,7 +756,7 @@ BEGIN
                     SELECT 1
                     FROM public.grading_scales gs
                     WHERE gs.id = grading_rubrics.scale_id
-                      AND gs.tenant_id = app_private.current_tenant_id()
+                      AND gs.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             )
             WITH CHECK (
@@ -477,7 +765,7 @@ BEGIN
                     SELECT 1
                     FROM public.grading_scales gs
                     WHERE gs.id = grading_rubrics.scale_id
-                      AND gs.tenant_id = app_private.current_tenant_id()
+                      AND gs.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
     END IF;
@@ -497,30 +785,30 @@ BEGIN
             FOR SELECT
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
                 OR (tenant_id IS NULL AND COALESCE(is_custom, false) = false)
             );
         CREATE POLICY metadata_objects_tenant_isolation_insert ON public.metadata_objects
             FOR INSERT
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
         CREATE POLICY metadata_objects_tenant_isolation_update ON public.metadata_objects
             FOR UPDATE
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
         CREATE POLICY metadata_objects_tenant_isolation_delete ON public.metadata_objects
             FOR DELETE
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 
@@ -539,7 +827,7 @@ BEGIN
                     SELECT 1
                     FROM public.metadata_objects mo
                     WHERE mo.id = metadata_fields.object_id
-                      AND (mo.tenant_id = app_private.current_tenant_id() OR mo.tenant_id IS NULL)
+                      AND (mo.tenant_id = (SELECT app_private.current_tenant_id()) OR mo.tenant_id IS NULL)
                 )
             );
         CREATE POLICY metadata_fields_tenant_isolation_insert ON public.metadata_fields
@@ -550,7 +838,7 @@ BEGIN
                     SELECT 1
                     FROM public.metadata_objects mo
                     WHERE mo.id = metadata_fields.object_id
-                      AND mo.tenant_id = app_private.current_tenant_id()
+                      AND mo.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
         CREATE POLICY metadata_fields_tenant_isolation_update ON public.metadata_fields
@@ -561,7 +849,7 @@ BEGIN
                     SELECT 1
                     FROM public.metadata_objects mo
                     WHERE mo.id = metadata_fields.object_id
-                      AND mo.tenant_id = app_private.current_tenant_id()
+                      AND mo.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             )
             WITH CHECK (
@@ -570,7 +858,7 @@ BEGIN
                     SELECT 1
                     FROM public.metadata_objects mo
                     WHERE mo.id = metadata_fields.object_id
-                      AND mo.tenant_id = app_private.current_tenant_id()
+                      AND mo.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
         CREATE POLICY metadata_fields_tenant_isolation_delete ON public.metadata_fields
@@ -581,7 +869,7 @@ BEGIN
                     SELECT 1
                     FROM public.metadata_objects mo
                     WHERE mo.id = metadata_fields.object_id
-                      AND mo.tenant_id = app_private.current_tenant_id()
+                      AND mo.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
     END IF;
@@ -601,7 +889,7 @@ BEGIN
                     SELECT 1
                     FROM public.metadata_objects mo
                     WHERE mo.id = metadata_layouts.object_id
-                      AND (mo.tenant_id = app_private.current_tenant_id() OR mo.tenant_id IS NULL)
+                      AND (mo.tenant_id = (SELECT app_private.current_tenant_id()) OR mo.tenant_id IS NULL)
                 )
             );
         CREATE POLICY metadata_layouts_tenant_isolation_insert ON public.metadata_layouts
@@ -612,7 +900,7 @@ BEGIN
                     SELECT 1
                     FROM public.metadata_objects mo
                     WHERE mo.id = metadata_layouts.object_id
-                      AND mo.tenant_id = app_private.current_tenant_id()
+                      AND mo.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
         CREATE POLICY metadata_layouts_tenant_isolation_update ON public.metadata_layouts
@@ -623,7 +911,7 @@ BEGIN
                     SELECT 1
                     FROM public.metadata_objects mo
                     WHERE mo.id = metadata_layouts.object_id
-                      AND mo.tenant_id = app_private.current_tenant_id()
+                      AND mo.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             )
             WITH CHECK (
@@ -632,7 +920,7 @@ BEGIN
                     SELECT 1
                     FROM public.metadata_objects mo
                     WHERE mo.id = metadata_layouts.object_id
-                      AND mo.tenant_id = app_private.current_tenant_id()
+                      AND mo.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
         CREATE POLICY metadata_layouts_tenant_isolation_delete ON public.metadata_layouts
@@ -643,7 +931,7 @@ BEGIN
                     SELECT 1
                     FROM public.metadata_objects mo
                     WHERE mo.id = metadata_layouts.object_id
-                      AND mo.tenant_id = app_private.current_tenant_id()
+                      AND mo.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
     END IF;
@@ -664,7 +952,7 @@ BEGIN
                     FROM public.metadata_fields mf
                     JOIN public.metadata_objects mo ON mo.id = mf.object_id
                     WHERE mf.id = field_permissions.field_id
-                      AND (mo.tenant_id = app_private.current_tenant_id() OR mo.tenant_id IS NULL)
+                      AND (mo.tenant_id = (SELECT app_private.current_tenant_id()) OR mo.tenant_id IS NULL)
                 )
             );
         CREATE POLICY field_permissions_tenant_isolation_insert ON public.field_permissions
@@ -676,7 +964,7 @@ BEGIN
                     FROM public.metadata_fields mf
                     JOIN public.metadata_objects mo ON mo.id = mf.object_id
                     WHERE mf.id = field_permissions.field_id
-                      AND mo.tenant_id = app_private.current_tenant_id()
+                      AND mo.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
         CREATE POLICY field_permissions_tenant_isolation_update ON public.field_permissions
@@ -688,7 +976,7 @@ BEGIN
                     FROM public.metadata_fields mf
                     JOIN public.metadata_objects mo ON mo.id = mf.object_id
                     WHERE mf.id = field_permissions.field_id
-                      AND mo.tenant_id = app_private.current_tenant_id()
+                      AND mo.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             )
             WITH CHECK (
@@ -698,7 +986,7 @@ BEGIN
                     FROM public.metadata_fields mf
                     JOIN public.metadata_objects mo ON mo.id = mf.object_id
                     WHERE mf.id = field_permissions.field_id
-                      AND mo.tenant_id = app_private.current_tenant_id()
+                      AND mo.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
         CREATE POLICY field_permissions_tenant_isolation_delete ON public.field_permissions
@@ -710,7 +998,7 @@ BEGIN
                     FROM public.metadata_fields mf
                     JOIN public.metadata_objects mo ON mo.id = mf.object_id
                     WHERE mf.id = field_permissions.field_id
-                      AND mo.tenant_id = app_private.current_tenant_id()
+                      AND mo.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
     END IF;
@@ -725,13 +1013,13 @@ BEGIN
             USING (
                 app_private.rls_bypass()
                 OR (
-                    tenant_id = app_private.current_tenant_id()
+                    tenant_id = (SELECT app_private.current_tenant_id())
                     AND EXISTS (
                         SELECT 1
                         FROM public.metadata_objects mo
                         WHERE mo.id = metadata_records.object_id
                           AND (
-                              mo.tenant_id = app_private.current_tenant_id()
+                              mo.tenant_id = (SELECT app_private.current_tenant_id())
                               OR (
                                   mo.tenant_id IS NULL
                                   AND COALESCE(mo.is_custom, false) = false
@@ -743,13 +1031,13 @@ BEGIN
             WITH CHECK (
                 app_private.rls_bypass()
                 OR (
-                    tenant_id = app_private.current_tenant_id()
+                    tenant_id = (SELECT app_private.current_tenant_id())
                     AND EXISTS (
                         SELECT 1
                         FROM public.metadata_objects mo
                         WHERE mo.id = metadata_records.object_id
                           AND (
-                              mo.tenant_id = app_private.current_tenant_id()
+                              mo.tenant_id = (SELECT app_private.current_tenant_id())
                               OR (
                                   mo.tenant_id IS NULL
                                   AND COALESCE(mo.is_custom, false) = false
@@ -776,9 +1064,9 @@ BEGIN
                      AND mf.object_id = mr.object_id
                     JOIN public.metadata_objects mo ON mo.id = mr.object_id
                     WHERE mr.id = metadata_values.record_id
-                      AND mr.tenant_id = app_private.current_tenant_id()
+                      AND mr.tenant_id = (SELECT app_private.current_tenant_id())
                       AND (
-                          mo.tenant_id = app_private.current_tenant_id()
+                          mo.tenant_id = (SELECT app_private.current_tenant_id())
                           OR (
                               mo.tenant_id IS NULL
                               AND COALESCE(mo.is_custom, false) = false
@@ -796,9 +1084,9 @@ BEGIN
                      AND mf.object_id = mr.object_id
                     JOIN public.metadata_objects mo ON mo.id = mr.object_id
                     WHERE mr.id = metadata_values.record_id
-                      AND mr.tenant_id = app_private.current_tenant_id()
+                      AND mr.tenant_id = (SELECT app_private.current_tenant_id())
                       AND (
-                          mo.tenant_id = app_private.current_tenant_id()
+                          mo.tenant_id = (SELECT app_private.current_tenant_id())
                           OR (
                               mo.tenant_id IS NULL
                               AND COALESCE(mo.is_custom, false) = false
@@ -819,30 +1107,30 @@ BEGIN
             FOR SELECT
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
                 OR (tenant_id IS NULL AND status = 'PUBLISHED')
             );
         CREATE POLICY metadata_schema_versions_tenant_insert ON public.metadata_schema_versions
             FOR INSERT
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
         CREATE POLICY metadata_schema_versions_tenant_update ON public.metadata_schema_versions
             FOR UPDATE
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
         CREATE POLICY metadata_schema_versions_tenant_delete ON public.metadata_schema_versions
             FOR DELETE
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 
@@ -854,11 +1142,11 @@ BEGIN
             AS PERMISSIVE FOR ALL
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             )
             WITH CHECK (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
     END IF;
 END $$;
@@ -877,7 +1165,7 @@ BEGIN
             FOR SELECT
             USING (
                 app_private.rls_bypass()
-                OR tenant_id = app_private.current_tenant_id()
+                OR tenant_id = (SELECT app_private.current_tenant_id())
             );
         CREATE POLICY multi_campus_hierarchy_platform_insert ON public.multi_campus_hierarchy
             FOR INSERT
@@ -906,7 +1194,7 @@ BEGIN
                     SELECT 1
                     FROM public.multi_campus_hierarchy mch
                     WHERE mch.group_id = hq_groups.id
-                      AND mch.tenant_id = app_private.current_tenant_id()
+                      AND mch.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
         CREATE POLICY hq_groups_platform_insert ON public.hq_groups
@@ -936,7 +1224,7 @@ BEGIN
                     SELECT 1
                     FROM public.multi_campus_hierarchy mch
                     WHERE mch.group_id = group_policies.group_id
-                      AND mch.tenant_id = app_private.current_tenant_id()
+                      AND mch.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
         CREATE POLICY group_policies_platform_insert ON public.group_policies
@@ -998,6 +1286,11 @@ BEGIN
     IF app_private.table_exists('rate_limit_buckets') THEN
         ALTER TABLE public.rate_limit_buckets ENABLE ROW LEVEL SECURITY;
         ALTER TABLE public.rate_limit_buckets FORCE ROW LEVEL SECURITY;
+        -- Replace the legacy raw-GUC expression with the rollout-aware helper.
+        -- Phase 1 still admits the legacy runtime-role bypass so the currently
+        -- live unsigned release and rollback remain healthy; phase 2 makes the
+        -- same policy platform-role-only without another policy rewrite.
+        DROP POLICY IF EXISTS rate_limit_buckets_platform_access ON public.rate_limit_buckets;
         DROP POLICY IF EXISTS rate_limit_buckets_platform_only ON public.rate_limit_buckets;
         CREATE POLICY rate_limit_buckets_platform_only ON public.rate_limit_buckets
             AS PERMISSIVE FOR ALL
@@ -1020,7 +1313,7 @@ BEGIN
                     SELECT 1
                     FROM public.users u
                     WHERE u.id = password_reset_tokens.user_id
-                      AND u.tenant_id = app_private.current_tenant_id()
+                      AND u.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             )
             WITH CHECK (
@@ -1029,10 +1322,8 @@ BEGIN
                     SELECT 1
                     FROM public.users u
                     WHERE u.id = password_reset_tokens.user_id
-                      AND u.tenant_id = app_private.current_tenant_id()
+                      AND u.tenant_id = (SELECT app_private.current_tenant_id())
                 )
             );
     END IF;
 END $$;
-
-COMMIT;

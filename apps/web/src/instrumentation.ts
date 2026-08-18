@@ -20,10 +20,6 @@ export async function register() {
     });
 
     validateSecurityEnvironment();
-    if (process.env.NODE_ENV === 'production') {
-      const { assertNoProductionMockConnections } = await import('./lib/integrations/api-platform');
-      await assertNoProductionMockConnections();
-    }
   }
 
   if (process.env.NEXT_PUBLIC_API_MOCKING === 'enabled') {

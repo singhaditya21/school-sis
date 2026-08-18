@@ -1,19 +1,20 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   return NextResponse.json(
     {
-      status: 'ok',
-      service: 'school-sis-web',
+      status: "ok",
+      service: "school-sis-web",
       timestamp: new Date().toISOString(),
-      region: process.env.APP_REGION || 'local',
-      commit: process.env.GIT_COMMIT_SHA || null,
+      region: process.env.VERCEL_REGION || process.env.APP_REGION || "local",
+      commit:
+        process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || null,
     },
     {
       headers: {
-        'Cache-Control': 'no-store',
+        "Cache-Control": "no-store",
       },
     },
   );

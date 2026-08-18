@@ -1,0 +1,13 @@
+diff --git a/dist/chunks/chunk-L6NIIAB7.js b/dist/chunks/chunk-L6NIIAB7.js
+--- a/dist/chunks/chunk-L6NIIAB7.js
++++ b/dist/chunks/chunk-L6NIIAB7.js
+@@ -159,7 +159,8 @@ async function pullCommandLogic(client, cwd, autoConfirm, environment, flags, pr
+     autoConfirm,
+     pullEnv: false,
+     projectName: projectNameOrId,
+-    failIfNotFound: !!projectNameOrId
++    failIfNotFound: !!projectNameOrId,
++    allowOwnerLookupFallback: true
+   });
+   if (typeof link === "number") {
+     return link;
