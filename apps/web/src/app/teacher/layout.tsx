@@ -36,15 +36,10 @@ export default async function TeacherLayout({
                 <nav className="p-3 space-y-1">
                     <NavLink href="/teacher" icon="🏠" label="Dashboard" />
                     <NavLink href="/teacher/my-classes" icon="📚" label="My Classes" />
-                    <NavLink href="/teacher/attendance" icon="✅" label="Attendance" />
                     <NavLink href="/teacher/gradebook" icon="📝" label="Gradebook" />
-                    <NavLink href="/teacher/assignments" icon="📋" label="Assignments" />
-                    <NavLink href="/teacher/lesson-plans" icon="📖" label="Lesson Plans" />
 
                     <div className="pt-4 mt-4 border-t border-gray-200">
                         <NavLink href="/teacher/schedule" icon="📅" label="My Schedule" />
-                        <NavLink href="/teacher/messages" icon="💬" label="Messages" />
-                        <NavLink href="/teacher/profile" icon="👤" label="Profile" />
                     </div>
                 </nav>
 
@@ -88,9 +83,7 @@ export default async function TeacherLayout({
                 <div className="flex justify-around items-center max-w-lg mx-auto">
                     <MobileNavItem href="/teacher" icon="🏠" label="Home" />
                     <MobileNavItem href="/teacher/my-classes" icon="📚" label="Classes" />
-                    <MobileNavItem href="/teacher/attendance" icon="✅" label="Attend" />
                     <MobileNavItem href="/teacher/gradebook" icon="📝" label="Grades" />
-                    <MobileNavItem href="/teacher/profile" icon="👤" label="Profile" />
                 </div>
             </nav>
         </div>

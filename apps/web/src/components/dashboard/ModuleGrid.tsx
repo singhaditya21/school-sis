@@ -49,7 +49,6 @@ const ADMIN_MODULES: Module[] = [
         icon: '📅',
         href: '/timetable',
         actions: [
-            { label: 'View Grid', href: '/timetable/grid' },
         ],
     },
     {
@@ -118,13 +117,6 @@ const TEACHER_MODULES: Module[] = [
         description: 'Mark and submit attendance',
         icon: '✓',
         href: '/attendance',
-    },
-    {
-        id: 'classes',
-        title: 'My Classes',
-        description: 'Manage your assigned classes',
-        icon: '📚',
-        href: '/classes',
     },
 ];
 

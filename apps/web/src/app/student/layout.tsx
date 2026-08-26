@@ -56,21 +56,6 @@ export default async function StudentLayout({
                         <NavLink href="/student" icon="📊" active={true}>
                             Overview
                         </NavLink>
-                        <NavLink href="/student/homework" icon="📝">
-                            Assignments
-                        </NavLink>
-                        <NavLink href="/student/courses" icon="📚">
-                            My Courses
-                        </NavLink>
-                        <NavLink href="/student/ai-tutor" icon="🤖">
-                            AI Tutor
-                        </NavLink>
-                        <NavLink href="/student/wallet" icon="💳">
-                            Skills Wallet
-                        </NavLink>
-                        <NavLink href="/student/placements" icon="💼">
-                            Placements
-                        </NavLink>
                     </nav>
                 </aside>
 

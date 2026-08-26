@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { returnToHQAction } from '@/lib/actions/platform';
 import PlatformBroadcastTicker from '@/components/platform/PlatformBroadcastTicker';
 import { pool } from '@/lib/db';
-import { AICopilot } from '@/components/ui/ai-copilot';
 
 export default async function AdminLayout({
     children,
@@ -102,9 +101,6 @@ export default async function AdminLayout({
                         <NavLink href="/dashboard" icon="📊">
                             Dashboard
                         </NavLink>
-                        <NavLink href="/chat" icon="🤖">
-                            AI Agent Chat
-                        </NavLink>
                         <NavLink href="/approvals" icon="✅">
                             Action Approvals
                         </NavLink>
@@ -113,9 +109,6 @@ export default async function AdminLayout({
                         </NavLink>
                         <NavLink href="/invoices" icon="🧾">
                             Invoices
-                        </NavLink>
-                        <NavLink href="/treasury" icon="🏦">
-                            Treasury
                         </NavLink>
                         <NavLink href="/app/student" icon="👥">
                             Students
@@ -129,7 +122,7 @@ export default async function AdminLayout({
                         <NavLink href="/admissions" icon="🎓">
                             Admissions
                         </NavLink>
-                        <NavLink href="/messages/templates" icon="✉️">
+                        <NavLink href="/messages" icon="✉️">
                             Messages
                         </NavLink>
                         <NavLink href="/app/staff" icon="👥">
@@ -137,12 +130,6 @@ export default async function AdminLayout({
                         </NavLink>
                         <NavLink href="/analytics" icon="📊">
                             Analytics
-                        </NavLink>
-                        <NavLink href="/reports" icon="📑">
-                            Reports Engine
-                        </NavLink>
-                        <NavLink href="/credentials" icon="📜">
-                            Trust Registry
                         </NavLink>
                         <NavLink href="/integrations/tally" icon="📈">
                             Tally ERP Sync
@@ -154,33 +141,12 @@ export default async function AdminLayout({
                                 <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">K-12 School</p>
                                 <NavLink href="/timetable" icon="📅">Timetable</NavLink>
                                 <NavLink href="/transport" icon="🚌">Transport</NavLink>
-                                <NavLink href="/homework" icon="📝">Homework</NavLink>
                                 <NavLink href="/lesson-plans" icon="📚">Lesson Plans</NavLink>
                                 <NavLink href="/diary" icon="📓">Digital Diary</NavLink>
-                                <NavLink href="/health" icon="🏥">Health Records</NavLink>
                             </div>
                         )}
 
-                        {/* --- HIGHER EDUCATION MODULES --- */}
-                        {(institutionType === 'COLLEGE' || institutionType === 'UNIVERSITY' || institutionType === 'HYBRID') && (
-                            <div className="pt-2 mt-2 border-t border-gray-100">
-                                <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Higher Ed</p>
-                                <NavLink href="/university/courses" icon="🎓">Course Registration</NavLink>
-                                <NavLink href="/university/advising" icon="👨‍🏫">Academic Advising</NavLink>
-                                <NavLink href="/university/research" icon="🔬">Research Grants</NavLink>
-                                <NavLink href="/university/placement" icon="💼">Placements</NavLink>
-                            </div>
-                        )}
 
-                        {/* --- COACHING MODULES --- */}
-                        {(institutionType === 'COACHING' || institutionType === 'HYBRID') && (
-                            <div className="pt-2 mt-2 border-t border-gray-100">
-                                <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Coaching</p>
-                                <NavLink href="/coaching/batches" icon="📚">Batches</NavLink>
-                                <NavLink href="/coaching/tests" icon="📋">Test Series</NavLink>
-                                <NavLink href="/coaching/doubts" icon="❓">Doubt Portal</NavLink>
-                            </div>
-                        )}
 
                         {/* --- SYSTEM SETTINGS --- */}
                         <div className="pt-2 mt-2 border-t border-gray-100">
@@ -195,9 +161,6 @@ export default async function AdminLayout({
                             <div className="pt-2 mt-2 border-t border-gray-100">
                                 <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Group HQ</p>
                                 <NavLink href="/hq-overview" icon="🏢">Command Center</NavLink>
-                                <NavLink href="/procurement" icon="🔐">Trust Center</NavLink>
-                                <NavLink href="/international" icon="🌍">International Ops</NavLink>
-                                <NavLink href="/schools" icon="🏫">Campuses</NavLink>
                                 <NavLink href="/settings/users" icon="👤">Users & Roles</NavLink>
                             </div>
                         ) : null}
@@ -209,7 +172,6 @@ export default async function AdminLayout({
                     <div suppressHydrationWarning>{children}</div>
                 </main>
             </div>
-            <AICopilot />
         </div>
     );
 }

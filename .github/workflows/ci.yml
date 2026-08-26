@@ -162,6 +162,9 @@ jobs:
       - name: Verify Public Product Claims
         run: pnpm audit:claims
 
+      - name: Verify Navigation Targets Exist
+        run: pnpm audit:nav
+
       - name: Validate Drizzle Migrations
         run: pnpm --filter @school-sis/web exec drizzle-kit check
 
