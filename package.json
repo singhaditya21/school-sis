@@ -45,10 +45,11 @@
     "audit:hygiene": "node scripts/check-repository-hygiene.mjs",
     "audit:debt": "node scripts/check-risk-debt.mjs",
     "audit:claims": "node scripts/check-website-claims.mjs",
+    "audit:nav": "node scripts/check-navigation-targets.mjs",
     "audit:migrations": "node scripts/check-destructive-migrations.mjs",
     "audit:migrations:release": "node scripts/check-destructive-migrations.mjs --release",
     "audit:rls-matrix": "node scripts/check-rls-policy-matrix.mjs",
-    "audit:ci": "pnpm audit:security && pnpm audit:secrets && pnpm audit:hygiene && pnpm audit:debt && pnpm audit:claims && pnpm audit:migrations && pnpm audit:rls-matrix",
+    "audit:ci": "pnpm audit:security && pnpm audit:secrets && pnpm audit:hygiene && pnpm audit:debt && pnpm audit:claims && pnpm audit:nav && pnpm audit:migrations && pnpm audit:rls-matrix",
     "prepare": "husky"
   },
   "devDependencies": {

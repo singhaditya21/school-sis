@@ -181,11 +181,17 @@ export async function saveAttendance(formData: FormData) {
     // Extract status entries from form
     const entries: { studentId: string; status: string }[] = [];
     for (const [key, value] of formData.entries()) {
-        const match = key.match(/^status\\[(.+)\\]$/);
+        const match = key.match(/^status\[(.+)\]$/);
         if (match) {
             entries.push({ studentId: match[1], status: value as string });
         }
     }
+    // Reporting success on an empty submission is how this silently lost a full
+    // day of attendance for as long as the field-name regex was wrong.
+    if (entries.length === 0) {
+        return { success: false, error: 'No attendance entries were submitted.' };
+    }
+
     await assertStudentsBelongToSection(tenantId, sectionId, entries.map((entry) => entry.studentId));
 
     // Upsert attendance records
