@@ -90,3 +90,6 @@ venv/
 
 # Package manager caches
 .npm-cache/
+
+# Generated GTM artifacts (trackers, previews) — contain named prospect data
+outputs/

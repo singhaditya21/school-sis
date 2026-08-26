@@ -80,6 +80,19 @@ const TECH_SPECS: Record<string, TechSpec> = {
         ],
         description: "The managed runtime executing the app. Vercel receives internet traffic, applies edge protections, and routes requests into tenant-safe serverless handlers backed by Neon."
     },
+    jobs: {
+        id: 'jobs',
+        title: 'Background Job Runner',
+        badge: 'QUEUE & NOTIFICATIONS',
+        iconColor: 'fuchsia',
+        terminalText: `> POST /api/jobs/dispatch\n[QUEUE] Claiming due background_jobs rows...\n[OK] Tenant context applied per job.\n[SEND] Draining notification_outbox.\n> Dispatch cycle complete.`,
+        features: [
+            "Durable Postgres-backed job queue with retry and dead-letter handling",
+            "Transactional notification outbox so messages send exactly once",
+            "Every job executes inside its own tenant's row-level-security context"
+        ],
+        description: "The asynchronous worker layer. Fee reminders, receipts, and admission notifications are queued in Postgres rather than sent inline, so a slow provider never blocks a request and nothing is lost on retry."
+    },
     db: {
         id: 'db',
         title: 'Drizzle/Postgres Enclave',
@@ -153,7 +166,7 @@ export default function ArchitectureDeepDive() {
                    apps/web: centered at (630, 150), bottom boundary Y=200
                    API Bridge: centered at (450, 320), top boundary Y=270, bottom Y=370
                    Vercel Runtime: centered at (270, 500)
-                   AI Sentinels: centered at (630, 500)
+                   Job Runner: centered at (630, 500)
                    DB Enclave: centered at (450, 680)
                 */}
                 <svg className="absolute inset-0 w-[900px] h-[800px] pointer-events-none z-10" viewBox="0 0 900 800">
@@ -176,7 +189,7 @@ export default function ArchitectureDeepDive() {
                     <path d="M 450 370 C 450 410, 270 410, 270 450" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
                     <path d="M 450 370 C 450 410, 270 410, 270 450" fill="none" stroke="#6366f1" strokeWidth="4" className="animate-[flow-diagonal_2s_linear_infinite]" strokeDasharray="20 150" strokeLinecap="round" filter="url(#glow-connector)"/>
 
-                    {/* Bridge -> AI Sentinels */}
+                    {/* Bridge -> Job Runner */}
                     <path d="M 450 370 C 450 410, 630 410, 630 450" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
                     <path d="M 450 370 C 450 410, 630 410, 630 450" fill="none" stroke="#d946ef" strokeWidth="4" className="animate-[flow-diagonal_2.5s_linear_infinite]" strokeDasharray="25 180" strokeLinecap="round" filter="url(#glow-connector)"/>
 
@@ -184,7 +197,7 @@ export default function ArchitectureDeepDive() {
                     <path d="M 270 550 C 270 590, 450 590, 450 630" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
                     <path d="M 270 550 C 270 590, 450 590, 450 630" fill="none" stroke="#10b981" strokeWidth="4" className="animate-[flow-diagonal_2s_linear_infinite]" strokeDasharray="30 200" strokeLinecap="round" filter="url(#glow-connector)"/>
 
-                    {/* AI Sentinels -> Database */}
+                    {/* Job Runner -> Database */}
                     <path d="M 630 550 C 630 590, 450 590, 450 630" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
                     <path d="M 630 550 C 630 590, 450 590, 450 630" fill="none" stroke="#10b981" strokeWidth="4" className="animate-[flow-diagonal_2.5s_linear_infinite]" strokeDasharray="25 190" strokeLinecap="round" filter="url(#glow-connector)"/>
                 </svg>
@@ -228,12 +241,12 @@ export default function ArchitectureDeepDive() {
                     </div>
                 </div>
 
-                {/* 5. AI Sentinels Node (X:630, Y:500) -> Top:450, Left:510 */}
-                <div onClick={() => setActiveNode('ai')} className="absolute top-[450px] left-[510px] w-[240px] h-[100px] bg-black/60 backdrop-blur-xl border border-fuchsia-500/30 rounded-2xl flex items-center p-4 hover:bg-fuchsia-900/30 hover:scale-105 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] transition-all cursor-pointer z-20 group">
+                {/* 5. Job Runner Node (X:630, Y:500) -> Top:450, Left:510 */}
+                <div onClick={() => setActiveNode('jobs')} className="absolute top-[450px] left-[510px] w-[240px] h-[100px] bg-black/60 backdrop-blur-xl border border-fuchsia-500/30 rounded-2xl flex items-center p-4 hover:bg-fuchsia-900/30 hover:scale-105 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] transition-all cursor-pointer z-20 group">
                     <div className="w-12 h-12 flex-shrink-0 bg-fuchsia-500/20 text-fuchsia-400 flex items-center justify-center rounded-xl mr-4 border border-fuchsia-500/40 group-hover:bg-fuchsia-400 group-hover:text-black transition-colors"><Cpu size={24}/></div>
                     <div>
-                        <h3 className="font-bold text-white leading-tight">AI Analytics Core</h3>
-                        <p className="text-[10px] text-fuchsia-400 uppercase tracking-wider font-mono mt-1">Vector Math Layer</p>
+                        <h3 className="font-bold text-white leading-tight">Background Jobs</h3>
+                        <p className="text-[10px] text-fuchsia-400 uppercase tracking-wider font-mono mt-1">Queue &amp; Notifications</p>
                     </div>
                 </div>
 

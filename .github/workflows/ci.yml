@@ -159,6 +159,9 @@ jobs:
       - name: Enforce Static Risk-Debt Ratchet
         run: pnpm audit:debt
 
+      - name: Verify Public Product Claims
+        run: pnpm audit:claims
+
       - name: Validate Drizzle Migrations
         run: pnpm --filter @school-sis/web exec drizzle-kit check
 
