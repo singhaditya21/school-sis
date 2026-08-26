@@ -50,7 +50,7 @@ export default async function FeesPage() {
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Fee Management</h1>
                     <p className="text-muted-foreground mt-1">
-                        Fee intelligence, collections tracking, and defaulter management
+                        Collections tracking and defaulter management
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
