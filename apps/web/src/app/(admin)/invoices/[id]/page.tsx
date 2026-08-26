@@ -5,6 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getInvoiceDetail } from '@/lib/actions/queries';
 import { RecordPaymentForm } from '@/components/fees/record-payment-form';
+import { InvoiceCorrection } from '@/components/fees/invoice-correction';
+import { requireAuth } from '@/lib/auth/middleware';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 import { formatCurrency } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -26,9 +29,13 @@ type LineItem = { name: string; amount: string; frequency: string; isOptional: b
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
+    const { session } = await requireAuth('fees:read');
     const invoice = await getInvoiceDetail(id);
 
     if (!invoice) notFound();
+
+    // Waiving and cancelling are gated on fees:approve by the finance API routes.
+    const canCorrect = hasPermission(session.role as UserRole, 'fees:approve');
 
     const total = Number(invoice.totalAmount);
     const paid = Number(invoice.paidAmount);
@@ -79,6 +86,27 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                     <RecordPaymentForm invoiceId={invoice.id} balanceDue={balance} />
                 </CardContent>
             </Card>
+
+            {canCorrect && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Corrections</CardTitle>
+                        <CardDescription>
+                            For a wrong counter entry or a concession granted after billing. Both actions need an
+                            approver&apos;s sign-off before the invoice changes.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <InvoiceCorrection
+                            invoiceId={invoice.id}
+                            invoiceNumber={invoice.invoiceNumber}
+                            status={String(invoice.status)}
+                            totalAmount={total}
+                            paidAmount={paid}
+                        />
+                    </CardContent>
+                </Card>
+            )}
 
             {lineItems.length > 0 && (
                 <Card>

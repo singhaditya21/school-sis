@@ -1,33 +1,43 @@
-import { getSession } from '@/lib/auth/session';
-import { redirect } from 'next/navigation';
-import { getPaymentsLedgerAction } from '@/lib/actions/treasury';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import { getReceiptLedger } from './receipt-data';
 
 export const metadata = {
     title: 'Payment Ledger | ScholarMind',
 };
 
-export default async function PaymentLedgerPage() {
-    const session = await getSession();
-    if (!session.isLoggedIn) redirect('/login');
+function statusClass(status: string): string {
+    if (status === 'COMPLETED') return 'bg-green-50 text-green-700 border-green-200';
+    if (status === 'PENDING') return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+    if (status === 'REFUNDED') return 'bg-blue-50 text-blue-700 border-blue-200';
+    return 'bg-red-50 text-red-700 border-red-200';
+}
 
-    const ledger = await getPaymentsLedgerAction(100);
+export default async function PaymentLedgerPage() {
+    const ledger = await getReceiptLedger(100);
+    const receiptedCount = ledger.filter((row) => row.receiptId !== null).length;
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-8">
             <div className="flex items-center justify-between border-b border-gray-200 pb-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Payment Ledger</h1>
-                    <p className="text-gray-500 mt-1">Immutable log of all cleared and pending treasury transactions.</p>
+                    <p className="text-gray-500 mt-1">
+                        Immutable log of all cleared and pending treasury transactions.
+                    </p>
                 </div>
             </div>
 
             <Card className="border border-gray-200 shadow-sm">
                 <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-                    <CardTitle className="text-lg">Recent Transactions</CardTitle>
+                    <CardTitle className="text-lg">
+                        Recent Transactions
+                        <span className="ml-2 text-sm font-normal text-gray-500">
+                            {receiptedCount} of {ledger.length} receipted
+                        </span>
+                    </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
@@ -35,12 +45,12 @@ export default async function PaymentLedgerPage() {
                             <thead className="bg-gray-50 text-gray-500 uppercase font-semibold text-xs border-b border-gray-100">
                                 <tr>
                                     <th className="px-6 py-4">Date</th>
-                                    <th className="px-6 py-4">Transaction ID</th>
+                                    <th className="px-6 py-4">Student</th>
                                     <th className="px-6 py-4">Invoice Ref</th>
                                     <th className="px-6 py-4">Method</th>
                                     <th className="px-6 py-4">Amount</th>
                                     <th className="px-6 py-4">Status</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
+                                    <th className="px-6 py-4 text-right">Receipt</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
@@ -51,39 +61,55 @@ export default async function PaymentLedgerPage() {
                                         </td>
                                     </tr>
                                 ) : (
-                                    ledger.map((payment) => (
-                                        <tr key={payment.id} className="hover:bg-gray-50 transition-colors">
+                                    ledger.map((row) => (
+                                        <tr key={row.paymentId} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-6 py-4 whitespace-nowrap text-gray-600">
-                                                {formatDate(payment.paidAt)}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap font-mono text-xs font-bold text-gray-500">
-                                                {payment.transactionId || 'MANUAL-ENTRY'}
+                                                {formatDate(row.paidAt)}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className="font-semibold text-blue-600">{payment.invoiceNumber}</span>
+                                                <span className="text-gray-900">
+                                                    {row.studentFirstName
+                                                        ? `${row.studentFirstName} ${row.studentLastName ?? ''}`.trim()
+                                                        : '—'}
+                                                </span>
+                                                {row.admissionNumber && (
+                                                    <span className="block text-xs text-gray-500 font-mono">
+                                                        {row.admissionNumber}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <Badge variant="outline" className="bg-gray-100">{payment.method}</Badge>
+                                                <Link
+                                                    href={`/invoices/${row.invoiceId}`}
+                                                    className="font-semibold text-blue-600 hover:underline"
+                                                >
+                                                    {row.invoiceNumber ?? '—'}
+                                                </Link>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <Badge variant="outline" className="bg-gray-100">
+                                                    {row.method}
+                                                </Badge>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap font-mono font-medium">
-                                                {formatCurrency(Number(payment.amount))}
+                                                {formatCurrency(Number(row.amount))}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <Badge 
-                                                    variant="outline" 
-                                                    className={
-                                                        payment.status === 'COMPLETED' ? 'bg-green-50 text-green-700 border-green-200' :
-                                                        payment.status === 'PENDING' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                                                        'bg-red-50 text-red-700 border-red-200'
-                                                    }
-                                                >
-                                                    {payment.status}
+                                                <Badge variant="outline" className={statusClass(row.status)}>
+                                                    {row.status}
                                                 </Badge>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                <Link href={`/receipts/${payment.id}`} className="text-blue-600 hover:underline text-sm font-medium">
-                                                    View Receipt
-                                                </Link>
+                                                {row.receiptId ? (
+                                                    <Link
+                                                        href={`/receipts/${row.receiptId}`}
+                                                        className="text-blue-600 hover:underline text-sm font-medium"
+                                                    >
+                                                        {row.receiptNumber}
+                                                    </Link>
+                                                ) : (
+                                                    <span className="text-gray-400 text-sm">Not receipted</span>
+                                                )}
                                             </td>
                                         </tr>
                                     ))

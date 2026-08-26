@@ -328,25 +328,139 @@ export async function recordPayment(formData: FormData): Promise<RecordPaymentRe
 }
 
 // ─── Create Fee Plan ──────────────────────────────────────
-export async function createFeePlan(formData: FormData) {
+/**
+ * Creates a fee plan together with its fee components in ONE transaction.
+ *
+ * A plan without components cannot be invoiced at all (`generateInvoices`
+ * rejects it), and a plan whose components are all optional would price every
+ * invoice at zero, because invoicing sums MANDATORY components only. Both are
+ * refused here rather than persisted as a silently unusable plan.
+ *
+ * The component rows arrive as parallel repeated form fields:
+ *   componentName / componentAmount / componentFrequency / componentIsOptional
+ * `componentIsOptional` is a hidden 'true'/'false' field rather than a
+ * checkbox so unchecked rows still submit and the arrays stay aligned.
+ */
+export async function createFeePlan(
+    formData: FormData,
+): Promise<{ success: boolean; error?: string; feePlanId?: string }> {
     const { tenantId } = await requireAuth('fees:write');
-    const academicYearId = formData.get('academicYearId') as string;
-    await assertAcademicYearBelongsToTenant(tenantId, academicYearId);
 
-    const planRes = await pool.query(
-        `INSERT INTO fee_plans (id, tenant_id, name, academic_year_id, description)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id`,
-        [
-            randomUUID(),
-            tenantId,
-            formData.get('name') as string,
-            academicYearId,
-            (formData.get('description') as string) || null
-        ]
-    );
+    // Mirrors the fee_frequency enum in the database.
+    const FEE_FREQUENCIES = ['MONTHLY', 'QUARTERLY', 'TERM_WISE', 'ANNUAL', 'ONE_TIME'];
+    // numeric(12,2), positive rupees: up to 10 integer digits and 2 decimals.
+    const AMOUNT_PATTERN = /^\d{1,10}(\.\d{1,2})?$/;
 
-    return { success: true, feePlanId: planRes.rows[0].id };
+    const name = String(formData.get('name') ?? '').trim();
+    if (!name) return { success: false, error: 'Plan name is required.' };
+    if (name.length > 255) return { success: false, error: 'Plan name must be 255 characters or fewer.' };
+
+    const academicYearId = String(formData.get('academicYearId') ?? '').trim();
+    if (!academicYearId) return { success: false, error: 'Select an academic year.' };
+    try {
+        await assertAcademicYearBelongsToTenant(tenantId, academicYearId);
+    } catch {
+        return { success: false, error: 'Select a valid academic year.' };
+    }
+
+    const description = String(formData.get('description') ?? '').trim();
+
+    const names = formData.getAll('componentName').map((value) => String(value).trim());
+    const amounts = formData.getAll('componentAmount').map((value) => String(value).trim());
+    const frequencies = formData.getAll('componentFrequency').map((value) => String(value).trim().toUpperCase());
+    const optionalFlags = formData.getAll('componentIsOptional').map((value) => String(value).trim());
+
+    if (
+        names.length !== amounts.length ||
+        names.length !== frequencies.length ||
+        names.length !== optionalFlags.length
+    ) {
+        return { success: false, error: 'Fee component rows were incomplete. Please re-enter them.' };
+    }
+    if (names.length === 0) {
+        return { success: false, error: 'Add at least one fee component — a plan with none cannot be invoiced.' };
+    }
+    if (names.length > 50) {
+        return { success: false, error: 'A fee plan can hold at most 50 components.' };
+    }
+
+    const components: { name: string; amount: string; frequency: string; isOptional: boolean }[] = [];
+    for (let index = 0; index < names.length; index++) {
+        const componentName = names[index];
+        const position = index + 1;
+
+        if (!componentName) return { success: false, error: `Component ${position}: name is required.` };
+        if (componentName.length > 255) {
+            return { success: false, error: `Component ${position}: name must be 255 characters or fewer.` };
+        }
+
+        const rawAmount = amounts[index];
+        if (!AMOUNT_PATTERN.test(rawAmount)) {
+            return {
+                success: false,
+                error: `Component "${componentName}": enter an amount in rupees, e.g. 15000 or 15000.50.`,
+            };
+        }
+        const amountValue = Number(rawAmount);
+        if (!Number.isFinite(amountValue) || amountValue <= 0) {
+            return { success: false, error: `Component "${componentName}": amount must be greater than zero.` };
+        }
+
+        const frequency = frequencies[index];
+        if (!FEE_FREQUENCIES.includes(frequency)) {
+            return { success: false, error: `Component "${componentName}": choose a valid frequency.` };
+        }
+
+        components.push({
+            name: componentName,
+            amount: amountValue.toFixed(2),
+            frequency,
+            isOptional: optionalFlags[index] === 'true',
+        });
+    }
+
+    if (!components.some((component) => !component.isOptional)) {
+        return {
+            success: false,
+            error: 'At least one component must be mandatory — invoices are priced from mandatory components only.',
+        };
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const planRes = await client.query(
+            `INSERT INTO fee_plans (id, tenant_id, name, academic_year_id, description)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id`,
+            [randomUUID(), tenantId, name, academicYearId, description || null],
+        );
+        const feePlanId: string = planRes.rows[0].id;
+
+        for (const component of components) {
+            await client.query(
+                `INSERT INTO fee_components (id, fee_plan_id, name, amount, frequency, is_optional)
+                 VALUES ($1, $2, $3, $4, $5::fee_frequency, $6)`,
+                [randomUUID(), feePlanId, component.name, component.amount, component.frequency, component.isOptional],
+            );
+        }
+
+        await client.query('COMMIT');
+
+        revalidatePath('/fees');
+        revalidatePath('/fees/plans');
+
+        return { success: true, feePlanId };
+    } catch (error) {
+        await client.query('ROLLBACK').catch(() => undefined);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Could not create the fee plan.',
+        };
+    } finally {
+        client.release();
+    }
 }
 
 // ─── Create Exam ──────────────────────────────────────────

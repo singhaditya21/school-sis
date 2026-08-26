@@ -7,32 +7,25 @@ import {
     getFeePlanComponents,
     getFeeOverview,
     getCollectionTrend,
-    getDefaulterStats,
-    getFeeAgeingBreakdown,
-    getDefaulterList,
 } from '@/lib/actions/fees';
 import { FeeOverviewCards, CollectionRateBar, CollectionTrendChart } from '@/components/fees/fee-analytics';
-import DefaulterDashboard from '@/components/fees/defaulter-dashboard';
 
 export default async function FeesPage() {
     const session = await getSession();
     if (!session.isLoggedIn) redirect('/login');
 
-    // Fetch all data in parallel
+    // Fetch all data in parallel.
+    // Defaulter analytics are NOT queried here — /fees/defaulters and /fees/alerts
+    // own that data and render it; querying it again for this page would be work
+    // whose output nobody sees.
     const [
         feePlans,
         overview,
         collectionTrend,
-        defaulterStats,
-        ageing,
-        defaulters,
     ] = await Promise.all([
         getFeePlans(),
         getFeeOverview(),
         getCollectionTrend(6),
-        getDefaulterStats(),
-        getFeeAgeingBreakdown(),
-        getDefaulterList({ sortBy: 'amount', limit: 50 }),
     ]);
 
     // Get components for each plan
@@ -60,7 +53,7 @@ export default async function FeesPage() {
                     >
                         Generate Invoices
                     </a>
-                    {/* <a
+                    <a
                         href="/fees/cashflow"
                         className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors font-medium text-sm"
                     >
@@ -71,7 +64,19 @@ export default async function FeesPage() {
                         className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors font-medium text-sm"
                     >
                         Defaulters
-                    </a> */}
+                    </a>
+                    <a
+                        href="/fees/alerts"
+                        className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors font-medium text-sm"
+                    >
+                        Alerts
+                    </a>
+                    <a
+                        href="/fees/plans"
+                        className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors font-medium text-sm"
+                    >
+                        Fee Plans
+                    </a>
                     <a
                         href="/fees/plans/new"
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
@@ -93,15 +98,6 @@ export default async function FeesPage() {
                     <CollectionTrendChart data={collectionTrend} />
                 </div>
             </div>
-
-            <Separator />
-
-            {/* Defaulter Dashboard 
-            <DefaulterDashboard
-                initialStats={defaulterStats}
-                initialAgeing={ageing}
-                initialDefaulters={defaulters}
-            /> */}
 
             <Separator />
 

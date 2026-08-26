@@ -61,6 +61,7 @@ const ADMIN_PAGE_PREFIXES = [
     '/health',
     '/homework',
     '/hostel',
+    '/hr',
     '/hq-overview',
     '/hq-policies',
     '/id-cards',

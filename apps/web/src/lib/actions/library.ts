@@ -3,6 +3,7 @@
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
+import { calculateOverdueFine } from '@/app/(admin)/library/fine-policy';
 
 // ─── Book Catalogue ──────────────────────────────────────────
 
@@ -176,18 +177,10 @@ export async function returnBook(issueId: string, fineAmount?: number) {
 
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
-    const dueDateObj = new Date(issue.dueDate);
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const dueStart = new Date(dueDateObj.getFullYear(), dueDateObj.getMonth(), dueDateObj.getDate());
-    
-    let finalFine = fineAmount || 0;
-    if (!fineAmount && todayStart > dueStart) {
-        const diffTime = todayStart.getTime() - dueStart.getTime();
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-        if (diffDays > 0) {
-            finalFine = diffDays * 5; // 5 Rs per day
-        }
-    }
+
+    // An explicitly supplied fine (e.g. a damage charge) wins; otherwise bill the
+    // published overdue rate — the same constant the issue screen quotes to staff.
+    const finalFine = fineAmount || calculateOverdueFine(issue.dueDate, today);
 
     // Mark as returned
     await pool.query(

@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getLibraryHistory } from '@/lib/services/library/library.service';
+import { calculateOverdueFine, overdueDays } from '../fine-policy';
 import {
     Table,
     TableBody,
@@ -16,14 +17,9 @@ interface PageProps {
     searchParams: Promise<{ filter?: string, q?: string }>;
 }
 
-const isOverdue = (dueDate: string) => new Date(dueDate) < new Date();
-const calculateFine = (dueDate: string, returnDate?: string) => {
-    const end = returnDate ? new Date(returnDate) : new Date();
-    const due = new Date(dueDate);
-    if (end <= due) return 0;
-    const diffDays = Math.ceil((end.getTime() - due.getTime()) / (1000 * 3600 * 24));
-    return diffDays * 5; // 5 Rs per day
-};
+const isOverdue = (dueDate: string) => overdueDays(dueDate) > 0;
+const calculateFine = (dueDate: string, returnDate?: string) =>
+    calculateOverdueFine(dueDate, returnDate ?? new Date());
 
 export default async function LibraryHistoryPage({ searchParams }: PageProps) {
     const { tenantId } = await requireAuth('library:read');

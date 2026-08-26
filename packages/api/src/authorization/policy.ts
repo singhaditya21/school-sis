@@ -534,6 +534,7 @@ export const AUTHORIZATION_ROUTE_POLICIES = [
     { prefix: '/approvals', permission: 'workflow_approvals:read', scope: 'tenant', description: 'Tenant workflow approval queue.' },
     { prefix: '/fees', permission: 'fees:read', scope: 'tenant', description: 'Tenant finance workspace.' },
     { prefix: '/invoices', permission: 'invoices:read', scope: 'tenant', description: 'Invoice and counter-payment workspace.' },
+    { prefix: '/hr', permission: 'hr:read', scope: 'tenant', description: 'Staff, leave and HR workspace.' },
     { prefix: '/my-fees', permission: 'fees:read', scope: 'own', description: 'Parent or student owned fee view.' },
     { prefix: '/students', permission: 'students:read', scope: 'tenant', description: 'Tenant enrollment workspace.' },
     { prefix: '/admissions', permission: 'admissions:read', scope: 'tenant', description: 'Admissions workspace.' },
