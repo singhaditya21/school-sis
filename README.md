@@ -1,90 +1,85 @@
-# ScholarMind — V6 Enterprise Architecture
+# ScholarMind
 
-Welcome to the **ScholarMind Administration Portal**, a multi-tenant, SaaS-based School Information System (SIS) infused with a deeply integrated 26-agent cognitive AI fleet. 
+A multi-tenant School Information System (SIS) for K-12 school groups: fees and payments,
+admissions, attendance, exams, timetable, library, HR, transport, hostel, and parent/student
+portals — with per-tenant isolation enforced in the database.
 
-This repository enforces the **V6 PRD Enterprise Standard**, which radically restructures the platform into a centralized cloud deployment utilizing Drizzle ORM, Next.js Server Components, PostgreSQL Vector searching, and a dedicated AI swarm operated via Cerebras (`llama3.1-70b`).
-
----
-
-## 🏛️ System Architecture
-
-The ScholarMind framework operates on a hybrid monolith/microservice architecture split distinctly between the Presentation/Core API Layer (Next.js) and the Cognitive Execution Layer (Python FastAPI).
-
-### 1. Presentation & Core API Layer (`/apps/web`)
-- **Framework**: Next.js 16 (App Router)
-- **Database**: PostgreSQL 16 with pgvector (runs locally — see [RUNNING.md](./RUNNING.md))
-- **ORM**: Drizzle ORM — Fully typed, zero-abstraction relational querying.
-- **Styling**: Tailwind CSS & Tremor React components for rich dashboards.
-- **Identity**: NextAuth/IronSession tracking multi-tenant boundaries (`tenantId`) explicitly for every query.
-
-### 2. Cognitive AI Subsystem (`/services/agents`)
-- **Framework**: Python FastAPI
-- **LLM Engine**: Cerebras Inference (`llama3.1-70b`)
-- **Memory**: Redis (Arq) for background queue management and cost-tracking.
-- **Embeddings**: `pgvector` stored in Postgres for instant RAG retrieval.
-- **Agent Framework**: Custom lightweight framework derived from LangChain principles, built for extreme latency optimization and strict tool execution oversight.
+Production runs on **Vercel** (app) and **Neon** (Postgres). See
+[docs/devops/README.md](./docs/devops/README.md) for the release pipeline, and
+[RUNNING.md](./RUNNING.md) to run it locally.
 
 ---
 
-## 🧩 Modularity & Domains
+## Architecture
 
-The V6 release implements strict structural domain boundaries based on the `institutionType` flag inherent to each Tenant.
+A pnpm + Turborepo monorepo. Everything is TypeScript; there are no other language services.
 
-- **K-12 Foundation**: Timetables, Homework, Digital Diaries, Guardian Portal, Transport.
-- **Higher Education Ecosystem**: Course registration, Academic Advising, Research Grants, Placements.
-- **Group HQ / Core Operations**: Global Fee orchestration, Staff HR, Analytics, Enterprise Evidence Trusts.
+| Workspace | What it is |
+|---|---|
+| `apps/web` | The product. Next.js 16 (App Router), server actions, Tailwind + Tremor dashboards. |
+| `apps/website` | The public marketing site. Separate deploy so marketing changes cannot break the product. |
+| `apps/mobile` | Expo/React Native client. Not production-ready — see the roadmap. |
+| `packages/api` | Shared domain layer: Drizzle schema, services, authorization policy, workflows. |
 
----
+**Data**: PostgreSQL 16 with `pgvector`, accessed through Drizzle ORM plus hand-written SQL.
+Schema lives in `packages/api/src/db/schema/`; migrations in `apps/web/drizzle/`.
 
-## 🤖 The 26-Agent Swarm
+**Identity**: Iron Session. Page and API authorization run off a central matrix
+(`apps/web/src/lib/auth/page-access.ts`, `api-access.ts`); role permissions are defined in
+`packages/api/src/authorization/` and surfaced read-only at Settings → Role Permissions.
 
-At the heart of the V6 transition is the Autonomous Agent Swarm. Instead of a single chatbot, ScholarMind delegates logic to 26 highly specialized, domain-isolated Python agents.
+**Tenant isolation**: Postgres row-level security is FORCEd on every table carrying a
+`tenant_id`, with join-based policies for child tables that lack one. Tenant context is
+carried in an HMAC-signed, transaction-scoped setting that Postgres itself verifies, so a
+leaked database credential alone cannot forge a tenant. RLS bypass is a typed capability
+requiring a written justification (`packages/api/src/db/rls-bypass.ts`) and routes to a
+separately credentialed role. Two CI gates protect this: a static policy matrix
+(`pnpm audit:rls-matrix`) and a live isolation test against a real Postgres.
 
-| Agent | Domain | Role Description |
-|---|---|---|
-| **Synthesis Agent** | Cross-Module | Acts as the "Headmaster", distributing queries to child agents and synthesizing results. |
-| **Fee Agent** | Treasury | Pre-computes default risks, analyzes grade-wise payment trends. |
-| **Risk Agent** | Core Ops | A hybrid correlation agent detecting overlapping signs of student decline (e.g., fee defaults + attendance drops). |
-| **Crisis Agent** | Executive | Manages high-priority physical or institutional workflow emergencies. |
-| **Neuro Agent** | Wellness | Assesses welfare indicators securely using anonymized sentiment processing. |
+**Background work**: durable Postgres-backed job queue and a transactional notification
+outbox, drained via `/api/jobs/dispatch`.
 
-### HITL Safety Guardrails (Human-In-The-Loop)
-Agents possess a specialized `requires_human_approval` Tool flag. If the Swarm attempts to execute a high-risk system mutation (like modifying a Grade or Revoking a Certificate), it is physically blocked. Instead, it places the payload in the `agent_approvals` PostgreSQL queue and requests human signoff via the UI.
-
----
-
-## 🔐 Enterprise Governance
-
-ScholarMind V6 aggressively enforces the **Section 8.2 Persona Matrix**:
-
-1. **`GROUP_EXECUTIVE`**: Has overarching command-center access but limited edit capability across subsidiary campuses.
-2. **`SUPER_ADMIN`**: Tenant-level absolute authority.
-3. **`FINANCE_LEAD`**: Treasury, Overdue Invoices, Multi-currency splits.
-4. **`REGISTRAR`**: The only role permitted to perform Verifiable Credential issuance. 
-5. **`TRUST_OFFICER`**: Dedicated access to the Procurement & Platform Audit Trail dashboards for SOC2 compliance logging.
-6. **`STUDENT_SUCCESS_COUNSELOR`**: Isolated access for sensitive interventions blocking general teacher prying.
-
-*(Review `/apps/web/src/lib/rbac/permissions.ts` for the direct authorization schemas).*
+**AI**: an in-app copilot (`apps/web/src/app/api/copilot/route.ts`, `apps/web/src/lib/agents/`)
+providing bounded, human-in-the-loop decision support. It does not act autonomously. Claims
+about AI capability on the public site are gated by `pnpm audit:claims` — see
+[docs/sales/README.md](./docs/sales/README.md) for the approved-claims register.
 
 ---
 
-## 📚 Documentation
+## Getting started
 
-The complete documentation suite for ScholarMind is broken down by persona. Whether you are an end-user, developer, devops engineer, or sales executive, refer to the guides below:
+```bash
+pnpm install
+pnpm local:setup   # local Postgres 16 + pgvector, schema, seed data
+pnpm dev           # http://localhost:3000
+```
 
-- **[End-User Guide](./docs/user-guide/README.md)**: For School Admins & Teachers. Learn about the Metadata Engine, Workflows, Fees, Attendance, and AI Integrations.
-- **[Developer & API Guide](./docs/api/README.md)**: For Integrators. Discover how to build on top of our Metadata Architecture, consume Webhooks, and integrate third-party tools (Stripe, Twilio, MSG91).
-- **[Running Locally](./RUNNING.md)**: Set up the self-contained local stack (Postgres + pgvector + the app) — no cloud services required.
-- **[Sales & Marketing Enablement](./docs/sales/README.md)**: For the GTM Team. Access pitches for the "True Vertical OS for Education", value propositions, and strategies against monolithic competitors.
+Requires **Node 24.x** and pnpm 9.15.9 (`corepack enable`). Full instructions, including the
+local database lifecycle, are in [RUNNING.md](./RUNNING.md).
+
+## Quality gates
+
+`pnpm audit:ci` runs the full static gate set locally — dependency audit, secret scan,
+repository hygiene, the risk-debt ratchet (`pnpm audit:debt`), the public-claims guard
+(`pnpm audit:claims`), migration safety, and the RLS policy matrix. CI runs the same set plus
+typecheck, build, lint, unit tests, and a Playwright smoke suite. Only the smoke suite gates
+pull requests; the full e2e suite is manual (`workflow_dispatch`).
 
 ---
 
-## 🛠️ Internal / Legacy Links
+## Documentation
 
-- [Setup Guide](./docs/SETUP_GUIDE.md) — For developer onboarding and environment mapping.
-- [Database Security Checks](./docs/SECURITY_REPORT.md) — RLS policies and SQL injection testing details.
-- [Historical PRDs](./docs/PRDs/) — Review the evolution from V3 to V6. 
-- [Audit Artifacts](./audits/reports/) — The latest TRIVY, Npm, and SemGrep sweeps for SOC2 artifacts.
+- **[Running locally](./RUNNING.md)** — local Postgres, seed data, day-to-day development.
+- **[DevOps & release](./docs/devops/README.md)** — the Vercel/Neon pipeline, environments, rollback. Source of truth for deployment.
+- **[End-user guide](./docs/user-guide/README.md)** — for school admins and teachers.
+- **[Developer & API guide](./docs/api/README.md)** — metadata engine, webhooks, integrations.
+- **[Testing architecture](./docs/TESTING_QUALITY_ARCHITECTURE.md)** — test layers and what actually gates CI.
+- **[Issues & roadmap](./docs/ISSUES_AND_ROADMAP.md)** — prioritized open work.
+- **[Sales enablement](./docs/sales/README.md)** — positioning and the approved-claims register.
+- **[GTM execution](./docs/gtm/README.md)** — pilot scope, buyer research, evidence log.
 
----
-*Generated mathematically aligned to the PRD V6 Standard implementation.*
+### Reference
+
+- [Database security notes](./docs/SECURITY_REPORT.md) — RLS policies and injection testing.
+- [Historical PRDs](./docs/PRDs/) — product evolution; superseded by the roadmap above.
+- [Audit reports](./audits/reports/) — point-in-time application audits.

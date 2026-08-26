@@ -15,6 +15,8 @@ School SIS uses a layered quality model that keeps fast checks cheap while reser
 ## Quality Gates
 
 - Every pull request runs infrastructure validation, Drizzle migration validation, TypeScript, build, lint, architecture contract checks, and unit tests.
+- **Only the E2E smoke suite gates pull requests.** The full Playwright suite is manual — `workflow_dispatch` with `suite=full`, across 8 shards — and is not a merge requirement until the suite is stabilised (issue #37). The nightly cron also runs smoke, not full. Treat a green PR as "smoke passed", not "end-to-end verified".
+- Unit tests assert architecture and policy far more than behaviour, and almost none render a page or execute its SQL. A green pipeline is not evidence that a screen loads; verify data-facing changes against a real database or by loading the page.
 - Playwright runs use generated `.env.test` files and generated Postgres databases. These files are runtime artifacts and must not be committed.
 - E2E database names are sanitized before use as SQL identifiers.
 - Test databases are dropped during teardown by default. Set `SCHOOL_SIS_KEEP_TEST_DB=true` only when debugging locally.
