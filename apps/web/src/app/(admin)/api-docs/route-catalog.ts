@@ -382,13 +382,6 @@ export const API_ROUTES: readonly ApiRouteDoc[] = [
         auth: 'session',
     },
     {
-        path: '/api/parent/payment-sheet',
-        methods: ['POST'],
-        group: 'Parent',
-        summary: 'Create a mobile payment sheet for a parent invoice.',
-        auth: 'session',
-    },
-    {
         path: '/api/upload',
         methods: ['POST'],
         group: 'Files',

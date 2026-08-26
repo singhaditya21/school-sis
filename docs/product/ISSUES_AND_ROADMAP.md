@@ -2,8 +2,8 @@
 
 > **Document version**: 2.4.0
 > **Last updated**: 2026-08-15
-> **Source of truth**: [`audits/reports/2026-07-04-full-application-audit.md`](../audits/reports/2026-07-04-full-application-audit.md), re-verified against the live GitHub issue/PR state and the Vercel/Neon release-remediation branch on 2026-08-15.
-> **Runtime**: Production runs on Vercel (`sin1`) with Neon Postgres; previews deploy to `iad1` on Neon branches. GitHub Actions owns preview and production release ordering. Local development is local-only — see [RUNNING.md](../RUNNING.md).
+> **Source of truth**: [`audits/reports/2026-07-04-full-application-audit.md`](../../audits/reports/2026-07-04-full-application-audit.md), re-verified against the live GitHub issue/PR state and the Vercel/Neon release-remediation branch on 2026-08-15.
+> **Runtime**: Production runs on Vercel (`sin1`) with Neon Postgres; previews deploy to `iad1` on Neon branches. GitHub Actions owns preview and production release ordering. Local development is local-only — see [RUNNING.md](../../RUNNING.md).
 > **Supersedes**: v1.0.0 (2026-04-26) dependency/security audit — its still-open items are folded into the security, hygiene, and testing issues below.
 
 This roadmap is the human-readable index over the live GitHub issues. Every item below links to a tracked issue with re-verified evidence and residual done-criteria. Issues are grouped into three milestones by launch priority.
@@ -16,7 +16,7 @@ It still runs entirely locally for development. Vercel and Neon are now the sele
 
 ### Commercial pilot scope gate (effective 2026-08-21)
 
-Until the first three paid design-partner pilots complete, active product expansion is limited to the production/security queue and the [`Group Finance Control Pilot`](./gtm/GROUP_FINANCE_CONTROL_PILOT.md): source-data import, fee-ledger normalization, reconciliation, receivables/exceptions, waiver/refund approvals, audit evidence, multi-campus executive reporting, native exports, demo safety, and implementation tooling. Mobile rollout, autonomous AI, higher-ed/coaching expansion, and unrelated horizontal modules are gated under [`PILOT_SCOPE_FREEZE.md`](./gtm/PILOT_SCOPE_FREEZE.md). Exceptions require linked customer or production evidence in the [`evidence and decision log`](./gtm/EVIDENCE_AND_DECISION_LOG.md).
+Until the first three paid design-partner pilots complete, active product expansion is limited to the production/security queue and the [`Group Finance Control Pilot`](../gtm/GROUP_FINANCE_CONTROL_PILOT.md): source-data import, fee-ledger normalization, reconciliation, receivables/exceptions, waiver/refund approvals, audit evidence, multi-campus executive reporting, native exports, demo safety, and implementation tooling. Mobile rollout, autonomous AI, higher-ed/coaching expansion, and unrelated horizontal modules are gated under [`PILOT_SCOPE_FREEZE.md`](../gtm/PILOT_SCOPE_FREEZE.md). Exceptions require linked customer or production evidence in the [`evidence and decision log`](../gtm/EVIDENCE_AND_DECISION_LOG.md).
 
 | Milestone                                                                                                  | Focus                                            | Open items |
 | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ---------: |
@@ -24,7 +24,7 @@ Until the first three paid design-partner pilots complete, active product expans
 | [Phase 1 — Production Hardening (P1)](https://github.com/singhaditya21/school-sis/milestone/2)             | Security/reliability/provider evidence at launch |          7 |
 | [Phase 2 — Quality, Maintainability & Scale (P2)](https://github.com/singhaditya21/school-sis/milestone/3) | Debt reduction & scale readiness                 |          6 |
 
-**Post-remediation live totals (2026-08-15)**: 14 open GitHub issues — 1 active P0, 7 P1, and 6 P2. Issues #16, #17, #19, #20, #22, #26, and #29 are closed. The nine stale/superseded pull requests were dispositioned through [`OPEN_PR_TRIAGE_2026-08-07.md`](./OPEN_PR_TRIAGE_2026-08-07.md).
+**Post-remediation live totals (2026-08-15)**: 14 open GitHub issues — 1 active P0, 7 P1, and 6 P2. Issues #16, #17, #19, #20, #22, #26, and #29 are closed. The nine stale/superseded pull requests were dispositioned through `OPEN_PR_TRIAGE_2026-08-07.md`.
 
 **Status legend**: 🔴 Open · 🟡 In progress (partially addressed) · ⏸️ Formally deferred (criteria retained) · 🟢 Done (verified).
 

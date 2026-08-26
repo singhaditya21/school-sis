@@ -28,7 +28,7 @@ Do not begin with a feature presentation or the number of modules or AI agents.
 
 ## Offer
 
-The [`Group Finance Control Pilot`](../gtm/GROUP_FINANCE_CONTROL_PILOT.md) imports authorized source data, normalizes and reconciles the ledger, surfaces receivables and exceptions, routes sensitive approvals, and produces auditable group reporting.
+The [`Group Finance Control Pilot`](../GROUP_FINANCE_CONTROL_PILOT.md) imports authorized source data, normalizes and reconciles the ledger, surfaces receivables and exceptions, routes sensitive approvals, and produces auditable group reporting.
 
 - Duration: 8–12 weeks.
 - Footprint: one or two campuses.
@@ -58,4 +58,4 @@ Sales may not claim without updated production/customer proof:
 
 ## Operating materials
 
-Use the [`GTM first-48-hours pack`](../gtm/README.md), [`buyer interview guide`](../gtm/BUYER_INTERVIEW_GUIDE.md), [`competitor scorecard`](../gtm/COMPETITOR_TEST_SCORECARD.md), and [`evidence log`](../gtm/EVIDENCE_AND_DECISION_LOG.md). Every proposal must follow a discovery call and data workshop.
+Use the [`GTM first-48-hours pack`](../README.md), [`buyer interview guide`](../BUYER_INTERVIEW_GUIDE.md), [`competitor scorecard`](../COMPETITOR_TEST_SCORECARD.md), and [`evidence log`](../EVIDENCE_AND_DECISION_LOG.md). Every proposal must follow a discovery call and data workshop.

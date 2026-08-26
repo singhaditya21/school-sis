@@ -11,7 +11,7 @@ groups:
         annotations:
           summary: School SIS rate-limit backend is degraded
           description: Strict public, login, and AI endpoints are using the bounded in-process fallback.
-          runbook_url: docs/OBSERVABILITY_SRE_ARCHITECTURE.md#rate-limit-response
+          runbook_url: docs/architecture/OBSERVABILITY_SRE_ARCHITECTURE.md#rate-limit-response
 
       - alert: SchoolSisRateLimitFallbackActive
         expr: sum(rate(school_sis_rate_limit_decisions_total{outcome=~"degraded_.*"}[5m])) > 0
@@ -22,7 +22,7 @@ groups:
         annotations:
           summary: School SIS strict rate-limit fallback is active
           description: Requests have used a degraded in-process rate-limit path for at least five minutes.
-          runbook_url: docs/OBSERVABILITY_SRE_ARCHITECTURE.md#rate-limit-response
+          runbook_url: docs/architecture/OBSERVABILITY_SRE_ARCHITECTURE.md#rate-limit-response
 
       - alert: SchoolSisRateLimitFallbackCapacityExhausted
         expr: sum(increase(school_sis_rate_limit_fallback_capacity_exhaustions_total[5m])) > 0
@@ -33,7 +33,7 @@ groups:
         annotations:
           summary: School SIS rate-limit fallback reached its memory bound
           description: New strict identities are being denied to preserve fail-closed behavior and process memory.
-          runbook_url: docs/OBSERVABILITY_SRE_ARCHITECTURE.md#rate-limit-response
+          runbook_url: docs/architecture/OBSERVABILITY_SRE_ARCHITECTURE.md#rate-limit-response
 
       - alert: SchoolSisRateLimitBackendFailures
         expr: sum(increase(school_sis_rate_limit_backend_failures_total[10m])) >= 3
@@ -44,4 +44,4 @@ groups:
         annotations:
           summary: Repeated School SIS rate-limit backend failures
           description: Three or more backend consume, delete, or health operations failed in ten minutes.
-          runbook_url: docs/OBSERVABILITY_SRE_ARCHITECTURE.md#rate-limit-response
+          runbook_url: docs/architecture/OBSERVABILITY_SRE_ARCHITECTURE.md#rate-limit-response

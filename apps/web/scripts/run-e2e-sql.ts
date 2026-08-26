@@ -13,7 +13,7 @@ async function run() {
     console.log('⏳ Running E2E user insertion SQL script against the database...');
     const sqlFilePath = process.env.E2E_SQL_FILE
         ? path.resolve(process.env.E2E_SQL_FILE)
-        : path.resolve(__dirname, '../../../insert_e2e_users.sql');
+        : path.resolve(__dirname, '../e2e/fixtures/e2e-seed.sql');
     if (!fs.existsSync(sqlFilePath)) {
         console.error(`❌ SQL file not found at: ${sqlFilePath}`);
         process.exit(1);
