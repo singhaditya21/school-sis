@@ -138,7 +138,7 @@ export const API_ROUTES: readonly ApiRouteDoc[] = [
         group: 'Exams',
         summary: 'Report card PDF for a student and term.',
         auth: 'session',
-        note: 'Proxies to PDF_SERVICE_URL. With that variable unset the route answers 501 — no PDF is generated in-process.',
+        note: 'Generated in-process with jsPDF; no external service required. [termId] accepts a term id (all published exams starting inside it) or a single published exam id — unpublished exams are never included, and 404 is returned when nothing published matches. PDF_SERVICE_URL, if set, is tried first as an override.',
     },
 
     // ---- Fees, payments, finance ---------------------------------------------
@@ -192,7 +192,7 @@ export const API_ROUTES: readonly ApiRouteDoc[] = [
         group: 'Fees',
         summary: 'Payment receipt PDF.',
         auth: 'session',
-        note: 'Proxies to PDF_SERVICE_URL. With that variable unset the route answers 501.',
+        note: 'Generated in-process with jsPDF; no external service required. Carries the school header, receipt number, student, invoice reference, amount in figures and words, and payment method/reference. A legacy payment id in [id] resolves to the receipt issued against it. PDF_SERVICE_URL, if set, is tried first as an override.',
     },
     {
         path: '/api/finance/invoices/[invoiceId]/cancel',

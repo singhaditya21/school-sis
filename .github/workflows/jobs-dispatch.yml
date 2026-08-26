@@ -1,0 +1,75 @@
+name: Dispatch Background Jobs
+
+# Nothing drove /api/jobs/dispatch in production, so queued fee reminders,
+# receipts and admission notifications never sent. vercel.json now carries a
+# daily cron as a plan-independent floor; this workflow is the primary driver
+# because Vercel's cron frequency is plan-limited (Hobby is once per day) while
+# GitHub Actions allows a 5-minute schedule on any plan.
+#
+# Two drivers hitting the same queue is safe: claimDueJobs uses
+# FOR UPDATE SKIP LOCKED, and the notification outbox is idempotency-keyed.
+
+on:
+  schedule:
+    # Every 5 minutes is GitHub's floor. Scheduled runs can be delayed under
+    # platform load, so treat this as "within ~15 minutes", not real-time.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      notification_limit:
+        description: Notifications to drain in this run (1-100)
+        required: false
+        default: "25"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never let two dispatch runs overlap; a slow run should delay the next, not race it.
+  group: jobs-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Drain due jobs and notifications
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST /api/jobs/dispatch
+        env:
+          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+          JOB_DISPATCH_SECRET: ${{ secrets.JOB_DISPATCH_SECRET }}
+          NOTIFICATION_LIMIT: ${{ inputs.notification_limit || '25' }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PRODUCTION_URL:-}" ] || [ -z "${JOB_DISPATCH_SECRET:-}" ]; then
+            echo "PRODUCTION_URL and JOB_DISPATCH_SECRET must both be configured as repository secrets." >&2
+            echo "Until they are, no background jobs or notifications are being dispatched." >&2
+            exit 1
+          fi
+
+          response="$(mktemp)"
+          status="$(
+            curl --silent --show-error --fail-with-body \
+              --max-time 120 \
+              --retry 2 --retry-delay 5 --retry-connrefused \
+              --output "$response" --write-out '%{http_code}' \
+              -X POST "${PRODUCTION_URL%/}/api/jobs/dispatch" \
+              -H "Authorization: Bearer ${JOB_DISPATCH_SECRET}" \
+              -H 'Content-Type: application/json' \
+              -d "{\"notificationLimit\": ${NOTIFICATION_LIMIT}}"
+          )" || {
+            echo "Dispatch failed with HTTP ${status:-000}:" >&2
+            cat "$response" >&2
+            exit 1
+          }
+
+          echo "HTTP $status"
+          # Body reports counts only — no message contents or recipients.
+          jq -c '{jobs, notifications}' < "$response" || cat "$response"
+
+      - name: Summarise
+        if: always()
+        run: echo "Dispatch attempted at $(date -u +%FT%TZ)" >> "$GITHUB_STEP_SUMMARY"

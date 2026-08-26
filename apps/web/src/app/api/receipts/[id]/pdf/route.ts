@@ -1,13 +1,25 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { requireApiAuth } from '@/lib/auth/api';
+import { canAccessStudentDocument } from '@/lib/auth/document-access';
+import { attachmentDisposition, fetchExternalPdf } from '@/lib/pdf/external';
+import {
+    findReceiptIdForPayment,
+    loadReceiptForPdf,
+    receiptPdfFilename,
+    renderReceiptPdf,
+} from '@/lib/pdf/receipt';
 
-export const dynamic = "force-dynamic";
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 /**
- * Receipt PDF. This previously proxied to a Java backend on localhost:8080 that
- * is no longer deployed. Set PDF_SERVICE_URL to an external renderer to re-enable
- * proxying; otherwise this returns 501 (native PDF generation is a follow-up).
+ * Fee receipt PDF, generated in-process with jsPDF. No external renderer is
+ * required; PDF_SERVICE_URL is honoured only as an override when a deployment
+ * sets it, and a failure there falls back to native generation.
+ *
+ * The read is tenant-scoped inside loadReceiptForPdf, so a receipt belonging to
+ * another school reads as "not found" rather than as a permission error.
  */
 export async function GET(
     _request: Request,
@@ -17,37 +29,64 @@ export async function GET(
     const auth = await requireApiAuth();
     if (auth.ok === false) return auth.response;
 
-    const pdfServiceUrl = process.env.PDF_SERVICE_URL;
-    if (!pdfServiceUrl) {
-        return NextResponse.json(
-            { error: 'Receipt PDF generation is not available in this deployment.' },
-            { status: 501 },
-        );
-    }
-
-    const session = await getSession();
     try {
-        const response = await fetch(`${pdfServiceUrl}/api/v1/fees/receipts/${id}/pdf`, {
-            headers: {
-                'Authorization': `Bearer ${session.token}`,
-                'X-Tenant-Id': auth.context.tenantId,
-            },
+        const session = await getSession();
+        const external = await fetchExternalPdf({
+            path: `/api/v1/fees/receipts/${id}/pdf`,
+            token: session.token ?? '',
+            tenantId: auth.context.tenantId,
+            label: 'Receipt PDF',
         });
 
-        if (!response.ok) {
+        if (external) {
+            return new NextResponse(external, {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/pdf',
+                    'Content-Disposition': attachmentDisposition(`receipt-${id}.pdf`),
+                    'Cache-Control': 'private, no-store',
+                },
+            });
+        }
+
+        let receipt = await loadReceiptForPdf(id, auth.context.tenantId);
+
+        // Older links carried a *payment* id into this route; resolve those to
+        // the receipt that was issued against the payment.
+        if (!receipt) {
+            const resolvedId = await findReceiptIdForPayment(id, auth.context.tenantId);
+            if (resolvedId) receipt = await loadReceiptForPdf(resolvedId, auth.context.tenantId);
+        }
+
+        if (!receipt) {
             return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
         }
 
-        const pdfBuffer = await response.arrayBuffer();
-        return new NextResponse(pdfBuffer, {
+        // requireApiAuth only proves a session in this tenant. Without this, any
+        // signed-in parent could pull another family's fee receipt.
+        const allowed = await canAccessStudentDocument({
+            tenantId: auth.context.tenantId,
+            userId: auth.context.userId,
+            role: auth.context.role,
+            studentId: receipt.studentId,
+            staffPermission: 'fees:read',
+        });
+        if (!allowed) {
+            return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
+        }
+
+        const pdf = renderReceiptPdf(receipt);
+        return new NextResponse(new Uint8Array(pdf), {
             status: 200,
             headers: {
                 'Content-Type': 'application/pdf',
-                'Content-Disposition': `attachment; filename="receipt-${id}.pdf"`,
+                'Content-Disposition': attachmentDisposition(receiptPdfFilename(receipt)),
+                'Content-Length': String(pdf.byteLength),
+                'Cache-Control': 'private, no-store',
             },
         });
     } catch (error) {
         console.error('[Receipt PDF] Error:', error);
-        return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 502 });
+        return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 500 });
     }
 }
