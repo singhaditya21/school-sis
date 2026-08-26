@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Trash2, GripVertical, Settings } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -17,6 +17,7 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
     const router = useRouter();
     const [fields, setFields] = useState<MetadataField[]>(initialFields);
     const [isAdding, setIsAdding] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     
     // New Field State
     const [newLabel, setNewLabel] = useState('');
@@ -27,6 +28,7 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
     const [approvalReason, setApprovalReason] = useState('');
 
     const handleCreateField = async () => {
+        setIsSaving(true);
         try {
             const fieldData = {
                 label: newLabel,
@@ -75,13 +77,21 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
             }
         } catch (e: unknown) {
             toast.error((e as Error).message || "Failed to create field");
+        } finally {
+            setIsSaving(false);
         }
     };
 
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Fields & Relationships</CardTitle>
+                <div>
+                    <CardTitle>Fields</CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                        Custom fields are stored in the record&apos;s JSON payload and go through
+                        the metadata approval policy before they are published.
+                    </p>
+                </div>
                 <Dialog open={isAdding} onOpenChange={setIsAdding}>
                     <DialogTrigger asChild>
                         <Button size="sm"><Plus className="w-4 h-4 mr-2" /> New Custom Field</Button>
@@ -137,7 +147,13 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
                                 <Input value={approvalReason} onChange={e => setApprovalReason(e.target.value)} placeholder="Reason for publishing this field" />
                             </div>
 
-                            <Button className="w-full mt-4" onClick={handleCreateField} disabled={!approvalReason.trim()}>Create Field</Button>
+                            <Button
+                                className="w-full mt-4"
+                                onClick={handleCreateField}
+                                disabled={isSaving || !newLabel.trim() || !newApiName.trim() || !approvalReason.trim()}
+                            >
+                                {isSaving ? 'Submitting…' : 'Create Field'}
+                            </Button>
                         </div>
                     </DialogContent>
                 </Dialog>
@@ -150,16 +166,29 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
                                 <th className="px-4 py-3 font-medium">Field Label</th>
                                 <th className="px-4 py-3 font-medium">API Name</th>
                                 <th className="px-4 py-3 font-medium">Data Type</th>
-                                <th className="px-4 py-3 font-medium text-center">Type</th>
+                                <th className="px-4 py-3 font-medium">Status</th>
+                                <th className="px-4 py-3 font-medium text-center">Origin</th>
                             </tr>
                         </thead>
                         <tbody>
+                            {fields.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
+                                        This object has no fields registered in the metadata
+                                        catalogue yet.
+                                    </td>
+                                </tr>
+                            )}
                             {fields.map((f, i) => (
-                                <tr key={f.id || i} className="border-b last:border-0 hover:bg-slate-50 group">
-                                    <td className="px-4 py-3 flex items-center font-medium text-slate-900">
-                                        <GripVertical className="w-4 h-4 text-slate-300 mr-2 opacity-0 group-hover:opacity-100 cursor-move" />
+                                <tr key={f.id || i} className="border-b last:border-0 hover:bg-slate-50">
+                                    <td className="px-4 py-3 font-medium text-slate-900">
                                         {f.label}
-                                        {f.isRequired && <span className="text-red-500 ml-1">*</span>}
+                                        {f.isRequired && <span className="text-red-500 ml-1" title="Required">*</span>}
+                                        {f.dataType === 'PICKLIST' && f.picklistOptions?.length > 0 && (
+                                            <span className="block text-xs font-normal text-slate-400 mt-0.5">
+                                                {f.picklistOptions.join(', ')}
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3 font-mono text-xs text-slate-500">{f.apiName}</td>
                                     <td className="px-4 py-3">
@@ -167,6 +196,7 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
                                             {f.dataType}
                                         </span>
                                     </td>
+                                    <td className="px-4 py-3 text-slate-500 text-xs">{f.status}</td>
                                     <td className="px-4 py-3 text-center">
                                         {f.isCustom ? (
                                             <span className="px-2 py-1 bg-purple-50 text-purple-700 text-xs rounded border border-purple-200">Custom</span>

@@ -1,59 +1,44 @@
 import React from 'react';
 import { requireRole } from '@/lib/auth/middleware';
 import { UserRole } from '@/lib/rbac/permissions';
-import { pool, } from '@/lib/db';
-import LeadsClient from './client-page';
+import { pool } from '@/lib/db';
+import LeadsClient, { type Lead, type StatusAggregate } from './client-page';
 
 export const metadata = {
     title: 'Lead Pipeline | ScholarMind HQ',
 };
 
-interface StatusAggregate {
-    status: string;
-    count: number;
-    capacity: number;
-}
-
-interface Lead {
-    id: string | number;
-    contact_name: string;
-    contact_email: string;
-    school_name: string;
-    student_capacity: number;
-    status: string;
-    created_at: string | Date;
-}
-
 export default async function LeadsPage() {
     await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
 
-    // Aggregate by Status
-    const { rows: statusAggregates } = await pool.query(`
-        SELECT 
-            status, 
-            COUNT(*)::int as count,
-            SUM(student_capacity)::int as capacity
-        FROM marketing_leads 
-        GROUP BY status
-    `);
+    const { rows: statusRows } = await pool.query(
+        `SELECT
+            status,
+            COUNT(*)::int AS count,
+            COALESCE(SUM(student_capacity), 0)::int AS capacity
+         FROM marketing_leads
+         GROUP BY status`
+    );
 
-    // Get Raw Leads
-    const { rows: leadsList } = await pool.query(`
-        SELECT 
-            id, contact_name, contact_email, school_name, student_capacity, status, created_at
-        FROM marketing_leads
-        ORDER BY created_at DESC
-        LIMIT 50
-    `);
+    const { rows: leadRows } = await pool.query(
+        `SELECT
+            id,
+            contact_name  AS "contactName",
+            contact_email AS "contactEmail",
+            school_name   AS "schoolName",
+            student_capacity AS "studentCapacity",
+            pain_points   AS "painPoints",
+            status,
+            created_at    AS "createdAt"
+         FROM marketing_leads
+         ORDER BY created_at DESC
+         LIMIT 100`
+    );
 
-    // Pipeline Value (Assuming $15/student/year is avg MRR)
-    const pipelineValue = (statusAggregates as StatusAggregate[])
-        .filter(s => s.status !== 'CLOSED') // Don't count already closed revenue in pipeline
-        .reduce((a, b) => a + (Number(b.capacity) * 15), 0);
-
-    return <LeadsClient 
-        statusData={statusAggregates as StatusAggregate[]}
-        leads={leadsList as Lead[]}
-        kpis={{ pipelineValue }}
-    />;
+    return (
+        <LeadsClient
+            statusData={statusRows as StatusAggregate[]}
+            leads={leadRows as Lead[]}
+        />
+    );
 }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { formatCurrency } from '@/lib/utils';
 import {
     getAnalyticsSummary, getFeeCollectionData, getClassWiseSummary,
     getTopPerformers as fetchTopPerformers, getDailyAttendance,
@@ -27,7 +28,7 @@ export default function AnalyticsPage() {
 
     if (!summary) return <div className="animate-pulse p-8">Loading analytics...</div>;
 
-    const maxFee = feeData.length > 0 ? Math.max(...feeData.map(d => d.target), 1) : 1;
+    const maxFee = feeData.length > 0 ? Math.max(...feeData.map(d => Math.max(d.collected, d.target)), 1) : 1;
 
     return (
         <div className="space-y-6">
@@ -40,22 +41,25 @@ export default function AnalyticsPage() {
                     <Link href="/analytics/fees" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">💰 Fee Analysis</Link>
                     <Link href="/analytics/attendance" className="px-4 py-2 border rounded-lg hover:bg-gray-50">📊 Attendance</Link>
                     <Link href="/analytics/exams" className="px-4 py-2 border rounded-lg hover:bg-gray-50">📝 Exams</Link>
+                    <Link href="/reports" className="px-4 py-2 border rounded-lg hover:bg-gray-50">Report builder</Link>
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Total Students</div><div className="text-2xl font-bold text-blue-600">{summary.totalStudents.toLocaleString()}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Fee Collected (YTD)</div><div className="text-2xl font-bold text-green-600">₹{(summary.totalFeeCollected / 10000000).toFixed(1)}Cr</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Pending Fees</div><div className="text-2xl font-bold text-orange-600">₹{(summary.pendingFees / 100000).toFixed(1)}L</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Avg Attendance</div><div className="text-2xl font-bold text-purple-600">{summary.averageAttendance}%</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Avg Exam Score</div><div className="text-2xl font-bold text-indigo-600">{summary.averageExamScore}%</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Monthly Growth</div><div className="text-2xl font-bold text-emerald-600">+{summary.monthlyGrowth}%</div></CardContent></Card>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Active students</div><div className="text-2xl font-bold text-blue-600">{summary.totalStudents.toLocaleString()}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Payments received (all time)</div><div className="text-2xl font-bold text-green-600">{formatCurrency(summary.totalFeeCollected)}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Outstanding invoices</div><div className="text-2xl font-bold text-orange-600">{formatCurrency(summary.pendingFees)}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Attendance (last 30 days)</div><div className="text-2xl font-bold text-purple-600">{summary.averageAttendance}%</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Avg exam score</div><div className="text-2xl font-bold text-indigo-600">{summary.averageExamScore}%</div></CardContent></Card>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
                     <CardHeader><CardTitle className="flex items-center justify-between"><span>💰 Fee Collection Trend</span><Link href="/analytics/fees" className="text-sm text-blue-600 hover:underline">View Details →</Link></CardTitle></CardHeader>
                     <CardContent>
+                        {feeData.length === 0 ? (
+                            <p className="text-gray-500 text-center py-12">No payments recorded in the last 12 months.</p>
+                        ) : (
                         <div className="h-64 flex items-end gap-2">
                             {feeData.map((d, idx) => (
                                 <div key={idx} className="flex-1 flex flex-col items-center gap-1">
@@ -66,25 +70,35 @@ export default function AnalyticsPage() {
                                 </div>
                             ))}
                         </div>
+                        )}
                     </CardContent>
                 </Card>
 
                 <Card>
                     <CardHeader><CardTitle className="flex items-center justify-between"><span>📊 Attendance (Last 30 Days)</span><Link href="/analytics/attendance" className="text-sm text-blue-600 hover:underline">View Details →</Link></CardTitle></CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-7 gap-1">
-                            {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => (<div key={day} className="text-xs text-center text-gray-500 py-1">{day}</div>))}
-                            {attendanceData.map((d, idx) => {
-                                const color = d.value >= 95 ? 'bg-green-500' : d.value >= 90 ? 'bg-green-400' : d.value >= 85 ? 'bg-yellow-400' : 'bg-orange-400';
-                                return (<div key={idx} className={`${color} rounded aspect-square flex items-center justify-center text-xs text-white font-medium`} title={`${d.date}: ${d.value}%`}>{d.value}</div>);
-                            })}
-                        </div>
+                        {attendanceData.length === 0 ? (
+                            <p className="text-gray-500 text-center py-12">No attendance has been recorded in the last 30 days.</p>
+                        ) : (
+                            <>
+                                <div className="grid grid-cols-10 gap-1">
+                                    {attendanceData.map((d, idx) => {
+                                        const color = d.value >= 95 ? 'bg-green-500' : d.value >= 90 ? 'bg-green-400' : d.value >= 85 ? 'bg-yellow-400' : 'bg-orange-400';
+                                        return (<div key={idx} className={`${color} rounded aspect-square flex items-center justify-center text-xs text-white font-medium`} title={`${d.date}: ${d.value}%`}>{d.value}</div>);
+                                    })}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2">One cell per day that has attendance records — hover for the date.</p>
+                            </>
+                        )}
                     </CardContent>
                 </Card>
 
                 <Card>
                     <CardHeader><CardTitle className="flex items-center justify-between"><span>📈 Class-wise Exam Performance</span><Link href="/analytics/exams" className="text-sm text-blue-600 hover:underline">View Details →</Link></CardTitle></CardHeader>
                     <CardContent>
+                        {classData.length === 0 ? (
+                            <p className="text-gray-500 text-center py-12">No exam results have been entered yet.</p>
+                        ) : (
                         <div className="space-y-2">
                             {classData.slice(0, 8).map((d, idx) => (
                                 <div key={idx} className="flex items-center gap-3">
@@ -96,12 +110,16 @@ export default function AnalyticsPage() {
                                 </div>
                             ))}
                         </div>
+                        )}
                     </CardContent>
                 </Card>
 
                 <Card>
                     <CardHeader><CardTitle>🏆 Top Performers</CardTitle></CardHeader>
                     <CardContent>
+                        {topPerformers.length === 0 ? (
+                            <p className="text-gray-500 text-center py-12">No exam results have been entered yet.</p>
+                        ) : (
                         <div className="space-y-3">
                             {topPerformers.slice(0, 5).map((student, idx) => (
                                 <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
@@ -113,6 +131,7 @@ export default function AnalyticsPage() {
                                 </div>
                             ))}
                         </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>

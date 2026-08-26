@@ -49,11 +49,33 @@ export default async function SectionTimetablePage({ params }: { params: Promise
                     </h1>
                     <p className="text-gray-600 mt-1">Weekly schedule details</p>
                 </div>
-                <Link href="/timetable" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-                    ← Back
-                </Link>
+                <div className="flex gap-3">
+                    <Link
+                        href={`/timetable/grid?section=${sectionId}`}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                    >
+                        Edit in grid
+                    </Link>
+                    <Link href="/timetable" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                        ← Back
+                    </Link>
+                </div>
             </div>
 
+            {timetableRows.length === 0 ? (
+                <div data-testid="section-no-periods" className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
+                    <p className="font-medium text-gray-700">No periods configured</p>
+                    <p className="text-sm mt-1">
+                        A weekly schedule needs the school&apos;s daily period structure before it can show anything.
+                    </p>
+                    <Link
+                        href="/timetable/periods"
+                        className="inline-block mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                        Set up periods
+                    </Link>
+                </div>
+            ) : (
             <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
                 <table className="w-full min-w-[800px]" data-testid="timetable-grid-table">
                     <thead className="bg-gray-50">
@@ -96,6 +118,7 @@ export default async function SectionTimetablePage({ params }: { params: Promise
                     </tbody>
                 </table>
             </div>
+            )}
         </div>
     );
 }

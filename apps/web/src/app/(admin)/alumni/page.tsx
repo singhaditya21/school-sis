@@ -1,47 +1,22 @@
-import { Card, CardContent } from '@/components/ui/card';
-import { getAlumni, getAlumniEvents, getAlumniStats } from '@/lib/actions/alumni';
+import { listAlumni, listAlumniEvents } from './actions';
+import AlumniWorkspace from './alumni-workspace';
 
 export default async function AlumniPage() {
-    const [alumniList, events, stats] = await Promise.all([getAlumni(), getAlumniEvents(), getAlumniStats()]);
+    const [alumni, events] = await Promise.all([listAlumni(), listAlumniEvents()]);
 
-    return (
-        <div className="space-y-6">
-            <div><h1 className="text-3xl font-bold">Alumni Network</h1><p className="text-gray-600 mt-1">Alumni directory, events, and engagement</p></div>
+    const verified = alumni.filter((a) => a.isVerified).length;
+    const batches = new Set(alumni.map((a) => a.batch)).size;
+    const upcoming = events.filter((e) => e.status === 'UPCOMING').length;
+    const registrations = events.reduce((sum, e) => sum + e.registeredCount, 0);
 
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Total Alumni</div><div className="text-2xl font-bold text-blue-600">{stats.total}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Verified</div><div className="text-2xl font-bold text-green-600">{stats.verified}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Pending</div><div className="text-2xl font-bold text-orange-600">{stats.pending}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Batches</div><div className="text-2xl font-bold text-purple-600">{stats.batches}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Events</div><div className="text-2xl font-bold text-indigo-600">{stats.upcomingEvents}</div></CardContent></Card>
-            </div>
+    const stats = [
+        { label: 'Total Alumni', value: alumni.length, className: 'text-blue-600' },
+        { label: 'Verified', value: verified, className: 'text-green-600' },
+        { label: 'Pending', value: alumni.length - verified, className: 'text-orange-600' },
+        { label: 'Batches', value: batches, className: 'text-purple-600' },
+        { label: 'Upcoming Events', value: upcoming, className: 'text-indigo-600' },
+        { label: 'Registrations', value: registrations, className: 'text-teal-600' },
+    ];
 
-            <Card>
-                <CardContent className="p-0">
-                    <div className="p-4 border-b"><h3 className="font-bold">Alumni Directory</h3></div>
-                    <table className="w-full">
-                        <thead className="bg-gray-50 border-b"><tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Batch</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Verified</th>
-                        </tr></thead>
-                        <tbody className="divide-y">
-                            {alumniList.map(a => (
-                                <tr key={a.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3"><div className="font-medium">{a.name}</div><div className="text-xs text-gray-500">{a.email}</div></td>
-                                    <td className="px-4 py-3 font-semibold">{a.batch}</td>
-                                    <td className="px-4 py-3"><div>{a.currentCompany || '—'}</div>{a.designation && <div className="text-xs text-gray-500">{a.designation}</div>}</td>
-                                    <td className="px-4 py-3 text-sm">{a.location || '—'}</td>
-                                    <td className="px-4 py-3 text-center">{a.isVerified ? '✅' : '⏳'}</td>
-                                </tr>
-                            ))}
-                            {alumniList.length === 0 && <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">No alumni registered yet.</td></tr>}
-                        </tbody>
-                    </table>
-                </CardContent>
-            </Card>
-        </div>
-    );
+    return <AlumniWorkspace alumni={alumni} events={events} stats={stats} />;
 }

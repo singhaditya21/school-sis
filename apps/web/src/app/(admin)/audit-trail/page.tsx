@@ -1,317 +1,384 @@
-'use client';
+import Link from 'next/link';
+import { pool } from '@/lib/db';
+import { requireAuth } from '@/lib/auth/middleware';
+import { Badge } from '@/components/ui/badge';
 
-import React, { useState, useEffect, useCallback } from 'react';
+export const dynamic = 'force-dynamic';
 
 /**
- * Audit Trail Viewer — Admin compliance dashboard.
+ * Audit trail — security review.
  *
- * Displays all system activity logs with filtering by action type,
- * user, date range, and entity. Highlights suspicious activity
- * (bulk deletes, PII exports, off-hours access).
+ * A reviewer's lens over the same `audit_logs` rows the full log at /audit
+ * lists: who acted, how often, from how many addresses, how much of it was
+ * outside working hours, and which entries involve destructive or money-moving
+ * actions. Every number is a SQL aggregate over the selected window.
  */
 
-interface AuditLogEntry {
-    id: string;
-    action: string;
-    entityType: string;
-    entityId: string;
-    userId: string;
-    userName: string;
-    role: string;
-    ipAddress: string;
-    createdAt: string;
-    metadata: Record<string, unknown>;
+/** Actions a reviewer is expected to look at line by line. */
+const REVIEWABLE_ACTIONS = ['DELETE', 'ROLE_CHANGE', 'EXPORT', 'PAYMENT'] as const;
+
+/**
+ * Working hours used for the off-hours count. Timestamps are stored with a
+ * timezone; they are converted to IST because this is the operating timezone
+ * for Indian schools, and the boundary is stated on the page.
+ */
+const SCHOOL_TIMEZONE = 'Asia/Kolkata';
+const DAY_START_HOUR = 7;
+const DAY_END_HOUR = 19;
+
+const WINDOW_OPTIONS = [
+    { value: '7', label: 'Last 7 days' },
+    { value: '30', label: 'Last 30 days' },
+    { value: '90', label: 'Last 90 days' },
+    { value: '365', label: 'Last 12 months' },
+] as const;
+
+interface TotalsRow {
+    total: number;
+    reviewable: number;
+    unattributed: number;
+    off_hours: number;
+    actors: number;
 }
 
-const ACTION_BADGES: Record<string, { label: string; color: string }> = {
-    CREATE: { label: 'Created', color: '#22c55e' },
-    UPDATE: { label: 'Updated', color: '#3b82f6' },
-    DELETE: { label: 'Deleted', color: '#ef4444' },
-    LOGIN: { label: 'Login', color: '#8b5cf6' },
-    LOGOUT: { label: 'Logout', color: '#6b7280' },
-    EXPORT: { label: 'Export', color: '#f59e0b' },
-    EXPORT_PII: { label: 'PII Export', color: '#dc2626' },
-    BULK_DELETE: { label: 'Bulk Delete', color: '#dc2626' },
-    ROLE_CHANGE: { label: 'Role Change', color: '#ea580c' },
-    PASSWORD_RESET: { label: 'Password Reset', color: '#d946ef' },
-};
+interface ActorRow {
+    actor_name: string | null;
+    actor_email: string | null;
+    actor_role: string | null;
+    events: number;
+    reviewable: number;
+    ip_count: number;
+    off_hours: number;
+    last_seen: Date;
+}
 
-const SUSPICIOUS_ACTIONS = new Set(['DELETE', 'BULK_DELETE', 'EXPORT_PII', 'ROLE_CHANGE']);
+interface EventRow {
+    id: string;
+    created_at: Date;
+    action: string;
+    entity_type: string;
+    entity_id: string | null;
+    description: string | null;
+    ip_address: string | null;
+    actor_name: string | null;
+    actor_role: string | null;
+}
 
-export default function AuditTrailPage() {
-    const [logs, setLogs] = useState<AuditLogEntry[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState({
-        action: '',
-        entityType: '',
-        search: '',
-        days: 7,
-    });
+export default async function AuditTrailPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ window?: string }>;
+}) {
+    const { tenantId } = await requireAuth('audit:read');
+    const raw = await searchParams;
+    const windowValue = WINDOW_OPTIONS.some((option) => option.value === raw.window)
+        ? (raw.window as string)
+        : '30';
+    const windowDays = Number(windowValue);
+    const windowLabel =
+        WINDOW_OPTIONS.find((option) => option.value === windowValue)?.label ?? 'Last 30 days';
 
-    const fetchLogs = useCallback(async () => {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams();
-            if (filter.action) params.set('action', filter.action);
-            if (filter.entityType) params.set('entityType', filter.entityType);
-            if (filter.days) params.set('days', String(filter.days));
-            const resp = await fetch(`/api/audit-trail?${params}`);
-            if (resp.ok) {
-                const data = await resp.json();
-                setLogs(data.logs || []);
-            }
-        } catch (error) {
-            console.error('Failed to fetch audit logs:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, [filter]);
+    const scope = `al.tenant_id = $1 AND al.created_at >= now() - make_interval(days => $2::integer)`;
+    const offHoursExpr = `(extract(hour FROM al.created_at AT TIME ZONE '${SCHOOL_TIMEZONE}') < ${DAY_START_HOUR}
+                           OR extract(hour FROM al.created_at AT TIME ZONE '${SCHOOL_TIMEZONE}') >= ${DAY_END_HOUR})`;
+    const reviewableExpr = `al.action IN (${REVIEWABLE_ACTIONS.map((a) => `'${a}'`).join(', ')})`;
+    const params = [tenantId, windowDays];
 
-    useEffect(() => {
-        fetchLogs();
-    }, [fetchLogs]);
+    const [totalsResult, actorsResult, eventsResult] = await Promise.all([
+        pool.query<TotalsRow>(
+            `SELECT count(*)::int AS total,
+                    count(*) FILTER (WHERE ${reviewableExpr})::int AS reviewable,
+                    count(*) FILTER (WHERE al.user_id IS NULL)::int AS unattributed,
+                    count(*) FILTER (WHERE ${offHoursExpr})::int AS off_hours,
+                    count(DISTINCT al.user_id)::int AS actors
+               FROM audit_logs al
+              WHERE ${scope}`,
+            params,
+        ),
+        pool.query<ActorRow>(
+            `SELECT (u.first_name || ' ' || u.last_name) AS actor_name,
+                    u.email AS actor_email,
+                    u.role::text AS actor_role,
+                    count(*)::int AS events,
+                    count(*) FILTER (WHERE ${reviewableExpr})::int AS reviewable,
+                    count(DISTINCT al.ip_address)::int AS ip_count,
+                    count(*) FILTER (WHERE ${offHoursExpr})::int AS off_hours,
+                    max(al.created_at) AS last_seen
+               FROM audit_logs al
+               LEFT JOIN users u ON u.id = al.user_id
+              WHERE ${scope}
+              GROUP BY u.id, u.first_name, u.last_name, u.email, u.role
+              ORDER BY reviewable DESC, events DESC
+              LIMIT 25`,
+            params,
+        ),
+        pool.query<EventRow>(
+            `SELECT al.id,
+                    al.created_at,
+                    al.action::text AS action,
+                    al.entity_type,
+                    al.entity_id,
+                    al.description,
+                    al.ip_address,
+                    (u.first_name || ' ' || u.last_name) AS actor_name,
+                    u.role::text AS actor_role
+               FROM audit_logs al
+               LEFT JOIN users u ON u.id = al.user_id
+              WHERE ${scope} AND ${reviewableExpr}
+              ORDER BY al.created_at DESC
+              LIMIT 100`,
+            params,
+        ),
+    ]);
 
-    const filteredLogs = logs.filter((log) => {
-        if (filter.search) {
-            const s = filter.search.toLowerCase();
-            return (
-                log.userName?.toLowerCase().includes(s) ||
-                log.entityType?.toLowerCase().includes(s) ||
-                log.action?.toLowerCase().includes(s) ||
-                log.ipAddress?.includes(s)
-            );
-        }
-        return true;
-    });
-
-    const suspiciousCount = logs.filter((l) => SUSPICIOUS_ACTIONS.has(l.action)).length;
+    const totals = totalsResult.rows[0] ?? {
+        total: 0,
+        reviewable: 0,
+        unattributed: 0,
+        off_hours: 0,
+        actors: 0,
+    };
 
     return (
-        <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto' }}>
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <div className="space-y-6">
+            <header className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>🛡️ Audit Trail</h1>
-                    <p style={{ color: '#6b7280', margin: '0.25rem 0 0' }}>
-                        System activity log • {logs.length} events in last {filter.days} days
+                    <h1 className="text-3xl font-bold text-gray-900">Audit trail review</h1>
+                    <p className="mt-1 text-gray-600">
+                        Who did what, from where, and which entries deserve a second look. {windowLabel}.
                     </p>
                 </div>
-                <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <button
-                        onClick={fetchLogs}
-                        style={{
-                            padding: '0.5rem 1rem',
-                            background: '#3b82f6',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '0.5rem',
-                            cursor: 'pointer',
-                            fontWeight: 500,
-                        }}
+                <div className="flex items-end gap-3">
+                    <form method="GET" className="flex items-end gap-2">
+                        <label className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                Period
+                            </span>
+                            <select
+                                name="window"
+                                defaultValue={windowValue}
+                                className="h-9 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                            >
+                                {WINDOW_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <button
+                            type="submit"
+                            className="h-9 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700"
+                        >
+                            Apply
+                        </button>
+                    </form>
+                    <Link
+                        href="/audit"
+                        className="h-9 rounded-md border border-gray-300 px-4 text-sm font-medium leading-9 text-gray-700 hover:bg-gray-50"
                     >
-                        ↻ Refresh
-                    </button>
+                        Full log
+                    </Link>
                 </div>
-            </div>
+            </header>
 
-            {/* Stats Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-                <StatCard label="Total Events" value={logs.length} color="#3b82f6" />
-                <StatCard label="Unique Users" value={new Set(logs.map((l) => l.userId)).size} color="#8b5cf6" />
-                <StatCard
-                    label="Suspicious"
-                    value={suspiciousCount}
-                    color={suspiciousCount > 0 ? '#ef4444' : '#22c55e'}
+            <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <Metric label="Recorded events" value={totals.total} hint={`Across ${totals.actors} signed-in actor(s)`} />
+                <Metric
+                    label="Needing review"
+                    value={totals.reviewable}
+                    hint={REVIEWABLE_ACTIONS.join(' · ')}
+                    emphasise={totals.reviewable > 0}
                 />
-                <StatCard
-                    label="Data Exports"
-                    value={logs.filter((l) => l.action?.includes('EXPORT')).length}
-                    color="#f59e0b"
+                <Metric
+                    label="Outside working hours"
+                    value={totals.off_hours}
+                    hint={`Before ${DAY_START_HOUR}:00 or after ${DAY_END_HOUR}:00 IST`}
                 />
-            </div>
-
-            {/* Filters */}
-            <div
-                style={{
-                    display: 'flex',
-                    gap: '0.75rem',
-                    marginBottom: '1rem',
-                    flexWrap: 'wrap',
-                    padding: '1rem',
-                    background: '#f8fafc',
-                    borderRadius: '0.75rem',
-                    border: '1px solid #e2e8f0',
-                }}
-            >
-                <input
-                    type="text"
-                    placeholder="Search users, entities, IPs..."
-                    value={filter.search}
-                    onChange={(e) => setFilter({ ...filter, search: e.target.value })}
-                    style={{
-                        flex: 1,
-                        minWidth: '200px',
-                        padding: '0.5rem 0.75rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.875rem',
-                    }}
+                <Metric
+                    label="No user recorded"
+                    value={totals.unattributed}
+                    hint="Entries with a null user_id"
                 />
-                <select
-                    value={filter.action}
-                    onChange={(e) => setFilter({ ...filter, action: e.target.value })}
-                    style={{ padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', fontSize: '0.875rem' }}
-                >
-                    <option value="">All Actions</option>
-                    {Object.keys(ACTION_BADGES).map((a) => (
-                        <option key={a} value={a}>{ACTION_BADGES[a].label}</option>
-                    ))}
-                </select>
-                <select
-                    value={filter.days}
-                    onChange={(e) => setFilter({ ...filter, days: Number(e.target.value) })}
-                    style={{ padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', fontSize: '0.875rem' }}
-                >
-                    <option value={1}>Last 24h</option>
-                    <option value={7}>Last 7 days</option>
-                    <option value={30}>Last 30 days</option>
-                    <option value={90}>Last 90 days</option>
-                </select>
-            </div>
+            </section>
 
-            {/* Suspicious Alert */}
-            {suspiciousCount > 0 && (
-                <div
-                    style={{
-                        background: '#fef2f2',
-                        border: '1px solid #fecaca',
-                        borderRadius: '0.75rem',
-                        padding: '0.75rem 1rem',
-                        marginBottom: '1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        fontSize: '0.875rem',
-                        color: '#991b1b',
-                    }}
-                >
-                    <span>⚠️</span>
-                    <strong>{suspiciousCount} suspicious event{suspiciousCount > 1 ? 's' : ''}</strong>
-                    &nbsp;detected — includes bulk deletes, PII exports, or role changes.
-                </div>
-            )}
-
-            {/* Log Table */}
-            <div style={{ overflowX: 'auto', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                    <thead>
-                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                            <th style={thStyle}>Timestamp</th>
-                            <th style={thStyle}>Action</th>
-                            <th style={thStyle}>User</th>
-                            <th style={thStyle}>Role</th>
-                            <th style={thStyle}>Entity</th>
-                            <th style={thStyle}>IP Address</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {loading ? (
-                            <tr>
-                                <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-                                    Loading audit logs...
-                                </td>
-                            </tr>
-                        ) : filteredLogs.length === 0 ? (
-                            <tr>
-                                <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-                                    No audit events found for the selected filters.
-                                </td>
-                            </tr>
-                        ) : (
-                            filteredLogs.map((log) => {
-                                const isSuspicious = SUSPICIOUS_ACTIONS.has(log.action);
-                                const badge = ACTION_BADGES[log.action] || { label: log.action, color: '#6b7280' };
-                                return (
+            <section className="space-y-3">
+                <h2 className="text-lg font-semibold text-gray-900">Activity by actor</h2>
+                {actorsResult.rows.length === 0 ? (
+                    <EmptyState message="No audited activity in this window." />
+                ) : (
+                    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                        <table className="w-full text-sm">
+                            <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                                <tr>
+                                    <th className="px-4 py-3 font-semibold">Actor</th>
+                                    <th className="px-4 py-3 font-semibold">Role</th>
+                                    <th className="px-4 py-3 font-semibold text-right">Events</th>
+                                    <th className="px-4 py-3 font-semibold text-right">Needing review</th>
+                                    <th className="px-4 py-3 font-semibold text-right">Distinct IPs</th>
+                                    <th className="px-4 py-3 font-semibold text-right">Off hours</th>
+                                    <th className="px-4 py-3 font-semibold">Last seen</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {actorsResult.rows.map((row) => (
                                     <tr
-                                        key={log.id}
-                                        style={{
-                                            borderBottom: '1px solid #f1f5f9',
-                                            background: isSuspicious ? '#fef2f2' : 'transparent',
-                                        }}
+                                        key={row.actor_email ?? 'unattributed'}
+                                        className="hover:bg-gray-50/70"
                                     >
-                                        <td style={tdStyle}>
-                                            {new Date(log.createdAt).toLocaleString('en-IN', {
-                                                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                                        <td className="px-4 py-3">
+                                            {row.actor_name ? (
+                                                <>
+                                                    <div className="font-medium text-gray-900">{row.actor_name}</div>
+                                                    <div className="text-xs text-gray-500">{row.actor_email}</div>
+                                                </>
+                                            ) : (
+                                                <span className="italic text-gray-500">No user recorded</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-600">{row.actor_role ?? '—'}</td>
+                                        <td className="px-4 py-3 text-right tabular-nums">{row.events}</td>
+                                        <td className="px-4 py-3 text-right tabular-nums">
+                                            {row.reviewable > 0 ? (
+                                                <span className="font-semibold text-amber-700">{row.reviewable}</span>
+                                            ) : (
+                                                <span className="text-gray-400">0</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-right tabular-nums">{row.ip_count}</td>
+                                        <td className="px-4 py-3 text-right tabular-nums">{row.off_hours}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600">
+                                            {new Date(row.last_seen).toLocaleString('en-IN', {
+                                                day: '2-digit',
+                                                month: 'short',
+                                                hour: '2-digit',
+                                                minute: '2-digit',
                                             })}
                                         </td>
-                                        <td style={tdStyle}>
-                                            <span
-                                                style={{
-                                                    display: 'inline-block',
-                                                    padding: '0.15rem 0.5rem',
-                                                    borderRadius: '999px',
-                                                    fontSize: '0.75rem',
-                                                    fontWeight: 600,
-                                                    background: badge.color + '18',
-                                                    color: badge.color,
-                                                    border: `1px solid ${badge.color}40`,
-                                                }}
-                                            >
-                                                {badge.label}
-                                            </span>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
+
+            <section className="space-y-3">
+                <h2 className="text-lg font-semibold text-gray-900">
+                    Entries needing review
+                </h2>
+                <p className="text-sm text-gray-500">
+                    Deletions, role changes, exports and payments recorded in this window, newest first
+                    (up to 100).
+                </p>
+                {eventsResult.rows.length === 0 ? (
+                    <EmptyState message="No deletions, role changes, exports or payments were recorded in this window." />
+                ) : (
+                    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                        <table className="w-full text-sm">
+                            <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                                <tr>
+                                    <th className="px-4 py-3 font-semibold">When</th>
+                                    <th className="px-4 py-3 font-semibold">Action</th>
+                                    <th className="px-4 py-3 font-semibold">Actor</th>
+                                    <th className="px-4 py-3 font-semibold">Entity</th>
+                                    <th className="px-4 py-3 font-semibold">Description</th>
+                                    <th className="px-4 py-3 font-semibold">IP</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {eventsResult.rows.map((row) => (
+                                    <tr key={row.id} className="align-top hover:bg-gray-50/70">
+                                        <td className="px-4 py-3 whitespace-nowrap text-gray-700">
+                                            {new Date(row.created_at).toLocaleString('en-IN', {
+                                                day: '2-digit',
+                                                month: 'short',
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                            })}
                                         </td>
-                                        <td style={tdStyle}>{log.userName || log.userId?.slice(0, 8)}</td>
-                                        <td style={tdStyle}>
-                                            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>{log.role}</span>
+                                        <td className="px-4 py-3">
+                                            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
+                                                {row.action}
+                                            </Badge>
                                         </td>
-                                        <td style={tdStyle}>
-                                            <span style={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>
-                                                {log.entityType}
-                                                {log.entityId ? ` #${log.entityId.slice(0, 8)}` : ''}
-                                            </span>
+                                        <td className="px-4 py-3 text-gray-700">
+                                            {row.actor_name ?? <span className="italic text-gray-500">No user recorded</span>}
+                                            {row.actor_role && (
+                                                <div className="text-xs text-gray-500">{row.actor_role}</div>
+                                            )}
                                         </td>
-                                        <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: '0.78rem' }}>
-                                            {log.ipAddress || '—'}
+                                        <td className="px-4 py-3 font-mono text-xs text-gray-700">
+                                            {row.entity_type}
+                                            {row.entity_id && (
+                                                <div className="text-[11px] text-gray-400" title={row.entity_id}>
+                                                    {row.entity_id.slice(0, 8)}…
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="max-w-sm px-4 py-3 text-gray-700">
+                                            {row.description ?? <span className="text-gray-400">—</span>}
+                                        </td>
+                                        <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                                            {row.ip_address ?? '—'}
                                         </td>
                                     </tr>
-                                );
-                            })
-                        )}
-                    </tbody>
-                </table>
-            </div>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
+
+            <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-semibold">Read these figures with their limits in mind</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>
+                        Sign-in and sign-out are not written to <code>audit_logs</code> in this release, so this
+                        page cannot show failed logins, session counts or unusual sign-in locations.
+                    </li>
+                    <li>
+                        &ldquo;Distinct IPs&rdquo; counts only entries where an address was captured; server-side flows
+                        record none, and those entries are counted as zero rather than guessed.
+                    </li>
+                    <li>
+                        There is no anomaly scoring behind this page. Rows are listed because of their action
+                        type or their timestamp, not because anything has judged them suspicious.
+                    </li>
+                </ul>
+            </section>
         </div>
     );
 }
 
-function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
+function Metric({
+    label,
+    value,
+    hint,
+    emphasise = false,
+}: {
+    label: string;
+    value: number;
+    hint: string;
+    emphasise?: boolean;
+}) {
     return (
-        <div
-            style={{
-                background: '#fff',
-                border: '1px solid #e2e8f0',
-                borderRadius: '0.75rem',
-                padding: '1rem 1.25rem',
-                borderLeft: `4px solid ${color}`,
-            }}
-        >
-            <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.25rem' }}>{label}</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color }}>{value}</div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
+            <div
+                className={`mt-1 text-2xl font-bold ${emphasise ? 'text-amber-700' : 'text-gray-900'}`}
+            >
+                {value.toLocaleString('en-IN')}
+            </div>
+            <div className="mt-1 text-xs text-gray-500">{hint}</div>
         </div>
     );
 }
 
-const thStyle: React.CSSProperties = {
-    textAlign: 'left',
-    padding: '0.75rem 1rem',
-    fontWeight: 600,
-    fontSize: '0.78rem',
-    textTransform: 'uppercase',
-    color: '#475569',
-    letterSpacing: '0.05em',
-};
-
-const tdStyle: React.CSSProperties = {
-    padding: '0.6rem 1rem',
-    verticalAlign: 'middle',
-};
+function EmptyState({ message }: { message: string }) {
+    return (
+        <div className="rounded-xl border border-dashed border-gray-300 bg-white py-12 text-center text-sm text-gray-500">
+            {message}
+        </div>
+    );
+}

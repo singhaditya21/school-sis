@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getFeeCollectionData, getClassWiseFees } from '@/lib/actions/analytics';
+import { downloadTableCsv } from '../download-csv';
+import { formatCurrency } from '@/lib/utils';
 
 export default function FeeAnalyticsPage() {
     const [feeData, setFeeData] = useState<{ month: string; collected: number; target: number; pending: number }[]>([]);
@@ -21,25 +23,39 @@ export default function FeeAnalyticsPage() {
     const collectionRate = totalTarget > 0 ? Math.round((totalCollected / totalTarget) * 100) : 0;
     const maxValue = feeData.length > 0 ? Math.max(...feeData.map(d => Math.max(d.collected, d.target)), 1) : 1;
 
+    function exportClassSummary() {
+        downloadTableCsv(
+            'fee_collection_by_class',
+            ['Class group', 'Students invoiced', 'Collected (INR)', 'Pending (INR)'],
+            classWiseData.map(row => [row.class, row.students, row.collected, row.pending]),
+        );
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div><h1 className="text-3xl font-bold">Fee Collection Analysis</h1><p className="text-gray-600 mt-1">Detailed fee trends and class-wise breakdown</p></div>
                 <div className="flex gap-3">
                     <Link href="/analytics" className="px-4 py-2 border rounded-lg hover:bg-gray-50">← Back to Analytics</Link>
-                    <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">📊 Export Report</button>
+                    <button
+                        onClick={exportClassSummary}
+                        disabled={classWiseData.length === 0}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Download class summary (CSV)
+                    </button>
                 </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Total Collected</div><div className="text-2xl font-bold text-green-600">₹{(totalCollected / 10000000).toFixed(2)}Cr</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Total Target</div><div className="text-2xl font-bold text-blue-600">₹{(totalTarget / 10000000).toFixed(2)}Cr</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Total Pending</div><div className="text-2xl font-bold text-orange-600">₹{(totalPending / 100000).toFixed(1)}L</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Collected (last 12 months)</div><div className="text-2xl font-bold text-green-600">{formatCurrency(totalCollected)}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Invoiced (same months)</div><div className="text-2xl font-bold text-blue-600">{formatCurrency(totalTarget)}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Still outstanding</div><div className="text-2xl font-bold text-orange-600">{formatCurrency(totalPending)}</div></CardContent></Card>
                 <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Collection Rate</div><div className="text-2xl font-bold text-purple-600">{collectionRate}%</div></CardContent></Card>
             </div>
 
             <Card>
-                <CardHeader><CardTitle>Monthly Collection vs Target</CardTitle></CardHeader>
+                <CardHeader><CardTitle>Monthly collection vs amount invoiced</CardTitle></CardHeader>
                 <CardContent>
                     {feeData.length === 0 ? <p className="text-gray-500 text-center py-12">No fee data available yet.</p> : (
                         <div className="h-80">
@@ -57,7 +73,7 @@ export default function FeeAnalyticsPage() {
                             </div>
                             <div className="flex justify-center gap-6 mt-4">
                                 <div className="flex items-center gap-2"><div className="w-4 h-4 bg-blue-500 rounded" /><span className="text-sm">Collected</span></div>
-                                <div className="flex items-center gap-2"><div className="w-4 h-4 bg-gray-300 rounded" /><span className="text-sm">Target</span></div>
+                                <div className="flex items-center gap-2"><div className="w-4 h-4 bg-gray-300 rounded" /><span className="text-sm">Invoiced</span></div>
                             </div>
                         </div>
                     )}
@@ -86,8 +102,8 @@ export default function FeeAnalyticsPage() {
                                         <tr key={idx} className="hover:bg-gray-50">
                                             <td className="px-4 py-3 font-medium">{row.class}</td>
                                             <td className="px-4 py-3 text-right">{row.students.toLocaleString()}</td>
-                                            <td className="px-4 py-3 text-right text-green-600 font-semibold">₹{(row.collected / 100000).toFixed(1)}L</td>
-                                            <td className="px-4 py-3 text-right text-orange-600">₹{(row.pending / 100000).toFixed(1)}L</td>
+                                            <td className="px-4 py-3 text-right text-green-600 font-semibold">{formatCurrency(row.collected)}</td>
+                                            <td className="px-4 py-3 text-right text-orange-600">{formatCurrency(row.pending)}</td>
                                             <td className="px-4 py-3"><div className="flex items-center gap-2"><div className="flex-1 bg-gray-200 rounded-full h-2"><div className="bg-green-500 h-2 rounded-full" style={{ width: `${percent}%` }} /></div><span className="text-xs font-medium w-10">{percent}%</span></div></td>
                                         </tr>
                                     );

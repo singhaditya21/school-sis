@@ -12,10 +12,10 @@ import {
     getPeriods,
     getTeachersForTimetable,
     getSubjectsForTimetable,
-    createTimetableEntry,
     type PeriodItem,
     type TimetableSection
 } from '@/lib/actions/timetable';
+import { assignGridSlot } from '../_actions/grid';
 
 export default function NewTimetablePage() {
     const router = useRouter();
@@ -55,7 +55,7 @@ export default function NewTimetablePage() {
         }
 
         try {
-            const res = await createTimetableEntry({
+            const res = await assignGridSlot({
                 sectionId,
                 periodId,
                 dayOfWeek,
@@ -67,14 +67,10 @@ export default function NewTimetablePage() {
             if (res.success) {
                 setSuccessMessage('Timetable entry created successfully!');
                 setTimeout(() => {
-                    router.push('/timetable');
+                    router.push(`/timetable/grid?section=${sectionId}`);
                 }, 1000);
             } else {
-                if (res.conflicts && res.conflicts.length > 0) {
-                    setErrorMessage(res.conflicts[0].details);
-                } else {
-                    setErrorMessage('Conflict detected or failed to create entry.');
-                }
+                setErrorMessage(res.error || 'Conflict detected or failed to create entry.');
             }
         } catch (err: unknown) {
             setErrorMessage((err as Error).message || 'An error occurred while creating entry.');

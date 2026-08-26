@@ -1,113 +1,199 @@
-import { getEvidenceLogAction } from '@/lib/actions/procurement';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { getProcurementPageData, readScopes } from './queries';
 
-export default async function ProcurementTrustCenter() {
-    const logs = await getEvidenceLogAction();
+export const metadata = {
+    title: 'Vendor & Data Processing | ScholarMind',
+};
+
+function formatDateTime(value: Date | string | null): string {
+    if (!value) return 'Never';
+    return new Date(value).toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+export default async function ProcurementPage() {
+    const { campusName, processors, apiKeyCount, webhookCount } = await getProcurementPageData();
+
+    const liveCount = processors.filter((p) => p.mode === 'LIVE').length;
+    const failingCount = processors.filter((p) => p.status !== 'ACTIVE' || p.lastError).length;
 
     return (
-        <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 min-h-screen">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-200 pb-6">
-                <div>
-                    <h1 className="text-3xl font-black tracking-tight text-gray-900">Enterprise Trust Center</h1>
-                    <p className="text-gray-500 mt-2 text-base">Module 43: Procurement evidence packs, shared responsibility matrices, and subprocessor logs.</p>
-                </div>
-                <div className="flex gap-3 text-sm">
-                    <Button variant="outline" className="bg-white border-2">Generate RFP Responses</Button>
-                    <Button className="bg-slate-900 hover:bg-slate-800 font-semibold tracking-wide text-white">Export Audit Trail (SOC2)</Button>
-                </div>
+        <div className="space-y-6">
+            <div className="border-b border-gray-200 dark:border-gray-800 pb-6">
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-50">
+                    Vendor &amp; Data Processing
+                </h1>
+                <p className="text-gray-600 dark:text-gray-400 mt-2">
+                    The third-party systems {campusName ?? 'this campus'} has connected, what each one is
+                    allowed to reach, and when it last exchanged data.
+                </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card className="border border-gray-200 shadow-sm hover:shadow-md cursor-pointer transition-all">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <Card>
                     <CardHeader className="pb-2">
-                        <div className="text-2xl mb-2">📜</div>
-                        <CardTitle className="text-lg">Compliance Library</CardTitle>
+                        <CardDescription className="uppercase tracking-wider text-xs font-semibold">
+                            Connected systems
+                        </CardDescription>
+                        <CardTitle className="text-3xl">{processors.length}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-xs text-gray-500">ISO 27001, SOC2 Type II, GDPR, and FERPA certificates.</p>
-                        <p className="text-xs text-blue-600 font-semibold mt-4">Download Pack →</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {liveCount} sending live data, {processors.length - liveCount} in mock mode.
+                        </p>
                     </CardContent>
                 </Card>
-
-                <Card className="border border-gray-200 shadow-sm hover:shadow-md cursor-pointer transition-all">
+                <Card>
                     <CardHeader className="pb-2">
-                        <div className="text-2xl mb-2">🤝</div>
-                        <CardTitle className="text-lg">Responsibility Matrix</CardTitle>
+                        <CardDescription className="uppercase tracking-wider text-xs font-semibold">
+                            API keys issued
+                        </CardDescription>
+                        <CardTitle className="text-3xl">{apiKeyCount}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-xs text-gray-500">Shared security responsibilities mapped by infrastructure layer.</p>
-                        <p className="text-xs text-blue-600 font-semibold mt-4">View Grid →</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Credentials that can read this campus&rsquo;s data over the API.
+                        </p>
                     </CardContent>
                 </Card>
-
-                <Card className="border border-gray-200 shadow-sm hover:shadow-md cursor-pointer transition-all">
+                <Card>
                     <CardHeader className="pb-2">
-                        <div className="text-2xl mb-2">🤖</div>
-                        <CardTitle className="text-lg">AI Ethics Register</CardTitle>
+                        <CardDescription className="uppercase tracking-wider text-xs font-semibold">
+                            Outbound webhooks
+                        </CardDescription>
+                        <CardTitle className="text-3xl">{webhookCount}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-xs text-gray-500">Subprocessor disclosures and LLM pipeline transparency logs.</p>
-                        <p className="text-xs text-blue-600 font-semibold mt-4">Read Manifest →</p>
-                    </CardContent>
-                </Card>
-
-                <Card className="border border-gray-200 shadow-sm hover:shadow-md cursor-pointer transition-all">
-                    <CardHeader className="pb-2">
-                        <div className="text-2xl mb-2">🔒</div>
-                        <CardTitle className="text-lg">Data Processing (DPA)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-xs text-gray-500">Your specific Data Processing Agreement and privacy boundaries.</p>
-                        <p className="text-xs text-blue-600 font-semibold mt-4">View Agreement →</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Endpoints this campus pushes event data to.
+                        </p>
                     </CardContent>
                 </Card>
             </div>
 
-            <Card className="border border-gray-200 shadow-sm bg-white overflow-hidden mt-8">
-                <CardHeader className="bg-gray-50/50 border-b border-gray-100 px-6 py-5">
+            <Card>
+                <CardHeader className="flex flex-row items-start justify-between gap-4">
                     <div>
-                        <CardTitle className="text-xl">Platform Action Log</CardTitle>
-                        <CardDescription>Immutable record of critical state changes and impersonations.</CardDescription>
+                        <CardTitle className="text-xl">Connected data processors</CardTitle>
+                        <CardDescription>
+                            Every external provider with a connection record for this campus, and the scopes it
+                            was granted.
+                        </CardDescription>
                     </div>
+                    {failingCount > 0 && (
+                        <Badge variant="outline" className="text-red-700 bg-red-50 border-red-200">
+                            {failingCount} needing attention
+                        </Badge>
+                    )}
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
-                            <thead className="bg-white border-b border-gray-100 text-xs text-gray-500 uppercase font-semibold">
+                            <thead className="border-y border-gray-100 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold">
                                 <tr>
-                                    <th className="px-6 py-4">Timestamp</th>
-                                    <th className="px-6 py-4">Action Type</th>
-                                    <th className="px-6 py-4">Actor ID</th>
-                                    <th className="px-6 py-4">IP Address</th>
-                                    <th className="px-6 py-4">Metadata Context</th>
+                                    <th className="px-6 py-4">Provider</th>
+                                    <th className="px-6 py-4">Mode</th>
+                                    <th className="px-6 py-4">Status</th>
+                                    <th className="px-6 py-4">Granted scopes</th>
+                                    <th className="px-6 py-4">Last successful sync</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {logs.length === 0 && (
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                {processors.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                                            No critical actions logged in the primary trust ledger yet.
+                                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                            No third-party system is connected to this campus, so no student or
+                                            fee data leaves ScholarMind through an integration. Connections are
+                                            provisioned through the integrations API — there is no
+                                            campus-facing screen for creating one in this release.
                                         </td>
                                     </tr>
+                                ) : (
+                                    processors.map((row) => {
+                                        const scopes = readScopes(row.scopes);
+                                        return (
+                                            <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/40">
+                                                <td className="px-6 py-4 font-semibold">{row.provider}</td>
+                                                <td className="px-6 py-4">
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={
+                                                            row.mode === 'LIVE'
+                                                                ? 'text-amber-700 bg-amber-50 border-amber-200'
+                                                                : ''
+                                                        }
+                                                    >
+                                                        {row.mode}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={
+                                                            row.status === 'ACTIVE'
+                                                                ? 'text-green-700 bg-green-50 border-green-200'
+                                                                : 'text-red-700 bg-red-50 border-red-200'
+                                                        }
+                                                    >
+                                                        {row.status}
+                                                    </Badge>
+                                                    {row.lastError && (
+                                                        <p className="text-xs text-red-600 mt-1 max-w-xs truncate">
+                                                            {row.lastError}
+                                                        </p>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 text-xs">
+                                                    {scopes.length === 0 ? (
+                                                        <span className="text-gray-400">No scopes recorded</span>
+                                                    ) : (
+                                                        <span className="font-mono">{scopes.join(', ')}</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400">
+                                                    {formatDateTime(row.lastSuccessAt)}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
                                 )}
-                                {logs.map((log) => (
-                                    <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-6 py-4 text-xs font-mono text-gray-500">{new Date(log.createdAt).toLocaleString()}</td>
-                                        <td className="px-6 py-4 font-bold text-gray-800">
-                                            <Badge variant="outline" className={`${log.actionType === 'IMPERSONATE' ? 'bg-orange-50 text-orange-700' : 'bg-slate-100 text-slate-700'}`}>
-                                                {log.actionType}
-                                            </Badge>
-                                        </td>
-                                        <td className="px-6 py-4 text-xs font-mono text-gray-500 truncate max-w-[120px]">{log.actorId}</td>
-                                        <td className="px-6 py-4 font-mono text-gray-700">{log.ipAddress || 'Internal'}</td>
-                                        <td className="px-6 py-4 text-xs text-gray-400 font-mono truncate max-w-[200px]">{log.metadata || '{}'}</td>
-                                    </tr>
-                                ))}
                             </tbody>
                         </table>
                     </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-xl">Procurement evidence packs</CardTitle>
+                    <CardDescription>Certifications, DPAs and responsibility matrices.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                    <p>
+                        Not available in this release. ScholarMind does not store compliance certificates,
+                        data processing agreements, subprocessor attestations or a shared-responsibility
+                        matrix, so this page cannot generate or hand them out. Ask your ScholarMind account
+                        contact for those documents directly.
+                    </p>
+                    <p>
+                        The records that <em>are</em> available for a procurement review live on{' '}
+                        <Link href="/audit" className="text-blue-600 dark:text-blue-400 hover:underline">
+                            the audit log
+                        </Link>
+                        , which shows who changed what inside this campus.
+                    </p>
+                    <p className="text-xs">
+                        Platform-level operator actions (impersonation, tenant provisioning) are recorded, but
+                        that ledger is readable only by ScholarMind platform operators — a campus login cannot
+                        query it.
+                    </p>
                 </CardContent>
             </Card>
         </div>

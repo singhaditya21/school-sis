@@ -1,51 +1,45 @@
-'use client';
+import { redirect } from 'next/navigation';
+import { Card, CardContent } from '@/components/ui/card';
+import { getSession } from '@/lib/auth/session';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
+import AppointmentsClient from './appointments-client';
+import { getAppointmentPeople, listAppointments } from './actions';
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { getAppointments } from '@/lib/services/appointments/appointments.service';
+export default async function AppointmentsPage() {
+    const session = await getSession();
+    if (!session.isLoggedIn) redirect('/login');
 
-interface Appointment {
-    id: string | number;
-    title: string;
-    description: string;
-    date: string;
-    time: string;
-    duration: string | number;
-    with: string;
-    status: string;
-}
+    const role = session.role as UserRole;
+    const canRead = hasPermission(role, 'appointments:read');
+    const canWrite = hasPermission(role, 'appointments:write');
 
-export default function AppointmentsPage() {
-    const [appointments, setAppointments] = useState<Appointment[]>([]);
-    useEffect(() => { getAppointments().then(setAppointments); }, []);
-
-    const getStatusColor = (s: string) => ({ scheduled: 'bg-blue-100 text-blue-800', completed: 'bg-green-100 text-green-800', cancelled: 'bg-red-100 text-red-800' }[s] || 'bg-gray-100 text-gray-800');
-
-    return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div><h1 className="text-3xl font-bold">Appointments</h1><p className="text-gray-600 mt-1">Manage meetings and appointments</p></div>
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">+ New Appointment</button>
-            </div>
-            {appointments.length === 0 ? <Card><CardContent className="py-12 text-center text-gray-500">No appointments scheduled.</CardContent></Card> : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {appointments.map((appt: Appointment) => (
-                        <Card key={appt.id}>
-                            <CardHeader>
-                                <CardTitle className="flex items-center justify-between text-lg">
-                                    <span>{appt.title}</span><Badge className={getStatusColor(appt.status)}>{appt.status}</Badge>
-                                </CardTitle>
-                                <p className="text-sm text-gray-500">{appt.date} at {appt.time} • {appt.duration} min</p>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-gray-700 mb-2">{appt.description}</p>
-                                <p className="text-sm text-gray-500">With: <strong>{appt.with}</strong></p>
-                            </CardContent>
-                        </Card>
-                    ))}
+    // The appointments permissions are granted to teachers and tenant operators
+    // only, so most admin roles land here without read access. Say so plainly
+    // rather than letting the query throw a 500.
+    if (!canRead) {
+        return (
+            <div className="space-y-6">
+                <div>
+                    <h1 className="text-3xl font-bold">Appointments</h1>
+                    <p className="text-gray-600 mt-1">Manage meetings and appointments</p>
                 </div>
-            )}
-        </div>
-    );
+                <Card>
+                    <CardContent className="py-12 text-center text-gray-600" data-testid="appointments-no-access">
+                        <p className="font-medium">Appointments are not available to your role.</p>
+                        <p className="text-sm text-gray-500 mt-2">
+                            The appointments module is granted to teaching staff and tenant operators.
+                            Ask an operator to extend the appointments permission to {role.replace(/_/g, ' ').toLowerCase()} if you need it.
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    const [appointments, people] = await Promise.all([
+        listAppointments(),
+        canWrite ? getAppointmentPeople() : Promise.resolve([]),
+    ]);
+
+    return <AppointmentsClient appointments={appointments} people={people} canWrite={canWrite} />;
 }

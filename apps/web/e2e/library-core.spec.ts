@@ -293,13 +293,15 @@ test.describe('Library Module Core E2E Tests', () => {
         await expect(banner).toContainText('returned successfully');
 
         // Check that the fine was added as an invoice
-        // Overdue is 5 days, so 5 days * 5 Rs = 25 Rs
+        // Overdue is 5 days at the LIBRARY_FINE_PER_DAY rate of Rs 2 = Rs 10.
+        // (This previously asserted Rs 25, from the Rs 5/day the code charged while the
+        //  issue screen quoted parents Rs 2/day.)
         const invoiceRes = await runQuery(
             `SELECT total_amount FROM invoices WHERE student_id = $1 AND description = 'Library Fine - Overdue Book' ORDER BY created_at DESC LIMIT 1`,
             [studentId]
         );
         expect(invoiceRes.rows.length).toBe(1);
-        expect(parseFloat(invoiceRes.rows[0].total_amount)).toBe(25);
+        expect(parseFloat(invoiceRes.rows[0].total_amount)).toBe(10);
     });
 
     test('E2E-WRK-403: Monthly Library Overdue Audit & Fine Recovery loop', async ({ page }) => {
@@ -358,7 +360,7 @@ test.describe('Library Module Core E2E Tests', () => {
             [studentId]
         );
         expect(invoiceRes.rows.length).toBe(1);
-        expect(parseFloat(invoiceRes.rows[0].total_amount)).toBe(25);
+        expect(parseFloat(invoiceRes.rows[0].total_amount)).toBe(10);
 
         // Verify unpaid fines card displays
         await page.goto('/library/history');

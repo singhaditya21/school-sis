@@ -1,140 +1,159 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Zap, Mail, Bell } from 'lucide-react';
-import { toggleWorkflow, createWorkflow, deleteWorkflow, Workflow } from '@/lib/actions/automation';
+import { Plus, Trash2, Zap, ArrowRight } from 'lucide-react';
+import { toggleWorkflow, deleteWorkflow, type Workflow } from '@/lib/actions/automation';
+
+type Condition = { field?: string; operator?: string; value?: string };
+
+function conditionCount(conditions: Workflow['conditions']): number {
+    return Array.isArray(conditions) ? (conditions as Condition[]).length : 0;
+}
 
 export default function AutomationClient({ initialWorkflows }: { initialWorkflows: Workflow[] }) {
+    const router = useRouter();
     const [workflows, setWorkflows] = useState<Workflow[]>(initialWorkflows);
-    const [isCreating, setIsCreating] = useState(false);
-    
-    // Form state
-    const [name, setName] = useState('');
-    const [triggerEvent, setTriggerEvent] = useState('FEE_OVERDUE');
-    const [actionType, setActionType] = useState('SEND_EMAIL');
-    const [actionPayload, setActionPayload] = useState('{"template": "fee_reminder"}');
-    
-    const handleToggle = async (id: string, currentStatus: boolean) => {
-        setWorkflows(workflows.map(w => w.id === id ? { ...w, isActive: !currentStatus } : w));
-        await toggleWorkflow(id, !currentStatus);
+    const [pendingId, setPendingId] = useState<string | null>(null);
+    const [, startTransition] = useTransition();
+
+    const handleToggle = async (workflow: Workflow) => {
+        const next = !workflow.isActive;
+        setPendingId(workflow.id);
+        setWorkflows((prev) =>
+            prev.map((w) => (w.id === workflow.id ? { ...w, isActive: next } : w)),
+        );
+
+        try {
+            await toggleWorkflow(workflow.id, next);
+            toast.success(
+                next
+                    ? `"${workflow.name}" marked enabled. It is stored, not executed.`
+                    : `"${workflow.name}" marked disabled.`,
+            );
+            startTransition(() => router.refresh());
+        } catch {
+            setWorkflows((prev) =>
+                prev.map((w) => (w.id === workflow.id ? { ...w, isActive: !next } : w)),
+            );
+            toast.error('Could not update this rule.');
+        } finally {
+            setPendingId(null);
+        }
     };
 
-    const handleDelete = async (id: string) => {
-        setWorkflows(workflows.filter(w => w.id !== id));
-        await deleteWorkflow(id);
-    };
+    const handleDelete = async (workflow: Workflow) => {
+        const snapshot = workflows;
+        setPendingId(workflow.id);
+        setWorkflows((prev) => prev.filter((w) => w.id !== workflow.id));
 
-    const handleCreate = async () => {
-        let payload = {};
-        try { payload = JSON.parse(actionPayload); } catch (e) { payload = { raw: actionPayload }; }
-        
-        await createWorkflow({
-            name,
-            objectName: 'students',
-            triggerEvent,
-            conditions: {},
-            actionType,
-            actionPayload: payload,
-            isActive: true
-        });
-        
-        setIsCreating(false);
-        // Refresh page to get new items (or we could fetch via action)
-        window.location.reload();
+        try {
+            await deleteWorkflow(workflow.id);
+            toast.success(`Deleted "${workflow.name}".`);
+            startTransition(() => router.refresh());
+        } catch {
+            setWorkflows(snapshot);
+            toast.error('Could not delete this rule.');
+        } finally {
+            setPendingId(null);
+        }
     };
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h2 className="text-lg font-semibold text-slate-800">Active Rules</h2>
-                <Button onClick={() => setIsCreating(!isCreating)}>
-                    <Plus className="w-4 h-4 mr-2" /> New Rule
-                </Button>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+                    Saved rules ({workflows.length})
+                </h2>
+                <Link href="/settings/automation/new">
+                    <Button className="gap-2">
+                        <Plus className="h-4 w-4" /> New rule
+                    </Button>
+                </Link>
             </div>
 
-            {isCreating && (
-                <Card className="border-blue-200 shadow-sm bg-blue-50/30">
-                    <CardHeader>
-                        <CardTitle className="text-lg">Create New Workflow Rule</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label>Rule Name</Label>
-                                <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Overdue Fee Reminder" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Trigger Event</Label>
-                                <select className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                    value={triggerEvent} onChange={e => setTriggerEvent(e.target.value)}>
-                                    <option value="FEE_OVERDUE">Fee Overdue</option>
-                                    <option value="STUDENT_ABSENT">Student Absent</option>
-                                    <option value="EXAM_PUBLISHED">Exam Published</option>
-                                </select>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Action Type</Label>
-                                <select className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                    value={actionType} onChange={e => setActionType(e.target.value)}>
-                                    <option value="SEND_EMAIL">Send Email</option>
-                                    <option value="SEND_SMS">Send SMS</option>
-                                    <option value="NOTIFY_APP">In-App Notification</option>
-                                </select>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Action Payload (JSON)</Label>
-                                <Input value={actionPayload} onChange={e => setActionPayload(e.target.value)} />
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-2 mt-4">
-                            <Button variant="outline" onClick={() => setIsCreating(false)}>Cancel</Button>
-                            <Button onClick={handleCreate}>Save Rule</Button>
-                        </div>
-                    </CardContent>
-                </Card>
+            {workflows.length === 0 ? (
+                <div className="rounded-lg border-2 border-dashed py-12 text-center text-slate-500">
+                    <p className="font-medium text-slate-700 dark:text-slate-200">
+                        No automation rules defined yet.
+                    </p>
+                    <p className="mt-1 text-sm">
+                        Use the rule builder to describe a trigger, its conditions and the action
+                        it should take.
+                    </p>
+                    <Link href="/settings/automation/new">
+                        <Button variant="outline" className="mt-4 gap-2">
+                            <Plus className="h-4 w-4" /> Open the rule builder
+                        </Button>
+                    </Link>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {workflows.map((workflow) => {
+                        const conditions = conditionCount(workflow.conditions);
+                        const busy = pendingId === workflow.id;
+
+                        return (
+                            <Card
+                                key={workflow.id}
+                                className={workflow.isActive ? undefined : 'opacity-60'}
+                            >
+                                <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pb-2">
+                                    <div className="min-w-0">
+                                        <CardTitle className="flex items-center gap-2 text-base">
+                                            <Zap className="h-4 w-4 shrink-0 text-amber-500" />
+                                            <span className="truncate">{workflow.name}</span>
+                                        </CardTitle>
+                                        <CardDescription className="mt-2 flex flex-wrap items-center gap-2">
+                                            <Badge variant="outline" className="font-mono text-xs">
+                                                {workflow.objectName}
+                                            </Badge>
+                                            <ArrowRight className="h-3 w-3" />
+                                            <span className="text-xs font-medium">
+                                                {workflow.triggerEvent}
+                                            </span>
+                                        </CardDescription>
+                                    </div>
+                                    <Switch
+                                        checked={workflow.isActive}
+                                        disabled={busy}
+                                        aria-label={`Mark ${workflow.name} enabled`}
+                                        onCheckedChange={() => handleToggle(workflow)}
+                                    />
+                                </CardHeader>
+                                <CardContent className="mt-4 flex items-center justify-between border-t pt-4">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Badge variant="secondary" className="text-xs">
+                                            {workflow.actionType}
+                                        </Badge>
+                                        <Badge variant="secondary" className="text-xs">
+                                            {conditions === 1
+                                                ? '1 condition'
+                                                : `${conditions} conditions`}
+                                        </Badge>
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        disabled={busy}
+                                        aria-label={`Delete ${workflow.name}`}
+                                        onClick={() => handleDelete(workflow)}
+                                        className="text-red-500 hover:bg-red-50 hover:text-red-700"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        );
+                    })}
+                </div>
             )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {workflows.map(workflow => (
-                    <Card key={workflow.id} className={!workflow.isActive ? "opacity-60" : ""}>
-                        <CardHeader className="pb-2 flex flex-row items-start justify-between">
-                            <div>
-                                <CardTitle className="text-md flex items-center gap-2">
-                                    <Zap className="w-4 h-4 text-amber-500" /> {workflow.name}
-                                </CardTitle>
-                                <CardDescription className="mt-1">
-                                    When: <Badge variant="secondary" className="text-xs">{workflow.triggerEvent}</Badge>
-                                </CardDescription>
-                            </div>
-                            <Switch 
-                                checked={workflow.isActive} 
-                                onCheckedChange={() => handleToggle(workflow.id, workflow.isActive)} 
-                            />
-                        </CardHeader>
-                        <CardContent className="pt-4 border-t mt-4 flex justify-between items-center">
-                            <div className="flex items-center text-sm text-slate-600 gap-2">
-                                {workflow.actionType.includes('EMAIL') ? <Mail className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
-                                {workflow.actionType}
-                            </div>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(workflow.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
-                                <Trash2 className="w-4 h-4" />
-                            </Button>
-                        </CardContent>
-                    </Card>
-                ))}
-                
-                {workflows.length === 0 && !isCreating && (
-                    <div className="col-span-full py-12 text-center border-2 border-dashed rounded-lg text-slate-500">
-                        No automation rules configured yet.
-                    </div>
-                )}
-            </div>
         </div>
     );
 }

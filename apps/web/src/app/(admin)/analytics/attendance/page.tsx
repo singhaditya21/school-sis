@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getWeeklyAttendance, getDailyAttendance, getClassWiseAttendance } from '@/lib/actions/analytics';
+import { downloadTableCsv } from '../download-csv';
 
 export default function AttendanceAnalyticsPage() {
     const [weeklyData, setWeeklyData] = useState<{ date: string; present: number; absent: number; percentage: number }[]>([]);
@@ -20,21 +21,35 @@ export default function AttendanceAnalyticsPage() {
     const avgAttendance = weeklyData.length > 0
         ? Math.round(weeklyData.reduce((sum, d) => sum + d.percentage, 0) / weeklyData.length * 10) / 10 : 0;
 
+    function exportClassSummary() {
+        downloadTableCsv(
+            'attendance_by_class_last_30_days',
+            ['Class', 'Attendance %', 'Present records', 'Total records'],
+            classAttendance.map(c => [c.class, c.percentage, c.present, c.total]),
+        );
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div><h1 className="text-3xl font-bold">Attendance Analytics</h1><p className="text-gray-600 mt-1">Attendance trends and patterns</p></div>
                 <div className="flex gap-3">
                     <Link href="/analytics" className="px-4 py-2 border rounded-lg hover:bg-gray-50">← Back to Analytics</Link>
-                    <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">📊 Export Report</button>
+                    <button
+                        onClick={exportClassSummary}
+                        disabled={classAttendance.length === 0}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Download class summary (CSV)
+                    </button>
                 </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Average Attendance</div><div className="text-2xl font-bold text-green-600">{avgAttendance}%</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Classes Tracked</div><div className="text-2xl font-bold text-blue-600">{classAttendance.length}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Avg of weekly rates</div><div className="text-2xl font-bold text-green-600">{avgAttendance}%</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Classes with records (30d)</div><div className="text-2xl font-bold text-blue-600">{classAttendance.length}</div></CardContent></Card>
                 <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Weeks Tracked</div><div className="text-2xl font-bold text-purple-600">{weeklyData.length}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Days (Last 30)</div><div className="text-2xl font-bold text-orange-600">{dailyData.length}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Days with records (30d)</div><div className="text-2xl font-bold text-orange-600">{dailyData.length}</div></CardContent></Card>
             </div>
 
             <Card>

@@ -1,67 +1,159 @@
 import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth/session';
 import Link from 'next/link';
-import { getSectionsForTimetable } from '@/lib/actions/timetable';
-import { getExams } from '@/lib/actions/exams';
+import { getSession } from '@/lib/auth/session';
+import { formatDate } from '@/lib/utils';
+import { getReportCardClasses, getReportCardExamOptions } from '../_actions/report-cards';
 
-export default async function ReportCardsPage() {
+export default async function ReportCardsPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ examId?: string }>;
+}) {
     const session = await getSession();
     if (!session.isLoggedIn) redirect('/login');
 
-    const sections = await getSectionsForTimetable();
-    const exams = await getExams();
+    const { examId } = await searchParams;
+    const exams = await getReportCardExamOptions();
 
-    const gradeGroups = sections.reduce((acc, sec) => {
-        if (!acc[sec.gradeName]) acc[sec.gradeName] = [];
-        acc[sec.gradeName].push(sec);
-        return acc;
-    }, {} as Record<string, typeof sections>);
+    if (exams.length === 0) {
+        return (
+            <div className="space-y-6">
+                <Header />
+                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                    <p className="font-medium text-gray-900">No exams yet</p>
+                    <p className="text-sm text-gray-500 mt-1 mb-4">
+                        Report cards are built from saved marks, so there is nothing to show until an
+                        exam exists and marks have been entered.
+                    </p>
+                    <Link
+                        href="/exams/create"
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                        Create an exam
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
+    const selected =
+        exams.find((e) => e.id === examId) ??
+        exams.find((e) => e.resultCount > 0) ??
+        exams[0];
+
+    const classes = await getReportCardClasses(selected.id);
+
+    const byGrade = new Map<string, typeof classes>();
+    for (const cls of classes) {
+        const bucket = byGrade.get(cls.gradeName) ?? [];
+        bucket.push(cls);
+        byGrade.set(cls.gradeName, bucket);
+    }
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold">Report Cards</h1>
-                    <p className="text-gray-600">Generate and print report cards</p>
+            <Header />
+
+            <div className="bg-white rounded-xl shadow-sm border">
+                <div className="p-4 border-b">
+                    <h2 className="font-semibold text-gray-900">1. Choose an exam</h2>
                 </div>
-                <Link href="/exams" className="text-blue-600 hover:underline">← Back</Link>
+                <div className="divide-y">
+                    {exams.map((exam) => {
+                        const active = exam.id === selected.id;
+                        return (
+                            <Link
+                                key={exam.id}
+                                href={`/exams/report-cards?examId=${exam.id}`}
+                                className={`flex flex-wrap items-center justify-between gap-3 p-4 hover:bg-gray-50 ${
+                                    active ? 'bg-blue-50/60' : ''
+                                }`}
+                            >
+                                <div>
+                                    <p className="font-medium text-gray-900">
+                                        {exam.name}
+                                        {active && (
+                                            <span className="ml-2 text-xs font-semibold text-blue-600">
+                                                selected
+                                            </span>
+                                        )}
+                                    </p>
+                                    <p className="text-sm text-gray-500">
+                                        {exam.academicYearName} · {formatDate(exam.startDate)}
+                                    </p>
+                                </div>
+                                <p className="text-sm text-gray-500">
+                                    {exam.scheduleCount} paper(s) · {exam.resultCount} mark(s) saved
+                                </p>
+                            </Link>
+                        );
+                    })}
+                </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-                <h2 className="font-semibold mb-4">Select Class to Generate Report Cards</h2>
-                <div className="space-y-4">
-                    {Object.entries(gradeGroups).map(([gradeName, secs]) => (
-                        <div key={gradeName}>
-                            <h3 className="text-sm font-semibold text-gray-700 mb-2">{gradeName}</h3>
-                            <div className="flex flex-wrap gap-2">
-                                {secs.map(sec => (
-                                    <Link
-                                        key={sec.id}
-                                        href={`/exams/report-cards/${sec.id}`}
-                                        className="px-3 py-2 bg-purple-50 rounded-lg hover:bg-purple-100 text-sm font-medium"
-                                    >
-                                        {gradeName}-{sec.sectionName}
-                                    </Link>
-                                ))}
-                            </div>
-                        </div>
-                    ))}
+            <div className="bg-white rounded-xl shadow-sm border">
+                <div className="p-4 border-b">
+                    <h2 className="font-semibold text-gray-900">
+                        2. Choose a class — {selected.name}
+                    </h2>
                 </div>
-            </div>
 
-            {exams.length > 0 && (
-                <div className="bg-white rounded-xl shadow-sm border p-6">
-                    <h2 className="font-semibold mb-4">Available Exams ({exams.length})</h2>
-                    <div className="divide-y">
-                        {exams.map(exam => (
-                            <div key={exam.id} className="py-2 flex justify-between">
-                                <span className="font-medium">{exam.name}</span>
-                                <span className="text-sm text-gray-500">{exam.scheduleCount} schedules</span>
+                {classes.length === 0 ? (
+                    <div className="p-8 text-center">
+                        <p className="font-medium text-gray-900">No classes scheduled for this exam</p>
+                        <p className="text-sm text-gray-500 mt-1">
+                            Add a paper for at least one class to this exam before generating report
+                            cards.
+                        </p>
+                        <Link
+                            href={`/exams/${selected.id}`}
+                            className="text-blue-600 hover:underline text-sm mt-3 inline-block"
+                        >
+                            Open exam →
+                        </Link>
+                    </div>
+                ) : (
+                    <div className="p-4 space-y-5">
+                        {Array.from(byGrade.entries()).map(([gradeName, sections]) => (
+                            <div key={gradeName}>
+                                <h3 className="text-sm font-semibold text-gray-700 mb-2">{gradeName}</h3>
+                                <div className="flex flex-wrap gap-2">
+                                    {sections.map((cls) => (
+                                        <Link
+                                            key={cls.sectionId}
+                                            href={`/exams/report-cards/${cls.sectionId}?examId=${selected.id}`}
+                                            className="px-3 py-2 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-sm"
+                                        >
+                                            <span className="font-medium text-gray-900">
+                                                {gradeName}-{cls.sectionName}
+                                            </span>
+                                            <span className="block text-xs text-gray-500">
+                                                {cls.studentCount} student(s) · {cls.resultCount} mark(s)
+                                            </span>
+                                        </Link>
+                                    ))}
+                                </div>
                             </div>
                         ))}
                     </div>
-                </div>
-            )}
+                )}
+            </div>
+        </div>
+    );
+}
+
+function Header() {
+    return (
+        <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h1 className="text-2xl font-bold text-gray-900">Report cards</h1>
+                <p className="text-gray-600">
+                    Built from marks saved against each exam paper — nothing is estimated.
+                </p>
+            </div>
+            <Link href="/exams" className="text-blue-600 hover:underline text-sm">
+                ← Back to exams
+            </Link>
         </div>
     );
 }

@@ -1,130 +1,270 @@
-import { Card, CardContent } from '@/components/ui/card';
-import { getIssuedCertificates, getCertificateTemplates, getCertificateStats } from '@/lib/actions/certificate';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { getSession } from '@/lib/auth/session';
+import { requireAuth } from '@/lib/auth/middleware';
+import {
+    getCertificateStats,
+    listCertificateTemplates,
+    listIssuedCertificates,
+    listStudentsForCertificate,
+} from './_lib/actions';
+import { certificateStatusClass, certificateTypeLabel, formatDate } from './_lib/labels';
+import CertificateFilters from './certificate-filters';
+import IssueCertificateDialog from './issue-certificate-dialog';
+import RevokeCertificateDialog from './revoke-certificate-dialog';
+import { NewTemplateDialog, TemplateActiveToggle } from './template-controls';
 
-export default async function CertificatesPage() {
-    const [certs, templates, stats] = await Promise.all([
-        getIssuedCertificates(),
-        getCertificateTemplates(),
+export const dynamic = 'force-dynamic';
+
+const STATUS_TABS = ['ALL', 'ISSUED', 'REVOKED'] as const;
+
+const STATUS_TAB_LABELS: Record<string, string> = {
+    ALL: 'All',
+    ISSUED: 'Issued',
+    REVOKED: 'Revoked',
+};
+
+interface PageProps {
+    searchParams: Promise<{ status?: string; type?: string; q?: string }>;
+}
+
+export default async function CertificatesPage({ searchParams }: PageProps) {
+    const session = await getSession();
+    if (!session.isLoggedIn) redirect('/login');
+
+    try {
+        await requireAuth('certificate:read');
+    } catch {
+        redirect('/unauthorized');
+    }
+
+    const { status: rawStatus, type: rawType, q } = await searchParams;
+    const status = STATUS_TABS.includes(rawStatus as (typeof STATUS_TABS)[number]) ? rawStatus! : 'ALL';
+    const type = rawType ?? 'ALL';
+    const search = q ?? '';
+
+    const [stats, templates, certificates, students] = await Promise.all([
         getCertificateStats(),
+        listCertificateTemplates(),
+        listIssuedCertificates({ status, type, search }),
+        listStudentsForCertificate(),
     ]);
 
+    function tabHref(next: string): string {
+        const params = new URLSearchParams();
+        if (next !== 'ALL') params.set('status', next);
+        if (type !== 'ALL') params.set('type', type);
+        if (search) params.set('q', search);
+        const qs = params.toString();
+        return qs ? `/certificates?${qs}` : '/certificates';
+    }
+
+    const filtered = type !== 'ALL' || search.trim().length > 0 || status !== 'ALL';
+    // listIssuedCertificates caps at 500 rows; say so rather than quietly truncating.
+    const capped = certificates.length === 500;
+
     return (
-        <div className="space-y-6 max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="space-y-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">Certificates & ID Cards</h1>
-                    <p className="text-gray-500 mt-1">Issue digital certificates, manage templates, and batch print student ID cards.</p>
+                    <h1 className="text-3xl font-bold tracking-tight">Certificates</h1>
+                    <p className="mt-1 text-gray-600">
+                        Issue transfer, bonafide and character certificates against a numbered
+                        register, and revoke one when it should no longer be honoured.
+                    </p>
                 </div>
-                <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm font-medium transition-colors">
-                    + New Template
-                </button>
+                <div className="flex flex-wrap gap-2">
+                    <NewTemplateDialog />
+                    <IssueCertificateDialog templates={templates} students={students} />
+                </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="shadow-sm border-blue-100 bg-blue-50/30">
-                    <CardContent className="pt-6">
-                        <div className="text-sm font-medium text-blue-600 mb-1">Active Templates</div>
-                        <div className="text-3xl font-bold text-gray-900">{stats.templates}</div>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                <Card>
+                    <CardContent className="pt-4">
+                        <div className="text-sm text-gray-500">Active templates</div>
+                        <div className="text-2xl font-bold">{stats.activeTemplates}</div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-green-100 bg-green-50/30">
-                    <CardContent className="pt-6">
-                        <div className="text-sm font-medium text-green-600 mb-1">Certificates Issued</div>
-                        <div className="text-3xl font-bold text-gray-900">{stats.issued}</div>
+                <Card>
+                    <CardContent className="pt-4">
+                        <div className="text-sm text-gray-500">Issued</div>
+                        <div className="text-2xl font-bold text-green-600">{stats.issued}</div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-purple-100 bg-purple-50/30">
-                    <CardContent className="pt-6">
-                        <div className="text-sm font-medium text-purple-600 mb-1">ID Cards Active</div>
-                        <div className="text-3xl font-bold text-gray-900">{stats.idCards}</div>
+                <Card>
+                    <CardContent className="pt-4">
+                        <div className="text-sm text-gray-500">Draft</div>
+                        <div className="text-2xl font-bold text-amber-600">{stats.drafts}</div>
+                        <div className="mt-1 text-xs text-gray-500">Imported records not yet issued</div>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-orange-100 bg-orange-50/30">
-                    <CardContent className="pt-6">
-                        <div className="text-sm font-medium text-orange-600 mb-1">Pending Generation</div>
-                        <div className="text-3xl font-bold text-gray-900">{stats.pendingCards}</div>
+                <Card className={stats.revoked > 0 ? 'border-2 border-red-100' : undefined}>
+                    <CardContent className="pt-4">
+                        <div className="text-sm text-gray-500">Revoked</div>
+                        <div className="text-2xl font-bold text-red-600">{stats.revoked}</div>
+                        <div className="mt-1 text-xs text-gray-500">
+                            <Link href="/credentials" className="text-blue-600 hover:underline">
+                                Revocation register →
+                            </Link>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {templates.map(t => (
-                    <Card key={t.id} className="shadow-sm overflow-hidden border-gray-200">
-                        <CardContent className="pt-5 p-0 border-t-4 border-t-indigo-500">
-                            <div className="p-5">
-                                <div className="flex items-start justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></div>
-                                        <h3 className="font-bold text-gray-900">{t.name}</h3>
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">Templates</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {templates.length === 0 ? (
+                        <p className="py-6 text-center text-sm text-gray-500">
+                            No templates yet. Create one before issuing a certificate.
+                        </p>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                            {templates.map(t => (
+                                <div
+                                    key={t.id}
+                                    className={`rounded-lg border p-4 ${t.isActive ? 'border-gray-200' : 'border-dashed border-gray-300 bg-gray-50'}`}
+                                >
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div>
+                                            <div className="font-semibold text-gray-900">{t.name}</div>
+                                            <div className="mt-0.5 text-xs text-gray-500">
+                                                {certificateTypeLabel(t.type)}
+                                            </div>
+                                        </div>
+                                        {!t.isActive && <Badge variant="secondary">Retired</Badge>}
                                     </div>
-                                    <span className="inline-block px-2 py-0.5 rounded text-xs bg-indigo-100 text-indigo-700 font-semibold">{t.type}</span>
+                                    <div className="mt-3 flex items-center justify-between text-sm">
+                                        <span className="text-gray-500">
+                                            {t.issuedCount} {t.issuedCount === 1 ? 'certificate' : 'certificates'} issued
+                                        </span>
+                                        <TemplateActiveToggle templateId={t.id} isActive={t.isActive} />
+                                    </div>
                                 </div>
-                                <div className="mt-4 text-sm text-gray-500 flex items-center justify-between">
-                                    <span>{(t.variables as string[])?.length || 0} smart variables</span>
-                                    <span className="text-indigo-600 font-medium cursor-pointer hover:underline">Edit Template</span>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
 
-            <Card className="shadow-sm border-gray-200 overflow-hidden">
-                <CardContent className="p-0">
-                    <div className="p-5 border-b bg-gray-50/50 flex justify-between items-center">
-                        <h3 className="font-semibold text-gray-900">Recently Issued Certificates</h3>
-                        <div className="relative">
-                            <input type="text" placeholder="Search by ID or Student..." className="pl-8 pr-4 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 w-64" />
-                            <svg className="w-4 h-4 text-gray-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <Card>
+                <CardHeader className="gap-3 pb-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <CardTitle className="text-lg">Certificate register</CardTitle>
+                        <div className="flex gap-1">
+                            {STATUS_TABS.map(tab => (
+                                <Link
+                                    key={tab}
+                                    href={tabHref(tab)}
+                                    className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                                        status === tab
+                                            ? 'bg-gray-900 text-white'
+                                            : 'text-gray-600 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    {STATUS_TAB_LABELS[tab]}
+                                </Link>
+                            ))}
                         </div>
                     </div>
+                    <CertificateFilters status={status} type={type} search={search} />
+                </CardHeader>
+                <CardContent className="p-0">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-white border-b border-gray-100 text-xs text-gray-500 uppercase font-semibold">
+                        <table className="w-full text-left text-sm">
+                            <thead className="border-y bg-gray-50 text-xs uppercase text-gray-500">
                                 <tr>
-                                    <th className="px-6 py-4">Certificate #</th>
-                                    <th className="px-6 py-4">Student</th>
-                                    <th className="px-6 py-4">Type</th>
-                                    <th className="px-6 py-4">Date Issued</th>
-                                    <th className="px-6 py-4">Status</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
+                                    <th className="px-4 py-3 font-medium">Certificate no.</th>
+                                    <th className="px-4 py-3 font-medium">Student</th>
+                                    <th className="px-4 py-3 font-medium">Type</th>
+                                    <th className="px-4 py-3 font-medium">Issued</th>
+                                    <th className="px-4 py-3 font-medium">Status</th>
+                                    <th className="px-4 py-3 text-right font-medium">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {certs.map(c => (
-                                    <tr key={c.id} className="hover:bg-gray-50/80 transition-colors">
-                                        <td className="px-6 py-4 font-mono font-medium text-gray-900">{c.certificateNumber}</td>
-                                        <td className="px-6 py-4">
-                                            <div className="font-semibold text-gray-900">{c.studentName}</div>
-                                            <div className="text-xs text-gray-500">ID: {c.studentId?.substring(0,8)}</div>
+                            <tbody className="divide-y">
+                                {certificates.map(c => (
+                                    <tr key={c.id} className="hover:bg-gray-50">
+                                        <td className="px-4 py-3 font-mono font-medium text-gray-900">
+                                            {c.certificateNumber}
                                         </td>
-                                        <td className="px-6 py-4"><span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-700 font-medium">{c.type}</span></td>
-                                        <td className="px-6 py-4 text-gray-600">{new Date(c.issuedDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${c.status === 'ISSUED' ? 'bg-green-100 text-green-700' : c.status === 'REVOKED' ? 'bg-red-100 text-red-700' : 'bg-gray-100'}`}>
+                                        <td className="px-4 py-3">
+                                            <div className="font-medium text-gray-900">
+                                                {c.studentName ?? 'Student record removed'}
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                                {c.admissionNumber ?? '—'}
+                                                {c.gradeName ? ` · ${c.gradeName}${c.sectionName ? `-${c.sectionName}` : ''}` : ''}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-600">
+                                            {certificateTypeLabel(c.type)}
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-600">
+                                            <div>{formatDate(c.issuedDate)}</div>
+                                            {c.issuedByName && (
+                                                <div className="text-xs text-gray-500">by {c.issuedByName}</div>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${certificateStatusClass(c.status)}`}>
                                                 {c.status}
                                             </span>
+                                            {c.status === 'REVOKED' && c.revokeReason && (
+                                                <div className="mt-1 max-w-xs text-xs text-gray-500">
+                                                    {c.revokeReason}
+                                                </div>
+                                            )}
                                         </td>
-                                        <td className="px-6 py-4 text-right space-x-2">
+                                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                                            <Link
+                                                href={`/certificates/${c.id}`}
+                                                className="text-sm font-medium text-blue-600 hover:underline"
+                                            >
+                                                Open
+                                            </Link>
                                             {c.status === 'ISSUED' && (
-                                                <a 
-                                                    href={`/api/certificates/${c.id}/pdf`} 
-                                                    download={`Certificate_${c.certificateNumber}.pdf`}
-                                                    className="inline-flex items-center px-3 py-1.5 bg-white border border-gray-300 rounded-md text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:text-indigo-600 transition-colors shadow-sm"
-                                                    title="Download PDF"
-                                                >
-                                                    <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> PDF
-                                                </a>
+                                                <span className="ml-2 inline-block align-middle">
+                                                    <RevokeCertificateDialog
+                                                        certificateId={c.id}
+                                                        certificateNumber={c.certificateNumber}
+                                                        studentName={c.studentName}
+                                                    />
+                                                </span>
                                             )}
                                         </td>
                                     </tr>
                                 ))}
-                                {certs.length === 0 && <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-400">No certificates generated yet.</td></tr>}
+                                {certificates.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                                            {filtered
+                                                ? 'No certificates match these filters.'
+                                                : 'No certificates issued yet.'}
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
                 </CardContent>
             </Card>
+
+            {capped && (
+                <p className="text-xs text-amber-700">
+                    Showing the 500 most recent certificates. Narrow the search to see older ones.
+                </p>
+            )}
+
+            <p className="text-xs text-gray-500">
+                Certificates print from the standard record layout on the certificate page.
+                Server-side PDF generation and custom printed templates are not available in this release.
+            </p>
         </div>
     );
 }

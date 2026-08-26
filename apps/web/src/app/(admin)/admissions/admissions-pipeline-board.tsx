@@ -1,14 +1,20 @@
 'use client';
 
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useMemo, useState, useTransition } from 'react';
+import { toast } from 'sonner';
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { AdmissionLeadItem } from '@/lib/actions/admissions';
-import { updateLeadStage } from '@/lib/actions/admissions';
-import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
+
+import { moveLeadStage } from './actions';
+import { PIPELINE_STAGES, STAGE_LABELS } from './constants';
 
 /**
  * Column definitions that map UI columns to backend pipeline stages.
- * Each column groups one or more backend stages together.
+ * Between them the columns cover every value of the `pipeline_stage` enum,
+ * so no lead can be silently dropped from the board.
  */
 const PIPELINE_COLUMNS = [
     {
@@ -33,27 +39,20 @@ const PIPELINE_COLUMNS = [
         borderClass: 'border-purple-200 border-l-4 border-l-purple-400',
     },
     {
-        key: 'enrollment',
-        label: 'Enrollment Deposit',
+        key: 'offer',
+        label: 'Offer & Acceptance',
         dotColor: 'bg-emerald-400',
         stages: ['OFFERED', 'ACCEPTED'],
         borderClass: 'border-emerald-200 border-l-4 border-l-emerald-400',
     },
+    {
+        key: 'closed',
+        label: 'Closed',
+        dotColor: 'bg-gray-400',
+        stages: ['ENROLLED', 'REJECTED', 'WITHDRAWN'],
+        borderClass: 'border-gray-200 border-l-4 border-l-gray-300',
+    },
 ] as const;
-
-const STAGE_LABELS: Record<string, string> = {
-    NEW: 'New',
-    CONTACTED: 'Contacted',
-    FORM_SUBMITTED: 'Form Submitted',
-    DOCUMENTS_PENDING: 'Docs Pending',
-    INTERVIEW_SCHEDULED: 'Interview Scheduled',
-    INTERVIEW_DONE: 'Interview Done',
-    OFFERED: 'Offered',
-    ACCEPTED: 'Accepted',
-    ENROLLED: 'Enrolled',
-    REJECTED: 'Rejected',
-    WITHDRAWN: 'Withdrawn',
-};
 
 interface AdmissionsPipelineBoardProps {
     leads: AdmissionLeadItem[];
@@ -77,38 +76,63 @@ function formatRelativeDate(date: Date): string {
     return new Date(date).toLocaleDateString();
 }
 
-function LeadCard({
-    lead,
-    borderClass,
-}: {
-    lead: AdmissionLeadItem;
-    borderClass: string;
-}) {
+function LeadCard({ lead, borderClass }: { lead: AdmissionLeadItem; borderClass: string }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
+    const [stage, setStage] = useState(lead.stage);
+
+    function handleStageChange(nextStage: string) {
+        const previous = stage;
+        setStage(nextStage);
+        startTransition(async () => {
+            const result = await moveLeadStage(lead.id, nextStage);
+            if (result.success) {
+                toast.success(
+                    `${lead.childFirstName} moved to ${STAGE_LABELS[nextStage] || nextStage}.`,
+                );
+                router.refresh();
+            } else {
+                setStage(previous);
+                toast.error(result.error || 'Could not move the lead.');
+            }
+        });
+    }
 
     return (
-        <Card
-            className={`hover:shadow-md transition-shadow cursor-grab ${borderClass} ${isPending ? 'opacity-50' : ''}`}
-        >
+        <Card className={`transition-shadow ${borderClass} ${isPending ? 'opacity-50' : 'hover:shadow-md'}`}>
             <CardContent className="p-4">
-                <h4 className="font-semibold text-gray-900">
-                    {lead.childFirstName} {lead.childLastName}
-                </h4>
-                <p className="text-xs font-medium text-blue-600 mt-1 bg-blue-50 w-max px-2 py-0.5 rounded">
-                    {lead.applyingForGrade}
-                </p>
-                <div className="flex justify-between items-center mt-3 text-xs text-gray-500">
-                    <span className="font-medium">
-                        {STAGE_LABELS[lead.stage] || lead.stage}
-                    </span>
-                    <span>{formatRelativeDate(lead.createdAt)}</span>
-                </div>
-                {lead.parentName && (
-                    <div className="mt-2 text-xs text-gray-400 truncate">
-                        {lead.parentName}
+                <Link href={`/admissions/${lead.id}`} className="block group">
+                    <h4 className="font-semibold text-gray-900 group-hover:text-blue-700">
+                        {lead.childFirstName} {lead.childLastName}
+                    </h4>
+                    <p className="text-xs font-medium text-blue-600 mt-1 bg-blue-50 w-max px-2 py-0.5 rounded">
+                        {lead.applyingForGrade}
+                    </p>
+                    <div className="flex justify-between items-center mt-3 text-xs text-gray-500">
+                        <span className="font-medium">{lead.assignedToName || 'Unassigned'}</span>
+                        <span>{formatRelativeDate(lead.createdAt)}</span>
                     </div>
-                )}
+                    {lead.parentName && (
+                        <div className="mt-2 text-xs text-gray-400 truncate">{lead.parentName}</div>
+                    )}
+                </Link>
+
+                <label className="sr-only" htmlFor={`stage-${lead.id}`}>
+                    Pipeline stage for {lead.childFirstName} {lead.childLastName}
+                </label>
+                <select
+                    id={`stage-${lead.id}`}
+                    value={stage}
+                    disabled={isPending}
+                    onChange={(e) => handleStageChange(e.target.value)}
+                    className="mt-3 w-full text-xs border border-gray-200 rounded px-2 py-1.5 bg-white disabled:opacity-50 focus:ring-2 focus:ring-blue-500"
+                >
+                    {PIPELINE_STAGES.map((s) => (
+                        <option key={s} value={s}>
+                            {STAGE_LABELS[s] || s}
+                        </option>
+                    ))}
+                </select>
             </CardContent>
         </Card>
     );
@@ -119,20 +143,30 @@ export default function AdmissionsPipelineBoard({
     pipelineCounts,
     analytics,
 }: AdmissionsPipelineBoardProps) {
-    // Group leads by column
+    const [search, setSearch] = useState('');
+
+    const visibleLeads = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return leads;
+        return leads.filter((l) =>
+            [l.childFirstName, l.childLastName, l.parentName, l.applyingForGrade, l.parentPhone, l.parentEmail]
+                .filter(Boolean)
+                .some((value) => value.toLowerCase().includes(q)),
+        );
+    }, [leads, search]);
+
     const columnLeads: Record<string, AdmissionLeadItem[]> = {};
     for (const col of PIPELINE_COLUMNS) {
-        columnLeads[col.key] = leads.filter((l) =>
-            col.stages.some((stage) => stage === l.stage)
+        columnLeads[col.key] = visibleLeads.filter((l) =>
+            (col.stages as readonly string[]).includes(l.stage),
         );
     }
 
-    // Compute column counts from pipelineCounts
     const columnCounts: Record<string, number> = {};
     for (const col of PIPELINE_COLUMNS) {
         columnCounts[col.key] = col.stages.reduce(
             (sum, stage) => sum + (pipelineCounts[stage] || 0),
-            0
+            0,
         );
     }
 
@@ -150,33 +184,27 @@ export default function AdmissionsPipelineBoard({
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-gray-900">
-                            {analytics.activeInPipeline}
-                        </div>
+                        <div className="text-2xl font-bold text-gray-900">{analytics.activeInPipeline}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
-                            Document Verifications
+                            Awaiting Documents
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-gray-900">
-                            {documentsPendingCount}
-                        </div>
+                        <div className="text-2xl font-bold text-gray-900">{documentsPendingCount}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
-                            Fee Deposits Pending
+                            Offers Outstanding
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-gray-900">
-                            {offeredCount}
-                        </div>
+                        <div className="text-2xl font-bold text-gray-900">{offeredCount}</div>
                     </CardContent>
                 </Card>
                 <Card className="border-emerald-100 bg-emerald-50/50">
@@ -186,26 +214,39 @@ export default function AdmissionsPipelineBoard({
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-gray-900">
-                            {analytics.enrolled}
-                        </div>
+                        <div className="text-2xl font-bold text-gray-900">{analytics.enrolled}</div>
                     </CardContent>
                 </Card>
             </div>
 
+            <div className="flex flex-wrap items-center gap-3">
+                <label className="sr-only" htmlFor="lead-search">
+                    Search leads
+                </label>
+                <input
+                    id="lead-search"
+                    type="search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search by child, parent, grade or contact…"
+                    className="w-full sm:w-96 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-500">
+                    Showing {visibleLeads.length} of {leads.length} loaded leads
+                </span>
+            </div>
+
             {/* Kanban Pipeline */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 overflow-x-auto pb-4">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 overflow-x-auto pb-4">
                 {PIPELINE_COLUMNS.map((col) => {
                     const colLeads = columnLeads[col.key];
                     const count = columnCounts[col.key];
 
                     return (
-                        <div key={col.key} className="space-y-3 min-w-[280px]">
+                        <div key={col.key} className="space-y-3 min-w-[260px]">
                             <div className="flex items-center justify-between">
                                 <h3 className="font-semibold text-gray-700 flex items-center gap-2">
-                                    <span
-                                        className={`w-2 h-2 rounded-full ${col.dotColor}`}
-                                    ></span>
+                                    <span className={`w-2 h-2 rounded-full ${col.dotColor}`}></span>
                                     {col.label}
                                 </h3>
                                 <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs font-medium">
@@ -216,16 +257,12 @@ export default function AdmissionsPipelineBoard({
                             {colLeads.length === 0 ? (
                                 <div className="border border-dashed border-gray-200 rounded-lg p-6 text-center">
                                     <p className="text-sm text-gray-400">
-                                        No leads in this stage
+                                        {search ? 'No matching leads' : 'No leads in this stage'}
                                     </p>
                                 </div>
                             ) : (
                                 colLeads.map((lead) => (
-                                    <LeadCard
-                                        key={lead.id}
-                                        lead={lead}
-                                        borderClass={col.borderClass}
-                                    />
+                                    <LeadCard key={lead.id} lead={lead} borderClass={col.borderClass} />
                                 ))
                             )}
                         </div>

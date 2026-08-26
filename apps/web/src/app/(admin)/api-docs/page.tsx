@@ -1,202 +1,216 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { API_AUTH_MODES, API_GROUPS, API_ROUTES, type ApiRouteDoc } from './route-catalog';
 
-interface ApiEndpoint {
-    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-    path: string;
-    description: string;
-    tags: string[];
-    parameters?: { name: string; type: string; required: boolean; description: string }[];
-    responseExample?: string;
-}
+const METHOD_COLORS: Record<string, string> = {
+    GET: 'bg-green-600 text-white',
+    POST: 'bg-blue-600 text-white',
+    PUT: 'bg-orange-500 text-white',
+    PATCH: 'bg-yellow-500 text-white',
+    DELETE: 'bg-red-600 text-white',
+};
 
-const apiEndpoints: ApiEndpoint[] = [
-    // Students
-    { method: 'GET', path: '/api/v1/students', description: 'List all students with pagination', tags: ['Students'], parameters: [{ name: 'page', type: 'number', required: false, description: 'Page number' }, { name: 'limit', type: 'number', required: false, description: 'Items per page' }] },
-    { method: 'GET', path: '/api/v1/students/{id}', description: 'Get student by ID', tags: ['Students'], parameters: [{ name: 'id', type: 'string', required: true, description: 'Student ID' }] },
-    { method: 'POST', path: '/api/v1/students', description: 'Create a new student', tags: ['Students'] },
-    { method: 'PUT', path: '/api/v1/students/{id}', description: 'Update student details', tags: ['Students'] },
-
-    // Fees
-    { method: 'GET', path: '/api/v1/fees/plans', description: 'List all fee plans', tags: ['Fees'] },
-    { method: 'GET', path: '/api/v1/fees/invoices', description: 'List invoices with filters', tags: ['Fees'] },
-    { method: 'POST', path: '/api/v1/fees/invoices', description: 'Create new invoice', tags: ['Fees'] },
-    { method: 'POST', path: '/api/v1/fees/payments', description: 'Record fee payment', tags: ['Fees'] },
-    { method: 'GET', path: '/api/v1/fees/defaulters', description: 'Get fee defaulters list', tags: ['Fees'] },
-
-    // Attendance
-    { method: 'GET', path: '/api/v1/attendance/sections/{sectionId}', description: 'Get section attendance', tags: ['Attendance'] },
-    { method: 'POST', path: '/api/v1/attendance/mark', description: 'Mark attendance for students', tags: ['Attendance'] },
-    { method: 'GET', path: '/api/v1/attendance/students/{studentId}', description: 'Get student attendance history', tags: ['Attendance'] },
-
-    // Exams
-    { method: 'GET', path: '/api/v1/exams', description: 'List all exams', tags: ['Exams'] },
-    { method: 'POST', path: '/api/v1/exams/marks', description: 'Enter exam marks', tags: ['Exams'] },
-    { method: 'GET', path: '/api/v1/exams/report-cards/{studentId}', description: 'Generate report card', tags: ['Exams'] },
-
-    // Health
-    { method: 'GET', path: '/api/v1/health-records', description: 'List health records', tags: ['Health'] },
-    { method: 'POST', path: '/api/v1/health-records', description: 'Create health record', tags: ['Health'] },
-
-    // Library
-    { method: 'GET', path: '/api/v1/library/books', description: 'List all books', tags: ['Library'] },
-    { method: 'POST', path: '/api/v1/library/issues', description: 'Issue book to student', tags: ['Library'] },
-    { method: 'POST', path: '/api/v1/library/returns', description: 'Return book', tags: ['Library'] },
-
-    // Messages
-    { method: 'POST', path: '/api/v1/messages/send', description: 'Send SMS/WhatsApp message', tags: ['Messages'] },
-    { method: 'GET', path: '/api/v1/messages/status/{messageId}', description: 'Get message delivery status', tags: ['Messages'] },
-];
-
-const tags = ['All', 'Students', 'Fees', 'Attendance', 'Exams', 'Health', 'Library', 'Messages'];
+const AUTH_BADGE: Record<string, string> = {
+    public: 'bg-gray-100 text-gray-700',
+    session: 'bg-indigo-100 text-indigo-700',
+    'session-permission': 'bg-purple-100 text-purple-700',
+    'integration-key': 'bg-cyan-100 text-cyan-700',
+    'service-token': 'bg-amber-100 text-amber-800',
+    'webhook-signature': 'bg-rose-100 text-rose-700',
+};
 
 export default function ApiDocsPage() {
-    const [selectedTag, setSelectedTag] = useState('All');
-    const [expandedEndpoint, setExpandedEndpoint] = useState<string | null>(null);
+    const [group, setGroup] = useState('All');
+    const [search, setSearch] = useState('');
+    const [expanded, setExpanded] = useState<string | null>(null);
 
-    const filteredEndpoints = selectedTag === 'All'
-        ? apiEndpoints
-        : apiEndpoints.filter(e => e.tags.includes(selectedTag));
+    const routes = useMemo(() => {
+        const term = search.trim().toLowerCase();
+        return API_ROUTES.filter((route) => {
+            if (group !== 'All' && route.group !== group) return false;
+            if (term === '') return true;
+            return (
+                route.path.toLowerCase().includes(term) ||
+                route.summary.toLowerCase().includes(term) ||
+                (route.permission ?? '').toLowerCase().includes(term)
+            );
+        });
+    }, [group, search]);
 
-    const getMethodBadge = (method: ApiEndpoint['method']) => {
-        const colors: Record<string, string> = {
-            GET: 'bg-green-500 text-white',
-            POST: 'bg-blue-500 text-white',
-            PUT: 'bg-orange-500 text-white',
-            PATCH: 'bg-yellow-500 text-white',
-            DELETE: 'bg-red-500 text-white',
-        };
-        return <Badge className={`${colors[method]} font-mono w-16 justify-center`}>{method}</Badge>;
-    };
+    const usedAuthModes = useMemo(
+        () => Array.from(new Set(API_ROUTES.map((route) => route.auth))),
+        [],
+    );
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold">API Documentation</h1>
-                    <p className="text-gray-600 mt-1">REST API endpoints for School SIS</p>
+                    <h1 className="text-3xl font-bold">API Reference</h1>
+                    <p className="text-gray-600 mt-1">
+                        The {API_ROUTES.length} HTTP endpoints this deployment actually serves, read from the route
+                        handlers themselves. A test fails the build if a route is added or removed without updating
+                        this page.
+                    </p>
                 </div>
-                <div className="flex gap-3">
-                    <Badge className="bg-green-100 text-green-700">v1.0</Badge>
-                    <Badge variant="outline">Base URL: /api/v1</Badge>
-                </div>
+                <Badge variant="outline" className="shrink-0">
+                    Base path: /api
+                </Badge>
             </div>
 
-            {/* Auth Info */}
-            <Card className="bg-blue-50 border-blue-200">
-                <CardContent className="pt-4">
-                    <div className="flex items-start gap-4">
-                        <div className="text-2xl">🔐</div>
-                        <div>
-                            <h3 className="font-semibold text-blue-900">Authentication</h3>
-                            <p className="text-sm text-blue-700 mt-1">
-                                All API requests require a Bearer token in the Authorization header.
-                            </p>
-                            <code className="block mt-2 p-2 bg-blue-100 rounded text-xs font-mono">
-                                Authorization: Bearer &lt;your-api-token&gt;
-                            </code>
-                        </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">Authentication</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                    <p className="text-gray-600">
+                        There is no single credential for the whole surface. Each endpoint uses one of the modes
+                        below — most of the product API is a first-party browser session, not a bearer token.
+                    </p>
+                    <div className="grid gap-3 md:grid-cols-2">
+                        {usedAuthModes.map((mode) => (
+                            <div key={mode} className="rounded-md border p-3">
+                                <Badge className={`${AUTH_BADGE[mode]} mb-2`}>{API_AUTH_MODES[mode].label}</Badge>
+                                <p className="text-xs text-gray-600">{API_AUTH_MODES[mode].description}</p>
+                            </div>
+                        ))}
                     </div>
                 </CardContent>
             </Card>
 
-            {/* Tags Filter */}
-            <div className="flex gap-2 flex-wrap">
-                {tags.map(tag => (
+            <div className="flex flex-wrap items-center gap-2">
+                {['All', ...API_GROUPS].map((entry) => (
                     <button
-                        key={tag}
-                        onClick={() => setSelectedTag(tag)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedTag === tag
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 hover:bg-gray-200'
+                        key={entry}
+                        onClick={() => setGroup(entry)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${group === entry ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'
                             }`}
                     >
-                        {tag}
+                        {entry}
                     </button>
                 ))}
+                <Input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Filter by path, description or permission"
+                    className="ml-auto w-full sm:w-80"
+                />
             </div>
 
-            {/* Endpoints List */}
-            <div className="space-y-2">
-                {filteredEndpoints.map((endpoint, idx) => {
-                    const key = `${endpoint.method}-${endpoint.path}`;
-                    const isExpanded = expandedEndpoint === key;
-
-                    return (
-                        <Card
-                            key={idx}
-                            className={`cursor-pointer transition-all ${isExpanded ? 'border-blue-300' : ''}`}
-                            onClick={() => setExpandedEndpoint(isExpanded ? null : key)}
-                        >
-                            <CardContent className="py-3">
-                                <div className="flex items-center gap-4">
-                                    {getMethodBadge(endpoint.method)}
-                                    <code className="font-mono text-sm flex-1">{endpoint.path}</code>
-                                    <span className="text-sm text-gray-600">{endpoint.description}</span>
-                                    <svg
-                                        className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </div>
-
-                                {isExpanded && endpoint.parameters && (
-                                    <div className="mt-4 pt-4 border-t">
-                                        <h4 className="text-sm font-medium mb-2">Parameters</h4>
-                                        <table className="w-full text-sm">
-                                            <thead className="bg-gray-50">
-                                                <tr>
-                                                    <th className="px-3 py-2 text-left">Name</th>
-                                                    <th className="px-3 py-2 text-left">Type</th>
-                                                    <th className="px-3 py-2 text-left">Required</th>
-                                                    <th className="px-3 py-2 text-left">Description</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {endpoint.parameters.map((param, pIdx) => (
-                                                    <tr key={pIdx} className="border-b">
-                                                        <td className="px-3 py-2 font-mono text-blue-600">{param.name}</td>
-                                                        <td className="px-3 py-2">{param.type}</td>
-                                                        <td className="px-3 py-2">
-                                                            <Badge variant={param.required ? 'default' : 'outline'} className="text-xs">
-                                                                {param.required ? 'Required' : 'Optional'}
-                                                            </Badge>
-                                                        </td>
-                                                        <td className="px-3 py-2 text-gray-600">{param.description}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    );
-                })}
-            </div>
-
-            {/* Rate Limiting */}
-            <Card className="bg-orange-50 border-orange-200">
-                <CardContent className="pt-4">
-                    <div className="flex items-start gap-4">
-                        <div className="text-2xl">⚡</div>
-                        <div>
-                            <h3 className="font-semibold text-orange-900">Rate Limiting</h3>
-                            <p className="text-sm text-orange-700 mt-1">
-                                API requests are limited to <strong>1000 requests/hour</strong> per API key.
-                                Exceeded limits return HTTP 429.
-                            </p>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+            {routes.length === 0 ? (
+                <Card>
+                    <CardContent className="py-8 text-center text-sm text-gray-500">
+                        No endpoint matches that filter.
+                    </CardContent>
+                </Card>
+            ) : (
+                <div className="space-y-2">
+                    {routes.map((route) => (
+                        <EndpointCard
+                            key={route.path}
+                            route={route}
+                            expanded={expanded === route.path}
+                            onToggle={() => setExpanded(expanded === route.path ? null : route.path)}
+                        />
+                    ))}
+                </div>
+            )}
         </div>
+    );
+}
+
+function EndpointCard({
+    route,
+    expanded,
+    onToggle,
+}: {
+    route: ApiRouteDoc;
+    expanded: boolean;
+    onToggle: () => void;
+}) {
+    const hasDetail = Boolean(route.query?.length || route.note || route.permission);
+
+    return (
+        <Card className={expanded ? 'border-blue-300' : ''}>
+            <CardContent className="py-3">
+                <button
+                    type="button"
+                    onClick={onToggle}
+                    className="flex w-full items-center gap-3 text-left"
+                    aria-expanded={expanded}
+                >
+                    <span className="flex shrink-0 gap-1">
+                        {route.methods.map((method) => (
+                            <Badge key={method} className={`${METHOD_COLORS[method]} font-mono`}>
+                                {method}
+                            </Badge>
+                        ))}
+                    </span>
+                    <code className="font-mono text-sm flex-1 break-all">{route.path}</code>
+                    <Badge className={`${AUTH_BADGE[route.auth]} shrink-0 hidden md:inline-flex`}>
+                        {API_AUTH_MODES[route.auth].label}
+                    </Badge>
+                    {hasDetail && (
+                        <svg
+                            className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    )}
+                </button>
+
+                <p className="text-sm text-gray-600 mt-2">{route.summary}</p>
+
+                {expanded && hasDetail && (
+                    <div className="mt-4 pt-4 border-t space-y-4 text-sm">
+                        {route.permission && (
+                            <p>
+                                <span className="font-medium">Required permission:</span>{' '}
+                                <code className="font-mono text-purple-700">{route.permission}</code>
+                            </p>
+                        )}
+                        {route.query && route.query.length > 0 && (
+                            <div>
+                                <h4 className="font-medium mb-2">Query parameters</h4>
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-3 py-2 text-left">Name</th>
+                                            <th className="px-3 py-2 text-left">Required</th>
+                                            <th className="px-3 py-2 text-left">Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {route.query.map((param) => (
+                                            <tr key={param.name} className="border-b last:border-0">
+                                                <td className="px-3 py-2 font-mono text-blue-700">{param.name}</td>
+                                                <td className="px-3 py-2">
+                                                    <Badge variant={param.required ? 'default' : 'outline'} className="text-xs">
+                                                        {param.required ? 'Required' : 'Optional'}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-3 py-2 text-gray-600">{param.description}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        {route.note && (
+                            <p className="rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+                                {route.note}
+                            </p>
+                        )}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
     );
 }

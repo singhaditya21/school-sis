@@ -1,182 +1,240 @@
-'use client';
-
-import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { getQuizAttempts, getQuizDetail, type QuizAttemptRow, type QuizQuestionRow } from '../../queries';
 
-import { useEffect, useState } from 'react';
-import { getQuizById, getQuizAttemptsByQuizId, getQuizAnalytics } from '@/lib/actions/quiz';
+const BUCKETS = [
+    { label: '0-19%', min: 0, max: 20, color: 'bg-red-500' },
+    { label: '20-39%', min: 20, max: 40, color: 'bg-orange-500' },
+    { label: '40-59%', min: 40, max: 60, color: 'bg-yellow-500' },
+    { label: '60-79%', min: 60, max: 80, color: 'bg-blue-500' },
+    { label: '80-100%', min: 80, max: 101, color: 'bg-green-500' },
+];
 
-interface QuizQuestion {
-    id: string;
-    text: string;
-    type: string;
-    correctAnswer: string;
-    marks: number;
-    negativeMarks?: number | null;
-    section?: string | null;
-}
-
-interface Quiz {
-    title: string;
-    totalMarks: number;
-    questions?: QuizQuestion[];
-}
-
-interface QuizAttempt {
-    id: string;
-    studentName?: string;
-    studentId: string;
-    score: number;
-    totalMarks: number;
-    percentage: number;
-    answers?: Record<string, string | number>;
-}
-
-interface QuizAnalytics {
-    totalAttempts: number;
-    averageScore: number;
-    highestScore: number;
-    lowestScore: number;
-    passed: number;
-    failed: number;
-}
-
-export default function QuizResultsPage() {
-    const params = useParams();
-    const router = useRouter();
-
-    const [quiz, setQuiz] = useState<Quiz | null>(null);
-    const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
-    const [analytics, setAnalytics] = useState<QuizAnalytics | null>(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const id = params.id as string;
-        if (!id) return;
-        
-        Promise.all([
-            getQuizById(id),
-            getQuizAttemptsByQuizId(id),
-            getQuizAnalytics(id)
-        ]).then(([q, a, stats]) => {
-            setQuiz(q);
-            setAttempts(a || []);
-            setAnalytics(stats);
-            setLoading(false);
-        }).catch(err => {
-            console.error(err);
-            setLoading(false);
-        });
-    }, [params.id]);
-
-    if (loading) {
-        return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading quiz results...</div>;
+/**
+ * Mirrors the grading rule used when an attempt is scored: short answers are
+ * compared case-insensitively after trimming, everything else exactly.
+ */
+function isAnswerCorrect(question: QuizQuestionRow, answer: string | number | undefined) {
+    if (answer === undefined || answer === null || answer === '') return false;
+    if (question.type === 'SHORT_ANSWER') {
+        return String(answer).toLowerCase().trim() === question.correctAnswer.toLowerCase().trim();
     }
+    return String(answer) === question.correctAnswer;
+}
 
-    if (!quiz) {
-        return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <Card className="p-8 text-center"><h2 className="text-xl font-semibold mb-2">Quiz Not Found</h2><Button onClick={() => router.push('/quiz')}>Back to Quizzes</Button></Card>
-            </div>
-        );
-    }
+function median(values: number[]) {
+    if (values.length === 0) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0
+        ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+        : sorted[mid];
+}
 
-    const getScoreColor = (percentage: number) => {
-        if (percentage >= 80) return 'text-green-600 bg-green-50';
-        if (percentage >= 60) return 'text-blue-600 bg-blue-50';
-        if (percentage >= 40) return 'text-yellow-600 bg-yellow-50';
-        return 'text-red-600 bg-red-50';
-    };
+function scoreColor(percentage: number) {
+    if (percentage >= 80) return 'text-green-700 bg-green-50 dark:text-green-300 dark:bg-green-900/40';
+    if (percentage >= 60) return 'text-blue-700 bg-blue-50 dark:text-blue-300 dark:bg-blue-900/40';
+    if (percentage >= 40) return 'text-yellow-700 bg-yellow-50 dark:text-yellow-300 dark:bg-yellow-900/40';
+    return 'text-red-700 bg-red-50 dark:text-red-300 dark:bg-red-900/40';
+}
+
+export default async function QuizResultsPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+
+    const quiz = await getQuizDetail(id);
+    if (!quiz) notFound();
+
+    const attempts = await getQuizAttempts(id);
+    const scored = attempts.filter(
+        (a): a is QuizAttemptRow & { percentage: number } => a.percentage !== null
+    );
+    const inProgress = attempts.length - scored.length;
+
+    const percentages = scored.map((a) => Number(a.percentage));
+    const average = percentages.length
+        ? Math.round(percentages.reduce((sum, p) => sum + p, 0) / percentages.length)
+        : 0;
+    const highest = percentages.length ? Math.max(...percentages) : 0;
+    const lowest = percentages.length ? Math.min(...percentages) : 0;
+    const maxBucketCount = Math.max(
+        1,
+        ...BUCKETS.map((b) => percentages.filter((p) => p >= b.min && p < b.max).length)
+    );
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div><h1 className="text-3xl font-bold tracking-tight">{quiz.title}</h1><p className="text-muted-foreground">{quiz.questions?.length || 0} Questions | {quiz.totalMarks} Marks</p></div>
-                <Button variant="outline" onClick={() => router.push('/quiz')}>← Back to Quizzes</Button>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold">{quiz.title}</h1>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
+                        Results · {quiz.questions.length} question{quiz.questions.length === 1 ? '' : 's'} · {quiz.totalMarks} marks
+                    </p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <Link href={`/quiz/${quiz.id}`} className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                        Quiz setup
+                    </Link>
+                    <Link href="/quiz" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">← All quizzes</Link>
+                </div>
             </div>
 
-            {analytics && (
-                <div className="grid grid-cols-6 gap-4">
-                    <Card><CardHeader className="pb-2"><CardDescription>Total Attempts</CardDescription><CardTitle className="text-3xl">{analytics.totalAttempts}</CardTitle></CardHeader></Card>
-                    <Card><CardHeader className="pb-2"><CardDescription>Average Score</CardDescription><CardTitle className="text-3xl text-blue-600">{analytics.averageScore}%</CardTitle></CardHeader></Card>
-                    <Card><CardHeader className="pb-2"><CardDescription>Highest Score</CardDescription><CardTitle className="text-3xl text-green-600">{analytics.highestScore}%</CardTitle></CardHeader></Card>
-                    <Card><CardHeader className="pb-2"><CardDescription>Lowest Score</CardDescription><CardTitle className="text-3xl text-red-600">{analytics.lowestScore}%</CardTitle></CardHeader></Card>
-                    <Card><CardHeader className="pb-2"><CardDescription>Passed</CardDescription><CardTitle className="text-3xl text-green-600">{analytics.passed}</CardTitle></CardHeader></Card>
-                    <Card><CardHeader className="pb-2"><CardDescription>Failed</CardDescription><CardTitle className="text-3xl text-red-600">{analytics.failed}</CardTitle></CardHeader></Card>
-                </div>
-            )}
-
-            <Card>
-                <CardHeader><CardTitle>Score Distribution</CardTitle></CardHeader>
-                <CardContent>
-                    <div className="flex items-end gap-2 h-40">
-                        {[
-                            { range: '0-20%', count: attempts.filter(a => a.percentage < 20).length, color: 'bg-red-500' },
-                            { range: '20-40%', count: attempts.filter(a => a.percentage >= 20 && a.percentage < 40).length, color: 'bg-orange-500' },
-                            { range: '40-60%', count: attempts.filter(a => a.percentage >= 40 && a.percentage < 60).length, color: 'bg-yellow-500' },
-                            { range: '60-80%', count: attempts.filter(a => a.percentage >= 60 && a.percentage < 80).length, color: 'bg-blue-500' },
-                            { range: '80-100%', count: attempts.filter(a => a.percentage >= 80).length, color: 'bg-green-500' },
-                        ].map((bucket) => (
-                            <div key={bucket.range} className="flex-1 flex flex-col items-center">
-                                <div className={`w-full ${bucket.color} rounded-t transition-all`} style={{ height: `${Math.max(bucket.count * 40, 8)}px` }} />
-                                <span className="text-xs mt-2 text-muted-foreground">{bucket.range}</span><span className="text-sm font-medium">{bucket.count}</span>
-                            </div>
-                        ))}
+            {attempts.length === 0 ? (
+                <Card>
+                    <CardContent className="py-14 text-center space-y-2">
+                        <p className="font-medium">No attempts recorded for this quiz.</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xl mx-auto">
+                            Scores appear here once students submit the quiz. Student-facing quiz taking is not
+                            part of this release, so attempts can only arrive from an external submission today.
+                        </p>
+                    </CardContent>
+                </Card>
+            ) : (
+                <>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Attempts</div><div className="text-2xl font-bold">{attempts.length}</div></CardContent></Card>
+                        <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Average</div><div className="text-2xl font-bold text-blue-600">{average}%</div></CardContent></Card>
+                        <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Median</div><div className="text-2xl font-bold">{median(percentages)}%</div></CardContent></Card>
+                        <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Highest</div><div className="text-2xl font-bold text-green-600">{highest}%</div></CardContent></Card>
+                        <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Lowest</div><div className="text-2xl font-bold text-red-600">{lowest}%</div></CardContent></Card>
                     </div>
-                </CardContent>
-            </Card>
 
-            <Card>
-                <CardHeader><CardTitle>Student Results</CardTitle><CardDescription>Individual performance breakdown</CardDescription></CardHeader>
-                <CardContent>
-                    {attempts.length === 0 ? <p className="text-center py-8 text-muted-foreground">No attempts yet</p> : (
-                        <table className="w-full">
-                            <thead><tr className="border-b"><th className="text-left py-3 px-4">Rank</th><th className="text-left py-3 px-4">Student</th><th className="text-left py-3 px-4">Score</th><th className="text-left py-3 px-4">Percentage</th><th className="text-left py-3 px-4">Status</th></tr></thead>
-                            <tbody>
-                                {attempts.sort((a, b) => b.percentage - a.percentage).map((attempt, index) => (
-                                    <tr key={attempt.id} className="border-b hover:bg-gray-50">
-                                        <td className="py-3 px-4">{index === 0 && '🥇'}{index === 1 && '🥈'}{index > 1 && index + 1}</td>
-                                        <td className="py-3 px-4 font-medium">{attempt.studentName} <span className="text-xs text-muted-foreground block">{attempt.studentId}</span></td>
-                                        <td className="py-3 px-4">{attempt.score}/{attempt.totalMarks}</td>
-                                        <td className="py-3 px-4"><span className={`px-3 py-1 rounded-full text-sm font-medium ${getScoreColor(attempt.percentage)}`}>{attempt.percentage}%</span></td>
-                                        <td className="py-3 px-4"><Badge className={attempt.percentage >= 40 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>{attempt.percentage >= 40 ? 'Passed' : 'Failed'}</Badge></td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                    {inProgress > 0 && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {inProgress} attempt{inProgress === 1 ? ' is' : 's are'} still unscored and excluded from the figures above.
+                        </p>
                     )}
-                </CardContent>
-            </Card>
 
-            <Card>
-                <CardHeader><CardTitle>Question-wise Analysis</CardTitle><CardDescription>Performance breakdown by question</CardDescription></CardHeader>
-                <CardContent>
-                    <div className="space-y-4">
-                        {quiz.questions?.map((q: QuizQuestion, i: number) => {
-                            const correctCount = attempts.filter((a) => {
-                                const ans = (a.answers || {})[q.id];
-                                if (q.type === 'SHORT_ANSWER') return String(ans).toLowerCase().trim() === String(q.correctAnswer).toLowerCase().trim();
-                                return String(ans) === String(q.correctAnswer);
-                            }).length;
-                            const accuracy = attempts.length > 0 ? Math.round((correctCount / attempts.length) * 100) : 0;
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Score distribution</CardTitle>
+                            <CardDescription>Scored attempts grouped by percentage.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex items-end gap-2 h-40">
+                                {BUCKETS.map((bucket) => {
+                                    const count = percentages.filter((p) => p >= bucket.min && p < bucket.max).length;
+                                    return (
+                                        <div key={bucket.label} className="flex-1 flex flex-col items-center justify-end h-full">
+                                            <span className="text-sm font-medium">{count}</span>
+                                            <div
+                                                className={`w-full ${bucket.color} rounded-t`}
+                                                style={{ height: `${Math.round((count / maxBucketCount) * 100)}%`, minHeight: count > 0 ? '8px' : '2px' }}
+                                            />
+                                            <span className="text-xs mt-2 text-gray-500">{bucket.label}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </CardContent>
+                    </Card>
 
-                            return (
-                                <div key={q.id} className="flex items-center gap-4 p-3 border rounded-lg">
-                                    <Badge variant="outline">Q{i + 1}</Badge>
-                                    <div className="flex-1"><p className="font-medium truncate">{q.text}</p><p className="text-sm text-muted-foreground">{q.type.replace('_', ' ').toUpperCase()} | {q.marks} marks {q.negativeMarks ? `(-${q.negativeMarks})` : ''} {q.section ? `| ${q.section}` : ''}</p></div>
-                                    <div className="w-32">
-                                        <div className="flex justify-between text-sm mb-1"><span>Accuracy</span><span>{accuracy}%</span></div>
-                                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden"><div className={`h-full rounded-full ${accuracy >= 70 ? 'bg-green-500' : accuracy >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${accuracy}%` }} /></div>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Student results</CardTitle>
+                            <CardDescription>Ranked by percentage.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-0 overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rank</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
+                                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Score</th>
+                                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Percentage</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y dark:divide-gray-800">
+                                    {attempts.map((attempt, index) => (
+                                        <tr key={attempt.id} className="hover:bg-gray-50 dark:hover:bg-gray-900">
+                                            <td className="px-4 py-3 text-sm">
+                                                {attempt.percentage === null ? '—' : index + 1}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="font-medium">{attempt.studentName ?? 'Unknown student'}</div>
+                                                {attempt.admissionNumber && (
+                                                    <div className="text-xs text-gray-500">{attempt.admissionNumber}</div>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                {attempt.score === null ? '—' : `${attempt.score}/${attempt.totalMarks ?? quiz.totalMarks}`}
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                {attempt.percentage === null ? (
+                                                    <span className="text-gray-400">—</span>
+                                                ) : (
+                                                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${scoreColor(attempt.percentage)}`}>
+                                                        {attempt.percentage}%
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <Badge variant="outline">{attempt.status.replace('_', ' ')}</Badge>
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-gray-500">
+                                                {attempt.submittedAt
+                                                    ? new Date(attempt.submittedAt).toLocaleString('en-IN')
+                                                    : 'Not submitted'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Question-wise accuracy</CardTitle>
+                            <CardDescription>
+                                Based on the answers stored with each scored attempt.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            {quiz.questions.map((q, i) => {
+                                const correctCount = scored.filter((a) =>
+                                    isAnswerCorrect(q, (a.answers ?? {})[q.id])
+                                ).length;
+                                const accuracy = scored.length
+                                    ? Math.round((correctCount / scored.length) * 100)
+                                    : 0;
+
+                                return (
+                                    <div key={q.id} className="flex flex-wrap items-center gap-4 p-3 border dark:border-gray-800 rounded-lg">
+                                        <Badge variant="outline">Q{i + 1}</Badge>
+                                        <div className="flex-1 min-w-[12rem]">
+                                            <p className="font-medium truncate">{q.text}</p>
+                                            <p className="text-xs text-gray-500">
+                                                {q.type.replace('_', ' ')} · {q.marks} mark{q.marks === 1 ? '' : 's'}
+                                                {q.negativeMarks > 0 ? ` · −${q.negativeMarks}` : ''}
+                                                {q.section ? ` · ${q.section}` : ''}
+                                            </p>
+                                        </div>
+                                        <div className="w-32">
+                                            <div className="flex justify-between text-xs mb-1">
+                                                <span>Accuracy</span><span>{accuracy}%</span>
+                                            </div>
+                                            <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full ${accuracy >= 70 ? 'bg-green-500' : accuracy >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                                    style={{ width: `${accuracy}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <span className="text-sm text-gray-500">{correctCount}/{scored.length} correct</span>
                                     </div>
-                                    <span className="text-sm text-muted-foreground">{correctCount}/{attempts.length} correct</span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </CardContent>
-            </Card>
+                                );
+                            })}
+                            {quiz.questions.length === 0 && (
+                                <p className="text-center py-6 text-gray-400">This quiz has no questions.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+                </>
+            )}
         </div>
     );
 }
