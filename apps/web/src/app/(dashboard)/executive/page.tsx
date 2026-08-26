@@ -1,5 +1,6 @@
 import React from 'react';
-import { Card, Metric, Text, Flex, Grid, Title, BarChart, BadgeDelta } from '@tremor/react';
+import { Card, Metric, Text, Flex, Grid, Title, BadgeDelta } from '@tremor/react';
+import { FeeBreakdownChart } from './fee-breakdown-chart';
 import { getExecutiveFinancialMetrics } from '@/lib/actions/executive-analytics';
 import { getSession } from '@/lib/auth/session';
 import { isTenantStaffRole } from '@/lib/auth/page-access';
@@ -65,15 +66,7 @@ export default async function ExecutiveDashboardPage() {
       <Grid numItemsSm={1} numItemsLg={2} className="gap-6">
         <Card>
           <Title>Fee Collection Breakdown</Title>
-          <BarChart
-            className="mt-6 h-72"
-            data={chartData}
-            index="name"
-            categories={["Amount"]}
-            colors={["blue"]}
-            valueFormatter={formatCurrency}
-            yAxisWidth={96}
-          />
+          <FeeBreakdownChart data={chartData} />
         </Card>
 
         <Card>

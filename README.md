@@ -5,7 +5,7 @@ admissions, attendance, exams, timetable, library, HR, transport, hostel, and pa
 portals — with per-tenant isolation enforced in the database.
 
 Production runs on **Vercel** (app) and **Neon** (Postgres). See
-[docs/devops/README.md](./docs/devops/README.md) for the release pipeline, and
+[docs/devops/README.md](./docs/operations/devops/README.md) for the release pipeline, and
 [RUNNING.md](./RUNNING.md) to run it locally.
 
 ---
@@ -42,7 +42,7 @@ outbox, drained via `/api/jobs/dispatch`.
 **AI**: an in-app copilot (`apps/web/src/app/api/copilot/route.ts`, `apps/web/src/lib/agents/`)
 providing bounded, human-in-the-loop decision support. It does not act autonomously. Claims
 about AI capability on the public site are gated by `pnpm audit:claims` — see
-[docs/sales/README.md](./docs/sales/README.md) for the approved-claims register.
+[docs/sales/README.md](./docs/gtm/sales/README.md) for the approved-claims register.
 
 ---
 
@@ -70,16 +70,16 @@ pull requests; the full e2e suite is manual (`workflow_dispatch`).
 ## Documentation
 
 - **[Running locally](./RUNNING.md)** — local Postgres, seed data, day-to-day development.
-- **[DevOps & release](./docs/devops/README.md)** — the Vercel/Neon pipeline, environments, rollback. Source of truth for deployment.
-- **[End-user guide](./docs/user-guide/README.md)** — for school admins and teachers.
-- **[Developer & API guide](./docs/api/README.md)** — metadata engine, webhooks, integrations.
-- **[Testing architecture](./docs/TESTING_QUALITY_ARCHITECTURE.md)** — test layers and what actually gates CI.
-- **[Issues & roadmap](./docs/ISSUES_AND_ROADMAP.md)** — prioritized open work.
-- **[Sales enablement](./docs/sales/README.md)** — positioning and the approved-claims register.
+- **[DevOps & release](./docs/operations/devops/README.md)** — the Vercel/Neon pipeline, environments, rollback. Source of truth for deployment.
+- **[End-user guide](./docs/guides/user-guide/README.md)** — for school admins and teachers.
+- **[Developer & API guide](./docs/guides/api/README.md)** — metadata engine, webhooks, integrations.
+- **[Testing architecture](./docs/architecture/TESTING_QUALITY_ARCHITECTURE.md)** — test layers and what actually gates CI.
+- **[Issues & roadmap](./docs/product/ISSUES_AND_ROADMAP.md)** — prioritized open work.
+- **[Sales enablement](./docs/gtm/sales/README.md)** — positioning and the approved-claims register.
 - **[GTM execution](./docs/gtm/README.md)** — pilot scope, buyer research, evidence log.
 
 ### Reference
 
-- [Database security notes](./docs/SECURITY_REPORT.md) — RLS policies and injection testing.
-- [Historical PRDs](./docs/PRDs/) — product evolution; superseded by the roadmap above.
+- [Database security notes](./docs/operations/SECURITY_REPORT.md) — RLS policies and injection testing.
+- [Historical PRDs](./docs/product/PRDs) — product evolution; superseded by the roadmap above.
 - [Audit reports](./audits/reports/) — point-in-time application audits.

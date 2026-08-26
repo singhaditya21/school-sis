@@ -8,17 +8,9 @@ import { useState, useTransition } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { FileText, Users, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { formatCurrency } from '@/lib/format';
 import type { InvoicePreview } from '@/lib/actions/invoice-generation';
 
-// ─── Currency Formatter ──────────────────────────────────────
-
-function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: 'INR',
-        maximumFractionDigits: 0,
-    }).format(amount);
-}
 
 // ─── Types ───────────────────────────────────────────────────
 

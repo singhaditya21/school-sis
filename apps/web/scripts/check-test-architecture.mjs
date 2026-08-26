@@ -17,7 +17,7 @@ const requiredFiles = [
     'apps/web/src/__tests__/storage-service.test.ts',
     'apps/web/src/__tests__/db-tenant-context.test.ts',
     'apps/web/src/__tests__/observability-logger.test.ts',
-    'docs/TESTING_QUALITY_ARCHITECTURE.md',
+    'docs/architecture/TESTING_QUALITY_ARCHITECTURE.md',
 ];
 
 const generatedFilesThatMustNotBeTracked = [

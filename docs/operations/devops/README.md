@@ -787,4 +787,4 @@ Cloudflare R2 is the preferred S3-compatible object store and AWS S3 is the fall
 
 Jobs and notifications are persisted in Postgres. Keep `JOB_QUEUE_MODE=database` and invoke `/api/jobs/dispatch` with `Authorization: Bearer $JOB_DISPATCH_SECRET` from one scheduler. Monitor `/api/metrics` and `/api/sre/status` with `METRICS_TOKEN`; dead-lettered work creates SRE incidents.
 
-See [`TESTING_QUALITY_ARCHITECTURE.md`](../TESTING_QUALITY_ARCHITECTURE.md), [`PERFORMANCE_SCALE_ARCHITECTURE.md`](../PERFORMANCE_SCALE_ARCHITECTURE.md), and [`OBSERVABILITY_SRE_ARCHITECTURE.md`](../OBSERVABILITY_SRE_ARCHITECTURE.md) for the wider test, capacity, and operations contracts.
+See [`TESTING_QUALITY_ARCHITECTURE.md`](../../architecture/TESTING_QUALITY_ARCHITECTURE.md), [`PERFORMANCE_SCALE_ARCHITECTURE.md`](../../architecture/PERFORMANCE_SCALE_ARCHITECTURE.md), and [`OBSERVABILITY_SRE_ARCHITECTURE.md`](../../architecture/OBSERVABILITY_SRE_ARCHITECTURE.md) for the wider test, capacity, and operations contracts.

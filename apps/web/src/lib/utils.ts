@@ -5,19 +5,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatDate(date: Date | string): string {
-  return new Date(date).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+/**
+ * Formatting lives in `@/lib/format` — one currency module, one date module,
+ * one number module. These two names are re-exported here because ~30 files
+ * already import them from `@/lib/utils`; both import paths resolve to the
+ * same implementation, so there is no second definition to drift.
+ *
+ * New code should import from `@/lib/format` directly, which also gives you
+ * formatCurrencyPrecise, formatCompactCurrency, formatDateTime, formatTime,
+ * formatNumber and formatPercent.
+ */
+export {
+  formatCurrency,
+  formatCurrencyPrecise,
+  formatCompactCurrency,
+  formatDate,
+  formatDateTime,
+  formatNumber,
+  formatPercent,
+} from "@/lib/format"

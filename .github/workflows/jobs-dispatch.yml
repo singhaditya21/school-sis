@@ -38,16 +38,30 @@ jobs:
     steps:
       - name: POST /api/jobs/dispatch
         env:
-          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
           JOB_DISPATCH_SECRET: ${{ secrets.JOB_DISPATCH_SECRET }}
           NOTIFICATION_LIMIT: ${{ inputs.notification_limit || '25' }}
         run: |
           set -euo pipefail
 
           if [ -z "${PRODUCTION_URL:-}" ] || [ -z "${JOB_DISPATCH_SECRET:-}" ]; then
-            echo "PRODUCTION_URL and JOB_DISPATCH_SECRET must both be configured as repository secrets." >&2
-            echo "Until they are, no background jobs or notifications are being dispatched." >&2
-            exit 1
+            {
+              echo "### Background job dispatch is not configured"
+              echo
+              echo "No fee reminders, receipts or admission notifications are being sent."
+              echo
+              echo "Set the repository secret \`JOB_DISPATCH_SECRET\` to the same value the"
+              echo "deployed app has for \`JOB_DISPATCH_SECRET\` (32+ characters), and confirm"
+              echo "the \`PRODUCTION_URL\` variable is set. \`vars.PRODUCTION_URL\` is currently"
+              echo "\"${PRODUCTION_URL:-<unset>}\"."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning title=Job dispatch not configured::JOB_DISPATCH_SECRET is not set; the queue is not being drained."
+            # A scheduled run fires every 5 minutes. Failing hard would post ~288 red
+            # runs a day for a configuration gap, which trains people to ignore it —
+            # the same blindness that let the cron stay missing for weeks. A manual
+            # dispatch still fails, so an operator testing it gets a real error.
+            if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then exit 1; fi
+            exit 0
           fi
 
           response="$(mktemp)"

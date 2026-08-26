@@ -206,3 +206,17 @@ VALUES
 ('d5b5c928-867c-473d-88f5-1bdf3a4bc072', '0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'd5b5c928-867c-473d-88f5-1bdf3a4bc070',
  'd5b5c928-867c-473d-88f5-1bdf3a4bc033', (SELECT id FROM students WHERE first_name = 'Aarav' AND last_name = 'Sharma' AND tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35' LIMIT 1),
  '2026-06-20', '2026-07-04', 'ISSUED');
+
+-- Smoke-test accounts for e2e/route-smoke.ts.
+-- SUPER_ADMIN, PRINCIPAL and ACCOUNTANT sit in MFA_REQUIRED_ROLES, so password
+-- login fails for them and no seeded account could reach /fees or /exams. These
+-- three non-MFA roles exist purely so the route smoke layer can sign in.
+-- The hash is of SEED_USER_PASSWORD as set in .github/workflows/e2e.yml
+-- ("e2e-seed-password-32-characters"); it is a test credential, not a secret.
+DELETE FROM users WHERE email IN ('smoke.finance@greenwood.edu','smoke.registrar@greenwood.edu','smoke.counsellor@greenwood.edu');
+INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role, is_active)
+VALUES
+  ('0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'smoke.finance@greenwood.edu',    '$2a$12$rtRIcbN90xzIGNYbZ/balew0SMhGjd38LHz8rS9D5jEx4QEvSpLEO', 'Smoke', 'Finance',    'FINANCE_LEAD',              true),
+  ('0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'smoke.registrar@greenwood.edu',  '$2a$12$rtRIcbN90xzIGNYbZ/balew0SMhGjd38LHz8rS9D5jEx4QEvSpLEO', 'Smoke', 'Registrar',  'REGISTRAR',                 true),
+  ('0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'smoke.counsellor@greenwood.edu', '$2a$12$rtRIcbN90xzIGNYbZ/balew0SMhGjd38LHz8rS9D5jEx4QEvSpLEO', 'Smoke', 'Counsellor', 'STUDENT_SUCCESS_COUNSELOR', true)
+;

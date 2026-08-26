@@ -300,7 +300,10 @@ jobs:
             echo "Could not verify the configured Neon production branch and endpoint." >&2
             exit 1
           fi
-          jq -e --arg project "$NEON_PROJECT_ID" --arg branch "$NEON_PRODUCTION_BRANCH_ID" \
+          # A bare `jq -e ... >/dev/null` exits 1 with no diagnostic, which makes a
+          # production deploy failure undebuggable from the logs. Report exactly
+          # which expectation the branch did not meet.
+          if ! jq -e --arg project "$NEON_PROJECT_ID" --arg branch "$NEON_PRODUCTION_BRANCH_ID" \
             '.branch.id == $branch and
              .branch.project_id == $project and
              .branch.parent_id == null and
@@ -308,7 +311,20 @@ jobs:
              .branch.protected == false and
              .branch.current_state == "ready" and
              .branch.pending_state == null' \
-            "$branch_file" >/dev/null
+            "$branch_file" >/dev/null; then
+            echo "The configured Neon production branch does not match what the release requires." >&2
+            jq -r --arg project "$NEON_PROJECT_ID" --arg branch "$NEON_PRODUCTION_BRANCH_ID" '
+              .branch as $b |
+              [ (if $b.id            == $branch then empty else "  id: expected \($branch), got \($b.id)" end),
+                (if $b.project_id    == $project then empty else "  project_id: expected \($project), got \($b.project_id)" end),
+                (if $b.parent_id     == null then empty else "  parent_id: expected null (a root branch), got \($b.parent_id)" end),
+                (if $b.default       == true then empty else "  default: expected true, got \($b.default)" end),
+                (if $b.protected     == false then empty else "  protected: expected false, got \($b.protected) — Neon branch protection blocks the release migration" end),
+                (if $b.current_state == "ready" then empty else "  current_state: expected ready, got \($b.current_state)" end),
+                (if $b.pending_state == null then empty else "  pending_state: expected null, got \($b.pending_state) — the branch is still transitioning" end)
+              ] | .[]' "$branch_file" >&2 || true
+            exit 1
+          fi
           direct_host="$(NEON_DIRECT_URL="$NEON_DIRECT_URL" node -e "process.stdout.write(new URL(process.env.NEON_DIRECT_URL).hostname)")"
           jq -e \
             --arg project "$NEON_PROJECT_ID" \

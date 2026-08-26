@@ -1,6 +1,33 @@
 'use server';
 
-import { pool } from '@/lib/db';
+/**
+ * Fee reads for /fees, /invoices and the defaulter screens.
+ *
+ * Runs on the tenant-scoped data layer in packages/api/src/data: the tenant
+ * predicate is attached by the query builder, and every column below is a
+ * reference into the Drizzle schema, so a column that does not exist stops the
+ * build instead of the page.
+ *
+ * One behavioural note. `due_date` now arrives as the stored calendar date
+ * ("2025-05-15") instead of a `Date` pinned to the Node process's local
+ * midnight. Under TZ=UTC — how this runs on Vercel — the two are identical, and
+ * the full read surface was diffed against the previous raw-SQL implementations
+ * on the seeded database to confirm it. Off UTC the old path shifted every due
+ * date back a day; that shift is gone.
+ */
+
+import { tenantScope } from '@school-sis/api/src/data';
+import {
+    academicYears,
+    feeComponents,
+    feePlans,
+    grades,
+    invoices,
+    payments,
+    sections,
+    students,
+} from '@school-sis/api/src/db/schema';
+import { and, asc, desc, eq, ilike, ne, notInArray, or, sql } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth/middleware';
 
 export interface FeePlanListItem {
@@ -32,44 +59,60 @@ export interface InvoiceListItem {
     status: string;
 }
 
+/** Invoices that are still owed: everything except settled, voided or written off. */
+const UNSETTLED_STATUSES = ['PAID', 'CANCELLED', 'WAIVED'] as const;
+
+/** `due_date` is a calendar date; keep it a calendar date rather than a timestamp. */
+function toDateString(value: string): string {
+    return String(value);
+}
+
 export async function getFeePlans(): Promise<FeePlanListItem[]> {
     const { tenantId } = await requireAuth('fees:read');
+    const scope = tenantScope(tenantId);
 
-    const plansResult = await pool.query(`
-        SELECT 
-            p.id, 
-            p.name, 
-            p.description, 
-            p.is_active AS "isActive", 
-            a.name AS "academicYearName"
-        FROM fee_plans p
-        INNER JOIN academic_years a ON p.academic_year_id = a.id
-        WHERE p.tenant_id = $1
-        ORDER BY p.created_at DESC
-    `, [tenantId]);
+    const plans = await scope
+        .from(feePlans)
+        .innerJoin(academicYears, eq(feePlans.academicYearId, academicYears.id))
+        .select({
+            id: feePlans.id,
+            name: feePlans.name,
+            description: feePlans.description,
+            isActive: feePlans.isActive,
+            academicYearName: academicYears.name,
+        })
+        .orderBy(desc(feePlans.createdAt))
+        .rows();
 
     const result: FeePlanListItem[] = [];
 
-    for (const plan of plansResult.rows) {
-        const compResult = await pool.query(`
-            SELECT COUNT(*) AS count
-            FROM fee_components
-            WHERE fee_plan_id = $1
-        `, [plan.id]);
+    for (const plan of plans) {
+        // fee_components has no tenant_id, so this read has to travel through
+        // fee_plans. `fromChild` is the only way to build it.
+        const compRows = await scope
+            .fromChild(feeComponents, { parent: feePlans, on: eq(feeComponents.feePlanId, feePlans.id) })
+            .select({ count: sql<string>`count(*)` })
+            .where(eq(feeComponents.feePlanId, plan.id))
+            .rows();
 
-        const invResult = await pool.query(`
-            SELECT 
-                COUNT(*) AS count, 
-                SUM(paid_amount) AS "totalPaid"
-            FROM invoices
-            WHERE fee_plan_id = $1 AND tenant_id = $2
-        `, [plan.id, tenantId]);
+        const invRows = await scope
+            .from(invoices)
+            .select({
+                count: sql<string>`count(*)`,
+                totalPaid: sql<string | null>`sum(${invoices.paidAmount})`,
+            })
+            .where(eq(invoices.feePlanId, plan.id))
+            .rows();
 
         result.push({
-            ...plan,
-            componentCount: parseInt(compResult.rows[0].count, 10),
-            invoiceCount: parseInt(invResult.rows[0].count, 10),
-            totalCollected: Number(invResult.rows[0].totalPaid || 0),
+            id: plan.id,
+            name: plan.name,
+            description: plan.description,
+            isActive: plan.isActive,
+            academicYearName: plan.academicYearName,
+            componentCount: parseInt(compRows[0].count, 10),
+            invoiceCount: parseInt(invRows[0].count, 10),
+            totalCollected: Number(invRows[0].totalPaid || 0),
         });
     }
 
@@ -78,27 +121,29 @@ export async function getFeePlans(): Promise<FeePlanListItem[]> {
 
 export async function getFeePlanComponents(planId: string): Promise<FeeComponentItem[]> {
     const { tenantId } = await requireAuth('fees:read');
+    const scope = tenantScope(tenantId);
 
     // fee_components carries no tenant_id, so row-level security cannot scope it.
-    // Without this join back to fee_plans, any authenticated caller who supplied
-    // another school's plan id would read that school's fee structure.
-    const result = await pool.query(`
-        SELECT
-            c.id,
-            c.name,
-            c.amount,
-            c.frequency,
-            c.is_optional AS "isOptional"
-        FROM fee_components c
-        INNER JOIN fee_plans p ON p.id = c.fee_plan_id
-        WHERE c.fee_plan_id = $1 AND p.tenant_id = $2
-        ORDER BY c.created_at ASC
-    `, [planId, tenantId]);
-
-    return result.rows;
+    // `fromChild` makes the hop back to fee_plans — and the parent's tenant
+    // predicate — part of the query's construction rather than something the
+    // next author has to remember.
+    return scope
+        .fromChild(feeComponents, { parent: feePlans, on: eq(feeComponents.feePlanId, feePlans.id) })
+        .select({
+            id: feeComponents.id,
+            name: feeComponents.name,
+            amount: feeComponents.amount,
+            frequency: feeComponents.frequency,
+            isOptional: feeComponents.isOptional,
+        })
+        .where(eq(feeComponents.feePlanId, planId))
+        .orderBy(asc(feeComponents.createdAt))
+        .rows();
 }
 
-const INVOICE_STATUSES = ['DRAFT', 'PENDING', 'PARTIAL', 'PAID', 'OVERDUE', 'CANCELLED', 'WAIVED'];
+/** The invoice_status enum, read off the schema instead of retyped by hand. */
+const INVOICE_STATUSES: readonly string[] = invoices.status.enumValues;
+type InvoiceStatus = (typeof invoices.$inferSelect)['status'];
 
 export interface InvoiceListPage {
     items: InvoiceListItem[];
@@ -118,57 +163,54 @@ export async function getInvoices(options?: {
     offset?: number;
 }): Promise<InvoiceListPage> {
     const { tenantId } = await requireAuth('fees:read');
+    const scope = tenantScope(tenantId);
+
     const limit = Math.min(Math.max(Number(options?.limit) || 25, 1), 100);
     const offset = Math.max(Number(options?.offset) || 0, 0);
 
-    let query = `
-        SELECT
-            i.id,
-            i.invoice_number AS "invoiceNumber",
-            s.first_name AS "studentFirstName",
-            s.last_name AS "studentLastName",
-            i.total_amount AS "totalAmount",
-            i.paid_amount AS "paidAmount",
-            i.due_date AS "dueDate",
-            i.status,
-            COUNT(*) OVER() AS "totalCount"
-        FROM invoices i
-        INNER JOIN students s ON i.student_id = s.id
-        WHERE i.tenant_id = $1
-    `;
-    const params: (string | number)[] = [tenantId];
-
     const status = options?.status?.toUpperCase();
-    if (status && INVOICE_STATUSES.includes(status)) {
-        params.push(status);
-        query += ` AND i.status = $${params.length}`;
-    }
-
     const search = options?.search?.trim();
-    if (search) {
-        params.push(`%${search}%`);
-        query += ` AND (i.invoice_number ILIKE $${params.length}
-                     OR s.first_name ILIKE $${params.length}
-                     OR s.last_name ILIKE $${params.length}
-                     OR (s.first_name || ' ' || s.last_name) ILIKE $${params.length})`;
-    }
+    const pattern = search ? `%${search}%` : undefined;
 
-    params.push(limit);
-    query += ` ORDER BY i.due_date ASC, i.created_at DESC LIMIT $${params.length}`;
-    params.push(offset);
-    query += ` OFFSET $${params.length}`;
-
-    const { rows } = await pool.query(query, params);
+    const rows = await scope
+        .from(invoices)
+        .innerJoin(students, eq(invoices.studentId, students.id))
+        .select({
+            id: invoices.id,
+            invoiceNumber: invoices.invoiceNumber,
+            studentFirstName: students.firstName,
+            studentLastName: students.lastName,
+            totalAmount: invoices.totalAmount,
+            paidAmount: invoices.paidAmount,
+            dueDate: invoices.dueDate,
+            status: invoices.status,
+            totalCount: sql<string>`count(*) over()`,
+        })
+        .where(status && INVOICE_STATUSES.includes(status)
+            ? eq(invoices.status, status as InvoiceStatus)
+            : undefined)
+        .where(pattern
+            ? or(
+                ilike(invoices.invoiceNumber, pattern),
+                ilike(students.firstName, pattern),
+                ilike(students.lastName, pattern),
+                sql`(${students.firstName} || ' ' || ${students.lastName}) ILIKE ${pattern}`,
+            )
+            : undefined)
+        .orderBy(asc(invoices.dueDate), desc(invoices.createdAt))
+        .limit(limit)
+        .offset(offset)
+        .rows();
 
     return {
         total: rows.length > 0 ? Number(rows[0].totalCount) : 0,
-        items: rows.map(r => ({
+        items: rows.map((r) => ({
             id: r.id,
             invoiceNumber: r.invoiceNumber,
             studentName: `${r.studentFirstName} ${r.studentLastName}`,
             totalAmount: r.totalAmount,
             paidAmount: r.paidAmount,
-            dueDate: r.dueDate instanceof Date ? r.dueDate.toISOString().split('T')[0] : String(r.dueDate),
+            dueDate: toDateString(r.dueDate),
             status: r.status,
         })),
     };
@@ -221,19 +263,22 @@ export interface FeeOverview {
 
 export async function getDefaulterStats(): Promise<DefaulterStats> {
     const { tenantId } = await requireAuth('fees:read');
+    const scope = tenantScope(tenantId);
     const today = new Date().toISOString().split('T')[0];
 
-    const { rows: overdueRows } = await pool.query(`
-        SELECT 
-            total_amount AS "totalAmount", 
-            paid_amount AS "paidAmount", 
-            due_date AS "dueDate", 
-            student_id AS "studentId"
-        FROM invoices
-        WHERE tenant_id = $1 
-          AND due_date < $2 
-          AND status NOT IN ('PAID', 'CANCELLED', 'WAIVED')
-    `, [tenantId, today]);
+    const overdueRows = await scope
+        .from(invoices)
+        .select({
+            totalAmount: invoices.totalAmount,
+            paidAmount: invoices.paidAmount,
+            dueDate: invoices.dueDate,
+            studentId: invoices.studentId,
+        })
+        .where(and(
+            sql`${invoices.dueDate} < ${today}`,
+            notInArray(invoices.status, [...UNSETTLED_STATUSES]),
+        ))
+        .rows();
 
     if (overdueRows.length === 0) {
         return {
@@ -272,19 +317,22 @@ export async function getDefaulterStats(): Promise<DefaulterStats> {
 
 export async function getFeeAgeingBreakdown(): Promise<AgeingBucket[]> {
     const { tenantId } = await requireAuth('fees:read');
+    const scope = tenantScope(tenantId);
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
 
-    const { rows: overdueRows } = await pool.query(`
-        SELECT 
-            total_amount AS "totalAmount", 
-            paid_amount AS "paidAmount", 
-            due_date AS "dueDate"
-        FROM invoices
-        WHERE tenant_id = $1 
-          AND due_date < $2 
-          AND status NOT IN ('PAID', 'CANCELLED', 'WAIVED')
-    `, [tenantId, todayStr]);
+    const overdueRows = await scope
+        .from(invoices)
+        .select({
+            totalAmount: invoices.totalAmount,
+            paidAmount: invoices.paidAmount,
+            dueDate: invoices.dueDate,
+        })
+        .where(and(
+            sql`${invoices.dueDate} < ${todayStr}`,
+            notInArray(invoices.status, [...UNSETTLED_STATUSES]),
+        ))
+        .rows();
 
     const buckets: AgeingBucket[] = [
         { label: '0-30 days', count: 0, amount: 0 },
@@ -315,27 +363,30 @@ export async function getDefaulterList(options?: {
     limit?: number;
 }): Promise<DefaulterItem[]> {
     const { tenantId } = await requireAuth('fees:read');
+    const scope = tenantScope(tenantId);
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
 
-    const { rows: overdueRows } = await pool.query(`
-        SELECT 
-            i.student_id AS "studentId", 
-            s.first_name AS "studentFirstName", 
-            s.last_name AS "studentLastName", 
-            g.name AS "gradeName", 
-            sec.name AS "sectionName", 
-            i.total_amount AS "totalAmount", 
-            i.paid_amount AS "paidAmount", 
-            i.due_date AS "dueDate"
-        FROM invoices i
-        INNER JOIN students s ON i.student_id = s.id
-        INNER JOIN grades g ON s.grade_id = g.id
-        INNER JOIN sections sec ON s.section_id = sec.id
-        WHERE i.tenant_id = $1 
-          AND i.due_date < $2 
-          AND i.status NOT IN ('PAID', 'CANCELLED', 'WAIVED')
-    `, [tenantId, todayStr]);
+    const overdueRows = await scope
+        .from(invoices)
+        .innerJoin(students, eq(invoices.studentId, students.id))
+        .innerJoin(grades, eq(students.gradeId, grades.id))
+        .innerJoin(sections, eq(students.sectionId, sections.id))
+        .select({
+            studentId: invoices.studentId,
+            studentFirstName: students.firstName,
+            studentLastName: students.lastName,
+            gradeName: grades.name,
+            sectionName: sections.name,
+            totalAmount: invoices.totalAmount,
+            paidAmount: invoices.paidAmount,
+            dueDate: invoices.dueDate,
+        })
+        .where(and(
+            sql`${invoices.dueDate} < ${todayStr}`,
+            notInArray(invoices.status, [...UNSETTLED_STATUSES]),
+        ))
+        .rows();
 
     const studentMap = new Map<string, DefaulterItem>();
     for (const row of overdueRows) {
@@ -343,7 +394,7 @@ export async function getDefaulterList(options?: {
         const balance = Number(row.totalAmount) - Number(row.paidAmount);
         const dueDate = new Date(row.dueDate);
         const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-        const dueDateStr = row.dueDate instanceof Date ? row.dueDate.toISOString().split('T')[0] : String(row.dueDate);
+        const dueDateStr = toDateString(row.dueDate);
 
         if (existing) {
             existing.totalDue += Number(row.totalAmount);
@@ -385,28 +436,38 @@ export async function getDefaulterList(options?: {
     return result;
 }
 
+/**
+ * Month-bucketed collection vs billing.
+ *
+ * This one uses the layer's deliberate raw-SQL exception: two GROUP BY
+ * aggregates that read more clearly as SQL than as builder calls. `raw` still
+ * hands the callback a `tenant()` predicate and refuses to run a query that was
+ * built without it, and the columns are interpolated from the schema, so the
+ * escape hatch does not cost either guarantee.
+ */
 export async function getCollectionTrend(months: number = 6): Promise<CollectionTrendItem[]> {
     const { tenantId } = await requireAuth('fees:read');
+    const scope = tenantScope(tenantId);
 
-    const { rows: paymentRows } = await pool.query(`
-        SELECT 
-            to_char(paid_at, 'YYYY-MM') AS month, 
-            SUM(amount) AS total
-        FROM payments
-        WHERE tenant_id = $1 AND status = 'COMPLETED'
-        GROUP BY to_char(paid_at, 'YYYY-MM')
-        ORDER BY to_char(paid_at, 'YYYY-MM')
-    `, [tenantId]);
+    const paymentRows = await scope.raw<{ month: string; total: string }>((tenant) => sql`
+        SELECT
+            to_char(${payments.paidAt}, 'YYYY-MM') AS month,
+            SUM(${payments.amount}) AS total
+        FROM ${payments}
+        WHERE ${tenant('payments')} AND ${payments.status} = 'COMPLETED'
+        GROUP BY to_char(${payments.paidAt}, 'YYYY-MM')
+        ORDER BY to_char(${payments.paidAt}, 'YYYY-MM')
+    `);
 
-    const { rows: invoiceRows } = await pool.query(`
-        SELECT 
-            to_char(created_at, 'YYYY-MM') AS month, 
-            SUM(total_amount) AS total
-        FROM invoices
-        WHERE tenant_id = $1 AND status != 'CANCELLED'
-        GROUP BY to_char(created_at, 'YYYY-MM')
-        ORDER BY to_char(created_at, 'YYYY-MM')
-    `, [tenantId]);
+    const invoiceRows = await scope.raw<{ month: string; total: string }>((tenant) => sql`
+        SELECT
+            to_char(${invoices.createdAt}, 'YYYY-MM') AS month,
+            SUM(${invoices.totalAmount}) AS total
+        FROM ${invoices}
+        WHERE ${tenant('invoices')} AND ${invoices.status} != 'CANCELLED'
+        GROUP BY to_char(${invoices.createdAt}, 'YYYY-MM')
+        ORDER BY to_char(${invoices.createdAt}, 'YYYY-MM')
+    `);
 
     const result: CollectionTrendItem[] = [];
     const now = new Date();
@@ -415,8 +476,8 @@ export async function getCollectionTrend(months: number = 6): Promise<Collection
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         const monthLabel = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 
-        const collected = paymentRows.find(r => r.month === key);
-        const billed = invoiceRows.find(r => r.month === key);
+        const collected = paymentRows.find((r) => r.month === key);
+        const billed = invoiceRows.find((r) => r.month === key);
 
         result.push({
             month: monthLabel,
@@ -430,36 +491,33 @@ export async function getCollectionTrend(months: number = 6): Promise<Collection
 
 export async function getFeeOverview(): Promise<FeeOverview> {
     const { tenantId } = await requireAuth('fees:read');
+    const scope = tenantScope(tenantId);
     const todayStr = new Date().toISOString().split('T')[0];
 
-    const { rows: invoiceStatsRows } = await pool.query(`
-        SELECT 
-            SUM(total_amount) AS "totalBilled", 
-            SUM(paid_amount) AS "totalPaid", 
-            COUNT(*) AS "totalCount"
-        FROM invoices
-        WHERE tenant_id = $1 AND status != 'CANCELLED'
-    `, [tenantId]);
+    const invoiceStatsRows = await scope
+        .from(invoices)
+        .select({
+            totalBilled: sql<string | null>`sum(${invoices.totalAmount})`,
+            totalPaid: sql<string | null>`sum(${invoices.paidAmount})`,
+            totalCount: sql<string>`count(*)`,
+        })
+        .where(ne(invoices.status, 'CANCELLED'))
+        .rows();
 
     const invoiceStats = invoiceStatsRows[0];
 
-    const { rows: paidStatsRows } = await pool.query(`
-        SELECT COUNT(*) AS count
-        FROM invoices
-        WHERE tenant_id = $1 AND status = 'PAID'
-    `, [tenantId]);
+    const paidInvoiceCount = await scope.count(invoices, eq(invoices.status, 'PAID'));
 
-    const paidStats = paidStatsRows[0];
+    const overdueRows = await scope
+        .from(invoices)
+        .select({ studentId: invoices.studentId })
+        .where(and(
+            sql`${invoices.dueDate} < ${todayStr}`,
+            notInArray(invoices.status, [...UNSETTLED_STATUSES]),
+        ))
+        .rows();
 
-    const { rows: overdueRows } = await pool.query(`
-        SELECT student_id AS "studentId"
-        FROM invoices
-        WHERE tenant_id = $1 
-          AND due_date < $2 
-          AND status NOT IN ('PAID', 'CANCELLED', 'WAIVED')
-    `, [tenantId, todayStr]);
-
-    const uniqueDefaulters = new Set(overdueRows.map(r => r.studentId));
+    const uniqueDefaulters = new Set(overdueRows.map((r) => r.studentId));
 
     const totalBilled = Number(invoiceStats?.totalBilled || 0);
     const totalCollected = Number(invoiceStats?.totalPaid || 0);
@@ -474,7 +532,7 @@ export async function getFeeOverview(): Promise<FeeOverview> {
         overdueAmount: totalPending,
         defaulterCount: uniqueDefaulters.size,
         invoiceCount: parseInt(invoiceStats?.totalCount || '0', 10),
-        paidInvoiceCount: parseInt(paidStats?.count || '0', 10),
+        paidInvoiceCount,
     };
 }
 
@@ -490,20 +548,23 @@ export interface DefaulterAlertStats {
 
 export async function getDefaulterAlertStats(): Promise<DefaulterAlertStats> {
     const { tenantId } = await requireAuth('fees:read');
+    const scope = tenantScope(tenantId);
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
 
-    const { rows: overdueRows } = await pool.query(`
-        SELECT 
-            i.student_id AS "studentId", 
-            i.total_amount AS "totalAmount", 
-            i.paid_amount AS "paidAmount", 
-            i.due_date AS "dueDate"
-        FROM invoices i
-        WHERE i.tenant_id = $1 
-          AND i.due_date < $2 
-          AND i.status NOT IN ('PAID', 'CANCELLED', 'WAIVED')
-    `, [tenantId, todayStr]);
+    const overdueRows = await scope
+        .from(invoices)
+        .select({
+            studentId: invoices.studentId,
+            totalAmount: invoices.totalAmount,
+            paidAmount: invoices.paidAmount,
+            dueDate: invoices.dueDate,
+        })
+        .where(and(
+            sql`${invoices.dueDate} < ${todayStr}`,
+            notInArray(invoices.status, [...UNSETTLED_STATUSES]),
+        ))
+        .rows();
 
     // Group by student and find the max days overdue per student
     const studentMaxDays = new Map<string, number>();
