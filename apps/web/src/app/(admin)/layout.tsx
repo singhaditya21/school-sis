@@ -125,7 +125,7 @@ export default async function AdminLayout({
                         <NavLink href="/messages" icon="✉️">
                             Messages
                         </NavLink>
-                        <NavLink href="/app/staff" icon="👥">
+                        <NavLink href="/hr" icon="👥">
                             Faculty & Staff
                         </NavLink>
                         <NavLink href="/analytics" icon="📊">

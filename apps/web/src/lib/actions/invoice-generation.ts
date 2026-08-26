@@ -87,6 +87,26 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
                 continue;
             }
 
+            // Re-running the same plan for the same due date must not bill anyone
+            // twice. A cancelled invoice does not count — a corrected re-issue is
+            // legitimate. uq_invoices_tenant_student_plan_due_live enforces the
+            // same rule in the database for the concurrent case.
+            const { rows: existingRows } = await pool.query(`
+                SELECT invoice_number AS "invoiceNumber"
+                FROM invoices
+                WHERE tenant_id = $1 AND student_id = $2 AND fee_plan_id = $3
+                  AND due_date = $4 AND status <> 'CANCELLED'
+                LIMIT 1
+            `, [tenantId, studentId, plan.id, options.dueDate]);
+
+            if (existingRows[0]) {
+                skipped++;
+                errors.push(
+                    `${student.firstName} ${student.lastName} already has invoice ${existingRows[0].invoiceNumber} for this plan and due date`,
+                );
+                continue;
+            }
+
             // Check for concessions
             const { rows: studentConcessions } = await pool.query(`
                 SELECT type, value
@@ -134,7 +154,13 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
             generated++;
         } catch (err: unknown) {
             skipped++;
-            errors.push(`Error for student ${studentId}: ${(err as Error).message}`);
+            // 23505 = unique_violation: another run billed this student first.
+            const code = (err as { code?: string }).code;
+            if (code === '23505') {
+                errors.push(`Student ${studentId} was already billed for this plan and due date`);
+            } else {
+                errors.push(`Error for student ${studentId}: ${(err as Error).message}`);
+            }
         }
     }
 

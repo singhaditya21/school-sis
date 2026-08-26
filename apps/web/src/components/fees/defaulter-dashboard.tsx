@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -17,7 +18,6 @@ import {
     TrendingUp,
     ArrowUpDown,
     IndianRupee,
-    ChevronRight,
     FileText,
     Send,
 } from 'lucide-react';
@@ -154,14 +154,24 @@ function AgeingAnalysis({ buckets }: { buckets: AgeingBucket[] }) {
 
 // ─── Defaulter List ──────────────────────────────────────────
 
+/**
+ * The invoice workspace matches students by name (`?q=`), so the student's own
+ * name is the filter that scopes the list to just their invoices.
+ */
+function studentInvoicesHref(studentName: string): string {
+    return `/invoices?q=${encodeURIComponent(studentName)}`;
+}
+
 function DefaulterTable({
     defaulters,
     sortBy,
     onSortChange,
+    payableInvoiceIds,
 }: {
     defaulters: DefaulterItem[];
     sortBy: 'amount' | 'days';
     onSortChange: (sort: 'amount' | 'days') => void;
+    payableInvoiceIds: Record<string, string>;
 }) {
     if (defaulters.length === 0) {
         return (
@@ -289,24 +299,42 @@ function DefaulterTable({
                                     </td>
                                     <td className="px-4 py-3 text-right">
                                         <div className="flex items-center justify-end gap-1">
-                                            <button
-                                                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground hover:text-blue-600 transition-colors"
-                                                title="View invoices"
+                                            <Link
+                                                href={studentInvoicesHref(d.studentName)}
+                                                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground hover:text-blue-600 transition-colors inline-flex"
+                                                title={`View all invoices for ${d.studentName}`}
+                                                aria-label={`View all invoices for ${d.studentName}`}
                                             >
                                                 <FileText className="w-4 h-4" />
-                                            </button>
+                                            </Link>
                                             <button
-                                                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground hover:text-orange-600 transition-colors"
-                                                title="Send reminder"
+                                                type="button"
+                                                disabled
+                                                className="p-1.5 rounded-lg text-muted-foreground opacity-40 cursor-not-allowed"
+                                                title="Configure a live fee-reminder notification workflow first."
+                                                aria-label="Send reminder — not available"
                                             >
                                                 <Send className="w-4 h-4" />
                                             </button>
-                                            <button
-                                                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground hover:text-green-600 transition-colors"
-                                                title="Record payment"
-                                            >
-                                                <ChevronRight className="w-4 h-4" />
-                                            </button>
+                                            {payableInvoiceIds[d.studentId] ? (
+                                                <Link
+                                                    href={`/invoices/${payableInvoiceIds[d.studentId]}`}
+                                                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground hover:text-green-600 transition-colors inline-flex"
+                                                    title={`Record a payment against ${d.studentName}'s oldest overdue invoice`}
+                                                    aria-label={`Record a payment for ${d.studentName}`}
+                                                >
+                                                    <IndianRupee className="w-4 h-4" />
+                                                </Link>
+                                            ) : (
+                                                <Link
+                                                    href={studentInvoicesHref(d.studentName)}
+                                                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground hover:text-green-600 transition-colors inline-flex"
+                                                    title={`Pick an invoice for ${d.studentName} to record a payment`}
+                                                    aria-label={`Record a payment for ${d.studentName}`}
+                                                >
+                                                    <IndianRupee className="w-4 h-4" />
+                                                </Link>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -325,10 +353,13 @@ export default function DefaulterDashboard({
     initialStats,
     initialAgeing,
     initialDefaulters,
+    payableInvoiceIds,
 }: {
     initialStats: DefaulterStats;
     initialAgeing: AgeingBucket[];
     initialDefaulters: DefaulterItem[];
+    /** studentId → id of the oldest still-payable overdue invoice for that student. */
+    payableInvoiceIds: Record<string, string>;
 }) {
     const [sortBy, setSortBy] = useState<'amount' | 'days'>('amount');
     const [defaulters, setDefaulters] = useState(initialDefaulters);
@@ -374,6 +405,7 @@ export default function DefaulterDashboard({
                         defaulters={defaulters}
                         sortBy={sortBy}
                         onSortChange={setSortBy}
+                        payableInvoiceIds={payableInvoiceIds}
                     />
                 </div>
             </div>

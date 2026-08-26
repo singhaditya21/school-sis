@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getLibraryStudents, getLibraryHistory } from '@/lib/services/library/library.service';
 import { getBooks, issueBook, returnBook } from '@/lib/actions/library';
+import { LIBRARY_FINE_RATE_LABEL, LIBRARY_LOAN_PERIOD_DAYS, loanDueDate } from '../fine-policy';
 import {
     Table,
     TableBody,
@@ -91,8 +92,7 @@ export default function IssueBookPage() {
             return;
         }
 
-        const today = new Date();
-        const dueDate = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const dueDate = loanDueDate();
 
         try {
             const res = await issueBook({
@@ -178,7 +178,7 @@ export default function IssueBookPage() {
                                 {students.map((student: LibraryStudent) => (<option key={student.id} value={student.id}>{student.name} - Class {student.class} ({student.admissionNo})</option>))}
                             </select>
                         </div>
-                        <div className="bg-gray-50 p-4 rounded-lg text-sm"><p><strong>Loan Period:</strong> 14 days</p><p><strong>Fine Rate:</strong> ₹2 per day after due date</p></div>
+                        <div className="bg-gray-50 p-4 rounded-lg text-sm"><p><strong>Loan Period:</strong> {LIBRARY_LOAN_PERIOD_DAYS} days</p><p><strong>Fine Rate:</strong> {LIBRARY_FINE_RATE_LABEL}</p></div>
                         <button data-testid="issue-submit-btn" onClick={handleIssue} className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">Issue Book</button>
                     </CardContent>
                 </Card>

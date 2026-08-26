@@ -1,18 +1,29 @@
 'use client';
 
+import { useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import {
     Bell,
     AlertTriangle,
     Clock,
     Send,
     Filter,
+    FileText,
     Users,
     IndianRupee
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { formatCurrency } from '@/lib/utils';
 import type { DefaulterAlertStats, DefaulterItem } from '@/lib/actions/fees';
 
 interface DefaulterAlertsProps {
@@ -27,7 +38,41 @@ const getStatus = (daysOverdue: number) => {
     return { label: 'Reminder', variant: 'outline' as const, icon: Bell };
 };
 
+/** Severity bands, kept in step with getStatus() above. */
+const SEVERITY_FILTERS = [
+    { value: 'ALL', label: 'All severities' },
+    { value: 'CRITICAL', label: 'Critical (60+ days)' },
+    { value: 'SERIOUS', label: 'Serious (30-59 days)' },
+    { value: 'WARNING', label: 'Warning (15-29 days)' },
+    { value: 'REMINDER', label: 'Reminder (under 15 days)' },
+] as const;
+
+type SeverityFilter = (typeof SEVERITY_FILTERS)[number]['value'];
+
+function matchesSeverity(daysOverdue: number, filter: SeverityFilter): boolean {
+    switch (filter) {
+        case 'CRITICAL':
+            return daysOverdue >= 60;
+        case 'SERIOUS':
+            return daysOverdue >= 30 && daysOverdue < 60;
+        case 'WARNING':
+            return daysOverdue >= 15 && daysOverdue < 30;
+        case 'REMINDER':
+            return daysOverdue < 15;
+        default:
+            return true;
+    }
+}
+
+/** The invoice workspace matches students by name via its `?q=` search. */
+function studentInvoicesHref(studentName: string): string {
+    return `/invoices?q=${encodeURIComponent(studentName)}`;
+}
+
 export default function DefaulterAlerts({ stats, defaulters }: DefaulterAlertsProps) {
+    const [severity, setSeverity] = useState<SeverityFilter>('ALL');
+    const visibleDefaulters = defaulters.filter((d) => matchesSeverity(d.daysOverdue, severity));
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -124,12 +169,30 @@ export default function DefaulterAlerts({ stats, defaulters }: DefaulterAlertsPr
                     <div className="flex items-center justify-between">
                         <div>
                             <CardTitle>Defaulter List</CardTitle>
-                            <CardDescription>Students with overdue fee payments</CardDescription>
+                            <CardDescription>
+                                {severity === 'ALL'
+                                    ? `Students with overdue fee payments · ${defaulters.length} total`
+                                    : `${visibleDefaulters.length} of ${defaulters.length} students in this severity band`}
+                            </CardDescription>
                         </div>
-                        <Button variant="outline" size="sm">
-                            <Filter className="h-4 w-4 mr-2" />
-                            Filter
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Filter className="h-4 w-4 text-muted-foreground" />
+                            <Select
+                                value={severity}
+                                onValueChange={(value) => setSeverity(value as SeverityFilter)}
+                            >
+                                <SelectTrigger className="h-8 w-[210px] text-sm" aria-label="Filter by severity">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {SEVERITY_FILTERS.map((f) => (
+                                        <SelectItem key={f.value} value={f.value}>
+                                            {f.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -138,6 +201,15 @@ export default function DefaulterAlerts({ stats, defaulters }: DefaulterAlertsPr
                             <Users className="h-12 w-12 mx-auto mb-3 opacity-40" />
                             <p className="text-lg font-medium">No defaulters found</p>
                             <p className="text-sm">All students are up to date with their fee payments.</p>
+                        </div>
+                    ) : visibleDefaulters.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">
+                            <Users className="h-12 w-12 mx-auto mb-3 opacity-40" />
+                            <p className="text-lg font-medium">No defaulters in this severity band</p>
+                            <p className="text-sm">
+                                {defaulters.length} defaulter{defaulters.length !== 1 ? 's' : ''} fall outside the
+                                selected filter. Choose “All severities” to see them.
+                            </p>
                         </div>
                     ) : (
                         <Table>
@@ -153,13 +225,13 @@ export default function DefaulterAlerts({ stats, defaulters }: DefaulterAlertsPr
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {defaulters.map((defaulter) => {
+                                {visibleDefaulters.map((defaulter) => {
                                     const status = getStatus(defaulter.daysOverdue);
                                     return (
                                         <TableRow key={defaulter.studentId}>
                                             <TableCell className="font-medium">{defaulter.studentName}</TableCell>
                                             <TableCell>{defaulter.className}</TableCell>
-                                            <TableCell className="font-semibold">₹{defaulter.balance.toLocaleString()}</TableCell>
+                                            <TableCell className="font-semibold">{formatCurrency(defaulter.balance)}</TableCell>
                                             <TableCell>{defaulter.daysOverdue} days</TableCell>
                                             <TableCell>
                                                 <Badge variant={status.variant}>
@@ -169,15 +241,26 @@ export default function DefaulterAlerts({ stats, defaulters }: DefaulterAlertsPr
                                             </TableCell>
                                             <TableCell>{defaulter.invoiceCount}</TableCell>
                                             <TableCell>
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    disabled
-                                                    title="Configure a live fee-reminder notification workflow first."
-                                                >
-                                                    <Send className="h-3 w-3 mr-1" />
-                                                    Send Reminder
-                                                </Button>
+                                                <div className="flex items-center gap-2">
+                                                    <Button size="sm" variant="outline" asChild>
+                                                        <Link
+                                                            href={studentInvoicesHref(defaulter.studentName)}
+                                                            title={`View all invoices for ${defaulter.studentName}`}
+                                                        >
+                                                            <FileText className="h-3 w-3 mr-1" />
+                                                            Invoices
+                                                        </Link>
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        disabled
+                                                        title="Configure a live fee-reminder notification workflow first."
+                                                    >
+                                                        <Send className="h-3 w-3 mr-1" />
+                                                        Send Reminder
+                                                    </Button>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     );

@@ -77,19 +77,23 @@ export async function getFeePlans(): Promise<FeePlanListItem[]> {
 }
 
 export async function getFeePlanComponents(planId: string): Promise<FeeComponentItem[]> {
-    await requireAuth('fees:read');
+    const { tenantId } = await requireAuth('fees:read');
 
+    // fee_components carries no tenant_id, so row-level security cannot scope it.
+    // Without this join back to fee_plans, any authenticated caller who supplied
+    // another school's plan id would read that school's fee structure.
     const result = await pool.query(`
-        SELECT 
-            id, 
-            name, 
-            amount, 
-            frequency, 
-            is_optional AS "isOptional"
-        FROM fee_components
-        WHERE fee_plan_id = $1
-        ORDER BY created_at ASC
-    `, [planId]);
+        SELECT
+            c.id,
+            c.name,
+            c.amount,
+            c.frequency,
+            c.is_optional AS "isOptional"
+        FROM fee_components c
+        INNER JOIN fee_plans p ON p.id = c.fee_plan_id
+        WHERE c.fee_plan_id = $1 AND p.tenant_id = $2
+        ORDER BY c.created_at ASC
+    `, [planId, tenantId]);
 
     return result.rows;
 }

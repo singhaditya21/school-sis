@@ -87,11 +87,24 @@ function listSourceFiles() {
   });
 }
 
+/**
+ * Strip comments before counting. Without this, ordinary prose trips the metrics —
+ * "…, any authenticated caller…" in a comment counted as an explicit `any`, and a
+ * sentence mentioning alert() counted as a browser dialog. The `//` rule skips
+ * `://` so URLs inside strings are not mistaken for line comments.
+ */
+function stripComments(content) {
+  return content
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
+
 function countOccurrences(content, patterns) {
+  const code = stripComments(content);
   let total = 0;
   for (const pattern of patterns) {
     pattern.lastIndex = 0;
-    total += (content.match(pattern) ?? []).length;
+    total += (code.match(pattern) ?? []).length;
   }
   return total;
 }
