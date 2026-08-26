@@ -29,7 +29,7 @@ export default function BookDemoPage() {
             } else {
                 setStatus('success');
             }
-        } catch (e) {
+        } catch {
             setErrMsg('Network error executing API bridging.');
             setStatus('error');
         }
@@ -41,7 +41,7 @@ export default function BookDemoPage() {
                 <div className="bg-white rounded-3xl border border-slate-200 shadow-xl p-10 max-w-lg w-full text-center">
                     <CheckCircle className="w-20 h-20 text-emerald-500 mx-auto mb-6" />
                     <h2 className="text-3xl font-black text-slate-900 mb-4">Demo Requested.</h2>
-                    <p className="text-slate-500 mb-8">Our enterprise sales team has received your details. We will email you within 24 hours to schedule a custom walkthrough of the Scholar Mind architecture.</p>
+                    <p className="text-slate-500 mb-8">We have received your details. We will email you within 24 hours to schedule a working session on your finance-control workflow and pilot fit.</p>
                     <Link href="/" className="bg-indigo-600 text-white font-bold py-3 px-6 rounded-xl hover:bg-indigo-700 transition block w-full">
                         Return home
                     </Link>
@@ -61,24 +61,24 @@ export default function BookDemoPage() {
                         <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center mb-6">
                             <Building size={24} />
                         </div>
-                        <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-6">Talk to our campus engineers.</h1>
+                        <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-6">Assess your pilot fit.</h1>
                         <p className="text-lg text-slate-500 mb-8 leading-relaxed">
-                            Instead of standard salespeople, you&apos;ll be meeting with our deployment engineers. We will analyze your exact database fragmentations and show you a custom instance predicting real churn and fee defaults.
+                            Bring one real fee-reconciliation or approval workflow. We will map the source data, control gaps, and success measures for a focused 1–2 campus pilot.
                         </p>
                         
                         <div className="space-y-4">
                             <div className="flex gap-4">
                                 <div className="mt-1"><CheckCircle className="text-emerald-500" size={20} /></div>
                                 <div>
-                                    <h4 className="font-bold text-slate-900">Custom Architecture Review</h4>
-                                    <p className="text-slate-500 text-sm">We map how Scholar Mind replaces your existing tools.</p>
+                                    <h4 className="font-bold text-slate-900">Workflow and Data Review</h4>
+                                    <p className="text-slate-500 text-sm">We map how Scholar Mind can coexist with your current ERP, payment, and accounting tools.</p>
                                 </div>
                             </div>
                             <div className="flex gap-4">
                                 <div className="mt-1"><CheckCircle className="text-emerald-500" size={20} /></div>
                                 <div>
-                                    <h4 className="font-bold text-slate-900">Live AI Walkthrough</h4>
-                                    <p className="text-slate-500 text-sm">See the 26 agents operating on a massive dataset.</p>
+                                    <h4 className="font-bold text-slate-900">Control-Focused Walkthrough</h4>
+                                    <p className="text-slate-500 text-sm">Review reconciliation, exception handling, approvals, exports, and audit evidence.</p>
                                 </div>
                             </div>
                         </div>
@@ -125,7 +125,7 @@ export default function BookDemoPage() {
                             )}
 
                             <button type="submit" disabled={status === 'loading'} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-indigo-700 transition disabled:opacity-70 flex justify-center items-center">
-                                {status === 'loading' ? 'Encrypting & Routing...' : 'Request VIP Demo'}
+                                {status === 'loading' ? 'Submitting...' : 'Request Pilot Assessment'}
                             </button>
                         </form>
                     </div>

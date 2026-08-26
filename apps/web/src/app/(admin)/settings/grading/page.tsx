@@ -128,16 +128,10 @@ export default function GradingSettingsPage() {
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Grading Settings</h1>
                     <p className="text-muted-foreground">
-                        Configure grading schemes for exams and report cards
+                        Reference grading schemes used for exams and report cards
                     </p>
                 </div>
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogTrigger asChild>
-                        <Button>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add Scheme
-                        </Button>
-                    </DialogTrigger>
                     <DialogContent className="max-w-2xl">
                         <DialogHeader>
                             <DialogTitle>Create Grading Scheme</DialogTitle>
@@ -177,6 +171,14 @@ export default function GradingSettingsPage() {
                         </div>
                     </DialogContent>
                 </Dialog>
+            </div>
+
+            <div className="p-4 border rounded-lg bg-muted/40">
+                <p className="text-sm text-muted-foreground">
+                    These are the standard board schemes shipped with the product. Custom grading
+                    schemes are not configurable in this release, so the schemes below are shown for
+                    reference and cannot be created or edited yet.
+                </p>
             </div>
 
             <div className="grid gap-6 md:grid-cols-3">
@@ -228,7 +230,7 @@ export default function GradingSettingsPage() {
                                 </CardDescription>
                             </div>
                             {selectedScheme && (
-                                <Button variant="outline" size="sm">
+                                <Button variant="outline" size="sm" disabled title="Grading schemes are not editable in this release">
                                     <Settings className="mr-2 h-4 w-4" />
                                     Edit
                                 </Button>

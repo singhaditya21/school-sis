@@ -14,6 +14,10 @@ The platform has crossed the prototype line for most of the web app: core builds
 
 It still runs entirely locally for development. Vercel and Neon are now the selected production targets, so production runtime evidence is an active P0 gate. Provider configuration, the one-time Neon baseline reconciliation, and a verified staged release must complete before #18 can close.
 
+### Commercial pilot scope gate (effective 2026-08-21)
+
+Until the first three paid design-partner pilots complete, active product expansion is limited to the production/security queue and the [`Group Finance Control Pilot`](./gtm/GROUP_FINANCE_CONTROL_PILOT.md): source-data import, fee-ledger normalization, reconciliation, receivables/exceptions, waiver/refund approvals, audit evidence, multi-campus executive reporting, native exports, demo safety, and implementation tooling. Mobile rollout, autonomous AI, higher-ed/coaching expansion, and unrelated horizontal modules are gated under [`PILOT_SCOPE_FREEZE.md`](./gtm/PILOT_SCOPE_FREEZE.md). Exceptions require linked customer or production evidence in the [`evidence and decision log`](./gtm/EVIDENCE_AND_DECISION_LOG.md).
+
 | Milestone                                                                                                  | Focus                                            | Open items |
 | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ---------: |
 | [Phase 0 — Launch Blockers (P0)](https://github.com/singhaditya21/school-sis/milestone/1)                  | Must fix before any production launch            |   1 active |

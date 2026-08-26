@@ -3,49 +3,60 @@
 import { pool } from '@/lib/db';
 
 export interface ExecutiveFinancialMetrics {
+  /** Rupees. Sum of billed invoices that are still expected to be collected. */
   totalExpectedFees: number;
+  /** Rupees. Sum already received against those invoices. */
   totalCollectedFees: number;
+  /** Rupees. Expected minus collected. */
   collectionDeficit: number;
+  /** Rupees. Outstanding balance whose due date has already passed. */
+  overdueBalance: number;
+  /** Distinct students carrying a past-due balance. */
   defaulterCount: number;
-  thirtyDayRevenueForecast: number;
 }
 
 /**
- * Retrieves the high-level financial metrics for the Principal's "God-Mode" Dashboard.
- * Utilizes raw, highly-optimized parameterized SQL to aggregate tens of thousands of rows instantly.
+ * High-level fee position for the executive dashboard.
+ *
+ * Amounts are numeric(12,2) rupees in the database — NOT minor units — and are
+ * returned in rupees. Do not divide by 100 at the call site.
+ *
+ * Overdue is derived from due_date and the outstanding balance rather than from
+ * `status = 'OVERDUE'`, because nothing continuously re-stamps that status; a
+ * status-based count silently under-reports whenever the job runner is behind.
  */
 export async function getExecutiveFinancialMetrics(tenantId: string): Promise<ExecutiveFinancialMetrics> {
-  // We use parallelized raw SQL execution to prevent database blocking on massive tables.
-  const [feesRes, defaultersRes] = await Promise.all([
+  const [totals, overdue] = await Promise.all([
     pool.query(
-      `SELECT 
-         COALESCE(SUM(amount), 0) as expected,
-         COALESCE(SUM(amount_paid), 0) as collected
+      `SELECT
+         COALESCE(SUM(total_amount), 0) AS expected,
+         COALESCE(SUM(paid_amount), 0)  AS collected
        FROM invoices
-       WHERE tenant_id = $1 AND status != 'CANCELLED'`,
-      [tenantId]
+       WHERE tenant_id = $1
+         AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')`,
+      [tenantId],
     ),
     pool.query(
-      `SELECT COUNT(DISTINCT student_id) as count
+      `SELECT
+         COALESCE(SUM(total_amount - paid_amount), 0) AS overdue_balance,
+         COUNT(DISTINCT student_id)                   AS defaulter_count
        FROM invoices
-       WHERE tenant_id = $1 AND status = 'OVERDUE' AND due_date < CURRENT_DATE`,
-      [tenantId]
-    )
+       WHERE tenant_id = $1
+         AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
+         AND due_date < CURRENT_DATE
+         AND total_amount > paid_amount`,
+      [tenantId],
+    ),
   ]);
 
-  const expected = parseFloat(feesRes.rows[0].expected);
-  const collected = parseFloat(feesRes.rows[0].collected);
-  const deficit = expected - collected;
-  const defaulterCount = parseInt(defaultersRes.rows[0].count, 10);
-
-  // Simple heuristic: Predict we collect 80% of the remaining deficit in the next 30 days
-  const thirtyDayRevenueForecast = deficit * 0.8;
+  const expected = Number(totals.rows[0].expected);
+  const collected = Number(totals.rows[0].collected);
 
   return {
     totalExpectedFees: expected,
     totalCollectedFees: collected,
-    collectionDeficit: deficit,
-    defaulterCount,
-    thirtyDayRevenueForecast
+    collectionDeficit: expected - collected,
+    overdueBalance: Number(overdue.rows[0].overdue_balance),
+    defaulterCount: Number(overdue.rows[0].defaulter_count),
   };
 }

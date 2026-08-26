@@ -1,51 +1,61 @@
-# Sales & Marketing Enablement: School SIS Platform
+# ScholarMind Sales Enablement — Pilot Stage
 
-## 1. The Pitch: The True Vertical OS for Education
+> **Effective:** 2026-08-21
+> **Approved working motion:** Paid design-partner pilots
+> **Supersedes:** “True Vertical OS,” “Salesforce for Schools,” full-replacement, autonomous-agent, and permanent public-pricing narratives until customer and production evidence exists.
 
-The modern school ecosystem is incredibly complex, but the software used to manage it shouldn't be. Our School SIS (Student Information System) platform is not just another administrative tool; it is the **True Vertical OS for Education**.
+## Positioning
 
-We provide a comprehensive, unified operating system designed specifically for the unique needs of K-12 and higher education institutions. By centralizing all critical functions—from enrollment and grading to communication and billing—we empower schools to operate with unprecedented efficiency and clarity, allowing educators to focus on what matters most: student success.
+For private school groups that cannot risk a big-bang ERP replacement, ScholarMind is a finance and governance control layer that consolidates fee visibility, reconciliation, approvals, exceptions, and campus performance while coexisting with current systems.
 
-## 2. The Problem We Solve: Ending EdTech Fragmentation
+ScholarMind must earn the right to expand. The initial sale is an 8–12 week paid pilot for one or two campuses, not an immediate promise to replace the institution’s entire technology stack.
 
-### The Current Landscape
-Today's schools are bogged down by "Franken-systems"—a disjointed collection of 12+ different tools that don't communicate with one another. A school might use one tool for attendance, another for grading, a third for parent communication, and yet another for billing. 
+## Initial ICP
 
-This fragmentation leads to:
-*   **Data Silos & Inconsistencies:** Duplicate data entry and conflicting information.
-*   **High Costs & Administrative Overhead:** Managing multiple subscriptions, vendor relationships, and integrations.
-*   **Poor User Experience:** Parents, teachers, and students are frustrated by having to juggle multiple logins and interfaces.
-*   **Security Risks:** Increased attack surface and compliance challenges with data spread across numerous platforms.
+- Indian private K-12 groups with 3–15 campuses.
+- Approximately 2,000–20,000 students.
+- Centralized CFO, COO, finance, or MIS leadership.
+- Multiple exports/spreadsheets and inconsistent campus reporting.
+- Material reconciliation, receivables, approval, or audit-control pain.
 
-### Our Solution
-Our platform replaces these disjointed legacy systems with a single, elegant, unified platform. We eliminate the friction of EdTech fragmentation by providing a holistic ecosystem where all modules talk to each other seamlessly in real-time.
+Disqualify single-campus price shoppers, government tenders, higher-education/coaching opportunities, mobile-first parent-app deals, and buyers unwilling to provide a data workshop during the initial motion.
 
-## 3. The Core Advantage: Metadata-Driven Architecture
+## Discovery message
 
-What truly sets our School SIS apart is our **Metadata-Driven Architecture**. Think of us as the "Salesforce for Schools."
+“How does your group currently reconcile fees, explain exceptions, approve waivers/refunds, and produce a consolidated campus view? We are studying whether a control layer can improve those outcomes without forcing an ERP replacement.”
 
-Most legacy systems are rigid; if a school wants to track a custom metric or change a workflow, it requires expensive, time-consuming custom development. 
+Do not begin with a feature presentation or the number of modules or AI agents.
 
-Our platform is fundamentally different:
-*   **Ultimate Flexibility:** Our system is built on a highly customizable foundation where data models, fields, and workflows can be configured entirely through the UI.
-*   **No-Code Customization:** School administrators can create custom data fields (e.g., tracking a specific extracurricular program, specialized health information, or unique grading rubrics) without writing a single line of code.
-*   **Future-Proof:** As a school's needs evolve, the platform evolves with it instantly, eliminating the need for costly migrations or software rewrites.
-*   **Extensible & API-First:** Easily integrate with modern third-party tools while maintaining a single source of truth.
+## Offer
 
-## 4. Value Propositions by Persona
+The [`Group Finance Control Pilot`](../gtm/GROUP_FINANCE_CONTROL_PILOT.md) imports authorized source data, normalizes and reconciles the ledger, surfaces receivables and exceptions, routes sensitive approvals, and produces auditable group reporting.
 
-### For School Administrators (The Buyers)
-*   **Operational Efficiency:** Automate routine administrative tasks, from complex scheduling to state reporting, freeing up staff time.
-*   **Cost Reduction:** Consolidate multiple software subscriptions into one predictable platform fee.
-*   **Actionable Insights:** Access real-time dashboards and analytics across all departments to make data-driven decisions regarding resource allocation and student performance.
-*   **Security & Compliance:** Ensure student data privacy with enterprise-grade security and simplified compliance reporting.
+- Duration: 8–12 weeks.
+- Footprint: one or two campuses.
+- Provisional price: ₹2–4 lakh, confirmed after the data workshop.
+- Conversion: pilot fee may be credited toward the annual group agreement.
+- Success: first accepted value within 30 days, at least 99.5% reconciliation quality, and zero critical security or financial-control incidents.
 
-### For Teachers (The Everyday Users)
-*   **Reduced Administrative Burden:** Intuitive interfaces for attendance, grading, and behavior tracking take minutes, not hours.
-*   **Unified Communications:** Built-in messaging allows teachers to easily communicate with parents and students without leaving the platform.
-*   **Holistic Student View:** Instantly access a student's complete profile—academic history, learning accommodations, and behavior—to provide personalized support.
+## Evidence-safe claims
 
-### For Parents (The Key Stakeholders)
-*   **One Single Portal:** Say goodbye to logging into five different apps. A single, mobile-friendly dashboard provides everything a parent needs.
-*   **Real-Time Transparency:** Instant notifications for grades, attendance, missing assignments, and school announcements.
-*   **Simplified Administration:** Pay tuition, fill out permission slips, and schedule parent-teacher conferences effortlessly from their smartphone.
+Sales may say:
+
+- The core web architecture, tenant isolation, and security controls have substantial local automated evidence.
+- The pilot is deliberately scoped and begins with existing exports.
+- Sensitive workflows are designed around authorization and audit evidence.
+- The commercial objective is verified value before migration.
+
+Sales may not claim without updated production/customer proof:
+
+- Guaranteed uptime or latency.
+- SOC 2 certification.
+- A production-ready mobile app.
+- Autonomous AI decision-making or 26 active agents.
+- Dedicated AWS/Azure variants or private-model tuning.
+- Complete replacement of every ERP/module.
+- Permanent per-student list pricing.
+- Quantified customer ROI not observed in a real deployment.
+
+## Operating materials
+
+Use the [`GTM first-48-hours pack`](../gtm/README.md), [`buyer interview guide`](../gtm/BUYER_INTERVIEW_GUIDE.md), [`competitor scorecard`](../gtm/COMPETITOR_TEST_SCORECARD.md), and [`evidence log`](../gtm/EVIDENCE_AND_DECISION_LOG.md). Every proposal must follow a discovery call and data workshop.
