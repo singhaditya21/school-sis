@@ -2,12 +2,19 @@
 
 /**
  * Invoice Generation — Bulk and Individual
- * 
+ *
  * Generates invoices for students based on fee plans.
  * Supports both individual student invoices and bulk class-wide generation.
+ *
+ * Runs on the tenant-scoped data layer (packages/api/src/data). The fee plan is
+ * *claimed* — read back under this tenant's predicate — before anything is
+ * priced from it, and its components are reached through that claim, so a plan
+ * id belonging to another school cannot bill this school's students.
  */
 
-import { pool } from '@/lib/db';
+import { tenantScope } from '@school-sis/api/src/data';
+import { concessions, feeComponents, feePlans, invoices, students } from '@school-sis/api/src/db/schema';
+import { and, eq, ne } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 
@@ -35,36 +42,44 @@ export interface GenerationResult {
     errors: string[];
 }
 
+/** Postgres unique_violation, however the driver hands it back. */
+function isUniqueViolation(err: unknown): boolean {
+    const candidate = err as { code?: string; cause?: { code?: string } };
+    return candidate?.code === '23505' || candidate?.cause?.code === '23505';
+}
+
 // ─── Individual Invoice Generation ───────────────────────────
 
 export async function generateInvoices(options: GenerateInvoiceOptions): Promise<GenerationResult> {
-    const { tenantId, userId } = await requireAuth('fees:write');
+    const { tenantId } = await requireAuth('fees:write');
+    const scope = tenantScope(tenantId);
 
-    // Validate fee plan
-    const { rows: planRows } = await pool.query(`
-        SELECT id, name
-        FROM fee_plans
-        WHERE id = $1 AND tenant_id = $2
-    `, [options.feePlanId, tenantId]);
-    const plan = planRows[0];
+    // Validate fee plan. `claim` reads it back under this tenant and returns the
+    // handle that the fee_components read below requires.
+    const plan = await scope.claim(feePlans, options.feePlanId);
 
     if (!plan) {
         return { success: false, generated: 0, skipped: 0, errors: ['Fee plan not found'] };
     }
 
     // Get fee components for this plan
-    const { rows: components } = await pool.query(`
-        SELECT id, name, amount, frequency, is_optional AS "isOptional"
-        FROM fee_components
-        WHERE fee_plan_id = $1
-    `, [plan.id]);
+    const components = await scope
+        .childSelect(feeComponents, plan, 'feePlanId')
+        .select({
+            id: feeComponents.id,
+            name: feeComponents.name,
+            amount: feeComponents.amount,
+            frequency: feeComponents.frequency,
+            isOptional: feeComponents.isOptional,
+        })
+        .rows();
 
     if (components.length === 0) {
         return { success: false, generated: 0, skipped: 0, errors: ['Fee plan has no components'] };
     }
 
     // Calculate total (mandatory components only)
-    const mandatoryComponents = components.filter(c => !c.isOptional);
+    const mandatoryComponents = components.filter((c) => !c.isOptional);
     const totalAmount = mandatoryComponents.reduce((sum, c) => sum + Number(c.amount), 0);
 
     let generated = 0;
@@ -74,12 +89,11 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
     for (const studentId of options.studentIds) {
         try {
             // Verify student belongs to tenant
-            const { rows: studentRows } = await pool.query(`
-                SELECT id, first_name AS "firstName", last_name AS "lastName"
-                FROM students
-                WHERE id = $1 AND tenant_id = $2
-            `, [studentId, tenantId]);
-            const student = studentRows[0];
+            const student = await scope
+                .from(students)
+                .select({ firstName: students.firstName, lastName: students.lastName })
+                .where(eq(students.id, studentId))
+                .first();
 
             if (!student) {
                 skipped++;
@@ -91,28 +105,36 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
             // twice. A cancelled invoice does not count — a corrected re-issue is
             // legitimate. uq_invoices_tenant_student_plan_due_live enforces the
             // same rule in the database for the concurrent case.
-            const { rows: existingRows } = await pool.query(`
-                SELECT invoice_number AS "invoiceNumber"
-                FROM invoices
-                WHERE tenant_id = $1 AND student_id = $2 AND fee_plan_id = $3
-                  AND due_date = $4 AND status <> 'CANCELLED'
-                LIMIT 1
-            `, [tenantId, studentId, plan.id, options.dueDate]);
+            const existing = await scope
+                .from(invoices)
+                .select({ invoiceNumber: invoices.invoiceNumber })
+                .where(and(
+                    eq(invoices.studentId, studentId),
+                    eq(invoices.feePlanId, plan.id),
+                    eq(invoices.dueDate, options.dueDate),
+                    ne(invoices.status, 'CANCELLED'),
+                ))
+                .limit(1)
+                .first();
 
-            if (existingRows[0]) {
+            if (existing) {
                 skipped++;
                 errors.push(
-                    `${student.firstName} ${student.lastName} already has invoice ${existingRows[0].invoiceNumber} for this plan and due date`,
+                    `${student.firstName} ${student.lastName} already has invoice ${existing.invoiceNumber} for this plan and due date`,
                 );
                 continue;
             }
 
             // Check for concessions
-            const { rows: studentConcessions } = await pool.query(`
-                SELECT type, value
-                FROM concessions
-                WHERE student_id = $1 AND fee_plan_id = $2 AND is_active = true
-            `, [studentId, plan.id]);
+            const studentConcessions = await scope
+                .from(concessions)
+                .select({ type: concessions.type, value: concessions.value })
+                .where(and(
+                    eq(concessions.studentId, studentId),
+                    eq(concessions.feePlanId, plan.id),
+                    eq(concessions.isActive, true),
+                ))
+                .rows();
 
             // Apply concession
             let finalAmount = totalAmount;
@@ -130,33 +152,32 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
 
             // Build line items JSON
             const lineItems = JSON.stringify(
-                mandatoryComponents.map(c => ({
+                mandatoryComponents.map((c) => ({
                     componentId: c.id,
                     name: c.name,
                     amount: Number(c.amount),
                     frequency: c.frequency,
-                }))
+                })),
             );
 
-            await pool.query(`
-                INSERT INTO invoices (
-                    id, tenant_id, student_id, fee_plan_id, invoice_number,
-                    total_amount, paid_amount, due_date, status, description, line_items
-                ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
-                )
-            `, [
-                randomUUID(), tenantId, studentId, plan.id, invoiceNumber,
-                String(finalAmount), '0', options.dueDate, 'PENDING',
-                options.description || `${plan.name} - Invoice`, lineItems
-            ]);
+            await scope.insert(invoices, {
+                id: randomUUID(),
+                studentId,
+                feePlanId: plan.id,
+                invoiceNumber,
+                totalAmount: String(finalAmount),
+                paidAmount: '0',
+                dueDate: options.dueDate,
+                status: 'PENDING',
+                description: options.description || `${plan.row.name} - Invoice`,
+                lineItems,
+            });
 
             generated++;
         } catch (err: unknown) {
             skipped++;
             // 23505 = unique_violation: another run billed this student first.
-            const code = (err as { code?: string }).code;
-            if (code === '23505') {
+            if (isUniqueViolation(err)) {
                 errors.push(`Student ${studentId} was already billed for this plan and due date`);
             } else {
                 errors.push(`Error for student ${studentId}: ${(err as Error).message}`);
@@ -171,25 +192,17 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
 
 export async function generateBulkInvoices(options: BulkGenerateOptions): Promise<GenerationResult> {
     const { tenantId } = await requireAuth('fees:write');
+    const scope = tenantScope(tenantId);
 
-    let query = `
-        SELECT id 
-        FROM students
-        WHERE tenant_id = $1 AND status = 'ACTIVE'
-    `;
-    const params: string[] = [tenantId];
-    let paramIndex = 2;
-
-    if (options.gradeId) {
-        query += ` AND grade_id = $${paramIndex++}`;
-        params.push(options.gradeId);
-    }
-    if (options.sectionId) {
-        query += ` AND section_id = $${paramIndex++}`;
-        params.push(options.sectionId);
-    }
-
-    const { rows: studentRows } = await pool.query(query, params);
+    const studentRows = await scope
+        .from(students)
+        .select({ id: students.id })
+        .where(and(
+            eq(students.status, 'ACTIVE'),
+            options.gradeId ? eq(students.gradeId, options.gradeId) : undefined,
+            options.sectionId ? eq(students.sectionId, options.sectionId) : undefined,
+        ))
+        .rows();
 
     if (studentRows.length === 0) {
         return { success: false, generated: 0, skipped: 0, errors: ['No matching students found'] };
@@ -197,7 +210,7 @@ export async function generateBulkInvoices(options: BulkGenerateOptions): Promis
 
     return generateInvoices({
         feePlanId: options.feePlanId,
-        studentIds: studentRows.map(s => s.id),
+        studentIds: studentRows.map((s) => s.id),
         dueDate: options.dueDate,
         description: options.description,
     });
@@ -219,50 +232,39 @@ export async function getInvoiceGenerationPreview(
     sectionId?: string,
 ): Promise<InvoicePreview | null> {
     const { tenantId } = await requireAuth('fees:read');
+    const scope = tenantScope(tenantId);
 
-    const { rows: planRows } = await pool.query(`
-        SELECT id, name
-        FROM fee_plans
-        WHERE id = $1 AND tenant_id = $2
-    `, [feePlanId, tenantId]);
-    const plan = planRows[0];
+    const plan = await scope.claim(feePlans, feePlanId);
 
     if (!plan) return null;
 
-    const { rows: components } = await pool.query(`
-        SELECT name, amount, frequency, is_optional AS "isOptional"
-        FROM fee_components
-        WHERE fee_plan_id = $1
-    `, [feePlanId]);
+    const components = await scope
+        .childSelect(feeComponents, plan, 'feePlanId')
+        .select({
+            name: feeComponents.name,
+            amount: feeComponents.amount,
+            frequency: feeComponents.frequency,
+            isOptional: feeComponents.isOptional,
+        })
+        .rows();
 
-    const mandatory = components.filter(c => !c.isOptional);
+    const mandatory = components.filter((c) => !c.isOptional);
     const totalPerStudent = mandatory.reduce((sum, c) => sum + Number(c.amount), 0);
 
-    let countQuery = `
-        SELECT COUNT(*) AS count
-        FROM students
-        WHERE tenant_id = $1 AND status = 'ACTIVE'
-    `;
-    const countParams: string[] = [tenantId];
-    let paramIndex = 2;
-
-    if (gradeId) {
-        countQuery += ` AND grade_id = $${paramIndex++}`;
-        countParams.push(gradeId);
-    }
-    if (sectionId) {
-        countQuery += ` AND section_id = $${paramIndex++}`;
-        countParams.push(sectionId);
-    }
-
-    const { rows: studentCountRows } = await pool.query(countQuery, countParams);
-    const studentCount = Number(studentCountRows[0].count);
+    const studentCount = await scope.count(
+        students,
+        and(
+            eq(students.status, 'ACTIVE'),
+            gradeId ? eq(students.gradeId, gradeId) : undefined,
+            sectionId ? eq(students.sectionId, sectionId) : undefined,
+        ),
+    );
 
     return {
-        feePlanName: plan.name,
+        feePlanName: plan.row.name,
         studentCount: studentCount,
         totalPerStudent,
-        components: mandatory.map(c => ({
+        components: mandatory.map((c) => ({
             name: c.name,
             amount: Number(c.amount),
             frequency: c.frequency,

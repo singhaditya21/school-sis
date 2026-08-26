@@ -48,3 +48,32 @@ export async function getObjectFieldCounts(): Promise<ObjectFieldCounts> {
 
     return { total, custom };
 }
+
+/**
+ * metadata_objects.id → number of EAV records this tenant holds.
+ *
+ * `metadata_records` carries its own `tenant_id`, but it is still joined back to
+ * `metadata_objects` so a record can never be counted against an object that
+ * belongs to another tenant.
+ */
+export async function getObjectRecordCounts(): Promise<Record<string, number>> {
+    const { tenantId } = await requireAuth('settings:read');
+
+    const { rows } = await pool.query(
+        `SELECT r.object_id AS "objectId",
+                COUNT(*)::int AS "records"
+           FROM metadata_records r
+           JOIN metadata_objects o ON o.id = r.object_id
+          WHERE r.tenant_id = $1
+            AND o.tenant_id = $1
+            AND o.status <> 'ARCHIVED'
+          GROUP BY r.object_id`,
+        [tenantId],
+    );
+
+    const counts: Record<string, number> = {};
+    for (const row of rows as { objectId: string; records: number }[]) {
+        counts[row.objectId] = row.records;
+    }
+    return counts;
+}

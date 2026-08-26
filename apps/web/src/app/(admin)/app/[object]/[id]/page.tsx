@@ -15,8 +15,17 @@ export default async function GenericObjectFormPage({ params }: { params: Promis
     }
 
     try {
-        const { objectDef, fields, layouts } = await getObjectMetadata(resolvedParams.object);
-        
+        const { objectDef, fields, layouts, hiddenFieldCount } = await getObjectMetadata(resolvedParams.object);
+
+        if (fields.length === 0) {
+            return (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center text-amber-800">
+                    <h2 className="mb-2 text-xl font-bold">No writable fields</h2>
+                    <p>Your role has no access to any field on {objectDef.name}.</p>
+                </div>
+            );
+        }
+
         let initialData = {};
         if (resolvedParams.id !== 'new') {
             const records = await queryRecords(resolvedParams.object, { id: resolvedParams.id }, 1, 0);
@@ -37,6 +46,11 @@ export default async function GenericObjectFormPage({ params }: { params: Promis
                         <h1 className="text-2xl font-bold text-slate-900 dark:text-white capitalize">
                             {resolvedParams.id === 'new' ? `New ${objectDef.name}` : `Edit ${objectDef.name}`}
                         </h1>
+                        {hiddenFieldCount > 0 && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                {hiddenFieldCount} field{hiddenFieldCount === 1 ? '' : 's'} hidden by field permissions.
+                            </p>
+                        )}
                     </div>
                 </div>
 

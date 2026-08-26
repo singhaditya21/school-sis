@@ -358,6 +358,14 @@ export const API_ROUTES: readonly ApiRouteDoc[] = [
         auth: 'session',
     },
     {
+        path: '/api/copilot/assist',
+        methods: ['GET', 'POST'],
+        group: 'Agents',
+        summary:
+            'One bounded assistant turn over the AI tool registry. GET returns the tools this role may use, the provider state and the tenant budget; POST answers from tool results only and converts any mutating request into a workflow approval.',
+        auth: 'session',
+    },
+    {
         path: '/api/agent-webhook',
         methods: ['POST'],
         group: 'Agents',

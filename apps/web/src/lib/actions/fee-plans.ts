@@ -9,11 +9,18 @@
  * nothing. Every write path here enforces that invariant.
  *
  * `fee_components` has no tenant_id of its own — it inherits the tenant through
- * `fee_plan_id`. Every component query therefore joins/EXISTS back to
- * `fee_plans` on the caller's tenant instead of trusting the plan id.
+ * `fee_plan_id`. That used to be a comment asking the next author to remember a
+ * join. It is now structural: reads go through `scope.fromChild(...)`, which
+ * cannot be built without naming the owning parent, and writes go through
+ * `scope.childInsert/childUpdate/childDelete`, which cannot be called without
+ * an `OwnedRow` handle minted by a tenant-scoped read of `fee_plans`.
+ *
+ * See packages/api/src/data/index.ts for how to move the next domain across.
  */
 
-import { pool } from '@/lib/db';
+import { tenantScope } from '@school-sis/api/src/data';
+import { academicYears, feeComponents, feePlans, invoices } from '@school-sis/api/src/db/schema';
+import { asc, desc, eq, notInArray, sql } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 import { revalidatePath } from 'next/cache';
@@ -81,8 +88,12 @@ export interface FeePlanSaveResult {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/** Mirrors the fee_frequency enum in the database. */
-const FEE_FREQUENCY_VALUES = ['MONTHLY', 'QUARTERLY', 'TERM_WISE', 'ANNUAL', 'ONE_TIME'];
+/**
+ * The fee_frequency enum, read off the schema rather than retyped. A value the
+ * database would reject can no longer pass validation here.
+ */
+type FeeFrequency = (typeof feeComponents.$inferInsert)['frequency'];
+const FEE_FREQUENCY_VALUES: readonly string[] = feeComponents.frequency.enumValues;
 
 /** numeric(12,2) with a positive rupee value: up to 10 integer digits, 2 decimals. */
 const AMOUNT_RE = /^\d{1,10}(\.\d{1,2})?$/;
@@ -91,7 +102,7 @@ type NormalisedComponent = {
     id: string | null;
     name: string;
     amount: string;
-    frequency: string;
+    frequency: FeeFrequency;
     isOptional: boolean;
 };
 
@@ -149,7 +160,7 @@ function normaliseComponents(
             id: id || null,
             name,
             amount: amountValue.toFixed(2),
-            frequency,
+            frequency: frequency as FeeFrequency,
             isOptional: row?.isOptional === true,
         });
     }
@@ -177,41 +188,46 @@ function mandatorySum(components: NormalisedComponent[]): number {
  * Every plan for the tenant with the numbers a school needs to see before
  * invoicing: how many components it carries and what each student would be
  * billed (mandatory components only, matching generateInvoices).
+ *
+ * The per-plan aggregates stay as correlated subqueries, but every column in
+ * them is interpolated from the schema, so a renamed or imagined column is a
+ * compile error instead of a 500 on the plans page.
  */
 export async function getFeePlanSummaries(): Promise<FeePlanSummary[]> {
     const { tenantId } = await requireAuth('fees:read');
+    const scope = tenantScope(tenantId);
 
-    const { rows } = await pool.query(
-        `SELECT
-            p.id,
-            p.name,
-            p.description,
-            p.is_active AS "isActive",
-            a.name AS "academicYearName",
-            comp.component_count AS "componentCount",
-            comp.mandatory_total AS "mandatoryTotal",
-            comp.optional_total AS "optionalTotal",
-            inv.invoice_count AS "invoiceCount"
-         FROM fee_plans p
-         INNER JOIN academic_years a
-                 ON a.id = p.academic_year_id AND a.tenant_id = p.tenant_id
-         LEFT JOIN LATERAL (
-            SELECT
-                COUNT(*) AS component_count,
-                COALESCE(SUM(CASE WHEN fc.is_optional THEN 0 ELSE fc.amount END), 0) AS mandatory_total,
-                COALESCE(SUM(CASE WHEN fc.is_optional THEN fc.amount ELSE 0 END), 0) AS optional_total
-            FROM fee_components fc
-            WHERE fc.fee_plan_id = p.id
-         ) comp ON TRUE
-         LEFT JOIN LATERAL (
-            SELECT COUNT(*) AS invoice_count
-            FROM invoices i
-            WHERE i.fee_plan_id = p.id AND i.tenant_id = p.tenant_id
-         ) inv ON TRUE
-         WHERE p.tenant_id = $1
-         ORDER BY p.created_at DESC`,
-        [tenantId],
-    );
+    const rows = await scope
+        .from(feePlans)
+        .innerJoin(academicYears, eq(academicYears.id, feePlans.academicYearId))
+        .select({
+            id: feePlans.id,
+            name: feePlans.name,
+            description: feePlans.description,
+            isActive: feePlans.isActive,
+            academicYearName: academicYears.name,
+            componentCount: sql<string>`(
+                SELECT COUNT(*) FROM ${feeComponents}
+                 WHERE ${feeComponents.feePlanId} = ${feePlans.id}
+            )`,
+            mandatoryTotal: sql<string>`(
+                SELECT COALESCE(SUM(CASE WHEN ${feeComponents.isOptional} THEN 0 ELSE ${feeComponents.amount} END), 0)
+                  FROM ${feeComponents}
+                 WHERE ${feeComponents.feePlanId} = ${feePlans.id}
+            )`,
+            optionalTotal: sql<string>`(
+                SELECT COALESCE(SUM(CASE WHEN ${feeComponents.isOptional} THEN ${feeComponents.amount} ELSE 0 END), 0)
+                  FROM ${feeComponents}
+                 WHERE ${feeComponents.feePlanId} = ${feePlans.id}
+            )`,
+            invoiceCount: sql<string>`(
+                SELECT COUNT(*) FROM ${invoices}
+                 WHERE ${invoices.feePlanId} = ${feePlans.id}
+                   AND ${invoices.tenantId} = ${feePlans.tenantId}
+            )`,
+        })
+        .orderBy(desc(feePlans.createdAt))
+        .rows();
 
     return rows.map((row) => ({
         id: row.id,
@@ -229,42 +245,43 @@ export async function getFeePlanSummaries(): Promise<FeePlanSummary[]> {
 /** One plan with its components, or null when it is not this tenant's plan. */
 export async function getFeePlanDetail(planId: string): Promise<FeePlanDetail | null> {
     const { tenantId } = await requireAuth('fees:read');
+    const scope = tenantScope(tenantId);
 
     if (!UUID_RE.test(String(planId ?? ''))) return null;
 
-    const { rows: planRows } = await pool.query(
-        `SELECT
-            p.id,
-            p.name,
-            p.description,
-            p.is_active AS "isActive",
-            p.academic_year_id AS "academicYearId",
-            a.name AS "academicYearName",
-            (SELECT COUNT(*) FROM invoices i
-              WHERE i.fee_plan_id = p.id AND i.tenant_id = p.tenant_id) AS "invoiceCount"
-         FROM fee_plans p
-         INNER JOIN academic_years a
-                 ON a.id = p.academic_year_id AND a.tenant_id = p.tenant_id
-         WHERE p.id = $1 AND p.tenant_id = $2`,
-        [planId, tenantId],
-    );
+    const plan = await scope
+        .from(feePlans)
+        .innerJoin(academicYears, eq(academicYears.id, feePlans.academicYearId))
+        .select({
+            id: feePlans.id,
+            name: feePlans.name,
+            description: feePlans.description,
+            isActive: feePlans.isActive,
+            academicYearId: feePlans.academicYearId,
+            academicYearName: academicYears.name,
+            invoiceCount: sql<string>`(
+                SELECT COUNT(*) FROM ${invoices}
+                 WHERE ${invoices.feePlanId} = ${feePlans.id}
+                   AND ${invoices.tenantId} = ${feePlans.tenantId}
+            )`,
+        })
+        .where(eq(feePlans.id, planId))
+        .first();
 
-    const plan = planRows[0];
     if (!plan) return null;
 
-    const { rows: componentRows } = await pool.query(
-        `SELECT
-            fc.id,
-            fc.name,
-            fc.amount,
-            fc.frequency,
-            fc.is_optional AS "isOptional"
-         FROM fee_components fc
-         INNER JOIN fee_plans p ON p.id = fc.fee_plan_id
-         WHERE fc.fee_plan_id = $1 AND p.tenant_id = $2
-         ORDER BY fc.created_at ASC, fc.name ASC`,
-        [planId, tenantId],
-    );
+    const componentRows = await scope
+        .fromChild(feeComponents, { parent: feePlans, on: eq(feeComponents.feePlanId, feePlans.id) })
+        .select({
+            id: feeComponents.id,
+            name: feeComponents.name,
+            amount: feeComponents.amount,
+            frequency: feeComponents.frequency,
+            isOptional: feeComponents.isOptional,
+        })
+        .where(eq(feeComponents.feePlanId, planId))
+        .orderBy(asc(feeComponents.createdAt), asc(feeComponents.name))
+        .rows();
 
     return {
         id: plan.id,
@@ -286,6 +303,9 @@ export async function getFeePlanDetail(planId: string): Promise<FeePlanDetail | 
 
 // ─── Write ───────────────────────────────────────────────────
 
+/** Aborts the save transaction with a message the form can show verbatim. */
+class FeePlanSaveAbort extends Error {}
+
 /**
  * Saves the plan header and reconciles its components in ONE transaction:
  * rows the editor kept are updated in place (so invoice line-item snapshots
@@ -295,6 +315,7 @@ export async function getFeePlanDetail(planId: string): Promise<FeePlanDetail | 
  */
 export async function saveFeePlan(input: SaveFeePlanInput): Promise<FeePlanSaveResult> {
     const { tenantId } = await requireAuth('fees:write');
+    const scope = tenantScope(tenantId);
 
     const planId = String(input?.planId ?? '').trim();
     if (!UUID_RE.test(planId)) {
@@ -314,90 +335,87 @@ export async function saveFeePlan(input: SaveFeePlanInput): Promise<FeePlanSaveR
     }
     const components = normalised.components;
 
-    const client = await pool.connect();
     try {
-        await client.query('BEGIN');
+        await scope.transaction(async (tx) => {
+            // Locks the plan AND proves it belongs to this tenant. The handle it
+            // returns is what unlocks the fee_components writes below; without it
+            // they do not compile.
+            const owned = await tx.claim(feePlans, planId, { forUpdate: true });
+            if (!owned) throw new FeePlanSaveAbort('Fee plan not found.');
 
-        const { rows: lockRows } = await client.query(
-            `SELECT id FROM fee_plans WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
-            [planId, tenantId],
-        );
-        if (!lockRows[0]) {
-            await client.query('ROLLBACK');
-            return { success: false, error: 'Fee plan not found.' };
-        }
-
-        await client.query(
-            `UPDATE fee_plans
-                SET name = $1, description = $2, is_active = $3, updated_at = now()
-              WHERE id = $4 AND tenant_id = $5`,
-            [name, description || null, isActive, planId, tenantId],
-        );
-
-        const { rows: existingRows } = await client.query(
-            `SELECT id FROM fee_components WHERE fee_plan_id = $1`,
-            [planId],
-        );
-        const existingIds = new Set<string>(existingRows.map((row) => row.id));
-
-        // An id the editor sent that this plan does not own is a tampered or
-        // stale payload — refuse rather than quietly re-creating it.
-        const keptIds: string[] = [];
-        for (const component of components) {
-            if (!component.id) continue;
-            if (!existingIds.has(component.id)) {
-                await client.query('ROLLBACK');
-                return {
-                    success: false,
-                    error: 'This plan changed since you opened it. Reload the page and try again.',
-                };
-            }
-            keptIds.push(component.id);
-        }
-
-        if (existingIds.size > 0) {
-            await client.query(
-                `DELETE FROM fee_components
-                  WHERE fee_plan_id = $1 AND NOT (id = ANY($2::uuid[]))`,
-                [planId, keptIds],
+            await tx.update(
+                feePlans,
+                { name, description: description || null, isActive, updatedAt: new Date() },
+                eq(feePlans.id, planId),
             );
-        }
 
-        for (const component of components) {
-            if (component.id) {
-                await client.query(
-                    `UPDATE fee_components
-                        SET name = $1, amount = $2, frequency = $3::fee_frequency, is_optional = $4
-                      WHERE id = $5 AND fee_plan_id = $6`,
-                    [component.name, component.amount, component.frequency, component.isOptional, component.id, planId],
-                );
-            } else {
-                await client.query(
-                    `INSERT INTO fee_components (id, fee_plan_id, name, amount, frequency, is_optional)
-                     VALUES ($1, $2, $3, $4, $5::fee_frequency, $6)`,
-                    [randomUUID(), planId, component.name, component.amount, component.frequency, component.isOptional],
+            const existingRows = await tx
+                .childSelect(feeComponents, owned, 'feePlanId')
+                .select({ id: feeComponents.id })
+                .rows();
+            const existingIds = new Set<string>(existingRows.map((row) => row.id));
+
+            // An id the editor sent that this plan does not own is a tampered or
+            // stale payload — refuse rather than quietly re-creating it.
+            const keptIds: string[] = [];
+            for (const component of components) {
+                if (!component.id) continue;
+                if (!existingIds.has(component.id)) {
+                    throw new FeePlanSaveAbort(
+                        'This plan changed since you opened it. Reload the page and try again.',
+                    );
+                }
+                keptIds.push(component.id);
+            }
+
+            if (existingIds.size > 0) {
+                await tx.childDelete(
+                    feeComponents,
+                    owned,
+                    'feePlanId',
+                    keptIds.length > 0 ? notInArray(feeComponents.id, keptIds) : undefined,
                 );
             }
-        }
 
-        await client.query('COMMIT');
-
-        revalidatePath('/fees');
-        revalidatePath('/fees/plans');
-        revalidatePath(`/fees/plans/${planId}/edit`);
-
-        return {
-            success: true,
-            componentCount: components.length,
-            mandatoryTotal: mandatorySum(components),
-        };
+            for (const component of components) {
+                if (component.id) {
+                    await tx.childUpdate(
+                        feeComponents,
+                        owned,
+                        'feePlanId',
+                        {
+                            name: component.name,
+                            amount: component.amount,
+                            frequency: component.frequency,
+                            isOptional: component.isOptional,
+                        },
+                        eq(feeComponents.id, component.id),
+                    );
+                } else {
+                    await tx.childInsert(feeComponents, owned, 'feePlanId', {
+                        id: randomUUID(),
+                        name: component.name,
+                        amount: component.amount,
+                        frequency: component.frequency,
+                        isOptional: component.isOptional,
+                    });
+                }
+            }
+        });
     } catch (error) {
-        await client.query('ROLLBACK').catch(() => undefined);
         return {
             success: false,
             error: error instanceof Error ? error.message : 'Could not save the fee plan.',
         };
-    } finally {
-        client.release();
     }
+
+    revalidatePath('/fees');
+    revalidatePath('/fees/plans');
+    revalidatePath(`/fees/plans/${planId}/edit`);
+
+    return {
+        success: true,
+        componentCount: components.length,
+        mandatoryTotal: mandatorySum(components),
+    };
 }

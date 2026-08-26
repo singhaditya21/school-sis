@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { formatCompactCurrency as formatCurrency, formatCurrency as formatFullCurrency } from '@/lib/format';
 
 interface KpiData {
     overdueAmount: number;
@@ -62,12 +63,6 @@ type DrillDownType = 'overdue' | 'dueSoon' | 'collection' | 'blocked' | null;
 
 export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], collectionData = [], blockedReminders = [] }: KpiCardsProps) {
     const [activeDrill, setActiveDrill] = useState<DrillDownType>(null);
-
-    const formatCurrency = (amount: number) =>
-        new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', notation: 'compact', maximumFractionDigits: 1 }).format(amount);
-
-    const formatFullCurrency = (amount: number) =>
-        new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
 
     const kpis = [
         { title: 'Overdue Amount', value: formatCurrency(data.overdueAmount), change: `${overdueStudents.length} students`, changeType: 'negative' as const, icon: '🔴', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-900/20', drillType: 'overdue' as DrillDownType },

@@ -15,11 +15,25 @@ export default async function GenericObjectListPage({ params }: { params: Promis
     }
 
     try {
-        const { objectDef, fields, layouts } = await getObjectMetadata(resolvedParams.object);
-        const records = await queryRecords(resolvedParams.object, {}, 50, 0);
+        const { objectDef, fields, layouts, storageMode, hiddenFieldCount } =
+            await getObjectMetadata(resolvedParams.object);
 
         // Find the LIST layout if it exists
         const listLayout = layouts.find(l => l.layoutType === 'LIST');
+
+        // Field-level permissions are enforced server side; if the role can read
+        // nothing there is no table to draw, so say so rather than render an
+        // empty grid that looks like missing data.
+        if (fields.length === 0) {
+            return (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center text-amber-800">
+                    <h2 className="mb-2 text-xl font-bold">No readable fields</h2>
+                    <p>Your role has no read access to any field on {objectDef.name}.</p>
+                </div>
+            );
+        }
+
+        const records = await queryRecords(resolvedParams.object, {}, 50, 0);
 
         return (
             <div className="space-y-6">
@@ -30,6 +44,14 @@ export default async function GenericObjectListPage({ params }: { params: Promis
                         </h1>
                         <p className="text-muted-foreground mt-1">
                             Manage {objectDef.name.toLowerCase()} records in your organization.
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            {storageMode === 'EAV'
+                                ? 'Tenant-defined object — this screen is generated from metadata, not from a page route.'
+                                : 'Standard object — metadata projection over a built-in table.'}
+                            {hiddenFieldCount > 0
+                                ? ` ${hiddenFieldCount} field${hiddenFieldCount === 1 ? '' : 's'} hidden by field permissions.`
+                                : ''}
                         </p>
                     </div>
                 </div>

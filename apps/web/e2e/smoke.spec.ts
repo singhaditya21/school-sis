@@ -1,7 +1,13 @@
 import { test, expect } from '@playwright/test';
+import { registerRouteSmokeTests } from './route-smoke';
 
 /**
  * Basic E2E smoke tests — verify core pages load correctly.
+ *
+ * `test:e2e:smoke` runs THIS FILE and nothing else, and it is the only
+ * Playwright command wired into pull requests. The behavioural route smoke
+ * layer is therefore registered from here (see ./route-smoke.ts) — a separate
+ * spec file would never run on a PR.
  */
 
 test.describe('ScholarMind — Smoke Tests', () => {
@@ -98,21 +104,14 @@ test.describe('ScholarMind — Smoke Tests', () => {
         await expect(page).toHaveURL(/login/);
     });
 
-    test('fees page loads after login', async ({ page }) => {
-        // This test would need proper auth setup in a beforeAll hook
-        // For now, just verify the page structure
-        await page.goto('/fees');
-        // Will redirect to login if not authenticated
-        await page.waitForTimeout(1000);
-    });
-
-    test('admissions page loads after login', async ({ page }) => {
-        await page.goto('/admissions');
-        await page.waitForTimeout(1000);
-    });
-
-    // Unlike the two cases above, this one asserts. /invoices is the counter-payment
-    // workspace; it previously did not exist at all while four surfaces linked to it.
+    // /invoices is the counter-payment workspace; it previously did not exist at all
+    // while four surfaces linked to it. This case covers the unauthenticated guard —
+    // the signed-in render is asserted in ./route-smoke.ts.
+    //
+    // Two assertion-free cases ('fees page loads after login', 'admissions page loads
+    // after login') used to sit here. They never signed in and asserted nothing, so
+    // they passed no matter what the pages did. They are replaced by the authenticated
+    // /fees and /admissions cases in ./route-smoke.ts.
     test('invoices workspace responds and is access-controlled', async ({ page }) => {
         const response = await page.goto('/invoices');
         expect(response).not.toBeNull();
@@ -132,3 +131,5 @@ test.describe('ScholarMind — Smoke Tests', () => {
         await expect(page.locator('[data-testid="filter-pending"]')).toBeVisible();
     });
 });
+
+registerRouteSmokeTests();

@@ -3,22 +3,48 @@
 import { MetadataField } from '@/lib/actions/metadata-engine';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { formatCurrency, formatDate } from '@/lib/format';
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
 
-export default function GenericListClient({ 
-    objectName, 
-    fields, 
+/**
+ * Renders a value using the field's declared data type, so a metadata-defined
+ * module formats money, dates and booleans the same way a hand-built one does.
+ */
+function renderCell(field: MetadataField | undefined, value: unknown): string {
+    if (value == null || value === '') return '-';
+    switch (field?.dataType) {
+        case 'CURRENCY':
+            // numeric(12,2) RUPEES, exactly as the hand-built modules store money.
+            return formatCurrency(value as string | number);
+        case 'DATE':
+            return formatDate(String(value));
+        case 'BOOLEAN':
+            return value === true || value === 'true' ? 'Yes' : 'No';
+        default:
+            return String(value);
+    }
+}
+
+export default function GenericListClient({
+    objectName,
+    fields,
     records,
     layout
-}: { 
-    objectName: string, 
-    fields: MetadataField[], 
+}: {
+    objectName: string,
+    fields: MetadataField[],
     records: any[],
     layout?: any
 }) {
-    // If no layout is defined, just show all required fields plus the first few optional ones
-    let displayColumns = layout?.columns || fields.slice(0, 5).map(f => f.apiName);
+    // Prefer the configured LIST layout, but never show a column the caller is
+    // not allowed to read: `fields` has already been filtered by role.
+    const readableNames = new Set(fields.map(f => f.apiName));
+    const layoutColumns: string[] = Array.isArray(layout?.columns) ? layout.columns : [];
+    const configured = layoutColumns.filter(col => readableNames.has(col));
+    const displayColumns = configured.length > 0
+        ? configured
+        : fields.slice(0, 5).map(f => f.apiName);
 
     return (
         <Card>
@@ -56,7 +82,7 @@ export default function GenericListClient({
                                 <tr key={record.id} className="bg-white border-b hover:bg-slate-50">
                                     {displayColumns.map((col: string) => (
                                         <td key={col} className="px-6 py-4">
-                                            {String(record[col] ?? '-')}
+                                            {renderCell(fields.find(f => f.apiName === col), record[col])}
                                         </td>
                                     ))}
                                     <td className="px-6 py-4 text-right">
