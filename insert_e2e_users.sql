@@ -78,7 +78,12 @@ VALUES
  (SELECT id FROM students WHERE first_name = 'Aarav' AND last_name = 'Sharma' AND tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35' LIMIT 1), 
  'FATHER', 'Parent', 'User', 'parent@schoolsis.com', '9876543210', true, true);
 
--- Invoices for Aarav Sharma
+-- Invoices for Aarav Sharma.
+-- NOTE: due_date must not collide with an invoice the main seed already creates
+-- for this student and fee plan. uq_invoices_tenant_student_plan_due_live (see
+-- drizzle/0002) enforces one live invoice per student, per plan, per due date —
+-- the guard against billing a whole school twice. The seed bills 2025-05-15, so
+-- this historical invoice uses an earlier period.
 INSERT INTO invoices (id, tenant_id, student_id, fee_plan_id, invoice_number, total_amount, paid_amount, due_date, status, description)
 VALUES
 ('d5b5c928-867c-473d-88f5-1bdf3a4bc035', '0c413c23-6f0f-40ab-bd41-73e6e996ff35', 
@@ -86,7 +91,7 @@ VALUES
  (SELECT id FROM fee_plans LIMIT 1), 'INV-2026-001', '45000.00', '0.00', '2026-05-15', 'PENDING', 'Term 1 Fee'),
 ('d5b5c928-867c-473d-88f5-1bdf3a4bc036', '0c413c23-6f0f-40ab-bd41-73e6e996ff35', 
  (SELECT id FROM students WHERE first_name = 'Aarav' AND last_name = 'Sharma' AND tenant_id = '0c413c23-6f0f-40ab-bd41-73e6e996ff35' LIMIT 1), 
- (SELECT id FROM fee_plans LIMIT 1), 'INV-2025-089', '10000.00', '10000.00', '2025-05-15', 'PAID', 'Term 0 Fee');
+ (SELECT id FROM fee_plans LIMIT 1), 'INV-2025-089', '10000.00', '10000.00', '2025-03-10', 'PAID', 'Term 0 Fee');
 
 -- Payments
 INSERT INTO payments (id, tenant_id, invoice_id, student_id, amount, method, status)

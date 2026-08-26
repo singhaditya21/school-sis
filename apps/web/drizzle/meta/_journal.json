@@ -15,6 +15,20 @@
       "when": 1786893284933,
       "tag": "0001_reconcile_production_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787750071369,
+      "tag": "0002_invoice_billing_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787750141253,
+      "tag": "0003_identity_and_document_uniqueness",
+      "breakpoints": true
     }
   ]
 }
