@@ -12,11 +12,17 @@ export async function POST(request: NextRequest) {
         const formData = await request.formData();
         const result = await recordPayment(formData);
 
-        if (result.success) {
-            const invoiceId = formData.get('invoiceId') as string;
-            return NextResponse.redirect(new URL(`/invoices/${invoiceId}`, request.url));
+        if (result.success && result.paymentId) {
+            return NextResponse.json({
+                paymentId: result.paymentId,
+                receiptId: result.receiptId,
+                receiptNumber: result.receiptNumber,
+            });
         }
-        return NextResponse.json({ error: 'Failed to record payment' }, { status: 400 });
+        return NextResponse.json(
+            { error: result.error ?? 'Failed to record payment' },
+            { status: 400 },
+        );
     } catch (error: unknown) {
         console.error('[API/payments] Error:', error);
         return NextResponse.json({ error: (error as { message?: string }).message || 'Internal error' }, { status: 500 });

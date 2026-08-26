@@ -94,48 +94,80 @@ export async function getFeePlanComponents(planId: string): Promise<FeeComponent
     return result.rows;
 }
 
+const INVOICE_STATUSES = ['DRAFT', 'PENDING', 'PARTIAL', 'PAID', 'OVERDUE', 'CANCELLED', 'WAIVED'];
+
+export interface InvoiceListPage {
+    items: InvoiceListItem[];
+    total: number;
+}
+
+/**
+ * Tenant-scoped invoice list for the counter workspace.
+ *
+ * `status` is validated against the invoice_status enum rather than interpolated,
+ * and `limit` is clamped so a caller cannot ask for the whole table.
+ */
 export async function getInvoices(options?: {
     status?: string;
+    search?: string;
     limit?: number;
-}): Promise<InvoiceListItem[]> {
+    offset?: number;
+}): Promise<InvoiceListPage> {
     const { tenantId } = await requireAuth('fees:read');
-    const limit = options?.limit || 50;
+    const limit = Math.min(Math.max(Number(options?.limit) || 25, 1), 100);
+    const offset = Math.max(Number(options?.offset) || 0, 0);
 
     let query = `
-        SELECT 
-            i.id, 
-            i.invoice_number AS "invoiceNumber", 
-            s.first_name AS "studentFirstName", 
-            s.last_name AS "studentLastName", 
-            i.total_amount AS "totalAmount", 
-            i.paid_amount AS "paidAmount", 
-            i.due_date AS "dueDate", 
-            i.status
+        SELECT
+            i.id,
+            i.invoice_number AS "invoiceNumber",
+            s.first_name AS "studentFirstName",
+            s.last_name AS "studentLastName",
+            i.total_amount AS "totalAmount",
+            i.paid_amount AS "paidAmount",
+            i.due_date AS "dueDate",
+            i.status,
+            COUNT(*) OVER() AS "totalCount"
         FROM invoices i
         INNER JOIN students s ON i.student_id = s.id
         WHERE i.tenant_id = $1
     `;
     const params: (string | number)[] = [tenantId];
 
-    if (options?.status) {
-        params.push(options.status);
+    const status = options?.status?.toUpperCase();
+    if (status && INVOICE_STATUSES.includes(status)) {
+        params.push(status);
         query += ` AND i.status = $${params.length}`;
     }
 
-    query += ` ORDER BY i.created_at DESC LIMIT $${params.length + 1}`;
+    const search = options?.search?.trim();
+    if (search) {
+        params.push(`%${search}%`);
+        query += ` AND (i.invoice_number ILIKE $${params.length}
+                     OR s.first_name ILIKE $${params.length}
+                     OR s.last_name ILIKE $${params.length}
+                     OR (s.first_name || ' ' || s.last_name) ILIKE $${params.length})`;
+    }
+
     params.push(limit);
+    query += ` ORDER BY i.due_date ASC, i.created_at DESC LIMIT $${params.length}`;
+    params.push(offset);
+    query += ` OFFSET $${params.length}`;
 
     const { rows } = await pool.query(query, params);
 
-    return rows.map(r => ({
-        id: r.id,
-        invoiceNumber: r.invoiceNumber,
-        studentName: `${r.studentFirstName} ${r.studentLastName}`,
-        totalAmount: r.totalAmount,
-        paidAmount: r.paidAmount,
-        dueDate: r.dueDate instanceof Date ? r.dueDate.toISOString().split('T')[0] : String(r.dueDate),
-        status: r.status,
-    }));
+    return {
+        total: rows.length > 0 ? Number(rows[0].totalCount) : 0,
+        items: rows.map(r => ({
+            id: r.id,
+            invoiceNumber: r.invoiceNumber,
+            studentName: `${r.studentFirstName} ${r.studentLastName}`,
+            totalAmount: r.totalAmount,
+            paidAmount: r.paidAmount,
+            dueDate: r.dueDate instanceof Date ? r.dueDate.toISOString().split('T')[0] : String(r.dueDate),
+            status: r.status,
+        })),
+    };
 }
 
 // ─── Fee Analytics Queries ────────────────────────────────────

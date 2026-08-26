@@ -9,6 +9,7 @@ import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 import { recordManualPayment } from '@/lib/payments/ledger';
+import { revalidatePath } from 'next/cache';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -212,44 +213,112 @@ export async function saveAttendance(formData: FormData) {
 }
 
 // ─── Record Payment ───────────────────────────────────────
-export async function recordPayment(formData: FormData) {
+
+/**
+ * Flat rather than a discriminated union: Next.js erases the narrowing across the
+ * 'use server' boundary, so callers cannot discriminate on `success`. Matches the
+ * shape already used in lib/actions/users.ts.
+ */
+export type RecordPaymentResult = {
+    success: boolean;
+    paymentId?: string;
+    receiptId?: string;
+    receiptNumber?: string;
+    error?: string;
+};
+
+/** Amounts are numeric(12,2); reject anything Postgres would silently round. */
+const AMOUNT_RE = /^\d{1,10}(\.\d{1,2})?$/;
+const PAYMENT_METHODS = ['CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'CARD', 'ONLINE'];
+const MAX_REFERENCE_LENGTH = 255;
+
+function readOptionalText(formData: FormData, field: string): string | undefined {
+    const raw = formData.get(field);
+    if (typeof raw !== 'string') return undefined;
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * Record a payment taken at the counter (cash, cheque, UPI, card or bank transfer).
+ *
+ * The write itself is transactional inside recordManualPayment, which locks the
+ * invoice, rejects over-payment, updates the balance and issues a receipt. This
+ * wrapper only validates input and converts thrown errors into a typed failure so
+ * the form can show them instead of surfacing a raw Server Action crash.
+ */
+export async function recordPayment(formData: FormData): Promise<RecordPaymentResult> {
     const { tenantId, userId } = await requireAuth('fees:write');
 
-    const invoiceId = formData.get('invoiceId') as string;
-    const amountStr = formData.get('amount') as string;
-    const method = formData.get('method') as string;
+    const invoiceId = formData.get('invoiceId');
+    const amountStr = formData.get('amount');
+    const method = formData.get('method');
 
-    // Validate inputs
-    if (!invoiceId || typeof invoiceId !== 'string') {
-        return { success: false, error: 'Invoice ID is required' };
+    if (typeof invoiceId !== 'string' || !UUID_RE.test(invoiceId)) {
+        return { success: false, error: 'Select a valid invoice.' };
     }
-    const amount = parseFloat(amountStr);
-    if (isNaN(amount) || amount <= 0) {
-        return { success: false, error: 'Amount must be a positive number' };
+    if (typeof amountStr !== 'string' || !AMOUNT_RE.test(amountStr.trim())) {
+        return { success: false, error: 'Enter an amount in rupees, with at most two decimal places.' };
     }
-    const validMethods = ['CASH', 'UPI', 'BANK_TRANSFER', 'CHEQUE', 'CARD', 'ONLINE'];
-    if (!validMethods.includes(method)) {
-        return { success: false, error: `Invalid payment method. Must be one of: ${validMethods.join(', ')}` };
+    const amount = Number(amountStr.trim());
+    if (!Number.isFinite(amount) || amount <= 0) {
+        return { success: false, error: 'Amount must be greater than zero.' };
+    }
+    if (typeof method !== 'string' || !PAYMENT_METHODS.includes(method)) {
+        return { success: false, error: `Choose a payment method: ${PAYMENT_METHODS.join(', ')}.` };
     }
 
-    const payment = await recordManualPayment({
-        tenantId,
-        invoiceId,
-        amount,
-        method,
-        actorUserId: userId,
-        metadata: {
-            source: 'staff_form',
-        },
-    });
+    const reference = readOptionalText(formData, 'reference');
+    const chequeNumber = readOptionalText(formData, 'chequeNumber');
+    const bankName = readOptionalText(formData, 'bankName');
+    for (const [label, value] of [['Reference', reference], ['Cheque number', chequeNumber], ['Bank name', bankName]] as const) {
+        if (value && value.length > MAX_REFERENCE_LENGTH) {
+            return { success: false, error: `${label} must be ${MAX_REFERENCE_LENGTH} characters or fewer.` };
+        }
+    }
 
-    await pool.query(
-        `INSERT INTO audit_logs (id, tenant_id, user_id, action, entity_type, entity_id, after_state)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [randomUUID(), tenantId, userId, 'PAYMENT', 'payments', payment.paymentId, JSON.stringify({ amount, method, invoiceId })]
-    );
+    let payment: { paymentId: string; receiptId: string; receiptNumber: string };
+    try {
+        payment = await recordManualPayment({
+            tenantId,
+            invoiceId,
+            amount,
+            method,
+            actorUserId: userId,
+            reference,
+            chequeNumber,
+            bankName,
+            metadata: { source: 'staff_form' },
+        });
+    } catch (error) {
+        // recordManualPayment throws on a missing invoice and on over-payment.
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Could not record the payment.',
+        };
+    }
 
-    return { success: true, paymentId: payment.paymentId };
+    // The money is already committed. An audit-trail failure must not fail the
+    // request — payment_audit_logs holds the authoritative in-transaction record.
+    try {
+        await pool.query(
+            `INSERT INTO audit_logs (id, tenant_id, user_id, action, entity_type, entity_id, after_state)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [randomUUID(), tenantId, userId, 'PAYMENT', 'payments', payment.paymentId, JSON.stringify({ amount, method, invoiceId })],
+        );
+    } catch {
+        // Intentionally swallowed; see comment above.
+    }
+
+    revalidatePath('/invoices');
+    revalidatePath(`/invoices/${invoiceId}`);
+
+    return {
+        success: true,
+        paymentId: payment.paymentId,
+        receiptId: payment.receiptId,
+        receiptNumber: payment.receiptNumber,
+    };
 }
 
 // ─── Create Fee Plan ──────────────────────────────────────

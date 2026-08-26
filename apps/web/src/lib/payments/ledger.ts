@@ -64,7 +64,17 @@ export type ManualPaymentInput = {
     amount: number;
     method: string;
     actorUserId: string;
+    /** UPI/NEFT reference, card auth code, or other provider-side identifier. */
+    reference?: string;
+    chequeNumber?: string;
+    bankName?: string;
     metadata?: Record<string, unknown>;
+};
+
+export type ManualPaymentResult = {
+    paymentId: string;
+    receiptId: string;
+    receiptNumber: string;
 };
 
 const DECIMAL_SCALE = 100;
@@ -500,7 +510,7 @@ export async function completeProviderPayment(input: CompleteProviderPaymentInpu
     });
 }
 
-export async function recordManualPayment(input: ManualPaymentInput): Promise<{ paymentId: string }> {
+export async function recordManualPayment(input: ManualPaymentInput): Promise<ManualPaymentResult> {
     return runWithTenantContext(input.tenantId, async () => {
         const client = await pool.connect();
         try {
@@ -529,8 +539,8 @@ export async function recordManualPayment(input: ManualPaymentInput): Promise<{ 
             }
 
             const paymentResult = await client.query<{ id: string }>(
-                `INSERT INTO payments (tenant_id, invoice_id, student_id, amount, method, status, notes)
-                 VALUES ($1, $2, $3, $4, $5, 'COMPLETED', $6)
+                `INSERT INTO payments (tenant_id, invoice_id, student_id, amount, method, status, transaction_id, cheque_number, bank_name, notes)
+                 VALUES ($1, $2, $3, $4, $5, 'COMPLETED', $6, $7, $8, $9)
                  RETURNING id`,
                 [
                     input.tenantId,
@@ -538,6 +548,9 @@ export async function recordManualPayment(input: ManualPaymentInput): Promise<{ 
                     invoice.studentId,
                     input.amount.toFixed(2),
                     input.method,
+                    input.reference || null,
+                    input.chequeNumber || null,
+                    input.bankName || null,
                     JSON.stringify(input.metadata || {}),
                 ],
             );
@@ -554,9 +567,10 @@ export async function recordManualPayment(input: ManualPaymentInput): Promise<{ 
             );
 
             const receiptNumber = `RCP-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-            await client.query(
+            const receiptResult = await client.query<{ id: string }>(
                 `INSERT INTO receipts (tenant_id, payment_id, receipt_number)
-                 VALUES ($1, $2, $3)`,
+                 VALUES ($1, $2, $3)
+                 RETURNING id`,
                 [input.tenantId, paymentResult.rows[0].id, receiptNumber],
             );
 
@@ -573,7 +587,11 @@ export async function recordManualPayment(input: ManualPaymentInput): Promise<{ 
             });
 
             await client.query('COMMIT');
-            return { paymentId: paymentResult.rows[0].id };
+            return {
+                paymentId: paymentResult.rows[0].id,
+                receiptId: receiptResult.rows[0].id,
+                receiptNumber,
+            };
         } catch (error) {
             await client.query('ROLLBACK');
             throw error;

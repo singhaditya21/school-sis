@@ -21,10 +21,40 @@ echo "▶ 1/3  Postgres (+ pgvector)"
 # Load local env so drizzle + seed target the local cluster.
 set -a; . apps/web/.env.local; set +a
 
-echo "▶ 2/3  schema  (drizzle-kit push)"
+echo "▶ 2/5  schema  (drizzle-kit push)"
 pnpm --filter @school-sis/web exec drizzle-kit push --force
 
-echo "▶ 3/3  seed"
+echo "▶ 3/5  row-level security policies"
+pnpm --filter @school-sis/web run db:rls
+
+# The app signs its tenant context and Postgres verifies the signature, so a local
+# key must exist in BOTH app_private.tenant_context_signing_keys and .env.local.
+# Without this the app starts but every authenticated request fails with
+# "Database rejected the signed tenant context."
+echo "▶ 4/5  local tenant-context signing key"
+if ! grep -q '^TENANT_CONTEXT_SIGNING_SECRET=' apps/web/.env.local; then
+  LOCAL_SECRET="$(node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))")"
+  {
+    echo ""
+    echo "# Local tenant-context signing. The same secret is stored in"
+    echo "# app_private.tenant_context_signing_keys by scripts/local-setup.sh."
+    echo "TENANT_CONTEXT_SIGNING_KEY_ID=local-dev"
+    echo "TENANT_CONTEXT_AUDIENCE=school-sis:local"
+    echo "TENANT_CONTEXT_SIGNING_SECRET=${LOCAL_SECRET}"
+  } >> apps/web/.env.local
+  echo "  generated a new local signing key"
+else
+  LOCAL_SECRET="$(grep '^TENANT_CONTEXT_SIGNING_SECRET=' apps/web/.env.local | cut -d= -f2-)"
+  echo "  reusing the signing key already in .env.local"
+fi
+# Postgres HMACs with the raw bytes of the secret STRING, so store convert_to(...,'utf8').
+psql "$(./scripts/local-db.sh url)" -v ON_ERROR_STOP=1 -c \
+  "INSERT INTO app_private.tenant_context_signing_keys (key_id, audience, secret)
+   VALUES ('local-dev', 'school-sis:local', convert_to('${LOCAL_SECRET}', 'utf8'))
+   ON CONFLICT (key_id) DO UPDATE SET audience = EXCLUDED.audience, secret = EXCLUDED.secret;" >/dev/null
+echo "  signing key installed in app_private"
+
+echo "▶ 5/5  seed"
 ( cd apps/web && pnpm exec tsx scripts/seed.ts )
 
 echo ""
