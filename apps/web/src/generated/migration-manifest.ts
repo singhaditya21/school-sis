@@ -9,5 +9,15 @@ export const EXPECTED_DATABASE_MIGRATIONS = [
     "tag": "0001_reconcile_production_integrity",
     "createdAt": "1786893284933",
     "hash": "72b8ac66c6114b24a858d701a2f0fcfa44c3aed7d0c6d6fec53ba094a95bab5a"
+  },
+  {
+    "tag": "0002_invoice_billing_integrity",
+    "createdAt": "1787750071369",
+    "hash": "85864a2343cd645c80cab4a208a04f3713d192a6ed1ee3eccd435289aa027bd5"
+  },
+  {
+    "tag": "0003_identity_and_document_uniqueness",
+    "createdAt": "1787750141253",
+    "hash": "0a37e4dc5901bfb057e747f66169dffd6a702313f1e5e76d04d0d1c6daaba647"
   }
 ] as const;

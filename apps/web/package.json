@@ -22,7 +22,6 @@
     "db:generate": "drizzle-kit generate",
     "db:manifest": "node scripts/generate-migration-manifest.mjs",
     "db:manifest:check": "node scripts/generate-migration-manifest.mjs --check",
-    "db:adopt:legacy-production": "tsx scripts/adopt-legacy-production-ledger.ts",
     "db:reconciliation:audit": "node --import tsx scripts/run-migration-reconciliation-audit.ts",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:deploy": "tsx scripts/migrate-deployment.ts",
