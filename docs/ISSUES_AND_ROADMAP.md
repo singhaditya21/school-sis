@@ -3,7 +3,7 @@
 > **Document version**: 2.4.0
 > **Last updated**: 2026-08-15
 > **Source of truth**: [`audits/reports/2026-07-04-full-application-audit.md`](../audits/reports/2026-07-04-full-application-audit.md), re-verified against the live GitHub issue/PR state and the Vercel/Neon release-remediation branch on 2026-08-15.
-> **Runtime**: Local-first development with Vercel (`iad1`) and Neon Postgres selected for production. GitHub Actions owns preview and production release ordering.
+> **Runtime**: Production runs on Vercel (`sin1`) with Neon Postgres; previews deploy to `iad1` on Neon branches. GitHub Actions owns preview and production release ordering. Local development is local-only — see [RUNNING.md](../RUNNING.md).
 > **Supersedes**: v1.0.0 (2026-04-26) dependency/security audit — its still-open items are folded into the security, hygiene, and testing issues below.
 
 This roadmap is the human-readable index over the live GitHub issues. Every item below links to a tracked issue with re-verified evidence and residual done-criteria. Issues are grouped into three milestones by launch priority.
@@ -47,11 +47,11 @@ Required at or immediately around launch.
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | [#20](https://github.com/singhaditya21/school-sis/issues/20) | Tighten Content-Security-Policy: remove script-src unsafe-inline/unsafe-eval                                                   | 🟢 Done                                                                                                                                 | `security`, `frontend`, `payments`               |
 | [#21](https://github.com/singhaditya21/school-sis/issues/21) | Make the mobile app production-ready (real auth, secure payment context) or gate it                                            | 🟡 In progress — two mobile-build-only `image-size` advisories are narrowly excepted through 2026-09-15 while no patched release exists | `mobile`, `payments`, `security`                 |
-| [#23](https://github.com/singhaditya21/school-sis/issues/23) | Decide the Go gateway: secure it as a real edge or remove it from production                                                   | 🔴 Open                                                                                                                                 | `services`, `security`, `rate-limiting`          |
+| [#23](https://github.com/singhaditya21/school-sis/issues/23) | Decide the Go gateway: secure it as a real edge or remove it from production                                                   | 🟢 Done                                                                                                                                 | `services`, `security`, `rate-limiting`          |
 | [#24](https://github.com/singhaditya21/school-sis/issues/24) | Remove the unused legacy R2 storage adapter that uploads via unsigned raw fetch                                                | 🔴 Open                                                                                                                                 | `storage`, `security`                            |
 | [#25](https://github.com/singhaditya21/school-sis/issues/25) | Provide notification provider evidence or disable unsupported channels (WhatsApp/push mock; no delivery-receipt ingestion)     | 🟡 In progress                                                                                                                          | `notifications`, `integrations`, `observability` |
 | [#26](https://github.com/singhaditya21/school-sis/issues/26) | Formalize RLS/database security: policy matrix, real Postgres isolation tests, bypass review, verify-full SSL, migration gates | 🟢 Done                                                                                                                                 | `database`, `security`, `testing`                |
-| [#27](https://github.com/singhaditya21/school-sis/issues/27) | Stop tracking generated/session artifacts (.agents/\*_, _.tsbuildinfo, build.log, server.log)                                  | 🔴 Open                                                                                                                                 | `hygiene`, `devex`                               |
+| [#27](https://github.com/singhaditya21/school-sis/issues/27) | Stop tracking generated/session artifacts (.agents/\*_, _.tsbuildinfo, build.log, server.log)                                  | 🟢 Done                                                                                                                                 | `hygiene`, `devex`                               |
 | [#28](https://github.com/singhaditya21/school-sis/issues/28) | Add AI eval suites, per-tenant token/cost budgets, model fallback, and red-team tests for agent/copilot                        | 🟡 In progress                                                                                                                          | `ai`, `testing`, `rate-limiting`                 |
 | [#29](https://github.com/singhaditya21/school-sis/issues/29) | Make rate limiting fail closed (or degrade stricter) on backend outage for public/AI endpoints                                 | 🟢 Done                                                                                                                                 | `rate-limiting`, `security`, `services`          |
 | [#42](https://github.com/singhaditya21/school-sis/issues/42) | Reimplement PDF generation and user/role management natively after Java backend removal                                        | 🔴 Open                                                                                                                                 | `payments`, `identity`, `security`               |
@@ -66,7 +66,7 @@ Debt reduction and scale-readiness; parallelizable with pilot operations.
 | [#31](https://github.com/singhaditya21/school-sis/issues/31) | Harden website lead capture: production API env, anti-bot controls, consent, CRM routing    | 🟡 In progress | `website`, `integrations`, `observability` |
 | [#32](https://github.com/singhaditya21/school-sis/issues/32) | Enforce pnpm toolchain via Corepack and a preflight guard; document in dev guide            | 🟡 In progress | `devex`, `infra`, `hygiene`                |
 | [#33](https://github.com/singhaditya21/school-sis/issues/33) | Migrate middleware to proxy convention and revisit static cache headers for Next.js 16      | 🔴 Open        | `infra`, `devex`                           |
-| [#34](https://github.com/singhaditya21/school-sis/issues/34) | Complete side-service test tooling and CI for Python/Go/Rust services                       | 🟡 In progress | `testing`, `services`, `devex`             |
+| [#34](https://github.com/singhaditya21/school-sis/issues/34) | Complete side-service test tooling and CI for Python/Go/Rust services                       | 🟢 Done | `testing`, `services`, `devex`             |
 | [#37](https://github.com/singhaditya21/school-sis/issues/37) | Stabilize the full Playwright E2E suite and restore reliable scheduled coverage             | 🔴 Open        | `testing`, `quality`, `ci`                 |
 
 ---
@@ -90,6 +90,18 @@ Static risk-debt hardening (issue #30) is substantially underway:
 - **Residual for #30**: burn the 45 remaining `any` down further, reduce `console.*` toward the structured logger, and add the raw-SQL lens.
 
 Adjacent hygiene also landed: 13 unused dependencies removed and the pnpm store/lockfile realigned (`f2483d4b`, aids #32); `settings/users` and the last phantom-backend client replaced with native tenant-scoped server actions (`b99ea974`).
+
+## Resolved by removal (verified against HEAD, 2026-08-26)
+
+Three items were closed by deleting the code they described, not by fixing it. Verified against the current tree, not the GitHub issue list:
+
+| Issue | Resolution | Evidence |
+|---|---|---|
+| [#23](https://github.com/singhaditya21/school-sis/issues/23) — Go gateway | 🟢 Resolved by removal | `services/gateway` deleted in `88793cdf`; no `services/` tree exists. |
+| [#27](https://github.com/singhaditya21/school-sis/issues/27) — Tracked generated artifacts | 🟢 Resolved | `git ls-files` matches zero `.agents/**`, `*.tsbuildinfo`, `build.log`, `server.log`; `.gitignore` covers all four. |
+| [#34](https://github.com/singhaditya21/school-sis/issues/34) — Python/Go/Rust service test tooling | 🟢 Resolved by removal | All three service trees deleted (`88793cdf`, `e2791939`). The repo is TypeScript-only. |
+
+> When bumping this document, re-verify each item against `HEAD` rather than against the issue tracker alone — these three sat open for a month after the code was deleted.
 
 ## Verified done since the audit
 
