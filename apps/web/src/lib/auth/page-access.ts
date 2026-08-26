@@ -67,6 +67,7 @@ const ADMIN_PAGE_PREFIXES = [
     '/integrations',
     '/international',
     '/inventory',
+    '/invoices',
     '/lesson-plans',
     '/library',
     '/marketplace',

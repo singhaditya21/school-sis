@@ -26,8 +26,8 @@ const ADMIN_MODULES: Module[] = [
         featured: true,
         badge: 'Primary',
         actions: [
-            { label: 'Generate Invoices', href: '/invoices' },
-            { label: 'Record Payment', href: '/invoices' },
+            { label: 'Generate Invoices', href: '/fees/generate' },
+            { label: 'Record Payment', href: '/invoices?status=PENDING' },
             { label: 'Send Reminder', href: '/fees/defaulters' },
         ],
     },

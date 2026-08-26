@@ -123,17 +123,23 @@ export async function getInvoiceDetail(invoiceId: string) {
         [invoice.feePlanId]
     );
 
-    // Get payments
+    // Payments, with the receipt each one issued so the UI can link to it.
     const { rows: payments } = await pool.query(
-        `SELECT 
-            id,
-            amount,
-            method,
-            status,
-            created_at AS "createdAt"
-        FROM payments
-        WHERE invoice_id = $1 AND tenant_id = $2
-        ORDER BY created_at DESC`,
+        `SELECT
+            p.id,
+            p.amount,
+            p.method,
+            p.status,
+            p.transaction_id AS "reference",
+            p.cheque_number AS "chequeNumber",
+            p.bank_name AS "bankName",
+            p.created_at AS "createdAt",
+            r.id AS "receiptId",
+            r.receipt_number AS "receiptNumber"
+        FROM payments p
+        LEFT JOIN receipts r ON r.payment_id = p.id AND r.tenant_id = p.tenant_id
+        WHERE p.invoice_id = $1 AND p.tenant_id = $2
+        ORDER BY p.created_at DESC`,
         [invoiceId, tenantId]
     );
 

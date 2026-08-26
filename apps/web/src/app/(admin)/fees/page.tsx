@@ -176,7 +176,7 @@ export default async function FeesPage() {
                                         </span>
                                     </p>
                                     <a
-                                        href={`/fees/invoices?planId=${plan.id}`}
+                                        href={`/invoices`}
                                         className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
                                     >
                                         View Invoices →

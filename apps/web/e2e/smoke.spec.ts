@@ -110,4 +110,25 @@ test.describe('ScholarMind — Smoke Tests', () => {
         await page.goto('/admissions');
         await page.waitForTimeout(1000);
     });
+
+    // Unlike the two cases above, this one asserts. /invoices is the counter-payment
+    // workspace; it previously did not exist at all while four surfaces linked to it.
+    test('invoices workspace responds and is access-controlled', async ({ page }) => {
+        const response = await page.goto('/invoices');
+        expect(response).not.toBeNull();
+
+        // Either the page renders for an authorised session, or the guard sends us to
+        // login. What must never happen is a 500 — which is how a broken query surfaces.
+        expect(response!.status()).toBeLessThan(500);
+
+        const url = new URL(page.url());
+        if (url.pathname.startsWith('/login')) {
+            await expect(page.locator('[data-testid="email-input"]')).toBeVisible();
+            return;
+        }
+
+        expect(url.pathname).toBe('/invoices');
+        await expect(page.getByRole('heading', { name: 'Invoices', level: 1 })).toBeVisible();
+        await expect(page.locator('[data-testid="filter-pending"]')).toBeVisible();
+    });
 });
