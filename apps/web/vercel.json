@@ -3,8 +3,16 @@
   "buildCommand": "pnpm --filter @school-sis/web run vercel-build",
   "installCommand": "pnpm install --frozen-lockfile",
   "framework": "nextjs",
-  "regions": ["sin1"],
+  "regions": [
+    "sin1"
+  ],
   "git": {
     "deploymentEnabled": false
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/jobs/dispatch",
+      "schedule": "0 1 * * *"
+    }
+  ]
 }

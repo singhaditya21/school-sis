@@ -165,6 +165,9 @@ jobs:
       - name: Verify Navigation Targets Exist
         run: pnpm audit:nav
 
+      - name: Verify a Job Dispatch Driver Exists
+        run: pnpm audit:scheduler
+
       - name: Validate Drizzle Migrations
         run: pnpm --filter @school-sis/web exec drizzle-kit check
 

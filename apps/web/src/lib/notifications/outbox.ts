@@ -2,16 +2,28 @@ import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext
 import type { QueryResult } from 'pg';
 import { getEmailProvider } from '@/lib/providers/email';
 import { getSmsProvider } from '@/lib/providers/sms';
-import { NotificationService } from '@/lib/services/notifications';
+import { getPushProvider } from '@/lib/providers/push';
+import { getWhatsAppProvider } from '@/lib/providers/whatsapp';
+import type { ProviderResult } from '@/lib/providers';
+import type { ProviderDispatch } from '@/lib/providers/transport';
 import { enqueueTenantJob } from '@/lib/worker/client';
 import { isValidTenantId } from '@/lib/tenant/isolation';
 import { logger, recordSreIncident } from '@/lib/observability/logger';
+import { notificationProviderForChannel } from '@/lib/integrations/runtime-mode';
 import {
-  mockRuntimeIsAllowed,
-  notificationProviderForChannel,
-} from '@/lib/integrations/runtime-mode';
+  channelHasAdapter,
+  describeChannelReadiness,
+  type NotificationChannel,
+} from './channels';
 
-export type NotificationChannel = 'EMAIL' | 'SMS' | 'WHATSAPP' | 'PUSH' | 'IN_APP';
+export type { NotificationChannel } from './channels';
+export {
+  LIVE_NOTIFICATION_PROVIDERS,
+  SUPPORTED_NOTIFICATION_PROVIDERS,
+  channelHasAdapter,
+  describeChannelReadiness,
+  type ChannelReadiness,
+} from './channels';
 export type NotificationStatus =
   | 'PENDING'
   | 'QUEUED'
@@ -83,22 +95,25 @@ export function providerForChannel(channel: NotificationChannel): string {
   return notificationProviderForChannel(channel);
 }
 
-function assertSupportedProvider(channel: NotificationChannel, provider: string): void {
-  const supported: Record<NotificationChannel, readonly string[]> = {
-    EMAIL: ['smtp', 'resend', 'mock'],
-    SMS: ['msg91', 'twilio', 'mock'],
-    WHATSAPP: ['mock'],
-    PUSH: ['firebase', 'mock'],
-    IN_APP: ['database'],
-  };
-  if (provider === 'unconfigured') {
-    throw new Error(`${channel} notification provider is not configured.`);
+/**
+ * Refuses to queue anything the deployment cannot actually dispatch.
+ *
+ * This runs at enqueue time so a caller finds out immediately, rather than a row
+ * sitting in the outbox retrying against credentials that do not exist. The error
+ * names the environment variables that would fix it.
+ */
+function assertChannelCanDispatch(channel: NotificationChannel, provider: string): void {
+  if (!channelHasAdapter(channel, provider)) {
+    throw new Error(
+      provider === 'unconfigured'
+        ? `${channel} notification provider is not configured. Set ${channel}_PROVIDER.`
+        : `${channel} notification provider '${provider}' is not supported.`,
+    );
   }
-  if (!supported[channel].includes(provider)) {
-    throw new Error(`${channel} notification provider '${provider}' is not supported.`);
-  }
-  if (provider === 'mock' && !mockRuntimeIsAllowed()) {
-    throw new Error(`${channel} mock notification provider is disabled in this runtime.`);
+
+  const readiness = describeChannelReadiness(channel);
+  if (!readiness.available) {
+    throw new Error(readiness.reason || `${channel} notification provider is not configured.`);
   }
 }
 
@@ -145,14 +160,19 @@ async function updateLinkedMessage(params: {
   const messageId = messageIdFromPayload(params.payload);
   if (!messageId) return;
 
+  // `messages.status` is the `message_status` enum while the CASE arms compare
+  // against text literals. Postgres deduces a parameter's type from every site it
+  // appears in, so $1 must be spelled `$1::text` everywhere and cast into the enum
+  // at the assignment — otherwise the whole statement fails with
+  // "inconsistent types deduced for parameter $1" and the update never lands.
   await pool.query(
     `UPDATE messages
-     SET status = $1,
+     SET status = $1::text::message_status,
          provider_message_id = COALESCE($2, provider_message_id),
          error_message = $3,
          metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb,
-         sent_at = CASE WHEN $1 IN ('SENT', 'DELIVERED') THEN COALESCE(sent_at, NOW()) ELSE sent_at END,
-         delivered_at = CASE WHEN $1 = 'DELIVERED' THEN COALESCE(delivered_at, NOW()) ELSE delivered_at END
+         sent_at = CASE WHEN $1::text IN ('SENT', 'DELIVERED') THEN COALESCE(sent_at, NOW()) ELSE sent_at END,
+         delivered_at = CASE WHEN $1::text = 'DELIVERED' THEN COALESCE(delivered_at, NOW()) ELSE delivered_at END
      WHERE tenant_id = $5 AND id = $6`,
     [
       params.status,
@@ -193,96 +213,95 @@ async function recordDeliveryEvent(params: {
   );
 }
 
+/**
+ * Translates one adapter result into an outbox result.
+ *
+ * The `!result.data` arm is the load-bearing one: an adapter that claims success
+ * without a provider message id has given us no evidence the message left, so it
+ * is recorded FAILED. A fee reminder is never marked sent on a guess.
+ */
+function toSendResult(provider: string, result: ProviderResult<ProviderDispatch>): ProviderSendResult {
+  if (!result.success || !result.data?.messageId) {
+    return {
+      success: false,
+      provider,
+      error: result.error
+        || 'Provider returned success without a message id, so delivery cannot be confirmed.',
+    };
+  }
+
+  const { messageId, deliveryState, providerStatus } = result.data;
+  return {
+    success: true,
+    provider,
+    providerMessageId: messageId,
+    // DELIVERED only when the provider confirmed it in this very response;
+    // everything else is SENT and waits for a status webhook.
+    status: deliveryState === 'DELIVERED' ? 'DELIVERED' : 'SENT',
+    metadata: providerStatus ? { providerStatus } : undefined,
+  };
+}
+
+/**
+ * Dispatches one outbox row.
+ *
+ * MUST run outside a database transaction — every live adapter performs a network
+ * call with a timeout of up to `NOTIFICATION_PROVIDER_TIMEOUT_MS`, and holding a
+ * Postgres connection (and the row lock) open for that long would stall the pool.
+ * `processNotification` commits its attempt claim before calling this.
+ */
 async function sendViaProvider(row: NotificationRow): Promise<ProviderSendResult> {
-  assertSupportedProvider(row.channel, providerForChannel(row.channel));
+  const provider = providerForChannel(row.channel);
+  const readiness = describeChannelReadiness(row.channel);
+
+  // An unconfigured channel fails as data, not as an exception, so the caller can
+  // record FAILED with a reason an operator can act on.
+  if (!readiness.available) {
+    logger.warn('notification.channel_unavailable', `${row.channel} channel cannot dispatch`, {
+      tenantId: row.tenantId,
+      source: 'notifications',
+      entityType: 'notification_outbox',
+      entityId: row.id,
+      metadata: { channel: row.channel, provider, missing: readiness.missing },
+    });
+    return {
+      success: false,
+      provider,
+      error: readiness.reason || `${row.channel} notification provider is not configured.`,
+      metadata: { unavailable: true, missing: readiness.missing },
+    };
+  }
+
   switch (row.channel) {
     case 'EMAIL': {
-      const provider = getEmailProvider();
-      const result = await provider.send({
+      return toSendResult(provider, await getEmailProvider().send({
         to: row.recipient,
         subject: row.subject || 'School notification',
         html: row.body,
-      });
-      return {
-        success: result.success,
-        provider: providerForChannel(row.channel),
-        providerMessageId: result.data?.messageId,
-        error: result.error,
-        status: 'SENT',
-      };
+      }));
     }
     case 'SMS': {
-      const provider = getSmsProvider();
-      const result = await provider.send(row.recipient, row.body);
-      return {
-        success: result.success,
-        provider: providerForChannel(row.channel),
-        providerMessageId: result.data?.messageId,
-        error: result.error,
-        status: 'SENT',
-      };
+      return toSendResult(provider, await getSmsProvider().send(row.recipient, row.body));
     }
     case 'WHATSAPP': {
-      const provider = providerForChannel(row.channel);
-      if (provider !== 'mock') {
-        return {
-          success: false,
-          provider,
-          error: 'No live WhatsApp provider adapter is installed.',
-        };
-      }
-      logger.info('notification.dev_whatsapp_accepted', 'Development WhatsApp notification accepted', {
-        tenantId: row.tenantId,
-        source: 'notifications',
-        entityType: 'notification_outbox',
-        entityId: row.id,
-        metadata: { recipientLength: row.recipient.length, bodyLength: row.body.length },
-      });
-      return {
-        success: true,
-        provider,
-        status: 'SENT',
-        metadata: { developmentOnly: true },
-      };
+      // The payload carries the approved template name and variables when the
+      // caller has one; the adapter falls back to WHATSAPP_DEFAULT_TEMPLATE.
+      return toSendResult(provider, await getWhatsAppProvider().send({
+        to: row.recipient,
+        body: row.body,
+        payload: row.payload || {},
+      }));
     }
     case 'PUSH': {
-      const provider = providerForChannel(row.channel);
-      if (provider === 'firebase') {
-        const response = await NotificationService.sendParentAlert(
-          row.recipient,
-          row.subject || 'School notification',
-          row.body,
-          row.payload,
-        );
-        return {
-          success: response.success,
-          provider: 'firebase',
-          providerMessageId: response.messageId,
-          status: 'SENT',
-        };
-      }
-      if (provider !== 'mock') {
-        return {
-          success: false,
-          provider,
-          error: 'Push notification provider is not configured.',
-        };
-      }
-      logger.info('notification.dev_push_accepted', 'Development push notification accepted', {
-        tenantId: row.tenantId,
-        source: 'notifications',
-        entityType: 'notification_outbox',
-        entityId: row.id,
-        metadata: { recipientLength: row.recipient.length, subjectLength: (row.subject || 'School notification').length },
-      });
-      return {
-        success: true,
-        provider,
-        status: 'SENT',
-        metadata: { developmentOnly: true },
-      };
+      return toSendResult(provider, await getPushProvider().send({
+        deviceToken: row.recipient,
+        title: row.subject || 'School notification',
+        body: row.body,
+        data: row.payload || {},
+      }));
     }
     case 'IN_APP': {
+      // The row itself is the delivery: it is already committed and readable.
       return {
         success: true,
         provider: 'database',
@@ -315,7 +334,7 @@ export async function enqueueNotification(
 
   const scheduledFor = scheduledDate(input.scheduledFor);
   const provider = providerForChannel(input.channel);
-  assertSupportedProvider(input.channel, provider);
+  assertChannelCanDispatch(input.channel, provider);
 
   return runWithTenantContext(input.tenantId, async () => {
     const existing = await findExistingNotification(input.tenantId, input.idempotencyKey);
@@ -477,14 +496,17 @@ export async function processNotification(notificationId: string, tenantId: stri
       const storedStatus = terminalFailure ? 'DEAD_LETTER' : finalStatus;
       const nextAttemptSql = result.success ? 'NULL' : `NOW() + INTERVAL '${backoffForAttempt(attemptNumber)}'`;
 
+      // $1 is referenced both as an assignment target and inside a text comparison;
+      // spelling it `$1::text` at every site keeps Postgres from deducing two
+      // different types for the same parameter and rejecting the statement.
       await pool.query(
         `UPDATE notification_outbox
-         SET status = $1,
+         SET status = $1::text,
              provider = $2,
              provider_message_id = COALESCE($3, provider_message_id),
              last_error = $4,
              next_attempt_at = COALESCE(${nextAttemptSql}, next_attempt_at),
-             sent_at = CASE WHEN $1 IN ('SENT', 'DELIVERED') THEN COALESCE(sent_at, NOW()) ELSE sent_at END,
+             sent_at = CASE WHEN $1::text IN ('SENT', 'DELIVERED') THEN COALESCE(sent_at, NOW()) ELSE sent_at END,
              updated_at = NOW()
          WHERE tenant_id = $5 AND id = $6`,
         [
