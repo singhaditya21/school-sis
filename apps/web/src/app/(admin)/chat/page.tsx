@@ -1,184 +1,90 @@
-'use client';
+import Link from 'next/link';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { requireAuth } from '@/lib/auth/middleware';
+import { isCopilotRole, listCopilotDatasets } from '@/app/api/copilot/catalog';
+import CopilotConsole from './copilot-console';
 
-import { useState } from 'react';
+export const dynamic = 'force-dynamic';
 
-type ChatMessage = {
-    role: 'user' | 'agent';
-    content: string;
-    meta?: {
-        tokens?: number;
-        latency?: number;
-    };
+export const metadata = {
+    title: 'Report Copilot | School SIS',
+    description: 'Draft a governed report from a plain-language description, then run it yourself.',
 };
 
-type AgentJobResponse = {
-    job_id?: string;
-    error?: string;
-    detail?: string;
-};
+export default async function ChatPage() {
+    const { tenantId, userId, session } = await requireAuth();
 
-type AgentJobStatus = {
-    status: 'queued' | 'deferred' | 'in_progress' | 'complete' | 'failed' | string;
-    result?: {
-        answer?: string;
-        tokens_used?: number;
-        latency_ms?: number;
-    };
-    error?: string;
-    detail?: string;
-};
-
-export default function ChatPage() {
-    const [query, setQuery] = useState('');
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [agent, setAgent] = useState('synthesis');
-    const [loading, setLoading] = useState(false);
-
-    const handleSend = async () => {
-        if (!query.trim()) return;
-
-        const userMessage: ChatMessage = { role: 'user', content: query };
-        const newMessages: ChatMessage[] = [...messages, userMessage];
-        setMessages(newMessages);
-        setQuery('');
-        setLoading(true);
-
-        try {
-            const response = await fetch(`/api/agents/${encodeURIComponent(agent)}/query-async`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: userMessage.content }),
-            });
-            const data = await response.json() as AgentJobResponse;
-            
-            if (!response.ok) {
-                setMessages([...newMessages, { role: 'agent', content: 'Agent Error: ' + (data.detail || data.error || 'Unknown error') }]);
-                setLoading(false);
-                return;
-            }
-
-            const jobId = data.job_id;
-            if (!jobId) {
-                setMessages([...newMessages, { role: 'agent', content: 'Agent Error: Missing job id.' }]);
-                setLoading(false);
-                return;
-            }
-            let pollingAttempts = 0;
-            const maxAttempts = 60; // 2 minutes with 2s interval
-
-            const pollInterval = setInterval(async () => {
-                pollingAttempts++;
-                if (pollingAttempts > maxAttempts) {
-                    clearInterval(pollInterval);
-                    setMessages([...newMessages, { role: 'agent', content: 'System Error: Task timed out after 2 minutes.' }]);
-                    setLoading(false);
-                    return;
-                }
-
-                try {
-                    const pollRes = await fetch(`/api/agents/jobs/${encodeURIComponent(jobId)}`);
-                    const pollData = await pollRes.json() as AgentJobStatus;
-
-                    if (pollRes.ok && pollData.status === 'complete') {
-                        clearInterval(pollInterval);
-                        const result = pollData.result || {};
-                        setMessages([...newMessages, { 
-                            role: 'agent', 
-                            content: result.answer || 'Background task completed successfully.', 
-                            meta: { tokens: result.tokens_used, latency: result.latency_ms } 
-                        }]);
-                        setLoading(false);
-                    } else if (pollRes.ok && pollData.status === 'failed') {
-                        clearInterval(pollInterval);
-                        setMessages([...newMessages, { role: 'agent', content: pollData.error || 'Background agent failed to process the request.' }]);
-                        setLoading(false);
-                    } else if (!pollRes.ok) {
-                        clearInterval(pollInterval);
-                        setMessages([...newMessages, { role: 'agent', content: 'Polling Error: ' + (pollData.detail || pollData.error || 'Unknown error') }]);
-                        setLoading(false);
-                    }
-                    // If queued or in-progress, just wait for the next iteration
-                } catch (pollError) {
-                    clearInterval(pollInterval);
-                    const message = pollError instanceof Error ? pollError.message : 'Unknown error';
-                    setMessages([...newMessages, { role: 'agent', content: 'Polling connection interrupted: ' + message }]);
-                    setLoading(false);
-                }
-            }, 2000);
-
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            setMessages([...newMessages, { role: 'agent', content: 'Connection Error: ' + message }]);
-            setLoading(false);
-        }
-    };
+    const allowed = isCopilotRole(session.role);
+    const datasets = allowed ? listCopilotDatasets({ role: session.role, tenantId, userId }) : [];
+    const providerConfigured = Boolean(process.env.CEREBRAS_API_KEY);
 
     return (
-        <div className="flex flex-col h-[calc(100vh-theme(spacing.16))] max-w-5xl mx-auto p-4">
-            <div className="flex justify-between items-center mb-4">
-                <h1 className="text-2xl font-bold text-gray-900">ScholarMind Intelligence</h1>
-                <select 
-                    value={agent} 
-                    onChange={(e) => setAgent(e.target.value)}
-                    className="border border-gray-300 rounded p-2 text-sm bg-white"
-                >
-                    <option value="synthesis">Synthesis Agent (Headmaster)</option>
-                    <option value="fee">Fee Agent</option>
-                    <option value="attend">Attendance Agent</option>
-                    <option value="academ">Academic Agent</option>
-                    <option value="risk">Risk Agent</option>
-                    <option value="crisis">Crisis Agent</option>
-                </select>
+        <div className="space-y-6">
+            <div>
+                <h1 className="text-2xl font-bold text-gray-900">Report Copilot</h1>
+                <p className="mt-1 text-sm text-gray-500">
+                    Describe a report in plain language and the copilot drafts a configuration from the BI catalog your
+                    role is entitled to. It never reads student records, never produces figures, and nothing runs until
+                    you run it on the{' '}
+                    <Link href="/reports" className="underline">
+                        Reporting Engine
+                    </Link>
+                    .
+                </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-4 space-y-6">
-                {messages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                        <span className="text-4xl mb-2">🎓</span>
-                        <p>Ask a question to your intelligent agents.</p>
-                    </div>
-                ) : (
-                    messages.map((msg, idx) => (
-                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[80%] p-4 rounded-xl ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
-                                <p className="whitespace-pre-wrap">{msg.content}</p>
-                                {msg.meta && (
-                                    <div className="mt-2 text-xs text-gray-500 flex gap-4">
-                                        <span>⏱️ {msg.meta.latency}ms</span>
-                                        <span>🎫 {msg.meta.tokens} tokens</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ))
-                )}
-                {loading && (
-                    <div className="flex justify-start">
-                        <div className="bg-gray-100 p-4 rounded-xl text-gray-500 animate-pulse">
-                            Thinking deeply...
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            <div className="flex gap-2">
-                <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder="Ask about overdue fees, attendance drops, or cross-reference student risk..."
-                    className="flex-1 border border-gray-300 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    disabled={loading}
-                />
-                <button
-                    onClick={handleSend}
-                    disabled={loading || !query.trim()}
-                    className="bg-blue-600 text-white px-8 rounded-xl font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                >
-                    Send
-                </button>
-            </div>
+            {!allowed ? (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Not available for your role</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm text-gray-600">
+                        The report copilot is limited to administrative and teaching roles. Your role (
+                        <code>{session.role}</code>) is not one of them, so nothing is drafted here.
+                    </CardContent>
+                </Card>
+            ) : datasets.length === 0 ? (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>No dataset your role can report on</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm text-gray-600">
+                        The BI catalog grants your role no dataset that the reporting engine can execute, so there is
+                        nothing for the copilot to draft against. Ask an administrator for the relevant read permission
+                        (for example <code>fees:read</code> or <code>attendance:read</code>).
+                    </CardContent>
+                </Card>
+            ) : !providerConfigured ? (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>No model provider is configured</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm text-gray-600">
+                        <p>
+                            This deployment has no <code>CEREBRAS_API_KEY</code> set, so the copilot cannot translate a
+                            request into a report draft. Rather than guess at an answer, the console is switched off.
+                        </p>
+                        <p>
+                            The {datasets.length} dataset{datasets.length === 1 ? '' : 's'} it would draft over{' '}
+                            {datasets.length === 1 ? 'is' : 'are'} already available directly on the{' '}
+                            <Link href="/reports" className="underline">
+                                Reporting Engine
+                            </Link>
+                            , which needs no model provider.
+                        </p>
+                        <ul className="list-disc space-y-1 pl-5 text-xs text-gray-500">
+                            {datasets.map((dataset) => (
+                                <li key={dataset.id}>
+                                    <span className="font-medium text-gray-700">{dataset.label}</span> —{' '}
+                                    {dataset.description}
+                                </li>
+                            ))}
+                        </ul>
+                    </CardContent>
+                </Card>
+            ) : (
+                <CopilotConsole datasets={datasets} />
+            )}
         </div>
     );
 }

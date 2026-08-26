@@ -1,9 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+import { NextResponse } from 'next/server';
 import { requireApiAuth } from '@/lib/auth/api';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
-import { readTenantScopedJson } from '@/lib/tenant/isolation';
-import { agentUnavailableResponse, forwardAgentRequest } from '@/lib/agents/client';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,14 +14,15 @@ const AGENT_ROLES = [
     'TEACHER',
 ] as const;
 
-const AgentQuerySchema = z.object({
-    query: z.string().trim().min(1).max(4000),
-});
-
-export async function POST(
-    request: NextRequest,
-    { params }: { params: Promise<{ agent: string }> },
-) {
+/**
+ * Queue an asynchronous agent query.
+ *
+ * The Python agent workers this forwarded to were removed from the repository
+ * (commit e2791939). No job is created, so this returns 501 instead of handing back a
+ * job id that will never complete. The supported assistant surface is POST
+ * /api/copilot. Auth and the AI rate limit are kept so the endpoint stays guarded.
+ */
+export async function POST() {
     const auth = await requireApiAuth(AGENT_ROLES);
     if (auth.ok === false) return auth.response;
 
@@ -37,29 +35,11 @@ export async function POST(
     });
     if (limitError) return NextResponse.json({ error: limitError }, { status: 429 });
 
-    const json = await readTenantScopedJson<Record<string, unknown>>(request, auth.context.tenantId);
-    if (json.ok === false) return json.response;
-
-    const parsed = AgentQuerySchema.safeParse(json.data);
-    if (!parsed.success) {
-        return NextResponse.json({ error: 'Invalid agent query' }, { status: 400 });
-    }
-
-    const { agent } = await params;
-    try {
-        return await forwardAgentRequest(
-            auth.context,
-            `/api/v1/agents/${encodeURIComponent(agent)}/query_async`,
-            {
-                method: 'POST',
-                body: {
-                    query: parsed.data.query,
-                    tenant_id: auth.context.tenantId,
-                    user_id: auth.context.userId,
-                },
-            },
-        );
-    } catch (error) {
-        return agentUnavailableResponse(error);
-    }
+    return NextResponse.json(
+        {
+            error:
+                'Asynchronous agent queries are not part of this deployment. Use POST /api/copilot to draft a report configuration for review.',
+        },
+        { status: 501 },
+    );
 }

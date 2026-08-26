@@ -1,79 +1,47 @@
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
 import { requireApiAuth } from '@/lib/auth/api';
-import { readTenantScopedJson } from '@/lib/tenant/isolation';
-import { agentUnavailableResponse, forwardAgentRequest } from '@/lib/agents/client';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
-const MessageSchema = z.object({
-  role: z.string(),
-  content: z.string().optional(),
-  parts: z.array(z.object({
-    type: z.string(),
-    text: z.string().optional(),
-  })).optional(),
-});
-
-const ChatSchema = z.object({
-  messages: z.array(MessageSchema).min(1).max(50),
-});
-
-function latestUserText(messages: z.infer<typeof ChatSchema>['messages']): string {
-  const latest = [...messages].reverse().find((message) => message.role === 'user') || messages[messages.length - 1];
-  if (latest.content) return latest.content;
-  return latest.parts
-    ?.filter((part) => part.type === 'text' && part.text)
-    .map((part) => part.text)
-    .join('\n')
-    .trim() || '';
-}
-
-export async function POST(req: Request) {
-  try {
+/**
+ * Conversational assistant endpoint.
+ *
+ * This proxied to a Python agent service that was removed from the repository
+ * (commit e2791939); there is no worker left to forward to, so it returns 501 rather
+ * than a connection error dressed up as an assistant reply. The supported assistant
+ * surface is POST /api/copilot, which drafts a governed report configuration for a
+ * human to review — see apps/web/src/app/(admin)/chat.
+ *
+ * Auth and the AI rate limit are still applied so this endpoint cannot be used as an
+ * unauthenticated probe or as free capacity against the shared limiter.
+ */
+export async function POST() {
     const auth = await requireApiAuth([
-      'PLATFORM_ADMIN',
-      'SUPER_ADMIN',
-      'SCHOOL_ADMIN',
-      'PRINCIPAL',
-      'ACCOUNTANT',
-      'ADMISSION_COUNSELOR',
-      'TEACHER',
+        'PLATFORM_ADMIN',
+        'SUPER_ADMIN',
+        'SCHOOL_ADMIN',
+        'PRINCIPAL',
+        'ACCOUNTANT',
+        'ADMISSION_COUNSELOR',
+        'TEACHER',
     ]);
     if (auth.ok === false) return auth.response;
 
     const limitError = await consumeRateLimit(`${auth.context.tenantId}:${auth.context.userId}`, {
-      scope: 'ai_chat',
-      maxAttempts: 20,
-      degradedMaxAttempts: 1,
-      endpointClass: 'ai',
-      message: 'AI request limit reached. Please try again later.',
+        scope: 'ai_chat',
+        maxAttempts: 20,
+        degradedMaxAttempts: 1,
+        endpointClass: 'ai',
+        message: 'AI request limit reached. Please try again later.',
     });
     if (limitError) return NextResponse.json({ error: limitError }, { status: 429 });
 
-    const json = await readTenantScopedJson<Record<string, unknown>>(req, auth.context.tenantId);
-    if (json.ok === false) return json.response;
-
-    const parsed = ChatSchema.safeParse(json.data);
-    if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid chat request' }, { status: 400 });
-    }
-
-    const query = latestUserText(parsed.data.messages);
-    if (!query) {
-      return NextResponse.json({ error: 'Missing chat message' }, { status: 400 });
-    }
-
-    return await forwardAgentRequest(auth.context, '/api/v1/agents/synthesis/query', {
-      method: 'POST',
-      body: {
-        query,
-        tenant_id: auth.context.tenantId,
-        user_id: auth.context.userId,
-      },
-    });
-  } catch (error) {
-    return agentUnavailableResponse(error);
-  }
+    return NextResponse.json(
+        {
+            error:
+                'The conversational agent service is not part of this deployment. Use POST /api/copilot to draft a report configuration for review.',
+        },
+        { status: 501 },
+    );
 }

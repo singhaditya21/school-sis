@@ -1,6 +1,5 @@
-import { NextRequest } from 'next/server';
 import { requireApiAuth } from '@/lib/auth/api';
-import { agentUnavailableResponse, forwardAgentRequest } from '@/lib/agents/client';
+import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,20 +13,22 @@ const AGENT_ROLES = [
     'TEACHER',
 ] as const;
 
-export async function GET(
-    _request: NextRequest,
-    { params }: { params: Promise<{ jobId: string }> },
-) {
+/**
+ * Poll an agent job.
+ *
+ * Counterpart to POST /api/agents/[agent]/query-async, whose Python worker was removed
+ * from the repository (commit e2791939). Nothing queues jobs any more, so there is no
+ * job to report on and this returns 501 rather than an indefinite "in progress".
+ */
+export async function GET() {
     const auth = await requireApiAuth(AGENT_ROLES);
     if (auth.ok === false) return auth.response;
 
-    const { jobId } = await params;
-    try {
-        return await forwardAgentRequest(
-            auth.context,
-            `/api/v1/agents/jobs/${encodeURIComponent(jobId)}`,
-        );
-    } catch (error) {
-        return agentUnavailableResponse(error);
-    }
+    return NextResponse.json(
+        {
+            error:
+                'Agent job polling is not part of this deployment; no agent worker queues jobs. Use POST /api/copilot instead.',
+        },
+        { status: 501 },
+    );
 }

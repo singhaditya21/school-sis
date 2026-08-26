@@ -1,143 +1,169 @@
-import { getSession } from '@/lib/auth/session';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { getMyProfile } from '../_actions/profile';
+import { getMyClasses } from '../_actions/classes';
+import { logoutAction } from '@/lib/actions/auth';
+import { formatDate } from '@/lib/utils';
 
+export const dynamic = 'force-dynamic';
+
+/**
+ * The teacher's real record.
+ *
+ * This page used to show a hard-coded "Dr. Ramesh Kumar", an invented employee
+ * id, three invented degrees and six invented class assignments to whoever
+ * logged in. Everything below comes from `users` and `staff_profiles`; where HR
+ * has not filled a field in, the page says it is not recorded.
+ */
 export default async function TeacherProfilePage() {
-    const session = await getSession();
+    const [profile, classes] = await Promise.all([getMyProfile(), getMyClasses()]);
+    if (!profile) notFound();
 
-    // Mock teacher profile data
-    const profile = {
-        name: 'Dr. Ramesh Kumar',
-        email: session.email || 'teacher@school.edu',
-        employeeId: 'EMP-2019-0042',
-        department: 'Mathematics',
-        designation: 'Senior Teacher',
-        joiningDate: '2019-06-15',
-        phone: '+91 98765 43210',
-        qualifications: ['Ph.D. Mathematics', 'M.Sc. Mathematics', 'B.Ed.'],
-        subjects: ['Mathematics', 'Statistics'],
-        classesAssigned: ['10-A', '10-B', '11-A', '11-B', '12-A', '9-A'],
-    };
+    const subjects = Array.from(
+        new Set(
+            classes
+                .flatMap((cls) => cls.subjects.split(', '))
+                .map((name) => name.trim())
+                .filter(Boolean)
+        )
+    ).sort();
 
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
-            {/* Profile Header */}
             <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-6 text-white">
-                <div className="flex items-center gap-6">
-                    <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center text-4xl">
-                        👨‍🏫
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold">{profile.name}</h1>
-                        <p className="text-emerald-100">{profile.designation}</p>
-                        <p className="text-emerald-200 text-sm mt-1">{profile.department}</p>
-                    </div>
-                </div>
+                <h1 className="text-2xl font-bold">
+                    {profile.firstName} {profile.lastName}
+                </h1>
+                <p className="text-emerald-100">
+                    {profile.designationName ?? 'Designation not recorded'}
+                    {profile.departmentName ? ` · ${profile.departmentName}` : ''}
+                </p>
+                <p className="text-emerald-200 text-sm mt-1">{profile.email}</p>
             </div>
 
-            {/* Profile Details */}
+            {!profile.hasStaffRecord && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+                    HR has not created a staff record for this account yet, so employee id, department,
+                    designation, joining date and qualifications are all blank below. They are not hidden —
+                    they genuinely have no value in the system.
+                </div>
+            )}
+
             <div className="bg-white rounded-xl shadow-sm border border-gray-100">
                 <div className="p-4 border-b border-gray-100">
-                    <h2 className="font-semibold text-gray-900">📋 Personal Information</h2>
+                    <h2 className="font-semibold text-gray-900">Account</h2>
                 </div>
-                <div className="p-4 space-y-4">
-                    <InfoRow label="Employee ID" value={profile.employeeId} />
+                <div className="p-4 space-y-1">
                     <InfoRow label="Email" value={profile.email} />
                     <InfoRow label="Phone" value={profile.phone} />
-                    <InfoRow label="Joining Date" value={new Date(profile.joiningDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })} />
+                    <InfoRow label="Role" value={profile.role} />
+                    <InfoRow label="Account active" value={profile.isActive ? 'Yes' : 'No'} />
+                    <InfoRow
+                        label="Last sign-in"
+                        value={profile.lastLoginAt ? formatDate(profile.lastLoginAt) : null}
+                    />
                 </div>
             </div>
 
-            {/* Qualifications */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100">
                 <div className="p-4 border-b border-gray-100">
-                    <h2 className="font-semibold text-gray-900">🎓 Qualifications</h2>
+                    <h2 className="font-semibold text-gray-900">Staff record</h2>
                 </div>
-                <div className="p-4">
-                    <div className="flex flex-wrap gap-2">
-                        {profile.qualifications.map((qual, idx) => (
-                            <span
-                                key={idx}
-                                className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm"
-                            >
-                                {qual}
-                            </span>
-                        ))}
-                    </div>
+                <div className="p-4 space-y-1">
+                    <InfoRow label="Employee ID" value={profile.employeeId} />
+                    <InfoRow label="Department" value={profile.departmentName} />
+                    <InfoRow label="Designation" value={profile.designationName} />
+                    <InfoRow label="Employment type" value={profile.employmentType} />
+                    <InfoRow label="Staff status" value={profile.staffStatus} />
+                    <InfoRow
+                        label="Joining date"
+                        value={profile.joiningDate ? formatDate(profile.joiningDate) : null}
+                    />
+                    <InfoRow label="Qualification" value={profile.qualification} />
+                    <InfoRow label="Specialisation" value={profile.specialization} />
+                    <InfoRow
+                        label="Experience"
+                        value={
+                            profile.experienceYears !== null
+                                ? `${profile.experienceYears} year(s)`
+                                : null
+                        }
+                    />
                 </div>
             </div>
 
-            {/* Subjects & Classes */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100">
                     <div className="p-4 border-b border-gray-100">
-                        <h2 className="font-semibold text-gray-900">📚 Subjects</h2>
+                        <h2 className="font-semibold text-gray-900">Subjects on your timetable</h2>
                     </div>
                     <div className="p-4">
-                        <div className="flex flex-wrap gap-2">
-                            {profile.subjects.map((subject, idx) => (
-                                <span
-                                    key={idx}
-                                    className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full text-sm"
-                                >
-                                    {subject}
-                                </span>
-                            ))}
-                        </div>
+                        {subjects.length === 0 ? (
+                            <p className="text-sm text-gray-500">No timetabled subjects.</p>
+                        ) : (
+                            <div className="flex flex-wrap gap-2">
+                                {subjects.map((subject) => (
+                                    <span
+                                        key={subject}
+                                        className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full text-sm"
+                                    >
+                                        {subject}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100">
                     <div className="p-4 border-b border-gray-100">
-                        <h2 className="font-semibold text-gray-900">👥 Classes Assigned</h2>
+                        <h2 className="font-semibold text-gray-900">Classes assigned</h2>
                     </div>
                     <div className="p-4">
-                        <div className="flex flex-wrap gap-2">
-                            {profile.classesAssigned.map((cls, idx) => (
-                                <span
-                                    key={idx}
-                                    className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-sm"
-                                >
-                                    {cls}
-                                </span>
-                            ))}
-                        </div>
+                        {classes.length === 0 ? (
+                            <p className="text-sm text-gray-500">No classes assigned.</p>
+                        ) : (
+                            <div className="flex flex-wrap gap-2">
+                                {classes.map((cls) => (
+                                    <span
+                                        key={cls.sectionId}
+                                        className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-sm"
+                                    >
+                                        {cls.gradeName}-{cls.sectionName}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="grid grid-cols-2 gap-4">
-                <Link
-                    href="/teacher/schedule"
-                    className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow text-center"
-                >
-                    <span className="text-3xl">📅</span>
-                    <p className="font-medium mt-2">View Schedule</p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <Link href="/teacher/schedule" className="text-sm text-blue-600 hover:underline">
+                    View my schedule →
                 </Link>
-                <button className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow text-center">
-                    <span className="text-3xl">✏️</span>
-                    <p className="font-medium mt-2">Edit Profile</p>
-                </button>
+                <form action={logoutAction}>
+                    <button type="submit" className="text-red-600 hover:underline text-sm">
+                        Sign out
+                    </button>
+                </form>
             </div>
 
-            {/* Logout */}
-            <div className="text-center">
-                <Link
-                    href="/login"
-                    className="text-red-600 hover:underline text-sm"
-                >
-                    🚪 Logout
-                </Link>
-            </div>
+            <p className="text-xs text-gray-500 text-center">
+                Staff details are maintained by the school office. There is no self-service edit for them, so
+                this page does not offer one.
+            </p>
         </div>
     );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value }: { label: string; value: string | null }) {
     return (
-        <div className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
-            <span className="text-gray-500">{label}</span>
-            <span className="font-medium text-gray-900">{value}</span>
+        <div className="flex justify-between items-center gap-4 py-2 border-b border-gray-50 last:border-0">
+            <span className="text-gray-500 text-sm">{label}</span>
+            <span className={value ? 'font-medium text-gray-900 text-sm' : 'text-gray-400 text-sm italic'}>
+                {value ?? 'Not recorded'}
+            </span>
         </div>
     );
 }

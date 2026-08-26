@@ -1,33 +1,102 @@
-import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth/session';
-import { getSectionsForTimetable } from '@/lib/actions/timetable';
+import Link from 'next/link';
+import { getMyClasses } from '../_actions/classes';
+import { getMyAttendanceSummary } from '../_actions/attendance';
+import { Badge } from '@/components/ui/badge';
+
+export const dynamic = 'force-dynamic';
 
 export default async function TeacherClassesPage() {
-    const session = await getSession();
-    if (!session.isLoggedIn) redirect('/login');
+    const today = new Date().toISOString().split('T')[0];
+    const [classes, summaries] = await Promise.all([
+        getMyClasses(),
+        getMyAttendanceSummary(today),
+    ]);
 
-    const sections = await getSectionsForTimetable();
+    const summaryBySection = new Map(summaries.map((s) => [s.sectionId, s]));
 
     return (
         <div className="space-y-6">
-            <h1 className="text-2xl font-bold">My Classes</h1>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sections.map(sec => (
-                    <div key={sec.id} className="bg-white rounded-xl shadow-sm border p-6">
-                        <h3 className="font-semibold text-lg">{sec.gradeName} - {sec.sectionName}</h3>
-                        <div className="mt-3 flex gap-2">
-                            <a href={`/attendance/mark/${sec.id}`} className="text-sm text-blue-600 hover:underline">Mark Attendance</a>
-                            <a href={`/timetable/${sec.id}`} className="text-sm text-purple-600 hover:underline">Timetable</a>
-                        </div>
-                    </div>
-                ))}
-                {sections.length === 0 && (
-                    <div className="col-span-full bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
-                        No classes assigned yet.
-                    </div>
-                )}
+            <div>
+                <h1 className="text-2xl font-bold">My Classes</h1>
+                <p className="text-gray-600">
+                    Sections where you are the class teacher or hold at least one timetabled period.
+                </p>
             </div>
+
+            {classes.length === 0 ? (
+                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                    <p className="font-medium text-gray-900">No classes are assigned to your account.</p>
+                    <p className="text-sm text-gray-500 mt-2 max-w-lg mx-auto">
+                        A class reaches this page once the office makes you the class teacher of a section,
+                        or puts you on the timetable for one. Until then there is nothing here to show.
+                    </p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {classes.map((cls) => {
+                        const summary = summaryBySection.get(cls.sectionId);
+                        const marked = summary?.marked ?? 0;
+                        return (
+                            <div key={cls.sectionId} className="bg-white rounded-xl shadow-sm border p-5 flex flex-col">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                        <h2 className="font-semibold text-lg text-gray-900">
+                                            {cls.gradeName} – {cls.sectionName}
+                                        </h2>
+                                        <p className="text-sm text-gray-500">
+                                            {cls.studentCount} active {cls.studentCount === 1 ? 'student' : 'students'}
+                                            {cls.roomNumber ? ` · Room ${cls.roomNumber}` : ''}
+                                        </p>
+                                    </div>
+                                    {cls.isClassTeacher && (
+                                        <Badge className="bg-emerald-600 text-white shrink-0">Class teacher</Badge>
+                                    )}
+                                </div>
+
+                                <div className="mt-3 text-sm text-gray-700">
+                                    {cls.subjects ? (
+                                        <p>
+                                            <span className="text-gray-500">You teach:</span> {cls.subjects}
+                                            <span className="text-gray-400"> · {cls.periodsPerWeek} periods/week</span>
+                                        </p>
+                                    ) : (
+                                        <p className="text-gray-500 italic">
+                                            No timetabled periods here — class-teacher duties only.
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="mt-3 text-sm">
+                                    {marked > 0 ? (
+                                        <p className="text-gray-600">
+                                            Today: {summary?.present ?? 0} present, {summary?.absent ?? 0} absent,{' '}
+                                            {summary?.late ?? 0} late
+                                            {(summary?.excused ?? 0) > 0 ? `, ${summary?.excused} excused` : ''}
+                                        </p>
+                                    ) : (
+                                        <p className="text-amber-700">Attendance not marked today.</p>
+                                    )}
+                                </div>
+
+                                <div className="mt-4 pt-3 border-t flex flex-wrap gap-3 text-sm">
+                                    <Link
+                                        href={`/teacher/attendance/${cls.sectionId}`}
+                                        className="text-emerald-700 font-medium hover:underline"
+                                    >
+                                        Mark attendance
+                                    </Link>
+                                    <Link href="/teacher/gradebook" className="text-blue-600 hover:underline">
+                                        Marks
+                                    </Link>
+                                    <Link href="/teacher/homework" className="text-purple-600 hover:underline">
+                                        Homework
+                                    </Link>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }
