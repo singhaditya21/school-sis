@@ -1,9 +1,13 @@
 import { getWorkflows } from "@/lib/actions/automation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Zap, Activity } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PlusCircle, FileCode2, ToggleRight } from "lucide-react";
 import Link from "next/link";
 import { AutomationList } from "@/components/automation/automation-list";
+import { AutomationRunnerNotice } from "./runner-notice";
+
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 
 export const metadata = {
   title: 'Workflow Automation | School SIS',
@@ -11,14 +15,15 @@ export const metadata = {
 
 export default async function AutomationPage() {
   const workflows = await getWorkflows();
+  const enabledCount = workflows.filter(w => w.isActive).length;
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Workflow Automation</h1>
           <p className="text-muted-foreground mt-1">
-            Build serverless, metadata-driven rules to automate your school's operations.
+            Draft metadata-driven rules describing how your school should react to events.
           </p>
         </div>
         <Link href="/settings/automation/new">
@@ -29,23 +34,28 @@ export default async function AutomationPage() {
         </Link>
       </div>
 
+      <AutomationRunnerNotice />
+
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Workflows</CardTitle>
-            <Zap className="h-4 w-4 text-emerald-500" />
+            <CardTitle className="text-sm font-medium">Saved definitions</CardTitle>
+            <FileCode2 className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{workflows.filter(w => w.isActive).length}</div>
+            <div className="text-2xl font-bold">{workflows.length}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Workflows</CardTitle>
-            <Activity className="h-4 w-4 text-blue-500" />
+            <CardTitle className="text-sm font-medium">Marked enabled</CardTitle>
+            <ToggleRight className="h-4 w-4 text-slate-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{workflows.length}</div>
+            <div className="text-2xl font-bold">{enabledCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Stored flag only — nothing runs these yet.
+            </p>
           </CardContent>
         </Card>
       </div>

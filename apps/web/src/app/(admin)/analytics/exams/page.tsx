@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getSubjectPerformance, getTopPerformers as fetchTopPerformers, getExamClassPerformance } from '@/lib/actions/analytics';
+import { downloadTableCsv } from '../download-csv';
 
 export default function ExamAnalyticsPage() {
     const [subjectData, setSubjectData] = useState<{ label: string; value: number }[]>([]);
@@ -14,10 +15,20 @@ export default function ExamAnalyticsPage() {
     useEffect(() => {
         getSubjectPerformance().then(setSubjectData);
         fetchTopPerformers().then(setTopPerformers);
-        getExamClassPerformance().then(d => setClassData(d.slice(0, 18)));
+        getExamClassPerformance().then(setClassData);
     }, []);
 
     const avgScore = subjectData.length > 0 ? Math.round(subjectData.reduce((sum, d) => sum + d.value, 0) / subjectData.length) : 0;
+
+    // Aggregates only. Named student results are PII and leave the system through the
+    // governed CBSE export policy in the Reporting Engine, never through this button.
+    function exportClassSummary() {
+        downloadTableCsv(
+            'exam_performance_by_class',
+            ['Class', 'Section', 'Average %', 'Pass %'],
+            classData.map(row => [row.class, row.section, row.averagePercent, row.passPercent]),
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -25,16 +36,21 @@ export default function ExamAnalyticsPage() {
                 <div><h1 className="text-3xl font-bold">Exam Performance Analysis</h1><p className="text-gray-600 mt-1">Term-wise and subject-wise performance</p></div>
                 <div className="flex gap-3">
                     <Link href="/analytics" className="px-4 py-2 border rounded-lg hover:bg-gray-50">← Back to Analytics</Link>
-                    <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">📊 Export Report</button>
+                    <button
+                        onClick={exportClassSummary}
+                        disabled={classData.length === 0}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Download class summary (CSV)
+                    </button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Average Score</div><div className="text-2xl font-bold text-blue-600">{avgScore}%</div></CardContent></Card>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Avg of subject averages</div><div className="text-2xl font-bold text-blue-600">{avgScore}%</div></CardContent></Card>
                 <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Subjects Tracked</div><div className="text-2xl font-bold text-green-600">{subjectData.length}</div></CardContent></Card>
                 <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Class Sections</div><div className="text-2xl font-bold text-purple-600">{classData.length}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Top Performers</div><div className="text-2xl font-bold text-orange-600">{topPerformers.length}</div></CardContent></Card>
-            </div>
+                            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
@@ -77,7 +93,7 @@ export default function ExamAnalyticsPage() {
             </div>
 
             <Card>
-                <CardHeader><CardTitle>Class-wise Performance</CardTitle></CardHeader>
+                <CardHeader><CardTitle>Class-wise Performance</CardTitle><p className="text-xs text-gray-500">Pass % counts results at or above 40% of the paper total.</p></CardHeader>
                 <CardContent>
                     {classData.length === 0 ? <p className="text-gray-500 text-center py-8">No class performance data.</p> : (
                         <table className="w-full">

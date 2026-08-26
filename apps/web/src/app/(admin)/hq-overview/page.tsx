@@ -1,76 +1,169 @@
-import { getHQOverviewAction } from '@/lib/actions/hq';
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import DeployPolicyForm from './DeployPolicyForm';
+import { getHqOverviewData } from './queries';
+
+export const metadata = {
+    title: 'Command Center | ScholarMind',
+};
+
+function formatDate(value: Date | string): string {
+    return new Date(value).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    });
+}
 
 export default async function HQDashboard() {
-    const { group, campuses, policies } = await getHQOverviewAction();
+    const { campusName, group, campuses, policies } = await getHqOverviewData();
 
     if (!group) {
         return (
-            <div className="max-w-7xl mx-auto p-8 flex flex-col items-center justify-center min-h-[60vh]">
-                <div className="text-6xl mb-4">🌍</div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">No Headquarters Configured</h1>
-                <p className="text-gray-500 mb-6">You are not currently mapped to an active Multi-Campus HQ.</p>
-                <Button className="bg-slate-900 border-0">Establish New HQ Group</Button>
+            <div className="space-y-6">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Command Center</h1>
+                    <p className="text-gray-600 dark:text-gray-400 mt-1">
+                        Multi-campus headquarters view for {campusName ?? 'this campus'}.
+                    </p>
+                </div>
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-xl">Not part of a campus group</CardTitle>
+                        <CardDescription>
+                            {campusName ?? 'This campus'} has no multi-campus mapping, so there is no
+                            headquarters to report into.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-sm text-gray-600 dark:text-gray-400 space-y-3">
+                        <p>
+                            Campus groups are created and campuses attached by a ScholarMind platform
+                            operator. A campus login cannot create a group or attach itself to one, so there
+                            is nothing to do from this screen.
+                        </p>
+                        <p>
+                            Once this campus is attached, the mandates that apply to it will appear here and
+                            on{' '}
+                            <Link
+                                href="/hq-policies"
+                                className="text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                                HQ Policies
+                            </Link>
+                            .
+                        </p>
+                    </CardContent>
+                </Card>
             </div>
         );
     }
 
-    return (
-        <div className="max-w-7xl mx-auto p-8 bg-slate-50 min-h-screen space-y-8">
-            <div className="flex justify-between items-center mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-900">{group.name} - Global HQ</h1>
-                    <p className="text-slate-500 mt-1">Command Center ({group.headquartersCity})</p>
-                </div>
-                <Badge variant="outline" className="px-4 py-2 bg-purple-100 border-purple-200 text-purple-800 text-sm font-semibold uppercase tracking-widest">Super Admin</Badge>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-                    <CardHeader className="bg-white border-b border-slate-100 pb-4">
-                        <CardTitle className="text-xl">Network Hierarchy</CardTitle>
-                        <CardDescription>Sub-campuses reporting to this HQ</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0 bg-white">
-                        <div className="divide-y divide-slate-100">
-                            {campuses.length === 0 && <div className="p-6 text-slate-500 text-sm">No sub-campuses mapped.</div>}
-                            {campuses.map((campus) => (
-                                <div key={campus.id} className="p-4 flex justify-between items-center hover:bg-slate-50 transition-colors">
-                                    <div>
-                                        <p className="font-semibold text-slate-900">{campus.name || 'Unnamed Tenant'}</p>
-                                        <p className="text-sm text-slate-500">Region: {campus.region}</p>
-                                    </div>
-                                    <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-200">{campus.campusType}</Badge>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
+    const hardBlocks = policies.filter((p) => p.isHardBlock).length;
 
-                <Card className="border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
-                    <CardHeader className="bg-white border-b border-slate-100 pb-4">
-                        <CardTitle className="text-xl">Group Policy Deployment</CardTitle>
-                        <CardDescription>Push global mandates across all regions</CardDescription>
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">{group.name}</h1>
+                    <p className="text-gray-600 dark:text-gray-400 mt-1">
+                        Headquarters in {group.hqCity} · group created {formatDate(group.createdAt)}
+                    </p>
+                </div>
+                <Badge
+                    variant="outline"
+                    className={group.isActive ? 'text-green-700 bg-green-50 border-green-200' : ''}
+                >
+                    {group.isActive ? 'Active group' : 'Inactive group'}
+                </Badge>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-xl">Campus mapping</CardTitle>
+                        <CardDescription>How this campus sits inside the group.</CardDescription>
                     </CardHeader>
-                    <CardContent className="p-6 bg-white flex flex-col justify-between h-[100%]">
-                        <div className="space-y-4 mb-8">
-                            {policies.length === 0 ? (
-                                <p className="text-sm text-slate-500">No active global policies deployed.</p>
+                    <CardContent className="p-0">
+                        <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                            {campuses.length === 0 ? (
+                                <p className="px-6 py-6 text-sm text-gray-500 dark:text-gray-400">
+                                    No campus mapping is readable for this group.
+                                </p>
                             ) : (
-                                policies.map((policy) => (
-                                    <div key={policy.id} className="flex items-center gap-3">
-                                        <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                                        <a href={policy.documentUrl} target="_blank" className="text-sm font-medium text-slate-700 hover:text-blue-600 underline-offset-4 hover:underline">
-                                            {policy.policyName}
-                                        </a>
+                                campuses.map((campus) => (
+                                    <div key={campus.id} className="px-6 py-4 flex justify-between items-center">
+                                        <div>
+                                            <p className="font-semibold">{campus.name ?? 'Unnamed campus'}</p>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                Region: {campus.region}
+                                            </p>
+                                        </div>
+                                        <Badge variant="outline">{campus.campusType}</Badge>
                                     </div>
                                 ))
                             )}
                         </div>
-                        <DeployPolicyForm groupId={group.id} />
+                        <p className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-800">
+                            A campus login can only read its own mapping row, so this list is not the full
+                            group roster. The complete roster is visible to ScholarMind platform operators.
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-xl">Group mandates</CardTitle>
+                        <CardDescription>
+                            {policies.length === 0
+                                ? 'Nothing has been mandated by this group yet.'
+                                : `${policies.length} recorded, ${hardBlocks} marked as a hard block.`}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {policies.length === 0 ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                No group policy has been recorded for {group.name}.
+                            </p>
+                        ) : (
+                            <ul className="space-y-3">
+                                {policies.map((policy) => (
+                                    <li
+                                        key={policy.id}
+                                        className="flex items-start justify-between gap-4 border-b border-gray-100 dark:border-gray-800 pb-3 last:border-0 last:pb-0"
+                                    >
+                                        <div>
+                                            <p className="font-medium">{policy.policyName}</p>
+                                            <p className="text-xs font-mono uppercase text-gray-500 dark:text-gray-400 mt-1">
+                                                {policy.policyKey} = {policy.policyValue}
+                                            </p>
+                                        </div>
+                                        {policy.isHardBlock ? (
+                                            <Badge variant="outline" className="text-red-700 bg-red-50 border-red-200 shrink-0">
+                                                Hard block
+                                            </Badge>
+                                        ) : (
+                                            <Badge variant="outline" className="shrink-0">
+                                                Guideline
+                                            </Badge>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                        <div className="text-xs text-gray-500 dark:text-gray-400 space-y-2 pt-2">
+                            <p>
+                                Group policies are recorded and changed by a ScholarMind platform operator.
+                                Campus roles — including group executives — have read-only access to them.
+                            </p>
+                            <p>
+                                <Link
+                                    href="/hq-policies"
+                                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                                >
+                                    See how each mandate applies to this campus
+                                </Link>
+                            </p>
+                        </div>
                     </CardContent>
                 </Card>
             </div>

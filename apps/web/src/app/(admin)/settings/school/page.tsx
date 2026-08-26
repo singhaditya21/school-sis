@@ -1,111 +1,156 @@
 import { getTenantHQPoliciesAction } from '@/lib/actions/tenant-policies';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Lock, Settings2 } from 'lucide-react';
-import { getSession } from '@/lib/auth/session';
+import { Lock, Building2, Info, ShieldAlert } from 'lucide-react';
 import { redirect } from 'next/navigation';
+import { getSession } from '@/lib/auth/session';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
+import SchoolProfileForm from './school-profile-form';
+import { getSchoolProfile } from './actions';
+
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
+export const metadata = {
+    title: 'School Settings | School SIS',
+};
+
+type HQPolicy = {
+    id: string;
+    policyName: string;
+    policyKey: string;
+    policyValue: string | null;
+    isHardBlock: boolean;
+    documentUrl: string | null;
+};
 
 export default async function SchoolSettingsPage() {
     const session = await getSession();
     if (!session.isLoggedIn) redirect('/login');
 
-    const { policies } = await getTenantHQPoliciesAction();
-    
-    // Helper to find an enforced policy value
-    const getEnforcedPolicy = (key: string) => policies.find((p: { policyKey: string; isHardBlock: boolean }) => p.policyKey === key && p.isHardBlock);
+    if (!hasPermission(session.role as UserRole, 'settings:read')) {
+        return (
+            <div className="max-w-4xl mx-auto">
+                <Card>
+                    <CardContent className="py-16 text-center">
+                        <ShieldAlert className="mx-auto mb-3 h-8 w-8 text-slate-300" />
+                        <p className="font-medium text-slate-700 dark:text-slate-200">
+                            Your role cannot view school settings.
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Ask a school administrator if you need access.
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
 
-    const minAttendancePolicy = getEnforcedPolicy('MIN_ATTENDANCE_PCT');
-    const lateFeePolicy = getEnforcedPolicy('LATE_FEE_AMOUNT');
-    const maxDiscountPolicy = getEnforcedPolicy('MAX_DISCOUNT_PCT');
+    const profile = await getSchoolProfile();
+    const { isMappedToHQ, hqGroup, policies } = await getTenantHQPoliciesAction();
+    const hqPolicies = policies as HQPolicy[];
 
     return (
-        <div className="max-w-4xl mx-auto p-8 space-y-8">
-            <div className="flex items-center justify-between">
+        <div className="max-w-4xl mx-auto space-y-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900">School Operations Settings</h1>
-                    <p className="text-slate-500 mt-1">Configure campus-level parameters and policies.</p>
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                        School Settings
+                    </h1>
+                    <p className="text-muted-foreground mt-1">
+                        Institution details for this campus, plus any policies cascaded from your
+                        group headquarters.
+                    </p>
                 </div>
-                <Badge variant="outline" className="bg-slate-50">Local Settings</Badge>
             </div>
 
-            <Card className="border border-slate-200 shadow-sm rounded-xl overflow-hidden">
-                <CardHeader className="bg-slate-50 border-b border-slate-100">
-                    <CardTitle className="text-xl flex items-center gap-2">
-                        <Settings2 className="w-5 h-5 text-slate-500" /> Academic & Operational Limits
+            {profile ? (
+                <SchoolProfileForm profile={profile} />
+            ) : (
+                <Card>
+                    <CardContent className="py-12 text-center text-muted-foreground">
+                        <Building2 className="mx-auto mb-3 h-8 w-8 text-slate-300" />
+                        <p className="font-medium text-slate-700 dark:text-slate-200">
+                            No school record found for this session.
+                        </p>
+                        <p className="mt-1 text-sm">
+                            The signed-in tenant has no matching row in the tenants table, so
+                            there is nothing to configure here.
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                        <Lock className="h-4 w-4 text-slate-500" />
+                        Group Headquarters Policies
                     </CardTitle>
                     <CardDescription>
-                        Settings with a lock icon are mandated by your Multi-Campus Headquarters and cannot be overridden locally.
+                        {isMappedToHQ && hqGroup
+                            ? `Cascaded from ${hqGroup.name}. These are set at group level and are read-only here.`
+                            : 'Policies cascaded from a multi-campus group headquarters appear here.'}
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="p-6 space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                Minimum Attendance for Finals (%)
-                                {minAttendancePolicy && <Lock className="w-3.5 h-3.5 text-red-500" />}
-                            </label>
-                            {minAttendancePolicy ? (
-                                <div className="p-3 bg-red-50/50 border border-red-100 rounded-lg flex items-center justify-between">
-                                    <span className="font-bold text-red-900">{minAttendancePolicy.policyValue}%</span>
-                                    <Badge variant="outline" className="text-red-700 bg-red-50 border-red-200 text-[10px]">HQ Mandated</Badge>
+                <CardContent>
+                    {!isMappedToHQ ? (
+                        <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                            This campus is not mapped to a multi-campus group, so no headquarters
+                            policies apply.
+                        </div>
+                    ) : hqPolicies.length === 0 ? (
+                        <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                            {hqGroup?.name ?? 'Your group'} has not published any policies yet.
+                        </div>
+                    ) : (
+                        <div className="divide-y rounded-lg border">
+                            {hqPolicies.map((policy) => (
+                                <div
+                                    key={policy.id}
+                                    className="flex flex-wrap items-center justify-between gap-3 p-4"
+                                >
+                                    <div className="min-w-0">
+                                        <p className="font-medium text-slate-900 dark:text-slate-100">
+                                            {policy.policyName}
+                                        </p>
+                                        <p className="font-mono text-xs text-muted-foreground">
+                                            {policy.policyKey}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="font-semibold text-slate-900 dark:text-slate-100">
+                                            {policy.policyValue ?? '—'}
+                                        </span>
+                                        {policy.isHardBlock ? (
+                                            <Badge
+                                                variant="outline"
+                                                className="border-red-200 bg-red-50 text-[10px] text-red-700"
+                                            >
+                                                Enforced
+                                            </Badge>
+                                        ) : (
+                                            <Badge variant="outline" className="text-[10px]">
+                                                Advisory
+                                            </Badge>
+                                        )}
+                                    </div>
                                 </div>
-                            ) : (
-                                <input type="number" defaultValue="75" className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-                            )}
-                            {minAttendancePolicy && (
-                                <p className="text-xs text-slate-500">Locked globally by {minAttendancePolicy.policyName}</p>
-                            )}
+                            ))}
                         </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                Default Late Fee Penalty (₹)
-                                {lateFeePolicy && <Lock className="w-3.5 h-3.5 text-red-500" />}
-                            </label>
-                            {lateFeePolicy ? (
-                                <div className="p-3 bg-red-50/50 border border-red-100 rounded-lg flex items-center justify-between">
-                                    <span className="font-bold text-red-900">₹{lateFeePolicy.policyValue}</span>
-                                    <Badge variant="outline" className="text-red-700 bg-red-50 border-red-200 text-[10px]">HQ Mandated</Badge>
-                                </div>
-                            ) : (
-                                <input type="number" defaultValue="100" className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                Max Sibling Discount (%)
-                                {maxDiscountPolicy && <Lock className="w-3.5 h-3.5 text-red-500" />}
-                            </label>
-                            {maxDiscountPolicy ? (
-                                <div className="p-3 bg-red-50/50 border border-red-100 rounded-lg flex items-center justify-between">
-                                    <span className="font-bold text-red-900">{maxDiscountPolicy.policyValue}%</span>
-                                    <Badge variant="outline" className="text-red-700 bg-red-50 border-red-200 text-[10px]">HQ Mandated</Badge>
-                                </div>
-                            ) : (
-                                <input type="number" defaultValue="20" className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-                            )}
-                        </div>
-                        
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                Standard Grace Period (Days)
-                            </label>
-                            {/* Unlocked field example */}
-                            <input type="number" defaultValue="5" className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-                        </div>
-
-                    </div>
-
-                    <div className="pt-6 mt-6 border-t border-slate-100 flex justify-end">
-                        <Button className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-lg transition-colors">
-                            Save Local Settings
-                        </Button>
-                    </div>
+                    )}
                 </CardContent>
             </Card>
+
+            <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                <p>
+                    Operational thresholds such as minimum attendance, late-fee penalties and
+                    discount caps are not campus-configurable in this release — the schema has no
+                    store for them. Where a group headquarters has published one, it is listed
+                    above; otherwise the value is fixed by the relevant module.
+                </p>
+            </div>
         </div>
     );
 }

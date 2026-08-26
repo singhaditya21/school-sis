@@ -1,125 +1,233 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { setIdCardStatusAction } from './_lib/actions';
+import type { CardSchool, IdCardItem } from './_lib/actions';
+import { ID_CARD_STATUS_LABELS, idCardStatusClass } from './_lib/labels';
 
-interface IdCard {
-    id: string;
-    status: string;
-    personId: string;
-    validFrom: string | Date;
-    validTo: string | Date;
-    studentFirstName?: string;
-    studentLastName?: string;
-    studentRollNo?: string | null;
-    staffFirstName?: string;
-    staffLastName?: string;
-    staffRole?: string;
+/**
+ * Isolates the card grid when the browser prints, so the admin chrome around it
+ * does not end up on the sheet.
+ */
+const PRINT_CSS = `
+@media print {
+  body * { visibility: hidden !important; }
+  #id-card-print-area, #id-card-print-area * { visibility: visible !important; }
+  #id-card-print-area {
+    position: absolute; left: 0; top: 0; width: 100%;
+  }
+  .id-card-wrapper { border-color: transparent !important; background: transparent !important; }
+  .id-card-meta { display: none !important; }
+}
+`;
+
+interface IdCardsClientProps {
+    cards: IdCardItem[];
+    school: CardSchool;
 }
 
-interface IdCardStats {
-    idCards: number;
-    pendingCards: number;
+function initials(name: string): string {
+    return name
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(part => part[0]?.toUpperCase() ?? '')
+        .join('');
 }
 
-export default function IdCardsClient({ stats, templates, studentCards, staffCards }: { stats: IdCardStats, templates: unknown, studentCards: IdCard[], staffCards: IdCard[] }) {
-    const [activeTab, setActiveTab] = useState<'student' | 'staff'>('student');
-    const [statusFilter, setStatusFilter] = useState('');
-    const [selectedCards, setSelectedCards] = useState<string[]>([]);
+export default function IdCardsClient({ cards, school }: IdCardsClientProps) {
+    const router = useRouter();
+    const [selected, setSelected] = useState<string[]>([]);
+    const [pending, setPending] = useState(false);
 
-    const cards = activeTab === 'student' ? studentCards : staffCards;
-    
-    // Derived stats from the props
-    const currentStats = {
-        total: activeTab === 'student' ? stats.idCards : stats.idCards, // Could be split properly in backend, just mocked structure here for now
-        pending: stats.pendingCards,
-        printed: 0,
-        issued: 0,
-    };
+    const allSelected = cards.length > 0 && selected.length === cards.length;
 
-    const filteredCards = cards.filter((c: IdCard) => statusFilter ? c.status.toLowerCase() === statusFilter.toLowerCase() : true);
+    function toggle(id: string) {
+        setSelected(prev => (prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]));
+    }
 
-    const getStatusColor = (status: string) => {
-        const s = status.toLowerCase();
-        switch (s) {
-            case 'issued': return 'bg-green-100 text-green-800';
-            case 'printed': return 'bg-blue-100 text-blue-800';
-            case 'pending': return 'bg-yellow-100 text-yellow-800';
-            default: return 'bg-gray-100 text-gray-800';
+    async function mark(status: 'PRINTED' | 'ISSUED') {
+        setPending(true);
+        try {
+            const result = await setIdCardStatusAction({ cardIds: selected, status });
+            if (!result.success) {
+                toast.error(result.error ?? 'Could not update the cards.');
+                return;
+            }
+            const updated = result.updated ?? 0;
+            toast.success(
+                updated === 0
+                    ? 'Nothing to change — those cards were already at that stage.'
+                    : `${updated} card${updated === 1 ? '' : 's'} marked ${status === 'PRINTED' ? 'printed' : 'handed over'}`
+            );
+            setSelected([]);
+            router.refresh();
+        } catch {
+            toast.error('Something went wrong. Please try again.');
+        } finally {
+            setPending(false);
         }
-    };
+    }
 
-    const toggleSelect = (id: string) => setSelectedCards((prev) => prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]);
-    const selectAll = () => setSelectedCards(selectedCards.length === filteredCards.length ? [] : filteredCards.map((c: IdCard) => c.id));
+    if (cards.length === 0) {
+        return (
+            <Card>
+                <CardContent className="py-12 text-center text-gray-500">
+                    No ID cards match this view. Use &ldquo;Generate cards&rdquo; to create them.
+                </CardContent>
+            </Card>
+        );
+    }
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div><h1 className="text-3xl font-bold tracking-tight">ID Card Generation</h1><p className="text-muted-foreground">Generate and manage student & staff ID cards</p></div>
-                <div className="flex gap-2">
-                    <Button variant="outline" disabled={selectedCards.length === 0}>🖨️ Print Selected ({selectedCards.length})</Button>
-                    <Button disabled={selectedCards.length === 0}>📄 Export PDF</Button>
+        <div className="space-y-4">
+            <style>{PRINT_CSS}</style>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelected(allSelected ? [] : cards.map(c => c.id))}
+                >
+                    {allSelected ? 'Deselect all' : `Select all (${cards.length})`}
+                </Button>
+                <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" onClick={() => window.print()}>
+                        Print this sheet
+                    </Button>
+                    <Button
+                        variant="outline"
+                        disabled={selected.length === 0 || pending}
+                        onClick={() => mark('PRINTED')}
+                    >
+                        Mark printed ({selected.length})
+                    </Button>
+                    <Button
+                        disabled={selected.length === 0 || pending}
+                        onClick={() => mark('ISSUED')}
+                    >
+                        Mark handed over ({selected.length})
+                    </Button>
                 </div>
             </div>
 
-            <div className="flex gap-2">
-                <Button variant={activeTab === 'student' ? 'default' : 'outline'} onClick={() => { setActiveTab('student'); setSelectedCards([]); }}>🎓 Student Cards</Button>
-                <Button variant={activeTab === 'staff' ? 'default' : 'outline'} onClick={() => { setActiveTab('staff'); setSelectedCards([]); }}>👔 Staff Cards</Button>
-            </div>
+            <div
+                id="id-card-print-area"
+                className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+            >
+                {cards.map(card => (
+                    <div
+                        key={card.id}
+                        className={`id-card-wrapper rounded-lg border-2 p-3 transition-colors ${
+                            selected.includes(card.id)
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200'
+                        }`}
+                    >
+                        <label className="id-card-meta mb-2 flex cursor-pointer items-center gap-2 text-sm print:hidden">
+                            <input
+                                type="checkbox"
+                                checked={selected.includes(card.id)}
+                                onChange={() => toggle(card.id)}
+                                className="h-4 w-4"
+                            />
+                            <span className="text-gray-600">Select for batch action</span>
+                        </label>
 
-            <div className="grid grid-cols-4 gap-4">
-                <Card><CardHeader className="pb-2"><CardDescription>Total Cards</CardDescription><CardTitle className="text-3xl">{currentStats.total}</CardTitle></CardHeader></Card>
-                <Card><CardHeader className="pb-2"><CardDescription>Pending</CardDescription><CardTitle className="text-3xl text-yellow-600">{currentStats.pending}</CardTitle></CardHeader></Card>
-                <Card><CardHeader className="pb-2"><CardDescription>Printed</CardDescription><CardTitle className="text-3xl text-blue-600">{currentStats.printed}</CardTitle></CardHeader></Card>
-                <Card><CardHeader className="pb-2"><CardDescription>Issued</CardDescription><CardTitle className="text-3xl text-green-600">{currentStats.issued}</CardTitle></CardHeader></Card>
-            </div>
-
-            <Card>
-                <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
-                <CardContent>
-                    <div className="flex gap-4">
-                        <select className="p-2 border rounded-md" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                            <option value="">All Status</option><option value="pending">Pending</option><option value="printed">Printed</option><option value="issued">Issued</option>
-                        </select>
-                        <Button variant="outline" onClick={() => { setStatusFilter(''); }}>Clear</Button>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle>{activeTab === 'student' ? 'Student' : 'Staff'} ID Cards</CardTitle>
-                    <Button variant="outline" size="sm" onClick={selectAll}>{selectedCards.length === filteredCards.length && filteredCards.length > 0 ? 'Deselect All' : 'Select All'}</Button>
-                </CardHeader>
-                <CardContent>
-                    {filteredCards.length === 0 ? (
-                        <div className="text-center py-10 text-gray-500">No cards found.</div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {filteredCards.map((card: IdCard) => (
-                                <div key={card.id} onClick={() => toggleSelect(card.id)} className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedCards.includes(card.id) ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                                    <div className="bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-lg p-4 mb-3">
-                                        <div className="flex items-start justify-between mb-3">
-                                            <div><p className="text-xs opacity-75">SCHOOL NAME</p><p className="font-bold">{activeTab === 'student' ? `${card.studentFirstName} ${card.studentLastName}` : `${card.staffFirstName} ${card.staffLastName}`}</p></div>
-                                            <div className="w-12 h-14 bg-white/20 rounded flex items-center justify-center text-xs">Photo</div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-1 text-xs">
-                                            {activeTab === 'student' ? (<><p>Roll: {card.studentRollNo || 'N/A'}</p></>) : (<><p>Role: {card.staffRole}</p></>)}
-                                        </div>
-                                        <div className="mt-2 pt-2 border-t border-white/20 flex justify-between items-center">
-                                            <span className="text-xs opacity-75">{card.personId.substring(0,8)}</span>
-                                            <div className="w-8 h-8 bg-white rounded flex items-center justify-center text-[8px] text-black">QR</div>
-                                        </div>
+                        <div className="rounded-lg border border-gray-300 bg-white p-4 text-gray-900">
+                            <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
+                                {school.logoUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element -- logo_url may point at any host; next/image would need every one allow-listed
+                                    <img
+                                        src={school.logoUrl}
+                                        alt=""
+                                        className="h-7 w-7 rounded object-contain"
+                                    />
+                                ) : null}
+                                <div className="min-w-0">
+                                    <div className="truncate text-sm font-bold leading-tight">
+                                        {school.name}
                                     </div>
-                                    <div className="flex items-center justify-between"><Badge className={getStatusColor(card.status)}>{card.status}</Badge><span className="text-xs text-muted-foreground">Valid: {new Date(card.validFrom).getFullYear()} to {new Date(card.validTo).getFullYear()}</span></div>
+                                    {school.city && (
+                                        <div className="truncate text-[10px] text-gray-500">{school.city}</div>
+                                    )}
                                 </div>
-                            ))}
+                            </div>
+
+                            <div className="mt-3 flex gap-3">
+                                <div className="flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded border border-gray-300 bg-gray-100 text-sm font-semibold text-gray-500">
+                                    {card.photoUrl ? (
+                                        // eslint-disable-next-line @next/next/no-img-element -- photo_url may point at any host; next/image would need every one allow-listed
+                                        <img
+                                            src={card.photoUrl}
+                                            alt=""
+                                            className="h-full w-full object-cover"
+                                        />
+                                    ) : (
+                                        initials(card.name)
+                                    )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="truncate font-bold leading-tight">{card.name}</div>
+                                    {card.subtitle && (
+                                        <div className="truncate text-xs text-gray-600">{card.subtitle}</div>
+                                    )}
+                                    <dl className="mt-1.5 space-y-0.5 text-[11px] text-gray-700">
+                                        {card.identifier && (
+                                            <div className="flex gap-1">
+                                                <dt className="text-gray-500">ID</dt>
+                                                <dd className="font-mono">{card.identifier}</dd>
+                                            </div>
+                                        )}
+                                        {card.bloodGroup && (
+                                            <div className="flex gap-1">
+                                                <dt className="text-gray-500">Blood</dt>
+                                                <dd>{card.bloodGroup}</dd>
+                                            </div>
+                                        )}
+                                        <div className="flex gap-1">
+                                            <dt className="text-gray-500">Valid</dt>
+                                            <dd>
+                                                {card.validFrom} → {card.validTo}
+                                            </dd>
+                                        </div>
+                                    </dl>
+                                </div>
+                                <div className="shrink-0 text-center">
+                                    {card.qrImage ? (
+                                        // eslint-disable-next-line @next/next/no-img-element -- a data: URL generated on the server, not a remote asset
+                                        <img
+                                            src={card.qrImage}
+                                            alt={`QR code for ${card.qrCode}`}
+                                            className="h-14 w-14"
+                                        />
+                                    ) : (
+                                        <div className="flex h-14 w-14 items-center justify-center rounded border border-dashed border-gray-300 p-1 text-[8px] leading-tight text-gray-400">
+                                            No card code
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-                    )}
-                </CardContent>
-            </Card>
+
+                        <div className="id-card-meta mt-2 flex items-center justify-between print:hidden">
+                            <Badge className={idCardStatusClass(card.status)}>
+                                {ID_CARD_STATUS_LABELS[card.status] ?? card.status}
+                            </Badge>
+                            {!card.qrCode && (
+                                <span className="text-[11px] text-amber-700">
+                                    No employee ID on file, so no scannable code
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }

@@ -1,288 +1,446 @@
-'use client';
+import Link from 'next/link';
+import { pool } from '@/lib/db';
+import { requireAuth } from '@/lib/auth/middleware';
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow
-} from '@/components/ui/table';
-import { getProctoringLogs } from '@/lib/actions/exams';
+export const dynamic = 'force-dynamic';
 
-interface ProctoringLog {
-    id: string | number;
-    studentName: string;
-    examName: string;
-    subject: string;
-    flagType: string;
-    description: string | null;
-    timestamp: string | null;
+/**
+ * Regulatory compliance readout.
+ *
+ * This page reports only what the data model actually records. Where a
+ * regulatory obligation has no supporting table, column or integration, the
+ * section says so in plain words instead of showing a status it cannot justify.
+ *
+ * Backing data:
+ *   - tenants.udise_code / affiliation_* / postal fields  → institution profile
+ *   - students.aadhaar_number / apaar_id / category / …   → record completeness
+ *   - staff_profiles.aadhaar_number / pan_number / …      → staff completeness
+ *   - consent_forms + consent_responses                   → consent register
+ *   - exam_proctoring_logs                                → proctoring log
+ */
+
+interface TenantRow {
+    name: string;
+    udise_code: string | null;
+    affiliation_board: string | null;
+    affiliation_number: string | null;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    pincode: string | null;
+    phone: string | null;
+    email: string | null;
 }
 
-export default function CompliancePage() {
-    const [activeTab, setActiveTab] = useState('udise');
-    const [isExporting, setIsExporting] = useState(false);
-    const [proctoringLogs, setProctoringLogs] = useState<ProctoringLog[]>([]);
+interface StudentCoverageRow {
+    active: number;
+    no_aadhaar: number;
+    no_apaar: number;
+    no_category: number;
+    no_address: number;
+    no_guardian: number;
+}
 
-    useEffect(() => {
-        const fetchLogs = async () => {
-            try {
-                const logs = await getProctoringLogs();
-                setProctoringLogs(logs);
-            } catch (err) {
-                console.error(err);
-                toast.error('Failed to fetch proctoring logs');
-            }
-        };
-        fetchLogs();
-    }, []);
+interface StaffCoverageRow {
+    active: number;
+    no_aadhaar: number;
+    no_pan: number;
+    no_qualification: number;
+}
 
-    const handleUdiseExport = async () => {
-        setIsExporting(true);
-        setTimeout(() => setIsExporting(false), 2000); // UI Mock timer
+interface ConsentRow {
+    active_forms: number;
+    total_forms: number;
+    accepted: number;
+    declined: number;
+    students_with_response: number;
+}
+
+interface ProctoringRow {
+    id: string;
+    student_name: string;
+    exam_name: string;
+    subject_name: string;
+    flag_type: string;
+    description: string | null;
+    logged_at: Date;
+}
+
+export default async function CompliancePage() {
+    const { tenantId } = await requireAuth('audit:read');
+
+    const [tenantResult, studentResult, staffResult, consentResult, proctoringResult] =
+        await Promise.all([
+            pool.query<TenantRow>(
+                `SELECT name, udise_code, affiliation_board, affiliation_number,
+                        address, city, state, pincode, phone, email
+                   FROM tenants
+                  WHERE id = $1`,
+                [tenantId],
+            ),
+            pool.query<StudentCoverageRow>(
+                `SELECT count(*)::int AS active,
+                        count(*) FILTER (WHERE s.aadhaar_number IS NULL OR btrim(s.aadhaar_number) = '')::int AS no_aadhaar,
+                        count(*) FILTER (WHERE s.apaar_id IS NULL OR btrim(s.apaar_id) = '')::int AS no_apaar,
+                        count(*) FILTER (WHERE s.category IS NULL OR btrim(s.category) = '')::int AS no_category,
+                        count(*) FILTER (WHERE s.address IS NULL OR s.city IS NULL OR s.state IS NULL OR s.pincode IS NULL)::int AS no_address,
+                        count(*) FILTER (
+                            WHERE NOT EXISTS (
+                                SELECT 1 FROM guardians g
+                                 WHERE g.student_id = s.id AND g.tenant_id = s.tenant_id
+                            )
+                        )::int AS no_guardian
+                   FROM students s
+                  WHERE s.tenant_id = $1 AND s.status = 'ACTIVE'`,
+                [tenantId],
+            ),
+            pool.query<StaffCoverageRow>(
+                `SELECT count(*)::int AS active,
+                        count(*) FILTER (WHERE aadhaar_number IS NULL OR btrim(aadhaar_number) = '')::int AS no_aadhaar,
+                        count(*) FILTER (WHERE pan_number IS NULL OR btrim(pan_number) = '')::int AS no_pan,
+                        count(*) FILTER (WHERE qualification IS NULL OR btrim(qualification) = '')::int AS no_qualification
+                   FROM staff_profiles
+                  WHERE tenant_id = $1 AND status = 'ACTIVE'`,
+                [tenantId],
+            ),
+            pool.query<ConsentRow>(
+                `SELECT (SELECT count(*)::int FROM consent_forms WHERE tenant_id = $1 AND is_active) AS active_forms,
+                        (SELECT count(*)::int FROM consent_forms WHERE tenant_id = $1) AS total_forms,
+                        (SELECT count(*)::int FROM consent_responses WHERE tenant_id = $1 AND response = 'ACCEPTED') AS accepted,
+                        (SELECT count(*)::int FROM consent_responses WHERE tenant_id = $1 AND response = 'DECLINED') AS declined,
+                        (SELECT count(DISTINCT student_id)::int FROM consent_responses WHERE tenant_id = $1) AS students_with_response`,
+                [tenantId],
+            ),
+            pool.query<ProctoringRow>(
+                `SELECT epl.id,
+                        (s.first_name || ' ' || s.last_name) AS student_name,
+                        e.name AS exam_name,
+                        sub.name AS subject_name,
+                        epl.flag_type,
+                        epl.description,
+                        epl.timestamp AS logged_at
+                   FROM exam_proctoring_logs epl
+                   JOIN students s ON s.id = epl.student_id
+                   JOIN exam_schedules es ON es.id = epl.exam_schedule_id
+                   JOIN exams e ON e.id = es.exam_id
+                   JOIN subjects sub ON sub.id = es.subject_id
+                  WHERE epl.tenant_id = $1
+                  ORDER BY epl.timestamp DESC
+                  LIMIT 50`,
+                [tenantId],
+            ),
+        ]);
+
+    const tenant = tenantResult.rows[0];
+    const students = studentResult.rows[0] ?? {
+        active: 0, no_aadhaar: 0, no_apaar: 0, no_category: 0, no_address: 0, no_guardian: 0,
+    };
+    const staff = staffResult.rows[0] ?? { active: 0, no_aadhaar: 0, no_pan: 0, no_qualification: 0 };
+    const consent = consentResult.rows[0] ?? {
+        active_forms: 0, total_forms: 0, accepted: 0, declined: 0, students_with_response: 0,
     };
 
+    const profileFields: Array<{ label: string; value: string | null }> = tenant
+        ? [
+              { label: 'UDISE+ code', value: tenant.udise_code },
+              { label: 'Affiliation board', value: tenant.affiliation_board },
+              { label: 'Affiliation number', value: tenant.affiliation_number },
+              { label: 'Address', value: tenant.address },
+              { label: 'City', value: tenant.city },
+              { label: 'State', value: tenant.state },
+              { label: 'PIN code', value: tenant.pincode },
+              { label: 'Phone', value: tenant.phone },
+              { label: 'Email', value: tenant.email },
+          ]
+        : [];
+    const profileMissing = profileFields.filter((field) => !field.value?.trim()).length;
+
     return (
-        <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto bg-gray-50/30 min-h-[calc(100vh-4rem)]">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">Regulatory Compliance</h1>
-                    <p className="text-gray-500 mt-1">Central management for UDISE+, APAAR IDs, and DPDP Act Data Rights.</p>
+        <div className="space-y-8">
+            <header>
+                <h1 className="text-3xl font-bold text-gray-900">Regulatory compliance</h1>
+                <p className="mt-1 max-w-3xl text-gray-600">
+                    What ScholarMind can actually evidence about UDISE+, APAAR and the DPDP Act 2023 for{' '}
+                    {tenant?.name ?? 'this school'}. Sections that a regulator would expect but that this
+                    release does not implement are marked as such rather than shown with a status.
+                </p>
+            </header>
+
+            {/* ── Institution profile ─────────────────────────────── */}
+            <Section
+                title="Institution profile"
+                subtitle="Fields a UDISE+ return draws from the school record."
+            >
+                {!tenant ? (
+                    <Note>The school record could not be read.</Note>
+                ) : (
+                    <>
+                        <p className="mb-3 text-sm text-gray-600">
+                            {profileMissing === 0
+                                ? 'All nine profile fields tracked on the school record are filled in.'
+                                : `${profileMissing} of ${profileFields.length} profile fields are empty.`}
+                        </p>
+                        <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-gray-200 bg-gray-200 sm:grid-cols-2 lg:grid-cols-3">
+                            {profileFields.map((field) => (
+                                <div key={field.label} className="bg-white p-3">
+                                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        {field.label}
+                                    </dt>
+                                    <dd
+                                        className={`mt-0.5 text-sm ${
+                                            field.value?.trim() ? 'text-gray-900' : 'italic text-red-600'
+                                        }`}
+                                    >
+                                        {field.value?.trim() || 'Not recorded'}
+                                    </dd>
+                                </div>
+                            ))}
+                        </dl>
+                    </>
+                )}
+                <Note>
+                    ScholarMind does not generate, validate or submit the UDISE+ return file in this
+                    release. There is no UDISE+ export and no connection to the UDISE+ platform — the
+                    figures above describe the completeness of the underlying data only.
+                </Note>
+            </Section>
+
+            {/* ── Student record completeness ─────────────────────── */}
+            <Section
+                title="Student record completeness"
+                subtitle={`${students.active.toLocaleString('en-IN')} active student record${
+                    students.active === 1 ? '' : 's'
+                }. Each figure counts records missing that field.`}
+            >
+                {students.active === 0 ? (
+                    <EmptyState message="There are no active student records to check." />
+                ) : (
+                    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+                        <Gap label="No Aadhaar number" missing={students.no_aadhaar} total={students.active} />
+                        <Gap label="No APAAR ID" missing={students.no_apaar} total={students.active} />
+                        <Gap label="No social category" missing={students.no_category} total={students.active} />
+                        <Gap label="Incomplete address" missing={students.no_address} total={students.active} />
+                        <Gap label="No guardian on file" missing={students.no_guardian} total={students.active} />
+                    </div>
+                )}
+                <div className="mt-3">
+                    <Link href="/students" className="text-sm font-medium text-blue-600 hover:underline">
+                        Open the student register to fill these in →
+                    </Link>
                 </div>
-                <div className="text-right">
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 px-3 py-1">
-                        <span className="w-2 h-2 rounded-full bg-green-500 mr-2 inline-block animate-pulse"></span>
-                        System Compliant
-                    </Badge>
+            </Section>
+
+            {/* ── APAAR ───────────────────────────────────────────── */}
+            <Section
+                title="APAAR"
+                subtitle="Automated Permanent Academic Account Registry identifiers held on student records."
+            >
+                {students.active === 0 ? (
+                    <EmptyState message="There are no active student records to check." />
+                ) : (
+                    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+                        <Metric
+                            label="APAAR ID recorded"
+                            value={(students.active - students.no_apaar).toLocaleString('en-IN')}
+                            hint={`of ${students.active.toLocaleString('en-IN')} active students`}
+                        />
+                        <Metric
+                            label="APAAR ID missing"
+                            value={students.no_apaar.toLocaleString('en-IN')}
+                            hint="stored as null or blank"
+                        />
+                        <Metric
+                            label="Coverage"
+                            value={`${Math.round(
+                                ((students.active - students.no_apaar) / students.active) * 100,
+                            )}%`}
+                            hint="recorded / active"
+                        />
+                    </div>
+                )}
+                <Note>
+                    APAAR IDs are stored on the student record when someone enters them. This release has no
+                    connection to the Ministry of Education APAAR service, so nothing here issues, verifies or
+                    reconciles an ID, and a recorded value is not evidence that the ID is valid.
+                </Note>
+            </Section>
+
+            {/* ── Staff record completeness ───────────────────────── */}
+            <Section
+                title="Staff record completeness"
+                subtitle={`${staff.active.toLocaleString('en-IN')} active staff record${
+                    staff.active === 1 ? '' : 's'
+                }.`}
+            >
+                {staff.active === 0 ? (
+                    <EmptyState message="There are no active staff records to check." />
+                ) : (
+                    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+                        <Gap label="No Aadhaar number" missing={staff.no_aadhaar} total={staff.active} />
+                        <Gap label="No PAN" missing={staff.no_pan} total={staff.active} />
+                        <Gap label="No qualification" missing={staff.no_qualification} total={staff.active} />
+                    </div>
+                )}
+            </Section>
+
+            {/* ── DPDPA ───────────────────────────────────────────── */}
+            <Section
+                title="DPDP Act 2023"
+                subtitle="Consent is the only DPDPA obligation this release keeps a register for."
+            >
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    <Metric
+                        label="Consent forms"
+                        value={consent.total_forms.toLocaleString('en-IN')}
+                        hint={`${consent.active_forms.toLocaleString('en-IN')} currently active`}
+                    />
+                    <Metric label="Accepted responses" value={consent.accepted.toLocaleString('en-IN')} hint="response = ACCEPTED" />
+                    <Metric label="Declined responses" value={consent.declined.toLocaleString('en-IN')} hint="response = DECLINED" />
+                    <Metric
+                        label="Students who responded"
+                        value={consent.students_with_response.toLocaleString('en-IN')}
+                        hint={`of ${students.active.toLocaleString('en-IN')} active students`}
+                    />
                 </div>
+                {consent.total_forms === 0 && (
+                    <div className="mt-3">
+                        <EmptyState message="No consent forms have been created, so there is nothing to report on yet." />
+                    </div>
+                )}
+                <Note>
+                    <span className="font-semibold">Not implemented in this release.</span> There is no
+                    register of data-principal requests in the data model — no table records access,
+                    correction, erasure or grievance requests, or when they were answered. This screen
+                    therefore cannot report request volumes, breach notifications or statutory response
+                    times, and no figure on it should be presented as evidence of meeting a DPDPA deadline.
+                </Note>
+            </Section>
+
+            {/* ── Proctoring ──────────────────────────────────────── */}
+            <Section
+                title="Online exam proctoring log"
+                subtitle="Anomalies recorded against online exam sittings, newest first (up to 50)."
+            >
+                {proctoringResult.rows.length === 0 ? (
+                    <EmptyState message="No proctoring anomalies have been recorded." />
+                ) : (
+                    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                        <table className="w-full text-sm">
+                            <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                                <tr>
+                                    <th className="px-4 py-3 font-semibold">Student</th>
+                                    <th className="px-4 py-3 font-semibold">Exam</th>
+                                    <th className="px-4 py-3 font-semibold">Flag</th>
+                                    <th className="px-4 py-3 font-semibold">Description</th>
+                                    <th className="px-4 py-3 font-semibold">Recorded</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {proctoringResult.rows.map((row) => (
+                                    <tr key={row.id} className="hover:bg-gray-50/70">
+                                        <td className="px-4 py-3 font-medium text-gray-900">{row.student_name}</td>
+                                        <td className="px-4 py-3 text-gray-700">
+                                            {row.exam_name}
+                                            <div className="text-xs text-gray-500">{row.subject_name}</div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
+                                                {row.flag_type}
+                                            </span>
+                                        </td>
+                                        <td className="max-w-sm px-4 py-3 text-gray-700">
+                                            {row.description ?? <span className="text-gray-400">—</span>}
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600">
+                                            {new Date(row.logged_at).toLocaleString('en-IN', {
+                                                day: '2-digit',
+                                                month: 'short',
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                            })}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </Section>
+
+            <p className="text-sm text-gray-500">
+                Individual actions taken by staff are recorded separately in the{' '}
+                <Link href="/audit" className="font-medium text-blue-600 hover:underline">
+                    audit log
+                </Link>
+                .
+            </p>
+        </div>
+    );
+}
+
+function Section({
+    title,
+    subtitle,
+    children,
+}: {
+    title: string;
+    subtitle: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <section className="space-y-3">
+            <div>
+                <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+                <p className="text-sm text-gray-500">{subtitle}</p>
             </div>
+            {children}
+        </section>
+    );
+}
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-8">
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 max-w-4xl bg-white shadow-sm border border-gray-100 p-1 rounded-xl h-auto md:h-14 gap-1">
-                    <TabsTrigger value="udise" className="rounded-lg font-semibold data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:shadow-sm">UDISE+ Export</TabsTrigger>
-                    <TabsTrigger value="apaar" className="rounded-lg font-semibold data-[state=active]:bg-purple-50 data-[state=active]:text-purple-700 data-[state=active]:shadow-sm">APAAR Management</TabsTrigger>
-                    <TabsTrigger value="dpdp" className="rounded-lg font-semibold data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700 data-[state=active]:shadow-sm">DPDPA 2023</TabsTrigger>
-                    <TabsTrigger value="proctoring" className="rounded-lg font-semibold data-[state=active]:bg-red-50 data-[state=active]:text-red-700 data-[state=active]:shadow-sm">Proctoring Logs</TabsTrigger>
-                </TabsList>
+function Metric({ label, value, hint }: { label: string; value: string; hint: string }) {
+    return (
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
+            <div className="mt-1 text-2xl font-bold text-gray-900">{value}</div>
+            <div className="mt-1 text-xs text-gray-500">{hint}</div>
+        </div>
+    );
+}
 
-                {/* UDISE+ Tab */}
-                <TabsContent value="udise" className="mt-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <Card className="border-0 shadow-xl shadow-blue-900/5 bg-white overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-blue-50 to-white border-b border-blue-100 pb-8">
-                            <CardTitle className="flex items-center gap-3 text-2xl text-blue-900">
-                                <div className="p-2 bg-blue-100 rounded-lg text-blue-600"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg></div>
-                                Govt. UDISE+ Generation
-                            </CardTitle>
-                            <CardDescription className="text-blue-700/70 text-base mt-2">
-                                Automatically compile all school, infrastructure, teacher, and student data down into the exact strict XML/CSV structure mandated by the Ministry of Education for porting to the UDISE+ platform.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-8 space-y-8">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-                                <Card className="p-5 border border-gray-100 hover:border-blue-200 transition-colors shadow-sm bg-gray-50/50">
-                                    <div className="text-sm font-medium text-gray-500 mb-2">School Profile (Section 1)</div>
-                                    <div className="text-2xl font-black text-gray-900 mb-2">100%</div>
-                                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100 shadow-none">Validated</Badge>
-                                </Card>
-                                <Card className="p-5 border border-gray-100 hover:border-blue-200 transition-colors shadow-sm bg-gray-50/50">
-                                    <div className="text-sm font-medium text-gray-500 mb-2">Student Rolls (Section 4)</div>
-                                    <div className="text-2xl font-black text-gray-900 mb-2">1,245</div>
-                                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100 shadow-none">Synced & Clean</Badge>
-                                </Card>
-                                <Card className="p-5 border border-gray-100 hover:border-blue-200 transition-colors shadow-sm bg-gray-50/50">
-                                    <div className="text-sm font-medium text-gray-500 mb-2">Teacher Staff (Section 3)</div>
-                                    <div className="text-2xl font-black text-gray-900 mb-2">67</div>
-                                    <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 shadow-none">2 Pending Aadhar</Badge>
-                                </Card>
-                                <Card className="p-5 border border-gray-100 hover:border-blue-200 transition-colors shadow-sm bg-gray-50/50">
-                                    <div className="text-sm font-medium text-gray-500 mb-2">Infrastructure (Section 2)</div>
-                                    <div className="text-2xl font-black text-gray-900 mb-2">100%</div>
-                                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100 shadow-none">Validated</Badge>
-                                </Card>
-                            </div>
+function Gap({ label, missing, total }: { label: string; missing: number; total: number }) {
+    const complete = missing === 0;
+    return (
+        <div
+            className={`rounded-xl border p-4 ${
+                complete ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'
+            }`}
+        >
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-600">{label}</div>
+            <div
+                className={`mt-1 text-2xl font-bold ${complete ? 'text-emerald-700' : 'text-amber-800'}`}
+            >
+                {missing.toLocaleString('en-IN')}
+            </div>
+            <div className="mt-1 text-xs text-gray-600">
+                {complete ? 'none missing' : `of ${total.toLocaleString('en-IN')} records`}
+            </div>
+        </div>
+    );
+}
 
-                            <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-gray-100">
-                                <Button onClick={handleUdiseExport} disabled={isExporting} className="bg-blue-600 hover:bg-blue-700 text-white h-12 px-8 shadow-md transition-all font-semibold text-base">
-                                    {isExporting ? (
-                                        <div className="flex items-center gap-2"><svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Compiling Data Packet...</div>
-                                    ) : (
-                                        <div className="flex items-center gap-2"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> Download UDISE+ JSON Export</div>
-                                    )}
-                                </Button>
-                                <Button variant="outline" className="h-12 px-8 font-semibold text-gray-700 bg-white hover:bg-gray-50 border-gray-200">
-                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Run Pre-Flight Validation check
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+function Note({ children }: { children: React.ReactNode }) {
+    return (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            {children}
+        </div>
+    );
+}
 
-                {/* APAAR ID Tab */}
-                <TabsContent value="apaar" className="mt-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <Card className="border-0 shadow-xl shadow-purple-900/5 bg-white overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-purple-50 to-white border-b border-purple-100 pb-8">
-                            <CardTitle className="flex items-center gap-3 text-2xl text-purple-900">
-                                <div className="p-2 bg-purple-100 rounded-lg text-purple-600"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" /></svg></div>
-                                APAAR Integration
-                            </CardTitle>
-                            <CardDescription className="text-purple-700/70 text-base mt-2">
-                                Ministry of Education (MoE) Automated Permanent Academic Account Registry. Push student data to automatically generate One Nation One Student IDs.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-8 space-y-8">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-                                <Card className="p-5 border-l-4 border-l-purple-500 shadow-sm bg-white">
-                                    <div className="text-sm font-medium text-gray-500 mb-2">Total Active Students</div>
-                                    <div className="text-3xl font-black text-gray-900">1,245</div>
-                                </Card>
-                                <Card className="p-5 border-l-4 border-l-green-500 shadow-sm bg-white">
-                                    <div className="text-sm font-medium text-gray-500 mb-2">Successfully Linked</div>
-                                    <div className="text-3xl font-black text-green-600 mb-1">892</div>
-                                    <div className="text-xs text-green-700 font-semibold bg-green-50 inline-block px-2 py-1 rounded">71.6% Coverage</div>
-                                </Card>
-                                <Card className="p-5 border-l-4 border-l-amber-500 shadow-sm bg-white">
-                                    <div className="text-sm font-medium text-gray-500 mb-2">Pending MoE API Sync</div>
-                                    <div className="text-3xl font-black text-amber-600">156</div>
-                                </Card>
-                                <Card className="p-5 border-l-4 border-l-red-500 shadow-sm bg-white">
-                                    <div className="text-sm font-medium text-gray-500 mb-2">Missing KYC/Consent</div>
-                                    <div className="text-3xl font-black text-red-600">197</div>
-                                </Card>
-                            </div>
-
-                            <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-gray-100">
-                                <Button className="bg-purple-600 hover:bg-purple-700 text-white h-12 px-8 shadow-md transition-all font-semibold text-base">
-                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg> Push Batch to APAAR API
-                                </Button>
-                                <Button variant="outline" className="h-12 px-8 font-semibold text-gray-700 bg-white hover:bg-gray-50 border-gray-200">
-                                    Send Mass Consent Request via SMS
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                {/* DPDP Tab */}
-                <TabsContent value="dpdp" className="mt-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                     <Card className="border-0 shadow-xl shadow-teal-900/5 bg-white overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-teal-50 to-white border-b border-teal-100 pb-8">
-                            <CardTitle className="flex items-center gap-3 text-2xl text-teal-900">
-                                <div className="p-2 bg-teal-100 rounded-lg text-teal-600"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg></div>
-                                Digital Personal Data Protection Act 2023
-                            </CardTitle>
-                            <CardDescription className="text-teal-700/70 text-base mt-2">
-                                DPDPA Privacy Governance Console. Manage Data Principal rights requests, respond to parental inquiries, and track erasure timelines within the statutory 72 hours.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-8 space-y-8">
-                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                <Card className="p-5 bg-teal-50/50 border border-teal-100">
-                                    <div className="text-sm font-medium text-teal-800 mb-2">Subject Access Requests</div>
-                                    <div className="text-3xl font-black text-teal-900 mb-2">12</div>
-                                    <Badge variant="outline" className="bg-white border-teal-200 text-teal-700 shadow-sm">This Month</Badge>
-                                </Card>
-                                <Card className="p-5 bg-orange-50/50 border border-orange-100">
-                                    <div className="text-sm font-medium text-orange-800 mb-2">Data Erasure Requests</div>
-                                    <div className="text-3xl font-black text-orange-900 mb-2">3</div>
-                                    <Badge className="bg-orange-500 hover:bg-orange-600 shadow-sm">Pending Approval</Badge>
-                                </Card>
-                                <Card className="p-5 bg-gray-50/50 border border-gray-200">
-                                    <div className="text-sm font-medium text-gray-600 mb-2">Correction Tickers</div>
-                                    <div className="text-3xl font-black text-gray-900 mb-2">8</div>
-                                    <Badge variant="outline" className="bg-white text-gray-500 shadow-sm">Completed</Badge>
-                                </Card>
-                                <Card className="p-5 bg-red-50/50 border border-red-100">
-                                    <div className="text-sm font-medium text-red-800 mb-2">Govt Privacy Grievances</div>
-                                    <div className="text-3xl font-black text-red-900 mb-2">0</div>
-                                    <Badge variant="outline" className="bg-red-100 text-red-700 border-red-200 shadow-sm font-semibold">Zero Actionable Open</Badge>
-                                </Card>
-                            </div>
-
-                            <div className="bg-gray-900 text-gray-300 p-6 rounded-xl relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-4 opacity-10"><svg className="w-32 h-32" fill="currentColor" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-                                <h4 className="font-semibold text-white mb-4 flex items-center gap-2"><svg className="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> End-to-End System Rights Covered:</h4>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    <div className="bg-gray-800 p-3 rounded text-sm text-center border border-gray-700">Right to Access</div>
-                                    <div className="bg-gray-800 p-3 rounded text-sm text-center border border-gray-700">Right to Correction</div>
-                                    <div className="bg-gray-800 p-3 rounded text-sm text-center border border-gray-700">Right to Erasure</div>
-                                    <div className="bg-gray-800 p-3 rounded text-sm text-center border border-gray-700">Right for Grievance</div>
-                                </div>
-                            </div>
-
-                            <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-gray-100">
-                                <Button className="bg-teal-600 hover:bg-teal-700 text-white h-12 px-8 shadow-md transition-all font-semibold text-base">
-                                    Action Pending DPDPA Requests
-                                </Button>
-                                <Button variant="outline" className="h-12 px-8 font-semibold text-gray-700 bg-white hover:bg-gray-50 border-gray-200">
-                                    Privacy Impact Assessment (PIA)
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                {/* Proctoring Logs Tab */}
-                <TabsContent value="proctoring" className="mt-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                     <Card className="border-0 shadow-xl shadow-red-900/5 bg-white overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-red-50 to-white border-b border-red-100 pb-8">
-                            <CardTitle className="flex items-center gap-3 text-2xl text-red-900">
-                                <div className="p-2 bg-red-100 rounded-lg text-red-600">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                                </div>
-                                AI Proctoring Audit Logs
-                            </CardTitle>
-                            <CardDescription className="text-red-700/70 text-base mt-2">
-                                Review flagged anomalies and suspicious activities automatically detected by the AI Proctoring engine during online exams.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <Table>
-                                <TableHeader className="bg-gray-50/50">
-                                    <TableRow>
-                                        <TableHead className="pl-8">Student</TableHead>
-                                        <TableHead>Exam (Subject)</TableHead>
-                                        <TableHead>Flag Type</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead className="pr-8">Timestamp</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {proctoringLogs.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={5} className="text-center py-12 text-gray-500">
-                                                No proctoring violations detected.
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        proctoringLogs.map((log) => (
-                                            <TableRow key={log.id} className="hover:bg-red-50/20 transition-colors">
-                                                <TableCell className="pl-8 font-medium">{log.studentName}</TableCell>
-                                                <TableCell>{log.examName} ({log.subject})</TableCell>
-                                                <TableCell>
-                                                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                                        {log.flagType}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="text-gray-600 text-sm max-w-[300px] truncate" title={log.description || ''}>
-                                                    {log.description || 'N/A'}
-                                                </TableCell>
-                                                <TableCell className="pr-8 text-gray-500 text-sm">{log.timestamp}</TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+function EmptyState({ message }: { message: string }) {
+    return (
+        <div className="rounded-xl border border-dashed border-gray-300 bg-white py-10 text-center text-sm text-gray-500">
+            {message}
         </div>
     );
 }

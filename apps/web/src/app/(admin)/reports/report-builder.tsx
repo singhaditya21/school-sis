@@ -1,151 +1,519 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { runDynamicReport, getReportSources } from '@/lib/actions/reports';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { toast } from 'sonner';
+import { AlertTriangle, Database, Download, Loader2, ShieldCheck } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Download, Loader2, Database } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
+import { formatCurrency } from '@/lib/utils';
+import { exportBiReport, runBiReport } from './bi-actions';
+import type { BiReportColumn, BiReportRow, ReportWorkspace } from './bi-types';
 
-export default function ReportBuilder() {
-    const [sources, setSources] = useState<{ id: string, name: string, apiName: string }[]>([]);
-    const [selectedSource, setSelectedSource] = useState<string>('');
-    const [loading, setLoading] = useState<boolean>(false);
-    const [reportData, setReportData] = useState<Record<string, unknown>[]>([]);
-    const [columns, setColumns] = useState<string[]>([]);
+const LIMIT_OPTIONS = [100, 500, 1000, 5000];
+
+export default function ReportBuilder({ workspace }: { workspace: ReportWorkspace }) {
+    const runnable = useMemo(() => workspace.datasets.filter((dataset) => dataset.executable), [workspace.datasets]);
+    const blocked = useMemo(() => workspace.datasets.filter((dataset) => !dataset.executable), [workspace.datasets]);
+
+    const [datasetId, setDatasetId] = useState<string>(runnable[0]?.id ?? '');
+    const dataset = runnable.find((entry) => entry.id === datasetId) ?? null;
+
+    const [metricIds, setMetricIds] = useState<string[]>([]);
+    const [dimensionIds, setDimensionIds] = useState<string[]>([]);
+    const [filterValues, setFilterValues] = useState<Record<string, string>>({});
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+    const [limit, setLimit] = useState(500);
+
+    const [running, setRunning] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [columns, setColumns] = useState<BiReportColumn[]>([]);
+    const [rows, setRows] = useState<BiReportRow[]>([]);
+    const [hasRun, setHasRun] = useState(false);
+    const [truncated, setTruncated] = useState(false);
 
-    useEffect(() => {
-        getReportSources().then(res => {
-            setSources(res);
-            if (res.length > 0) setSelectedSource(res[0].apiName);
-        });
-    }, []);
+    const [exportReason, setExportReason] = useState('');
+    const [exporting, setExporting] = useState(false);
+    const [pendingApprovalId, setPendingApprovalId] = useState<string | null>(null);
+    const [approvalNotice, setApprovalNotice] = useState<string | null>(null);
 
-    const handleGenerateReport = async () => {
-        if (!selectedSource) return;
-        setLoading(true);
+    function selectDataset(nextId: string) {
+        setDatasetId(nextId);
+        setMetricIds([]);
+        setDimensionIds([]);
+        setFilterValues({});
+        setDateFrom('');
+        setDateTo('');
+        setColumns([]);
+        setRows([]);
+        setHasRun(false);
         setError(null);
-        
-        try {
-            const res = await runDynamicReport(selectedSource);
-            if (res.success) {
-                setReportData(res.data || []);
-                setColumns(res.columns || []);
-            } else {
-                setError(res.error || 'Failed to generate report');
-                setReportData([]);
-                setColumns([]);
-            }
-        } catch (err: unknown) {
-            setError((err as Error).message || 'An unexpected error occurred');
-        } finally {
-            setLoading(false);
-        }
-    };
+        setPendingApprovalId(null);
+        setApprovalNotice(null);
+    }
 
-    const handleExportCSV = () => {
-        if (!reportData || reportData.length === 0) return;
-        
-        const escapeCsv = (val: unknown) => {
-            if (val === null || val === undefined) return '""';
-            const str = String(val);
-            if (str.includes(',') || str.includes('"') || str.includes('\\n')) {
-                return `"${str.replace(/"/g, '""')}"`;
-            }
-            return str;
+    function toggle(list: string[], value: string, setter: (next: string[]) => void) {
+        setter(list.includes(value) ? list.filter((entry) => entry !== value) : [...list, value]);
+    }
+
+    function buildRequest() {
+        const filters = Object.entries(filterValues)
+            .filter(([, raw]) => raw.trim() !== '')
+            .map(([dimensionId, raw]) => {
+                const values = raw.split(',').map((part) => part.trim()).filter(Boolean);
+                return values.length > 1
+                    ? { dimensionId, operator: 'in' as const, value: values }
+                    : { dimensionId, operator: 'eq' as const, value: values[0] };
+            });
+
+        return {
+            datasetId,
+            metricIds,
+            dimensionIds,
+            filters,
+            dateFrom: dateFrom || undefined,
+            dateTo: dateTo || undefined,
+            limit,
         };
+    }
 
-        const header = columns.join(',');
-        const rows = reportData.map(row => 
-            columns.map(col => escapeCsv(row[col])).join(',')
+    async function handleRun() {
+        if (!dataset || metricIds.length === 0) return;
+        if (Boolean(dateFrom) !== Boolean(dateTo)) {
+            setHasRun(false);
+            setError('A date range needs both a start and an end date. Clear both to cover all history.');
+            return;
+        }
+        setRunning(true);
+        setError(null);
+        setApprovalNotice(null);
+
+        const result = await runBiReport(buildRequest());
+        setRunning(false);
+        setHasRun(true);
+
+        if (!result.success) {
+            setColumns([]);
+            setRows([]);
+            setTruncated(false);
+            setError(result.error ?? 'Report execution failed.');
+            return;
+        }
+
+        setColumns(result.columns ?? []);
+        setRows(result.rows ?? []);
+        setTruncated(Boolean(result.truncated));
+    }
+
+    async function handleExport(approvalRequestId?: string) {
+        if (!dataset?.exportPolicy) return;
+        if (dataset.exportPolicy.requiresReason && exportReason.trim() === '') {
+            toast.error('This export policy requires an audit reason.');
+            return;
+        }
+
+        setExporting(true);
+        setApprovalNotice(null);
+
+        const result = await exportBiReport({
+            ...buildRequest(),
+            exportPolicyId: dataset.exportPolicy.id,
+            reason: exportReason,
+            approvalRequestId,
+        });
+        setExporting(false);
+
+        if (result.approvalRequired) {
+            setPendingApprovalId(result.approvalRequestId ?? null);
+            setApprovalNotice(result.error ?? 'This export needs workflow approval.');
+            toast.message('Approval required', { description: result.error });
+            return;
+        }
+
+        if (!result.success || !result.csv) {
+            toast.error(result.error ?? 'Export failed.');
+            return;
+        }
+
+        downloadCsv(result.csv, result.filename ?? 'bi-export.csv');
+        setPendingApprovalId(null);
+        toast.success(`Exported ${result.rowCount ?? 0} rows.`);
+    }
+
+    if (runnable.length === 0) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>No runnable datasets</CardTitle>
+                    <CardDescription>
+                        Your role has catalog access, but none of the granted datasets has an execution plan on this
+                        surface.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm text-gray-600">
+                    {blocked.map((entry) => (
+                        <p key={entry.id}>
+                            <span className="font-medium">{entry.label}:</span> {entry.unavailableReason}
+                        </p>
+                    ))}
+                </CardContent>
+            </Card>
         );
-        
-        const csvContent = [header, ...rows].join('\n');
-        
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `${selectedSource}_Report_${new Date().toISOString().split('T')[0]}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
+    }
 
     return (
         <div className="space-y-6">
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        <Database className="h-5 w-5" /> Data Source
+                        <Database className="h-5 w-5" /> Dataset
                     </CardTitle>
-                    <CardDescription>Select a metadata object to query.</CardDescription>
+                    <CardDescription>{dataset?.description ?? 'Choose a governed dataset.'}</CardDescription>
                 </CardHeader>
-                <CardContent className="flex items-center gap-4">
-                    <Select value={selectedSource} onValueChange={setSelectedSource}>
-                        <SelectTrigger className="w-[300px]">
-                            <SelectValue placeholder="Select Data Source" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {sources.map(source => (
-                                <SelectItem key={source.apiName} value={source.apiName}>
-                                    {source.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                    <Button onClick={handleGenerateReport} disabled={loading || !selectedSource}>
-                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Generate Report
-                    </Button>
+                <CardContent className="space-y-6">
+                    <div className="flex flex-wrap items-end gap-4">
+                        <div className="space-y-1">
+                            <Label htmlFor="bi-dataset">Dataset</Label>
+                            <Select value={datasetId} onValueChange={selectDataset}>
+                                <SelectTrigger id="bi-dataset" className="w-[320px]">
+                                    <SelectValue placeholder="Select dataset" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {runnable.map((entry) => (
+                                        <SelectItem key={entry.id} value={entry.id}>
+                                            {entry.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1">
+                            <Label htmlFor="bi-limit">Row limit</Label>
+                            <Select value={String(limit)} onValueChange={(value) => setLimit(Number(value))}>
+                                <SelectTrigger id="bi-limit" className="w-[140px]">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {LIMIT_OPTIONS.map((option) => (
+                                        <SelectItem key={option} value={String(option)}>
+                                            {option.toLocaleString()}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        {dataset?.dateFilterLabel && (
+                            <>
+                                <div className="space-y-1">
+                                    <Label htmlFor="bi-date-from">From ({dataset.dateFilterLabel})</Label>
+                                    <Input
+                                        id="bi-date-from"
+                                        type="date"
+                                        className="w-[170px]"
+                                        value={dateFrom}
+                                        onChange={(event) => setDateFrom(event.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="bi-date-to">To ({dataset.dateFilterLabel})</Label>
+                                    <Input
+                                        id="bi-date-to"
+                                        type="date"
+                                        className="w-[170px]"
+                                        value={dateTo}
+                                        onChange={(event) => setDateTo(event.target.value)}
+                                    />
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {dataset?.dateFilterLabel && (
+                        <p className="-mt-2 text-xs text-gray-500">
+                            The date range filters on <span className="font-medium">{dataset.dateFilterLabel}</span> and
+                            accepts spans of up to 1,096 days. Leave both boxes empty to cover all history.
+                        </p>
+                    )}
+
+                    {dataset && (
+                        <div className="grid gap-6 md:grid-cols-2">
+                            <div>
+                                <h3 className="text-sm font-semibold mb-2">Metrics</h3>
+                                <div className="space-y-2">
+                                    {dataset.metrics.map((metric) => (
+                                        <label key={metric.id} className="flex items-start gap-3 text-sm">
+                                            <Checkbox
+                                                className="mt-0.5"
+                                                checked={metricIds.includes(metric.id)}
+                                                onCheckedChange={() => toggle(metricIds, metric.id, setMetricIds)}
+                                            />
+                                            <span>
+                                                <span className="font-medium">{metric.label}</span>
+                                                <span className="block text-xs text-gray-500">{metric.description}</span>
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-semibold mb-2">Group by</h3>
+                                <div className="space-y-2">
+                                    {dataset.dimensions.map((dimension) => (
+                                        <label key={dimension.id} className="flex items-center gap-3 text-sm">
+                                            <Checkbox
+                                                checked={dimensionIds.includes(dimension.id)}
+                                                onCheckedChange={() => toggle(dimensionIds, dimension.id, setDimensionIds)}
+                                            />
+                                            <span className="font-medium">{dimension.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2">
+                                    With nothing selected the report returns a single total row.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {dataset && dataset.dimensions.some((dimension) => dimension.filterable) && (
+                        <div>
+                            <h3 className="text-sm font-semibold mb-2">Filters</h3>
+                            <div className="grid gap-3 md:grid-cols-3">
+                                {dataset.dimensions
+                                    .filter((dimension) => dimension.filterable)
+                                    .map((dimension) => (
+                                        <div key={dimension.id} className="space-y-1">
+                                            <Label htmlFor={`filter-${dimension.id}`} className="text-xs">
+                                                {dimension.label}
+                                            </Label>
+                                            <Input
+                                                id={`filter-${dimension.id}`}
+                                                placeholder="any"
+                                                value={filterValues[dimension.id] ?? ''}
+                                                onChange={(event) =>
+                                                    setFilterValues({ ...filterValues, [dimension.id]: event.target.value })
+                                                }
+                                            />
+                                        </div>
+                                    ))}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2">
+                                Values are matched exactly. Separate several values with commas to match any of them.
+                            </p>
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-3">
+                        <Button onClick={handleRun} disabled={running || metricIds.length === 0}>
+                            {running && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Run report
+                        </Button>
+                        {metricIds.length === 0 && (
+                            <span className="text-sm text-gray-500">Select at least one metric.</span>
+                        )}
+                    </div>
                 </CardContent>
             </Card>
 
             {error && (
-                <div className="p-4 rounded-md bg-red-50 text-red-700 border border-red-200">
-                    {error}
-                </div>
+                <div className="p-4 rounded-md bg-red-50 text-red-700 border border-red-200 text-sm">{error}</div>
             )}
 
-            {reportData.length > 0 && (
+            {hasRun && !error && (
                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                        <div>
-                            <CardTitle>Report Results</CardTitle>
-                            <CardDescription>Showing {reportData.length} records</CardDescription>
-                        </div>
-                        <Button variant="outline" onClick={handleExportCSV}>
-                            <Download className="mr-2 h-4 w-4" /> Export CSV
-                        </Button>
+                    <CardHeader>
+                        <CardTitle>Results</CardTitle>
+                        <CardDescription>
+                            {rows.length === 0
+                                ? 'The query ran successfully and matched no rows.'
+                                : `${rows.length.toLocaleString()} row${rows.length === 1 ? '' : 's'}${truncated ? ` (row limit of ${limit.toLocaleString()} reached — narrow the filters for a complete answer)` : ''}`}
+                        </CardDescription>
                     </CardHeader>
-                    <CardContent className="p-0">
-                        <div className="rounded-md border m-6 mt-0 overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        {columns.map((col, i) => (
-                                            <TableHead key={i} className="whitespace-nowrap">{col}</TableHead>
-                                        ))}
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {reportData.map((row, rowIndex) => (
-                                        <TableRow key={rowIndex}>
-                                            {columns.map((col, colIndex) => (
-                                                <TableCell key={colIndex} className="max-w-[200px] truncate">
-                                                    {row[col] !== null && row[col] !== undefined ? String(row[col]) : '-'}
-                                                </TableCell>
+                    <CardContent className="space-y-6">
+                        {rows.length > 0 && (
+                            <div className="rounded-md border overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            {columns.map((column) => (
+                                                <TableHead
+                                                    key={column.label}
+                                                    className={`whitespace-nowrap ${column.kind === 'metric' ? 'text-right' : ''}`}
+                                                >
+                                                    {column.label}
+                                                </TableHead>
                                             ))}
                                         </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {rows.map((row, rowIndex) => (
+                                            <TableRow key={rowIndex}>
+                                                {columns.map((column) => (
+                                                    <TableCell
+                                                        key={column.label}
+                                                        className={column.kind === 'metric' ? 'text-right tabular-nums' : ''}
+                                                    >
+                                                        {formatCell(row[column.label] ?? null, column)}
+                                                    </TableCell>
+                                                ))}
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+
+                        {dataset?.exportPolicy ? (
+                            <div className="rounded-md border p-4 space-y-3">
+                                <div className="flex items-center gap-2 text-sm font-semibold">
+                                    <ShieldCheck className="h-4 w-4" /> Governed export — {dataset.exportPolicy.label}
+                                </div>
+                                <p className="text-xs text-gray-600">
+                                    CSV, up to {dataset.exportPolicy.maxRows.toLocaleString()} rows.{' '}
+                                    {dataset.exportPolicy.requiresApproval
+                                        ? 'This policy is approval-gated: the first request raises a workflow approval, and the file is released once it is approved.'
+                                        : 'This policy releases the file immediately, with the audit reason recorded.'}
+                                </p>
+                                {dataset.exportPolicy.requiresReason && (
+                                    <div className="space-y-1">
+                                        <Label htmlFor="export-reason" className="text-xs">
+                                            Audit reason (required)
+                                        </Label>
+                                        <Textarea
+                                            id="export-reason"
+                                            rows={2}
+                                            value={exportReason}
+                                            onChange={(event) => setExportReason(event.target.value)}
+                                            placeholder="Why is this data leaving the system?"
+                                        />
+                                    </div>
+                                )}
+                                {approvalNotice && (
+                                    <div className="flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+                                        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                                        <span>
+                                            {approvalNotice}{' '}
+                                            <Link href="/approvals" className="underline">
+                                                Open the approvals queue
+                                            </Link>
+                                            .
+                                        </span>
+                                    </div>
+                                )}
+                                <div className="flex gap-3">
+                                    <Button variant="outline" onClick={() => handleExport()} disabled={exporting || metricIds.length === 0}>
+                                        {exporting ? (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Download className="mr-2 h-4 w-4" />
+                                        )}
+                                        {dataset.exportPolicy.requiresApproval ? 'Request export' : 'Export CSV'}
+                                    </Button>
+                                    {pendingApprovalId && (
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => handleExport(pendingApprovalId)}
+                                            disabled={exporting}
+                                        >
+                                            Retry once approved
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-xs text-gray-500">
+                                The catalog defines no export policy for this dataset, so it cannot be downloaded from
+                                here.
+                            </p>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
+            {(blocked.length > 0 || workspace.governanceSignals.length > 0 || workspace.dashboards.length > 0) && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Catalog notes</CardTitle>
+                        <CardDescription>
+                            Snapshot generated {new Date(workspace.generatedAt).toLocaleString()}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4 text-sm">
+                        {workspace.governanceSignals.length > 0 && (
+                            <ul className="list-disc pl-5 space-y-1 text-gray-600">
+                                {workspace.governanceSignals.map((signal) => (
+                                    <li key={signal}>{signal}</li>
+                                ))}
+                            </ul>
+                        )}
+                        {workspace.dashboards.length > 0 && (
+                            <div>
+                                <h3 className="font-semibold mb-2">Dashboards for your role</h3>
+                                <div className="flex flex-wrap gap-2">
+                                    {workspace.dashboards.map((dashboard) => (
+                                        <Link
+                                            key={dashboard.id}
+                                            href={dashboard.route}
+                                            className="px-3 py-1.5 rounded-md border text-xs hover:bg-gray-50"
+                                        >
+                                            {dashboard.title}
+                                        </Link>
                                     ))}
-                                </TableBody>
-                            </Table>
-                        </div>
+                                </div>
+                            </div>
+                        )}
+                        {blocked.length > 0 && (
+                            <div>
+                                <h3 className="font-semibold mb-2">Not runnable here</h3>
+                                <div className="space-y-2 text-gray-600">
+                                    {blocked.map((entry) => (
+                                        <p key={entry.id}>
+                                            <Badge variant="outline" className="mr-2">
+                                                {entry.label}
+                                            </Badge>
+                                            {entry.unavailableReason}
+                                        </p>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             )}
         </div>
     );
+}
+
+function formatCell(value: string | number | null, column: BiReportColumn): string {
+    if (value === null) return '—';
+    if (column.kind !== 'metric' || typeof value !== 'number') return String(value);
+
+    switch (column.format) {
+        case 'currency':
+            return formatCurrency(value);
+        case 'percentage':
+            return `${value}%`;
+        default:
+            return value.toLocaleString();
+    }
+}
+
+function downloadCsv(csv: string, filename: string) {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 }

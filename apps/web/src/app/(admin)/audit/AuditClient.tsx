@@ -2,186 +2,253 @@
 
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
-export interface AuditEvent {
+/**
+ * Audit log table.
+ *
+ * Every field rendered here maps 1:1 to a column on `audit_logs`
+ * (see apps/web/drizzle/0000_init_baseline.sql). Nothing is synthesised:
+ * if a column is null the cell says so rather than substituting a default.
+ */
+export interface AuditRow {
     id: string;
-    timestamp: string;
-    userId: string;
-    userName: string;
-    userRole: string;
+    createdAt: string;
     action: string;
-    resource: string;
-    resourceId?: string;
-    details: string;
-    ipAddress: string;
+    entityType: string;
+    entityId: string | null;
+    description: string | null;
+    beforeState: Record<string, unknown> | null;
+    afterState: Record<string, unknown> | null;
+    ipAddress: string | null;
+    userAgent: string | null;
+    actorName: string | null;
+    actorEmail: string | null;
+    actorRole: string | null;
 }
 
-const filterAuditEvents = (events: AuditEvent[], filters: { action?: string; user?: string }) => {
-    return events.filter(e => {
-        if (filters.action && e.action !== filters.action) return false;
-        if (filters.user && !e.userName.toLowerCase().includes(filters.user.toLowerCase())) return false;
-        return true;
-    });
+const ACTION_STYLES: Record<string, string> = {
+    CREATE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    UPDATE: 'bg-blue-50 text-blue-700 border-blue-200',
+    DELETE: 'bg-red-50 text-red-700 border-red-200',
+    LOGIN: 'bg-violet-50 text-violet-700 border-violet-200',
+    LOGOUT: 'bg-slate-50 text-slate-700 border-slate-200',
+    EXPORT: 'bg-amber-50 text-amber-700 border-amber-200',
+    PAYMENT: 'bg-teal-50 text-teal-700 border-teal-200',
+    ROLE_CHANGE: 'bg-orange-50 text-orange-700 border-orange-200',
+    READ: 'bg-gray-50 text-gray-600 border-gray-200',
 };
 
-const exportAuditToCSV = (events: AuditEvent[]) => {
-    const headers = ['Timestamp', 'User', 'Role', 'Action', 'Resource', 'Details', 'IP Address'].join(',');
-    const rows = events.map(e => [
-        e.timestamp, 
-        e.userName, 
-        e.userRole, 
-        e.action, 
-        e.resource, 
-        `"${e.details?.replace(/"/g, '""') || ''}"`, 
-        e.ipAddress
-    ].join(','));
-    return [headers, ...rows].join('\n');
-};
+function formatTimestamp(value: string): { date: string; time: string } {
+    const d = new Date(value);
+    return {
+        date: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+        time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    };
+}
 
-export function AuditClientView({ initialEvents }: { initialEvents: AuditEvent[] }) {
-    const [searchQuery, setSearchQuery] = useState('');
-    const [actionFilter, setActionFilter] = useState<string>('ALL');
-    
-    // Stats calculation based on passed live data
-    const today = new Date().toISOString().split('T')[0];
-    const totalEvents = initialEvents.length;
-    const todayEvents = initialEvents.filter(e => e.timestamp.startsWith(today)).length;
-    
-    // Unique users
-    const uniqueUsersSet = new Set(initialEvents.map(e => e.userId));
-    const uniqueUsers = uniqueUsersSet.size;
+function renderValue(value: unknown): string {
+    if (value === null || value === undefined) return '—';
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+}
 
-    // Most active user
-    const userCounts = initialEvents.reduce((acc, e) => {
-        acc[e.userName] = (acc[e.userName] || 0) + 1;
-        return acc;
-    }, {} as Record<string, number>);
-    const mostActiveUser = Object.keys(userCounts).length > 0 
-        ? Object.entries(userCounts).sort((a, b) => b[1] - a[1])[0][0] 
-        : 'N/A';
+/** Keys present in before_state or after_state whose values differ. */
+function changedKeys(
+    before: Record<string, unknown> | null,
+    after: Record<string, unknown> | null,
+): string[] {
+    const keys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})]);
+    return Array.from(keys)
+        .filter((key) => JSON.stringify(before?.[key]) !== JSON.stringify(after?.[key]))
+        .sort();
+}
 
-    // Top action
-    const actionCounts = initialEvents.reduce((acc, e) => {
-        acc[e.action] = (acc[e.action] || 0) + 1;
-        return acc;
-    }, {} as Record<string, number>);
-    const topAction = Object.keys(actionCounts).length > 0
-        ? Object.entries(actionCounts).sort((a, b) => b[1] - a[1])[0][0]
-        : 'N/A';
+function toCsv(rows: AuditRow[]): string {
+    const escape = (value: string | null): string => `"${(value ?? '').replace(/"/g, '""')}"`;
+    const header = [
+        'Timestamp (ISO)', 'Action', 'Entity type', 'Entity id',
+        'Actor', 'Actor email', 'Actor role', 'Description', 'IP address', 'User agent',
+    ].join(',');
+    const body = rows.map((row) =>
+        [
+            escape(row.createdAt),
+            escape(row.action),
+            escape(row.entityType),
+            escape(row.entityId),
+            escape(row.actorName),
+            escape(row.actorEmail),
+            escape(row.actorRole),
+            escape(row.description),
+            escape(row.ipAddress),
+            escape(row.userAgent),
+        ].join(','),
+    );
+    return [header, ...body].join('\n');
+}
 
-    const filteredEvents = filterAuditEvents(initialEvents, {
-        action: actionFilter !== 'ALL' ? actionFilter : undefined,
-        user: searchQuery || undefined,
-    });
+export function AuditLogTable({ rows }: { rows: AuditRow[] }) {
+    const [expandedId, setExpandedId] = useState<string | null>(null);
 
     const handleExport = () => {
-        const csv = exportAuditToCSV(filteredEvents);
-        const blob = new Blob([csv], { type: 'text/csv' });
+        const blob = new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `audit_log_${new Date().toISOString().split('T')[0]}.csv`;
-        a.click();
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
     };
 
-    const getActionBadge = (action: string) => {
-        const config: Record<string, { color: string; icon: string }> = {
-            CREATE: { color: 'bg-green-100 text-green-700', icon: '➕' }, 
-            UPDATE: { color: 'bg-blue-100 text-blue-700', icon: '✏️' },
-            DELETE: { color: 'bg-red-100 text-red-700', icon: '🗑️' }, 
-            VIEW: { color: 'bg-gray-100 text-gray-700', icon: '👁️' },
-            EXPORT: { color: 'bg-purple-100 text-purple-700', icon: '📤' }, 
-            LOGIN: { color: 'bg-emerald-100 text-emerald-700', icon: '🔓' }, 
-            LOGOUT: { color: 'bg-orange-100 text-orange-700', icon: '🔒' },
-            PAYMENT: { color: 'bg-amber-100 text-amber-700', icon: '💳' },
-            ROLE_CHANGE: { color: 'bg-pink-100 text-pink-700', icon: '🎭' }
-        };
-        const active = config[action] || { color: 'bg-gray-100 text-gray-700', icon: '⚡' };
-        return <Badge className={active.color}>{active.icon} {action}</Badge>;
-    };
-
-    const getRoleBadge = (role: string) => {
-        const config: Record<string, string> = { 
-            ADMIN: 'bg-red-100 text-red-700', 
-            PRINCIPAL: 'bg-purple-100 text-purple-700', 
-            ACCOUNTANT: 'bg-blue-100 text-blue-700', 
-            TEACHER: 'bg-green-100 text-green-700',
-            SYSTEM: 'bg-gray-800 text-white'
-        };
-        return <Badge className={config[role] || 'bg-gray-100 text-gray-700'}>{role || 'USER'}</Badge>;
-    };
+    if (rows.length === 0) {
+        return (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-white py-16 text-center">
+                <p className="font-medium text-gray-700">No audit entries match these filters</p>
+                <p className="mt-1 text-sm text-gray-500">
+                    Widen the time window or clear the filters. If the log is empty across all time,
+                    no audited action has been performed in this school yet.
+                </p>
+            </div>
+        );
+    }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-3">
             <div className="flex items-center justify-between">
-                <div><h1 className="text-3xl font-bold">Audit Log</h1><p className="text-gray-600 mt-1">Track all system events</p></div>
-                <button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">📥 Export CSV</button>
+                <p className="text-sm text-gray-500">
+                    Showing {rows.length} {rows.length === 1 ? 'entry' : 'entries'} on this page.
+                </p>
+                <Button variant="outline" size="sm" onClick={handleExport}>
+                    Export this page as CSV
+                </Button>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Total Events</div><div className="text-2xl font-bold text-blue-600">{totalEvents}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Today</div><div className="text-2xl font-bold text-green-600">{todayEvents}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Unique Users</div><div className="text-2xl font-bold text-purple-600">{uniqueUsers}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Most Active</div><div className="text-lg font-bold text-orange-600 truncate">{mostActiveUser}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Top Action</div><div className="text-lg font-bold text-indigo-600">{topAction}</div></CardContent></Card>
-            </div>
-
-            <div className="flex gap-4 items-center flex-wrap">
-                <input type="text" placeholder="Search by user name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="flex-1 min-w-[250px] px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
-                    <option value="ALL">All Actions</option>
-                    <option value="CREATE">CREATE</option>
-                    <option value="UPDATE">UPDATE</option>
-                    <option value="DELETE">DELETE</option>
-                    <option value="VIEW">VIEW</option>
-                    <option value="EXPORT">EXPORT</option>
-                    <option value="LOGIN">LOGIN</option>
-                    <option value="LOGOUT">LOGOUT</option>
-                    <option value="PAYMENT">PAYMENT</option>
-                    <option value="ROLE_CHANGE">ROLE_CHANGE</option>
-                </select>
-                <div className="text-sm text-gray-500 font-medium bg-gray-100 px-3 py-1 rounded-full">{filteredEvents.length} events showing</div>
-            </div>
-
-            <Card className="border-0 shadow-lg ring-1 ring-gray-200">
-                <CardContent className="p-0">
-                    <div className="overflow-x-auto max-h-[600px]">
-                        <table className="w-full relative">
-                            <thead className="bg-gray-50 border-b sticky top-0 z-10 shadow-sm">
-                                <tr>
-                                    <th className="px-4 py-3 text-left w-32">Date</th><th className="px-4 py-3 text-left">User</th><th className="px-4 py-3 text-left">Role</th><th className="px-4 py-3 text-left">Action</th><th className="px-4 py-3 text-left">Resource</th><th className="px-4 py-3 text-left">Details</th><th className="px-4 py-3 text-left w-24">IP</th>
+            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                <table className="w-full text-sm">
+                    <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                        <tr>
+                            <th className="px-4 py-3 font-semibold">When</th>
+                            <th className="px-4 py-3 font-semibold">Actor</th>
+                            <th className="px-4 py-3 font-semibold">Action</th>
+                            <th className="px-4 py-3 font-semibold">Entity</th>
+                            <th className="px-4 py-3 font-semibold">Description</th>
+                            <th className="px-4 py-3 font-semibold">IP</th>
+                            <th className="px-4 py-3" />
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {rows.map((row) => {
+                            const stamp = formatTimestamp(row.createdAt);
+                            const isOpen = expandedId === row.id;
+                            const diff = changedKeys(row.beforeState, row.afterState);
+                            return (
+                                <tr key={row.id} className="align-top hover:bg-gray-50/70">
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                        <div className="font-medium text-gray-900">{stamp.date}</div>
+                                        <div className="text-xs text-gray-500">{stamp.time}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        {row.actorName ? (
+                                            <>
+                                                <div className="font-medium text-gray-900">{row.actorName}</div>
+                                                <div className="text-xs text-gray-500">
+                                                    {row.actorRole ?? 'role not recorded'}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <span className="text-gray-500 italic">no user recorded</span>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <Badge
+                                            variant="outline"
+                                            className={ACTION_STYLES[row.action] ?? 'bg-gray-50 text-gray-600 border-gray-200'}
+                                        >
+                                            {row.action}
+                                        </Badge>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="font-mono text-xs text-gray-900">{row.entityType}</div>
+                                        {row.entityId && (
+                                            <div className="font-mono text-[11px] text-gray-400" title={row.entityId}>
+                                                {row.entityId.slice(0, 8)}…
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3 text-gray-700">
+                                        <div className="max-w-md">
+                                            {row.description ?? <span className="text-gray-400">—</span>}
+                                        </div>
+                                        {isOpen && (
+                                            <div className="mt-3 space-y-3 rounded-lg bg-gray-50 p-3 text-xs">
+                                                <div>
+                                                    <span className="font-semibold text-gray-600">Log id: </span>
+                                                    <span className="font-mono text-gray-500">{row.id}</span>
+                                                </div>
+                                                {row.entityId && (
+                                                    <div>
+                                                        <span className="font-semibold text-gray-600">Entity id: </span>
+                                                        <span className="font-mono text-gray-500">{row.entityId}</span>
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <span className="font-semibold text-gray-600">User agent: </span>
+                                                    <span className="text-gray-500 break-all">
+                                                        {row.userAgent ?? 'not recorded'}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <div className="mb-1 font-semibold text-gray-600">Recorded state</div>
+                                                    {diff.length === 0 ? (
+                                                        <p className="text-gray-500">
+                                                            No before/after state was captured for this entry.
+                                                        </p>
+                                                    ) : (
+                                                        <table className="w-full">
+                                                            <thead className="text-left text-gray-500">
+                                                                <tr>
+                                                                    <th className="py-1 pr-3 font-medium">Field</th>
+                                                                    <th className="py-1 pr-3 font-medium">Before</th>
+                                                                    <th className="py-1 font-medium">After</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {diff.map((key) => (
+                                                                    <tr key={key} className="border-t border-gray-200">
+                                                                        <td className="py-1 pr-3 font-mono">{key}</td>
+                                                                        <td className="py-1 pr-3 font-mono text-gray-500 break-all">
+                                                                            {renderValue(row.beforeState?.[key])}
+                                                                        </td>
+                                                                        <td className="py-1 font-mono text-gray-900 break-all">
+                                                                            {renderValue(row.afterState?.[key])}
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">
+                                        {row.ipAddress ?? '—'}
+                                    </td>
+                                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                                        <button
+                                            type="button"
+                                            onClick={() => setExpandedId(isOpen ? null : row.id)}
+                                            className="text-xs font-medium text-blue-600 hover:underline"
+                                        >
+                                            {isOpen ? 'Hide' : 'Details'}
+                                        </button>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {filteredEvents.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={7} className="py-12 text-center text-gray-500">No audit events found matching criteria.</td>
-                                    </tr>
-                                ) : (
-                                    filteredEvents.map(event => (
-                                        <tr key={event.id} className="hover:bg-blue-50/30 transition-colors">
-                                            <td className="px-4 py-3 text-sm">
-                                                <div className="font-medium text-gray-900">{new Date(event.timestamp).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                                                <div className="text-xs text-gray-500">{new Date(event.timestamp).toLocaleTimeString('en-IN')}</div>
-                                            </td>
-                                            <td className="px-4 py-3 font-medium">{event.userName}</td>
-                                            <td className="px-4 py-3">{getRoleBadge(event.userRole)}</td>
-                                            <td className="px-4 py-3">{getActionBadge(event.action)}</td>
-                                            <td className="px-4 py-3">
-                                                <div className="font-medium">{event.resource}</div>
-                                                {event.resourceId && <div className="text-xs text-gray-500 font-mono mt-0.5 truncate max-w-[120px]" title={event.resourceId}>{event.resourceId}</div>}
-                                            </td>
-                                            <td className="px-4 py-3 text-sm text-gray-600 max-w-xs">{event.details || '-'}</td>
-                                            <td className="px-4 py-3 font-mono text-xs text-gray-500">{event.ipAddress || '-'}</td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }

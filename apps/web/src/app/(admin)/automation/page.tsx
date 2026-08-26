@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { isAdminRole } from '@/lib/rbac';
 import { getWorkflows } from '@/lib/actions/automation';
 import AutomationClient from './automation-client';
+import { AutomationRunnerNotice } from '../settings/automation/runner-notice';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -24,10 +25,12 @@ export default async function AutomationPage() {
                         Workflow Automation
                     </h1>
                     <p className="text-muted-foreground mt-1">
-                        Configure rules to automate repetitive tasks and notifications.
+                        Rules describing how your school should react to events.
                     </p>
                 </div>
             </div>
+
+            <AutomationRunnerNotice />
 
             <AutomationClient initialWorkflows={workflows} />
         </div>

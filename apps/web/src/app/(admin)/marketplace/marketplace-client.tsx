@@ -1,156 +1,210 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Plus, Check, Laptop, Bed, Bus, BookOpen, GraduationCap, Plane, Stethoscope, Briefcase } from 'lucide-react';
-import { toggleModuleAction } from '@/lib/actions/marketplace';
+import { Check, Info, Loader2, Plus } from 'lucide-react';
+import { setModuleActiveAction, type ModuleEntitlements } from './actions';
+import { GATED_MODULES, RECORDED_MODULES, type ModuleDefinition } from './catalogue';
 
-const PLUGINS = [
-    {
-        id: 'LMS',
-        title: 'Learning Management (LMS)',
-        description: 'Online classes, assignments, and digital gradebook.',
-        icon: Laptop,
-        category: 'Academics',
-        price: 'Included'
-    },
-    {
-        id: 'HOSTEL',
-        title: 'Hostel Management',
-        description: 'Manage dormitories, room allocations, and hostel fees.',
-        icon: Bed,
-        category: 'Operations',
-        price: 'Add-on'
-    },
-    {
-        id: 'TRANSPORT',
-        title: 'Transport Fleet',
-        description: 'Bus routing, vehicle tracking, and driver assignments.',
-        icon: Bus,
-        category: 'Operations',
-        price: 'Add-on'
-    },
-    {
-        id: 'LIBRARY',
-        title: 'Digital Library',
-        description: 'Catalog books, manage issues/returns, track fines.',
-        icon: BookOpen,
-        category: 'Academics',
-        price: 'Included'
-    },
-    {
-        id: 'ALUMNI',
-        title: 'Alumni Network',
-        description: 'Engage past students, track donations, and host events.',
-        icon: GraduationCap,
-        category: 'Community',
-        price: 'Add-on'
-    },
-    {
-        id: 'INTERNATIONAL',
-        title: 'International Ops',
-        description: 'Visa tracking and host family management for global students.',
-        icon: Plane,
-        category: 'Specialty',
-        price: 'Add-on'
-    },
-    {
-        id: 'HEALTH',
-        title: 'Health Clinic',
-        description: 'Medical incident logs, allergies, and immunization records.',
-        icon: Stethoscope,
-        category: 'Operations',
-        price: 'Included'
-    },
-    {
-        id: 'HR',
-        title: 'HR & Payroll',
-        description: 'Manage staff, leaves, and generate payroll slips.',
-        icon: Briefcase,
-        category: 'Operations',
-        price: 'Add-on'
-    },
-];
+function ModuleCard({
+    module,
+    isActive,
+    isBusy,
+    canEdit,
+    onToggle,
+}: {
+    module: ModuleDefinition;
+    isActive: boolean;
+    isBusy: boolean;
+    canEdit: boolean;
+    onToggle: (code: string, next: boolean) => void;
+}) {
+    return (
+        <Card
+            className={`relative flex h-full flex-col border-2 transition-all ${
+                isActive ? 'border-blue-500' : 'border-transparent shadow-sm hover:shadow-md'
+            }`}
+        >
+            <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-3">
+                    <CardTitle className="text-base">{module.title}</CardTitle>
+                    {isActive && (
+                        <Badge className="shrink-0 border-0 bg-blue-100 text-blue-700 hover:bg-blue-100">
+                            <Check className="mr-1 h-3 w-3" /> Enabled
+                        </Badge>
+                    )}
+                </div>
+                <CardDescription>{module.description}</CardDescription>
+            </CardHeader>
 
-export default function MarketplaceClient({ activeModules }: { activeModules: string[] }) {
-    const [optimisticActive, setOptimisticActive] = useState<Set<string>>(new Set(activeModules));
-    const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
+            <CardContent className="flex-grow space-y-2 pb-4 text-xs text-muted-foreground">
+                <p className="font-mono text-[11px] text-slate-400">{module.code}</p>
+                {module.gatedRoute ? (
+                    <p>
+                        Controls access to <span className="font-mono">{module.gatedRoute}</span>.
+                    </p>
+                ) : (
+                    <p>Recorded on the company record; no route currently checks it.</p>
+                )}
+                {module.note && <p>{module.note}</p>}
+            </CardContent>
 
-    const handleToggle = async (moduleId: string) => {
-        const isCurrentlyActive = optimisticActive.has(moduleId);
-        const newActiveState = !isCurrentlyActive;
+            <CardFooter>
+                <Button
+                    variant={isActive ? 'outline' : 'default'}
+                    className="w-full"
+                    disabled={!canEdit || isBusy}
+                    onClick={() => onToggle(module.code, !isActive)}
+                >
+                    {isBusy ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : isActive ? (
+                        'Disable'
+                    ) : (
+                        <>
+                            <Plus className="mr-2 h-4 w-4" /> Enable
+                        </>
+                    )}
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
 
-        setLoadingMap(prev => ({ ...prev, [moduleId]: true }));
-        
+export default function MarketplaceClient({
+    entitlements,
+}: {
+    entitlements: ModuleEntitlements;
+}) {
+    const router = useRouter();
+    const [active, setActive] = useState<string[]>(entitlements.activeModules);
+    const [busyCode, setBusyCode] = useState<string | null>(null);
+    const [, startTransition] = useTransition();
+
+    const canEdit = entitlements.linked;
+
+    const handleToggle = async (code: string, next: boolean) => {
+        setBusyCode(code);
         try {
-            await toggleModuleAction(moduleId, newActiveState);
-            
-            // Update local state
-            setOptimisticActive(prev => {
-                const next = new Set(prev);
-                if (newActiveState) next.add(moduleId);
-                else next.delete(moduleId);
-                return next;
-            });
-        } catch (error) {
-            console.error('Failed to toggle module:', error);
+            const result = await setModuleActiveAction(code, next);
+
+            if (!result.success) {
+                toast.error(result.error || 'Could not update this module.');
+                return;
+            }
+
+            setActive(result.activeModules ?? active);
+            toast.success(
+                next
+                    ? `${code} enabled. Users must sign in again for it to take effect.`
+                    : `${code} disabled. Users must sign in again for it to take effect.`,
+            );
+            startTransition(() => router.refresh());
+        } catch {
+            toast.error('Could not update this module.');
         } finally {
-            setLoadingMap(prev => ({ ...prev, [moduleId]: false }));
+            setBusyCode(null);
         }
     };
 
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {PLUGINS.map((plugin) => {
-                const Icon = plugin.icon;
-                const isActive = optimisticActive.has(plugin.id);
-                const isLoading = loadingMap[plugin.id];
+    const renderGroup = (modules: ModuleDefinition[]) => (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {modules.map((module) => (
+                <ModuleCard
+                    key={module.code}
+                    module={module}
+                    isActive={active.includes(module.code)}
+                    isBusy={busyCode === module.code}
+                    canEdit={canEdit}
+                    onToggle={handleToggle}
+                />
+            ))}
+        </div>
+    );
 
-                return (
-                    <Card key={plugin.id} className={`relative overflow-hidden transition-all duration-200 border-2 ${isActive ? 'border-blue-500 shadow-blue-100' : 'border-transparent shadow-sm hover:shadow-md'}`}>
-                        {isActive && (
-                            <div className="absolute top-0 right-0 p-2">
-                                <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-0">
-                                    <Check className="w-3 h-3 mr-1" /> Installed
-                                </Badge>
-                            </div>
-                        )}
-                        <CardHeader className="pb-4">
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${isActive ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                                <Icon className="w-6 h-6" />
-                            </div>
-                            <CardTitle className="text-lg">{plugin.title}</CardTitle>
-                            <CardDescription className="h-10 line-clamp-2">{plugin.description}</CardDescription>
-                        </CardHeader>
-                        <CardContent className="pb-4">
-                            <div className="flex items-center justify-between text-sm">
-                                <span className="text-slate-500">{plugin.category}</span>
-                                <span className="font-medium text-slate-900 dark:text-slate-100">{plugin.price}</span>
-                            </div>
-                        </CardContent>
-                        <CardFooter>
-                            <Button 
-                                variant={isActive ? "outline" : "default"} 
-                                className="w-full"
-                                onClick={() => handleToggle(plugin.id)}
-                                disabled={isLoading}
-                            >
-                                {isLoading ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : isActive ? (
-                                    'Uninstall'
-                                ) : (
-                                    <>
-                                        <Plus className="w-4 h-4 mr-2" /> Install Module
-                                    </>
-                                )}
-                            </Button>
-                        </CardFooter>
-                    </Card>
-                );
-            })}
+    return (
+        <div className="space-y-8">
+            {!canEdit ? (
+                <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="space-y-1">
+                        <p className="font-semibold">Entitlements are read-only for this school.</p>
+                        <p>
+                            Module access is stored on the billing company record, and this school
+                            is not linked to one. Ask your platform operator to attach it to a
+                            company before changing modules here.
+                        </p>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                    <div className="space-y-1">
+                        <p>
+                            Entitlements apply to{' '}
+                            <span className="font-medium">{entitlements.companyName}</span>
+                            {entitlements.subscriptionTier
+                                ? ` (${entitlements.subscriptionTier} tier)`
+                                : ''}{' '}
+                            and every school under it.
+                        </p>
+                        <p>
+                            Access is read from the signed-in session, so a change takes effect the
+                            next time a user signs in.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            <section className="space-y-4">
+                <div>
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                        Access-controlling modules
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                        These entitlements decide whether a section of the app opens or redirects
+                        to the upgrade page.
+                    </p>
+                </div>
+                {renderGroup(GATED_MODULES)}
+            </section>
+
+            <section className="space-y-4">
+                <div>
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                        Recorded entitlements
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                        Stored against the company for billing and reporting. Nothing in this
+                        release gates a screen on them, so turning one off does not hide any
+                        feature.
+                    </p>
+                </div>
+                {renderGroup(RECORDED_MODULES)}
+            </section>
+
+            {entitlements.unknownModules.length > 0 && (
+                <section className="space-y-2">
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                        Unrecognised codes
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                        Stored on the company record but not recognised by this build, so they have
+                        no effect:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        {entitlements.unknownModules.map((code) => (
+                            <Badge key={code} variant="outline" className="font-mono text-xs">
+                                {code}
+                            </Badge>
+                        ))}
+                    </div>
+                </section>
+            )}
         </div>
     );
 }

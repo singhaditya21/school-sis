@@ -1,4 +1,5 @@
 import { WorkflowBuilder } from "@/components/automation/workflow-builder";
+import { AutomationRunnerNotice } from "../runner-notice";
 
 export const metadata = {
   title: 'Create Workflow | School SIS',
@@ -10,10 +11,13 @@ export default function NewWorkflowPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Create Automation</h1>
         <p className="text-muted-foreground mt-1">
-          Define triggers, conditions, and actions for your new workflow.
+          Define triggers, conditions, and actions. The definition is saved to your school&apos;s
+          workflow metadata.
         </p>
       </div>
-      
+
+      <AutomationRunnerNotice />
+
       <WorkflowBuilder />
     </div>
   );

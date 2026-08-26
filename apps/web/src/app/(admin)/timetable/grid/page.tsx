@@ -1,50 +1,134 @@
-import { getSession } from '@/lib/auth/session';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { getSession } from '@/lib/auth/session';
+import { getSubjectsForTimetable, getTeachersForTimetable } from '@/lib/actions/timetable';
+import { listGridPeriods, listGridSections, listSectionGridEntries } from '../_actions/grid';
+import TimetableGrid from './TimetableGrid';
 
-export default async function TimetableGridPage() {
+export default async function TimetableGridPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ section?: string }>;
+}) {
     const session = await getSession();
+    if (!session.isLoggedIn) redirect('/login');
 
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const periods = ['Period 1', 'Period 2', 'Period 3', 'Period 4', 'Period 5', 'Period 6', 'Period 7', 'Period 8'];
+    const { section: requestedSection } = await searchParams;
+    const [sections, periods] = await Promise.all([listGridSections(), listGridPeriods()]);
+
+    const header = (
+        <div className="flex items-center justify-between">
+            <div>
+                <h1 className="text-3xl font-bold">Timetable Grid</h1>
+                <p className="text-gray-600 mt-1">Weekly schedule, period by period</p>
+            </div>
+            <Link href="/timetable" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                ← Back to Timetable
+            </Link>
+        </div>
+    );
+
+    if (sections.length === 0) {
+        return (
+            <div className="space-y-6">
+                {header}
+                <div data-testid="grid-no-sections" className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
+                    <p className="font-medium text-gray-700">No classes configured</p>
+                    <p className="text-sm mt-1">Grades and sections have to exist before a timetable can be built.</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (periods.length === 0) {
+        return (
+            <div className="space-y-6">
+                {header}
+                <div data-testid="grid-no-periods" className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
+                    <p className="font-medium text-gray-700">No periods configured</p>
+                    <p className="text-sm mt-1">
+                        The grid rows come from the school&apos;s daily period structure. Define the periods first.
+                    </p>
+                    <Link
+                        href="/timetable/periods"
+                        className="inline-block mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                        Set up periods
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
+    const selected =
+        sections.find((option) => option.id === requestedSection) ?? sections[0];
+
+    const [entries, subjects, teachers] = await Promise.all([
+        listSectionGridEntries(selected.id),
+        getSubjectsForTimetable(),
+        getTeachersForTimetable(),
+    ]);
+
+    const sectionLabel = `${selected.gradeName} - ${selected.sectionName}`;
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold">Timetable Grid</h1>
-                <Link href="/timetable" className="text-blue-600 hover:underline">← Back</Link>
+            {header}
+
+            <div className="bg-white rounded-xl shadow-sm border p-4">
+                <p className="text-sm font-medium text-gray-700 mb-3">Class</p>
+                <div className="flex flex-wrap gap-2" data-testid="grid-section-picker">
+                    {sections.map((option) => {
+                        const isActive = option.id === selected.id;
+                        return (
+                            <Link
+                                key={option.id}
+                                href={`/timetable/grid?section=${option.id}`}
+                                className={
+                                    isActive
+                                        ? 'px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white'
+                                        : 'px-3 py-2 rounded-lg text-sm font-medium bg-gray-50 text-gray-700 hover:bg-gray-100'
+                                }
+                            >
+                                {option.gradeName}-{option.sectionName}
+                                <span className={isActive ? 'ml-2 text-indigo-100' : 'ml-2 text-gray-400'}>
+                                    {option.entryCount}
+                                </span>
+                            </Link>
+                        );
+                    })}
+                </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
-                <table className="w-full min-w-[800px]">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Period</th>
-                            {days.map((day) => (
-                                <th key={day} className="px-4 py-3 text-left text-sm font-medium text-gray-500">{day}</th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                        {periods.map((period) => (
-                            <tr key={period}>
-                                <td className="px-4 py-3 font-medium text-gray-900">{period}</td>
-                                {days.map((day) => (
-                                    <td key={`${period}-${day}`} className="px-4 py-3">
-                                        <div className="h-12 bg-gray-50 rounded border-2 border-dashed border-gray-200 flex items-center justify-center text-xs text-gray-400">
-                                            Click to assign
-                                        </div>
-                                    </td>
-                                ))}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            {subjects.length === 0 || teachers.length === 0 ? (
+                <div data-testid="grid-missing-prerequisites" className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+                    {subjects.length === 0 && teachers.length === 0
+                        ? 'No subjects and no active teachers exist yet, so slots cannot be assigned.'
+                        : subjects.length === 0
+                            ? 'No subjects exist yet, so slots cannot be assigned.'
+                            : 'No active teachers exist yet, so slots cannot be assigned.'}
+                </div>
+            ) : null}
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-700">
-                    💡 This grid view is a placeholder. Timetable data will be fetched from the Java API when available.
-                </p>
+            <TimetableGrid
+                sectionId={selected.id}
+                sectionLabel={sectionLabel}
+                periods={periods}
+                entries={entries}
+                subjects={subjects}
+                teachers={teachers}
+            />
+
+            <div className="flex flex-wrap gap-3 text-sm">
+                <Link href={`/timetable/${selected.id}`} className="text-blue-600 hover:underline">
+                    Printable view for {sectionLabel}
+                </Link>
+                <Link href="/timetable/periods" className="text-blue-600 hover:underline">
+                    Manage periods
+                </Link>
+                <Link href="/timetable/substitution" className="text-blue-600 hover:underline">
+                    Substitution cover
+                </Link>
             </div>
         </div>
     );

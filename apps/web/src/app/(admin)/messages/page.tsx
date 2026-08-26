@@ -1,50 +1,152 @@
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
-import { getMessageLogs, getMessagingStats } from '@/lib/actions/messaging';
+import { getChannelAvailability, getMessagingOverview, listMessageBatches } from './actions';
+import {
+    ChannelBadge,
+    DeliveryRealityNotice,
+    MessagesTabs,
+    StatTile,
+    StatusBadge,
+    formatDateTime,
+} from './ui';
+
+export const dynamic = 'force-dynamic';
 
 export default async function MessagesPage() {
-    const [logs, stats] = await Promise.all([getMessageLogs(), getMessagingStats()]);
-
-    const channelIcon = (c: string) => ({ SMS: '📱', WHATSAPP: '💬', EMAIL: '📧' }[c] || '📨');
-    const statusBadge = (s: string) => {
-        const m: Record<string, string> = { QUEUED: 'bg-yellow-100 text-yellow-700', SENT: 'bg-blue-100 text-blue-700', DELIVERED: 'bg-green-100 text-green-700', FAILED: 'bg-red-100 text-red-700' };
-        return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${m[s] || 'bg-gray-100'}`}>{s}</span>;
-    };
+    const [overview, availability, batches] = await Promise.all([
+        getMessagingOverview(),
+        getChannelAvailability(),
+        listMessageBatches(50),
+    ]);
 
     return (
         <div className="space-y-6">
-            <div><h1 className="text-3xl font-bold">Messages & Communication</h1><p className="text-gray-600 mt-1">Send SMS, WhatsApp, and emails to parents and staff</p></div>
+            <div>
+                <h1 className="text-3xl font-bold">Messages</h1>
+                <p className="mt-1 text-slate-600">
+                    Compose parent and staff communication, manage templates, and inspect the
+                    notification outbox.
+                </p>
+            </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Templates</div><div className="text-2xl font-bold text-blue-600">{stats.templates}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Total Sent</div><div className="text-2xl font-bold text-purple-600">{stats.totalSent}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Delivered</div><div className="text-2xl font-bold text-green-600">{stats.delivered}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Failed</div><div className="text-2xl font-bold text-red-600">{stats.failed}</div></CardContent></Card>
+            <MessagesTabs active="log" />
+
+            <DeliveryRealityNotice availability={availability} dispatched={overview.dispatched} />
+
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                <StatTile label="Batches composed" value={overview.batches} />
+                <StatTile
+                    label="Recipients queued"
+                    value={overview.recipients}
+                    hint="Across all batches"
+                />
+                <StatTile
+                    label="Awaiting dispatch"
+                    value={overview.queued}
+                    tone="warning"
+                    hint="Sitting in the outbox"
+                />
+                <StatTile
+                    label="Rejected at queue time"
+                    value={overview.failed}
+                    tone={overview.failed > 0 ? 'danger' : 'muted'}
+                />
             </div>
 
             <Card>
                 <CardContent className="p-0">
-                    <div className="p-4 border-b"><h3 className="font-bold">Message Log</h3></div>
-                    <table className="w-full">
-                        <thead className="bg-gray-50 border-b"><tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Channel</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Message</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Recipients</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sent</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        </tr></thead>
-                        <tbody className="divide-y">
-                            {logs.map(l => (
-                                <tr key={l.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3">{channelIcon(l.channel)} {l.channel}</td>
-                                    <td className="px-4 py-3 text-sm max-w-xs truncate">{l.subject ? `[${l.subject}] ` : ''}{l.message}</td>
-                                    <td className="px-4 py-3 text-center">{(l.recipients as string[])?.length || 0}</td>
-                                    <td className="px-4 py-3 text-sm">{new Date(l.sentAt).toLocaleString('en-IN')}</td>
-                                    <td className="px-4 py-3">{statusBadge(l.status)}</td>
+                    <div className="flex items-center justify-between border-b p-4">
+                        <div>
+                            <h2 className="font-bold">Message log</h2>
+                            <p className="text-xs text-slate-500">
+                                Every batch composed in this tenant, newest first.
+                            </p>
+                        </div>
+                        <Link
+                            href="/messages/compose"
+                            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+                        >
+                            Compose message
+                        </Link>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="border-b bg-slate-50">
+                                <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                        Channel
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                        Message
+                                    </th>
+                                    <th className="px-4 py-3 text-center text-xs font-medium uppercase text-slate-500">
+                                        Recipients
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                        Composed
+                                    </th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                        Outbox state
+                                    </th>
                                 </tr>
-                            ))}
-                            {logs.length === 0 && <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">No messages sent yet.</td></tr>}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y">
+                                {batches.map((batch) => (
+                                    <tr key={batch.id} className="align-top hover:bg-slate-50">
+                                        <td className="px-4 py-3">
+                                            <ChannelBadge channel={batch.channel} />
+                                        </td>
+                                        <td className="max-w-md px-4 py-3">
+                                            {batch.subject && (
+                                                <div className="text-sm font-medium text-slate-800">
+                                                    {batch.subject}
+                                                </div>
+                                            )}
+                                            <div className="line-clamp-2 text-sm text-slate-600">
+                                                {batch.message}
+                                            </div>
+                                            {batch.templateName && (
+                                                <div className="mt-1 text-xs text-slate-400">
+                                                    Template: {batch.templateName}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-center text-sm">
+                                            {batch.recipientCount}
+                                        </td>
+                                        <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
+                                            {formatDateTime(batch.sentAt)}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <StatusBadge status={batch.status} />
+                                            <div className="mt-1 text-xs text-slate-500">
+                                                {batch.outboxPending} awaiting · {batch.outboxSent}{' '}
+                                                dispatched · {batch.outboxFailed} failed
+                                            </div>
+                                            {batch.failureCount > 0 && (
+                                                <div className="text-xs text-rose-600">
+                                                    {batch.failureCount} recipient(s) never reached the
+                                                    outbox
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {batches.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="px-4 py-12 text-center text-slate-400">
+                                            No messages composed yet.{' '}
+                                            <Link href="/messages/compose" className="text-blue-600 underline">
+                                                Compose the first one
+                                            </Link>
+                                            .
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </CardContent>
             </Card>
         </div>

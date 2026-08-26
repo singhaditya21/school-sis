@@ -80,10 +80,10 @@ export default async function HQLayout({
                         <div className="pb-4 mb-2 border-b border-slate-800">
                             <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Operations</p>
                             <NavLink href="/hq/treasury" icon="🏦">
-                                Treasury Routing
+                                Cross-Campus Finance
                             </NavLink>
                             <NavLink href="/hq/compliance" icon="⚖️">
-                                Global Compliance
+                                Data Residency
                             </NavLink>
                             <NavLink href="/hq/broadcasts" icon="📢">
                                 Broadcasts
@@ -96,7 +96,7 @@ export default async function HQLayout({
                                 Global Policy Engine
                             </NavLink>
                             <NavLink href="/hq/audit" icon="🛡️">
-                                Security Audit Logs
+                                Platform Audit Log
                             </NavLink>
                         </div>
                         
