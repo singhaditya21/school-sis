@@ -15,7 +15,8 @@ const getBackendUrl = () => {
   return `http://${ip}:3000`;
 };
 
+// No Stripe key is read here on purpose: this app has no payment path.
+// See the comment in App.tsx before adding one back.
 export const config = {
   BACKEND_URL: process.env.EXPO_PUBLIC_BACKEND_URL || extra.backendUrl || getBackendUrl(),
-  STRIPE_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || extra.stripePublishableKey || '',
 };

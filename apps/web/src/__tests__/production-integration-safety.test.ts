@@ -195,7 +195,12 @@ describe('production integration safety', () => {
     const attendance = fs.readFileSync(path.join(process.cwd(), 'src/lib/actions/attendance.ts'), 'utf8');
     const admissions = fs.readFileSync(path.join(process.cwd(), 'src/lib/actions/admissions.ts'), 'utf8');
     const marketplace = fs.readFileSync(path.join(process.cwd(), 'src/app/(dashboard)/appexchange/page.tsx'), 'utf8');
-    const wallet = fs.readFileSync(path.join(process.cwd(), 'src/app/student/wallet/page.tsx'), 'utf8');
+    // The skills wallet was deleted — it displayed a fabricated "Cryptographically
+    // Verified" credential over invented data. A file that no longer exists cannot
+    // fabricate anything, so absence satisfies this assertion in the strongest way.
+    const wallet = fs.existsSync(path.join(process.cwd(), 'src/app/student/wallet/page.tsx'))
+        ? fs.readFileSync(path.join(process.cwd(), 'src/app/student/wallet/page.tsx'), 'utf8')
+        : '';
     const agentWebhook = fs.readFileSync(path.join(process.cwd(), 'src/app/api/agent-webhook/route.ts'), 'utf8');
 
     expect(registry).not.toContain('ensureIntegrationConnection({');
