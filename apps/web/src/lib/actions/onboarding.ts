@@ -94,27 +94,55 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
             return { error: 'This workspace subdomain is already taken. Please choose another.' };
         }
 
-        // Generate tenant record. Defaults to 'TRIALING' billing status and 'isActive=true' for now
-        // so they can log in, or we can make it false and let Stripe activate it.
-        const { rows: tenantRows } = await pool.query(
-            `INSERT INTO tenants (name, code, domain, email, billing_status, is_active) 
-             VALUES ($1, $2, $3, $4, $5, $6) 
-             RETURNING id, name, code, domain, email, billing_status AS "billingStatus", is_active AS "isActive"`,
-            [schoolName, domain, domainUrl, email, 'INCOMPLETE', false]
-        );
-        const tenant = tenantRows[0];
-
-        // Hash admin password
+        // Hash before opening the transaction: bcrypt at cost 12 takes a few
+        // hundred milliseconds and there is no reason to hold a connection for it.
         const passwordHash = await hash(password, 12);
 
-        // Create the founding administrator user
-        const { rows: adminUserRows } = await pool.query(
-            `INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role, is_active) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7) 
-             RETURNING id, tenant_id AS "tenantId", email, password_hash AS "passwordHash", first_name AS "firstName", last_name AS "lastName", role, is_active AS "isActive"`,
-            [tenant.id, email, passwordHash, firstName, lastName, 'SCHOOL_ADMIN', true]
-        );
-        const adminUser = adminUserRows[0];
+        // `billing_status` lives on companies, not tenants — tenants has no such
+        // column. Inserting it here raised `column "billing_status" of relation
+        // "tenants" does not exist`, which the catch below reported as the generic
+        // "Failed to create workspace database", so onboarding was dead for every
+        // prospective customer with nothing in the UI to say why.
+        //
+        // A workspace is a billing entity (companies) plus the school itself
+        // (tenants.company_id -> companies.id). Creating only the tenant left no
+        // company for checkout to bill against.
+        const client = await pool.connect();
+        let tenant: { id: string };
+        let adminUser: { id: string; role: string; email: string; firstName: string; lastName: string };
+        try {
+            await client.query('BEGIN');
+
+            const { rows: companyRows } = await client.query(
+                `INSERT INTO companies (name, billing_status)
+                 VALUES ($1, $2)
+                 RETURNING id`,
+                [schoolName, 'INCOMPLETE']
+            );
+
+            const { rows: tenantRows } = await client.query(
+                `INSERT INTO tenants (company_id, name, code, domain, email, is_active)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 RETURNING id`,
+                [companyRows[0].id, schoolName, domain, domainUrl, email, false]
+            );
+            tenant = tenantRows[0];
+
+            const { rows: adminUserRows } = await client.query(
+                `INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role, is_active)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
+                 RETURNING id, email, first_name AS "firstName", last_name AS "lastName", role`,
+                [tenant.id, email, passwordHash, firstName, lastName, 'SCHOOL_ADMIN', true]
+            );
+            adminUser = adminUserRows[0];
+
+            await client.query('COMMIT');
+        } catch (transactionError) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw transactionError;
+        } finally {
+            client.release();
+        }
 
         // Automatically log them in immediately so the checkout API route succeeds
         const c = await cookies();
