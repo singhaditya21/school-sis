@@ -8,7 +8,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 export async function getAssignments(filters?: { gradeId?: string }) {
     const { tenantId } = await requireAuth('homework:read');
 
-    let query = 'SELECT id, tenant_id AS "tenantId", title, description, subject_id AS "subjectId", grade_id AS "gradeId", section_id AS "sectionId", due_date AS "dueDate", assigned_by AS "assignedBy", max_marks AS "maxMarks", created_at AS "createdAt", updated_at AS "updatedAt" FROM homework_assignments WHERE tenant_id = $1';
+    let query = 'SELECT id, tenant_id AS "tenantId", title, description, subject_id AS "subjectId", grade_id AS "gradeId", section_id AS "sectionId", due_date AS "dueDate", assigned_by AS "assignedBy", max_marks AS "maxMarks", created_at AS "createdAt" FROM homework_assignments WHERE tenant_id = $1';
     const params: string[] = [tenantId];
 
     if (filters?.gradeId) {
@@ -38,7 +38,7 @@ export async function createAssignment(data: {
     const result = await pool.query(
         `INSERT INTO homework_assignments (tenant_id, title, description, subject_id, grade_id, section_id, due_date, assigned_by, max_marks) 
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
-         RETURNING id, tenant_id AS "tenantId", title, description, subject_id AS "subjectId", grade_id AS "gradeId", section_id AS "sectionId", due_date AS "dueDate", assigned_by AS "assignedBy", max_marks AS "maxMarks", created_at AS "createdAt", updated_at AS "updatedAt"`,
+         RETURNING id, tenant_id AS "tenantId", title, description, subject_id AS "subjectId", grade_id AS "gradeId", section_id AS "sectionId", due_date AS "dueDate", assigned_by AS "assignedBy", max_marks AS "maxMarks", created_at AS "createdAt"`,
         [tenantId, data.title, data.description, data.subjectId, data.gradeId, data.sectionId, data.dueDate, userId, data.maxMarks]
     );
 

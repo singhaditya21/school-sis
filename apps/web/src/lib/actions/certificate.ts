@@ -11,7 +11,7 @@ export async function getCertificateTemplates(type?: string) {
     let query = `
         SELECT 
             id, tenant_id AS "tenantId", name, type, html_template AS "htmlTemplate", 
-            variables, created_at AS "createdAt", updated_at AS "updatedAt"
+            variables, created_at AS "createdAt"
         FROM certificate_templates
         WHERE tenant_id = $1
     `;
@@ -43,7 +43,7 @@ export async function createCertificateTemplate(data: {
         VALUES ($1, $2, $3, $4, $5)
         RETURNING 
             id, tenant_id AS "tenantId", name, type, html_template AS "htmlTemplate", 
-            variables, created_at AS "createdAt", updated_at AS "updatedAt"
+            variables, created_at AS "createdAt"
     `;
     const params = [
         tenantId,
@@ -78,7 +78,7 @@ export async function issueCertificate(data: {
             id, tenant_id AS "tenantId", template_id AS "templateId", 
             student_id AS "studentId", certificate_number AS "certificateNumber", 
             issued_date AS "issuedDate", issued_by AS "issuedBy", 
-            data, status, created_at AS "createdAt", updated_at AS "updatedAt"
+            data, status, created_at AS "createdAt"
     `;
     const params = [
         tenantId,
