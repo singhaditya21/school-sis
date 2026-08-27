@@ -94,8 +94,7 @@ export async function addQuestion(quizId: string, data: {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
         RETURNING 
             id, tenant_id AS "tenantId", quiz_id AS "quizId", text, type, 
-            options, correct_answer AS "correctAnswer", marks, ordering, 
-            created_at AS "createdAt", updated_at AS "updatedAt"`,
+            options, correct_answer AS "correctAnswer", marks, ordering`,
         [
             tenantId, quizId, data.text, data.type, 
             data.options ? JSON.stringify(data.options) : '[]', 

@@ -12,9 +12,9 @@ export async function getActiveBatchesAction() {
 
     const { rows } = await pool.query(`
         SELECT 
-            id, tenant_id as "tenantId", name, course_id as "courseId", 
+            id, tenant_id as "tenantId", name, target_exam as "targetExam", 
             start_date as "startDate", end_date as "endDate", 
-            capacity, is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt"
+            is_active as "isActive", created_at as "createdAt"
         FROM coaching_batches
         WHERE tenant_id = $1 AND is_active = true
         ORDER BY created_at DESC

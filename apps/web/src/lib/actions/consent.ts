@@ -6,7 +6,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 export async function getConsentForms() {
     const { tenantId } = await requireAuth('consent:read');
     const { rows } = await pool.query(
-        `SELECT id, tenant_id AS "tenantId", title, description, form_type AS "formType", audience, due_date AS "dueDate", created_by AS "createdBy", created_at AS "createdAt", updated_at AS "updatedAt" FROM consent_forms WHERE tenant_id = $1 ORDER BY created_at DESC`,
+        `SELECT id, tenant_id AS "tenantId", title, description, form_type AS "formType", audience, due_date AS "dueDate", created_by AS "createdBy", created_at AS "createdAt" FROM consent_forms WHERE tenant_id = $1 ORDER BY created_at DESC`,
         [tenantId]
     );
     return rows;
@@ -17,7 +17,7 @@ export async function createConsentForm(data: {
 }) {
     const { tenantId, userId } = await requireAuth('consent:write');
     const { rows } = await pool.query(
-        `INSERT INTO consent_forms (tenant_id, title, description, form_type, audience, due_date, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, tenant_id AS "tenantId", title, description, form_type AS "formType", audience, due_date AS "dueDate", created_by AS "createdBy", created_at AS "createdAt", updated_at AS "updatedAt"`,
+        `INSERT INTO consent_forms (tenant_id, title, description, form_type, audience, due_date, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, tenant_id AS "tenantId", title, description, form_type AS "formType", audience, due_date AS "dueDate", created_by AS "createdBy", created_at AS "createdAt"`,
         [tenantId, data.title, data.description || null, data.formType, data.audience || 'ALL', data.dueDate || null, userId]
     );
     return { success: true, form: rows[0] };

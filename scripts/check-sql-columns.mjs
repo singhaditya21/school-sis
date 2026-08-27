@@ -22,11 +22,17 @@
  *   node scripts/check-sql-columns.mjs           # verify
  *   node scripts/check-sql-columns.mjs --report  # list everything, never fail
  *
- * SCOPE, deliberately narrow: `INSERT INTO <table> (<columns>)` and
- * `UPDATE <table> SET <column> =`. Both name their table unambiguously next to
- * their columns, so a mismatch is a fact rather than a guess. SELECT and WHERE
- * clauses are not checked — resolving a bare column across joins and aliases
- * needs a real parser, and a checker that cries wolf gets switched off.
+ * SCOPE, deliberately narrow: `INSERT INTO <table> (<columns>)`,
+ * `UPDATE <table> SET <column> =`, and the `RETURNING` list of either. All three
+ * name their table unambiguously next to their columns, so a mismatch is a fact
+ * rather than a guess. SELECT and WHERE clauses are not checked — resolving a
+ * bare column across joins and aliases needs a real parser, and a checker that
+ * cries wolf gets switched off.
+ *
+ * RETURNING earns its place: an audit found seven statements whose INSERT column
+ * list was perfectly valid while their RETURNING named `updated_at` on a table
+ * that has only `created_at`. Postgres rejects those at parse time, so the row is
+ * never written — and checking only the insert list misses every one.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -179,6 +185,26 @@ function findReferences(file, text) {
         }
     }
 
+    // RETURNING <cols> — belongs to the table just named by the INSERT or UPDATE,
+    // so it is as unambiguous as the column list itself.
+    const returningRe = /(INSERT\s+INTO|UPDATE)\s+(?:"?[a-z_][a-z0-9_]*"?\.)?"?([a-z_][a-z0-9_]*)"?\b([\s\S]{0,1200}?)\bRETURNING\b([\s\S]{0,600}?)(?:`|;|\)\s*$|$)/giu;
+    while ((match = returningRe.exec(text)) !== null) {
+        const [, , table, between, returning] = match;
+        // A second statement between the two keywords means they are not a pair.
+        if (/\bINSERT\s+INTO\b|\bUPDATE\b\s+[a-z_"]+\s+\bSET\b/i.test(between)) continue;
+        if (/\$\{/.test(returning)) continue;
+        for (const part of splitTopLevel(returning)) {
+            const expression = part.trim();
+            if (!expression || expression === '*') continue;
+            // Only a bare column, optionally aliased. Anything with a function
+            // call, operator or qualifier is left alone rather than guessed at.
+            const bare = /^"?([a-z_][a-z0-9_]*)"?(?:\s+AS\s+"?[A-Za-z_][A-Za-z0-9_]*"?)?$/i.exec(expression);
+            if (!bare) continue;
+            const column = bare[1].toLowerCase();
+            references.push({ file, table, column, line: lineOf(text, match.index), kind: 'RETURNING' });
+        }
+    }
+
     return references;
 }
 
@@ -197,7 +223,7 @@ let checked = 0;
 
 for (const file of listSourceFiles()) {
     const text = readFileSync(join(REPO_ROOT, file), 'utf8');
-    if (!/INSERT\s+INTO|UPDATE\s+[a-z_"]+\s+SET/i.test(text)) continue;
+    if (!/INSERT\s+INTO|UPDATE\s+[a-z_"]+\s+SET|RETURNING/i.test(text)) continue;
 
     for (const reference of findReferences(file, text)) {
         // A table the chain does not describe cannot be checked either way.
@@ -230,8 +256,14 @@ if (problems.length > 0) {
         const owners = [...schema.entries()]
             .filter(([table, cols]) => table !== problem.table && cols.has(problem.column))
             .map(([table]) => table);
-        if (owners.length > 0) {
+        if (owners.length > 0 && owners.length <= 6) {
             console.error(`      ${problem.column} exists on: ${owners.join(', ')}`);
+        } else if (owners.length > 6) {
+            // A column on a hundred tables says nothing about which one was meant;
+            // the useful signal is only that this table is the exception.
+            console.error(
+                `      ${problem.column} is common elsewhere (${owners.length} tables) but absent here`,
+            );
         }
     }
 }
