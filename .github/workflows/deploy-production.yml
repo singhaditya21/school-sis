@@ -807,18 +807,65 @@ jobs:
             echo "Could not resolve PRODUCTION_URL through the configured Vercel team (HTTP $inspection_http)." >&2
             exit 1
           fi
-          jq -e \
-            --arg project "$VERCEL_PROJECT_ID" \
-            --arg alias "$production_host" \
-            '.projectId == $project and
-             .target == "production" and
-             .readyState == "READY" and
-             ([.alias[]? | ascii_downcase] | index($alias) != null)' \
-            "$inspection" >/dev/null
-          prior_id="$(jq -er '.id | select(type == "string" and test("^dpl_[A-Za-z0-9]+$"))' "$inspection")"
-          prior_url="$(jq -er '.url | select(type == "string" and length > 0)' "$inspection")"
-          echo "prior_id=$prior_id" >> "$GITHUB_OUTPUT"
-          echo "prior_url=$prior_url" >> "$GITHUB_OUTPUT"
+          # Resolving the hostname is itself the identity proof: the API hands
+          # back whatever https://<production_host> serves at this moment. All
+          # that is left to establish is that the deployment is ours, live, and
+          # shaped like something `vercel rollback` will accept.
+          #
+          # The creation-time alias list is deliberately NOT consulted. `.alias`
+          # records the domains a deployment was given when it was created, and
+          # every candidate here is created with `--skip-domain` so that nothing
+          # is served until it has been verified. A promoted candidate therefore
+          # serves production while its own alias list stays empty forever.
+          #
+          # Asserting the production host into that list made success poisonous:
+          # release N+1 captured the deployment release N had promoted, found no
+          # aliases on it, and `jq -e` exited 1 without printing a word. That is
+          # what killed both releases after the first green one — each died here,
+          # before any migration ran, saying nothing.
+          resolved_id="$(jq -r '.id // ""' "$inspection")"
+          resolved_project="$(jq -r '.projectId // ""' "$inspection")"
+          resolved_target="$(jq -r '.target // "<none>"' "$inspection")"
+          resolved_state="$(jq -r '.readyState // "<none>"' "$inspection")"
+          resolved_url="$(jq -r '.url // ""' "$inspection")"
+          resolved_aliases="$(jq -r '[.alias[]?] | join(", ")' "$inspection")"
+
+          echo "$production_host currently serves:"
+          echo "  deployment : ${resolved_id:-<none>}"
+          echo "  url        : ${resolved_url:-<none>}"
+          echo "  project    : ${resolved_project:-<none>}"
+          echo "  target     : $resolved_target"
+          echo "  readyState : $resolved_state"
+          echo "  aliases    : ${resolved_aliases:-<none assigned at creation>}"
+
+          capture_problems=0
+          if [ "$resolved_project" != "$VERCEL_PROJECT_ID" ]; then
+            echo "Live production belongs to project ${resolved_project:-<none>}, not $VERCEL_PROJECT_ID." >&2
+            capture_problems=1
+          fi
+          if [ "$resolved_target" != "production" ]; then
+            echo "Live production has target $resolved_target, expected production." >&2
+            capture_problems=1
+          fi
+          if [ "$resolved_state" != "READY" ]; then
+            echo "Live production is $resolved_state, expected READY." >&2
+            capture_problems=1
+          fi
+          if ! printf '%s' "$resolved_id" | grep -Eq '^dpl_[A-Za-z0-9]+$'; then
+            echo "Live production id \"${resolved_id:-<none>}\" is not a dpl_ identifier to roll back to." >&2
+            capture_problems=1
+          fi
+          if [ -z "$resolved_url" ]; then
+            echo "Live production reported no url to roll back to." >&2
+            capture_problems=1
+          fi
+          if [ "$capture_problems" -ne 0 ]; then
+            echo "Refusing to start a release without a usable rollback target." >&2
+            exit 1
+          fi
+
+          echo "prior_id=$resolved_id" >> "$GITHUB_OUTPUT"
+          echo "prior_url=$resolved_url" >> "$GITHUB_OUTPUT"
 
       - name: Re-verify protected main before Neon mutation
         env:
@@ -1115,6 +1162,34 @@ jobs:
           fi
 
           production_host="$(PRODUCTION_URL="$PRODUCTION_URL" node -e "process.stdout.write(new URL(process.env.PRODUCTION_URL).hostname)")"
+
+          # Ask what production serves right now, and never delete that.
+          #
+          # This guard used to ask each candidate's own `.alias` list whether it
+          # was production. Because every candidate is created with
+          # `--skip-domain`, that list stays empty even once promotion has made
+          # the candidate live — so the answer was always "not production" and
+          # the guard could never once have refused a deletion. A safety net
+          # that cannot catch anything is more dangerous than none, because it
+          # reads as one.
+          live_production="$RUNNER_TEMP/vercel-live-production.json"
+          live_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header 'Accept: application/json' \
+            --output "$live_production" \
+            --write-out '%{http_code}' \
+            "https://api.vercel.com/v13/deployments/${production_host}?teamId=${VERCEL_ORG_ID}")"
+          if [ "$live_http" != "200" ]; then
+            echo "Could not resolve what $production_host serves (HTTP $live_http); refusing to delete any deployment." >&2
+            exit 1
+          fi
+          live_id="$(jq -r '.id // ""' "$live_production")"
+          if [ -z "$live_id" ]; then
+            echo "Resolving $production_host returned no deployment id; refusing to delete any deployment." >&2
+            exit 1
+          fi
+          echo "Live production is $live_id and will not be deleted."
+
           while IFS= read -r candidate_id; do
             candidate_file="$RUNNER_TEMP/vercel-failed-candidate-${candidate_id}.json"
             candidate_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
@@ -1130,16 +1205,26 @@ jobs:
               echo "Could not verify failed candidate ownership (HTTP $candidate_http)." >&2
               exit 1
             fi
-            jq -e \
+            if [ "$candidate_id" = "$live_id" ]; then
+              echo "Candidate $candidate_id is what production currently serves; refusing to delete it." >&2
+              exit 1
+            fi
+            if ! jq -e \
               --arg id "$candidate_id" \
               --arg project "$VERCEL_PROJECT_ID" \
               --arg sha "$TARGET_SHA" \
               --arg run "$GITHUB_RUN_ID" \
-              --arg production "$production_host" \
               '.id == $id and .projectId == $project and .target == "production" and
-               .meta.githubCommitSha == $sha and .meta.githubRunId == $run and
-               ([.alias[]? | ascii_downcase] | index($production) == null)' \
-              "$candidate_file" >/dev/null
+               .meta.githubCommitSha == $sha and .meta.githubRunId == $run' \
+              "$candidate_file" >/dev/null; then
+              seen_project="$(jq -r '.projectId // "<none>"' "$candidate_file")"
+              seen_target="$(jq -r '.target // "<none>"' "$candidate_file")"
+              seen_sha="$(jq -r '.meta.githubCommitSha // "<none>"' "$candidate_file")"
+              seen_run="$(jq -r '.meta.githubRunId // "<none>"' "$candidate_file")"
+              echo "Refusing to delete $candidate_id: it is not a production deployment this run created." >&2
+              echo "  project=$seen_project target=$seen_target sha=$seen_sha run=$seen_run" >&2
+              exit 1
+            fi
 
             delete_file="$RUNNER_TEMP/vercel-failed-candidate-delete-${candidate_id}.json"
             set +e
