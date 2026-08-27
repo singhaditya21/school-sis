@@ -26,9 +26,12 @@ export default function SetupWorkspacePage() {
                 setError(res.error);
                 setLoading(false);
             } else {
-                // Successfully created tenant and signed in
-                // Immediate redirect to pricing for checkout
-                router.push('/pricing');
+                // Created the workspace and signed in. Administrators must enrol
+                // in two-factor before anything else: SCHOOL_ADMIN is in
+                // MFA_REQUIRED_ROLES, so every other route redirects to
+                // /login?mfa=required until enrolment completes. The enrolment
+                // page sends them on to /pricing for checkout.
+                router.push('/mfa/setup');
             }
         } catch (err: unknown) {
             setError((err as { message?: string }).message || 'An unexpected error occurred.');

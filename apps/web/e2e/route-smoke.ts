@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page, type Response } from '@playwright/test';
 import { hash } from 'bcryptjs';
+import { authenticator } from 'otplib';
 import { Client } from 'pg';
 
 /**
@@ -526,21 +527,46 @@ export function registerRouteSmokeTests(): void {
 
                 // Provisioning succeeded: the company, tenant and admin were written
                 // and the session was established, so the app navigated away.
-                const landed = new URL(page.url()).pathname;
-                check(landed, 'a provisioned workspace must leave /setup').not.toBe('/setup');
-
-                // KNOWN OPEN DEFECT, asserted as it currently behaves rather than as
-                // it should: SCHOOL_ADMIN is in MFA_REQUIRED_ROLES and production MFA
-                // is mandatory, so middleware.ts:154 bounces the freshly-created admin
-                // to /login?mfa=required — with no enrolment path from there. Signup
-                // therefore still does not complete.
-                //
-                // Accepting either destination keeps this case honest today and still
-                // passing once onboarding enrols MFA and reaches /pricing.
                 check(
-                    ['/pricing', '/login'],
-                    `provisioned workspace landed on ${landed}${landed === '/login' ? ' — the open MFA enrolment gap' : ''}`,
-                ).toContain(landed);
+                    new URL(page.url()).pathname,
+                    'a provisioned workspace must leave /setup',
+                ).not.toBe('/setup');
+
+                // SCHOOL_ADMIN is in MFA_REQUIRED_ROLES and production MFA is
+                // mandatory, so onboarding hands straight to enrolment. Landing on
+                // /login here means the administrator was locked out of the account
+                // it had just created — the dead end this flow exists to prevent.
+                await page.waitForURL('**/mfa/setup', { timeout: 30_000 });
+
+                // The page shows the raw secret for manual entry. Reading it is what
+                // lets this test act as the authenticator app would, so the whole
+                // enrolment is exercised for real rather than stubbed.
+                await check(page.locator('[data-testid="mfa-qr"]')).toBeVisible();
+                const secret = (await page.locator('[data-testid="mfa-secret"]').innerText()).trim();
+                check(secret, 'enrolment must expose a secret for manual entry').toMatch(/^[A-Z2-7]{16,}$/);
+
+                // Ten single-use recovery codes, because a lost phone must not mean
+                // a lost tenant — there is no SMS or email fallback by design.
+                await check(page.locator('[data-testid="mfa-backup-codes"] li')).toHaveCount(10);
+
+                await page.locator('[data-testid="mfa-codes-saved"]').check();
+                await page.fill('[data-testid="mfa-code-input"]', authenticator.generate(secret));
+                await page.locator('[data-testid="mfa-activate"]').click();
+
+                const mfaError = page.locator('[data-testid="mfa-error"]');
+                await Promise.race([
+                    page.waitForURL('**/pricing', { timeout: 30_000 }),
+                    mfaError.waitFor({ state: 'visible', timeout: 30_000 }).then(async () => {
+                        throw new Error(
+                            `MFA enrolment refused a valid code: ${(await mfaError.innerText()).trim()}`,
+                        );
+                    }),
+                ]);
+
+                check(
+                    new URL(page.url()).pathname,
+                    'a fully enrolled administrator should reach checkout',
+                ).toBe('/pricing');
             } finally {
                 await page.close();
             }
