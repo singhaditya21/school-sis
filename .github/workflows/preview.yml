@@ -1259,6 +1259,7 @@ jobs:
           deployment_json="$RUNNER_TEMP/vercel-preview-deployment.json"
           pnpm exec vercel deploy \
             --prebuilt \
+            --archive=tgz \
             --target=preview \
             --regions iad1 \
             --yes \
