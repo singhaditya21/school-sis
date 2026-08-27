@@ -85,3 +85,65 @@ test("required workflows must be completed successfully", () => {
   assert.deepEqual(result.waiting, ["E2E Tests (in_progress)"]);
   assert.equal(result.ok, false);
 });
+
+test("a skipped check does not outrank a real result that ran earlier", () => {
+  // Reproduces release 33060293340: commit 25bc25da had "Migration Chain"
+  // success from the push-event run at 09:45:56Z, then skipped from the
+  // scheduled run at 12:04:42Z. Newest-by-name picked the skip and failed.
+  const result = evaluateRequiredChecks(
+    [
+      {
+        name: "Migration Chain",
+        status: "completed",
+        conclusion: "success",
+        completed_at: "2026-08-27T09:45:56Z",
+      },
+      {
+        name: "Migration Chain",
+        status: "completed",
+        conclusion: "skipped",
+        completed_at: "2026-08-27T12:04:42Z",
+      },
+    ],
+    ["Migration Chain"],
+  );
+  assert.deepEqual(result, { ok: true, waiting: [], failed: [] });
+});
+
+test("a check that has only ever been skipped is still reported", () => {
+  const result = evaluateRequiredChecks(
+    [
+      {
+        name: "Migration Chain",
+        status: "completed",
+        conclusion: "skipped",
+        completed_at: "2026-08-27T12:04:42Z",
+      },
+    ],
+    ["Migration Chain"],
+  );
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.failed, ["Migration Chain (skipped)"]);
+});
+
+test("a genuine failure is still a failure even with an older success", () => {
+  const result = evaluateRequiredChecks(
+    [
+      {
+        name: "validate",
+        status: "completed",
+        conclusion: "success",
+        completed_at: "2026-08-27T09:00:00Z",
+      },
+      {
+        name: "validate",
+        status: "completed",
+        conclusion: "failure",
+        completed_at: "2026-08-27T12:00:00Z",
+      },
+    ],
+    ["validate"],
+  );
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.failed, ["validate (failure)"]);
+});

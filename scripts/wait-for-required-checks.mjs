@@ -183,8 +183,33 @@ export function latestByName(items, fields) {
   return latest;
 }
 
+/**
+ * A check run that was skipped carries no signal about the commit: the job
+ * decided not to run. GitHub still publishes it under the same name, so it can
+ * outrank a real result purely by being newer.
+ *
+ * That is not hypothetical. E2E's `migrate-check` job is `if: github.event_name
+ * != 'schedule'`, so the nightly run publishes "Migration Chain (skipped)".
+ * Release 33060293340 was gated on commit 25bc25da, whose push-event run had
+ * reported success at 09:45:56Z — but a scheduled run skipped it at 12:04:42Z,
+ * and the gate rejected the release. The release could only ever pass in the
+ * window between a push and the next scheduled run.
+ *
+ * Prefer the newest result that ACTUALLY RAN. A name that has only ever been
+ * skipped still surfaces as skipped, so a genuinely absent check is not masked.
+ */
+function preferExecuted(checkRuns) {
+  const executed = checkRuns.filter(
+    (check) => check?.status !== "completed" || check?.conclusion !== "skipped",
+  );
+  const namesWithExecution = new Set(executed.map((check) => check?.name));
+  return checkRuns.filter(
+    (check) => !namesWithExecution.has(check?.name) || executed.includes(check),
+  );
+}
+
 export function evaluateRequiredChecks(checkRuns, requiredNames) {
-  const latest = latestByName(checkRuns, [
+  const latest = latestByName(preferExecuted(checkRuns), [
     "started_at",
     "completed_at",
     "created_at",
