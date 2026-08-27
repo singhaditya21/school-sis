@@ -296,11 +296,6 @@ jobs:
           #
           # The assertions stay exactly as strict as they were — this makes the
           # precondition reachable, it does not weaken it.
-          if ! command -v psql >/dev/null 2>&1; then
-            sudo apt-get update -qq
-            sudo apt-get install --yes --quiet postgresql-client
-          fi
-
           branch_state() {
             curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
               --header "Authorization: Bearer $NEON_API_KEY" \
@@ -311,25 +306,60 @@ jobs:
 
           echo "Neon production branch state before wake: $(branch_state)"
 
-          # A thawing branch refuses connections for a while, so retry instead of
-          # failing the release on a cold start. psql reads the URL from argv; the
-          # secret is never echoed.
+          # Only wake a branch that actually needs it. If it already reports
+          # ready, the blocker this step exists for does not apply, and the
+          # assertions below run exactly as they always have.
+          #
+          # This matters more than it looks: the wake uses psql, while the release
+          # migrates through node-postgres. Failing the release because psql on the
+          # runner could not connect would block a deploy that would otherwise have
+          # worked — trading the old blocker for a new one.
+          state="$(branch_state)"
+          if [ "$state" = "ready:null" ]; then
+            echo "Branch is already ready; nothing to wake."
+            exit 0
+          fi
+
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install --yes --quiet postgresql-client
+          fi
+
+          # Capture the connection error instead of discarding it. The first version
+          # of this step sent psql's stderr to /dev/null and reported only "not
+          # accepting connections", which said nothing about WHY — the same silent
+          # failure this file is being fixed to stop producing. GitHub masks the
+          # registered secret in log output.
+          psql_error="$RUNNER_TEMP/neon-wake-psql.err"
           connected=no
           for attempt in 1 2 3 4 5 6; do
             if PGCONNECT_TIMEOUT=30 psql "$NEON_DIRECT_URL" \
-                 --quiet --no-psqlrc --tuples-only --command 'SELECT 1' >/dev/null 2>&1; then
+                 --quiet --no-psqlrc --tuples-only --command 'SELECT 1' \
+                 >/dev/null 2>"$psql_error"; then
               connected=yes
               echo "Connected on attempt ${attempt}."
               break
             fi
-            echo "Attempt ${attempt}: not accepting connections yet (state $(branch_state)); waiting 20s."
+            echo "Attempt ${attempt} failed (branch state $(branch_state)):"
+            sed 's/^/    /' "$psql_error" || true
             sleep 20
           done
+
           if [ "$connected" != "yes" ]; then
-            echo "Could not open a connection to the Neon production branch after 6 attempts." >&2
-            echo "  last observed state: $(branch_state)" >&2
-            echo "  Unarchiving may need to be started from the Neon console for" >&2
-            echo "  project ${NEON_PROJECT_ID}, branch ${NEON_PRODUCTION_BRANCH_ID}." >&2
+            echo "Could not open a connection to the Neon production branch." >&2
+            echo "  last psql error:" >&2
+            sed 's/^/    /' "$psql_error" >&2 || true
+            echo "  branch state: $(branch_state)" >&2
+            # The most common cause is a stale NEON_PRODUCTION_DIRECT_URL: archiving
+            # and unarchiving can reassign the compute endpoint. Print the hosts Neon
+            # currently reports so the mismatch is visible without guesswork.
+            echo "  host in NEON_PRODUCTION_DIRECT_URL: $(NEON_DIRECT_URL="$NEON_DIRECT_URL" node -e "process.stdout.write(new URL(process.env.NEON_DIRECT_URL).hostname)")" >&2
+            echo "  endpoints Neon reports for this branch:" >&2
+            curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+              --header "Authorization: Bearer $NEON_API_KEY" \
+              --header 'Accept: application/json' \
+              "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${NEON_PRODUCTION_BRANCH_ID}/endpoints" \
+              | jq -r '.endpoints[]? | "    \(.id) host=\(.host) type=\(.type) state=\(.current_state) disabled=\(.disabled)"' >&2 || true
             exit 1
           fi
 
