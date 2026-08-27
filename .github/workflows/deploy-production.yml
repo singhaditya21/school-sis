@@ -274,6 +274,79 @@ jobs:
           }
           NODE
 
+      - name: Wake the Neon production branch out of cold storage
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_DIRECT_URL: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_PRODUCTION_BRANCH_ID: ${{ vars.NEON_PRODUCTION_BRANCH_ID }}
+        run: |
+          set -euo pipefail
+          # Neon archives branches that go idle. The gate below asserts
+          # current_state == "ready", and Neon unarchives on DATA access only — a
+          # management-API GET does not count. So the gate asserted a state that
+          # nothing in this job would ever produce: the first real connection is
+          # `db:migrate:deploy`, hundreds of lines further down, which the failed
+          # assertion guarantees is never reached. It could not self-heal, and every
+          # push to main died here in ~25s on "expected ready, got archived".
+          #
+          # This step does the one thing that unarchives a branch: it connects. It is
+          # a no-op on a branch that is already ready, and it also returns an idle
+          # compute endpoint to active for the endpoint assertion below.
+          #
+          # The assertions stay exactly as strict as they were — this makes the
+          # precondition reachable, it does not weaken it.
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install --yes --quiet postgresql-client
+          fi
+
+          branch_state() {
+            curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+              --header "Authorization: Bearer $NEON_API_KEY" \
+              --header 'Accept: application/json' \
+              "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${NEON_PRODUCTION_BRANCH_ID}" \
+              | jq -r '"\(.branch.current_state // "unknown"):\(.branch.pending_state // "null")"'
+          }
+
+          echo "Neon production branch state before wake: $(branch_state)"
+
+          # A thawing branch refuses connections for a while, so retry instead of
+          # failing the release on a cold start. psql reads the URL from argv; the
+          # secret is never echoed.
+          connected=no
+          for attempt in 1 2 3 4 5 6; do
+            if PGCONNECT_TIMEOUT=30 psql "$NEON_DIRECT_URL" \
+                 --quiet --no-psqlrc --tuples-only --command 'SELECT 1' >/dev/null 2>&1; then
+              connected=yes
+              echo "Connected on attempt ${attempt}."
+              break
+            fi
+            echo "Attempt ${attempt}: not accepting connections yet (state $(branch_state)); waiting 20s."
+            sleep 20
+          done
+          if [ "$connected" != "yes" ]; then
+            echo "Could not open a connection to the Neon production branch after 6 attempts." >&2
+            echo "  last observed state: $(branch_state)" >&2
+            echo "  Unarchiving may need to be started from the Neon console for" >&2
+            echo "  project ${NEON_PROJECT_ID}, branch ${NEON_PRODUCTION_BRANCH_ID}." >&2
+            exit 1
+          fi
+
+          # Unarchiving surfaces through pending_state; let it settle so the assertion
+          # below is not racing a branch that is still transitioning.
+          for _ in $(seq 1 30); do
+            state="$(branch_state)"
+            if [ "$state" = "ready:null" ]; then
+              echo "Neon production branch is ready."
+              exit 0
+            fi
+            echo "Waiting for the branch to settle (state ${state})."
+            sleep 10
+          done
+          echo "The branch did not reach ready within five minutes (state $(branch_state))." >&2
+          exit 1
+
       - name: Bind the production URL to the configured Neon project and root branch
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
@@ -326,7 +399,11 @@ jobs:
             exit 1
           fi
           direct_host="$(NEON_DIRECT_URL="$NEON_DIRECT_URL" node -e "process.stdout.write(new URL(process.env.NEON_DIRECT_URL).hostname)")"
-          jq -e \
+          # The branch check above was given a diagnostic; this one was left bare and
+          # is the more dangerous of the two. Run 32982743508 died right here with a
+          # fully ready branch and produced NO log output whatsoever — exit 1, nothing
+          # to read, nothing to act on. Report which endpoint failed which expectation.
+          if ! jq -e \
             --arg project "$NEON_PROJECT_ID" \
             --arg branch "$NEON_PRODUCTION_BRANCH_ID" \
             --arg host "$direct_host" \
@@ -340,7 +417,33 @@ jobs:
                 (.current_state == "active" or .current_state == "idle") and
                 .pending_state == null
               )] | length == 1' \
-            "$endpoint_file" >/dev/null
+            "$endpoint_file" >/dev/null; then
+            echo "No single read_write Neon endpoint matches the configured production URL." >&2
+            echo "  NEON_PRODUCTION_DIRECT_URL host: $direct_host" >&2
+            jq -r \
+              --arg project "$NEON_PROJECT_ID" \
+              --arg branch "$NEON_PRODUCTION_BRANCH_ID" \
+              --arg host "$direct_host" '
+              if (.endpoints | length) == 0 then
+                "  the branch reports no compute endpoints at all"
+              else
+                (.endpoints[] |
+                  . as $e |
+                  [ (if $e.project_id == $project then empty else "project_id=\($e.project_id)" end),
+                    (if $e.branch_id  == $branch  then empty else "branch_id=\($e.branch_id)" end),
+                    (if $e.type == "read_write" then empty else "type=\($e.type) (expected read_write)" end),
+                    (if $e.host == $host then empty else "host=\($e.host) (expected \($host))" end),
+                    (if $e.disabled == false then empty else "disabled=true" end),
+                    (if ($e.current_state == "active" or $e.current_state == "idle") then empty else "current_state=\($e.current_state) (expected active or idle)" end),
+                    (if $e.pending_state == null then empty else "pending_state=\($e.pending_state) — still transitioning" end)
+                  ] as $bad |
+                  if ($bad | length) == 0
+                  then "  endpoint \($e.id): matches"
+                  else "  endpoint \($e.id): \($bad | join(", "))"
+                  end)
+              end' "$endpoint_file" >&2 || true
+            exit 1
+          fi
 
       - name: Checkout the successful main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
