@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page, type Response } from '@playwright/test';
 import { hash } from 'bcryptjs';
+import { authenticator } from 'otplib';
 import { Client } from 'pg';
 
 /**
@@ -480,6 +481,95 @@ export function registerRouteSmokeTests(): void {
                 .locator('xpath=following-sibling::p[1]');
             await check(totalStudents).toHaveText(/^[1-9]\d*$/);
             await check(page.getByRole('heading', { name: /^Grade \d+$/ }).first()).toBeVisible();
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Onboarding. The only route a prospective customer reaches before they
+    // are a customer, and the one place where a broken query costs a signup
+    // rather than an internal page view.
+    // ─────────────────────────────────────────────────────────────────────
+    test.describe('Route smoke — onboarding', () => {
+        test('/setup provisions a workspace end to end', async ({ browser }: { browser: Browser }) => {
+            const page = await browser.newPage();
+            try {
+                await visit(page, '/setup');
+
+                // Unique per run: the action rejects a duplicate subdomain or email,
+                // and rate-limits three attempts per value, so a fixed identifier
+                // would fail on the first retry rather than on a real defect.
+                const unique = `smoke${Date.now().toString(36)}`;
+
+                await page.fill('input[name="schoolName"]', 'Route Smoke Academy');
+                await page.fill('input[name="adminFirstName"]', 'Route');
+                await page.fill('input[name="adminLastName"]', 'Smoke');
+                await page.fill('input[name="email"]', `${unique}@routesmoke.test`);
+                await page.fill('input[name="domain"]', unique);
+                await page.fill('input[name="password"]', 'route-smoke-password-123');
+
+                await page.getByRole('button', { name: /Create Workspace/i }).click();
+
+                // The action returns a flat { error } that the page renders inline
+                // behind a ⚠️. That is what provisioning failure looks like, and it
+                // is what this case exists to catch: `INSERT INTO tenants
+                // (... billing_status ...)` referenced a column that lives on
+                // companies, so every visitor got "Failed to create workspace
+                // database. Please try again later." and no workspace.
+                const inlineError = page.locator('text=/⚠️/');
+                await Promise.race([
+                    page.waitForURL((url) => new URL(url).pathname !== '/setup', { timeout: 30_000 }),
+                    inlineError.waitFor({ state: 'visible', timeout: 30_000 }).then(async () => {
+                        throw new Error(
+                            `/setup refused to provision a workspace: ${(await inlineError.innerText()).trim()}`,
+                        );
+                    }),
+                ]);
+
+                // Provisioning succeeded: the company, tenant and admin were written
+                // and the session was established, so the app navigated away.
+                check(
+                    new URL(page.url()).pathname,
+                    'a provisioned workspace must leave /setup',
+                ).not.toBe('/setup');
+
+                // SCHOOL_ADMIN is in MFA_REQUIRED_ROLES and production MFA is
+                // mandatory, so onboarding hands straight to enrolment. Landing on
+                // /login here means the administrator was locked out of the account
+                // it had just created — the dead end this flow exists to prevent.
+                await page.waitForURL('**/mfa/setup', { timeout: 30_000 });
+
+                // The page shows the raw secret for manual entry. Reading it is what
+                // lets this test act as the authenticator app would, so the whole
+                // enrolment is exercised for real rather than stubbed.
+                await check(page.locator('[data-testid="mfa-qr"]')).toBeVisible();
+                const secret = (await page.locator('[data-testid="mfa-secret"]').innerText()).trim();
+                check(secret, 'enrolment must expose a secret for manual entry').toMatch(/^[A-Z2-7]{16,}$/);
+
+                // Ten single-use recovery codes, because a lost phone must not mean
+                // a lost tenant — there is no SMS or email fallback by design.
+                await check(page.locator('[data-testid="mfa-backup-codes"] li')).toHaveCount(10);
+
+                await page.locator('[data-testid="mfa-codes-saved"]').check();
+                await page.fill('[data-testid="mfa-code-input"]', authenticator.generate(secret));
+                await page.locator('[data-testid="mfa-activate"]').click();
+
+                const mfaError = page.locator('[data-testid="mfa-error"]');
+                await Promise.race([
+                    page.waitForURL('**/pricing', { timeout: 30_000 }),
+                    mfaError.waitFor({ state: 'visible', timeout: 30_000 }).then(async () => {
+                        throw new Error(
+                            `MFA enrolment refused a valid code: ${(await mfaError.innerText()).trim()}`,
+                        );
+                    }),
+                ]);
+
+                check(
+                    new URL(page.url()).pathname,
+                    'a fully enrolled administrator should reach checkout',
+                ).toBe('/pricing');
+            } finally {
+                await page.close();
+            }
         });
     });
 

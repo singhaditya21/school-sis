@@ -21,6 +21,7 @@ import {
 } from './lib/security/headers';
 
 const MFA_REQUIRED_ROLES = new Set<string>(MFA_REQUIRED_ROLE_NAMES);
+const MFA_ENROLLMENT_PATH = '/mfa/setup';
 const RESERVED_TENANT_HOSTS = new Set(['localhost', '127.0.0.1', '::1', 'www']);
 
 function attachContentSecurityPolicy(
@@ -152,6 +153,18 @@ export async function middleware(request: NextRequest) {
 
     const productionMfaRequired = process.env.NODE_ENV === 'production' && MFA_REQUIRED_ROLES.has(session.role);
     if ((session.mfaRequired || productionMfaRequired) && !session.mfaVerified && MFA_REQUIRED_ROLES.has(session.role)) {
+        // The enrolment route is the one place an unverified administrator is
+        // allowed to reach, because it is the only route that can resolve this
+        // state. Bouncing it to /login too is what made onboarding a dead end: a
+        // freshly-created SCHOOL_ADMIN was redirected to a login page it had no
+        // way to get past, forever.
+        //
+        // The exemption is exactly this prefix and nothing else. Every other
+        // route stays gated, and the session is still not `mfaVerified` — that
+        // flag is only set once a real TOTP code has been checked.
+        if (pathname === MFA_ENROLLMENT_PATH || pathname.startsWith(`${MFA_ENROLLMENT_PATH}/`)) {
+            return respond(response);
+        }
         const loginUrl = new URL('/login', request.url);
         loginUrl.searchParams.set('mfa', 'required');
         return respond(NextResponse.redirect(loginUrl));
