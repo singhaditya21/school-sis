@@ -76,7 +76,25 @@ export function resolveDatabaseConnectionOptions(
     connectionString: string,
     configuredMode = process.env.DATABASE_SSL_MODE,
 ): DatabaseConnectionOptions {
-    const parsed = new URL(connectionString);
+    let parsed: URL;
+    try {
+        parsed = new URL(connectionString);
+    } catch {
+        // Never let the TypeError escape. Node attaches the offending string —
+        // password and all — to `err.input`, so console.error(err),
+        // util.inspect(err), JSON.stringify(err) and Node's own uncaught-exception
+        // banner each print the full credential verbatim.
+        //
+        // This stayed invisible because GitHub Actions masks registered secrets:
+        // a release log showed `input: '[SENSITIVE]'`. A Vercel runtime log does
+        // no masking, and this function is on the runtime path, so a malformed
+        // DATABASE_URL would have written the live password into it.
+        //
+        // `err.message` is the constant "Invalid URL" and carries nothing from the
+        // input, but re-raising the error object at all keeps `input` attached —
+        // hence a fresh Error rather than a rethrow.
+        throw new Error('The database connection string is not a valid URL.');
+    }
     for (const key of [...parsed.searchParams.keys()]) {
         if (PG_SSL_QUERY_PARAMETERS.has(key.toLowerCase())) {
             parsed.searchParams.delete(key);
