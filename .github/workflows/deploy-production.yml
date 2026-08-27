@@ -923,6 +923,7 @@ jobs:
           deployment_json="$RUNNER_TEMP/vercel-production-candidate.json"
           pnpm exec vercel deploy \
             --prebuilt \
+            --archive=tgz \
             --prod \
             --regions sin1 \
             --skip-domain \
