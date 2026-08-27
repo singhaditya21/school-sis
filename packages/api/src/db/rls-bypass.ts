@@ -1,4 +1,20 @@
-const justificationBrand: unique symbol = Symbol("rls-bypass-justification");
+/**
+ * Registered (`Symbol.for`) rather than unique (`Symbol`), because Next.js
+ * compiles this module once per build layer: a production build carries three
+ * copies of it, and `instrumentation.ts` gets a different one from every page.
+ *
+ * A plain `Symbol()` is fresh per copy, so a justification minted in
+ * instrumentation's copy fails `assertRlsBypassJustification` in the page's
+ * copy — which is every PLATFORM_ADMIN request, since the session resolver
+ * returns `{ bypassRls: true, justification }` and `resolvedContext()` asserts
+ * it. The global symbol registry is shared across all of them.
+ *
+ * This stayed latent only because the resolver itself was never reachable (see
+ * the note on `dbContext` in ./index.ts); fixing that exposed it.
+ */
+const justificationBrand: unique symbol = Symbol.for(
+  "school-sis:rls-bypass-justification",
+);
 
 export type RlsBypassJustification = Readonly<{
   id: string;
