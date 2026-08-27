@@ -2,7 +2,7 @@
   "version": 1,
   "production": {
     "keyId": "prod-20260817-v1",
-    "secretSha256": "d89da0bb50e2b2323c78effbf6eb6a4546086aed6c81f4767d1470fd1657656f"
+    "secretSha256": "1a7be51b6025e5ad14d8ff627f37a6bca6b08b9ff5b760403881a743386a11d3"
   },
   "preview": {
     "keyId": "preview-20260817-v1",
