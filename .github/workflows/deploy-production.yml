@@ -593,11 +593,46 @@ jobs:
             }
           }
 
-          const runtime = new URL(pulled.DATABASE_URL || '');
-          const platform = new URL(pulled.PLATFORM_DATABASE_URL || '');
-          const direct = new URL(process.env.NEON_DIRECT_URL);
-          const configuredOrigin = new URL(process.env.PRODUCTION_URL);
-          const applicationOrigin = new URL(pulled.NEXT_PUBLIC_APP_URL || '');
+          // `new URL(x || '')` throws a bare `TypeError: Invalid URL` naming no
+          // variable, and GitHub masks the offending value as [SENSITIVE] because it
+          // matches a registered secret. Run 33049217659 died exactly that way and
+          // the log could not say which of five variables was at fault — only a stack
+          // frame, eval1:37:18, that had to be mapped back to a line by hand.
+          //
+          // Report every missing variable at once, and name the invalid one. Values
+          // are never echoed: these carry database passwords.
+          const REQUIRED_FROM_VERCEL = [
+            'DATABASE_URL',
+            'PLATFORM_DATABASE_URL',
+            'NEXT_PUBLIC_APP_URL',
+            'TENANT_CONTEXT_AUDIENCE',
+            'TENANT_CONTEXT_SIGNING_KEY_ID',
+            'TENANT_CONTEXT_SIGNING_SECRET',
+          ];
+          const absent = REQUIRED_FROM_VERCEL.filter(
+            (name) => typeof pulled[name] !== 'string' || pulled[name].trim() === ''
+          );
+          if (absent.length > 0) {
+            throw new Error(
+              `The Vercel production environment is missing ${absent.length} required ` +
+              `variable(s): ${absent.join(', ')}. Set them on the Vercel project's ` +
+              `Production environment, then re-run this release.`
+            );
+          }
+
+          const asUrl = (name, value, source) => {
+            try {
+              return new URL(value);
+            } catch {
+              throw new Error(`${name} in ${source} is not a valid URL.`);
+            }
+          };
+          const VERCEL_ENV = 'the Vercel production environment';
+          const runtime = asUrl('DATABASE_URL', pulled.DATABASE_URL, VERCEL_ENV);
+          const platform = asUrl('PLATFORM_DATABASE_URL', pulled.PLATFORM_DATABASE_URL, VERCEL_ENV);
+          const direct = asUrl('NEON_PRODUCTION_DIRECT_URL', process.env.NEON_DIRECT_URL, 'the GitHub Production environment');
+          const configuredOrigin = asUrl('PRODUCTION_URL', process.env.PRODUCTION_URL, 'the GitHub repository variables');
+          const applicationOrigin = asUrl('NEXT_PUBLIC_APP_URL', pulled.NEXT_PUBLIC_APP_URL, VERCEL_ENV);
           if (
             applicationOrigin.origin !== configuredOrigin.origin ||
             applicationOrigin.pathname !== '/' || applicationOrigin.search ||
