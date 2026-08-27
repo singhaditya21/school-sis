@@ -78,3 +78,43 @@ describe('database TLS policy', () => {
         )).toThrow('host, port, and database name');
     });
 });
+
+describe('malformed connection strings never reach a log', () => {
+    /**
+     * `new URL()` throws a TypeError carrying the offending string on `err.input`,
+     * so console.error(err), util.inspect(err), JSON.stringify(err) and Node's own
+     * uncaught-exception banner all print the password verbatim.
+     *
+     * GitHub Actions masks registered secrets, which hid this in CI — a release log
+     * showed `input: '[SENSITIVE]'`. Vercel's runtime logs do not mask, and
+     * resolveDatabaseConnectionOptions is on the runtime path.
+     */
+    const SECRET = 'npg_thisIsTheProductionPassword';
+    // The psql snippet Neon's Connect dialog offers: a leading command word makes
+    // it unparseable, which is exactly how a real deployment reaches this path.
+    const malformed = `psql 'postgresql://school_sis_platform:${SECRET}@ep-x-pooler.ap-southeast-1.aws.neon.tech/neondb'`;
+
+    it('raises an error that does not carry the connection string', () => {
+        let caught: unknown;
+        try {
+            resolveDatabaseConnectionOptions(malformed);
+        } catch (error) {
+            caught = error;
+        }
+
+        expect(caught).toBeInstanceOf(Error);
+        // Every channel an error realistically escapes through.
+        expect((caught as Error).message).not.toContain(SECRET);
+        expect(String(caught)).not.toContain(SECRET);
+        expect(JSON.stringify(caught)).not.toContain(SECRET);
+        expect(require('node:util').inspect(caught)).not.toContain(SECRET);
+        // `input` is the own property Node attaches and the one that leaked.
+        expect(Object.keys(caught as object)).not.toContain('input');
+    });
+
+    it('still rejects it, rather than passing a bad string through', () => {
+        expect(() => resolveDatabaseConnectionOptions(malformed)).toThrow(
+            'The database connection string is not a valid URL.',
+        );
+    });
+});
