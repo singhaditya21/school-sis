@@ -103,6 +103,8 @@ declare global {
   var pgPlatformPool: Pool | undefined;
   var drizzleDb: any | undefined;
   var pgPoolContextPatched: boolean | undefined;
+  var dbRlsContextStorage: AsyncLocalStorage<DbRlsContext> | undefined;
+  var dbRlsContextResolver: DbRlsContextResolver | undefined;
 }
 
 type DbRlsContext =
@@ -127,8 +129,23 @@ const TENANT_CONTEXT_NONCE_RE = /^[0-9a-f]{32}$/;
 const TENANT_CONTEXT_TRANSACTION_ID_RE = /^[1-9][0-9]{0,19}$/;
 const TENANT_CONTEXT_DOMAIN = "school-sis:tenant-context:v1";
 const TENANT_CONTEXT_TTL_SECONDS = 300;
-const dbContext = new AsyncLocalStorage<DbRlsContext>();
-let requestContextResolver: DbRlsContextResolver | undefined;
+/**
+ * Both of these MUST live on `globalThis`, for the same reason `pgPool` and
+ * `drizzleDb` below do: Next.js loads this module more than once per process.
+ * `instrumentation.ts` runs in its own module graph, so a plain module-level
+ * `let` set by `registerDbRlsContextResolver` is invisible to the instance the
+ * page and server-action bundles import.
+ *
+ * When that happened, `resolvedContext()` returned undefined for every request,
+ * no tenant context was ever applied, and FORCE RLS answered every tenant-scoped
+ * read with zero rows. Pages still returned HTTP 200 — they rendered their empty
+ * states — so nothing failed loudly: `/students` showed "No students found",
+ * `/invoices` "No invoices match this view", `/executive` ₹0 across the board.
+ * `e2e/route-smoke.ts` is the gate that catches a regression here.
+ */
+const dbContext: AsyncLocalStorage<DbRlsContext> =
+  globalThis.dbRlsContextStorage ?? new AsyncLocalStorage<DbRlsContext>();
+globalThis.dbRlsContextStorage = dbContext;
 
 function assertTenantId(tenantId: string): void {
   if (!UUID_RE.test(tenantId)) {
@@ -223,9 +240,10 @@ function currentContext(): DbRlsContext | undefined {
 async function resolvedContext(): Promise<DbRlsContext | undefined> {
   const scoped = currentContext();
   if (scoped) return scoped;
-  if (!requestContextResolver) return undefined;
+  const resolver = globalThis.dbRlsContextResolver;
+  if (!resolver) return undefined;
 
-  const resolved = await requestContextResolver();
+  const resolved = await resolver();
   if (!resolved) return undefined;
   if (resolved.bypassRls) {
     assertRlsBypassJustification(resolved.justification);
@@ -245,7 +263,7 @@ async function resolvedContext(): Promise<DbRlsContext | undefined> {
 export function registerDbRlsContextResolver(
   resolver: DbRlsContextResolver | undefined,
 ): void {
-  requestContextResolver = resolver;
+  globalThis.dbRlsContextResolver = resolver;
 }
 
 type RawClientQuery = (...args: unknown[]) => Promise<unknown>;
