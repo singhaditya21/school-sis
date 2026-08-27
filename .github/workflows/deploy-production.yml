@@ -620,11 +620,60 @@ jobs:
             );
           }
 
+          // Describe the SHAPE of an unparseable value, never its content.
+          //
+          // Naming the variable was not enough: run 33050771523 reported only that
+          // PLATFORM_DATABASE_URL was invalid, which left the owner guessing at a
+          // value nobody is allowed to read. These are the shapes that actually make
+          // `new URL()` throw — each verified by running it, not assumed.
+          //
+          // Length is deliberately NOT reported. The host, username and database are
+          // already known quantities, so a total length would give away the
+          // password's length. Everything below is about format, not content.
+          const describeShape = (value) => {
+            const trimmed = value.trim();
+            const notes = [];
+            if (/^psql\b/i.test(trimmed)) {
+              notes.push("it starts with `psql` — Neon's Connect dialog offers a psql command, so copy only the URL inside the quotes");
+            }
+            if (/^['"]/.test(trimmed) || /['"]$/.test(trimmed)) {
+              notes.push('it is wrapped in quotes — paste the URL without them');
+            }
+            if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) {
+              notes.push(`its scheme is "${trimmed.slice(0, trimmed.indexOf('://'))}"`);
+            } else {
+              notes.push('it has no scheme — a connection URL must begin with postgresql://');
+            }
+            if (/\bhost=|\buser=|\bdbname=/.test(trimmed)) {
+              notes.push('it looks like libpq keyword format (host=... user=...) rather than a URL');
+            }
+            if (/\[[^\]]*\]|<[^>]*>/.test(trimmed)) {
+              notes.push('it still contains a [PLACEHOLDER] — replace it with the real value');
+            }
+            if (/\s/.test(trimmed)) {
+              notes.push('it contains a space or newline inside the value');
+            }
+            // Scheme present and nothing else obviously wrong: what is left is a
+            // character inside the password that URL parsing cannot accept. `/` and
+            // `#` both throw here; `@` does not — it parses and silently takes the
+            // LAST `@` as the delimiter, so it fails the host check further down
+            // rather than this one.
+            if (notes.length === 1 && /^postgres(ql)?:\/\//.test(trimmed)) {
+              notes.push('nothing else looks wrong, so a character in the password most likely needs percent-encoding — / becomes %2F, # becomes %23, : becomes %3A, ? becomes %3F, % becomes %25');
+            }
+            return notes;
+          };
           const asUrl = (name, value, source) => {
             try {
               return new URL(value);
             } catch {
-              throw new Error(`${name} in ${source} is not a valid URL.`);
+              const notes = describeShape(value);
+              throw new Error(
+                `${name} in ${source} is not a valid URL.` +
+                (notes.length > 0 ? ` Detected: ${notes.join('; ')}.` : '') +
+                ' Expected a bare connection URL of the form' +
+                ' postgresql://ROLE:PASSWORD@HOST/DATABASE with no quotes and no command prefix.'
+              );
             }
           };
           const VERCEL_ENV = 'the Vercel production environment';
