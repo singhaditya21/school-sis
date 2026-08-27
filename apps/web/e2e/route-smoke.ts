@@ -91,6 +91,26 @@ const check = expect.configure({ timeout: 10_000 });
 /** Rupee amounts render through formatCurrency (en-IN, INR) — e.g. "₹1,23,456". */
 const RUPEES = /₹\s?[\d,]+/;
 
+/**
+ * A rupee amount that is not zero.
+ *
+ * This distinction is the whole point of the layer. When the request-scoped
+ * tenant context stopped reaching the pool, FORCE RLS answered every read with
+ * no rows and the fee screens rendered a clean, confident ₹0 — HTTP 200, no
+ * exception, every label present. `RUPEES` alone matched "₹0" and passed.
+ */
+const NON_ZERO_RUPEES = /₹\s?[1-9][\d,]*/;
+
+/**
+ * Figures the seed makes deterministic, so a broken aggregate cannot pass.
+ * scripts/seed.ts bills 10 students ₹15,000 each; e2e/fixtures/e2e-seed.sql adds
+ * Aarav Sharma's ₹45,000 pending and ₹10,000 paid invoices.
+ *   billed    = 10 × 15,000 + 45,000 + 10,000 = ₹2,05,000
+ *   collected =  6 × 15,000 + 2 × 7,500 + 10,000 = ₹1,15,000
+ */
+const SEEDED_TOTAL_BILLED = '₹2,05,000';
+const SEEDED_TOTAL_COLLECTED = '₹1,15,000';
+
 function seedPassword(): string {
     const password = process.env.SEED_USER_PASSWORD;
     if (!password) {
@@ -232,19 +252,35 @@ export function registerRouteSmokeTests(): void {
         test('/fees renders collection totals from real invoices', async () => {
             await visit(page, '/fees');
 
+            await check(page.getByRole('heading', { name: 'Fee Management', level: 1 })).toBeVisible();
 
+            // The workspace prices itself from the seeded plan's components.
+            await check(page.getByText('Standard Fee Plan 2025-26').first()).toBeVisible();
+
+            // Labels alone would pass over an all-zero page, which is exactly what
+            // a lost tenant context produces. Require a real amount.
+            await check(page.getByText(NON_ZERO_RUPEES).first()).toBeVisible();
         });
 
         test('/fees/plans lists the seeded plan with its billed total', async () => {
             await visit(page, '/fees/plans');
 
+            await check(page.getByRole('heading', { name: 'Fee plans', level: 1 })).toBeVisible();
+            await check(page.getByText('No fee plans yet. Create one to start invoicing.')).toHaveCount(0);
 
+            const plan = page
+                .locator('[data-testid="fee-plan-row"]')
+                .filter({ hasText: 'Standard Fee Plan 2025-26' });
+            await check(plan).toHaveCount(1);
+
+            // Mandatory: tuition 5,000 + library 1,000 + lab 1,500 + annual 3,000.
+            // Transport (2,000) is optional and must stay out of the billed total —
+            // getFeePlanSummaries splitting these wrongly is a real overcharge.
+            await check(plan).toContainText('₹10,500');
+            await check(plan).toContainText('₹2,000');
         });
 
-            // FIXME: asserts content that differs between the local and CI datasets.
-            // visit() still proves 200 / no bounce / no error boundary for this route in
-            // the cases above; this one needs its expectations pinned to the CI seed.
-        test.fixme('/invoices lists seeded invoices with balances', async () => {
+        test('/invoices lists seeded invoices with balances', async () => {
             await visit(page, '/invoices');
 
             await check(page.getByRole('heading', { name: 'Invoices', level: 1 })).toBeVisible();
@@ -252,23 +288,33 @@ export function registerRouteSmokeTests(): void {
 
             const rows = page.locator('[data-testid="invoice-row"]');
             await check(rows.first()).toBeVisible();
+            await check(rows.first()).toContainText(/INV-\d{4}-\d+/);
 
-            const firstRow = rows.first();
-            await check(firstRow).toContainText(/INV-\d{4}-\d+/);
-            // Content assertions here coupled to seed-specific amounts and copy, which
-            // differ between the local and CI datasets. visit() already proves 200, no
-            // bounce to /login and no error boundary — the guarantee that caught the
-            // /executive 500. Re-add a data assertion once the CI dataset is pinned.
+            // The header counts the whole result set, not the page. Zero here is
+            // the empty-render failure this layer exists to catch.
             await check(page.getByText(/[1-9]\d* invoices?/).first()).toBeVisible();
+
+            // Pin one seeded invoice end to end: its number, the students join that
+            // supplies the name, the amount, and the status badge. Twelve invoices
+            // fit inside the 25-row page, so no pagination is involved.
+            const pending = rows.filter({ hasText: 'INV-2026-001' });
+            await check(pending).toHaveCount(1);
+            await check(pending).toContainText('Aarav Sharma');
+            await check(pending).toContainText('₹45,000');
+            await check(pending).toContainText('PENDING');
         });
 
-            // FIXME: asserts content that differs between the local and CI datasets.
-            // visit() still proves 200 / no bounce / no error boundary for this route in
-            // the cases above; this one needs its expectations pinned to the CI seed.
-        test.fixme('/invoices/[id] opens a real invoice with its payment surfaces', async () => {
+        test('/invoices/[id] opens a real invoice with its payment surfaces', async () => {
             await visit(page, '/invoices');
 
-            const invoiceLink = page.locator('[data-testid="invoice-row"] a').first();
+            // A specific invoice rather than "the first row": INV-2025-089 is the
+            // fully-settled fixture invoice, so it exercises the payment and receipt
+            // joins that an unpaid invoice would leave empty.
+            const invoiceLink = page
+                .locator('[data-testid="invoice-row"]')
+                .filter({ hasText: 'INV-2025-089' })
+                .locator('a')
+                .first();
             // Assert before reading: on an empty table innerText() would otherwise
             // burn the full 30s action timeout instead of failing here.
             await check(invoiceLink).toBeVisible();
@@ -286,15 +332,19 @@ export function registerRouteSmokeTests(): void {
             for (const label of ['Total billed', 'Paid', 'Balance due']) {
                 await check(page.getByText(label, { exact: true }).first()).toBeVisible();
             }
-            // Content assertions here coupled to seed-specific amounts and copy, which
-            // differ between the local and CI datasets. visit() already proves 200, no
-            // bounce to /login and no error boundary — the guarantee that caught the
-            // /executive 500. Re-add a data assertion once the CI dataset is pinned.
+
+            // ₹10,000 billed and ₹10,000 paid. Asserting the figure — not just the
+            // label — is what separates a working aggregate from a rendered zero.
+            await check(page.getByText('₹10,000').first()).toBeVisible();
 
             // The counter-payment workflow and its two supporting queries.
             await check(page.getByText('Record a payment')).toBeVisible();
             await check(page.getByText('Fee breakdown')).toBeVisible();
             await check(page.getByText('Payment history')).toBeVisible();
+
+            // The fixture records exactly one payment against this invoice; the
+            // header counts what the payments join actually returned.
+            await check(page.getByText('1 recorded')).toBeVisible();
         });
 
         test('/executive renders the board fee position', async () => {
@@ -313,6 +363,13 @@ export function registerRouteSmokeTests(): void {
                 await page.getByText(RUPEES).count(),
                 'expected billed, collected and outstanding to render as currency',
             ).toBeGreaterThanOrEqual(3);
+
+            // The two figures the board reads. This page once shipped a SUM over a
+            // column that did not exist; later it rendered ₹0 for everything because
+            // RLS had nothing to sum. Both failures pass a label-only assertion, so
+            // pin the arithmetic itself.
+            await check(page.getByText(SEEDED_TOTAL_BILLED).first()).toBeVisible();
+            await check(page.getByText(SEEDED_TOTAL_COLLECTED).first()).toBeVisible();
 
             await check(page.getByText(/\d+(\.\d+)?% collection rate/)).toBeVisible();
             await check(page.getByText('Overdue Balance')).toBeVisible();
@@ -340,10 +397,7 @@ export function registerRouteSmokeTests(): void {
             await page?.close();
         });
 
-            // FIXME: asserts content that differs between the local and CI datasets.
-            // visit() still proves 200 / no bounce / no error boundary for this route in
-            // the cases above; this one needs its expectations pinned to the CI seed.
-        test.fixme('/students lists seeded students with admission numbers', async () => {
+        test('/students lists seeded students with admission numbers', async () => {
             await visit(page, '/students');
 
             await check(page.getByRole('heading', { name: 'Student Directory', level: 1 })).toBeVisible();
@@ -354,7 +408,9 @@ export function registerRouteSmokeTests(): void {
             await check(page.getByText('No students found')).toHaveCount(0);
 
             // Seeded admission numbers are GWD2025NNNNN (apps/web/scripts/seed.ts).
-            await check(page.getByText(/GWD\d{9}/).first()).toBeVisible();
+            // The page swallows query errors into that same empty state, so the
+            // admission number is the only proof the SELECT actually returned rows.
+            await check(page.getByText('GWD202500001')).toBeVisible();
             await check(page.getByText('Aarav Sharma')).toBeVisible();
         });
 
@@ -364,6 +420,11 @@ export function registerRouteSmokeTests(): void {
             await check(page.getByRole('heading', { name: 'Admissions Pipeline', level: 1 })).toBeVisible();
             await check(page.getByRole('heading', { name: 'Conversion' })).toBeVisible();
             await check(page.getByRole('heading', { name: 'Where leads come from' })).toBeVisible();
+
+            // Headings alone render perfectly over an empty pipeline. The seed
+            // records three leads, so name one and refuse the empty breakdown.
+            await check(page.getByText('No leads recorded yet.')).toHaveCount(0);
+            await check(page.getByText('Aryan Khanna').first()).toBeVisible();
         });
 
         test('/exams renders the gradebook workspace', async () => {
@@ -373,6 +434,11 @@ export function registerRouteSmokeTests(): void {
             await check(page.getByRole('heading', { name: 'All exams' })).toBeVisible();
             await check(page.getByRole('link', { name: 'Verify marks' })).toBeVisible();
             await check(page.getByRole('link', { name: 'Report cards' })).toBeVisible();
+
+            // Same trap as /admissions: the workspace chrome renders with no exams
+            // at all. e2e/fixtures/e2e-seed.sql creates exactly this one.
+            await check(page.getByText('No exams created yet')).toHaveCount(0);
+            await check(page.getByText('Mathematics Final').first()).toBeVisible();
         });
     });
 
@@ -396,10 +462,7 @@ export function registerRouteSmokeTests(): void {
             await page?.close();
         });
 
-            // FIXME: asserts content that differs between the local and CI datasets.
-            // visit() still proves 200 / no bounce / no error boundary for this route in
-            // the cases above; this one needs its expectations pinned to the CI seed.
-        test.fixme('/attendance renders today’s register summary', async () => {
+        test('/attendance renders today’s register summary', async () => {
             await visit(page, '/attendance');
 
             await check(page.getByRole('heading', { name: 'Attendance', level: 1 })).toBeVisible();
@@ -412,8 +475,10 @@ export function registerRouteSmokeTests(): void {
             // Labels alone would pass over an empty result set. The seed enrols 20
             // students, so the headline count must be a real number, and the grid
             // must list the seeded grades.
-            const totalStudents = page.getByText('Total Students', { exact: true }).locator('xpath=following-sibling::p[1]');
-            await check(totalStudents).toHaveText(/[1-9]\d*/);
+            const totalStudents = page
+                .getByText('Total Students', { exact: true })
+                .locator('xpath=following-sibling::p[1]');
+            await check(totalStudents).toHaveText(/^[1-9]\d*$/);
             await check(page.getByRole('heading', { name: /^Grade \d+$/ }).first()).toBeVisible();
         });
     });
@@ -438,10 +503,7 @@ export function registerRouteSmokeTests(): void {
             await page?.close();
         });
 
-            // FIXME: asserts content that differs between the local and CI datasets.
-            // visit() still proves 200 / no bounce / no error boundary for this route in
-            // the cases above; this one needs its expectations pinned to the CI seed.
-        test.fixme('/overview shows the linked child and their three summary cards', async () => {
+        test('/overview shows the linked child and their three summary cards', async () => {
             await visit(page, '/overview');
 
             // The seed links this guardian to Aarav Sharma. If the guardians join
@@ -449,24 +511,22 @@ export function registerRouteSmokeTests(): void {
             // — a green status code over a completely broken portal.
             await check(page.getByText('No child linked to your account')).toHaveCount(0);
 
-            await check(page.getByRole('heading', { level: 1 })).toContainText(/\S/);
-            await check(page.getByText(/Admission \S+/)).toBeVisible();
+            // The seed links this guardian to the first student, so the heading and
+            // the admission number are both fixed values — a guardians join that
+            // silently returns nothing cannot satisfy them.
+            await check(page.getByRole('heading', { name: 'Aarav Sharma', level: 1 })).toBeVisible();
+            await check(page.getByText(/Admission GWD202500001/)).toBeVisible();
 
             await check(page.getByRole('heading', { name: 'Attendance this month' })).toBeVisible();
             await check(page.getByRole('heading', { name: 'Outstanding fees' })).toBeVisible();
             await check(page.getByRole('heading', { name: 'Latest published result' })).toBeVisible();
 
-            // Outstanding fees is formatCurrency() over the child's invoices.
-            // Content assertions here coupled to seed-specific amounts and copy, which
-            // differ between the local and CI datasets. visit() already proves 200, no
-            // bounce to /login and no error boundary — the guarantee that caught the
-            // /executive 500. Re-add a data assertion once the CI dataset is pinned.
+            // Outstanding fees is formatCurrency() over the child's invoices:
+            // ₹45,000 still pending, with the ₹15,000 and ₹10,000 invoices settled.
+            await check(page.getByText('₹45,000').first()).toBeVisible();
         });
 
-            // FIXME: asserts content that differs between the local and CI datasets.
-            // visit() still proves 200 / no bounce / no error boundary for this route in
-            // the cases above; this one needs its expectations pinned to the CI seed.
-        test.fixme('/my-fees renders the child fee ledger', async () => {
+        test('/my-fees renders the child fee ledger', async () => {
             await visit(page, '/my-fees');
 
             await check(page.getByRole('heading', { name: 'Fees', level: 1 })).toBeVisible();
@@ -481,6 +541,13 @@ export function registerRouteSmokeTests(): void {
 
             // Invoices is the default tab; Payments is the other half of the ledger.
             await check(page.getByText('Fee invoices')).toBeVisible();
+
+            // All three of this child's invoices, so a ledger that renders its
+            // chrome over an empty fetch cannot pass.
+            for (const invoice of ['INV-2026-001', 'INV-2025-0001', 'INV-2025-089']) {
+                await check(page.getByText(invoice)).toBeVisible();
+            }
+
             await page.getByRole('button', { name: 'Payments', exact: true }).click();
             await check(page.getByText('Payment history')).toBeVisible();
         });
