@@ -323,6 +323,26 @@ describe("production release failure-path gates", () => {
     expect(rehearsal).not.toMatch(/vars\.VERCEL_ORG_ID|vars\.VERCEL_PROJECT_ID/);
   });
 
+  it("has no doubled line continuations in either workflow", () => {
+    // `\\` at end of line is an escaped backslash followed by a newline: valid
+    // shell, so `bash -n` accepts it, but the command then receives a literal
+    // backslash as an argument. That is how a rehearsal run died with
+    // "Unexpected argument \\." after a generated edit doubled them.
+    for (const [name, source] of [
+      ["deploy-production.yml", workflow],
+      ["recovery-rehearsal.yml", rehearsal],
+    ] as const) {
+      const offenders = source
+        .split("\n")
+        .map((line, index) => ({ line, number: index + 1 }))
+        .filter(({ line }) => /[^\\]\\\\$/.test(line));
+      expect({ name, offenders: offenders.map((o) => o.number) }).toEqual({
+        name,
+        offenders: [],
+      });
+    }
+  });
+
   it("runs the rehearsal whenever the recovery code changes", () => {
     // On demand is not enough: the moment its correctness can regress is the
     // moment someone edits it.
