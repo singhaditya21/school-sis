@@ -51,6 +51,63 @@ const TENANT_CONTEXT_SECRET_PATTERN = /^[A-Za-z0-9_-]{43,128}$/;
 // Regenerate only from a clean application of tenant-rls.sql. The canonical
 // catalog payload includes every public r/p policy's table, name, command,
 // roles, permissiveness, USING expression, and WITH CHECK expression.
+//
+// ─── How to regenerate, and how to know you did it right ────────────────────
+//
+// Adding any table with a tenant_id column changes this, because tenant-rls.sql
+// discovers such tables and gives each one a tenant_isolation_policy. The
+// release then refuses to migrate with "The exact public RLS policy catalog
+// does not match the reviewed tenant-RLS artifact" — deliberately, so a change
+// to the isolation model cannot reach production unreviewed.
+//
+//   1. Build a scratch database and apply the whole chain in order, then
+//      tenant-rls.sql. The chain needs the `vector` and `pgcrypto` extensions
+//      created first, or 0000 fails on the embedding column.
+//
+//   2. FIRST reproduce the value you are replacing. Apply the chain WITHOUT the
+//      new migration and run the query below: it must print the count and hash
+//      currently pinned here. If it does not, the procedure is wrong and any
+//      number it produces next is worthless. This is the step worth not
+//      skipping — it is the only evidence the method is sound.
+//
+//   3. Then apply the chain WITH the new migration and run the query again.
+//      Those are the new values.
+//
+//   4. Diff the two policy lists — not just the hashes — and confirm the delta
+//      is exactly what the change should produce. A hash tells you something
+//      moved; the list tells you what:
+//
+//        SELECT c.relname, p.polname FROM pg_policy p
+//        JOIN pg_class c ON c.oid = p.polrelid
+//        JOIN pg_namespace n ON n.oid = c.relnamespace
+//        WHERE n.nspname = 'public' ORDER BY 1, 2;
+//
+//      Adding hardware_tokens should add one line and move nothing else. If a
+//      policy changed shape or disappeared, that is a different review.
+//
+// The fingerprint query is the one this file already runs, kept identical here
+// so the two cannot drift:
+//
+//   WITH policy_rows AS (
+//       SELECT jsonb_build_object(
+//           'table', classes.relname, 'policy', policies.polname,
+//           'permissive', policies.polpermissive, 'command', policies.polcmd,
+//           'roles', policies.polroles::text,
+//           'using', pg_get_expr(policies.polqual, policies.polrelid, false),
+//           'check', pg_get_expr(policies.polwithcheck, policies.polrelid, false)
+//       )::text AS contract,
+//       classes.relname::text AS table_name, policies.polname::text AS policy_name
+//       FROM pg_catalog.pg_policy policies
+//       JOIN pg_catalog.pg_class classes ON classes.oid = policies.polrelid
+//       JOIN pg_catalog.pg_namespace namespaces ON namespaces.oid = classes.relnamespace
+//       WHERE namespaces.nspname = 'public' AND classes.relkind IN ('r', 'p')
+//   )
+//   SELECT count(*), encode(public.digest(convert_to(string_agg(
+//       contract, E'\n' ORDER BY table_name, policy_name), 'UTF8'), 'sha256'), 'hex')
+//   FROM policy_rows;
+//
+// The test fixture in deployment-migrations.test.ts imports both constants
+// rather than copying them, so only these two lines need editing.
 export const EXPECTED_RLS_POLICY_COUNT = 180;
 export const EXPECTED_RLS_POLICY_CATALOG_SHA256 =
   "4e8e1abaab5643c54fb94e05af29271fb4809d78c8cf448056a029c6efa88161";
