@@ -686,10 +686,21 @@ export function registerRouteSmokeTests(): void {
         '/my-fees',
     ]);
 
-    /** Every internal link the rendered navigation offers this session. */
-    async function offeredNavRoutes(page: Page, navSelector: string): Promise<string[]> {
+    /**
+     * Every internal link this session is actually offered.
+     *
+     * Takes more than one region because the staff surface has more than one:
+     * the sidebar, and the module grid rendered in the dashboard body. Scoping
+     * to the sidebar alone quietly dropped nine routes — the module grid's
+     * /fees/generate, /fees/defaulters, /consent and the rest — and the sweep
+     * still passed. Only printing the count made that visible.
+     *
+     * Whole-page collection is safe here: sign-out is a POST form, not an
+     * anchor, so it cannot be swept into.
+     */
+    async function offeredNavRoutes(page: Page, selectors: string[]): Promise<string[]> {
         const hrefs = await page
-            .locator(`${navSelector} a[href^="/"]`)
+            .locator(selectors.map((selector) => `${selector} a[href^="/"]`).join(', '))
             .evaluateAll((anchors) => anchors.map((a) => a.getAttribute('href') ?? ''));
         return [...new Set(hrefs)]
             .filter((href) => href !== '' && !href.startsWith('//'))
@@ -735,15 +746,17 @@ export function registerRouteSmokeTests(): void {
         });
 
         test('every link the staff sidebar offers renders', async () => {
-            const routes = await offeredNavRoutes(page, '[data-testid="sidebar"]');
+            // The sidebar AND the dashboard's module grid — both are links a
+            // staff user is shown and can click.
+            const routes = await offeredNavRoutes(page, ['[data-testid="sidebar"]', 'main']);
 
             // Guard the guard: a selector that matched nothing would make this
             // pass while sweeping zero routes, which is the failure mode this
             // whole file exists to prevent.
             check(
                 routes.length,
-                'no links were read from the staff sidebar — the sweep would pass vacuously',
-            ).toBeGreaterThan(8);
+                'too few links were read from the staff surface — coverage has silently shrunk',
+            ).toBeGreaterThan(15);
 
             const broken = await sweep(page, routes);
             check(
@@ -766,7 +779,7 @@ export function registerRouteSmokeTests(): void {
         });
 
         test('every link the parent navigation offers renders', async () => {
-            const routes = await offeredNavRoutes(page, 'nav');
+            const routes = await offeredNavRoutes(page, ['nav']);
             check(
                 routes.length,
                 'no links were read from the parent navigation — the sweep would pass vacuously',
