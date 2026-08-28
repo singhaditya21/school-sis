@@ -1207,12 +1207,26 @@ jobs:
             exit 1
           fi
 
+      # Clean up unless production is proven to be ON the candidate.
+      #
+      # This used to require `rollback.outcome == 'success'`, which skipped the
+      # one case that leaks: promotion attempted, rollback FAILED. The candidate
+      # was then orphaned permanently — reconciliation here filters on this run's
+      # githubRunId, and preview-cleanup.yml skips target=production entirely, so
+      # nothing else would ever collect it. Run 33073717982 attempt 2 left
+      # dpl_Exqhy2b1RCWoJ7jsPGhprYsbC2XM behind exactly that way.
+      #
+      # Keying on `bind` instead is both safer and simpler, and mirrors the
+      # rollback gate above: bind succeeding is the only state in which the
+      # candidate is known to be serving production. Every other state is either
+      # safe to clean or protected by the live-production guard inside the step,
+      # which resolves the host and refuses to delete whatever it finds.
       - name: Delete an unpromoted or rolled-back production candidate
         if: >-
           always() &&
           failure() &&
           steps.candidate.outcome != 'skipped' &&
-          (steps.promote.outputs.attempted != 'true' || steps.rollback.outcome == 'success')
+          steps.bind.outcome != 'success' 
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
@@ -1356,3 +1370,70 @@ jobs:
                 ;;
             esac
           done < "$candidate_ids"
+
+      # Always say what production is serving, whatever happened above.
+      #
+      # When a rollback failed, every closing step was gated off: the rollback
+      # verification requires `rollback.outcome == 'success'`, and so did the
+      # cleanup. So the single state that most needs a statement of fact —
+      # promotion attempted, rollback failed, migration already applied — ended
+      # with "Process completed with exit code 1" and nothing else. Run
+      # 33073717982 attempt 2 ended exactly that way: nowhere in that log does it
+      # say what PRODUCTION_URL resolved to.
+      #
+      # Deliberately does not use the Vercel CLI. This has to work when the rest
+      # of the job did not, and `vercel inspect` resolves scope through
+      # GET /v2/user, which has already returned 404 in this project. It uses the
+      # same REST call the capture step uses, with an explicit teamId.
+      #
+      # It is a diagnostic, so it never fails the job.
+      - name: Report what production is serving
+        if: always()
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PRIOR_DEPLOYMENT_ID: ${{ steps.prior.outputs.prior_id }}
+          CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
+        run: |
+          set -uo pipefail
+          report="$RUNNER_TEMP/vercel-final-production.json"
+
+          if ! production_host="$(PRODUCTION_URL="$PRODUCTION_URL" node -e "process.stdout.write(new URL(process.env.PRODUCTION_URL).hostname)")"; then
+            echo "Could not parse PRODUCTION_URL; cannot report what production serves." >&2
+            exit 0
+          fi
+
+          http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header 'Accept: application/json' \
+            --output "$report" \
+            --write-out '%{http_code}' \
+            "https://api.vercel.com/v13/deployments/${production_host}?teamId=${VERCEL_ORG_ID}")" || http="000"
+
+          if [ "$http" != "200" ]; then
+            echo "Could not resolve $production_host (HTTP $http); production state is UNKNOWN." >&2
+            exit 0
+          fi
+
+          live_id="$(jq -r '.id // "<none>"' "$report")"
+          live_url="$(jq -r '.url // "<none>"' "$report")"
+          live_state="$(jq -r '.readyState // "<none>"' "$report")"
+          live_sha="$(jq -r '.meta.githubCommitSha // "<none>"' "$report")"
+
+          verdict="production is on NEITHER this release's candidate nor the captured rollback target"
+          if [ -n "${CANDIDATE_ID:-}" ] && [ "$live_id" = "$CANDIDATE_ID" ]; then
+            verdict="production is on THIS release's candidate"
+          elif [ -n "${PRIOR_DEPLOYMENT_ID:-}" ] && [ "$live_id" = "$PRIOR_DEPLOYMENT_ID" ]; then
+            verdict="production is on the deployment captured before this release"
+          fi
+
+          {
+            echo "$production_host is serving:"
+            echo "  deployment        : $live_id"
+            echo "  url               : $live_url"
+            echo "  readyState        : $live_state"
+            echo "  commit            : $live_sha"
+            echo "  this release built: ${CANDIDATE_ID:-<no candidate>} from $TARGET_SHA"
+            echo "  captured rollback : ${PRIOR_DEPLOYMENT_ID:-<none captured>}"
+            echo "  => $verdict."
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 0
