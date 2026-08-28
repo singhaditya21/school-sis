@@ -110,7 +110,7 @@ export default async function AdminLayout({
                         <NavLink href="/invoices" icon="🧾">
                             Invoices
                         </NavLink>
-                        <NavLink href="/app/student" icon="👥">
+                        <NavLink href="/students" icon="👥">
                             Students
                         </NavLink>
                         <NavLink href="/attendance" icon="✅">
