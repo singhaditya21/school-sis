@@ -43,22 +43,41 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         pool.query(`SELECT count(*) FROM grades WHERE tenant_id = $1`, [tenantId]),
         pool.query(`SELECT count(*) FROM sections WHERE tenant_id = $1`, [tenantId]),
         pool.query(`SELECT count(*) FROM attendance_records WHERE tenant_id = $1 AND status = 'PRESENT' AND date >= CURRENT_DATE`, [tenantId]),
-        pool.query(`SELECT sum(amount) as collected FROM payments WHERE tenant_id = $1 AND status = 'COMPLETED'`, [tenantId]),
-        pool.query(`SELECT count(*) FROM admission_leads WHERE tenant_id = $1 AND stage = 'NEW'`, [tenantId]),
+        // Collected and expected come from invoices — SUM(paid_amount) and
+        // SUM(total_amount) — matching getExecutiveFinancialMetrics, so the
+        // dashboard cannot contradict /executive or /fees.
         pool.query(`
-            SELECT 
-                sum(total_amount - paid_amount) as overdue_amount, 
-                count(*) as overdue_count, 
+            SELECT COALESCE(SUM(total_amount), 0) AS expected,
+                   COALESCE(SUM(paid_amount), 0)  AS collected
+            FROM invoices
+            WHERE tenant_id = $1 AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
+        `, [tenantId]),
+        pool.query(`SELECT count(*) FROM admission_leads WHERE tenant_id = $1 AND stage = 'NEW'`, [tenantId]),
+        // Nothing ever stamps the OVERDUE invoice status; filtering on it
+        // matched zero rows, so the dashboard showed ₹0 overdue and a 100%
+        // collection rate while /fees showed the real defaulters one click
+        // away. Derive overdue the way every other fee readout does: past
+        // due, and still owing.
+        pool.query(`
+            SELECT
+                COALESCE(SUM(total_amount - paid_amount), 0) as overdue_amount,
+                count(*) as overdue_count,
                 count(DISTINCT student_id) as defaulter_count
-            FROM invoices 
-            WHERE tenant_id = $1 AND status = 'OVERDUE' AND due_date < CURRENT_DATE
+            FROM invoices
+            WHERE tenant_id = $1
+              AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
+              AND due_date < CURRENT_DATE
+              AND total_amount > paid_amount
         `, [tenantId])
     ]);
 
+    const expected = Number(feeAggregatesRes.rows[0]?.expected || 0);
     const collected = Number(feeAggregatesRes.rows[0]?.collected || 0);
     const overdue = Number(overdueDataRes.rows[0]?.overdue_amount || 0);
-    const totalBilled = collected + overdue;
-    const collectionRate = totalBilled > 0 ? Math.round((collected / totalBilled) * 100) : 0;
+    // Rate against everything billed, not just collected + overdue — the old
+    // denominator omitted not-yet-due invoices and pinned the rate to 100%
+    // the moment overdue read zero.
+    const collectionRate = expected > 0 ? Math.round((collected / expected) * 100) : 0;
 
     return {
         totalStudents: parseInt(studentCountRes.rows[0]?.count || '0', 10),
