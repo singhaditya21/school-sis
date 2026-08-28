@@ -21,6 +21,14 @@ const workflow = readFileSync(
   resolve(process.cwd(), "../..", ".github/workflows/deploy-production.yml"),
   "utf8",
 );
+const rehearsal = readFileSync(
+  resolve(process.cwd(), "../..", ".github/workflows/recovery-rehearsal.yml"),
+  "utf8",
+);
+const recoveryScript = readFileSync(
+  resolve(process.cwd(), "../..", "scripts/vercel-recovery.mjs"),
+  "utf8",
+);
 
 /** Pull one step's `if:` condition out of the workflow text, folded to one line. */
 function gateFor(stepName: string): string {
@@ -245,28 +253,135 @@ describe("production release failure-path gates", () => {
 
   it("pins the guard the cleanup gate delegates its safety to", () => {
     // The gate deliberately admits states where the candidate may still be live,
-    // delegating to the in-step guard. Nothing pinned that guard, so it could
-    // have been deleted wholesale with every test still green.
+    // delegating to the guard in scripts/vercel-recovery.mjs. Nothing pinned that
+    // guard, so it could have been deleted wholesale with every test still green.
+    expect(recoveryScript).toContain(
+      "is what production currently serves; refusing to delete it",
+    );
+    // Fail closed: an unreadable live-production lookup must stop the deletion.
+    expect(recoveryScript).toContain("refusing to delete anything");
+    expect(recoveryScript).toContain(
+      "not a production deployment this run created",
+    );
+
     const start = workflow.indexOf(`- name: ${CLEANUP}`);
     const step = workflow.slice(start, workflow.indexOf("\n      - name:", start + 1));
-    expect(step).toContain("refusing to delete it");
-    expect(step).toContain("Live production is $live_id and will not be deleted.");
-    // Fail closed: an unreadable live-production lookup must stop the deletion.
-    expect(step).toContain("refusing to delete any deployment");
+    expect(step).toContain("vercel-recovery.mjs guard-delete");
   });
 
   it("pins what the report step actually prints, not merely that it runs", () => {
     // `always()` was asserted; the body was not. It could have been replaced
     // with `exit 0` and the suite would have stayed green — leaving the next
     // incident to end in the same silence this step was added to break.
+    expect(recoveryScript).toContain("is serving:");
+    expect(recoveryScript).toContain("production is on THIS release's candidate");
+    expect(recoveryScript).toContain(
+      "production is on the deployment captured before this release",
+    );
+    expect(recoveryScript).toContain("GITHUB_STEP_SUMMARY");
+
     const start = workflow.indexOf(`- name: ${REPORT}`);
     const step = workflow.slice(start);
-    expect(step).toContain("is serving:");
-    expect(step).toContain("production is on THIS release's candidate");
-    expect(step).toContain("production is on the deployment captured before this release");
-    expect(step).toContain("$GITHUB_STEP_SUMMARY");
+    expect(step).toContain("vercel-recovery.mjs report");
     // GitHub runs every `run:` as `bash -e {0}`, so `set -uo pipefail` cannot
     // make this non-fatal. Only continue-on-error can.
     expect(/^\s*continue-on-error:\s*true\s*$/m.test(step.slice(0, step.indexOf("run: |")))).toBe(true);
+  });
+
+  it("rehearses the same code the release runs, not a copy of it", () => {
+    // This is the whole point. A rehearsal that exercised its own reimplementation
+    // would prove nothing about a release — it would be a second thing to keep
+    // correct, failing independently of the code that actually reverts production.
+    // The invariant: every recovery command the RELEASE depends on must also be
+    // exercised by the rehearsal. The rehearsal may use more (promote and
+    // wait-live are scaffolding to build the scenario); it may never use fewer.
+    const releaseCommands = [
+      ...workflow.matchAll(/node scripts\/vercel-recovery\.mjs ([a-z-]+)/g),
+    ].map((match) => match[1]);
+    expect(new Set(releaseCommands)).toEqual(
+      new Set(["capture", "rollback", "verify-rollback", "guard-delete", "report"]),
+    );
+
+    const rehearsed = new Set(
+      [...rehearsal.matchAll(/node scripts\/vercel-recovery\.mjs ([a-z-]+)/g)].map((m) => m[1]),
+    );
+    for (const command of releaseCommands) {
+      expect(recoveryScript).toContain(`"${command}"`);
+      expect(rehearsed.has(command)).toBe(true);
+    }
+
+    // The preview token is an ENVIRONMENT secret: without this declaration the
+    // job receives an empty string and fails with a bare 403, which is how the
+    // first run of this workflow failed.
+    expect(rehearsal).toMatch(/^\s*environment:\s*preview\s*$/m);
+
+    // And the rehearsal must never be pointed at the real project.
+    expect(rehearsal).toContain("vars.VERCEL_PREVIEW_ORG_ID");
+    expect(rehearsal).toContain("vars.VERCEL_PREVIEW_PROJECT_ID");
+    expect(rehearsal).toContain("secrets.VERCEL_PREVIEW_TOKEN");
+    expect(rehearsal).not.toContain("secrets.VERCEL_TOKEN");
+    expect(rehearsal).not.toMatch(/vars\.VERCEL_ORG_ID|vars\.VERCEL_PROJECT_ID/);
+  });
+
+  it("has no doubled line continuations in either workflow", () => {
+    // `\\` at end of line is an escaped backslash followed by a newline: valid
+    // shell, so `bash -n` accepts it, but the command then receives a literal
+    // backslash as an argument. That is how a rehearsal run died with
+    // "Unexpected argument \\." after a generated edit doubled them.
+    for (const [name, source] of [
+      ["deploy-production.yml", workflow],
+      ["recovery-rehearsal.yml", rehearsal],
+    ] as const) {
+      const offenders = source
+        .split("\n")
+        .map((line, index) => ({ line, number: index + 1 }))
+        .filter(({ line }) => /[^\\]\\\\$/.test(line));
+      expect({ name, offenders: offenders.map((o) => o.number) }).toEqual({
+        name,
+        offenders: [],
+      });
+    }
+  });
+
+  it("captures output from commands expected to fail in an -e safe way", () => {
+    // GitHub runs every `run:` as `bash -e {0}`. A bare `out="$(cmd)"` where cmd
+    // exits non-zero kills the shell BEFORE the next line, so a step that means
+    // to inspect a failure never gets to. The rehearsal's guard assertion — whose
+    // whole purpose is to assert a refusal — failed exactly that way, printing
+    // nothing at all.
+    //
+    // Capturing such a command must therefore make it the condition of an `if`.
+    for (const source of [workflow, rehearsal]) {
+      const captures = source
+        .split("\n")
+        .filter((line) => /^\s*[a-z_]+="\$\(node scripts\/vercel-recovery/.test(line));
+      for (const line of captures) {
+        expect(line.trimStart().startsWith("if ")).toBe(true);
+      }
+    }
+    // Guard the guard: the rehearsal must actually contain such a capture.
+    expect(rehearsal).toMatch(/if\s+output="\$\(node scripts\/vercel-recovery\.mjs guard-delete/);
+  });
+
+  it("runs the rehearsal whenever the recovery code changes", () => {
+    // On demand is not enough: the moment its correctness can regress is the
+    // moment someone edits it.
+    expect(rehearsal).toContain("workflow_dispatch");
+
+    // Assert on the trigger's OWN paths list, not on the file merely mentioning
+    // the script — it names it in comments and in every step, so a looser check
+    // passes even with the path filter deleted. (It did, until this was fixed.)
+    const triggers = rehearsal.slice(
+      rehearsal.indexOf("\non:"),
+      rehearsal.indexOf("\npermissions:"),
+    );
+    const paths = triggers.slice(triggers.indexOf("paths:"));
+    for (const watched of [
+      "scripts/vercel-recovery.mjs",
+      ".github/workflows/deploy-production.yml",
+      ".github/workflows/recovery-rehearsal.yml",
+    ]) {
+      expect(paths).toContain(`- ${watched}`);
+    }
   });
 });

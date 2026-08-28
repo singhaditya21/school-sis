@@ -861,87 +861,21 @@ jobs:
           }
           NODE
 
+      # Recovery mechanics live in scripts/vercel-recovery.mjs so that
+      # .github/workflows/recovery-rehearsal.yml can drive the SAME code against
+      # the isolated preview project. Everything below this line runs only when a
+      # release has already gone wrong, which is why it kept shipping broken: it
+      # never executed on a good day. Now it executes on demand, for free, with
+      # unit tests in scripts/vercel-recovery.test.mjs besides.
       - name: Capture current production deployment for rollback
         id: prior
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          set -euo pipefail
-          production_host="$(PRODUCTION_URL="$PRODUCTION_URL" node -e "process.stdout.write(new URL(process.env.PRODUCTION_URL).hostname)")"
-          inspection="$RUNNER_TEMP/vercel-prior-production.json"
-          inspection_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            --header 'Accept: application/json' \
-            --output "$inspection" \
-            --write-out '%{http_code}' \
-            "https://api.vercel.com/v13/deployments/${production_host}?teamId=${VERCEL_ORG_ID}")"
-          if [ "$inspection_http" != "200" ]; then
-            echo "Could not resolve PRODUCTION_URL through the configured Vercel team (HTTP $inspection_http)." >&2
-            exit 1
-          fi
-          # Resolving the hostname is itself the identity proof: the API hands
-          # back whatever https://<production_host> serves at this moment. All
-          # that is left to establish is that the deployment is ours, live, and
-          # shaped like something `vercel rollback` will accept.
-          #
-          # The creation-time alias list is deliberately NOT consulted. `.alias`
-          # records the domains a deployment was given when it was created, and
-          # every candidate here is created with `--skip-domain`, which withholds
-          # the canonical domain until the candidate has been verified. The list
-          # is not empty — Vercel still records the project-scoped hostname it
-          # assigns automatically — but it never contains PRODUCTION_URL's host.
-          # Release 33096023694 captured exactly that:
-          #   aliases : school-sis-web-singhaditya21s-projects.vercel.app
-          # while PRODUCTION_URL is https://school-sis-web.vercel.app.
-          #
-          # Asserting the production host into that list made success poisonous:
-          # release N+1 captured the deployment release N had promoted, found no
-          # aliases on it, and `jq -e` exited 1 without printing a word. That is
-          # what killed both releases after the first green one — each died here,
-          # before any migration ran, saying nothing.
-          resolved_id="$(jq -r '.id // ""' "$inspection")"
-          resolved_project="$(jq -r '.projectId // ""' "$inspection")"
-          resolved_target="$(jq -r '.target // "<none>"' "$inspection")"
-          resolved_state="$(jq -r '.readyState // "<none>"' "$inspection")"
-          resolved_url="$(jq -r '.url // ""' "$inspection")"
-          resolved_aliases="$(jq -r '[.alias[]?] | join(", ")' "$inspection")"
-
-          echo "$production_host currently serves:"
-          echo "  deployment : ${resolved_id:-<none>}"
-          echo "  url        : ${resolved_url:-<none>}"
-          echo "  project    : ${resolved_project:-<none>}"
-          echo "  target     : $resolved_target"
-          echo "  readyState : $resolved_state"
-          echo "  aliases    : ${resolved_aliases:-<none assigned at creation>}"
-
-          capture_problems=0
-          if [ "$resolved_project" != "$VERCEL_PROJECT_ID" ]; then
-            echo "Live production belongs to project ${resolved_project:-<none>}, not $VERCEL_PROJECT_ID." >&2
-            capture_problems=1
-          fi
-          if [ "$resolved_target" != "production" ]; then
-            echo "Live production has target $resolved_target, expected production." >&2
-            capture_problems=1
-          fi
-          if [ "$resolved_state" != "READY" ]; then
-            echo "Live production is $resolved_state, expected READY." >&2
-            capture_problems=1
-          fi
-          if ! printf '%s' "$resolved_id" | grep -Eq '^dpl_[A-Za-z0-9]+$'; then
-            echo "Live production id \"${resolved_id:-<none>}\" is not a dpl_ identifier to roll back to." >&2
-            capture_problems=1
-          fi
-          if [ -z "$resolved_url" ]; then
-            echo "Live production reported no url to roll back to." >&2
-            capture_problems=1
-          fi
-          if [ "$capture_problems" -ne 0 ]; then
-            echo "Refusing to start a release without a usable rollback target." >&2
-            exit 1
-          fi
-
-          echo "prior_id=$resolved_id" >> "$GITHUB_OUTPUT"
-          echo "prior_url=$resolved_url" >> "$GITHUB_OUTPUT"
+        run: >-
+          node scripts/vercel-recovery.mjs capture
+          --team "$VERCEL_ORG_ID"
+          --project "$VERCEL_PROJECT_ID"
+          --production-url "$PRODUCTION_URL"
 
       - name: Re-verify protected main before Neon mutation
         env:
@@ -1197,6 +1131,13 @@ jobs:
       # Keying on `bind` also beats keying on the promote itself: promotion can
       # succeed while `Verify canonical production after promotion` finds
       # production unhealthy, and that case does need the rollback.
+      # Roll back only while production is UNPROVEN.
+      #
+      # The authority is `canonical_verify`, which fetches PRODUCTION_URL over
+      # HTTPS up to 18 times and checks the served commit, region and key id. If
+      # that passed, production is healthy and running this release, and nothing
+      # afterwards may revert it — not a failed audit-row write, and not a blip
+      # in the single `vercel inspect` that `bind` performs.
       - name: Roll back Vercel to captured production on promotion failure
         id: rollback
         if: >-
@@ -1206,110 +1147,15 @@ jobs:
           steps.prior.outputs.prior_id != ''
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          PRIOR_DEPLOYMENT_ID: ${{ steps.prior.outputs.prior_id }}
           RECOVERY_CHECKPOINT_ID: ${{ steps.checkpoint.outputs.checkpoint_id }}
         run: |
           set -euo pipefail
           echo "Production is unproven; rolling Vercel back. Neon recovery branch $RECOVERY_CHECKPOINT_ID is retained for manual database recovery." >&2
-
-          # Deliberately NOT `vercel rollback`.
-          #
-          # The CLI resolves scope before it does anything: requestRollback ->
-          # getProjectByDeployment -> getScope -> GET /v2/user. That lookup has
-          # already failed here. In run 33073717982 attempt 2 the promotion and
-          # the rollback died 1.2 seconds apart, both with "Error: User not
-          # found. (404)", and neither ever reached a mutating call. `vercel
-          # deploy` survived the same fault only because its link resolution has
-          # an owner-lookup fallback — the one patches/vercel@59.0.0.patch turns
-          # on for `vercel pull`. getScope has no such fallback.
-          #
-          # A recovery path must not share a dependency with the thing it is
-          # recovering from. So this issues the request the CLI itself would.
-          # The pinned 59.0.0 sends, at commands-bulk.js:61937:
-          #     POST /v9/projects/<projectId>/rollback/<deploymentId>  body {}
-          # with an explicit teamId here in place of the resolved scope.
-          production_host="$(PRODUCTION_URL="$PRODUCTION_URL" node -e "process.stdout.write(new URL(process.env.PRODUCTION_URL).hostname)")"
-
-          # getProjectByDeployment also proved the deployment belongs to the
-          # project before mutating anything. Keep that; only the scope call goes.
-          target="$RUNNER_TEMP/vercel-rollback-target.json"
-          target_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            --header 'Accept: application/json' \
-            --output "$target" \
-            --write-out '%{http_code}' \
-            "https://api.vercel.com/v13/deployments/${PRIOR_DEPLOYMENT_ID}?teamId=${VERCEL_ORG_ID}")"
-          if [ "$target_http" != "200" ]; then
-            echo "Could not read the captured rollback target $PRIOR_DEPLOYMENT_ID (HTTP $target_http)." >&2
-            exit 1
-          fi
-          target_project="$(jq -r '.projectId // ""' "$target")"
-          target_target="$(jq -r '.target // "<none>"' "$target")"
-          target_state="$(jq -r '.readyState // "<none>"' "$target")"
-          if [ "$target_project" != "$VERCEL_PROJECT_ID" ] \
-            || [ "$target_target" != "production" ] \
-            || [ "$target_state" != "READY" ]; then
-            echo "Refusing to roll back to $PRIOR_DEPLOYMENT_ID: project=$target_project target=$target_target readyState=$target_state." >&2
-            exit 1
-          fi
-
-          # --retry, but NOT --retry-all-errors.
-          #
-          # Measured against a counting server: `--retry 3` re-issues on 429 and
-          # 5xx and does NOT re-issue on 4xx, while --retry-all-errors adds
-          # transport-level replays. Rolling back to a SPECIFIC deployment id is
-          # idempotent — a replay converges on the same state, and the poll below
-          # confirms it — so surviving a rate limit is worth more than avoiding a
-          # duplicate request. This step runs after a dozen Vercel API calls, and
-          # it is the recovery path: giving up on the first 429 leaves production
-          # on a broken candidate with this release's migration applied.
-          response="$RUNNER_TEMP/vercel-rollback-response.json"
-          set +e
-          rollback_http="$(curl --silent --show-error --retry 3 --max-time 30 \
-            --request POST \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            --header 'Content-Type: application/json' \
-            --header 'Accept: application/json' \
-            --data '{}' \
-            --output "$response" \
-            --write-out '%{http_code}' \
-            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/rollback/${PRIOR_DEPLOYMENT_ID}?teamId=${VERCEL_ORG_ID}")"
-          rollback_status=$?
-          set -e
-          if [ "$rollback_status" -ne 0 ]; then
-            echo "The rollback request failed in transport; production state is unknown." >&2
-            exit 1
-          fi
-          case "$rollback_http" in
-            200|201|202) echo "Vercel accepted the rollback request (HTTP $rollback_http)." ;;
-            *)
-              echo "Vercel refused the rollback (HTTP $rollback_http):" >&2
-              head -c 400 "$response" | sed 's/^/    /' >&2 || true
-              echo >&2
-              exit 1
-              ;;
-          esac
-
-          # Rollback is asynchronous. The CLI polls its own status endpoint, which
-          # goes back through the scope lookup this step exists to avoid, so poll
-          # the only thing that actually matters instead: what the host serves.
-          for attempt in $(seq 1 30); do
-            live="$RUNNER_TEMP/vercel-rollback-live.json"
-            live_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
-              --header "Authorization: Bearer $VERCEL_TOKEN" \
-              --header 'Accept: application/json' \
-              --output "$live" \
-              --write-out '%{http_code}' \
-              "https://api.vercel.com/v13/deployments/${production_host}?teamId=${VERCEL_ORG_ID}")"
-            if [ "$live_http" = "200" ] \
-              && [ "$(jq -r '.id // ""' "$live")" = "$PRIOR_DEPLOYMENT_ID" ]; then
-              echo "Production is serving $PRIOR_DEPLOYMENT_ID again (after ${attempt} check(s))."
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "Rollback was accepted but $production_host still does not serve $PRIOR_DEPLOYMENT_ID after five minutes." >&2
-          exit 1
+          node scripts/vercel-recovery.mjs rollback \
+            --team "$VERCEL_ORG_ID" \
+            --project "$VERCEL_PROJECT_ID" \
+            --production-url "$PRODUCTION_URL" \
+            --deployment "${{ steps.prior.outputs.prior_id }}"
 
       - name: Verify rollback restored the captured deployment
         if: >-
@@ -1319,51 +1165,12 @@ jobs:
           steps.promote.outputs.attempted == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          PRIOR_DEPLOYMENT_ID: ${{ steps.prior.outputs.prior_id }}
-        run: |
-          set -euo pipefail
-          # REST, not `vercel inspect`.
-          #
-          # This step only runs after a rollback SUCCEEDED, which means the fault
-          # that forced the rollback is still live — and the documented fault is
-          # GET /v2/user returning 404, which `vercel inspect` resolves scope
-          # through unconditionally. So the CLI here would fail precisely during
-          # the incident it exists to check, printing "Canonical production does
-          # not point to the captured rollback deployment" over a rollback that
-          # had already proven itself twenty lines earlier.
-          production_host="$(PRODUCTION_URL="$PRODUCTION_URL" node -e "process.stdout.write(new URL(process.env.PRODUCTION_URL).hostname)")"
-          inspection="$RUNNER_TEMP/vercel-after-rollback.json"
-          inspection_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            --header 'Accept: application/json' \
-            --output "$inspection" \
-            --write-out '%{http_code}' \
-            "https://api.vercel.com/v13/deployments/${production_host}?teamId=${VERCEL_ORG_ID}")"
-          if [ "$inspection_http" != "200" ]; then
-            echo "Could not confirm what $production_host serves after the rollback (HTTP $inspection_http)." >&2
-            exit 1
-          fi
-          current_id="$(jq -r '.id // ""' "$inspection")"
-          if [ "$current_id" != "$PRIOR_DEPLOYMENT_ID" ]; then
-            echo "Canonical production serves ${current_id:-<none>}, not the captured rollback deployment $PRIOR_DEPLOYMENT_ID." >&2
-            exit 1
-          fi
+        run: >-
+          node scripts/vercel-recovery.mjs verify-rollback
+          --team "$VERCEL_ORG_ID"
+          --production-url "$PRODUCTION_URL"
+          --deployment "${{ steps.prior.outputs.prior_id }}"
 
-      # Clean up unless production is proven to be ON the candidate.
-      #
-      # This used to require `rollback.outcome == 'success'`, which skipped the
-      # one case that leaks: promotion attempted, rollback FAILED. The candidate
-      # was then orphaned permanently — reconciliation here filters on this run's
-      # githubRunId, and preview-cleanup.yml skips target=production entirely, so
-      # nothing else would ever collect it. Run 33073717982 attempt 2 left
-      # dpl_Exqhy2b1RCWoJ7jsPGhprYsbC2XM behind exactly that way.
-      #
-      # Keying on `canonical_verify` instead is both safer and simpler, and
-      # mirrors the rollback gate above: a passing canonical verification is the
-      # only state in which the candidate is known to be serving production
-      # healthily. Every other state is either safe to clean or protected by the
-      # live-production guard inside the step, which resolves the host and
-      # refuses to delete whatever it finds.
       - name: Delete an unpromoted or rolled-back production candidate
         if: >-
           always() &&
@@ -1424,174 +1231,28 @@ jobs:
             exit 1
           fi
 
-          production_host="$(PRODUCTION_URL="$PRODUCTION_URL" node -e "process.stdout.write(new URL(process.env.PRODUCTION_URL).hostname)")"
-
-          # Ask what production serves right now, and never delete that.
-          #
-          # This guard used to ask each candidate's own `.alias` list whether it
-          # was production. Because every candidate is created with
-          # `--skip-domain`, that list never contains the canonical production
-          # host — only the project-scoped hostname Vercel assigns itself — even
-          # once promotion has made the candidate live. So the answer was always
-          # "not production" and the guard could never once have refused a
-          # deletion. A safety net that cannot catch anything is more dangerous
-          # than none, because it reads as one.
-          live_production="$RUNNER_TEMP/vercel-live-production.json"
-          live_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            --header 'Accept: application/json' \
-            --output "$live_production" \
-            --write-out '%{http_code}' \
-            "https://api.vercel.com/v13/deployments/${production_host}?teamId=${VERCEL_ORG_ID}")"
-          if [ "$live_http" != "200" ]; then
-            echo "Could not resolve what $production_host serves (HTTP $live_http); refusing to delete any deployment." >&2
-            exit 1
-          fi
-          live_id="$(jq -r '.id // ""' "$live_production")"
-          if [ -z "$live_id" ]; then
-            echo "Resolving $production_host returned no deployment id; refusing to delete any deployment." >&2
-            exit 1
-          fi
-          echo "Live production is $live_id and will not be deleted."
-
+          # The guard and the deletion itself live in scripts/vercel-recovery.mjs,
+          # so the rehearsal exercises exactly this code. Reconciliation stays
+          # here because it is genuinely workflow-shaped: it keys on this run's
+          # id and its temp files.
           while IFS= read -r candidate_id; do
-            candidate_file="$RUNNER_TEMP/vercel-failed-candidate-${candidate_id}.json"
-            candidate_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
-              --header "Authorization: Bearer $VERCEL_TOKEN" \
-              --header 'Accept: application/json' \
-              --output "$candidate_file" \
-              --write-out '%{http_code}' \
-              "https://api.vercel.com/v13/deployments/${candidate_id}?teamId=${VERCEL_ORG_ID}")"
-            if [ "$candidate_http" = "404" ]; then
-              continue
-            fi
-            if [ "$candidate_http" != "200" ]; then
-              echo "Could not verify failed candidate ownership (HTTP $candidate_http)." >&2
-              exit 1
-            fi
-            if [ "$candidate_id" = "$live_id" ]; then
-              echo "Candidate $candidate_id is what production currently serves; refusing to delete it." >&2
-              exit 1
-            fi
-            if ! jq -e \
-              --arg id "$candidate_id" \
-              --arg project "$VERCEL_PROJECT_ID" \
-              --arg sha "$TARGET_SHA" \
-              --arg run "$GITHUB_RUN_ID" \
-              '.id == $id and .projectId == $project and .target == "production" and
-               .meta.githubCommitSha == $sha and .meta.githubRunId == $run' \
-              "$candidate_file" >/dev/null; then
-              seen_project="$(jq -r '.projectId // "<none>"' "$candidate_file")"
-              seen_target="$(jq -r '.target // "<none>"' "$candidate_file")"
-              seen_sha="$(jq -r '.meta.githubCommitSha // "<none>"' "$candidate_file")"
-              seen_run="$(jq -r '.meta.githubRunId // "<none>"' "$candidate_file")"
-              echo "Refusing to delete $candidate_id: it is not a production deployment this run created." >&2
-              echo "  project=$seen_project target=$seen_target sha=$seen_sha run=$seen_run" >&2
-              exit 1
-            fi
-
-            delete_file="$RUNNER_TEMP/vercel-failed-candidate-delete-${candidate_id}.json"
-            set +e
-            delete_http="$(curl --silent --show-error --max-time 30 \
-              --request DELETE \
-              --header "Authorization: Bearer $VERCEL_TOKEN" \
-              --header 'Accept: application/json' \
-              --output "$delete_file" \
-              --write-out '%{http_code}' \
-              "https://api.vercel.com/v13/deployments/${candidate_id}?teamId=${VERCEL_ORG_ID}")"
-            delete_status=$?
-            set -e
-            if [ "$delete_status" -ne 0 ]; then
-              echo "Candidate deletion had an ambiguous transport failure; inspect $candidate_id." >&2
-              exit 1
-            fi
-            case "$delete_http" in
-              200|204|404) ;;
-              *)
-                echo "Candidate deletion failed with HTTP $delete_http." >&2
-                exit 1
-                ;;
-            esac
+            node scripts/vercel-recovery.mjs guard-delete \
+              --team "$VERCEL_ORG_ID" \
+              --project "$VERCEL_PROJECT_ID" \
+              --production-url "$PRODUCTION_URL" \
+              --deployment "$candidate_id" \
+              --sha "$TARGET_SHA" \
+              --run-id "$GITHUB_RUN_ID"
           done < "$candidate_ids"
-
-      # Always say what production is serving, whatever happened above.
-      #
-      # When a rollback failed, every closing step was gated off: the rollback
-      # verification requires `rollback.outcome == 'success'`, and so did the
-      # cleanup. So the single state that most needs a statement of fact —
-      # promotion attempted, rollback failed, migration already applied — ended
-      # with "Process completed with exit code 1" and nothing else. Run
-      # 33073717982 attempt 2 ended exactly that way: nowhere in that log does it
-      # say what PRODUCTION_URL resolved to.
-      #
-      # Deliberately does not use the Vercel CLI. This has to work when the rest
-      # of the job did not, and `vercel inspect` resolves scope through
-      # GET /v2/user, which has already returned 404 in this project. It uses the
-      # same REST call the capture step uses, with an explicit teamId.
-      #
-      # It is a diagnostic, so it must never fail the job — and `continue-on-error`
-      # is how that is actually guaranteed. `set -uo pipefail` does NOT achieve
-      # it: GitHub runs every `run:` block as `bash -e {0}`, so -e comes from the
-      # interpreter and no `set` line inside the script can clear it
-      # (`bash -e -c 'set -uo pipefail; echo $-'` prints `ehuBc`). A 200 carrying
-      # a non-JSON body — an edge interstitial, say — would kill the shell at the
-      # first jq and print nothing at all, which is exactly the silence this step
-      # was added to end.
       - name: Report what production is serving
         if: always()
         continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          PRIOR_DEPLOYMENT_ID: ${{ steps.prior.outputs.prior_id }}
-          CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
-        run: |
-          set -uo pipefail
-          report="$RUNNER_TEMP/vercel-final-production.json"
-
-          if ! production_host="$(PRODUCTION_URL="$PRODUCTION_URL" node -e "process.stdout.write(new URL(process.env.PRODUCTION_URL).hostname)")"; then
-            echo "Could not parse PRODUCTION_URL; cannot report what production serves." >&2
-            exit 0
-          fi
-
-          http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            --header 'Accept: application/json' \
-            --output "$report" \
-            --write-out '%{http_code}' \
-            "https://api.vercel.com/v13/deployments/${production_host}?teamId=${VERCEL_ORG_ID}")" || http="000"
-
-          if [ "$http" != "200" ]; then
-            echo "Could not resolve $production_host (HTTP $http); production state is UNKNOWN." >&2
-            exit 0
-          fi
-
-          if ! jq -e . "$report" >/dev/null 2>&1; then
-            echo "$production_host answered 200 with a body that is not JSON; production state is UNKNOWN." >&2
-            head -c 400 "$report" | sed 's/^/    /' >&2 || true
-            echo >&2
-            exit 0
-          fi
-
-          live_id="$(jq -r '.id // "<none>"' "$report")"
-          live_url="$(jq -r '.url // "<none>"' "$report")"
-          live_state="$(jq -r '.readyState // "<none>"' "$report")"
-          live_sha="$(jq -r '.meta.githubCommitSha // "<none>"' "$report")"
-
-          verdict="production is on NEITHER this release's candidate nor the captured rollback target"
-          if [ -n "${CANDIDATE_ID:-}" ] && [ "$live_id" = "$CANDIDATE_ID" ]; then
-            verdict="production is on THIS release's candidate"
-          elif [ -n "${PRIOR_DEPLOYMENT_ID:-}" ] && [ "$live_id" = "$PRIOR_DEPLOYMENT_ID" ]; then
-            verdict="production is on the deployment captured before this release"
-          fi
-
-          {
-            echo "$production_host is serving:"
-            echo "  deployment        : $live_id"
-            echo "  url               : $live_url"
-            echo "  readyState        : $live_state"
-            echo "  commit            : $live_sha"
-            echo "  this release built: ${CANDIDATE_ID:-<no candidate>} from $TARGET_SHA"
-            echo "  captured rollback : ${PRIOR_DEPLOYMENT_ID:-<none captured>}"
-            echo "  => $verdict."
-          } | tee -a "$GITHUB_STEP_SUMMARY"
-          exit 0
+        run: >-
+          node scripts/vercel-recovery.mjs report
+          --team "$VERCEL_ORG_ID"
+          --production-url "$PRODUCTION_URL"
+          --candidate "${{ steps.candidate.outputs.candidate_id }}"
+          --prior "${{ steps.prior.outputs.prior_id }}"
+          --sha "$TARGET_SHA"

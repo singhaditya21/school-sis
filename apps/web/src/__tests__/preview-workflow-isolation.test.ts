@@ -13,6 +13,10 @@ const cleanupWorkflow = readFileSync(
   resolve(process.cwd(), "../..", ".github/workflows/preview-cleanup.yml"),
   "utf8",
 );
+const recoveryScript = readFileSync(
+  resolve(process.cwd(), "../..", "scripts/vercel-recovery.mjs"),
+  "utf8",
+);
 const productionProvenanceGate = readFileSync(
   resolve(
     process.cwd(),
@@ -685,50 +689,40 @@ describe("preview Vercel project isolation workflow", () => {
   });
 
   it("rolls back without the CLI scope lookup that has already failed here", () => {
-    const start = productionWorkflow.indexOf(
-      "- name: Roll back Vercel to captured production",
-    );
-    expect(start).toBeGreaterThan(0);
-
-    // The WHOLE recovery sequence, not just the rollback step. Scoping this to
-    // one step let `Verify rollback restored the captured deployment` keep a
-    // `vercel inspect` immediately below it — so the suite certified an
-    // invariant the workflow did not hold, in the exact step that only runs
-    // once the scope lookup is already failing.
-    const step = productionWorkflow.slice(start);
-
     // `vercel rollback` resolves scope through GET /v2/user before doing
     // anything. That call 404'd in run 33073717982 attempt 2, killing the
     // promotion and its own rollback 1.2 seconds apart, neither having reached
     // a mutating call. A recovery path must not share a dependency with the
     // thing it recovers from.
-    expect(step).not.toMatch(/^\s*pnpm exec vercel/m);
+    //
+    // The mechanics now live in scripts/vercel-recovery.mjs, so that the
+    // rehearsal drives the same code. The whole recovery sequence of the
+    // workflow must therefore be free of the CLI.
+    const start = productionWorkflow.indexOf(
+      "- name: Roll back Vercel to captured production",
+    );
+    expect(start).toBeGreaterThan(0);
+    const recoverySequence = productionWorkflow.slice(start);
+    expect(recoverySequence).not.toMatch(/^\s*pnpm exec vercel/m);
+    expect(recoverySequence).toContain("vercel-recovery.mjs rollback");
 
     // The request the pinned CLI itself issues, with an explicit team in place
     // of the resolved scope.
-    expect(step).toContain("--request POST");
-    expect(step).toContain(
-      "api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/rollback/${PRIOR_DEPLOYMENT_ID}?teamId=${VERCEL_ORG_ID}",
-    );
+    expect(recoveryScript).toContain("/v9/projects/${options.project}/rollback/");
+    expect(recoveryScript).toContain('method: "POST"');
 
-    // getProjectByDeployment also proved ownership before mutating. Keep it.
-    expect(step).toContain("Refusing to roll back to");
+    // Ownership, which getProjectByDeployment used to prove before mutating.
+    // Promote and rollback share one implementation, so the check is worded
+    // from a parameter; assert the guard rather than one rendering of it.
+    expect(recoveryScript).toContain("Refusing to ${action} to");
+    expect(recoveryScript).toContain("deploymentProblems(target.json, options)");
 
-    // The mutation retries, but only what is safe to retry.
-    //
-    // Measured against a counting server: `--retry 3` re-issues on 429 and 5xx
-    // and never on 4xx, while `--retry-all-errors` adds transport replays. A
-    // rollback to a SPECIFIC deployment id is idempotent and the step polls to
-    // confirm, so surviving a rate limit beats avoiding a duplicate — this is
-    // the recovery path, and giving up on the first 429 strands production on a
-    // broken candidate with the migration applied.
-    const postCommand = step.slice(
-      step.lastIndexOf("curl", step.indexOf("--request POST")),
-      step.indexOf("rollback_status=$?"),
-    );
-    expect(postCommand).toContain("--request POST");
-    expect(postCommand).toContain("--retry 3");
-    expect(postCommand).not.toContain("--retry-all-errors");
+    // Retry what can differ next time, and nothing else. Measured against a
+    // counting server: 429/5xx re-issue, 4xx does not. A rollback to a specific
+    // deployment id is idempotent and the poll confirms it, so surviving a rate
+    // limit beats avoiding a duplicate — this is the recovery path.
+    expect(recoveryScript).toMatch(/RETRYABLE[\s\S]{0,120}429/);
+    expect(recoveryScript).toContain("!RETRYABLE.has(response.status)");
   });
 
   it("rejects database and tenant-context credentials embedded in the artifact", () => {
