@@ -104,107 +104,65 @@ jobs:
           echo "root_directory=$root" >> "$GITHUB_OUTPUT"
           echo "Rehearsing against https://${name}.vercel.app (root directory: ${root:-<repo root>})"
 
-      # Two throwaway production deployments. Deliberately NOT the real app: the
-      # recovery path does not care what a deployment contains, only what
-      # production points at, and a Build Output API artifact deploys in seconds
-      # rather than minutes.
-      - name: Deploy two disposable production candidates
-        id: candidates
+      # Two throwaway production deployments, one at a time.
+      #
+      # Deliberately NOT the real app: the recovery path does not care what a
+      # deployment contains, only what production points at, and a Build Output
+      # API artifact deploys in seconds rather than minutes.
+      #
+      # Each is left to become production on deploy rather than staged with
+      # --skip-domain. The preview project is on the Hobby plan, where a rollback
+      # may only reach the IMMEDIATELY previous production deployment — staging
+      # both first put A two steps away and Vercel answered HTTP 402, "To
+      # rollback further than the previous production deployment, upgrade to
+      # pro." Deploying them in sequence also matches the shape the rollback
+      # actually sees in a release: one step, from the current candidate back to
+      # what preceded it.
+      - name: Deploy candidate A and let it become production
+        id: candidate_a
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
           ROOT_DIRECTORY: ${{ steps.host.outputs.root_directory }}
         run: |
           set -euo pipefail
-          # --cwd rather than `cd`: pnpm exec resolves the pinned CLI from the
-          # repository's node_modules, and a temp directory has none.
-          deploy_one() {
-            local label="$1" dir="$RUNNER_TEMP/rehearsal-$1"
-            rm -rf "$dir"
-            # Two separate requirements, learned one failure at a time:
-            #   - the project's Root Directory must EXIST under --cwd, or the CLI
-            #     refuses with "The provided path ... does not exist";
-            #   - --prebuilt reads .vercel/output from the --cwd itself, which is
-            #     also where `vercel build` writes it in the real release.
-            mkdir -p "$dir${ROOT_DIRECTORY:+/$ROOT_DIRECTORY}"
-            mkdir -p "$dir/.vercel/output/static"
-            printf '{"version":3}' > "$dir/.vercel/output/config.json"
-            printf 'recovery rehearsal %s for run %s\n' "$label" "$GITHUB_RUN_ID" \
-              > "$dir/.vercel/output/static/index.html"
+          source scripts/rehearsal-deploy.sh
+          echo "candidate_a=$(deploy_rehearsal_candidate a)" >> "$GITHUB_OUTPUT"
 
-            if ! pnpm exec vercel deploy --cwd "$dir" \
-                --prebuilt --prod --skip-domain --yes --json \
-                --token="$VERCEL_TOKEN" \
-                --meta "gitCommitSha=$GITHUB_SHA" \
-                --meta "githubCommitSha=$GITHUB_SHA" \
-                --meta "githubRunId=$GITHUB_RUN_ID" \
-                --meta "recoveryRehearsal=1" \
-                > "$dir/deploy.json" 2> "$dir/deploy.err"; then
-              echo "vercel deploy failed for candidate $label:" >&2
-              sed 's/^/    /' "$dir/deploy.err" >&2 || true
-              head -c 600 "$dir/deploy.json" | sed 's/^/    /' >&2 || true
-              return 1
-            fi
-
-            local id
-            if ! id="$(jq -er '(.deployment // .).id | select(type == "string")' "$dir/deploy.json" 2>/dev/null)"; then
-              # Say what actually came back rather than leaving a jq parse error
-              # to be decoded — the same rule this whole change exists to enforce.
-              echo "vercel deploy returned no deployment id for candidate $label." >&2
-              echo "  stdout:" >&2
-              head -c 600 "$dir/deploy.json" | sed 's/^/    /' >&2 || true
-              echo "  stderr:" >&2
-              head -c 600 "$dir/deploy.err" | sed 's/^/    /' >&2 || true
-              return 1
-            fi
-            printf '%s' "$id"
-          }
-          a="$(deploy_one a)"
-          b="$(deploy_one b)"
-          echo "candidate_a=$a" >> "$GITHUB_OUTPUT"
-          echo "candidate_b=$b" >> "$GITHUB_OUTPUT"
-          echo "Deployed A=$a  B=$b"
-
-      # ─── The rehearsal proper ────────────────────────────────────────────
-      #
-      # `rollback` is also the cleanest way to PUT production somewhere, so the
-      # whole scenario is driven by the very code under test.
-
-      - name: Point production at A, then capture it
-        id: capture
+      - name: Capture A as the rollback target
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
           PRODUCTION_URL: ${{ steps.host.outputs.production_url }}
-          A: ${{ steps.candidates.outputs.candidate_a }}
+          A: ${{ steps.candidate_a.outputs.candidate_a }}
         run: |
           set -euo pipefail
-          node scripts/vercel-recovery.mjs rollback \
-            --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" \
-            --production-url "$PRODUCTION_URL" --deployment "$A" \
-            --attempts 30 --delay-ms 5000
           node scripts/vercel-recovery.mjs capture \
             --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" \
             --production-url "$PRODUCTION_URL"
           captured="$(grep '^prior_id=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)"
           if [ "$captured" != "$A" ]; then
-            echo "capture returned $captured, expected $A." >&2
+            echo "capture returned ${captured:-<none>}, expected $A." >&2
             exit 1
           fi
           echo "capture identified A as the rollback target."
 
-      - name: Move production to B, then recover to A
+      - name: Deploy candidate B, superseding A
+        id: candidate_b
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+          ROOT_DIRECTORY: ${{ steps.host.outputs.root_directory }}
+        run: |
+          set -euo pipefail
+          source scripts/rehearsal-deploy.sh
+          echo "candidate_b=$(deploy_rehearsal_candidate b)" >> "$GITHUB_OUTPUT"
+
+      - name: Recover production to A
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
           PRODUCTION_URL: ${{ steps.host.outputs.production_url }}
-          A: ${{ steps.candidates.outputs.candidate_a }}
-          B: ${{ steps.candidates.outputs.candidate_b }}
+          A: ${{ steps.candidate_a.outputs.candidate_a }}
         run: |
           set -euo pipefail
-          node scripts/vercel-recovery.mjs rollback \
-            --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" \
-            --production-url "$PRODUCTION_URL" --deployment "$B" \
-            --attempts 30 --delay-ms 5000
-
-          # This is the moment the release only ever reaches during an incident.
+          # The step a release only ever reaches during an incident.
           node scripts/vercel-recovery.mjs rollback \
             --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" \
             --production-url "$PRODUCTION_URL" --deployment "$A" \
@@ -217,7 +175,7 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
           PRODUCTION_URL: ${{ steps.host.outputs.production_url }}
-          A: ${{ steps.candidates.outputs.candidate_a }}
+          A: ${{ steps.candidate_a.outputs.candidate_a }}
         run: |
           set -uo pipefail
           # A is live. Deleting it would be the worst thing this workflow can do,
@@ -241,7 +199,7 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
           PRODUCTION_URL: ${{ steps.host.outputs.production_url }}
-          B: ${{ steps.candidates.outputs.candidate_b }}
+          B: ${{ steps.candidate_b.outputs.candidate_b }}
         run: >-
           node scripts/vercel-recovery.mjs guard-delete
           --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID"
@@ -258,8 +216,8 @@ jobs:
           node scripts/vercel-recovery.mjs report
           --team "$VERCEL_ORG_ID"
           --production-url "$PRODUCTION_URL"
-          --candidate "${{ steps.candidates.outputs.candidate_b }}"
-          --prior "${{ steps.candidates.outputs.candidate_a }}"
+          --candidate "${{ steps.candidate_b.outputs.candidate_b }}"
+          --prior "${{ steps.candidate_a.outputs.candidate_a }}"
           --sha "$GITHUB_SHA"
 
       # A rehearsal that littered would eventually exhaust the project. Earlier
