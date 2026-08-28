@@ -1,0 +1,252 @@
+name: Recovery Rehearsal
+
+# Exercise the production recovery path where being wrong is free.
+#
+# Everything in scripts/vercel-recovery.mjs runs only after a release has
+# already failed, so on a good day none of it executes. That is why it kept
+# shipping broken: a gate that could never refuse a deletion, a rollback routed
+# through the same lookup that caused the failure it was recovering from, a
+# "never fails the job" diagnostic that died on its first jq. Each was found by
+# reading the code, months apart, rather than by running it.
+#
+# This drives the SAME script the release calls — not a copy — against the
+# isolated preview Vercel project. Nothing else uses that project's production
+# target: PR previews deploy with `--target=preview` (see preview.yml), so
+# promoting and reverting here disturbs nothing.
+#
+# It runs on demand, and automatically whenever the recovery code changes, which
+# is the only moment its correctness can regress.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/vercel-recovery.mjs
+      - scripts/vercel-recovery.test.mjs
+      - .github/workflows/recovery-rehearsal.yml
+      - .github/workflows/deploy-production.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  # The rehearsal owns the preview project's production target while it runs.
+  group: recovery-rehearsal
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 24
+  PNPM_VERSION: 9.15.9
+  VERCEL_ORG_ID: ${{ vars.VERCEL_PREVIEW_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PREVIEW_PROJECT_ID }}
+
+jobs:
+  rehearse:
+    name: Rehearse production recovery against the preview project
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install the pinned Vercel CLI only
+        run: pnpm install --frozen-lockfile --filter . --prefer-offline
+
+      - name: Resolve the preview project's production host
+        id: host
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_ORG_ID:-}" ] || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
+            echo "VERCEL_PREVIEW_ORG_ID and VERCEL_PREVIEW_PROJECT_ID must be set." >&2
+            exit 1
+          fi
+          project="$RUNNER_TEMP/preview-project.json"
+          http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header 'Accept: application/json' \
+            --output "$project" \
+            --write-out '%{http_code}' \
+            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}")"
+          if [ "$http" != "200" ]; then
+            echo "Could not read the preview project (HTTP $http)." >&2
+            head -c 400 "$project" | sed 's/^/    /' >&2 || true
+            exit 1
+          fi
+          # The project-scoped production hostname, which is what a production
+          # deployment in this project resolves to.
+          name="$(jq -er '.name' "$project")"
+          echo "production_url=https://${name}.vercel.app" >> "$GITHUB_OUTPUT"
+          echo "Rehearsing against https://${name}.vercel.app"
+
+      # Two throwaway production deployments. Deliberately NOT the real app: the
+      # recovery path does not care what a deployment contains, only what
+      # production points at, and a Build Output API artifact deploys in seconds
+      # rather than minutes.
+      - name: Deploy two disposable production candidates
+        id: candidates
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+        run: |
+          set -euo pipefail
+          deploy_one() {
+            local label="$1" dir="$RUNNER_TEMP/rehearsal-$1"
+            rm -rf "$dir"
+            mkdir -p "$dir/.vercel/output/static"
+            printf '{"version":3}' > "$dir/.vercel/output/config.json"
+            printf 'recovery rehearsal %s for run %s\n' "$label" "$GITHUB_RUN_ID" \
+              > "$dir/.vercel/output/static/index.html"
+            ( cd "$dir" && pnpm exec vercel deploy \
+                --prebuilt --prod --skip-domain --yes --json \
+                --token="$VERCEL_TOKEN" \
+                --meta "gitCommitSha=$GITHUB_SHA" \
+                --meta "githubCommitSha=$GITHUB_SHA" \
+                --meta "githubRunId=$GITHUB_RUN_ID" \
+                --meta "recoveryRehearsal=1" ) > "$dir/deploy.json"
+            jq -er '(.deployment // .).id' "$dir/deploy.json"
+          }
+          a="$(deploy_one a)"
+          b="$(deploy_one b)"
+          echo "candidate_a=$a" >> "$GITHUB_OUTPUT"
+          echo "candidate_b=$b" >> "$GITHUB_OUTPUT"
+          echo "Deployed A=$a  B=$b"
+
+      # ─── The rehearsal proper ────────────────────────────────────────────
+      #
+      # `rollback` is also the cleanest way to PUT production somewhere, so the
+      # whole scenario is driven by the very code under test.
+
+      - name: Point production at A, then capture it
+        id: capture
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+          PRODUCTION_URL: ${{ steps.host.outputs.production_url }}
+          A: ${{ steps.candidates.outputs.candidate_a }}
+        run: |
+          set -euo pipefail
+          node scripts/vercel-recovery.mjs rollback \
+            --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" \
+            --production-url "$PRODUCTION_URL" --deployment "$A" \
+            --attempts 30 --delay-ms 5000
+          node scripts/vercel-recovery.mjs capture \
+            --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" \
+            --production-url "$PRODUCTION_URL"
+          captured="$(grep '^prior_id=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)"
+          if [ "$captured" != "$A" ]; then
+            echo "capture returned $captured, expected $A." >&2
+            exit 1
+          fi
+          echo "capture identified A as the rollback target."
+
+      - name: Move production to B, then recover to A
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+          PRODUCTION_URL: ${{ steps.host.outputs.production_url }}
+          A: ${{ steps.candidates.outputs.candidate_a }}
+          B: ${{ steps.candidates.outputs.candidate_b }}
+        run: |
+          set -euo pipefail
+          node scripts/vercel-recovery.mjs rollback \
+            --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" \
+            --production-url "$PRODUCTION_URL" --deployment "$B" \
+            --attempts 30 --delay-ms 5000
+
+          # This is the moment the release only ever reaches during an incident.
+          node scripts/vercel-recovery.mjs rollback \
+            --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" \
+            --production-url "$PRODUCTION_URL" --deployment "$A" \
+            --attempts 30 --delay-ms 5000
+          node scripts/vercel-recovery.mjs verify-rollback \
+            --team "$VERCEL_ORG_ID" \
+            --production-url "$PRODUCTION_URL" --deployment "$A"
+
+      - name: The delete guard must refuse the deployment production is serving
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+          PRODUCTION_URL: ${{ steps.host.outputs.production_url }}
+          A: ${{ steps.candidates.outputs.candidate_a }}
+        run: |
+          set -uo pipefail
+          # A is live. Deleting it would be the worst thing this workflow can do,
+          # and for months the guard meant to stop it could not fire at all.
+          output="$(node scripts/vercel-recovery.mjs guard-delete \
+            --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" \
+            --production-url "$PRODUCTION_URL" --deployment "$A" \
+            --sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" 2>&1)"
+          status=$?
+          echo "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "GUARD FAILED: it deleted, or permitted deleting, live production." >&2
+            exit 1
+          fi
+          case "$output" in
+            *"refusing to delete it"*) echo "Guard refused, as it must." ;;
+            *) echo "Guard failed for the wrong reason; expected a live-production refusal." >&2; exit 1 ;;
+          esac
+
+      - name: The delete guard must collect a candidate production is not serving
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+          PRODUCTION_URL: ${{ steps.host.outputs.production_url }}
+          B: ${{ steps.candidates.outputs.candidate_b }}
+        run: >-
+          node scripts/vercel-recovery.mjs guard-delete
+          --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID"
+          --production-url "$PRODUCTION_URL" --deployment "$B"
+          --sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID"
+
+      - name: Report, exactly as a release would
+        if: always()
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+          PRODUCTION_URL: ${{ steps.host.outputs.production_url }}
+        run: >-
+          node scripts/vercel-recovery.mjs report
+          --team "$VERCEL_ORG_ID"
+          --production-url "$PRODUCTION_URL"
+          --candidate "${{ steps.candidates.outputs.candidate_b }}"
+          --prior "${{ steps.candidates.outputs.candidate_a }}"
+          --sha "$GITHUB_SHA"
+
+      # A rehearsal that littered would eventually exhaust the project. Earlier
+      # runs' deployments are collected here rather than at the end of their own
+      # run, because the last one is necessarily still serving production.
+      - name: Collect deployments left by earlier rehearsals
+        if: always()
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+          PRODUCTION_URL: ${{ steps.host.outputs.production_url }}
+        run: |
+          set -uo pipefail
+          list="$RUNNER_TEMP/rehearsal-deployments.json"
+          http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header 'Accept: application/json' \
+            --output "$list" --write-out '%{http_code}' \
+            "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_ORG_ID}&target=production&limit=100")"
+          if [ "$http" != "200" ]; then
+            echo "Could not list deployments (HTTP $http); leaving them." >&2
+            exit 0
+          fi
+          jq -r --arg run "$GITHUB_RUN_ID" \
+            '.deployments[] | select(.meta.recoveryRehearsal == "1" and .meta.githubRunId != $run)
+             | (.uid // .id)' "$list" | while IFS= read -r old; do
+            [ -n "$old" ] || continue
+            # guard-delete refuses whatever production serves, so the live one
+            # survives on its own merits rather than by being special-cased.
+            node scripts/vercel-recovery.mjs guard-delete \
+              --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" \
+              --production-url "$PRODUCTION_URL" --deployment "$old" \
+              || echo "  left $old in place"
+          done
