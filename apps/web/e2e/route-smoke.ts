@@ -2,6 +2,12 @@ import { expect, test, type Browser, type Page, type Response } from '@playwrigh
 import { hash } from 'bcryptjs';
 import { authenticator } from 'otplib';
 import { Client } from 'pg';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import {
+    getPageAccessPolicy,
+    isRoleAllowedForPage,
+} from '../src/lib/auth/page-access';
 
 /**
  * ROUTE SMOKE LAYER (D13)
@@ -641,5 +647,136 @@ export function registerRouteSmokeTests(): void {
             await page.getByRole('button', { name: 'Payments', exact: true }).click();
             await check(page.getByText('Payment history')).toBeVisible();
         });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // NAVIGATION SWEEP
+    // ─────────────────────────────────────────────────────────────────────
+    //
+    // The tests above assert CONTENT on twelve routes — real figures, real
+    // invoice numbers — because a page rendering its chrome over an empty fetch
+    // is this product's characteristic failure, and only a figure catches it.
+    //
+    // But twelve is not the nav. check-navigation-targets.mjs knows 161 routes
+    // and proves every nav link points at a file that exists; it never renders
+    // one. So a link could resolve to a page that 500s on load and both gates
+    // stayed green — which is exactly how /executive shipped a SUM over a column
+    // that did not exist.
+    //
+    // This sweep closes that: every link a real sidebar offers is visited with a
+    // session the POLICY says can reach it. The routes are read from the same
+    // nav files the audit reads, and reachability is decided by importing the
+    // real page-access policy rather than by a list maintained here — so a nav
+    // link added tomorrow is swept tomorrow, with no edit to this file.
+    //
+    // It asserts rendering, not content. That is a deliberately weaker claim
+    // than the tests above, and it is worth stating plainly: a swept route shows
+    // HTTP 200, no bounce to /login, and no server-exception boundary. It does
+    // NOT show that the page found any data. Adding a figure assertion per route
+    // needs seed data shaped for each one; this is the layer that can exist now.
+
+    /** The nav files the navigation audit already treats as the link surface. */
+    const STAFF_NAV_SOURCES = [
+        'src/app/(admin)/layout.tsx',
+        'src/app/(dashboard)/layout.tsx',
+        'src/components/dashboard/ModuleGrid.tsx',
+    ];
+    const PARENT_NAV_SOURCES = ['src/app/(parent)/layout.tsx'];
+
+    /**
+     * Already asserted with real figures above. Re-visiting them here would only
+     * add page loads to a gate whose whole design note is that a slow gate gets
+     * switched off.
+     */
+    const COVERED_WITH_CONTENT = new Set([
+        '/fees',
+        '/fees/plans',
+        '/invoices',
+        '/executive',
+        '/students',
+        '/admissions',
+        '/exams',
+        '/attendance',
+        '/overview',
+        '/my-fees',
+    ]);
+
+    function navRoutesFor(role: string, sources: readonly string[]): string[] {
+        const links = new Set<string>();
+        for (const source of sources) {
+            const contents = readFileSync(resolve(__dirname, '..', source), 'utf8');
+            // The same expression check-navigation-targets.mjs uses, so the two
+            // cannot disagree about what a nav link is.
+            for (const match of contents.matchAll(/href[=:]\s*["'](\/[^"'`$]*)["']/g)) {
+                links.add(match[1]);
+            }
+        }
+        return [...links]
+            .filter((route) => !COVERED_WITH_CONTENT.has(route))
+            .filter((route) => {
+                const pathname = route.split('?')[0];
+                return isRoleAllowedForPage(role, getPageAccessPolicy(pathname));
+            })
+            .sort();
+    }
+
+    const STAFF_NAV_ROUTES = navRoutesFor(FINANCE_USER.role, STAFF_NAV_SOURCES);
+    const PARENT_NAV_ROUTES = navRoutesFor('PARENT', PARENT_NAV_SOURCES);
+
+    test.describe('Route smoke — staff navigation sweep', () => {
+        let page: Page;
+
+        test.beforeAll(async ({ browser }: { browser: Browser }) => {
+            await provisionSmokeUsers();
+            page = await browser.newPage();
+            await signIn(page, FINANCE_USER.email, '/dashboard', 'the staff navigation sweep');
+        });
+
+        test.afterAll(async () => {
+            await page?.close();
+        });
+
+        // Guard the guard: an extraction that silently matched nothing would
+        // make this whole block pass by having no tests in it.
+        test('the staff sidebar offers routes to sweep', () => {
+            check(
+                STAFF_NAV_ROUTES.length,
+                'no staff nav links were extracted — the sweep would pass vacuously',
+            ).toBeGreaterThan(8);
+        });
+
+        // One test per route: a sweep that stopped at the first broken page would
+        // report one defect per run instead of all of them.
+        for (const route of STAFF_NAV_ROUTES) {
+            test(`${route} renders for a staff session`, async () => {
+                await visit(page, route);
+            });
+        }
+    });
+
+    test.describe('Route smoke — parent navigation sweep', () => {
+        let page: Page;
+
+        test.beforeAll(async ({ browser }: { browser: Browser }) => {
+            page = await browser.newPage();
+            await signIn(page, PARENT_EMAIL, '/overview', 'the parent navigation sweep');
+        });
+
+        test.afterAll(async () => {
+            await page?.close();
+        });
+
+        test('the parent sidebar offers routes to sweep', () => {
+            check(
+                PARENT_NAV_ROUTES.length,
+                'no parent nav links were extracted — the sweep would pass vacuously',
+            ).toBeGreaterThan(1);
+        });
+
+        for (const route of PARENT_NAV_ROUTES) {
+            test(`${route} renders for a parent session`, async () => {
+                await visit(page, route);
+            });
+        }
     });
 }
