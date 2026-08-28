@@ -324,18 +324,41 @@ export async function rollback(options, fetchImpl, sleep, log = console) {
  */
 export async function waitForLive(options, fetchImpl, sleep, log = console, prefix = "") {
   if (!options.deployment) throw new Error("--deployment is required.");
+
+  let targetState = "<unknown>";
+  let servedId = "<unknown>";
+
   for (let attempt = 1; attempt <= options.attempts; attempt += 1) {
     const live = await getDeployment(options, options.productionHost, fetchImpl);
+    if (live.ok && live.json) servedId = live.json.id ?? "<none>";
     if (live.ok && live.json?.id === options.deployment) {
       log.log(
         `${options.productionHost} serves ${options.deployment} (after ${attempt} check(s)).`,
       );
       return { landed: true, attempts: attempt };
     }
+
+    // A deployment that failed to build will never take the alias. Waiting the
+    // full window and then reporting only "still does not serve it" describes
+    // the symptom and hides the cause.
+    const target = await getDeployment(options, options.deployment, fetchImpl);
+    if (target.ok && target.json) {
+      targetState = target.json.readyState ?? "<none>";
+      if (targetState === "ERROR" || targetState === "CANCELED") {
+        throw new Error(
+          `${options.deployment} is ${targetState} and will never serve ${options.productionHost}.`,
+        );
+      }
+    }
+
     if (attempt < options.attempts) await sleep(options.delayMs);
   }
+
   throw new Error(
-    `${prefix ? `${prefix} ` : ""}${options.productionHost} still does not serve ${options.deployment} after ${options.attempts} check(s).`,
+    `${prefix ? `${prefix} ` : ""}${options.productionHost} still does not serve ` +
+      `${options.deployment} after ${options.attempts} check(s).\n` +
+      `  target readyState : ${targetState}\n` +
+      `  host currently serves: ${servedId}`,
   );
 }
 

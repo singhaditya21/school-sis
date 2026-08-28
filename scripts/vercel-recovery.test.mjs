@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   capture,
+  waitForLive,
   guardDelete,
   parseArgs,
   report,
@@ -345,4 +346,31 @@ test("never throws, whatever the transport does", async () => {
   const result = await report(options({ argv: ["--retries", "1"] }), exploding);
   assert.equal(result.known, false);
   assert.match(result.lines.join("\n"), /UNKNOWN/);
+});
+
+test("stops waiting for a deployment that failed to build, and says so", async () => {
+  // Polling the full window and reporting only "still does not serve it"
+  // describes the symptom and hides the cause — which is exactly how the
+  // rehearsal's own deploy step failed opaquely.
+  const stub = stubFetch([
+    { match: `/v13/deployments/${HOST}`, status: 200, body: { ...READY, id: "dpl_other" } },
+    { match: "/v13/deployments/dpl_prior", status: 200, body: { ...READY, readyState: "ERROR" } },
+  ]);
+  await assert.rejects(
+    waitForLive(options({ argv: ["--deployment", "dpl_prior"] }), stub.fetch, noSleep, silent),
+    /is ERROR and will never serve/,
+  );
+});
+
+test("reports the target's state and what the host serves when it times out", async () => {
+  const stub = stubFetch([
+    { match: `/v13/deployments/${HOST}`, status: 200, body: { ...READY, id: "dpl_other" } },
+    { match: "/v13/deployments/dpl_prior", status: 200, body: { ...READY, readyState: "BUILDING" } },
+  ]);
+  await assert.rejects(
+    waitForLive(options({ argv: ["--deployment", "dpl_prior"] }), stub.fetch, noSleep, silent),
+    (error) =>
+      /target readyState : BUILDING/.test(error.message) &&
+      /host currently serves: dpl_other/.test(error.message),
+  );
 });
