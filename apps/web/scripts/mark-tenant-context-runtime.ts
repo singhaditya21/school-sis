@@ -83,9 +83,18 @@ async function main(): Promise<void> {
   try {
     await client.connect();
     await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
-      DEPLOYMENT_MIGRATION_LOCK_NAME,
-    ]);
+    // hashtextextended, matching runDeploymentMigrations, NOT hashtext.
+    //
+    // The two call sites share DEPLOYMENT_MIGRATION_LOCK_NAME precisely so they
+    // exclude each other, but hashed the name differently: hashtext('...') is
+    // 26945508 while hashtextextended('...', 0) is 7973690206200735716. Those
+    // are different advisory keys, so neither lock ever saw the other and a
+    // hand-run `pnpm db:migrate:deploy` could interleave with this marker.
+    // The low 32 bits collide, which is why `pg_locks` made them look alike.
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [DEPLOYMENT_MIGRATION_LOCK_NAME],
+    );
     await client.query(
       `LOCK TABLE
          app_private.tenant_context_signing_keys,

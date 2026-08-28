@@ -814,9 +814,13 @@ jobs:
           #
           # The creation-time alias list is deliberately NOT consulted. `.alias`
           # records the domains a deployment was given when it was created, and
-          # every candidate here is created with `--skip-domain` so that nothing
-          # is served until it has been verified. A promoted candidate therefore
-          # serves production while its own alias list stays empty forever.
+          # every candidate here is created with `--skip-domain`, which withholds
+          # the canonical domain until the candidate has been verified. The list
+          # is not empty — Vercel still records the project-scoped hostname it
+          # assigns automatically — but it never contains PRODUCTION_URL's host.
+          # Release 33096023694 captured exactly that:
+          #   aliases : school-sis-web-singhaditya21s-projects.vercel.app
+          # while PRODUCTION_URL is https://school-sis-web.vercel.app.
           #
           # Asserting the production host into that list made success poisonous:
           # release N+1 captured the deployment release N had promoted, found no
@@ -1025,7 +1029,6 @@ jobs:
             --ref main
           echo "attempted=true" >> "$GITHUB_OUTPUT"
           pnpm exec vercel promote "$CANDIDATE_ID" --yes --timeout 5m --token="$VERCEL_TOKEN"
-          echo "succeeded=true" >> "$GITHUB_OUTPUT"
 
       - name: Verify canonical production after promotion
         id: canonical_verify
@@ -1040,6 +1043,7 @@ jobs:
         run: node scripts/verify-deployment.mjs --attempts 18
 
       - name: Bind canonical production to the verified candidate
+        id: bind
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
@@ -1067,11 +1071,31 @@ jobs:
           --attested-key-id "${{ steps.canonical_verify.outputs.verified_tenant_context_key_id }}"
           --attested-audience "${{ steps.canonical_verify.outputs.verified_tenant_context_audience }}"
 
+      # Roll back only while production is UNPROVEN.
+      #
+      # `bind` is the last step that proves production serves the verified
+      # candidate, so once it has succeeded any later failure is bookkeeping and
+      # must not revert a healthy release.
+      #
+      # This gate used to read `promote.outputs.attempted`, which is written
+      # BEFORE `vercel promote` runs — so it was true for every failure that
+      # followed a *successful* promotion. `Record the promoted signing-runtime
+      # contract` writes one audit row over DIRECT_URL; a Neon compute suspend
+      # there was enough to revert production to the previous deployment while
+      # this release's migration stayed applied, leaving the database ahead of
+      # the code. The candidate deletion below would then have removed the
+      # healthy deployment permanently, and its live-production guard could not
+      # object, because by then the rollback had made the *old* deployment live.
+      #
+      # Keying on `bind` also beats keying on the promote itself: promotion can
+      # succeed while `Verify canonical production after promotion` finds
+      # production unhealthy, and that case does need the rollback.
       - name: Roll back Vercel to captured production on promotion failure
         id: rollback
         if: >-
           failure() &&
           steps.promote.outputs.attempted == 'true' &&
+          steps.bind.outcome != 'success' &&
           steps.prior.outputs.prior_id != ''
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -1167,11 +1191,12 @@ jobs:
           #
           # This guard used to ask each candidate's own `.alias` list whether it
           # was production. Because every candidate is created with
-          # `--skip-domain`, that list stays empty even once promotion has made
-          # the candidate live — so the answer was always "not production" and
-          # the guard could never once have refused a deletion. A safety net
-          # that cannot catch anything is more dangerous than none, because it
-          # reads as one.
+          # `--skip-domain`, that list never contains the canonical production
+          # host — only the project-scoped hostname Vercel assigns itself — even
+          # once promotion has made the candidate live. So the answer was always
+          # "not production" and the guard could never once have refused a
+          # deletion. A safety net that cannot catch anything is more dangerous
+          # than none, because it reads as one.
           live_production="$RUNNER_TEMP/vercel-live-production.json"
           live_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
             --header "Authorization: Bearer $VERCEL_TOKEN" \
