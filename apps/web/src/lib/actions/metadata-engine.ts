@@ -552,7 +552,14 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
                     standardData.joining_date = new Date().toISOString().split('T')[0];
                 }
                 // Create a user account for the staff member
-                const email = `${standardData.employee_id || 'staff_' + Math.random().toString(36).substring(2, 11)}@greenwood.edu`;
+                // A fabricated fallback identity for a staff row imported without an
+                // email. Deliberately on the RFC 2606 `.invalid` domain so it can
+                // never resolve, be mistaken for a real address, or carry the
+                // demo school domain into a real tenant's user table.
+                const importedEmail = typeof standardData.email === 'string' && standardData.email.includes('@')
+                    ? standardData.email
+                    : `${standardData.employee_id || 'staff_' + Math.random().toString(36).substring(2, 11)}@imported.invalid`;
+                const email = importedEmail;
                 const userInsertQuery = `
                     INSERT INTO users (tenant_id, email, password_hash, role, first_name, last_name)
                     VALUES ($1, $2, $3, 'TEACHER', $4, $5)

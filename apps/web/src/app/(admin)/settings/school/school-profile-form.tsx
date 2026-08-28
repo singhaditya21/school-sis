@@ -112,7 +112,7 @@ export default function SchoolProfileForm({ profile }: { profile: SchoolProfile 
                             value={form.name}
                             className={fieldClass('name')}
                             onChange={(e) => set('name')(e.target.value)}
-                            placeholder="Greenwood International School"
+                            placeholder="Your school's name"
                         />
                     </div>
 
