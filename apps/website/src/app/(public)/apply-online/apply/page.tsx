@@ -27,34 +27,37 @@ export default function ApplyPage() {
         documents: [] as string[],
     });
     const [submitted, setSubmitted] = useState(false);
-    const [applicationId, setApplicationId] = useState('');
 
     const handleChange = (field: string, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
+    // This form has no backend: online admission-application intake is not built.
+    // It previously fabricated a confirmation ID and showed "received
+    // successfully" while discarding everything the applicant typed — a parent
+    // would leave believing they had applied. Until a real intake exists, be
+    // honest: nothing is submitted, and the applicant is directed to a real
+    // channel rather than shown a false confirmation.
     const handleSubmit = () => {
-        const id = `GWD-2026-${Math.floor(10000 + Math.random() * 90000)}`;
-        setApplicationId(id);
         setSubmitted(true);
     };
 
     if (submitted) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-6">
+            <div className="min-h-screen bg-gradient-to-br from-amber-50 to-blue-50 flex items-center justify-center p-6">
                 <Card className="max-w-lg w-full text-center">
                     <CardContent className="pt-8 pb-8">
-                        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <span className="text-4xl">✅</span>
+                        <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <span className="text-4xl">📩</span>
                         </div>
-                        <h1 className="text-2xl font-bold text-green-700 mb-2">Application Submitted!</h1>
-                        <p className="text-gray-600 mb-6">Your application has been received successfully.</p>
-                        <div className="bg-gray-50 p-4 rounded-lg mb-6">
-                            <p className="text-sm text-gray-500">Application ID</p>
-                            <p className="text-2xl font-mono font-bold text-blue-600">{applicationId}</p>
-                        </div>
-                        <p className="text-sm text-gray-500 mb-6">
-                            Please save this ID for future reference. We will contact you within 3-5 working days.
+                        <h1 className="text-2xl font-bold text-amber-800 mb-2">
+                            Online applications aren&apos;t open yet
+                        </h1>
+                        <p className="text-gray-600 mb-6">
+                            This form is not connected to admissions, so nothing you entered has
+                            been submitted. To apply, please contact the school&apos;s admissions
+                            office directly by phone or email — they will take your details and
+                            confirm the next steps.
                         </p>
                         <Link href="/admissions" className="text-blue-600 hover:underline">
                             ← Back to Admissions Page
