@@ -6,6 +6,7 @@
 
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { logAudit } from '@/lib/audit';
 
 function isValidUUID(uuid: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
@@ -14,7 +15,7 @@ function isValidUUID(uuid: string): boolean {
 // ─── Student Detail ───────────────────────────────────────
 export async function getStudentDetail(studentId: string) {
     if (!isValidUUID(studentId)) return null;
-    const { tenantId } = await requireAuth('students:read');
+    const { tenantId, userId } = await requireAuth('students:read');
 
     const { rows: students } = await pool.query(
         `SELECT 
@@ -43,6 +44,18 @@ export async function getStudentDetail(studentId: string) {
 
     if (students.length === 0) return null;
     const student = students[0];
+
+    // DPDPA accountability: record WHO read this child's full record — it
+    // includes date of birth, address, blood group and guardian contact. The
+    // list views are coarse; this single-record read is the one worth naming.
+    await logAudit({
+        tenantId,
+        userId,
+        action: 'READ',
+        entityType: 'student',
+        entityId: student.id,
+        description: `Viewed full record for student ${student.admissionNumber}`,
+    });
 
     const { rows: guardians } = await pool.query(
         `SELECT 
