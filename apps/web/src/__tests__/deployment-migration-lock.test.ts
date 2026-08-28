@@ -28,23 +28,74 @@ const marker = readFileSync(
   "utf8",
 );
 
+/**
+ * Match the whole advisory call INCLUDING its seed and the argument it binds.
+ *
+ * An earlier version matched only the function name, which let three different
+ * mutations through: changing the seed to `hashtextextended($1, 1)`, appending
+ * `$1::text`, and — worst — keeping the SQL verbatim while binding a different
+ * constant. That last one is silent in production too: pg_advisory_xact_lock
+ * blocks, its result is never inspected, and the marker has no unlock to
+ * disagree with. So the seed and the bound value are both pinned here.
+ */
 const ADVISORY_CALL =
-  /pg_(?:try_)?advisory_(?:xact_)?(?:un)?lock\(\s*(hashtext(?:extended)?)\(\$1(?:,\s*0)?\)/g;
+  /pg_(?:try_)?advisory_(?:xact_)?(?:un)?lock\(\s*(hashtext(?:extended)?)\((\$1[^)]*)\)\s*\)[^"]*"[\s\S]{0,80}?\[\s*([A-Za-z_.][\w.]*)\s*[,\]]/g;
 
-const advisoryHashFunctions = (source: string): string[] =>
-  [...source.matchAll(ADVISORY_CALL)].map((match) => match[1]);
+interface AdvisoryCall {
+  hash: string;
+  argument: string;
+  bound: string;
+}
+
+const advisoryCalls = (source: string): AdvisoryCall[] =>
+  [...source.matchAll(ADVISORY_CALL)].map((match) => ({
+    hash: match[1],
+    argument: match[2],
+    bound: match[3],
+  }));
+
+/** The identifiers each file legitimately binds for the shared lock name. */
+const LOCK_NAME_BINDINGS = new Set([
+  "DEPLOYMENT_MIGRATION_LOCK_NAME",
+  "resolved.lockName",
+  "lockName",
+]);
 
 describe("deployment migration advisory lock", () => {
   it("hashes the shared lock name identically at every call site", () => {
-    const runnerHashes = advisoryHashFunctions(runner);
-    const markerHashes = advisoryHashFunctions(marker);
+    const calls = [...advisoryCalls(runner), ...advisoryCalls(marker)];
 
-    // Guard the guard: a regex that matches nothing would pass vacuously.
-    expect(runnerHashes.length).toBeGreaterThan(0);
-    expect(markerHashes.length).toBeGreaterThan(0);
+    // Guard the guard: a regex that matches nothing would pass vacuously. The
+    // runner acquires and unlocks; the marker takes one transaction lock.
+    expect(advisoryCalls(runner).length).toBe(2);
+    expect(advisoryCalls(marker).length).toBe(1);
 
-    expect(new Set([...runnerHashes, ...markerHashes])).toEqual(
+    expect(new Set(calls.map((c) => c.hash))).toEqual(
       new Set(["hashtextextended"]),
+    );
+  });
+
+  it("uses the same seed at every call site", () => {
+    // hashtextextended($1, 1) is a different key from hashtextextended($1, 0),
+    // and looks close enough to read as identical.
+    for (const call of [...advisoryCalls(runner), ...advisoryCalls(marker)]) {
+      expect(call.argument.replace(/\s+/g, "")).toBe("$1,0");
+    }
+  });
+
+  it("binds the shared lock name, not merely a well-shaped expression", () => {
+    for (const call of [...advisoryCalls(runner), ...advisoryCalls(marker)]) {
+      expect(LOCK_NAME_BINDINGS.has(call.bound)).toBe(true);
+    }
+    // And the marker binds the runner's own exported constant, so the two
+    // cannot drift apart by editing one file.
+    expect(advisoryCalls(marker)[0].bound).toBe(
+      "DEPLOYMENT_MIGRATION_LOCK_NAME",
+    );
+    // ...imported from the runner's own module, so the two cannot drift apart
+    // by editing one file.
+    expect(marker).toMatch(
+      /import\s*\{[^}]*\bDEPLOYMENT_MIGRATION_LOCK_NAME\b[^}]*\}\s*from\s*"\.\/deployment-migrations"/,
     );
   });
 
@@ -52,10 +103,5 @@ describe("deployment migration advisory lock", () => {
     for (const source of [runner, marker]) {
       expect(source).not.toMatch(/advisory_[a-z_]*lock\(\s*hashtext\(/);
     }
-  });
-
-  it("keeps both call sites on the one shared lock name", () => {
-    expect(runner).toContain("DEPLOYMENT_MIGRATION_LOCK_NAME");
-    expect(marker).toContain("DEPLOYMENT_MIGRATION_LOCK_NAME");
   });
 });

@@ -621,12 +621,12 @@ describe("preview Vercel project isolation workflow", () => {
       productionWorkflow.indexOf("run: |", rollbackStart),
     );
 
-    // `bind` is the last step that proves production serves the verified
-    // candidate. Keying on it also still rolls back when promotion succeeded
-    // but the canonical health verification failed.
-    expect(rollbackGate).toContain("steps.bind.outcome != 'success'");
-    expect(productionWorkflow).toContain(
-      "- name: Bind canonical production to the verified candidate\n        id: bind",
+    // canonical_verify fetches PRODUCTION_URL up to 18 times and checks the
+    // served commit — that, and not a single `vercel inspect`, is what proves
+    // production healthy. See production-release-gates.test.ts for the full
+    // truth table over both recovery gates.
+    expect(rollbackGate).toContain(
+      "steps.canonical_verify.outcome != 'success'",
     );
 
     // A written-but-never-read output is what disguised the original defect.
@@ -649,9 +649,11 @@ describe("preview Vercel project isolation workflow", () => {
     // full five minutes and then blamed a stuck branch transition.
     expect(productionWorkflow).toContain('echo "http-$http"');
     expect(productionWorkflow).toContain("Neon refused the branch query");
-    expect(productionWorkflow).toContain(
-      "Neon stopped answering branch queries",
-    );
+    // A refusal is fatal; a 429 or 5xx is polled through, because aborting the
+    // release for a blip trades a five-minute wait for a failed deploy of a
+    // branch that would have come ready.
+    expect(productionWorkflow).toContain("Neon refused the branch query mid-wait");
+    expect(productionWorkflow).toContain("http-401|http-403|http-404");
 
     // The exact line the old, status-blind helper was called from.
     expect(productionWorkflow).not.toContain(
@@ -687,10 +689,13 @@ describe("preview Vercel project isolation workflow", () => {
       "- name: Roll back Vercel to captured production",
     );
     expect(start).toBeGreaterThan(0);
-    const step = productionWorkflow.slice(
-      start,
-      productionWorkflow.indexOf("\n      - name:", start + 1),
-    );
+
+    // The WHOLE recovery sequence, not just the rollback step. Scoping this to
+    // one step let `Verify rollback restored the captured deployment` keep a
+    // `vercel inspect` immediately below it — so the suite certified an
+    // invariant the workflow did not hold, in the exact step that only runs
+    // once the scope lookup is already failing.
+    const step = productionWorkflow.slice(start);
 
     // `vercel rollback` resolves scope through GET /v2/user before doing
     // anything. That call 404'd in run 33073717982 attempt 2, killing the
@@ -709,14 +714,21 @@ describe("preview Vercel project isolation workflow", () => {
     // getProjectByDeployment also proved ownership before mutating. Keep it.
     expect(step).toContain("Refusing to roll back to");
 
-    // A retried POST is a second rollback, so the mutation must not carry
-    // --retry even though every read around it does.
+    // The mutation retries, but only what is safe to retry.
+    //
+    // Measured against a counting server: `--retry 3` re-issues on 429 and 5xx
+    // and never on 4xx, while `--retry-all-errors` adds transport replays. A
+    // rollback to a SPECIFIC deployment id is idempotent and the step polls to
+    // confirm, so surviving a rate limit beats avoiding a duplicate — this is
+    // the recovery path, and giving up on the first 429 strands production on a
+    // broken candidate with the migration applied.
     const postCommand = step.slice(
       step.lastIndexOf("curl", step.indexOf("--request POST")),
       step.indexOf("rollback_status=$?"),
     );
     expect(postCommand).toContain("--request POST");
-    expect(postCommand).not.toContain("--retry");
+    expect(postCommand).toContain("--retry 3");
+    expect(postCommand).not.toContain("--retry-all-errors");
   });
 
   it("rejects database and tenant-context credentials embedded in the artifact", () => {

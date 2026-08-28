@@ -105,6 +105,7 @@ describe("production release failure-path gates", () => {
       world: world(false, {
         candidate: { outcome: "success" },
         promote: { outcome: "success", outputs: { attempted: "true" } },
+        canonical_verify: { outcome: "success" },
         bind: { outcome: "success" },
       }),
       rollback: false,
@@ -112,21 +113,35 @@ describe("production release failure-path gates", () => {
       why: "nothing failed",
     },
     {
+      name: "failed before the candidate step ever ran",
+      world: world(true, {
+        candidate: { outcome: "skipped" },
+        promote: { outcome: "skipped", outputs: {} },
+        canonical_verify: { outcome: "skipped" },
+        bind: { outcome: "skipped" },
+      }),
+      rollback: false,
+      cleanup: false,
+      why: "the commonest failed release: no candidate exists, so there is nothing to collect",
+    },
+    {
       name: "candidate build failed",
       world: world(true, {
         candidate: { outcome: "failure" },
         promote: { outcome: "skipped", outputs: {} },
+        canonical_verify: { outcome: "skipped" },
         bind: { outcome: "skipped" },
       }),
       rollback: false,
       cleanup: true,
-      why: "promotion was never attempted, so nothing to revert but there may be an artifact",
+      why: "promotion was never attempted, but a deployment may exist to collect",
     },
     {
       name: "promotion failed",
       world: world(true, {
         candidate: { outcome: "success" },
         promote: { outcome: "failure", outputs: { attempted: "true" } },
+        canonical_verify: { outcome: "skipped" },
         bind: { outcome: "skipped" },
         rollback: { outcome: "success" },
       }),
@@ -139,18 +154,20 @@ describe("production release failure-path gates", () => {
       world: world(true, {
         candidate: { outcome: "success" },
         promote: { outcome: "failure", outputs: { attempted: "true" } },
+        canonical_verify: { outcome: "skipped" },
         bind: { outcome: "skipped" },
         rollback: { outcome: "failure" },
       }),
       rollback: true,
       cleanup: true,
-      why: "the leak: cleanup used to skip here, orphaning the candidate forever",
+      why: "cleanup used to skip here, orphaning the candidate forever",
     },
     {
       name: "promoted, but canonical verification failed",
       world: world(true, {
         candidate: { outcome: "success" },
         promote: { outcome: "success", outputs: { attempted: "true" } },
+        canonical_verify: { outcome: "failure" },
         bind: { outcome: "skipped" },
       }),
       rollback: true,
@@ -158,15 +175,28 @@ describe("production release failure-path gates", () => {
       why: "promotion landed but production is not verified healthy",
     },
     {
+      name: "verified healthy, then the binding CLI call failed",
+      world: world(true, {
+        candidate: { outcome: "success" },
+        promote: { outcome: "success", outputs: { attempted: "true" } },
+        canonical_verify: { outcome: "success" },
+        bind: { outcome: "failure" },
+      }),
+      rollback: false,
+      cleanup: false,
+      why: "bind is one un-retried `vercel inspect`; a blip must not revert PROVEN-healthy production",
+    },
+    {
       name: "bound and verified, then bookkeeping failed",
       world: world(true, {
         candidate: { outcome: "success" },
         promote: { outcome: "success", outputs: { attempted: "true" } },
+        canonical_verify: { outcome: "success" },
         bind: { outcome: "success" },
       }),
       rollback: false,
       cleanup: false,
-      why: "production is PROVEN good; never revert or delete it for an audit row",
+      why: "never revert or delete a proven release for an audit row",
     },
     {
       name: "failed before a rollback target was captured",
@@ -175,6 +205,7 @@ describe("production release failure-path gates", () => {
         {
           candidate: { outcome: "success" },
           promote: { outcome: "failure", outputs: { attempted: "true" } },
+          canonical_verify: { outcome: "skipped" },
           bind: { outcome: "skipped" },
         },
         "",
@@ -197,11 +228,45 @@ describe("production release failure-path gates", () => {
     }
   });
 
-  it("keeps both recovery gates keyed on the binding step", () => {
-    // `bind` succeeding is the only state in which production is proven to be
-    // serving this release's candidate. Both gates must agree on that authority,
-    // or they can contradict each other about whether production is safe.
-    expect(gateFor(ROLLBACK)).toContain("steps.bind.outcome != 'success'");
-    expect(gateFor(CLEANUP)).toContain("steps.bind.outcome != 'success'");
+  it("keeps both recovery gates keyed on the HTTPS health proof", () => {
+    // canonical_verify fetches PRODUCTION_URL up to 18 times and checks the
+    // served commit. That, not `bind`, is what "production is healthy" means.
+    //
+    // Both gates must agree on that authority, or they can contradict each other
+    // about whether production is safe. And neither may key on `bind`: bind is a
+    // single un-retried `vercel inspect`, whose scope lookup is the documented
+    // fragility here, so a blip in it would revert a proven-healthy release and
+    // then delete the good deployment.
+    for (const gate of [gateFor(ROLLBACK), gateFor(CLEANUP)]) {
+      expect(gate).toContain("steps.canonical_verify.outcome != 'success'");
+      expect(gate).not.toContain("steps.bind.outcome");
+    }
+  });
+
+  it("pins the guard the cleanup gate delegates its safety to", () => {
+    // The gate deliberately admits states where the candidate may still be live,
+    // delegating to the in-step guard. Nothing pinned that guard, so it could
+    // have been deleted wholesale with every test still green.
+    const start = workflow.indexOf(`- name: ${CLEANUP}`);
+    const step = workflow.slice(start, workflow.indexOf("\n      - name:", start + 1));
+    expect(step).toContain("refusing to delete it");
+    expect(step).toContain("Live production is $live_id and will not be deleted.");
+    // Fail closed: an unreadable live-production lookup must stop the deletion.
+    expect(step).toContain("refusing to delete any deployment");
+  });
+
+  it("pins what the report step actually prints, not merely that it runs", () => {
+    // `always()` was asserted; the body was not. It could have been replaced
+    // with `exit 0` and the suite would have stayed green — leaving the next
+    // incident to end in the same silence this step was added to break.
+    const start = workflow.indexOf(`- name: ${REPORT}`);
+    const step = workflow.slice(start);
+    expect(step).toContain("is serving:");
+    expect(step).toContain("production is on THIS release's candidate");
+    expect(step).toContain("production is on the deployment captured before this release");
+    expect(step).toContain("$GITHUB_STEP_SUMMARY");
+    // GitHub runs every `run:` as `bash -e {0}`, so `set -uo pipefail` cannot
+    // make this non-fatal. Only continue-on-error can.
+    expect(/^\s*continue-on-error:\s*true\s*$/m.test(step.slice(0, step.indexOf("run: |")))).toBe(true);
   });
 });
