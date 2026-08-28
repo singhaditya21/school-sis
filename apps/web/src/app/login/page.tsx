@@ -30,7 +30,7 @@ function SubmitButton() {
 
 export default function LoginPage() {
     const [error, setError] = useState<string | null>(null);
-    const [schoolCode, setSchoolCode] = useState('GREENWOOD');
+    const [schoolCode, setSchoolCode] = useState('');
     const [loginMode, setLoginMode] = useState<'school' | 'platform'>('school');
     const [authTab, setAuthTab] = useState<'password' | 'otp'>('password');
     const [mfaRequired, setMfaRequired] = useState(false);
