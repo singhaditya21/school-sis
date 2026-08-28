@@ -296,15 +296,50 @@ jobs:
           #
           # The assertions stay exactly as strict as they were — this makes the
           # precondition reachable, it does not weaken it.
+          # Report the HTTP status instead of laundering an error body into data.
+          #
+          # Piping curl straight into jq made a rejected API key indistinguishable
+          # from a branch that is merely not ready: an error body has no `.branch`,
+          # so both fields fell back to their defaults and this returned the literal
+          # string "unknown:null". That never equals "ready:null", so the settle
+          # loop at the end of this step ran its full five minutes and then blamed
+          # a stuck branch transition — for a credential the operator could have
+          # fixed in a minute, had anything said so.
+          neon_branch_file="$RUNNER_TEMP/neon-branch-state.json"
           branch_state() {
-            curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            local http
+            http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
               --header "Authorization: Bearer $NEON_API_KEY" \
               --header 'Accept: application/json' \
-              "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${NEON_PRODUCTION_BRANCH_ID}" \
-              | jq -r '"\(.branch.current_state // "unknown"):\(.branch.pending_state // "null")"'
+              --output "$neon_branch_file" \
+              --write-out '%{http_code}' \
+              "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${NEON_PRODUCTION_BRANCH_ID}")"
+            if [ "$http" != "200" ]; then
+              # A value no branch state can collide with, so every comparison in
+              # this step treats it as the failure it is.
+              echo "http-$http"
+              return 0
+            fi
+            jq -r '"\(.branch.current_state // "unknown"):\(.branch.pending_state // "null")"' \
+              "$neon_branch_file"
           }
 
-          echo "Neon production branch state before wake: $(branch_state)"
+          initial_state="$(branch_state)"
+          case "$initial_state" in
+            http-*)
+              echo "Neon refused the branch query (HTTP ${initial_state#http-})." >&2
+              echo "  project : $NEON_PROJECT_ID" >&2
+              echo "  branch  : $NEON_PRODUCTION_BRANCH_ID" >&2
+              echo "  response:" >&2
+              head -c 400 "$neon_branch_file" | sed 's/^/    /' >&2 || true
+              echo >&2
+              echo "Stopping here rather than spending five minutes reporting a branch" >&2
+              echo "transition that was never the problem." >&2
+              exit 1
+              ;;
+          esac
+
+          echo "Neon production branch state before wake: $initial_state"
 
           # Only wake a branch that actually needs it. If it already reports
           # ready, the blocker this step exists for does not apply, and the
@@ -314,8 +349,7 @@ jobs:
           # migrates through node-postgres. Failing the release because psql on the
           # runner could not connect would block a deploy that would otherwise have
           # worked — trading the old blocker for a new one.
-          state="$(branch_state)"
-          if [ "$state" = "ready:null" ]; then
+          if [ "$initial_state" = "ready:null" ]; then
             echo "Branch is already ready; nothing to wake."
             exit 0
           fi
@@ -354,12 +388,30 @@ jobs:
             # and unarchiving can reassign the compute endpoint. Print the hosts Neon
             # currently reports so the mismatch is visible without guesswork.
             echo "  host in NEON_PRODUCTION_DIRECT_URL: $(NEON_DIRECT_URL="$NEON_DIRECT_URL" node -e "process.stdout.write(new URL(process.env.NEON_DIRECT_URL).hostname)")" >&2
-            echo "  endpoints Neon reports for this branch:" >&2
-            curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            # Same trap as branch_state: `.endpoints[]?` on an error body yields
+            # nothing, so a refused key printed this heading followed by silence —
+            # which reads as "Neon has no endpoints for this branch", the most
+            # alarming possible misreading of "your token was rejected".
+            endpoint_diag="$RUNNER_TEMP/neon-endpoint-diagnostic.json"
+            endpoint_diag_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
               --header "Authorization: Bearer $NEON_API_KEY" \
               --header 'Accept: application/json' \
-              "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${NEON_PRODUCTION_BRANCH_ID}/endpoints" \
-              | jq -r '.endpoints[]? | "    \(.id) host=\(.host) type=\(.type) state=\(.current_state) disabled=\(.disabled)"' >&2 || true
+              --output "$endpoint_diag" \
+              --write-out '%{http_code}' \
+              "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${NEON_PRODUCTION_BRANCH_ID}/endpoints")"
+            if [ "$endpoint_diag_http" != "200" ]; then
+              echo "  endpoints could not be read (HTTP $endpoint_diag_http):" >&2
+              head -c 400 "$endpoint_diag" | sed 's/^/    /' >&2 || true
+              echo >&2
+            else
+              echo "  endpoints Neon reports for this branch:" >&2
+              endpoint_lines="$(jq -r '.endpoints[]? | "    \(.id) host=\(.host) type=\(.type) state=\(.current_state) disabled=\(.disabled)"' "$endpoint_diag")"
+              if [ -n "$endpoint_lines" ]; then
+                printf '%s\n' "$endpoint_lines" >&2
+              else
+                echo "    (Neon reports no endpoints on this branch)" >&2
+              fi
+            fi
             exit 1
           fi
 
@@ -371,6 +423,14 @@ jobs:
               echo "Neon production branch is ready."
               exit 0
             fi
+            case "$state" in
+              http-*)
+                echo "Neon stopped answering branch queries (HTTP ${state#http-}); not waiting further." >&2
+                head -c 400 "$neon_branch_file" | sed 's/^/    /' >&2 || true
+                echo >&2
+                exit 1
+                ;;
+            esac
             echo "Waiting for the branch to settle (state ${state})."
             sleep 10
           done
@@ -895,7 +955,29 @@ jobs:
           fi
           # workflow_run.created_at is immutable across reruns, so the exact
           # checkpoint can be reconciled safely after an interrupted attempt.
+          #
+          # That immutability is load-bearing, not incidental: a rerun finds its
+          # checkpoint by exact name and assertNewCheckpointIdentity() in
+          # create-neon-free-recovery-checkpoint.mjs requires the existing
+          # branch's expires_at to EQUAL the value requested here. Computing this
+          # from `now` would make every rerun of an interrupted release fail with
+          # "does not have the exact requested expiration" — turning a recoverable
+          # interruption into a hard stop. Do not "fix" it that way.
+          #
+          # The price is that a rerun of a run older than the retention window
+          # computes an expiry already in the past. Say that plainly. Left alone,
+          # the checkpoint script polls for 60 seconds and reports that the branch
+          # "was not found", which names neither the cause nor the way out.
           expires_at="$(date -u -d "$TRIGGER_WORKFLOW_CREATED_AT +7 days" '+%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$(date -u -d "$expires_at" '+%s')" -le "$(date -u '+%s')" ]; then
+            echo "This release cannot create a usable recovery checkpoint." >&2
+            echo "  triggering run started : $TRIGGER_WORKFLOW_CREATED_AT" >&2
+            echo "  checkpoint would expire: $expires_at (already past)" >&2
+            echo "That timestamp is frozen so reruns reconcile onto the same checkpoint, so a" >&2
+            echo "rerun this long after the original run cannot produce one that outlives the" >&2
+            echo "release. Push a fresh commit to main and release that instead." >&2
+            exit 1
+          fi
           checkpoint_metadata="$RUNNER_TEMP/neon-free-recovery-checkpoint.json"
           node scripts/create-neon-free-recovery-checkpoint.mjs \
             --project-id "$NEON_PROJECT_ID" \

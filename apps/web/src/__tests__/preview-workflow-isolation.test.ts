@@ -643,6 +643,45 @@ describe("preview Vercel project isolation workflow", () => {
     expect(productionWorkflow).not.toMatch(/\.alias\[\]\?\s*\|\s*ascii_downcase/);
   });
 
+  it("reports Neon's HTTP status instead of laundering an error body into a branch state", () => {
+    // Piping curl into jq meant a rejected API key produced the literal string
+    // "unknown:null" — never equal to "ready:null", so the settle loop ran its
+    // full five minutes and then blamed a stuck branch transition.
+    expect(productionWorkflow).toContain('echo "http-$http"');
+    expect(productionWorkflow).toContain("Neon refused the branch query");
+    expect(productionWorkflow).toContain(
+      "Neon stopped answering branch queries",
+    );
+
+    // The exact line the old, status-blind helper was called from.
+    expect(productionWorkflow).not.toContain(
+      "Neon production branch state before wake: $(branch_state)",
+    );
+
+    // The endpoint diagnostic shared the trap: `.endpoints[]?` on an error body
+    // yields nothing, so a refusal printed a heading and then silence.
+    expect(productionWorkflow).toContain("endpoints could not be read (HTTP");
+    expect(productionWorkflow).toContain(
+      "(Neon reports no endpoints on this branch)",
+    );
+  });
+
+  it("refuses to build a recovery checkpoint that is born expired", () => {
+    expect(productionWorkflow).toContain(
+      "This release cannot create a usable recovery checkpoint.",
+    );
+    expect(productionWorkflow).toContain("(already past)");
+
+    // The expiry MUST stay derived from the immutable trigger timestamp.
+    // create-neon-free-recovery-checkpoint.mjs reconciles a rerun onto its
+    // existing checkpoint by exact name and requires expires_at to match
+    // exactly, so computing this from `now` would make every rerun of an
+    // interrupted release fail instead — a worse bug than the one it fixes.
+    expect(productionWorkflow).toContain(
+      'expires_at="$(date -u -d "$TRIGGER_WORKFLOW_CREATED_AT +7 days"',
+    );
+  });
+
   it("rejects database and tenant-context credentials embedded in the artifact", () => {
     expect(workflow).toContain(
       "const databaseVariables = [\n            'DATABASE_URL',\n            'PLATFORM_DATABASE_URL',\n            'DIRECT_URL'",
