@@ -123,9 +123,14 @@ async function loginActionV2WithBypass(formData: FormData) {
                 if (!mfaResult.success) {
                     return { error: mfaResult.error || 'Invalid MFA code', mfaRequired: true };
                 }
-            } else if (shouldRequireMfaEnrollment(user.role, Boolean(user.mfaEnabled))) {
-                return { error: 'MFA enrollment is required for this account before login.' };
             }
+            // An MFA-required role that has not yet enrolled is deliberately NOT
+            // rejected here. It receives a restricted session — establishSession
+            // leaves mfaVerified false — and is routed to /mfa/setup below, the one
+            // route the middleware permits in that state, so it can enrol and then
+            // use the account. Rejecting it (the old behaviour) bricked every admin
+            // not born through /setup's own auto-login: enrolment needs a session,
+            // and login refused to grant one, so the account could never be used.
 
             await clearRateLimit(email);
             const session = await getSession();
@@ -145,7 +150,8 @@ async function loginActionV2WithBypass(formData: FormData) {
             });
             await session.save();
 
-            redirectPath = '/hq';
+            redirectPath =
+                session.mfaRequired && !session.mfaVerified ? '/mfa/setup' : '/hq';
 
         } else {
             // School staff login — requires school code
@@ -211,9 +217,14 @@ async function loginActionV2WithBypass(formData: FormData) {
                 if (!mfaResult.success) {
                     return { error: mfaResult.error || 'Invalid MFA code', mfaRequired: true };
                 }
-            } else if (shouldRequireMfaEnrollment(user.role, Boolean(user.mfaEnabled))) {
-                return { error: 'MFA enrollment is required for this account before login.' };
             }
+            // An MFA-required role that has not yet enrolled is deliberately NOT
+            // rejected here. It receives a restricted session — establishSession
+            // leaves mfaVerified false — and is routed to /mfa/setup below, the one
+            // route the middleware permits in that state, so it can enrol and then
+            // use the account. Rejecting it (the old behaviour) bricked every admin
+            // not born through /setup's own auto-login: enrolment needs a session,
+            // and login refused to grant one, so the account could never be used.
 
             // Create session — clear rate limit on success
             await clearRateLimit(email);
@@ -242,8 +253,11 @@ async function loginActionV2WithBypass(formData: FormData) {
                 [user.id]
             );
 
-            // Route based on role
-            if (user.role === 'PARENT') {
+            // Route based on role — but an unenrolled MFA-required account goes to
+            // enrolment first, whatever its role would otherwise land on.
+            if (session.mfaRequired && !session.mfaVerified) {
+                redirectPath = '/mfa/setup';
+            } else if (user.role === 'PARENT') {
                 redirectPath = '/overview';
             } else if (user.role === 'STUDENT') {
                 redirectPath = '/profile';

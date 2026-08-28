@@ -5,7 +5,9 @@ and one tenant per branch, then fills each branch with a realistic Indian school
 population: staff, students, guardians, a fee plan, invoices and payments.
 
 It creates **no administrator accounts**. Those carry real passwords and are
-created through `/setup`, which also enrols them in two-factor.
+created with `create-branch-admin.ts` (below), then enrol two-factor on first
+login. Note: `/setup` cannot be used for this — it only ever creates a brand-new
+tenant, so it would orphan an empty workspace from the seeded branch data.
 
 ## Before you run it
 
@@ -47,9 +49,22 @@ migration chain: the second run created 0 students.
 
 ## Then create the administrators
 
-One per branch, through `/setup`. That flow creates the company-scoped admin and
-walks it through TOTP enrolment, so no password or MFA secret is ever handled
-here or pasted into a terminal.
+`/setup` is the wrong tool here — it always creates a new company and tenant, so
+pointing it at a `-pilot` branch would make an empty workspace disconnected from
+the seeded data. Create the admin directly against the existing tenant instead:
+
+```bash
+pnpm --filter @school-sis/web exec tsx scripts/create-branch-admin.ts \
+  --tenant cambridge-spm-pilot \
+  --email principal@your-domain.example \
+  --first Meera --last Nair
+```
+
+It prints a generated password once (or pass `--password`), and is idempotent —
+re-running for the same email is a no-op, not a second account. Repeat per
+branch. On first login the admin is routed to `/mfa/setup` to enrol two-factor,
+then has full access to that branch. Creating an admin requires database
+credentials, which is the access gate; no admin can be minted from the web.
 
 ## What the data is, and how to be sure
 
