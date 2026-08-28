@@ -35,6 +35,8 @@ import {
   type ExpectedMigration,
   type MigrationDatabaseState,
   type RlsCoverageRow,
+  EXPECTED_RLS_POLICY_COUNT,
+  EXPECTED_RLS_POLICY_CATALOG_SHA256,
 } from "../../scripts/deployment-migrations";
 
 const HASH_A = "a".repeat(64);
@@ -1220,9 +1222,11 @@ function coveredTable(overrides: Partial<RlsCoverageRow>): RlsCoverageRow {
     row_security: true,
     force_row_security: true,
     policies: ["tenant_isolation_policy"],
-    policy_contract_count: 179,
-    policy_contract_sha256:
-      "4751f1c65c25755cea92c46f8a4eed3892f3973035fde9d802cf0ecacfb090a6",
+    // Imported, not duplicated: the fixture must describe whatever catalog the
+    // deployment currently pins, or a schema change quietly needs two edits and
+    // the suite starts asserting against a catalog that no longer exists.
+    policy_contract_count: EXPECTED_RLS_POLICY_COUNT,
+    policy_contract_sha256: EXPECTED_RLS_POLICY_CATALOG_SHA256,
     ...overrides,
   };
 }

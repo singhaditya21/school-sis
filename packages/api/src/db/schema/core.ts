@@ -98,6 +98,12 @@ export const users = pgTable('users', {
     mfaEnabled: boolean('mfa_enabled').default(false).notNull(),
     // Hashed backup codes (bcrypt); stored as a JSON array of hashed strings
     mfaBackupCodes: text('mfa_backup_codes').array(),
+    // ─── Push delivery ───────────────────────────────────────
+    // Firebase device registration token, used by lib/providers/push.ts. The
+    // push pipeline, the notification queue and the worker that reads this all
+    // shipped; the column did not, so every attendance push resolved to
+    // "no FCM token" — via a query that would in fact have thrown.
+    fcmToken: varchar('fcm_token', { length: 512 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

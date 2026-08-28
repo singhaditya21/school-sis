@@ -51,9 +51,9 @@ const TENANT_CONTEXT_SECRET_PATTERN = /^[A-Za-z0-9_-]{43,128}$/;
 // Regenerate only from a clean application of tenant-rls.sql. The canonical
 // catalog payload includes every public r/p policy's table, name, command,
 // roles, permissiveness, USING expression, and WITH CHECK expression.
-const EXPECTED_RLS_POLICY_COUNT = 179;
-const EXPECTED_RLS_POLICY_CATALOG_SHA256 =
-  "4751f1c65c25755cea92c46f8a4eed3892f3973035fde9d802cf0ecacfb090a6";
+export const EXPECTED_RLS_POLICY_COUNT = 180;
+export const EXPECTED_RLS_POLICY_CATALOG_SHA256 =
+  "4e8e1abaab5643c54fb94e05af29271fb4809d78c8cf448056a029c6efa88161";
 const MAINTENANCE_OWNER_PATTERN = /^[A-Za-z0-9_.@/-]{2,100}$/;
 const MIGRATION_PATH_PATTERN = /^apps\/web\/drizzle\/[A-Za-z0-9_-]+\.sql$/;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);

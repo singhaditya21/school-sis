@@ -19,5 +19,10 @@ export const EXPECTED_DATABASE_MIGRATIONS = [
     "tag": "0003_identity_and_document_uniqueness",
     "createdAt": "1787750141253",
     "hash": "0a37e4dc5901bfb057e747f66169dffd6a702313f1e5e76d04d0d1c6daaba647"
+  },
+  {
+    "tag": "0004_normal_jasper_sitwell",
+    "createdAt": "1787908137092",
+    "hash": "3240176569dd1b2ab22f2be916c79f72a566edfb8375b939aed3578ee0afc881"
   }
 ] as const;
