@@ -7,6 +7,7 @@
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { logAudit } from '@/lib/audit';
+import { maskDeniedFields } from '@/lib/auth/field-masking';
 
 function isValidUUID(uuid: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
@@ -15,7 +16,7 @@ function isValidUUID(uuid: string): boolean {
 // ─── Student Detail ───────────────────────────────────────
 export async function getStudentDetail(studentId: string) {
     if (!isValidUUID(studentId)) return null;
-    const { tenantId, userId } = await requireAuth('students:read');
+    const { tenantId, userId, session } = await requireAuth('students:read');
 
     const { rows: students } = await pool.query(
         `SELECT 
@@ -72,7 +73,17 @@ export async function getStudentDetail(studentId: string) {
         [studentId, tenantId]
     );
 
-    return { ...student, guardians };
+    // Enforce the field policy: a role without registrar-grade access to student
+    // PII (date of birth, blood group, address) or guardian contact sees those
+    // fields nulled rather than the whole record. AUTHORIZATION_FIELD_POLICIES
+    // existed but was enforced nowhere; this is the enforcement point.
+    const role = session.role ?? '';
+    const maskedStudent = maskDeniedFields(role, 'students', student);
+    const maskedGuardians = guardians.map((guardian) =>
+        maskDeniedFields(role, 'guardians', guardian),
+    );
+
+    return { ...maskedStudent, guardians: maskedGuardians };
 }
 
 // ─── Students by Section (for attendance, timetable) ──────
