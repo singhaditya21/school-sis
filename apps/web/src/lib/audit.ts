@@ -9,6 +9,7 @@
  */
 
 import { db } from '@/lib/db';
+import { getSession } from '@/lib/auth/session';
 import { auditLogs } from '@/lib/db/schema';
 import { randomUUID } from 'crypto';
 
@@ -56,7 +57,27 @@ export function withAudit<TArgs extends unknown[], TReturn>(
 ) {
     return async (...args: TArgs): Promise<TReturn> => {
         const result = await action(...args);
-        // Audit logging is fire-and-forget — don't block the response
+        // Best-effort, but AWAITED. A fire-and-forget audit is lost when a
+        // serverless invocation freezes after responding, and a compliance audit
+        // that might not land is worse than a few milliseconds of latency.
+        // logAudit swallows its own errors, so this never breaks the wrapped
+        // action — the earlier version returned here having written nothing,
+        // which made every "audited" mutation silently unaudited.
+        try {
+            const session = await getSession();
+            if (session.isLoggedIn && session.userId && session.tenantId) {
+                await logAudit({
+                    tenantId: session.tenantId,
+                    userId: session.userId,
+                    action: auditConfig.action,
+                    entityType: auditConfig.entityType,
+                    entityId: auditConfig.getEntityId?.(result),
+                    description: auditConfig.getDescription?.(args),
+                });
+            }
+        } catch {
+            // No request context (called outside a server action) — nothing to log.
+        }
         return result;
     };
 }
