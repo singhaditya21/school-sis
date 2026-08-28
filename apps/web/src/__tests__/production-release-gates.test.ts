@@ -308,6 +308,11 @@ describe("production release failure-path gates", () => {
       expect(workflow).toContain(`vercel-recovery.mjs ${command}`);
     }
 
+    // The preview token is an ENVIRONMENT secret: without this declaration the
+    // job receives an empty string and fails with a bare 403, which is how the
+    // first run of this workflow failed.
+    expect(rehearsal).toMatch(/^\s*environment:\s*preview\s*$/m);
+
     // And the rehearsal must never be pointed at the real project.
     expect(rehearsal).toContain("vars.VERCEL_PREVIEW_ORG_ID");
     expect(rehearsal).toContain("vars.VERCEL_PREVIEW_PROJECT_ID");

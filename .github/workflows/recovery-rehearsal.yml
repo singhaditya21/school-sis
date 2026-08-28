@@ -44,6 +44,11 @@ jobs:
   rehearse:
     name: Rehearse production recovery against the preview project
     runs-on: ubuntu-latest
+    # VERCEL_PREVIEW_TOKEN is an environment secret, so a job that does not
+    # declare the environment gets an empty string rather than an error. The
+    # first run of this workflow failed exactly that way: HTTP 403, "missing an
+    # authentication token", with `VERCEL_TOKEN:` blank in the step env.
+    environment: preview
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -68,6 +73,11 @@ jobs:
           set -euo pipefail
           if [ -z "${VERCEL_ORG_ID:-}" ] || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
             echo "VERCEL_PREVIEW_ORG_ID and VERCEL_PREVIEW_PROJECT_ID must be set." >&2
+            exit 1
+          fi
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            echo "VERCEL_PREVIEW_TOKEN is empty. It is an environment secret, so this job" >&2
+            echo "must declare 'environment: preview' to receive it." >&2
             exit 1
           fi
           project="$RUNNER_TEMP/preview-project.json"
