@@ -43,7 +43,11 @@ export async function GET(request: NextRequest) {
                     SELECT
                         s.admission_number, s.first_name, s.last_name, s.gender,
                         s.date_of_birth, s.category, s.religion,
-                        s.aadhaar_number, s.apaar_id,
+                        -- Aadhaar and APAAR are national identifiers and are
+                        -- deliberately NOT in this bulk roster export: it is gated
+                        -- only by students:read, which many staff roles hold, and
+                        -- writes no audit row. A registrar-only, audited export is
+                        -- the place for them, not a general CSV.
                         s.address, s.city, s.state, s.pincode,
                         g.name AS grade, sec.name AS section, s.status
                     FROM students s
@@ -56,7 +60,6 @@ export async function GET(request: NextRequest) {
                 csvContent = toCSV(result.rows, [
                     'admission_number', 'first_name', 'last_name', 'gender',
                     'date_of_birth', 'category', 'religion',
-                    'aadhaar_number', 'apaar_id',
                     'address', 'city', 'state', 'pincode',
                     'grade', 'section', 'status',
                 ]);

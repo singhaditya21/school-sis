@@ -25,7 +25,12 @@ export const students = pgTable('students', {
     nationality: varchar('nationality', { length: 50 }).default('Indian'),
     religion: varchar('religion', { length: 50 }),
     category: varchar('category', { length: 50 }), // General, SC, ST, OBC
-    aadhaarNumber: varchar('aadhaar_number', { length: 12 }), // encrypted at app level
+    // NOT encrypted at rest today — the app-level encryption helper is wired
+    // only to TOTP secrets, and this column is too narrow for ciphertext.
+    // Encrypting national IDs and contact PII at rest is a tracked compliance
+    // item; until then treat this as sensitive plaintext and keep it out of
+    // bulk exports (see api/csv/route.ts).
+    aadhaarNumber: varchar('aadhaar_number', { length: 12 }),
     apaarId: varchar('apaar_id', { length: 20 }), // National Academic Depository
     address: text('address'),
     city: varchar('city', { length: 100 }),
@@ -63,8 +68,10 @@ export const guardians = pgTable('guardians', {
     relation: guardianRelationEnum('relation').notNull(),
     firstName: varchar('first_name', { length: 100 }).notNull(),
     lastName: varchar('last_name', { length: 100 }).notNull(),
-    email: varchar('email', { length: 255 }), // encrypted at app level
-    phone: varchar('phone', { length: 20 }), // encrypted at app level
+    // Contact PII stored as plaintext today; see the aadhaar_number note above
+    // — encryption at rest for these is the same tracked compliance item.
+    email: varchar('email', { length: 255 }),
+    phone: varchar('phone', { length: 20 }),
     alternatePhone: varchar('alternate_phone', { length: 20 }),
     occupation: varchar('occupation', { length: 100 }),
     annualIncome: varchar('annual_income', { length: 50 }),
