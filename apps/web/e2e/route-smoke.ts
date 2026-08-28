@@ -3,6 +3,7 @@ import { hash } from 'bcryptjs';
 import { authenticator } from 'otplib';
 import { Client } from 'pg';
 
+
 /**
  * ROUTE SMOKE LAYER (D13)
  * ───────────────────────
@@ -640,6 +641,155 @@ export function registerRouteSmokeTests(): void {
 
             await page.getByRole('button', { name: 'Payments', exact: true }).click();
             await check(page.getByText('Payment history')).toBeVisible();
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // NAVIGATION SWEEP
+    // ─────────────────────────────────────────────────────────────────────
+    //
+    // The tests above assert CONTENT on twelve routes — real figures, real
+    // invoice numbers — because a page rendering its chrome over an empty fetch
+    // is this product's characteristic failure, and only a figure catches it.
+    //
+    // But twelve is not the nav. check-navigation-targets.mjs knows 161 routes
+    // and proves every nav link points at a file that exists; it never renders
+    // one. So a link could resolve to a page that 500s on load and both gates
+    // stayed green — which is exactly how /executive shipped a SUM over a column
+    // that did not exist.
+    //
+    // The links are read from the SIDEBAR THIS SESSION IS ACTUALLY SHOWN, not
+    // from the layout source. The first version of this sweep parsed `href=` out
+    // of the nav files, which is role-blind: the admin layout renders its Group
+    // HQ section only for PLATFORM_ADMIN, SUPER_ADMIN and GROUP_EXECUTIVE, so
+    // the sweep visited /hq-overview as a finance session and failed on a link
+    // that session is never offered. Reading the DOM cannot make that mistake,
+    // needs no policy import, and tests the claim a user would actually make:
+    // every link I am shown, I can use.
+    //
+    // It asserts rendering, not content. That is a deliberately weaker claim
+    // than the tests above and is worth stating plainly: a swept route shows
+    // HTTP 200, no bounce to /login or /unauthorized, and no server-exception
+    // boundary. It does NOT show the page found any data.
+
+    /** Routes already asserted with real figures above; re-visiting adds only time. */
+    const COVERED_WITH_CONTENT = new Set([
+        '/fees',
+        '/fees/plans',
+        '/invoices',
+        '/executive',
+        '/students',
+        '/admissions',
+        '/exams',
+        '/attendance',
+        '/overview',
+        '/my-fees',
+    ]);
+
+    /**
+     * Every internal link this session is actually offered.
+     *
+     * Takes more than one region because the staff surface has more than one:
+     * the sidebar, and the module grid rendered in the dashboard body. Scoping
+     * to the sidebar alone quietly dropped nine routes — the module grid's
+     * /fees/generate, /fees/defaulters, /consent and the rest — and the sweep
+     * still passed. Only printing the count made that visible.
+     *
+     * Whole-page collection is safe here: sign-out is a POST form, not an
+     * anchor, so it cannot be swept into.
+     */
+    async function offeredNavRoutes(page: Page, selectors: string[]): Promise<string[]> {
+        const hrefs = await page
+            .locator(selectors.map((selector) => `${selector} a[href^="/"]`).join(', '))
+            .evaluateAll((anchors) => anchors.map((a) => a.getAttribute('href') ?? ''));
+        return [...new Set(hrefs)]
+            .filter((href) => href !== '' && !href.startsWith('//'))
+            .filter((href) => !COVERED_WITH_CONTENT.has(href))
+            .sort();
+    }
+
+    /**
+     * Visit each route, collecting failures instead of stopping at the first.
+     *
+     * The blocks above get one test per route because their routes are known at
+     * collection time. These are not — they depend on who signed in — so the
+     * same property is kept by reporting every broken route in one assertion.
+     */
+    async function sweep(page: Page, routes: string[]): Promise<string[]> {
+        // Print what was swept. The vacuity guard only requires a handful of
+        // links, so coverage could fall from twenty-two routes to nine and still
+        // pass silently. A tighter number would fail every legitimate nav change
+        // instead, so the count is made visible rather than asserted.
+        console.log(`sweeping ${routes.length} route(s): ${routes.join(', ')}`);
+        const broken: string[] = [];
+        for (const route of routes) {
+            try {
+                await visit(page, route);
+            } catch (error) {
+                broken.push(`  ${route} — ${(error as Error).message.split('\n')[0]}`);
+            }
+        }
+        return broken;
+    }
+
+    test.describe('Route smoke — staff navigation sweep', () => {
+        let page: Page;
+
+        test.beforeAll(async ({ browser }: { browser: Browser }) => {
+            await provisionSmokeUsers();
+            page = await browser.newPage();
+            await signIn(page, FINANCE_USER.email, '/dashboard', 'the staff navigation sweep');
+        });
+
+        test.afterAll(async () => {
+            await page?.close();
+        });
+
+        test('every link the staff sidebar offers renders', async () => {
+            // The sidebar AND the dashboard's module grid — both are links a
+            // staff user is shown and can click.
+            const routes = await offeredNavRoutes(page, ['[data-testid="sidebar"]', 'main']);
+
+            // Guard the guard: a selector that matched nothing would make this
+            // pass while sweeping zero routes, which is the failure mode this
+            // whole file exists to prevent.
+            check(
+                routes.length,
+                'too few links were read from the staff surface — coverage has silently shrunk',
+            ).toBeGreaterThan(15);
+
+            const broken = await sweep(page, routes);
+            check(
+                broken,
+                `${broken.length} of ${routes.length} staff nav routes failed:\n${broken.join('\n')}`,
+            ).toEqual([]);
+        });
+    });
+
+    test.describe('Route smoke — parent navigation sweep', () => {
+        let page: Page;
+
+        test.beforeAll(async ({ browser }: { browser: Browser }) => {
+            page = await browser.newPage();
+            await signIn(page, PARENT_EMAIL, '/overview', 'the parent navigation sweep');
+        });
+
+        test.afterAll(async () => {
+            await page?.close();
+        });
+
+        test('every link the parent navigation offers renders', async () => {
+            const routes = await offeredNavRoutes(page, ['nav']);
+            check(
+                routes.length,
+                'no links were read from the parent navigation — the sweep would pass vacuously',
+            ).toBeGreaterThan(1);
+
+            const broken = await sweep(page, routes);
+            check(
+                broken,
+                `${broken.length} of ${routes.length} parent nav routes failed:\n${broken.join('\n')}`,
+            ).toEqual([]);
         });
     });
 }
