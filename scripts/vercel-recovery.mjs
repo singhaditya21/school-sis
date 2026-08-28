@@ -38,6 +38,7 @@ const RETRYABLE = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 const COMMANDS = new Set([
   "capture",
+  "wait-live",
   "rollback",
   "verify-rollback",
   "guard-delete",
@@ -50,6 +51,7 @@ function usage() {
     "",
     "commands:",
     "  capture         identify what production serves, as a rollback target",
+    "  wait-live       poll until production serves a given deployment",
     "  rollback        revert production to a captured deployment and prove it landed",
     "  verify-rollback assert production serves the captured deployment",
     "  guard-delete    delete a candidate, never the deployment production serves",
@@ -308,19 +310,32 @@ export async function rollback(options, fetchImpl, sleep, log = console) {
   }
   log.log(`Vercel accepted the rollback request (HTTP ${posted.status}).`);
 
-  // Poll what the host actually serves. The CLI's own status endpoint routes
-  // back through the scope lookup this exists to avoid, and "what does the host
-  // serve" is the only question that matters anyway.
+  return waitForLive(options, fetchImpl, sleep, log, "Rollback was accepted but");
+}
+
+/**
+ * Poll until the production host serves the expected deployment.
+ *
+ * Vercel assigns the production alias asynchronously: `vercel deploy --prod`
+ * returns an id while the host still serves the previous deployment, and a
+ * rollback is accepted before it takes effect. Asking the host directly is the
+ * only question that matters, and avoids the CLI status endpoint, which routes
+ * back through the scope lookup this file exists to sidestep.
+ */
+export async function waitForLive(options, fetchImpl, sleep, log = console, prefix = "") {
+  if (!options.deployment) throw new Error("--deployment is required.");
   for (let attempt = 1; attempt <= options.attempts; attempt += 1) {
     const live = await getDeployment(options, options.productionHost, fetchImpl);
     if (live.ok && live.json?.id === options.deployment) {
-      log.log(`Production serves ${options.deployment} again (after ${attempt} check(s)).`);
+      log.log(
+        `${options.productionHost} serves ${options.deployment} (after ${attempt} check(s)).`,
+      );
       return { landed: true, attempts: attempt };
     }
     if (attempt < options.attempts) await sleep(options.delayMs);
   }
   throw new Error(
-    `Rollback was accepted but ${options.productionHost} still does not serve ${options.deployment}.`,
+    `${prefix ? `${prefix} ` : ""}${options.productionHost} still does not serve ${options.deployment} after ${options.attempts} check(s).`,
   );
 }
 
@@ -478,6 +493,10 @@ async function main() {
   }
   if (options.command === "rollback") {
     await rollback(options, fetch, wait);
+    return;
+  }
+  if (options.command === "wait-live") {
+    await waitForLive(options, fetch, wait);
     return;
   }
   if (options.command === "verify-rollback") {

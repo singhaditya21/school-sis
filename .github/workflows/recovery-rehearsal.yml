@@ -123,10 +123,18 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
           ROOT_DIRECTORY: ${{ steps.host.outputs.root_directory }}
+          PRODUCTION_URL: ${{ steps.host.outputs.production_url }}
         run: |
           set -euo pipefail
           source scripts/rehearsal-deploy.sh
-          echo "candidate_a=$(deploy_rehearsal_candidate a)" >> "$GITHUB_OUTPUT"
+          a="$(deploy_rehearsal_candidate a)"
+          echo "candidate_a=$a" >> "$GITHUB_OUTPUT"
+          # Vercel assigns the production alias asynchronously: the deploy returns
+          # an id while the host still serves the previous deployment. Capturing
+          # immediately picked up the PREVIOUS rehearsal's candidate.
+          node scripts/vercel-recovery.mjs wait-live \
+            --team "$VERCEL_ORG_ID" --production-url "$PRODUCTION_URL" \
+            --deployment "$a" --attempts 30 --delay-ms 5000
 
       - name: Capture A as the rollback target
         env:
@@ -150,10 +158,15 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
           ROOT_DIRECTORY: ${{ steps.host.outputs.root_directory }}
+          PRODUCTION_URL: ${{ steps.host.outputs.production_url }}
         run: |
           set -euo pipefail
           source scripts/rehearsal-deploy.sh
-          echo "candidate_b=$(deploy_rehearsal_candidate b)" >> "$GITHUB_OUTPUT"
+          b="$(deploy_rehearsal_candidate b)"
+          echo "candidate_b=$b" >> "$GITHUB_OUTPUT"
+          node scripts/vercel-recovery.mjs wait-live \
+            --team "$VERCEL_ORG_ID" --production-url "$PRODUCTION_URL" \
+            --deployment "$b" --attempts 30 --delay-ms 5000
 
       - name: Recover production to A
         env:
