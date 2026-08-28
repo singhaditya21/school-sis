@@ -108,6 +108,8 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
         run: |
           set -euo pipefail
+          # --cwd rather than `cd`: pnpm exec resolves the pinned CLI from the
+          # repository's node_modules, and a temp directory has none.
           deploy_one() {
             local label="$1" dir="$RUNNER_TEMP/rehearsal-$1"
             rm -rf "$dir"
@@ -115,14 +117,33 @@ jobs:
             printf '{"version":3}' > "$dir/.vercel/output/config.json"
             printf 'recovery rehearsal %s for run %s\n' "$label" "$GITHUB_RUN_ID" \
               > "$dir/.vercel/output/static/index.html"
-            ( cd "$dir" && pnpm exec vercel deploy \
+
+            if ! pnpm exec vercel deploy --cwd "$dir" \
                 --prebuilt --prod --skip-domain --yes --json \
                 --token="$VERCEL_TOKEN" \
                 --meta "gitCommitSha=$GITHUB_SHA" \
                 --meta "githubCommitSha=$GITHUB_SHA" \
                 --meta "githubRunId=$GITHUB_RUN_ID" \
-                --meta "recoveryRehearsal=1" ) > "$dir/deploy.json"
-            jq -er '(.deployment // .).id' "$dir/deploy.json"
+                --meta "recoveryRehearsal=1" \
+                > "$dir/deploy.json" 2> "$dir/deploy.err"; then
+              echo "vercel deploy failed for candidate $label:" >&2
+              sed 's/^/    /' "$dir/deploy.err" >&2 || true
+              head -c 600 "$dir/deploy.json" | sed 's/^/    /' >&2 || true
+              return 1
+            fi
+
+            local id
+            if ! id="$(jq -er '(.deployment // .).id | select(type == "string")' "$dir/deploy.json" 2>/dev/null)"; then
+              # Say what actually came back rather than leaving a jq parse error
+              # to be decoded — the same rule this whole change exists to enforce.
+              echo "vercel deploy returned no deployment id for candidate $label." >&2
+              echo "  stdout:" >&2
+              head -c 600 "$dir/deploy.json" | sed 's/^/    /' >&2 || true
+              echo "  stderr:" >&2
+              head -c 600 "$dir/deploy.err" | sed 's/^/    /' >&2 || true
+              return 1
+            fi
+            printf '%s' "$id"
           }
           a="$(deploy_one a)"
           b="$(deploy_one b)"
