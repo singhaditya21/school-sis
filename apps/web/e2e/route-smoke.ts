@@ -705,6 +705,11 @@ export function registerRouteSmokeTests(): void {
      * same property is kept by reporting every broken route in one assertion.
      */
     async function sweep(page: Page, routes: string[]): Promise<string[]> {
+        // Print what was swept. The vacuity guard only requires a handful of
+        // links, so coverage could fall from twenty-two routes to nine and still
+        // pass silently. A tighter number would fail every legitimate nav change
+        // instead, so the count is made visible rather than asserted.
+        console.log(`sweeping ${routes.length} route(s): ${routes.join(', ')}`);
         const broken: string[] = [];
         for (const route of routes) {
             try {
