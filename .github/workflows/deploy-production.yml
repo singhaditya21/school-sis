@@ -1245,6 +1245,7 @@ jobs:
               --run-id "$GITHUB_RUN_ID"
           done < "$candidate_ids"
       - name: Report what production is serving
+        id: live
         if: always()
         continue-on-error: true
         env:
@@ -1256,3 +1257,24 @@ jobs:
           --candidate "${{ steps.candidate.outputs.candidate_id }}"
           --prior "${{ steps.prior.outputs.prior_id }}"
           --sha "$TARGET_SHA"
+
+      # Say what the database is AHEAD of, when the code has been rolled back.
+      #
+      # A Vercel rollback moves the code back. It does not move the schema, and
+      # this release deliberately does not try to — the rollback step retains the
+      # Neon recovery branch "for manual database recovery" and stops, because an
+      # automatic schema revert mid-incident is how an outage becomes data loss.
+      #
+      # But that left an operator holding a branch id and no statement of the one
+      # fact that decides what to do next: is the database ahead of the running
+      # code, and by which migrations. This answers exactly that, by name.
+      - name: Report whether the database is ahead of the running code
+        if: always()
+        continue-on-error: true
+        env:
+          DIRECT_URL: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
+          DATABASE_SSL_MODE: verify-full
+        run: >-
+          node apps/web/scripts/report-database-drift.mjs
+          --live-sha "${{ steps.live.outputs.live_commit }}"
+          --attempted-sha "$TARGET_SHA"

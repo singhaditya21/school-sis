@@ -517,6 +517,7 @@ export async function report(options, fetchImpl, log = console) {
     verdict = "production is on the deployment captured before this release";
   }
 
+  const commit = deployment.meta?.githubCommitSha ?? "";
   const lines = [
     `${options.productionHost} is serving:`,
     `  deployment        : ${id}`,
@@ -527,7 +528,9 @@ export async function report(options, fetchImpl, log = console) {
     `  captured rollback : ${options.prior || "<none captured>"}`,
     `  => ${verdict}.`,
   ];
-  return { known: true, id, verdict, lines };
+  // The commit is emitted so the step that follows can ask whether the database
+  // is ahead of it. After a rollback that is the one fact nobody was stating.
+  return { known: true, id, commit, verdict, lines };
 }
 
 // ─── CLI ────────────────────────────────────────────────────────────────────
@@ -589,6 +592,10 @@ async function main() {
     const text = result.lines.join("\n");
     console.log(text);
     await writeSummary(text);
+    await writeOutputs({
+      live_deployment: result.id ?? "",
+      live_commit: result.commit ?? "",
+    });
   }
 }
 
