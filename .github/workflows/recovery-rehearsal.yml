@@ -95,8 +95,14 @@ jobs:
           # The project-scoped production hostname, which is what a production
           # deployment in this project resolves to.
           name="$(jq -er '.name' "$project")"
+          # The project's Root Directory, which Vercel appends to --cwd when it
+          # looks for a prebuilt artifact. Read rather than assumed: this project
+          # is set to apps/web, and hard-coding it would break silently the day
+          # someone changed it.
+          root="$(jq -r '.rootDirectory // ""' "$project")"
           echo "production_url=https://${name}.vercel.app" >> "$GITHUB_OUTPUT"
-          echo "Rehearsing against https://${name}.vercel.app"
+          echo "root_directory=$root" >> "$GITHUB_OUTPUT"
+          echo "Rehearsing against https://${name}.vercel.app (root directory: ${root:-<repo root>})"
 
       # Two throwaway production deployments. Deliberately NOT the real app: the
       # recovery path does not care what a deployment contains, only what
@@ -106,17 +112,19 @@ jobs:
         id: candidates
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_PREVIEW_TOKEN }}
+          ROOT_DIRECTORY: ${{ steps.host.outputs.root_directory }}
         run: |
           set -euo pipefail
           # --cwd rather than `cd`: pnpm exec resolves the pinned CLI from the
           # repository's node_modules, and a temp directory has none.
           deploy_one() {
             local label="$1" dir="$RUNNER_TEMP/rehearsal-$1"
+            local root="$dir${ROOT_DIRECTORY:+/$ROOT_DIRECTORY}"
             rm -rf "$dir"
-            mkdir -p "$dir/.vercel/output/static"
-            printf '{"version":3}' > "$dir/.vercel/output/config.json"
+            mkdir -p "$root/.vercel/output/static"
+            printf '{"version":3}' > "$root/.vercel/output/config.json"
             printf 'recovery rehearsal %s for run %s\n' "$label" "$GITHUB_RUN_ID" \
-              > "$dir/.vercel/output/static/index.html"
+              > "$root/.vercel/output/static/index.html"
 
             if ! pnpm exec vercel deploy --cwd "$dir" \
                 --prebuilt --prod --skip-domain --yes --json \
