@@ -34,15 +34,16 @@ const SCHOOL_CODE = 'GREENWOOD';
  * ──────────────────────────────────────
  * Playwright runs the PRODUCTION build, and `isMfaEnrollmentEnforced()` is true
  * whenever NODE_ENV === 'production'. Every seeded finance-capable account —
- * SUPER_ADMIN, PRINCIPAL, ACCOUNTANT — is in MFA_REQUIRED_ROLES, so password
- * login for them fails with "MFA enrollment is required for this account before
- * login." There is no seeded, non-MFA account that can reach /fees or /exams.
+ * SUPER_ADMIN, PRINCIPAL, ACCOUNTANT — is in MFA_REQUIRED_ROLES, so on password
+ * login they are routed to /mfa/setup to enrol before they can reach anything
+ * else. (They are no longer rejected outright — that dead-end is fixed — but a
+ * smoke test still cannot follow them without scripting a TOTP enrolment.)
  *
- * Rather than weaken the MFA gate (it is correct) or bake a TOTP secret into a
- * smoke test, the layer creates three least-privilege staff accounts whose roles
- * are NOT in MFA_REQUIRED_ROLES and whose grants in policy.ts cover exactly the
- * routes each group visits. Splitting by role is a feature, not a workaround:
- * it means a permission regression on any of these routes fails the gate.
+ * Rather than script enrolment or bake a secret into every login, the layer
+ * creates three least-privilege staff accounts whose roles are NOT in
+ * MFA_REQUIRED_ROLES and whose grants in policy.ts cover exactly the routes each
+ * group visits. Splitting by role is a feature, not a workaround: it means a
+ * permission regression on any of these routes fails the gate.
  */
 interface SmokeUser {
     email: string;
