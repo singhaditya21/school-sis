@@ -124,6 +124,21 @@ jobs:
           pnpm db:migrate:deploy -- --target ci
           pnpm db:migrate:deploy -- --target ci
 
+      # The static checker derives a schema from the migrations and can check a
+      # column only where a statement names its table beside it — INSERT lists,
+      # UPDATE targets, RETURNING. A column in a SELECT list or a WHERE clause
+      # needs a real parser to resolve across joins and aliases.
+      #
+      # This job has just built a database carrying the whole chain, so the real
+      # parser is right here. PREPARE analyses and plans a statement without
+      # executing it, resolving every column against the live schema.
+      #
+      # It found six statements that could never have run the first time it was
+      # pointed at this repository, in four modules that had been silently
+      # superseded — two of which carried comments saying their queries failed.
+      - name: Parse every hand-written statement against the migrated schema
+        run: pnpm audit:sql:prepare
+
       - name: Verify Tenant Isolation
         run: pnpm --filter @school-sis/web run db:test:rls
 
