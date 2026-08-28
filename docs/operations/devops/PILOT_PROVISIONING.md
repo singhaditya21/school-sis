@@ -66,6 +66,20 @@ branch. On first login the admin is routed to `/mfa/setup` to enrol two-factor,
 then has full access to that branch. Creating an admin requires database
 credentials, which is the access gate; no admin can be minted from the web.
 
+## Optional: enable a parent-portal login
+
+The synthetic guardians are deliberately locked. To exercise the parent portal
+with a real login, give one guardian a working account:
+
+```bash
+pnpm --filter @school-sis/web exec tsx scripts/create-parent-account.ts \
+  --tenant cambridge-spm-pilot --student CSPM202600001 \
+  --email a-real-parent@example.com
+```
+
+It links the student's primary guardian to a new PARENT user and prints the
+login. PARENT is not an MFA-required role, so they sign in directly.
+
 ## What the data is, and how to be sure
 
 The branch names and addresses are real — taken from the trust's public listing.
