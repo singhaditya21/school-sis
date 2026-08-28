@@ -314,22 +314,39 @@ async function provisionBranch(
 
     // Staff. No passwords: these accounts cannot sign in, which is deliberate —
     // a pilot population should not ship with usable credentials.
+    const teacherIds: string[] = [];
     let staffIndex = 0;
     for (const { role, count } of STAFF_ROLES) {
         for (let i = 0; i < count; i += 1) {
             staffIndex += 1;
             const first = pick(rng, rng() > 0.5 ? FATHER_NAMES : MOTHER_NAMES);
             const last = pick(rng, SURNAMES);
-            await client.query(
+            const { rows: staffRows } = await client.query<{ id: string }>(
                 `INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role, is_active)
-                 VALUES ($1,$2,$3,$4,$5,$6::user_role,true)`,
+                 VALUES ($1,$2,$3,$4,$5,$6::user_role,true) RETURNING id`,
                 [
                     tenantId,
                     pilotEmail(`${first}.${last}.${staffIndex}`, branch.code),
                     lockedHash, first, last, role,
                 ],
             );
+            if (role === 'TEACHER') teacherIds.push(staffRows[0].id);
         }
+    }
+
+    // Give every section a class teacher.
+    //
+    // Attendance marking resolves a teacher's markable sections through
+    // sections.class_teacher_id (or a timetable entry); without this a teacher
+    // logs in to an empty roll and cannot mark anyone — the single most-used
+    // daily task, dead on arrival. Round-robin the branch's teachers across its
+    // sections so each has an owner.
+    for (const [sectionIndex, section] of sections.entries()) {
+        const teacherId = teacherIds[sectionIndex % teacherIds.length];
+        await client.query(
+            `UPDATE sections SET class_teacher_id = $1 WHERE id = $2 AND tenant_id = $3`,
+            [teacherId, section.id, tenantId],
+        );
     }
 
     const { rows: planRows } = await client.query<{ id: string }>(
