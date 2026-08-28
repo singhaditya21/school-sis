@@ -196,19 +196,28 @@ jobs:
           set -uo pipefail
           # A is live. Deleting it would be the worst thing this workflow can do,
           # and for months the guard meant to stop it could not fire at all.
-          output="$(node scripts/vercel-recovery.mjs guard-delete \
-            --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" \
-            --production-url "$PRODUCTION_URL" --deployment "$A" \
-            --sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" 2>&1)"
-          status=$?
-          echo "$output"
-          if [ "$status" -eq 0 ]; then
+          #
+          # `if ! output="$(...)"` rather than assigning and then reading $?:
+          # GitHub runs this as `bash -e {0}`, and -e comes from the interpreter,
+          # so a plain assignment from a failing command kills the shell before
+          # the next line. A step asserting a failure is guaranteed to hit that.
+          if output="$(node scripts/vercel-recovery.mjs guard-delete \
+              --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" \
+              --production-url "$PRODUCTION_URL" --deployment "$A" \
+              --sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" 2>&1)"; then
+            echo "$output"
             echo "GUARD FAILED: it deleted, or permitted deleting, live production." >&2
             exit 1
           fi
+          echo "$output"
           case "$output" in
-            *"refusing to delete it"*) echo "Guard refused, as it must." ;;
-            *) echo "Guard failed for the wrong reason; expected a live-production refusal." >&2; exit 1 ;;
+            *"refusing to delete it"*)
+              echo "Guard refused to delete live production, as it must."
+              ;;
+            *)
+              echo "Guard failed for the wrong reason; expected a live-production refusal." >&2
+              exit 1
+              ;;
           esac
 
       - name: The delete guard must collect a candidate production is not serving

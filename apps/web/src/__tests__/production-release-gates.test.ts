@@ -343,6 +343,26 @@ describe("production release failure-path gates", () => {
     }
   });
 
+  it("captures output from commands expected to fail in an -e safe way", () => {
+    // GitHub runs every `run:` as `bash -e {0}`. A bare `out="$(cmd)"` where cmd
+    // exits non-zero kills the shell BEFORE the next line, so a step that means
+    // to inspect a failure never gets to. The rehearsal's guard assertion — whose
+    // whole purpose is to assert a refusal — failed exactly that way, printing
+    // nothing at all.
+    //
+    // Capturing such a command must therefore make it the condition of an `if`.
+    for (const source of [workflow, rehearsal]) {
+      const captures = source
+        .split("\n")
+        .filter((line) => /^\s*[a-z_]+="\$\(node scripts\/vercel-recovery/.test(line));
+      for (const line of captures) {
+        expect(line.trimStart().startsWith("if ")).toBe(true);
+      }
+    }
+    // Guard the guard: the rehearsal must actually contain such a capture.
+    expect(rehearsal).toMatch(/if\s+output="\$\(node scripts\/vercel-recovery\.mjs guard-delete/);
+  });
+
   it("runs the rehearsal whenever the recovery code changes", () => {
     // On demand is not enough: the moment its correctness can regress is the
     // moment someone edits it.
