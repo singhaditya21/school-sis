@@ -52,7 +52,8 @@
     "audit:rls-matrix": "node scripts/check-rls-policy-matrix.mjs",
     "audit:ci": "pnpm audit:security && pnpm audit:secrets && pnpm audit:hygiene && pnpm audit:debt && pnpm audit:sql && pnpm audit:claims && pnpm audit:nav && pnpm audit:scheduler && pnpm audit:migrations && pnpm audit:rls-matrix",
     "prepare": "husky",
-    "audit:sql": "node scripts/check-sql-columns.mjs"
+    "audit:sql": "node scripts/check-sql-columns.mjs",
+  "audit:sql:prepare": "node apps/web/scripts/check-sql-prepare.mjs"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",
