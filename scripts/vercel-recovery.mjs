@@ -179,6 +179,15 @@ async function request(options, path, init, fetchImpl) {
 
     if (response.ok) {
       const text = await readText(response);
+
+      // A successful mutation need not return a body. The rollback POST answers
+      // 201 with nothing at all, and treating that as unparseable reported a
+      // rollback that had in fact landed as "Vercel refused the rollback (HTTP
+      // 201)". Only a NON-empty body that fails to parse is a problem.
+      if (text.trim() === "") {
+        return { ok: true, status: response.status, json: null, body: "" };
+      }
+
       let json = null;
       try {
         json = JSON.parse(text);
@@ -238,6 +247,11 @@ export async function capture(options, fetchImpl, log = console) {
   if (!result.ok) {
     throw new Error(
       `Could not resolve ${options.productionHost} (HTTP ${result.status}): ${result.body}`,
+    );
+  }
+  if (!result.json) {
+    throw new Error(
+      `${options.productionHost} answered ${result.status} with no deployment body.`,
     );
   }
 

@@ -167,6 +167,24 @@ test("rolls back and confirms production serves the captured deployment", async 
   assert.equal(stub.calls.filter((c) => c.method === "POST").length, 1);
 });
 
+test("accepts a 201 with an empty body, as the rollback endpoint returns", async () => {
+  // The real endpoint answers 201 with nothing. Requiring a JSON body reported
+  // a rollback that had actually landed as "Vercel refused the rollback (HTTP
+  // 201)" — found by the rehearsal, invisible to stubs that always sent one.
+  const stub = stubFetch([
+    { match: "/v13/deployments/dpl_prior", status: 200, body: READY },
+    { match: "/rollback/dpl_prior", method: "POST", status: 201, body: "" },
+    { match: `/v13/deployments/${HOST}`, status: 200, body: READY },
+  ]);
+  const result = await rollback(
+    options({ argv: ["--deployment", "dpl_prior"] }),
+    stub.fetch,
+    noSleep,
+    silent,
+  );
+  assert.equal(result.landed, true);
+});
+
 test("retries the rollback through a rate limit rather than stranding production", async () => {
   const stub = stubFetch([
     { match: "/v13/deployments/dpl_prior", status: 200, body: READY },
