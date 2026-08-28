@@ -2,12 +2,7 @@ import { expect, test, type Browser, type Page, type Response } from '@playwrigh
 import { hash } from 'bcryptjs';
 import { authenticator } from 'otplib';
 import { Client } from 'pg';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import {
-    getPageAccessPolicy,
-    isRoleAllowedForPage,
-} from '../src/lib/auth/page-access';
+
 
 /**
  * ROUTE SMOKE LAYER (D13)
@@ -663,31 +658,21 @@ export function registerRouteSmokeTests(): void {
     // stayed green — which is exactly how /executive shipped a SUM over a column
     // that did not exist.
     //
-    // This sweep closes that: every link a real sidebar offers is visited with a
-    // session the POLICY says can reach it. The routes are read from the same
-    // nav files the audit reads, and reachability is decided by importing the
-    // real page-access policy rather than by a list maintained here — so a nav
-    // link added tomorrow is swept tomorrow, with no edit to this file.
+    // The links are read from the SIDEBAR THIS SESSION IS ACTUALLY SHOWN, not
+    // from the layout source. The first version of this sweep parsed `href=` out
+    // of the nav files, which is role-blind: the admin layout renders its Group
+    // HQ section only for PLATFORM_ADMIN, SUPER_ADMIN and GROUP_EXECUTIVE, so
+    // the sweep visited /hq-overview as a finance session and failed on a link
+    // that session is never offered. Reading the DOM cannot make that mistake,
+    // needs no policy import, and tests the claim a user would actually make:
+    // every link I am shown, I can use.
     //
     // It asserts rendering, not content. That is a deliberately weaker claim
-    // than the tests above, and it is worth stating plainly: a swept route shows
-    // HTTP 200, no bounce to /login, and no server-exception boundary. It does
-    // NOT show that the page found any data. Adding a figure assertion per route
-    // needs seed data shaped for each one; this is the layer that can exist now.
+    // than the tests above and is worth stating plainly: a swept route shows
+    // HTTP 200, no bounce to /login or /unauthorized, and no server-exception
+    // boundary. It does NOT show the page found any data.
 
-    /** The nav files the navigation audit already treats as the link surface. */
-    const STAFF_NAV_SOURCES = [
-        'src/app/(admin)/layout.tsx',
-        'src/app/(dashboard)/layout.tsx',
-        'src/components/dashboard/ModuleGrid.tsx',
-    ];
-    const PARENT_NAV_SOURCES = ['src/app/(parent)/layout.tsx'];
-
-    /**
-     * Already asserted with real figures above. Re-visiting them here would only
-     * add page loads to a gate whose whole design note is that a slow gate gets
-     * switched off.
-     */
+    /** Routes already asserted with real figures above; re-visiting adds only time. */
     const COVERED_WITH_CONTENT = new Set([
         '/fees',
         '/fees/plans',
@@ -701,27 +686,35 @@ export function registerRouteSmokeTests(): void {
         '/my-fees',
     ]);
 
-    function navRoutesFor(role: string, sources: readonly string[]): string[] {
-        const links = new Set<string>();
-        for (const source of sources) {
-            const contents = readFileSync(resolve(__dirname, '..', source), 'utf8');
-            // The same expression check-navigation-targets.mjs uses, so the two
-            // cannot disagree about what a nav link is.
-            for (const match of contents.matchAll(/href[=:]\s*["'](\/[^"'`$]*)["']/g)) {
-                links.add(match[1]);
-            }
-        }
-        return [...links]
-            .filter((route) => !COVERED_WITH_CONTENT.has(route))
-            .filter((route) => {
-                const pathname = route.split('?')[0];
-                return isRoleAllowedForPage(role, getPageAccessPolicy(pathname));
-            })
+    /** Every internal link the rendered navigation offers this session. */
+    async function offeredNavRoutes(page: Page, navSelector: string): Promise<string[]> {
+        const hrefs = await page
+            .locator(`${navSelector} a[href^="/"]`)
+            .evaluateAll((anchors) => anchors.map((a) => a.getAttribute('href') ?? ''));
+        return [...new Set(hrefs)]
+            .filter((href) => href !== '' && !href.startsWith('//'))
+            .filter((href) => !COVERED_WITH_CONTENT.has(href))
             .sort();
     }
 
-    const STAFF_NAV_ROUTES = navRoutesFor(FINANCE_USER.role, STAFF_NAV_SOURCES);
-    const PARENT_NAV_ROUTES = navRoutesFor('PARENT', PARENT_NAV_SOURCES);
+    /**
+     * Visit each route, collecting failures instead of stopping at the first.
+     *
+     * The blocks above get one test per route because their routes are known at
+     * collection time. These are not — they depend on who signed in — so the
+     * same property is kept by reporting every broken route in one assertion.
+     */
+    async function sweep(page: Page, routes: string[]): Promise<string[]> {
+        const broken: string[] = [];
+        for (const route of routes) {
+            try {
+                await visit(page, route);
+            } catch (error) {
+                broken.push(`  ${route} — ${(error as Error).message.split('\n')[0]}`);
+            }
+        }
+        return broken;
+    }
 
     test.describe('Route smoke — staff navigation sweep', () => {
         let page: Page;
@@ -736,22 +729,23 @@ export function registerRouteSmokeTests(): void {
             await page?.close();
         });
 
-        // Guard the guard: an extraction that silently matched nothing would
-        // make this whole block pass by having no tests in it.
-        test('the staff sidebar offers routes to sweep', () => {
-            check(
-                STAFF_NAV_ROUTES.length,
-                'no staff nav links were extracted — the sweep would pass vacuously',
-            ).toBeGreaterThan(8);
-        });
+        test('every link the staff sidebar offers renders', async () => {
+            const routes = await offeredNavRoutes(page, '[data-testid="sidebar"]');
 
-        // One test per route: a sweep that stopped at the first broken page would
-        // report one defect per run instead of all of them.
-        for (const route of STAFF_NAV_ROUTES) {
-            test(`${route} renders for a staff session`, async () => {
-                await visit(page, route);
-            });
-        }
+            // Guard the guard: a selector that matched nothing would make this
+            // pass while sweeping zero routes, which is the failure mode this
+            // whole file exists to prevent.
+            check(
+                routes.length,
+                'no links were read from the staff sidebar — the sweep would pass vacuously',
+            ).toBeGreaterThan(8);
+
+            const broken = await sweep(page, routes);
+            check(
+                broken,
+                `${broken.length} of ${routes.length} staff nav routes failed:\n${broken.join('\n')}`,
+            ).toEqual([]);
+        });
     });
 
     test.describe('Route smoke — parent navigation sweep', () => {
@@ -766,17 +760,18 @@ export function registerRouteSmokeTests(): void {
             await page?.close();
         });
 
-        test('the parent sidebar offers routes to sweep', () => {
+        test('every link the parent navigation offers renders', async () => {
+            const routes = await offeredNavRoutes(page, 'nav');
             check(
-                PARENT_NAV_ROUTES.length,
-                'no parent nav links were extracted — the sweep would pass vacuously',
+                routes.length,
+                'no links were read from the parent navigation — the sweep would pass vacuously',
             ).toBeGreaterThan(1);
-        });
 
-        for (const route of PARENT_NAV_ROUTES) {
-            test(`${route} renders for a parent session`, async () => {
-                await visit(page, route);
-            });
-        }
+            const broken = await sweep(page, routes);
+            check(
+                broken,
+                `${broken.length} of ${routes.length} parent nav routes failed:\n${broken.join('\n')}`,
+            ).toEqual([]);
+        });
     });
 }
