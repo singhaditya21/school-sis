@@ -324,9 +324,15 @@ jobs:
               "$neon_branch_file"
           }
 
+          # 401/403/404 will not fix themselves — a wrong key or a wrong branch id
+          # is the same on every retry, and that is the case worth failing fast
+          # on. Everything else (429, 5xx, a dropped connection) is transient and
+          # belongs in the poll loop below: `curl --retry 3` already absorbs a
+          # blip, and aborting the release for a rate limit trades a five-minute
+          # wait for a failed deploy of a branch that would have come ready.
           initial_state="$(branch_state)"
           case "$initial_state" in
-            http-*)
+            http-401|http-403|http-404)
               echo "Neon refused the branch query (HTTP ${initial_state#http-})." >&2
               echo "  project : $NEON_PROJECT_ID" >&2
               echo "  branch  : $NEON_PRODUCTION_BRANCH_ID" >&2
@@ -336,6 +342,9 @@ jobs:
               echo "Stopping here rather than spending five minutes reporting a branch" >&2
               echo "transition that was never the problem." >&2
               exit 1
+              ;;
+            http-*)
+              echo "Neon did not answer the branch query (HTTP ${initial_state#http-}); treating the state as unknown and continuing." >&2
               ;;
           esac
 
@@ -424,13 +433,16 @@ jobs:
               exit 0
             fi
             case "$state" in
-              http-*)
-                echo "Neon stopped answering branch queries (HTTP ${state#http-}); not waiting further." >&2
+              http-401|http-403|http-404)
+                echo "Neon refused the branch query mid-wait (HTTP ${state#http-}); not waiting further." >&2
                 head -c 400 "$neon_branch_file" | sed 's/^/    /' >&2 || true
                 echo >&2
                 exit 1
                 ;;
             esac
+            # A transient status falls through deliberately: `state` already reads
+            # "http-503", so the wait line and the timeout message below both name
+            # it without needing to abort a branch that may be seconds from ready.
             echo "Waiting for the branch to settle (state ${state})."
             sleep 10
           done
@@ -1155,9 +1167,22 @@ jobs:
 
       # Roll back only while production is UNPROVEN.
       #
-      # `bind` is the last step that proves production serves the verified
-      # candidate, so once it has succeeded any later failure is bookkeeping and
-      # must not revert a healthy release.
+      # The authority is `canonical_verify`, which fetches PRODUCTION_URL over
+      # HTTPS up to 18 times and checks the served commit, region and key id. If
+      # that passed, production is healthy and running this release, and nothing
+      # afterwards may revert it.
+      #
+      # It deliberately is NOT `bind`. Keying on bind looked stricter — bind also
+      # compares deployment ids — but bind is a single un-retried
+      # `vercel inspect`, the one CLI call this file documents as fragile here
+      # because it resolves scope through GET /v2/user. So a blip in that call
+      # would revert a release that had just been PROVEN healthy, and the cleanup
+      # below would then delete the good deployment: the rollback moves
+      # production to the prior id first, so the live-production guard no longer
+      # recognises the candidate as live.
+      #
+      # That combination only became dangerous once the rollback started working
+      # over REST. Before that it failed at the same scope lookup, harmlessly.
       #
       # This gate used to read `promote.outputs.attempted`, which is written
       # BEFORE `vercel promote` runs — so it was true for every failure that
@@ -1177,7 +1202,7 @@ jobs:
         if: >-
           failure() &&
           steps.promote.outputs.attempted == 'true' &&
-          steps.bind.outcome != 'success' &&
+          steps.canonical_verify.outcome != 'success' &&
           steps.prior.outputs.prior_id != ''
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -1228,10 +1253,19 @@ jobs:
             exit 1
           fi
 
-          # No --retry on the mutation: a retried POST is a second rollback.
+          # --retry, but NOT --retry-all-errors.
+          #
+          # Measured against a counting server: `--retry 3` re-issues on 429 and
+          # 5xx and does NOT re-issue on 4xx, while --retry-all-errors adds
+          # transport-level replays. Rolling back to a SPECIFIC deployment id is
+          # idempotent — a replay converges on the same state, and the poll below
+          # confirms it — so surviving a rate limit is worth more than avoiding a
+          # duplicate request. This step runs after a dozen Vercel API calls, and
+          # it is the recovery path: giving up on the first 429 leaves production
+          # on a broken candidate with this release's migration applied.
           response="$RUNNER_TEMP/vercel-rollback-response.json"
           set +e
-          rollback_http="$(curl --silent --show-error --max-time 30 \
+          rollback_http="$(curl --silent --show-error --retry 3 --max-time 30 \
             --request POST \
             --header "Authorization: Bearer $VERCEL_TOKEN" \
             --header 'Content-Type: application/json' \
@@ -1288,11 +1322,30 @@ jobs:
           PRIOR_DEPLOYMENT_ID: ${{ steps.prior.outputs.prior_id }}
         run: |
           set -euo pipefail
+          # REST, not `vercel inspect`.
+          #
+          # This step only runs after a rollback SUCCEEDED, which means the fault
+          # that forced the rollback is still live — and the documented fault is
+          # GET /v2/user returning 404, which `vercel inspect` resolves scope
+          # through unconditionally. So the CLI here would fail precisely during
+          # the incident it exists to check, printing "Canonical production does
+          # not point to the captured rollback deployment" over a rollback that
+          # had already proven itself twenty lines earlier.
+          production_host="$(PRODUCTION_URL="$PRODUCTION_URL" node -e "process.stdout.write(new URL(process.env.PRODUCTION_URL).hostname)")"
           inspection="$RUNNER_TEMP/vercel-after-rollback.json"
-          pnpm exec vercel inspect "$PRODUCTION_URL" --json --token="$VERCEL_TOKEN" >"$inspection"
-          current_id="$(jq -er '(.id // .deployment.id) | select(type == "string" and length > 0)' "$inspection")"
+          inspection_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header 'Accept: application/json' \
+            --output "$inspection" \
+            --write-out '%{http_code}' \
+            "https://api.vercel.com/v13/deployments/${production_host}?teamId=${VERCEL_ORG_ID}")"
+          if [ "$inspection_http" != "200" ]; then
+            echo "Could not confirm what $production_host serves after the rollback (HTTP $inspection_http)." >&2
+            exit 1
+          fi
+          current_id="$(jq -r '.id // ""' "$inspection")"
           if [ "$current_id" != "$PRIOR_DEPLOYMENT_ID" ]; then
-            echo "Canonical production does not point to the captured rollback deployment." >&2
+            echo "Canonical production serves ${current_id:-<none>}, not the captured rollback deployment $PRIOR_DEPLOYMENT_ID." >&2
             exit 1
           fi
 
@@ -1305,17 +1358,18 @@ jobs:
       # nothing else would ever collect it. Run 33073717982 attempt 2 left
       # dpl_Exqhy2b1RCWoJ7jsPGhprYsbC2XM behind exactly that way.
       #
-      # Keying on `bind` instead is both safer and simpler, and mirrors the
-      # rollback gate above: bind succeeding is the only state in which the
-      # candidate is known to be serving production. Every other state is either
-      # safe to clean or protected by the live-production guard inside the step,
-      # which resolves the host and refuses to delete whatever it finds.
+      # Keying on `canonical_verify` instead is both safer and simpler, and
+      # mirrors the rollback gate above: a passing canonical verification is the
+      # only state in which the candidate is known to be serving production
+      # healthily. Every other state is either safe to clean or protected by the
+      # live-production guard inside the step, which resolves the host and
+      # refuses to delete whatever it finds.
       - name: Delete an unpromoted or rolled-back production candidate
         if: >-
           always() &&
           failure() &&
           steps.candidate.outcome != 'skipped' &&
-          steps.bind.outcome != 'success' 
+          steps.canonical_verify.outcome != 'success'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
@@ -1475,9 +1529,17 @@ jobs:
       # GET /v2/user, which has already returned 404 in this project. It uses the
       # same REST call the capture step uses, with an explicit teamId.
       #
-      # It is a diagnostic, so it never fails the job.
+      # It is a diagnostic, so it must never fail the job — and `continue-on-error`
+      # is how that is actually guaranteed. `set -uo pipefail` does NOT achieve
+      # it: GitHub runs every `run:` block as `bash -e {0}`, so -e comes from the
+      # interpreter and no `set` line inside the script can clear it
+      # (`bash -e -c 'set -uo pipefail; echo $-'` prints `ehuBc`). A 200 carrying
+      # a non-JSON body — an edge interstitial, say — would kill the shell at the
+      # first jq and print nothing at all, which is exactly the silence this step
+      # was added to end.
       - name: Report what production is serving
         if: always()
+        continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           PRIOR_DEPLOYMENT_ID: ${{ steps.prior.outputs.prior_id }}
@@ -1500,6 +1562,13 @@ jobs:
 
           if [ "$http" != "200" ]; then
             echo "Could not resolve $production_host (HTTP $http); production state is UNKNOWN." >&2
+            exit 0
+          fi
+
+          if ! jq -e . "$report" >/dev/null 2>&1; then
+            echo "$production_host answered 200 with a body that is not JSON; production state is UNKNOWN." >&2
+            head -c 400 "$report" | sed 's/^/    /' >&2 || true
+            echo >&2
             exit 0
           fi
 
