@@ -12,6 +12,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { tenants, users } from './core';
+import { students } from './students';
 
 export const integrationApiKeys = pgTable(
   'integration_api_keys',
@@ -120,4 +121,63 @@ export const integrationAuditLogsRelations = relations(integrationAuditLogs, ({ 
   tenant: one(tenants, { fields: [integrationAuditLogs.tenantId], references: [tenants.id] }),
   apiKey: one(integrationApiKeys, { fields: [integrationAuditLogs.apiKeyId], references: [integrationApiKeys.id] }),
   actorUser: one(users, { fields: [integrationAuditLogs.actorUserId], references: [users.id] }),
+}));
+
+/**
+ * Physical access credentials — an RFID card, a turnstile fob, or the hash a
+ * biometric reader computes on-device — mapped to the student they identify.
+ *
+ * POST /api/iot/ingest resolves a scanned token to a student through this table
+ * and marks attendance. The endpoint, its job handler, its service-token auth
+ * and its env contract all shipped; only the table it queries never did, so
+ * every scan since has failed on `relation "hardware_tokens" does not exist`.
+ *
+ * `token_id` is unique PER TENANT, not globally: two schools may legitimately
+ * issue cards whose UIDs collide, and a UID is not a secret. Within a tenant a
+ * card must identify exactly one student, or a scan is ambiguous.
+ *
+ * Revocation is recorded rather than deleted. A lost card that opened a gate is
+ * something a school needs to be able to answer questions about later, so
+ * `is_active` gates the lookup while the row survives.
+ */
+export const hardwareTokens = pgTable(
+  'hardware_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    studentId: uuid('student_id')
+      .notNull()
+      .references(() => students.id, { onDelete: 'cascade' }),
+    /** The raw tag UID, or the hash the reader computes. Never raw biometrics. */
+    tokenId: varchar('token_id', { length: 256 }).notNull(),
+    /** Matches the hardwareType the ingest endpoint accepts. */
+    hardwareType: varchar('hardware_type', { length: 40 }).notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    label: varchar('label', { length: 120 }),
+    issuedBy: uuid('issued_by').references(() => users.id, { onDelete: 'set null' }),
+    revokedBy: uuid('revoked_by').references(() => users.id, { onDelete: 'set null' }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    tenantTokenUnique: unique('hardware_tokens_tenant_token_key').on(table.tenantId, table.tokenId),
+    // The ingest lookup, exactly: tenant + token + is_active.
+    tenantTokenActiveIdx: index('idx_hardware_tokens_tenant_token_active').on(
+      table.tenantId,
+      table.tokenId,
+      table.isActive,
+    ),
+    tenantStudentIdx: index('idx_hardware_tokens_tenant_student').on(table.tenantId, table.studentId),
+  }),
+);
+
+export const hardwareTokensRelations = relations(hardwareTokens, ({ one }) => ({
+  tenant: one(tenants, { fields: [hardwareTokens.tenantId], references: [tenants.id] }),
+  student: one(students, { fields: [hardwareTokens.studentId], references: [students.id] }),
+  issuer: one(users, { fields: [hardwareTokens.issuedBy], references: [users.id] }),
+  revoker: one(users, { fields: [hardwareTokens.revokedBy], references: [users.id] }),
 }));
