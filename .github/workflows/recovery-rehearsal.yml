@@ -119,12 +119,17 @@ jobs:
           # repository's node_modules, and a temp directory has none.
           deploy_one() {
             local label="$1" dir="$RUNNER_TEMP/rehearsal-$1"
-            local root="$dir${ROOT_DIRECTORY:+/$ROOT_DIRECTORY}"
             rm -rf "$dir"
-            mkdir -p "$root/.vercel/output/static"
-            printf '{"version":3}' > "$root/.vercel/output/config.json"
+            # Two separate requirements, learned one failure at a time:
+            #   - the project's Root Directory must EXIST under --cwd, or the CLI
+            #     refuses with "The provided path ... does not exist";
+            #   - --prebuilt reads .vercel/output from the --cwd itself, which is
+            #     also where `vercel build` writes it in the real release.
+            mkdir -p "$dir${ROOT_DIRECTORY:+/$ROOT_DIRECTORY}"
+            mkdir -p "$dir/.vercel/output/static"
+            printf '{"version":3}' > "$dir/.vercel/output/config.json"
             printf 'recovery rehearsal %s for run %s\n' "$label" "$GITHUB_RUN_ID" \
-              > "$root/.vercel/output/static/index.html"
+              > "$dir/.vercel/output/static/index.html"
 
             if ! pnpm exec vercel deploy --cwd "$dir" \
                 --prebuilt --prod --skip-domain --yes --json \
