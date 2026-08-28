@@ -82,6 +82,15 @@ export const API_ROUTES: readonly ApiRouteDoc[] = [
         permission: 'students:archive',
     },
     {
+        path: '/api/students/[studentId]/erase',
+        methods: ['POST'],
+        group: 'Students',
+        summary:
+            "Erase a student's personal data (DPDPA right to erasure). Redacts the child's and guardians' identifying fields in place; the row survives so invoices and attendance do not orphan. Needs a reason and explicit confirmation.",
+        auth: 'session-permission',
+        permission: 'students:archive',
+    },
+    {
         path: '/api/students/[studentId]/transfer',
         methods: ['POST'],
         group: 'Students',
