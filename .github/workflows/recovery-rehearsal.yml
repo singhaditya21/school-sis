@@ -110,8 +110,12 @@ jobs:
       # deployment contains, only what production points at, and a Build Output
       # API artifact deploys in seconds rather than minutes.
       #
-      # Each is left to become production on deploy rather than staged with
-      # --skip-domain. The preview project is on the Hobby plan, where a rollback
+      # Each is promoted EXPLICITLY rather than left to become production on
+      # deploy. Once a project has been rolled back, Vercel pins production and
+      # stops auto-promoting new deployments — so the second rehearsal run found
+      # its candidate READY but never live, and waited out the whole window.
+      #
+      # The preview project is on the Hobby plan, where a rollback
       # may only reach the IMMEDIATELY previous production deployment — staging
       # both first put A two steps away and Vercel answered HTTP 402, "To
       # rollback further than the previous production deployment, upgrade to
@@ -129,12 +133,10 @@ jobs:
           source scripts/rehearsal-deploy.sh
           a="$(deploy_rehearsal_candidate a)"
           echo "candidate_a=$a" >> "$GITHUB_OUTPUT"
-          # Vercel assigns the production alias asynchronously: the deploy returns
-          # an id while the host still serves the previous deployment. Capturing
-          # immediately picked up the PREVIOUS rehearsal's candidate.
-          node scripts/vercel-recovery.mjs wait-live \
-            --team "$VERCEL_ORG_ID" --production-url "$PRODUCTION_URL" \
-            --deployment "$a" --attempts 30 --delay-ms 5000
+          node scripts/vercel-recovery.mjs promote \\
+            --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" \\
+            --production-url "$PRODUCTION_URL" --deployment "$a" \\
+            --attempts 30 --delay-ms 5000
 
       - name: Capture A as the rollback target
         env:
@@ -164,9 +166,10 @@ jobs:
           source scripts/rehearsal-deploy.sh
           b="$(deploy_rehearsal_candidate b)"
           echo "candidate_b=$b" >> "$GITHUB_OUTPUT"
-          node scripts/vercel-recovery.mjs wait-live \
-            --team "$VERCEL_ORG_ID" --production-url "$PRODUCTION_URL" \
-            --deployment "$b" --attempts 30 --delay-ms 5000
+          node scripts/vercel-recovery.mjs promote \\
+            --team "$VERCEL_ORG_ID" --project "$VERCEL_PROJECT_ID" \\
+            --production-url "$PRODUCTION_URL" --deployment "$b" \\
+            --attempts 30 --delay-ms 5000
 
       - name: Recover production to A
         env:

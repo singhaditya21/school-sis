@@ -292,20 +292,22 @@ describe("production release failure-path gates", () => {
     // This is the whole point. A rehearsal that exercised its own reimplementation
     // would prove nothing about a release — it would be a second thing to keep
     // correct, failing independently of the code that actually reverts production.
-    const COMMANDS = [
-      "capture",
-      "rollback",
-      "verify-rollback",
-      "guard-delete",
-      "report",
-    ];
-    for (const command of COMMANDS) {
+    // The invariant: every recovery command the RELEASE depends on must also be
+    // exercised by the rehearsal. The rehearsal may use more (promote and
+    // wait-live are scaffolding to build the scenario); it may never use fewer.
+    const releaseCommands = [
+      ...workflow.matchAll(/node scripts\/vercel-recovery\.mjs ([a-z-]+)/g),
+    ].map((match) => match[1]);
+    expect(new Set(releaseCommands)).toEqual(
+      new Set(["capture", "rollback", "verify-rollback", "guard-delete", "report"]),
+    );
+
+    const rehearsed = new Set(
+      [...rehearsal.matchAll(/node scripts\/vercel-recovery\.mjs ([a-z-]+)/g)].map((m) => m[1]),
+    );
+    for (const command of releaseCommands) {
       expect(recoveryScript).toContain(`"${command}"`);
-      expect(rehearsal).toContain(`vercel-recovery.mjs ${command}`);
-    }
-    // Every recovery command the release depends on is rehearsed.
-    for (const command of ["capture", "rollback", "verify-rollback", "guard-delete", "report"]) {
-      expect(workflow).toContain(`vercel-recovery.mjs ${command}`);
+      expect(rehearsed.has(command)).toBe(true);
     }
 
     // The preview token is an ENVIRONMENT secret: without this declaration the

@@ -712,7 +712,10 @@ describe("preview Vercel project isolation workflow", () => {
     expect(recoveryScript).toContain('method: "POST"');
 
     // Ownership, which getProjectByDeployment used to prove before mutating.
-    expect(recoveryScript).toContain("Refusing to roll back to");
+    // Promote and rollback share one implementation, so the check is worded
+    // from a parameter; assert the guard rather than one rendering of it.
+    expect(recoveryScript).toContain("Refusing to ${action} to");
+    expect(recoveryScript).toContain("deploymentProblems(target.json, options)");
 
     // Retry what can differ next time, and nothing else. Measured against a
     // counting server: 429/5xx re-issue, 4xx does not. A rollback to a specific

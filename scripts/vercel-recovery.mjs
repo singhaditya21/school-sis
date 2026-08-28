@@ -40,6 +40,7 @@ const COMMANDS = new Set([
   "capture",
   "wait-live",
   "rollback",
+  "promote",
   "verify-rollback",
   "guard-delete",
   "report",
@@ -53,6 +54,7 @@ function usage() {
     "  capture         identify what production serves, as a rollback target",
     "  wait-live       poll until production serves a given deployment",
     "  rollback        revert production to a captured deployment and prove it landed",
+    "  promote         point production at a deployment and prove it landed",
     "  verify-rollback assert production serves the captured deployment",
     "  guard-delete    delete a candidate, never the deployment production serves",
     "  report          state what production serves; never fails",
@@ -276,43 +278,6 @@ export async function capture(options, fetchImpl, log = console) {
   return { priorId: deployment.id, priorUrl: deployment.url };
 }
 
-export async function rollback(options, fetchImpl, sleep, log = console) {
-  if (!options.deployment) throw new Error("--deployment is required.");
-  if (!options.project) throw new Error("--project is required.");
-
-  // The ownership check `getProjectByDeployment` used to perform inside the CLI,
-  // kept here without the GET /v2/user scope lookup that made the CLI unusable
-  // as a recovery mechanism: it failed for the same reason as the promotion it
-  // was meant to recover from.
-  const target = await getDeployment(options, options.deployment, fetchImpl);
-  if (!target.ok) {
-    throw new Error(
-      `Could not read the rollback target ${options.deployment} (HTTP ${target.status}): ${target.body}`,
-    );
-  }
-  const problems = deploymentProblems(target.json, options);
-  if (problems.length > 0) {
-    throw new Error(
-      `Refusing to roll back to ${options.deployment}:\n  - ${problems.join("\n  - ")}`,
-    );
-  }
-
-  const posted = await request(
-    options,
-    `/v9/projects/${options.project}/rollback/${options.deployment}`,
-    { method: "POST", body: "{}" },
-    fetchImpl,
-  );
-  if (!posted.ok) {
-    throw new Error(
-      `Vercel refused the rollback (HTTP ${posted.status}): ${posted.body}`,
-    );
-  }
-  log.log(`Vercel accepted the rollback request (HTTP ${posted.status}).`);
-
-  return waitForLive(options, fetchImpl, sleep, log, "Rollback was accepted but");
-}
-
 /**
  * Poll until the production host serves the expected deployment.
  *
@@ -359,6 +324,69 @@ export async function waitForLive(options, fetchImpl, sleep, log = console, pref
       `${options.deployment} after ${options.attempts} check(s).\n` +
       `  target readyState : ${targetState}\n` +
       `  host currently serves: ${servedId}`,
+  );
+}
+
+/**
+ * Point production at a specific deployment and wait until it actually serves it.
+ *
+ * Promote and rollback are the same operation against different endpoints, both
+ * taken from the pinned CLI's own source so the raw call is provably the request
+ * it would make, minus the GET /v2/user scope lookup that makes the CLI unusable
+ * as a recovery mechanism — it fails for the same reason as the promotion it is
+ * meant to recover from.
+ *
+ *   promote  POST /v10/projects/<project>/promote/<deployment>   (commands-bulk.js:59032)
+ *   rollback POST  /v9/projects/<project>/rollback/<deployment>  (commands-bulk.js:61937)
+ */
+async function pointProductionAt(options, endpoint, action, noun, fetchImpl, sleep, log) {
+  if (!options.deployment) throw new Error("--deployment is required.");
+  if (!options.project) throw new Error("--project is required.");
+
+  // The ownership check getProjectByDeployment used to perform inside the CLI.
+  const target = await getDeployment(options, options.deployment, fetchImpl);
+  if (!target.ok) {
+    throw new Error(
+      `Could not read the ${noun} target ${options.deployment} (HTTP ${target.status}): ${target.body}`,
+    );
+  }
+  const problems = deploymentProblems(target.json, options);
+  if (problems.length > 0) {
+    throw new Error(
+      `Refusing to ${action} to ${options.deployment}:\n  - ${problems.join("\n  - ")}`,
+    );
+  }
+
+  const posted = await request(options, endpoint, { method: "POST", body: "{}" }, fetchImpl);
+  if (!posted.ok) {
+    throw new Error(`Vercel refused the ${noun} (HTTP ${posted.status}): ${posted.body}`);
+  }
+  log.log(`Vercel accepted the ${noun} request (HTTP ${posted.status}).`);
+
+  return waitForLive(options, fetchImpl, sleep, log, `The ${noun} was accepted but`);
+}
+
+export async function rollback(options, fetchImpl, sleep, log = console) {
+  return pointProductionAt(
+    options,
+    `/v9/projects/${options.project}/rollback/${options.deployment}`,
+    "roll back",
+    "rollback",
+    fetchImpl,
+    sleep,
+    log,
+  );
+}
+
+export async function promote(options, fetchImpl, sleep, log = console) {
+  return pointProductionAt(
+    options,
+    `/v10/projects/${options.project}/promote/${options.deployment}`,
+    "promote",
+    "promotion",
+    fetchImpl,
+    sleep,
+    log,
   );
 }
 
@@ -520,6 +548,10 @@ async function main() {
   }
   if (options.command === "wait-live") {
     await waitForLive(options, fetch, wait);
+    return;
+  }
+  if (options.command === "promote") {
+    await promote(options, fetch, wait);
     return;
   }
   if (options.command === "verify-rollback") {
