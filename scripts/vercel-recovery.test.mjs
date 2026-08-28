@@ -129,6 +129,26 @@ test("names the HTTP status when production cannot be resolved", async () => {
   await assert.rejects(capture(options(), stub.fetch, silent), /HTTP 403/);
 });
 
+test("parses a full-size deployment payload, not a truncated one", async () => {
+  // Every stub above is a few dozen bytes. The first version of this script
+  // truncated the body to 400 characters on READ and then parsed the truncation,
+  // so a real Vercel payload — which carries build metadata, aliases, routes and
+  // creator details — came back as "a 200 whose body is not JSON". The unit
+  // tests could not see it; the rehearsal against the real API caught it
+  // immediately. Truncation is for display only.
+  const bulky = {
+    ...READY,
+    automaticAliases: Array.from({ length: 40 }, (_, i) => `alias-${i}.vercel.app`),
+    creator: { uid: "u".repeat(200), username: "someone" },
+    build: { env: Array.from({ length: 40 }, (_, i) => `VAR_${i}`) },
+  };
+  assert.ok(JSON.stringify(bulky).length > 400, "fixture must exceed the display cap");
+
+  const stub = stubFetch([{ match: `/v13/deployments/${HOST}`, status: 200, body: bulky }]);
+  const result = await capture(options(), stub.fetch, silent);
+  assert.equal(result.priorId, "dpl_prior");
+});
+
 // ─── rollback ───────────────────────────────────────────────────────────────
 
 test("rolls back and confirms production serves the captured deployment", async () => {

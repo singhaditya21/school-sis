@@ -130,13 +130,24 @@ function url(options, path) {
   return options.team ? `${API}${path}${separator}teamId=${options.team}` : `${API}${path}`;
 }
 
-async function readBody(response) {
+async function readText(response) {
   try {
-    return (await response.text()).slice(0, 400);
+    return await response.text();
   } catch {
     return "";
   }
 }
+
+/**
+ * Truncate only for DISPLAY.
+ *
+ * The first version truncated on read and then parsed the truncation, so every
+ * real Vercel deployment payload — thousands of characters — was reported as
+ * "a 200 whose body is not JSON". Unit tests missed it because every stubbed
+ * body was a few dozen bytes; the rehearsal caught it on its first run against
+ * the real API, which is the entire argument for having one.
+ */
+const snippet = (text) => text.slice(0, 400);
 
 /**
  * One request, retried only on statuses that can differ next time.
@@ -167,19 +178,19 @@ async function request(options, path, init, fetchImpl) {
     }
 
     if (response.ok) {
-      const text = await readBody(response);
+      const text = await readText(response);
       let json = null;
       try {
         json = JSON.parse(text);
       } catch {
         // A 200 whose body is not JSON is a real thing — an edge interstitial,
         // a proxy error page. Report it as such rather than throwing.
-        return { ok: false, status: response.status, body: text, notJson: true };
+        return { ok: false, status: response.status, body: snippet(text), notJson: true };
       }
-      return { ok: true, status: response.status, json, body: text };
+      return { ok: true, status: response.status, json, body: snippet(text) };
     }
 
-    const body = await readBody(response);
+    const body = snippet(await readText(response));
     if (!RETRYABLE.has(response.status) || attempt > options.retries) {
       return { ok: false, status: response.status, body };
     }
