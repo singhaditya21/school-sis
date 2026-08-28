@@ -745,6 +745,17 @@ pnpm test:unit
 pnpm build
 ```
 
+## Seeding a pilot school group
+
+`provision-pilot-group.ts` creates the trust, its branches and a realistic
+population of staff, students and guardians. It creates no administrators —
+those go through `/setup`, which also enrols two-factor.
+
+See [PILOT_PROVISIONING.md](PILOT_PROVISIONING.md) for the variables it needs,
+why a mismatched signing secret fails as zero rows rather than an error, and how
+to verify — against the rows themselves — that nothing in the data can be
+mistaken for a real person or signed into.
+
 ## Health and rollback evidence
 
 Liveness identifies the exact Vercel commit and region:
