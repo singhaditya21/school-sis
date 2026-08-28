@@ -605,6 +605,44 @@ describe("preview Vercel project isolation workflow", () => {
     expect(workflow).not.toContain('cat "$production_response"');
   });
 
+  it("rolls back only while production is still unproven", () => {
+    // `attempted` is written BEFORE `vercel promote` runs, so gating the
+    // rollback on it reverted production for any failure that followed a
+    // *successful* promotion — including "Record the promoted signing-runtime
+    // contract", which writes a single audit row. That reverted verified-healthy
+    // code while the release's migration stayed applied, and the candidate
+    // deletion then removed the healthy deployment for good.
+    const rollbackStart = productionWorkflow.indexOf(
+      "- name: Roll back Vercel to captured production on promotion failure",
+    );
+    expect(rollbackStart).toBeGreaterThan(0);
+    const rollbackGate = productionWorkflow.slice(
+      rollbackStart,
+      productionWorkflow.indexOf("run: |", rollbackStart),
+    );
+
+    // `bind` is the last step that proves production serves the verified
+    // candidate. Keying on it also still rolls back when promotion succeeded
+    // but the canonical health verification failed.
+    expect(rollbackGate).toContain("steps.bind.outcome != 'success'");
+    expect(productionWorkflow).toContain(
+      "- name: Bind canonical production to the verified candidate\n        id: bind",
+    );
+
+    // A written-but-never-read output is what disguised the original defect.
+    expect(productionWorkflow).not.toContain("succeeded=true");
+  });
+
+  it("never asserts a creation-time alias list against the production host", () => {
+    // Candidates deploy with --skip-domain, so `.alias` records only the
+    // project-scoped hostname Vercel assigns itself, never PRODUCTION_URL's
+    // host. Asserting the host into that list made the first successful release
+    // poison every release after it; asserting its absence made the
+    // "don't delete live production" guard unable to refuse anything.
+    expect(productionWorkflow).toContain("--skip-domain");
+    expect(productionWorkflow).not.toMatch(/\.alias\[\]\?\s*\|\s*ascii_downcase/);
+  });
+
   it("rejects database and tenant-context credentials embedded in the artifact", () => {
     expect(workflow).toContain(
       "const databaseVariables = [\n            'DATABASE_URL',\n            'PLATFORM_DATABASE_URL',\n            'DIRECT_URL'",
