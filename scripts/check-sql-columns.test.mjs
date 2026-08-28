@@ -75,7 +75,7 @@ test('accepts an insert whose columns all exist', () => {
         scratch("await pool.query(`INSERT INTO tenants (name, code) VALUES ($1,$2)`);"),
     );
     assert.equal(code, 0, output);
-    assert.match(output, /All checked SQL column references exist/);
+    assert.match(output, /All checked SQL table and column references exist/);
 });
 
 test('rejects a column that lives on a neighbouring table', () => {
@@ -127,4 +127,88 @@ test('fails rather than passing vacuously when no schema can be derived', () => 
     const { code, output } = inScratchRepo(files);
     assert.equal(code, 1, output);
     assert.match(output, /refusing to pass vacuously/i);
+});
+
+// ─── Tables referenced in FROM / JOIN ───────────────────────────────────────
+
+test('rejects a SELECT from a table that does not exist', () => {
+    // POST /api/iot/ingest queried `FROM hardware_tokens`, a table in no
+    // migration and no database. Every request failed, and the column checks
+    // above could not see it: they only look at INSERT lists, UPDATE targets
+    // and RETURNING, and the endpoint dies at the SELECT first.
+    const { code, output } = inScratchRepo(
+        scratch("await pool.query(`SELECT id FROM hardware_tokens WHERE tenant_id = $1`);"),
+    );
+    assert.equal(code, 1, output);
+    assert.match(output, /reads FROM\/JOIN hardware_tokens — no such table/);
+});
+
+test('rejects a JOIN against a table that does not exist', () => {
+    const { code, output } = inScratchRepo(
+        scratch("await pool.query(`SELECT t.id FROM tenants t JOIN nowhere n ON n.id = t.id`);"),
+    );
+    assert.equal(code, 1, output);
+    assert.match(output, /reads FROM\/JOIN nowhere/);
+});
+
+test('suggests the table that was probably meant', () => {
+    const { code, output } = inScratchRepo(
+        scratch("await pool.query(`SELECT id FROM tenant WHERE id = $1`);"),
+    );
+    assert.equal(code, 1, output);
+    assert.match(output, /did you mean: tenants\?/);
+});
+
+test('accepts a name defined as a CTE in the same statement', () => {
+    const { code, output } = inScratchRepo(
+        scratch(
+            "await pool.query(`WITH recent AS (SELECT id FROM tenants) SELECT * FROM recent`);",
+        ),
+    );
+    assert.equal(code, 0, output);
+});
+
+test('accepts a CTE that declares a column list', () => {
+    // `name(col, col) AS (` is the form deployment-migrations.ts uses, and the
+    // first version of this check read it as a missing table twice.
+    const { code, output } = inScratchRepo(
+        scratch(
+            "await pool.query(`WITH required(a, b) AS (SELECT 1, 2) SELECT * FROM required`);",
+        ),
+    );
+    assert.equal(code, 0, output);
+});
+
+test('ignores English prose that happens to contain the word from', () => {
+    // "routes work away from the dedicated pool" matched `FROM the`. Requiring a
+    // SQL statement keyword is what separates SQL from a sentence; without it
+    // the word "the" alone produced 94 findings.
+    const { code, output } = inScratchRepo(
+        scratch('const message = "routes tenant work away from the dedicated platform pool";'),
+    );
+    assert.equal(code, 0, output);
+});
+
+test('ignores a role named after REVOKE ... FROM', () => {
+    const { code, output } = inScratchRepo(
+        scratch('await pool.query(`REVOKE SELECT ON tenants FROM school_runtime`);'),
+    );
+    assert.equal(code, 0, output);
+});
+
+test('ignores Postgres catalog and information_schema relations', () => {
+    const { code, output } = inScratchRepo(
+        scratch(
+            "await pool.query(`SELECT n.nspname FROM pg_namespace n JOIN information_schema.tables t ON true`);",
+        ),
+    );
+    assert.equal(code, 0, output);
+});
+
+test('ignores deliberately synthetic SQL in test files', () => {
+    const files = scratch("await pool.query(`SELECT id FROM tenants`);");
+    files['apps/web/src/__tests__/probe.test.ts'] =
+        'it("parses", () => { expect("SELECT foo FROM identifiers").toBeTruthy(); });';
+    const { code, output } = inScratchRepo(files);
+    assert.equal(code, 0, output);
 });

@@ -208,6 +208,91 @@ function findReferences(file, text) {
     return references;
 }
 
+// ─── Tables referenced in FROM / JOIN ───────────────────────────────────────
+
+/**
+ * A missing TABLE is unambiguous in a way a missing column is not.
+ *
+ * `POST /api/iot/ingest` queried `FROM hardware_tokens` — a table in no
+ * migration, no schema module and no database. Every scan since it shipped
+ * failed on `relation "hardware_tokens" does not exist`, and nothing caught it:
+ * the column checks above only look at INSERT lists, UPDATE targets and
+ * RETURNING, and the endpoint does none of those before the SELECT fails.
+ *
+ * Resolving a bare COLUMN across joins and aliases needs a real parser, which is
+ * why that stays out of scope. Resolving a table name after FROM or JOIN does
+ * not: the name is right there.
+ */
+const SQL_NOISE = new Set([
+  'select', 'where', 'lateral', 'only', 'unnest', 'generate_series', 'jsonb_array_elements',
+  'jsonb_to_recordset', 'json_array_elements', 'values', 'dual', 'rows',
+  // REVOKE ... FROM PUBLIC names a role, not a relation.
+  'public', 'current_user', 'session_user',
+]);
+
+/**
+ * Only the SQL, never the prose.
+ *
+ * Scanning whole TypeScript files matched `FROM` and `JOIN` inside English
+ * comments — "the", "this", "here" — 94 times for the word "the" alone. SQL in
+ * this repository lives in template literals and quoted strings, so that is the
+ * only place worth looking.
+ */
+function sqlStrings(text) {
+  const withoutComments = text
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  return [
+    ...withoutComments.matchAll(/`([^`]*)`/g),
+    ...withoutComments.matchAll(/'((?:[^'\\\n]|\\.)*)'/g),
+    ...withoutComments.matchAll(/"((?:[^"\\\n]|\\.)*)"/g),
+  ]
+    .map((match) => ({
+      // SQL comments inside the literal are prose too: `-- derived FROM the
+      // schema` matched "the" eighteen times.
+      body: match[1].replace(/--[^\n]*/g, ' '),
+      offset: match.index + 1,
+    }))
+    // A string is SQL only if it contains a statement keyword. English prose
+    // says "from" constantly — "routes work away from the dedicated pool"
+    // matched `FROM the` — and no heuristic on the word alone can tell them
+    // apart. Requiring SELECT/INSERT/UPDATE/DELETE/CREATE can.
+    .filter(({ body }) => /\bSELECT\b|\bINSERT\s+INTO\b|\bDELETE\s+FROM\b|\bUPDATE\b[\s\S]*\bSET\b|\bCREATE\s+(?:TABLE|INDEX|VIEW)\b/i.test(body))
+    .filter(({ body }) => /\b(?:FROM|JOIN)\s+[a-z_"]/i.test(body));
+}
+
+function findTableReferences(file, text) {
+  const references = [];
+
+  for (const { body, offset } of sqlStrings(text)) {
+    // CTE names are defined by the statement, not by the schema.
+    const cteNames = new Set(
+      [...body.matchAll(/(?:\bWITH\b|,)\s*(?:RECURSIVE\s+)?"?([a-z_][a-z0-9_]*)"?\s*(?:\([^)]*\))?\s+AS\s*(?:MATERIALIZED\s+|NOT\s+MATERIALIZED\s+)?\(/giu)].map(
+        (m) => m[1].toLowerCase(),
+      ),
+    );
+
+    // `REVOKE SELECT ON students FROM school_runtime` names a role.
+    if (/\b(?:GRANT|REVOKE)\b/i.test(body)) continue;
+
+    const re = /\b(?:FROM|JOIN)\s+(?!\()(?:(?:"?([a-z_][a-z0-9_]*)"?)\.)?"?([a-z_][a-z0-9_]*)"?/giu;
+    let match;
+    while ((match = re.exec(body)) !== null) {
+      const [, schemaName, table] = match;
+      const name = table.toLowerCase();
+
+      // Only the public schema is described by the migration chain.
+      if (schemaName && schemaName.toLowerCase() !== 'public') continue;
+      // Catalog and information-schema relations are Postgres's, not ours.
+      if (name.startsWith('pg_') || SQL_NOISE.has(name) || cteNames.has(name)) continue;
+      if (/^\s*\(/.test(body.slice(match.index + match[0].length))) continue;
+
+      references.push({ file, table: name, line: lineOf(text, offset + match.index) });
+    }
+  }
+  return references;
+}
+
 // ─── Report ─────────────────────────────────────────────────────────────────
 
 const mode = process.argv.includes('--report') ? 'report' : 'check';
@@ -219,7 +304,24 @@ if (schema.size === 0) {
 }
 
 const problems = [];
+const missingTables = [];
 let checked = 0;
+let tablesChecked = 0;
+
+// Every table the application reads from must exist somewhere in the chain.
+const knownTables = new Set(schema.keys());
+for (const file of listSourceFiles()) {
+    const text = readFileSync(join(REPO_ROOT, file), 'utf8');
+    if (!/\b(?:FROM|JOIN)\b/i.test(text)) continue;
+    // Test fixtures contain deliberately synthetic SQL — a suite asserting how a
+    // dollar-quoted string is parsed is not a claim that `identifiers` exists.
+    if (/(^|\/)__tests__\//.test(file) || /\.test\.(ts|tsx|mjs)$/.test(file)) continue;
+    for (const reference of findTableReferences(file, text)) {
+        if (TABLES_OUTSIDE_THE_CHAIN.has(reference.table)) continue;
+        tablesChecked += 1;
+        if (!knownTables.has(reference.table)) missingTables.push(reference);
+    }
+}
 
 for (const file of listSourceFiles()) {
     const text = readFileSync(join(REPO_ROOT, file), 'utf8');
@@ -239,8 +341,24 @@ for (const file of listSourceFiles()) {
 }
 
 console.log(
-    `Checked ${checked} column reference(s) in hand-written SQL against ${schema.size} tables from the migration chain.`,
+    `Checked ${checked} column reference(s) and ${tablesChecked} table reference(s) in ` +
+        `hand-written SQL against ${schema.size} tables from the migration chain.`,
 );
+
+if (missingTables.length > 0) {
+    console.error('');
+    for (const missing of missingTables) {
+        console.error(
+            `  ${missing.file}:${missing.line}  reads FROM/JOIN ${missing.table} — no such table in the migration chain`,
+        );
+        const near = [...schema.keys()]
+            .filter((t) => t.includes(missing.table) || missing.table.includes(t))
+            .sort();
+        if (near.length > 0 && near.length <= 5) {
+            console.error(`      did you mean: ${near.join(', ')}?`);
+        }
+    }
+}
 
 if (problems.length > 0) {
     console.error('');
@@ -269,8 +387,18 @@ if (problems.length > 0) {
 }
 
 if (mode === 'report') {
-    console.log(`\n${problems.length} problem(s) found (report mode never fails).`);
+    console.log(
+        `\n${problems.length + missingTables.length} problem(s) found (report mode never fails).`,
+    );
     process.exit(0);
+}
+
+if (missingTables.length > 0) {
+    console.error(
+        `\n${missingTables.length} statement(s) read from a table that does not exist. ` +
+            'Every one throws at runtime, on the first query rather than the first write.',
+    );
+    process.exit(1);
 }
 
 if (problems.length > 0) {
@@ -281,4 +409,4 @@ if (problems.length > 0) {
     process.exit(1);
 }
 
-console.log('All checked SQL column references exist.');
+console.log('All checked SQL table and column references exist.');
