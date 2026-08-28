@@ -699,6 +699,20 @@ export function registerRouteSmokeTests(): void {
      * anchor, so it cannot be swept into.
      */
     async function offeredNavRoutes(page: Page, selectors: string[]): Promise<string[]> {
+        // Wait for each nav container's links to be in the DOM before reading.
+        // The admin sidebar streams in after the main region, so reading
+        // immediately after navigation intermittently saw only the module grid —
+        // 14 links instead of 19 — and the coverage guard (correctly) failed on
+        // the short read. The wait removes the race without weakening the guard;
+        // a container that genuinely never renders links still yields a short
+        // count, which is the real signal the guard exists to catch.
+        for (const selector of selectors) {
+            await page
+                .locator(`${selector} a[href^="/"]`)
+                .first()
+                .waitFor({ state: 'attached', timeout: 10_000 })
+                .catch(() => {});
+        }
         const hrefs = await page
             .locator(selectors.map((selector) => `${selector} a[href^="/"]`).join(', '))
             .evaluateAll((anchors) => anchors.map((a) => a.getAttribute('href') ?? ''));
