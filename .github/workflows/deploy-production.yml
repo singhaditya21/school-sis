@@ -1185,8 +1185,97 @@ jobs:
           RECOVERY_CHECKPOINT_ID: ${{ steps.checkpoint.outputs.checkpoint_id }}
         run: |
           set -euo pipefail
-          echo "Promotion failed; rolling Vercel back. Neon recovery branch $RECOVERY_CHECKPOINT_ID is retained for manual database recovery." >&2
-          pnpm exec vercel rollback "$PRIOR_DEPLOYMENT_ID" --yes --timeout 5m --token="$VERCEL_TOKEN"
+          echo "Production is unproven; rolling Vercel back. Neon recovery branch $RECOVERY_CHECKPOINT_ID is retained for manual database recovery." >&2
+
+          # Deliberately NOT `vercel rollback`.
+          #
+          # The CLI resolves scope before it does anything: requestRollback ->
+          # getProjectByDeployment -> getScope -> GET /v2/user. That lookup has
+          # already failed here. In run 33073717982 attempt 2 the promotion and
+          # the rollback died 1.2 seconds apart, both with "Error: User not
+          # found. (404)", and neither ever reached a mutating call. `vercel
+          # deploy` survived the same fault only because its link resolution has
+          # an owner-lookup fallback — the one patches/vercel@59.0.0.patch turns
+          # on for `vercel pull`. getScope has no such fallback.
+          #
+          # A recovery path must not share a dependency with the thing it is
+          # recovering from. So this issues the request the CLI itself would.
+          # The pinned 59.0.0 sends, at commands-bulk.js:61937:
+          #     POST /v9/projects/<projectId>/rollback/<deploymentId>  body {}
+          # with an explicit teamId here in place of the resolved scope.
+          production_host="$(PRODUCTION_URL="$PRODUCTION_URL" node -e "process.stdout.write(new URL(process.env.PRODUCTION_URL).hostname)")"
+
+          # getProjectByDeployment also proved the deployment belongs to the
+          # project before mutating anything. Keep that; only the scope call goes.
+          target="$RUNNER_TEMP/vercel-rollback-target.json"
+          target_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header 'Accept: application/json' \
+            --output "$target" \
+            --write-out '%{http_code}' \
+            "https://api.vercel.com/v13/deployments/${PRIOR_DEPLOYMENT_ID}?teamId=${VERCEL_ORG_ID}")"
+          if [ "$target_http" != "200" ]; then
+            echo "Could not read the captured rollback target $PRIOR_DEPLOYMENT_ID (HTTP $target_http)." >&2
+            exit 1
+          fi
+          target_project="$(jq -r '.projectId // ""' "$target")"
+          target_target="$(jq -r '.target // "<none>"' "$target")"
+          target_state="$(jq -r '.readyState // "<none>"' "$target")"
+          if [ "$target_project" != "$VERCEL_PROJECT_ID" ] \
+            || [ "$target_target" != "production" ] \
+            || [ "$target_state" != "READY" ]; then
+            echo "Refusing to roll back to $PRIOR_DEPLOYMENT_ID: project=$target_project target=$target_target readyState=$target_state." >&2
+            exit 1
+          fi
+
+          # No --retry on the mutation: a retried POST is a second rollback.
+          response="$RUNNER_TEMP/vercel-rollback-response.json"
+          set +e
+          rollback_http="$(curl --silent --show-error --max-time 30 \
+            --request POST \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header 'Content-Type: application/json' \
+            --header 'Accept: application/json' \
+            --data '{}' \
+            --output "$response" \
+            --write-out '%{http_code}' \
+            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/rollback/${PRIOR_DEPLOYMENT_ID}?teamId=${VERCEL_ORG_ID}")"
+          rollback_status=$?
+          set -e
+          if [ "$rollback_status" -ne 0 ]; then
+            echo "The rollback request failed in transport; production state is unknown." >&2
+            exit 1
+          fi
+          case "$rollback_http" in
+            200|201|202) echo "Vercel accepted the rollback request (HTTP $rollback_http)." ;;
+            *)
+              echo "Vercel refused the rollback (HTTP $rollback_http):" >&2
+              head -c 400 "$response" | sed 's/^/    /' >&2 || true
+              echo >&2
+              exit 1
+              ;;
+          esac
+
+          # Rollback is asynchronous. The CLI polls its own status endpoint, which
+          # goes back through the scope lookup this step exists to avoid, so poll
+          # the only thing that actually matters instead: what the host serves.
+          for attempt in $(seq 1 30); do
+            live="$RUNNER_TEMP/vercel-rollback-live.json"
+            live_http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --header 'Accept: application/json' \
+              --output "$live" \
+              --write-out '%{http_code}' \
+              "https://api.vercel.com/v13/deployments/${production_host}?teamId=${VERCEL_ORG_ID}")"
+            if [ "$live_http" = "200" ] \
+              && [ "$(jq -r '.id // ""' "$live")" = "$PRIOR_DEPLOYMENT_ID" ]; then
+              echo "Production is serving $PRIOR_DEPLOYMENT_ID again (after ${attempt} check(s))."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Rollback was accepted but $production_host still does not serve $PRIOR_DEPLOYMENT_ID after five minutes." >&2
+          exit 1
 
       - name: Verify rollback restored the captured deployment
         if: >-
