@@ -357,11 +357,29 @@ async function pointProductionAt(options, endpoint, action, noun, fetchImpl, sle
     );
   }
 
+  // The goal is "production serves this deployment". If it already does, the
+  // goal is met — do not ask Vercel to do it again and call the refusal a
+  // failure. This matters most on a RETRY: a rollback re-run after a partial
+  // failure would otherwise report the success it had already achieved as
+  // "Vercel refused the rollback (HTTP 409)".
+  const already = await getDeployment(options, options.productionHost, fetchImpl);
+  if (already.ok && already.json?.id === options.deployment) {
+    log.log(`${options.productionHost} already serves ${options.deployment}; nothing to ${action}.`);
+    return { landed: true, attempts: 0, alreadyLive: true };
+  }
+
   const posted = await request(options, endpoint, { method: "POST", body: "{}" }, fetchImpl);
   if (!posted.ok) {
-    throw new Error(`Vercel refused the ${noun} (HTTP ${posted.status}): ${posted.body}`);
+    // 409 is Vercel saying the deployment is already production — a race with
+    // whatever else moved it there, not a refusal. The poll below is the
+    // authority either way.
+    if (posted.status !== 409) {
+      throw new Error(`Vercel refused the ${noun} (HTTP ${posted.status}): ${posted.body}`);
+    }
+    log.log(`Vercel reports ${options.deployment} is already production (HTTP 409); confirming.`);
+  } else {
+    log.log(`Vercel accepted the ${noun} request (HTTP ${posted.status}).`);
   }
-  log.log(`Vercel accepted the ${noun} request (HTTP ${posted.status}).`);
 
   return waitForLive(options, fetchImpl, sleep, log, `The ${noun} was accepted but`);
 }

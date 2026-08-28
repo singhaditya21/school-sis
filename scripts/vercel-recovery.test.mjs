@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   capture,
+  promote,
   waitForLive,
   guardDelete,
   parseArgs,
@@ -155,6 +156,8 @@ test("parses a full-size deployment payload, not a truncated one", async () => {
 test("rolls back and confirms production serves the captured deployment", async () => {
   const stub = stubFetch([
     { match: "/v13/deployments/dpl_prior", status: 200, body: READY },
+    // Production is on something else, so the rollback has work to do.
+    { match: `/v13/deployments/${HOST}`, status: 200, body: { ...READY, id: "dpl_live" }, times: 1 },
     { match: "/rollback/dpl_prior", method: "POST", status: 200, body: {} },
     { match: `/v13/deployments/${HOST}`, status: 200, body: READY },
   ]);
@@ -174,6 +177,7 @@ test("accepts a 201 with an empty body, as the rollback endpoint returns", async
   // 201)" — found by the rehearsal, invisible to stubs that always sent one.
   const stub = stubFetch([
     { match: "/v13/deployments/dpl_prior", status: 200, body: READY },
+    { match: `/v13/deployments/${HOST}`, status: 200, body: { ...READY, id: "dpl_live" }, times: 1 },
     { match: "/rollback/dpl_prior", method: "POST", status: 201, body: "" },
     { match: `/v13/deployments/${HOST}`, status: 200, body: READY },
   ]);
@@ -189,6 +193,7 @@ test("accepts a 201 with an empty body, as the rollback endpoint returns", async
 test("retries the rollback through a rate limit rather than stranding production", async () => {
   const stub = stubFetch([
     { match: "/v13/deployments/dpl_prior", status: 200, body: READY },
+    { match: `/v13/deployments/${HOST}`, status: 200, body: { ...READY, id: "dpl_live" }, times: 1 },
     { match: "/rollback/dpl_prior", method: "POST", status: 429, body: {}, times: 2 },
     { match: "/rollback/dpl_prior", method: "POST", status: 200, body: {} },
     { match: `/v13/deployments/${HOST}`, status: 200, body: READY },
@@ -200,6 +205,7 @@ test("retries the rollback through a rate limit rather than stranding production
 test("does not retry a rollback the API refused outright", async () => {
   const stub = stubFetch([
     { match: "/v13/deployments/dpl_prior", status: 200, body: READY },
+    { match: `/v13/deployments/${HOST}`, status: 200, body: { ...READY, id: "dpl_live" }, times: 1 },
     { match: "/rollback/dpl_prior", method: "POST", status: 403, body: { error: "forbidden" } },
   ]);
   await assert.rejects(
@@ -225,6 +231,7 @@ test("fails when the rollback is accepted but never lands", async () => {
     { match: "/v13/deployments/dpl_prior", status: 200, body: READY },
     { match: "/rollback/dpl_prior", method: "POST", status: 200, body: {} },
     { match: `/v13/deployments/${HOST}`, status: 200, body: { ...READY, id: "dpl_other" } },
+    { match: "/v13/deployments/dpl_prior", status: 200, body: READY },
   ]);
   await assert.rejects(
     rollback(options({ argv: ["--deployment", "dpl_prior"] }), stub.fetch, noSleep, silent),
@@ -373,4 +380,39 @@ test("reports the target's state and what the host serves when it times out", as
       /target readyState : BUILDING/.test(error.message) &&
       /host currently serves: dpl_other/.test(error.message),
   );
+});
+
+test("treats a deployment that is already production as success, not a refusal", async () => {
+  // A rollback re-run after a partial failure would otherwise report the success
+  // it had already achieved as "Vercel refused the rollback (HTTP 409)".
+  const stub = stubFetch([
+    { match: "/v13/deployments/dpl_prior", status: 200, body: READY },
+    { match: `/v13/deployments/${HOST}`, status: 200, body: READY },
+  ]);
+  const result = await rollback(
+    options({ argv: ["--deployment", "dpl_prior"] }),
+    stub.fetch,
+    noSleep,
+    silent,
+  );
+  assert.equal(result.alreadyLive, true);
+  assert.equal(stub.calls.filter((c) => c.method === "POST").length, 0);
+});
+
+test("confirms via the host when Vercel answers 409 mid-flight", async () => {
+  const stub = stubFetch([
+    // Host serves something else at first, so the POST is attempted...
+    { match: `/v13/deployments/${HOST}`, status: 200, body: { ...READY, id: "dpl_other" }, times: 1 },
+    { match: "/v13/deployments/dpl_prior", status: 200, body: READY },
+    { match: "/promote/dpl_prior", method: "POST", status: 409, body: { error: { code: "conflict" } } },
+    // ...and by the time it lands, the host already serves the target.
+    { match: `/v13/deployments/${HOST}`, status: 200, body: READY },
+  ]);
+  const result = await promote(
+    options({ argv: ["--deployment", "dpl_prior"] }),
+    stub.fetch,
+    noSleep,
+    silent,
+  );
+  assert.equal(result.landed, true);
 });
