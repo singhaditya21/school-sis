@@ -682,6 +682,43 @@ describe("preview Vercel project isolation workflow", () => {
     );
   });
 
+  it("rolls back without the CLI scope lookup that has already failed here", () => {
+    const start = productionWorkflow.indexOf(
+      "- name: Roll back Vercel to captured production",
+    );
+    expect(start).toBeGreaterThan(0);
+    const step = productionWorkflow.slice(
+      start,
+      productionWorkflow.indexOf("\n      - name:", start + 1),
+    );
+
+    // `vercel rollback` resolves scope through GET /v2/user before doing
+    // anything. That call 404'd in run 33073717982 attempt 2, killing the
+    // promotion and its own rollback 1.2 seconds apart, neither having reached
+    // a mutating call. A recovery path must not share a dependency with the
+    // thing it recovers from.
+    expect(step).not.toMatch(/^\s*pnpm exec vercel/m);
+
+    // The request the pinned CLI itself issues, with an explicit team in place
+    // of the resolved scope.
+    expect(step).toContain("--request POST");
+    expect(step).toContain(
+      "api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/rollback/${PRIOR_DEPLOYMENT_ID}?teamId=${VERCEL_ORG_ID}",
+    );
+
+    // getProjectByDeployment also proved ownership before mutating. Keep it.
+    expect(step).toContain("Refusing to roll back to");
+
+    // A retried POST is a second rollback, so the mutation must not carry
+    // --retry even though every read around it does.
+    const postCommand = step.slice(
+      step.lastIndexOf("curl", step.indexOf("--request POST")),
+      step.indexOf("rollback_status=$?"),
+    );
+    expect(postCommand).toContain("--request POST");
+    expect(postCommand).not.toContain("--retry");
+  });
+
   it("rejects database and tenant-context credentials embedded in the artifact", () => {
     expect(workflow).toContain(
       "const databaseVariables = [\n            'DATABASE_URL',\n            'PLATFORM_DATABASE_URL',\n            'DIRECT_URL'",
