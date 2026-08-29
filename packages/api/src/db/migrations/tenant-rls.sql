@@ -64,15 +64,6 @@ CREATE TABLE IF NOT EXISTS app_private.tenant_context_rollout_state (
 
 REVOKE ALL ON TABLE app_private.tenant_context_rollout_state FROM PUBLIC;
 
--- v2 payload-rollout evidence (recorded in 4b, gated on in 4c). Idempotent so the
--- re-applied RLS file does not fail on an existing column.
-ALTER TABLE app_private.tenant_context_rollout_state
-    ADD COLUMN IF NOT EXISTS v2_signed_runtime_sha text
-        CONSTRAINT tenant_context_rollout_state_v2_sha
-        CHECK (v2_signed_runtime_sha IS NULL OR v2_signed_runtime_sha ~ '^[0-9a-f]{40}$');
-ALTER TABLE app_private.tenant_context_rollout_state
-    ADD COLUMN IF NOT EXISTS v2_promoted_at timestamptz;
-
 CREATE OR REPLACE FUNCTION app_private.constant_time_equal_32(
     left_value bytea,
     right_value bytea
