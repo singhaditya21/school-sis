@@ -442,6 +442,57 @@ CREATE POLICY companies_tenant_isolation_delete ON public.companies
     FOR DELETE
     USING (app_private.rls_bypass());
 
+-- owners is the top tier (parent of companies, grandparent of tenants). It has
+-- no tenant_id, so the discovery loop never reaches it; like companies it gets
+-- an explicit parent-scoped policy — visible only via a descendant tenant that
+-- is the current session's tenant (owner → company → tenant chain).
+ALTER TABLE public.owners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.owners FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS owners_tenant_isolation_select ON public.owners;
+DROP POLICY IF EXISTS owners_tenant_isolation_insert ON public.owners;
+DROP POLICY IF EXISTS owners_tenant_isolation_update ON public.owners;
+DROP POLICY IF EXISTS owners_tenant_isolation_delete ON public.owners;
+CREATE POLICY owners_tenant_isolation_select ON public.owners
+    FOR SELECT
+    USING (
+        app_private.rls_bypass()
+        OR EXISTS (
+            SELECT 1
+            FROM public.companies c
+            JOIN public.tenants t ON t.company_id = c.id
+            WHERE c.owner_id = owners.id
+              AND t.id = (SELECT app_private.current_tenant_id())
+        )
+    );
+CREATE POLICY owners_tenant_isolation_insert ON public.owners
+    FOR INSERT
+    WITH CHECK (app_private.rls_bypass());
+CREATE POLICY owners_tenant_isolation_update ON public.owners
+    FOR UPDATE
+    USING (
+        app_private.rls_bypass()
+        OR EXISTS (
+            SELECT 1
+            FROM public.companies c
+            JOIN public.tenants t ON t.company_id = c.id
+            WHERE c.owner_id = owners.id
+              AND t.id = (SELECT app_private.current_tenant_id())
+        )
+    )
+    WITH CHECK (
+        app_private.rls_bypass()
+        OR EXISTS (
+            SELECT 1
+            FROM public.companies c
+            JOIN public.tenants t ON t.company_id = c.id
+            WHERE c.owner_id = owners.id
+              AND t.id = (SELECT app_private.current_tenant_id())
+        )
+    );
+CREATE POLICY owners_tenant_isolation_delete ON public.owners
+    FOR DELETE
+    USING (app_private.rls_bypass());
+
 DO $$
 BEGIN
     IF app_private.table_exists('grade_subjects') THEN
