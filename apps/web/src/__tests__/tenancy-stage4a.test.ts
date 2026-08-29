@@ -27,15 +27,16 @@ describe('tenancy stage 4a — dual-accept signed context', () => {
         expect(rls).toMatch(/v2_eligible := owner_text IS NOT NULL/);
     });
 
-    it('sets empty owner/group context defaults and rollout evidence columns', () => {
+    it('sets empty owner/group context defaults (still v1)', () => {
         expect(rls).toContain("SET LOCAL app.current_owner = ''");
-        expect(rls).toContain('v2_signed_runtime_sha');
-        expect(rls).toContain('v2_promoted_at');
+        expect(rls).toContain("SET LOCAL app.current_group = ''");
     });
 
-    it('extends the rollout-state contract for the two new columns', () => {
-        expect(deployment).toContain('count(*) FROM rollout_columns) = 11');
-        expect(deployment).toContain('count(*) FROM rollout_constraints) = 10');
+    it('touches no rollout_state contract (deferred — the pre-provision check runs before tenant-rls.sql)', () => {
+        // Adding columns + bumping the "exact" pre-provision contract in one deploy
+        // fails on prod: the contract runs before tenant-rls.sql adds them.
+        expect(rls).not.toContain('v2_signed_runtime_sha');
+        expect(deployment).toContain('count(*) FROM rollout_columns) = 9');
     });
 
     it('does NOT ship a SECURITY DEFINER tenant_scope helper (would not bypass FORCE RLS)', () => {
