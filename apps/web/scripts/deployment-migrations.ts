@@ -3140,7 +3140,7 @@ export async function assertTenantContextPreProvisionContract(
                         WHERE grants.grantee <> relations.relowner
                     )
               )
-              AND (SELECT count(*) FROM rollout_columns) = 9
+              AND (SELECT count(*) FROM rollout_columns) = 11
               AND EXISTS (
                   SELECT 1 FROM rollout_columns columns
                   WHERE columns.attname = 'singleton'
@@ -3213,7 +3213,23 @@ export async function assertTenantContextPreProvisionContract(
                     AND columns.attidentity = '' AND columns.attgenerated = ''
                     AND columns.attacl IS NULL AND columns.default_expression IS NULL
               )
-              AND (SELECT count(*) FROM rollout_constraints) = 9
+              AND EXISTS (
+                  SELECT 1 FROM rollout_columns columns
+                  WHERE columns.attname = 'v2_signed_runtime_sha'
+                    AND columns.atttypid = 'text'::regtype
+                    AND NOT columns.attnotnull
+                    AND columns.attidentity = '' AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL AND columns.default_expression IS NULL
+              )
+              AND EXISTS (
+                  SELECT 1 FROM rollout_columns columns
+                  WHERE columns.attname = 'v2_promoted_at'
+                    AND columns.atttypid = 'timestamp with time zone'::regtype
+                    AND NOT columns.attnotnull
+                    AND columns.attidentity = '' AND columns.attgenerated = ''
+                    AND columns.attacl IS NULL AND columns.default_expression IS NULL
+              )
+              AND (SELECT count(*) FROM rollout_constraints) = 10
               AND EXISTS (
                   SELECT 1 FROM rollout_constraints constraints
                   WHERE constraints.contype = 'p'

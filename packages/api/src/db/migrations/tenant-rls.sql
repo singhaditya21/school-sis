@@ -7,6 +7,8 @@ SET LOCAL app.tenant_context_audience = '';
 SET LOCAL app.tenant_context_expires_at = '';
 SET LOCAL app.tenant_context_nonce = '';
 SET LOCAL app.tenant_context_signature = '';
+SET LOCAL app.current_owner = '';
+SET LOCAL app.current_group = '';
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
 CREATE SCHEMA IF NOT EXISTS app_private;
@@ -62,6 +64,15 @@ CREATE TABLE IF NOT EXISTS app_private.tenant_context_rollout_state (
 
 REVOKE ALL ON TABLE app_private.tenant_context_rollout_state FROM PUBLIC;
 
+-- v2 payload-rollout evidence (recorded in 4b, gated on in 4c). Idempotent so the
+-- re-applied RLS file does not fail on an existing column.
+ALTER TABLE app_private.tenant_context_rollout_state
+    ADD COLUMN IF NOT EXISTS v2_signed_runtime_sha text
+        CONSTRAINT tenant_context_rollout_state_v2_sha
+        CHECK (v2_signed_runtime_sha IS NULL OR v2_signed_runtime_sha ~ '^[0-9a-f]{40}$');
+ALTER TABLE app_private.tenant_context_rollout_state
+    ADD COLUMN IF NOT EXISTS v2_promoted_at timestamptz;
+
 CREATE OR REPLACE FUNCTION app_private.constant_time_equal_32(
     left_value bytea,
     right_value bytea
@@ -107,11 +118,18 @@ DECLARE
     expires_text text := NULLIF(current_setting('app.tenant_context_expires_at', true), '');
     nonce_text text := NULLIF(current_setting('app.tenant_context_nonce', true), '');
     signature_text text := NULLIF(current_setting('app.tenant_context_signature', true), '');
+    -- v2 adds owner + group to the signed payload. A v1 signer sets neither, so
+    -- these stay NULL and the v2 branch is skipped — v1 verification unchanged.
+    owner_text text := NULLIF(current_setting('app.current_owner', true), '');
+    group_text text := NULLIF(current_setting('app.current_group', true), '');
     tenant_value uuid;
     expires_value bigint;
     database_epoch bigint := floor(extract(epoch FROM clock_timestamp()))::bigint;
     signing_secret bytea;
     expected_signature bytea;
+    provided_signature bytea;
+    transaction_text text;
+    v2_eligible boolean;
 BEGIN
     IF tenant_text IS NULL
        OR tenant_text !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
@@ -150,12 +168,46 @@ BEGIN
         RETURN NULL;
     END IF;
 
+    transaction_text := pg_current_xact_id()::text;
+    provided_signature := decode(signature_text, 'hex');
+
+    -- v2 first: only when owner AND group are well-formed lowercase UUIDs. A
+    -- malformed owner/group must not deny an otherwise-valid v1 context, so on
+    -- ineligibility we fall through to v1 rather than returning NULL.
+    v2_eligible := owner_text IS NOT NULL
+        AND owner_text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+        AND group_text IS NOT NULL
+        AND group_text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+    IF v2_eligible THEN
+        expected_signature := public.hmac(
+            convert_to(
+                'school-sis:tenant-context:v2' || E'\n' ||
+                audience_text || E'\n' ||
+                key_id_text || E'\n' ||
+                transaction_text || E'\n' ||
+                tenant_value::text || E'\n' ||
+                owner_text || E'\n' ||
+                group_text || E'\n' ||
+                expires_text || E'\n' ||
+                nonce_text,
+                'UTF8'
+            ),
+            signing_secret,
+            'sha256'
+        );
+        IF app_private.constant_time_equal_32(expected_signature, provided_signature) THEN
+            RETURN tenant_value;
+        END IF;
+    END IF;
+
+    -- v1 fallback: byte-identical to the original payload (transaction_text is the
+    -- same pg_current_xact_id() value, just computed once above).
     expected_signature := public.hmac(
         convert_to(
             'school-sis:tenant-context:v1' || E'\n' ||
             audience_text || E'\n' ||
             key_id_text || E'\n' ||
-            pg_current_xact_id()::text || E'\n' ||
+            transaction_text || E'\n' ||
             tenant_value::text || E'\n' ||
             expires_text || E'\n' ||
             nonce_text,
@@ -165,10 +217,7 @@ BEGIN
         'sha256'
     );
 
-    IF app_private.constant_time_equal_32(
-        expected_signature,
-        decode(signature_text, 'hex')
-    ) THEN
+    IF app_private.constant_time_equal_32(expected_signature, provided_signature) THEN
         RETURN tenant_value;
     END IF;
     RETURN NULL;
