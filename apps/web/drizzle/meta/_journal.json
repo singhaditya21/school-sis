@@ -57,6 +57,13 @@
       "when": 1788007511059,
       "tag": "0007_stage3_scope_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788025293940,
+      "tag": "0008_stage4_scope_presence_checks",
+      "breakpoints": true
     }
   ]
 }
