@@ -39,5 +39,10 @@ export const EXPECTED_DATABASE_MIGRATIONS = [
     "tag": "0007_stage3_scope_integrity",
     "createdAt": "1788007511059",
     "hash": "cb34362d89e9abf977992566a4745d45c0a9fc2ace0b151a80879465527da234"
+  },
+  {
+    "tag": "0008_stage4_scope_presence_checks",
+    "createdAt": "1788025293940",
+    "hash": "07d67c5f9d1ccf44630a55f430a0cbbb3e6270af83b29df2d6093214622f40b8"
   }
 ] as const;

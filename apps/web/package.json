@@ -30,6 +30,7 @@
     "db:backfill:owners": "tsx --env-file-if-exists=.env.local scripts/backfill-owners.ts",
     "db:backfill:scope": "tsx --env-file-if-exists=.env.local scripts/backfill-scope-triple.ts",
     "db:validate:scope": "tsx --env-file-if-exists=.env.local scripts/validate-scope-fks.ts",
+    "db:validate:notnull": "tsx --env-file-if-exists=.env.local scripts/validate-scope-presence.ts",
     "db:test:rls": "tsx --env-file-if-exists=.env.local scripts/test-tenant-rls.ts",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
