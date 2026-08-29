@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, pgEnum, boolean, date } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 
 // ─── Enums ───────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ export const alumniEventStatusEnum = pgEnum('alumni_event_status', ['UPCOMING', 
 // ─── Alumni Profiles ────────────────────────────────────────
 
 export const alumniProfiles = pgTable('alumni_profiles', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 200 }).notNull(),
@@ -29,6 +30,7 @@ export const alumniProfiles = pgTable('alumni_profiles', {
 // ─── Alumni Events ──────────────────────────────────────────
 
 export const alumniEvents = pgTable('alumni_events', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     title: varchar('title', { length: 255 }).notNull(),
@@ -46,6 +48,7 @@ export const alumniEvents = pgTable('alumni_events', {
 // ─── Alumni Registrations ───────────────────────────────────
 
 export const alumniRegistrations = pgTable('alumni_registrations', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     eventId: uuid('event_id').references(() => alumniEvents.id, { onDelete: 'cascade' }).notNull(),

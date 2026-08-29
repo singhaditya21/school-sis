@@ -10,12 +10,13 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { messageTemplates } from './messaging';
 
 export const backgroundJobs = pgTable(
   'background_jobs',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     scope: varchar('scope', { length: 20 }).default('TENANT').notNull(),
@@ -63,6 +64,7 @@ export const backgroundJobs = pgTable(
 export const backgroundJobAttempts = pgTable(
   'background_job_attempts',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     jobId: uuid('job_id').notNull().references(() => backgroundJobs.id, { onDelete: 'cascade' }),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
@@ -83,6 +85,7 @@ export const backgroundJobAttempts = pgTable(
 export const notificationOutbox = pgTable(
   'notification_outbox',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
     jobId: uuid('job_id').references(() => backgroundJobs.id, { onDelete: 'set null' }),
@@ -125,6 +128,7 @@ export const notificationOutbox = pgTable(
 export const notificationDeliveryEvents = pgTable(
   'notification_delivery_events',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
     notificationId: uuid('notification_id').notNull().references(() => notificationOutbox.id, { onDelete: 'cascade' }),

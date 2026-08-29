@@ -1,8 +1,9 @@
 import { pgTable, uuid, varchar, timestamp, numeric } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants } from './core';
+import { tenants, ownerGroupScope, schoolScope } from './core';
 
 export const gradingScales = pgTable('grading_scales', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 255 }).notNull(),
@@ -11,6 +12,7 @@ export const gradingScales = pgTable('grading_scales', {
 });
 
 export const gradingRubrics = pgTable('grading_rubrics', {
+    ...schoolScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     scaleId: uuid('scale_id').references(() => gradingScales.id, { onDelete: 'cascade' }).notNull(),
     label: varchar('label', { length: 255 }).notNull(),

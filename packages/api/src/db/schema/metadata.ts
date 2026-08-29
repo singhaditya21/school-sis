@@ -13,11 +13,12 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope, schoolScope } from './core';
 
 export const metadataObjects = pgTable(
   'metadata_objects',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     name: varchar('name', { length: 100 }).notNull(),
@@ -43,6 +44,7 @@ export const metadataObjects = pgTable(
 export const metadataFields = pgTable(
   'metadata_fields',
   {
+    ...schoolScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     objectId: uuid('object_id')
       .notNull()
@@ -70,6 +72,7 @@ export const metadataFields = pgTable(
 export const metadataSchemaVersions = pgTable(
   'metadata_schema_versions',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     objectId: uuid('object_id')
@@ -97,6 +100,7 @@ export const metadataSchemaVersions = pgTable(
 export const metadataMigrationJobs = pgTable(
   'metadata_migration_jobs',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id')
       .notNull()
@@ -121,6 +125,7 @@ export const metadataMigrationJobs = pgTable(
 );
 
 export const metadataLayouts = pgTable('metadata_layouts', {
+    ...schoolScope(),
   id: uuid('id').primaryKey().defaultRandom(),
   objectId: uuid('object_id')
     .notNull()
@@ -134,6 +139,7 @@ export const metadataLayouts = pgTable('metadata_layouts', {
 export const fieldPermissions = pgTable(
   'field_permissions',
   {
+    ...schoolScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     fieldId: uuid('field_id')
       .notNull()
@@ -149,6 +155,7 @@ export const fieldPermissions = pgTable(
 );
 
 export const metadataRecords = pgTable('metadata_records', {
+    ...ownerGroupScope(),
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id')
     .notNull()
@@ -161,6 +168,7 @@ export const metadataRecords = pgTable('metadata_records', {
 });
 
 export const metadataValues = pgTable('metadata_values', {
+    ...schoolScope(),
   id: uuid('id').primaryKey().defaultRandom(),
   recordId: uuid('record_id')
     .notNull()

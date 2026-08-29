@@ -1,8 +1,9 @@
 import { pgTable, uuid, varchar, text, integer, timestamp } from 'drizzle-orm/pg-core';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { grades, sections, subjects } from './academic';
 
 export const diaryEntries = pgTable('diary_entries', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     title: varchar('title', { length: 255 }).notNull(),
@@ -19,6 +20,7 @@ export const diaryEntries = pgTable('diary_entries', {
 });
 
 export const appointments = pgTable('appointments', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     title: varchar('title', { length: 255 }).notNull(),

@@ -29,5 +29,10 @@ export const EXPECTED_DATABASE_MIGRATIONS = [
     "tag": "0005_owners_tier",
     "createdAt": "1787983095986",
     "hash": "c49f8e1b4c00222454786878e607c760572361b6128e885e29d7e304f87621d1"
+  },
+  {
+    "tag": "0006_stage1_scope_triple",
+    "createdAt": "1788004733455",
+    "hash": "39a4da529aa45e24f8c1d3d6d83fae12ebde7c30bb38956a69d8fdef264c1f88"
   }
 ] as const;

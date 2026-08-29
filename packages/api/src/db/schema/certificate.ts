@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, pgEnum, jsonb, boolean, date } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { students } from './students';
 
 // ─── Enums ───────────────────────────────────────────────────
@@ -13,6 +13,7 @@ export const digilockerSyncStatusEnum = pgEnum('digilocker_sync_status', ['PENDI
 // ─── Certificate Templates ──────────────────────────────────
 
 export const certificateTemplates = pgTable('certificate_templates', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 200 }).notNull(),
@@ -26,6 +27,7 @@ export const certificateTemplates = pgTable('certificate_templates', {
 // ─── Issued Certificates ────────────────────────────────────
 
 export const issuedCertificates = pgTable('issued_certificates', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     templateId: uuid('template_id').references(() => certificateTemplates.id).notNull(),
@@ -43,6 +45,7 @@ export const issuedCertificates = pgTable('issued_certificates', {
 // ─── ID Cards ────────────────────────────────────────────────
 
 export const idCards = pgTable('id_cards', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     personId: uuid('person_id').notNull(), // student or staff ID
@@ -60,6 +63,7 @@ export const idCards = pgTable('id_cards', {
 // ─── DigiLocker Sync Logs ────────────────────────────────────
 
 export const digilockerSyncLogs = pgTable('digilocker_sync_logs', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     documentType: varchar('document_type', { length: 50 }).notNull(), // 'ID_CARD', 'CERTIFICATE', 'MARKSHEET'

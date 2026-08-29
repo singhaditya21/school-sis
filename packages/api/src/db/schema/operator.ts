@@ -11,11 +11,12 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 
 export const operatorConsoleSnapshots = pgTable(
   'operator_console_snapshots',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     scope: varchar('scope', { length: 20 }).default('TENANT').notNull(),
@@ -36,6 +37,7 @@ export const operatorConsoleSnapshots = pgTable(
 export const operatorConsoleRunbooks = pgTable(
   'operator_console_runbooks',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     scope: varchar('scope', { length: 20 }).default('PLATFORM').notNull(),
@@ -64,6 +66,7 @@ export const operatorConsoleRunbooks = pgTable(
 export const operatorConsoleActionLogs = pgTable(
   'operator_console_action_logs',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     scope: varchar('scope', { length: 20 }).default('TENANT').notNull(),

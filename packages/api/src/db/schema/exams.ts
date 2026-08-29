@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, numeric, integer, date, pgEnum, jsonb, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope, schoolScope } from './core';
 import { academicYears, grades, sections, subjects } from './academic';
 import { students } from './students';
 
@@ -11,6 +11,7 @@ export const examTypeEnum = pgEnum('exam_type', ['UNIT_TEST', 'MID_TERM', 'FINAL
 // ─── Exams ───────────────────────────────────────────────────
 
 export const exams = pgTable('exams', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     academicYearId: uuid('academic_year_id').references(() => academicYears.id).notNull(),
@@ -29,6 +30,7 @@ export const exams = pgTable('exams', {
 // ─── Exam Schedules ──────────────────────────────────────────
 
 export const examSchedules = pgTable('exam_schedules', {
+    ...schoolScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     examId: uuid('exam_id').references(() => exams.id, { onDelete: 'cascade' }).notNull(),
     gradeId: uuid('grade_id').references(() => grades.id).notNull(),
@@ -45,6 +47,7 @@ export const examSchedules = pgTable('exam_schedules', {
 // ─── Student Results ─────────────────────────────────────────
 
 export const studentResults = pgTable('student_results', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     examScheduleId: uuid('exam_schedule_id').references(() => examSchedules.id, { onDelete: 'cascade' }).notNull(),
@@ -61,6 +64,7 @@ export const studentResults = pgTable('student_results', {
 // ─── Exam Compliance & Verification ──────────────────────────
 
 export const examResultHashes = pgTable('exam_result_hashes', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     resultId: uuid('result_id').references(() => studentResults.id, { onDelete: 'cascade' }).notNull(),
@@ -70,6 +74,7 @@ export const examResultHashes = pgTable('exam_result_hashes', {
 });
 
 export const examProctoringLogs = pgTable('exam_proctoring_logs', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     examScheduleId: uuid('exam_schedule_id').references(() => examSchedules.id, { onDelete: 'cascade' }).notNull(),

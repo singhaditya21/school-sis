@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, pgEnum, jsonb, date, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { students } from './students';
 
 // ─── Enums ───────────────────────────────────────────────────
@@ -10,6 +10,7 @@ export const healthIncidentTypeEnum = pgEnum('health_incident_type', ['INJURY', 
 // ─── Health Records ──────────────────────────────────────────
 
 export const healthRecords = pgTable('health_records', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),
@@ -32,6 +33,7 @@ export const healthRecords = pgTable('health_records', {
 // ─── Health Incidents ────────────────────────────────────────
 
 export const healthIncidents = pgTable('health_incidents', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),
@@ -50,6 +52,7 @@ export const healthIncidents = pgTable('health_incidents', {
 // ─── Immunizations ───────────────────────────────────────────
 
 export const immunizations = pgTable('immunizations', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),
@@ -66,6 +69,7 @@ export const immunizations = pgTable('immunizations', {
 // ─── Nurse Visit Logs ────────────────────────────────────────
 
 export const nurseVisitLogs = pgTable('nurse_visit_logs', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),
@@ -82,6 +86,7 @@ export const nurseVisitLogs = pgTable('nurse_visit_logs', {
 // ─── Medication Schedules ────────────────────────────────────
 
 export const medicationSchedules = pgTable('medication_schedules', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),

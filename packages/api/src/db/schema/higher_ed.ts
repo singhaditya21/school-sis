@@ -1,9 +1,10 @@
 import { pgTable, uuid, varchar, integer, timestamp, pgEnum } from 'drizzle-orm/pg-core';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 
 export const degreeTypeEnum = pgEnum('degree_type', ['BACHELOR', 'MASTER', 'PHD', 'DIPLOMA']);
 
 export const universityPrograms = pgTable('university_programs', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 255 }).notNull(),
@@ -14,6 +15,7 @@ export const universityPrograms = pgTable('university_programs', {
 });
 
 export const universityCourses = pgTable('university_courses', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     programId: uuid('program_id').references(() => universityPrograms.id, { onDelete: 'cascade' }).notNull(),
@@ -24,6 +26,7 @@ export const universityCourses = pgTable('university_courses', {
 });
 
 export const facultyWorkload = pgTable('faculty_workload', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     facultyId: uuid('faculty_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),

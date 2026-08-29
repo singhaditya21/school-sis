@@ -11,11 +11,12 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 
 export const workflowApprovalRequests = pgTable(
   'workflow_approval_requests',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
     policyId: varchar('policy_id', { length: 120 }).notNull(),
@@ -65,6 +66,7 @@ export const workflowApprovalRequests = pgTable(
 export const workflowApprovalReviews = pgTable(
   'workflow_approval_reviews',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
     approvalRequestId: uuid('approval_request_id')
@@ -97,6 +99,7 @@ export const workflowApprovalReviews = pgTable(
 export const workflowApprovalEvents = pgTable(
   'workflow_approval_events',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
     approvalRequestId: uuid('approval_request_id')
@@ -127,6 +130,7 @@ export const workflowApprovalEvents = pgTable(
 export const workflowApprovalDelegations = pgTable(
   'workflow_approval_delegations',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
     policyId: varchar('policy_id', { length: 120 }),

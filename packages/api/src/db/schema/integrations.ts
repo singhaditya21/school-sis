@@ -11,12 +11,13 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { students } from './students';
 
 export const integrationApiKeys = pgTable(
   'integration_api_keys',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id')
       .notNull()
@@ -45,6 +46,7 @@ export const integrationApiKeys = pgTable(
 export const integrationConnections = pgTable(
   'integration_connections',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id')
       .notNull()
@@ -72,6 +74,7 @@ export const integrationConnections = pgTable(
 export const integrationAuditLogs = pgTable(
   'integration_audit_logs',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id')
       .notNull()
@@ -143,6 +146,7 @@ export const integrationAuditLogsRelations = relations(integrationAuditLogs, ({ 
 export const hardwareTokens = pgTable(
   'hardware_tokens',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id')
       .notNull()

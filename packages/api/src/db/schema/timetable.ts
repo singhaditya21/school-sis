@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, timestamp, integer, pgEnum } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { sections, subjects } from './academic';
 
 // ─── Enums ───────────────────────────────────────────────────
@@ -10,6 +10,7 @@ export const dayOfWeekEnum = pgEnum('day_of_week', ['MONDAY', 'TUESDAY', 'WEDNES
 // ─── Periods ─────────────────────────────────────────────────
 
 export const periods = pgTable('periods', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 50 }).notNull(), // Period 1, Lunch, Assembly
@@ -23,6 +24,7 @@ export const periods = pgTable('periods', {
 // ─── Timetable Entries ───────────────────────────────────────
 
 export const timetableEntries = pgTable('timetable_entries', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     sectionId: uuid('section_id').references(() => sections.id, { onDelete: 'cascade' }).notNull(),
@@ -37,6 +39,7 @@ export const timetableEntries = pgTable('timetable_entries', {
 // ─── Substitutions ───────────────────────────────────────────
 
 export const substitutions = pgTable('substitutions', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     timetableEntryId: uuid('timetable_entry_id').references(() => timetableEntries.id).notNull(),
@@ -69,6 +72,7 @@ export const substitutionsRelations = relations(substitutions, ({ one }) => ({
 }));
 
 export const substitutionRequests = pgTable('substitution_requests', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     teacherId: uuid('teacher_id').references(() => users.id).notNull(),

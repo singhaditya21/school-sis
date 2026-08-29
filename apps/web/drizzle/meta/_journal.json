@@ -43,6 +43,13 @@
       "when": 1787983095986,
       "tag": "0005_owners_tier",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788004733455,
+      "tag": "0006_stage1_scope_triple",
+      "breakpoints": true
     }
   ]
 }

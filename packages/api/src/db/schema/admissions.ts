@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, date, pgEnum, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 
 // ─── Enums ───────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ export const pipelineStageEnum = pgEnum('pipeline_stage', ['NEW', 'CONTACTED', '
 // ─── Admission Leads ─────────────────────────────────────────
 
 export const admissionLeads = pgTable('admission_leads', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     childFirstName: varchar('child_first_name', { length: 100 }).notNull(),
@@ -31,6 +32,7 @@ export const admissionLeads = pgTable('admission_leads', {
 // ─── Admission Applications ──────────────────────────────────
 
 export const admissionApplications = pgTable('admission_applications', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     leadId: uuid('lead_id').references(() => admissionLeads.id).notNull(),
@@ -44,6 +46,7 @@ export const admissionApplications = pgTable('admission_applications', {
 // ─── Admission Documents ─────────────────────────────────────
 
 export const admissionDocuments = pgTable('admission_documents', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     applicationId: uuid('application_id').references(() => admissionApplications.id, { onDelete: 'cascade' }).notNull(),

@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, numeric, boolean, date, pgEnum } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { students } from './students';
 
 // ─── Enums ───────────────────────────────────────────────────
@@ -12,6 +12,7 @@ export const reservationStatusEnum = pgEnum('reservation_status', ['ACTIVE', 'FU
 // ─── Books ───────────────────────────────────────────────────
 
 export const books = pgTable('books', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     title: varchar('title', { length: 500 }).notNull(),
@@ -37,6 +38,7 @@ export const books = pgTable('books', {
 // ─── Book Issues ─────────────────────────────────────────────
 
 export const bookIssues = pgTable('book_issues', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     bookId: uuid('book_id').references(() => books.id, { onDelete: 'cascade' }).notNull(),
@@ -58,6 +60,7 @@ export const bookIssues = pgTable('book_issues', {
 // ─── Book Reservations ───────────────────────────────────────
 
 export const bookReservations = pgTable('book_reservations', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     bookId: uuid('book_id').references(() => books.id, { onDelete: 'cascade' }).notNull(),

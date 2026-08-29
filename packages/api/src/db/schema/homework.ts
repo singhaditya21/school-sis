@@ -1,12 +1,13 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, jsonb, date } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { students } from './students';
 import { grades, sections, subjects } from './academic';
 
 // ─── Homework Assignments ────────────────────────────────────
 
 export const homeworkAssignments = pgTable('homework_assignments', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     subjectId: uuid('subject_id').references(() => subjects.id),
@@ -24,6 +25,7 @@ export const homeworkAssignments = pgTable('homework_assignments', {
 // ─── Homework Submissions ────────────────────────────────────
 
 export const homeworkSubmissions = pgTable('homework_submissions', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     assignmentId: uuid('assignment_id').references(() => homeworkAssignments.id, { onDelete: 'cascade' }).notNull(),

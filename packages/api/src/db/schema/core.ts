@@ -97,9 +97,37 @@ export const tenants = pgTable('tenants', {
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ─── Tenancy scope columns (owner → group → school) ──────────
+// The denormalized owner/group ids added to every scoped table in Stage 1 of the
+// three-tier migration. Nullable now (Stage 1 adds, Stage 2 backfills, Stage 4
+// enforces NOT NULL). Delete action matches the tenant_id leaf (cascade). Each is
+// a function so every table gets its own fresh column builders, never shared.
+
+// Columns only — NO foreign keys at this stage. The Stage 3 composite FK
+// (leaf, group_id, owner_id) → tenants(id, company_id, owner_id) is strictly
+// stronger than per-column FKs to owners/companies (it enforces validity AND
+// triple-consistency), so adding simple FKs here would be redundant and would
+// lock the tier tables 280× inside the one migration transaction. Keeping Stage 1
+// to pure ADD COLUMN makes it metadata-only and instant.
+export const ownerScope = () => ({
+    ownerId: uuid('owner_id'),
+});
+
+export const ownerGroupScope = () => ({
+    ...ownerScope(),
+    groupId: uuid('group_id'),
+});
+
+// Join-scoped tables have no tenant_id today; they also get the explicit school leaf.
+export const schoolScope = () => ({
+    schoolId: uuid('school_id'),
+    ...ownerGroupScope(),
+});
+
 // ─── Users ───────────────────────────────────────────────────
 
 export const users = pgTable('users', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     email: varchar('email', { length: 255 }).notNull(),

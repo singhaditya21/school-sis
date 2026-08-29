@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, timestamp, date, pgEnum, boolean, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { sections } from './academic';
 import { students } from './students';
 
@@ -11,6 +11,7 @@ export const attendanceStatusEnum = pgEnum('attendance_status', ['PRESENT', 'ABS
 // ─── Attendance Records ──────────────────────────────────────
 
 export const attendanceRecords = pgTable('attendance_records', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),

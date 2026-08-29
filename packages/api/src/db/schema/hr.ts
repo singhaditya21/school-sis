@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, numeric, boolean, date, pgEnum, jsonb, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 
 // ─── Enums ───────────────────────────────────────────────────
 
@@ -12,6 +12,7 @@ export const leaveStatusEnum = pgEnum('leave_status', ['PENDING', 'APPROVED', 'R
 // ─── Staff Departments ───────────────────────────────────────
 
 export const staffDepartments = pgTable('staff_departments', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 100 }).notNull(),
@@ -25,6 +26,7 @@ export const staffDepartments = pgTable('staff_departments', {
 // ─── Designations ────────────────────────────────────────────
 
 export const designations = pgTable('designations', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 100 }).notNull(),
@@ -37,6 +39,7 @@ export const designations = pgTable('designations', {
 // ─── Staff Profiles ──────────────────────────────────────────
 
 export const staffProfiles = pgTable('staff_profiles', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
@@ -79,6 +82,7 @@ export const staffProfiles = pgTable('staff_profiles', {
 // ─── Leave Policies ──────────────────────────────────────────
 
 export const leavePolicies = pgTable('leave_policies', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 100 }).notNull(),
@@ -96,6 +100,7 @@ export const leavePolicies = pgTable('leave_policies', {
 // ─── Leave Requests ──────────────────────────────────────────
 
 export const leaveRequests = pgTable('leave_requests', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     staffId: uuid('staff_id').references(() => staffProfiles.id, { onDelete: 'cascade' }).notNull(),

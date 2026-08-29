@@ -12,11 +12,12 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 
 export const observabilityEvents = pgTable(
   'observability_events',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     scope: varchar('scope', { length: 20 }).default('PLATFORM').notNull(),
@@ -50,6 +51,7 @@ export const observabilityEvents = pgTable(
 export const sreIncidents = pgTable(
   'sre_incidents',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     scope: varchar('scope', { length: 20 }).default('PLATFORM').notNull(),
@@ -90,6 +92,7 @@ export const sreIncidents = pgTable(
 export const sloDefinitions = pgTable(
   'slo_definitions',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     scope: varchar('scope', { length: 20 }).default('PLATFORM').notNull(),
@@ -113,6 +116,7 @@ export const sloDefinitions = pgTable(
 export const sloMeasurements = pgTable(
   'slo_measurements',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     sloId: uuid('slo_id').notNull().references(() => sloDefinitions.id, { onDelete: 'cascade' }),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
