@@ -1213,6 +1213,12 @@ const COMPANY_POLICIES = [
   "companies_tenant_isolation_update",
   "companies_tenant_isolation_delete",
 ];
+const OWNER_POLICIES = [
+  "owners_tenant_isolation_select",
+  "owners_tenant_isolation_insert",
+  "owners_tenant_isolation_update",
+  "owners_tenant_isolation_delete",
+];
 
 function coveredTable(overrides: Partial<RlsCoverageRow>): RlsCoverageRow {
   return {
@@ -1248,6 +1254,11 @@ function completeRlsCoverage(): RlsCoverageRow[] {
       table_name: "companies",
       has_tenant_id: false,
       policies: COMPANY_POLICIES,
+    }),
+    coveredTable({
+      table_name: "owners",
+      has_tenant_id: false,
+      policies: OWNER_POLICIES,
     }),
   ];
 }

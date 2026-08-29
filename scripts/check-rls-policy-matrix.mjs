@@ -6,6 +6,7 @@ const snapshot = JSON.parse(readFileSync(`${repoRoot}/apps/web/drizzle/meta/0000
 const rlsSql = readFileSync(`${repoRoot}/packages/api/src/db/migrations/tenant-rls.sql`, 'utf8');
 
 const specialPolicies = new Map([
+  ['owners', 'tenant-ancestor'],
   ['companies', 'tenant-parent'],
   ['tenants', 'tenant-root'],
   ['grade_subjects', 'tenant-join'],

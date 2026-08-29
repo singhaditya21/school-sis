@@ -24,5 +24,10 @@ export const EXPECTED_DATABASE_MIGRATIONS = [
     "tag": "0004_normal_jasper_sitwell",
     "createdAt": "1787908137092",
     "hash": "3240176569dd1b2ab22f2be916c79f72a566edfb8375b939aed3578ee0afc881"
+  },
+  {
+    "tag": "0005_owners_tier",
+    "createdAt": "1787983095986",
+    "hash": "c49f8e1b4c00222454786878e607c760572361b6128e885e29d7e304f87621d1"
   }
 ] as const;

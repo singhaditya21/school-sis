@@ -108,9 +108,9 @@ const TENANT_CONTEXT_SECRET_PATTERN = /^[A-Za-z0-9_-]{43,128}$/;
 //
 // The test fixture in deployment-migrations.test.ts imports both constants
 // rather than copying them, so only these two lines need editing.
-export const EXPECTED_RLS_POLICY_COUNT = 180;
+export const EXPECTED_RLS_POLICY_COUNT = 184;
 export const EXPECTED_RLS_POLICY_CATALOG_SHA256 =
-  "4e8e1abaab5643c54fb94e05af29271fb4809d78c8cf448056a029c6efa88161";
+  "6b2ae4d491bd255a2aa0c5167b520ef9c05e4aff188107261f5eb4ebc2f05fae";
 const MAINTENANCE_OWNER_PATTERN = /^[A-Za-z0-9_.@/-]{2,100}$/;
 const MIGRATION_PATH_PATTERN = /^apps\/web\/drizzle\/[A-Za-z0-9_-]+\.sql$/;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
@@ -126,6 +126,12 @@ const REQUIRED_SPECIAL_POLICIES: Readonly<Record<string, readonly string[]>> = {
     "companies_tenant_isolation_insert",
     "companies_tenant_isolation_update",
     "companies_tenant_isolation_delete",
+  ],
+  owners: [
+    "owners_tenant_isolation_select",
+    "owners_tenant_isolation_insert",
+    "owners_tenant_isolation_update",
+    "owners_tenant_isolation_delete",
   ],
 };
 

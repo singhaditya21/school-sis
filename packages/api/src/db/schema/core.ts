@@ -32,10 +32,26 @@ export const institutionTypeEnum = pgEnum('institution_type', [
     'HYBRID'
 ]);
 
+// ─── Owners (Top-Tier Account Holder) ────────────────────────
+// The account owner that a group (company) belongs to — the new top of the
+// owner → group → school hierarchy. Kept lean: billing stays at the group
+// (companies) tier for now. owner_id is denormalized down the tree from here.
+
+export const owners = pgTable('owners', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 255 }).notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 // ─── Companies (Master Billing & Features) ───────────────────
 
 export const companies = pgTable('companies', {
     id: uuid('id').primaryKey().defaultRandom(),
+    // Group tier's owner. Nullable during the Stage 0 → Stage 4 migration;
+    // backfilled (one owner per company) then made NOT NULL in Stage 4.
+    ownerId: uuid('owner_id').references(() => owners.id, { onUpdate: 'cascade', onDelete: 'restrict' }),
     name: varchar('name', { length: 255 }).notNull(),
     stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
     stripeSubscriptionId: varchar('stripe_subscription_id', { length: 255 }),
@@ -57,6 +73,9 @@ export const companies = pgTable('companies', {
 export const tenants = pgTable('tenants', {
     id: uuid('id').primaryKey().defaultRandom(),
     companyId: uuid('company_id').references(() => companies.id, { onDelete: 'cascade' }), // Nullable initially for migration
+    // School tier's owner, denormalized from its group (company). Nullable during
+    // the Stage 0 → Stage 4 migration; backfilled then made NOT NULL in Stage 4.
+    ownerId: uuid('owner_id').references(() => owners.id, { onUpdate: 'cascade', onDelete: 'restrict' }),
     name: varchar('name', { length: 255 }).notNull(),
     code: varchar('code', { length: 50 }).notNull().unique(),
     domain: varchar('domain', { length: 255 }),
@@ -110,7 +129,16 @@ export const users = pgTable('users', {
 
 // ─── Relations ───────────────────────────────────────────────
 
-export const companiesRelations = relations(companies, ({ many }) => ({
+export const ownersRelations = relations(owners, ({ many }) => ({
+    companies: many(companies),
+    tenants: many(tenants),
+}));
+
+export const companiesRelations = relations(companies, ({ one, many }) => ({
+    owner: one(owners, {
+        fields: [companies.ownerId],
+        references: [owners.id],
+    }),
     tenants: many(tenants),
 }));
 
@@ -118,6 +146,10 @@ export const tenantsRelations = relations(tenants, ({ one, many }) => ({
     company: one(companies, {
         fields: [tenants.companyId],
         references: [companies.id],
+    }),
+    owner: one(owners, {
+        fields: [tenants.ownerId],
+        references: [owners.id],
     }),
     users: many(users),
 }));
