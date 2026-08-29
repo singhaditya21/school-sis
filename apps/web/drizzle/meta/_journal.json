@@ -50,6 +50,13 @@
       "when": 1788004733455,
       "tag": "0006_stage1_scope_triple",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788007511059,
+      "tag": "0007_stage3_scope_integrity",
+      "breakpoints": true
     }
   ]
 }

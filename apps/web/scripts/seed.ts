@@ -39,10 +39,18 @@ async function seed() {
         END $$;
     `;
 
-    // ─── 1. Tenant ───────────────────────────────────────────
-    console.log('📦 Creating tenant...');
+    // ─── 1. Company (group) + Tenant (school) ────────────────
+    // Every school belongs to a group; the tenancy FKs require it, and the
+    // owners tier is filled automatically by the company/tenant triggers.
+    console.log('📦 Creating company and tenant...');
+    const [company] = await db.insert(schema.companies).values({
+        id: '0c413c23-6f0f-40ab-bd41-73e6e996ff34',
+        name: 'Greenwood Education Trust',
+    }).returning();
+
     const [tenant] = await db.insert(schema.tenants).values({
         id: '0c413c23-6f0f-40ab-bd41-73e6e996ff35',
+        companyId: company.id,
         name: 'Greenwood International School',
         code: 'GREENWOOD',
         address: '123 Education Lane, Sector 15',
