@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, boolean, integer, date, pgEnum, customType, jsonb, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { grades, sections } from './academic';
 
 // ─── Enums ───────────────────────────────────────────────────
@@ -13,6 +13,7 @@ export const guardianRelationEnum = pgEnum('guardian_relation', ['FATHER', 'MOTH
 // ─── Students ────────────────────────────────────────────────
 
 export const students = pgTable('students', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     userId: uuid('user_id').references(() => users.id), // optional link to user account
@@ -61,6 +62,7 @@ export const students = pgTable('students', {
 // ─── Guardians ───────────────────────────────────────────────
 
 export const guardians = pgTable('guardians', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     userId: uuid('user_id').references(() => users.id), // link to parent user account

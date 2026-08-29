@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, pgEnum, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 
 // ─── Enums ───────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ export const visitorStatusEnum = pgEnum('visitor_status', ['CHECKED_IN', 'CHECKE
 // ─── Visitors ────────────────────────────────────────────────
 
 export const visitors = pgTable('visitors', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 200 }).notNull(),

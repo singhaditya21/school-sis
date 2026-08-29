@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, jsonb, boolean, pgEnum, index, unique } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants } from './core';
+import { tenants, ownerGroupScope } from './core';
 
 // ─── Enums ───────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ export const deliveryStatusEnum = pgEnum('delivery_status', ['PENDING', 'SUCCESS
 // ─── Webhook Subscriptions ───────────────────────────────────
 
 export const webhookSubscriptions = pgTable('webhook_subscriptions', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 255 }).notNull(),
@@ -29,6 +30,7 @@ export const webhookSubscriptions = pgTable('webhook_subscriptions', {
 export const webhookDeliveries = pgTable(
     'webhook_deliveries',
     {
+    ...ownerGroupScope(),
         id: uuid('id').primaryKey().defaultRandom(),
         tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
         subscriptionId: uuid('subscription_id').references(() => webhookSubscriptions.id, { onDelete: 'cascade' }).notNull(),

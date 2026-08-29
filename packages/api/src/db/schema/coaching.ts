@@ -1,8 +1,9 @@
 import { pgTable, uuid, varchar, timestamp, boolean, date, integer } from 'drizzle-orm/pg-core';
-import { tenants } from './core';
+import { tenants, ownerGroupScope } from './core';
 import { students } from './students';
 
 export const coachingBatches = pgTable('coaching_batches', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 255 }).notNull(),
@@ -14,6 +15,7 @@ export const coachingBatches = pgTable('coaching_batches', {
 });
 
 export const testSeries = pgTable('test_series', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     batchId: uuid('batch_id').references(() => coachingBatches.id, { onDelete: 'cascade' }).notNull(),
@@ -23,6 +25,7 @@ export const testSeries = pgTable('test_series', {
 });
 
 export const testSeriesResults = pgTable('test_series_results', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     testId: uuid('test_id').references(() => testSeries.id, { onDelete: 'cascade' }).notNull(),

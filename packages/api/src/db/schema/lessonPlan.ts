@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, pgEnum } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { grades, subjects } from './academic';
 
 // ─── Enums ───────────────────────────────────────────────────
@@ -10,6 +10,7 @@ export const lessonPlanStatusEnum = pgEnum('lesson_plan_status', ['DRAFT', 'SUBM
 // ─── Lesson Plans ────────────────────────────────────────────
 
 export const lessonPlans = pgTable('lesson_plans', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     subjectId: uuid('subject_id').references(() => subjects.id),

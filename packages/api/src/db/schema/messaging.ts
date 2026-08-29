@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, pgEnum, jsonb, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 
 // ─── Enums ───────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ export const msgTemplateStatusEnum = pgEnum('msg_template_status', ['QUEUED', 'S
 // ─── Message Templates ──────────────────────────────────────
 
 export const messageTemplates = pgTable('message_templates', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 200 }).notNull(),
@@ -24,6 +25,7 @@ export const messageTemplates = pgTable('message_templates', {
 // ─── Message Logs ────────────────────────────────────────────
 
 export const messageLogs = pgTable('message_logs', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     templateId: uuid('template_id').references(() => messageTemplates.id),

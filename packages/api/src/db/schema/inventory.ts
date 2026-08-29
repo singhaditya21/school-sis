@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, numeric, pgEnum, date, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 
 // ─── Enums ───────────────────────────────────────────────────
 
@@ -13,6 +13,7 @@ export const alertSeverityEnum = pgEnum('alert_severity', ['CRITICAL', 'WARNING'
 // ─── Assets ──────────────────────────────────────────────────
 
 export const assets = pgTable('assets', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 255 }).notNull(),
@@ -34,6 +35,7 @@ export const assets = pgTable('assets', {
 // ─── Consumables ─────────────────────────────────────────────
 
 export const consumables = pgTable('consumables', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 255 }).notNull(),
@@ -52,6 +54,7 @@ export const consumables = pgTable('consumables', {
 // ─── Stock Alerts ────────────────────────────────────────────
 
 export const stockAlerts = pgTable('stock_alerts', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     itemId: uuid('item_id').notNull(),

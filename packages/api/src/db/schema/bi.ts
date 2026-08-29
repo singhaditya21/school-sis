@@ -12,11 +12,12 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 
 export const biDatasets = pgTable(
   'bi_datasets',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     scope: varchar('scope', { length: 20 }).default('TENANT').notNull(),
@@ -58,6 +59,7 @@ export const biDatasets = pgTable(
 export const biDashboards = pgTable(
   'bi_dashboards',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     scope: varchar('scope', { length: 20 }).default('TENANT').notNull(),
@@ -94,6 +96,7 @@ export const biDashboards = pgTable(
 export const biReportDefinitions = pgTable(
   'bi_report_definitions',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     scope: varchar('scope', { length: 20 }).default('TENANT').notNull(),
@@ -120,6 +123,7 @@ export const biReportDefinitions = pgTable(
 export const biReportRuns = pgTable(
   'bi_report_runs',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     scope: varchar('scope', { length: 20 }).default('TENANT').notNull(),
@@ -149,6 +153,7 @@ export const biReportRuns = pgTable(
 export const biMetricSnapshots = pgTable(
   'bi_metric_snapshots',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     scope: varchar('scope', { length: 20 }).default('TENANT').notNull(),

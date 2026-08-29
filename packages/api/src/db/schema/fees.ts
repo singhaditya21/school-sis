@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, boolean, integer, numeric, date, pgEnum, customType, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope, schoolScope } from './core';
 import { academicYears } from './academic';
 import { students } from './students';
 
@@ -15,6 +15,7 @@ export const concessionTypeEnum = pgEnum('concession_type', ['PERCENTAGE', 'FIXE
 // ─── Fee Plans ───────────────────────────────────────────────
 
 export const feePlans = pgTable('fee_plans', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     academicYearId: uuid('academic_year_id').references(() => academicYears.id).notNull(),
@@ -28,6 +29,7 @@ export const feePlans = pgTable('fee_plans', {
 // ─── Fee Components ──────────────────────────────────────────
 
 export const feeComponents = pgTable('fee_components', {
+    ...schoolScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     feePlanId: uuid('fee_plan_id').references(() => feePlans.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 255 }).notNull(), // Tuition, Transport, Library, Lab
@@ -40,6 +42,7 @@ export const feeComponents = pgTable('fee_components', {
 // ─── Invoices ────────────────────────────────────────────────
 
 export const invoices = pgTable('invoices', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),
@@ -69,6 +72,7 @@ export const invoices = pgTable('invoices', {
 // ─── Payments ────────────────────────────────────────────────
 
 export const payments = pgTable('payments', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     invoiceId: uuid('invoice_id').references(() => invoices.id, { onDelete: 'cascade' }).notNull(),
@@ -92,6 +96,7 @@ export const payments = pgTable('payments', {
 // ─── Payment Provider Orders ────────────────────────────────
 
 export const paymentOrders = pgTable('payment_orders', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     invoiceId: uuid('invoice_id').references(() => invoices.id, { onDelete: 'cascade' }).notNull(),
@@ -117,6 +122,7 @@ export const paymentOrders = pgTable('payment_orders', {
 // ─── Payment Provider Webhook Events ────────────────────────
 
 export const paymentProviderEvents = pgTable('payment_provider_events', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     provider: varchar('provider', { length: 32 }).notNull(),
@@ -135,6 +141,7 @@ export const paymentProviderEvents = pgTable('payment_provider_events', {
 // ─── Payment Audit Trail ────────────────────────────────────
 
 export const paymentAuditLogs = pgTable('payment_audit_logs', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     invoiceId: uuid('invoice_id').references(() => invoices.id, { onDelete: 'set null' }),
@@ -156,6 +163,7 @@ export const paymentAuditLogs = pgTable('payment_audit_logs', {
 // ─── Receipts ────────────────────────────────────────────────
 
 export const receipts = pgTable('receipts', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     paymentId: uuid('payment_id').references(() => payments.id).notNull(),
@@ -168,6 +176,7 @@ export const receipts = pgTable('receipts', {
 // ─── Concessions ─────────────────────────────────────────────
 
 export const concessions = pgTable('concessions', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),
@@ -185,6 +194,7 @@ export const concessions = pgTable('concessions', {
 // ─── Fine Rules ──────────────────────────────────────────────
 
 export const fineRules = pgTable('fine_rules', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     feePlanId: uuid('fee_plan_id').references(() => feePlans.id).notNull(),

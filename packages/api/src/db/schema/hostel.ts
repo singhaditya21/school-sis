@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, pgEnum, jsonb, date, boolean, numeric } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { students } from './students';
 
 // ─── Enums ───────────────────────────────────────────────────
@@ -13,6 +13,7 @@ export const allocationStatusEnum = pgEnum('allocation_status', ['ACTIVE', 'VACA
 // ─── Hostels ─────────────────────────────────────────────────
 
 export const hostels = pgTable('hostels', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 200 }).notNull(),
@@ -31,6 +32,7 @@ export const hostels = pgTable('hostels', {
 // ─── Hostel Rooms ────────────────────────────────────────────
 
 export const hostelRooms = pgTable('hostel_rooms', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     hostelId: uuid('hostel_id').references(() => hostels.id, { onDelete: 'cascade' }).notNull(),
@@ -47,6 +49,7 @@ export const hostelRooms = pgTable('hostel_rooms', {
 // ─── Hostel Allocations ──────────────────────────────────────
 
 export const hostelAllocations = pgTable('hostel_allocations', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),
@@ -63,6 +66,7 @@ export const hostelAllocations = pgTable('hostel_allocations', {
 // ─── Mess Menus ──────────────────────────────────────────────
 
 export const messMenus = pgTable('mess_menus', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     hostelId: uuid('hostel_id').references(() => hostels.id, { onDelete: 'cascade' }).notNull(),
@@ -77,6 +81,7 @@ export const messMenus = pgTable('mess_menus', {
 // ─── Hostel Fees ──────────────────────────────────────────────
 
 export const hostelFees = pgTable('hostel_fees', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),

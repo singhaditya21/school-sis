@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, boolean, integer, numeric } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { companies, tenants, users } from './core';
+import { companies, tenants, users, ownerScope } from './core';
 
 // ─── Platform Audit Logs (Stage 2) ──────────────────────────
 
@@ -18,6 +18,7 @@ export const platformAuditLogs = pgTable('platform_audit_logs', {
 // ─── AI Token Economy Logs (Stage 1) ─────────────────────────
 
 export const aiTokenLogs = pgTable('ai_token_logs', {
+    ...ownerScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     companyId: uuid('company_id').references(() => companies.id, { onDelete: 'cascade' }).notNull(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),

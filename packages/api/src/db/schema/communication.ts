@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, boolean, pgEnum, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 
 // ─── Enums ───────────────────────────────────────────────────
 
@@ -11,6 +11,7 @@ export const consentChannelEnum = pgEnum('consent_channel', ['SMS', 'WHATSAPP', 
 // ─── Messages ────────────────────────────────────────────────
 
 export const messages = pgTable('messages', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     channel: messageChannelEnum('channel').notNull(),
@@ -33,6 +34,7 @@ export const messages = pgTable('messages', {
 // ─── Communication Consents ──────────────────────────────────
 
 export const consents = pgTable('consents', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),

@@ -1,10 +1,11 @@
 import { sql } from 'drizzle-orm';
 import { pgTable, text, timestamp, boolean, jsonb, uuid, varchar, index } from 'drizzle-orm/pg-core';
-import { tenants } from './core';
+import { tenants, ownerGroupScope } from './core';
 
 export const workflows = pgTable(
   'workflows',
   {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id')
       .notNull()
@@ -24,6 +25,7 @@ export const workflows = pgTable(
 );
 
 export const metadataWorkflows = pgTable('metadata_workflows', {
+    ...ownerGroupScope(),
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id')
     .notNull()

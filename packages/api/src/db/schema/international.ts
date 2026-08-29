@@ -1,8 +1,9 @@
 import { pgTable, uuid, varchar, timestamp, date } from 'drizzle-orm/pg-core';
-import { tenants } from './core';
+import { tenants, ownerGroupScope } from './core';
 import { students } from './students';
 
 export const studentVisas = pgTable('student_visas', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),
@@ -15,6 +16,7 @@ export const studentVisas = pgTable('student_visas', {
 });
 
 export const hostFamilies = pgTable('host_families', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     familyName: varchar('family_name', { length: 255 }).notNull(),
@@ -24,6 +26,7 @@ export const hostFamilies = pgTable('host_families', {
 });
 
 export const internationalPlacements = pgTable('international_placements', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),

@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, pgEnum, date, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 
 // ─── Enums ───────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ export const audienceTypeEnum = pgEnum('audience_type', ['ALL', 'STUDENTS', 'STA
 // ─── Academic Events ─────────────────────────────────────────
 
 export const academicEvents = pgTable('academic_events', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     title: varchar('title', { length: 255 }).notNull(),

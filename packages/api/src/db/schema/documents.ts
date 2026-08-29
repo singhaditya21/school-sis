@@ -1,11 +1,12 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { students } from './students';
 
 // ─── Student Documents ──────────────────────────────────────
 
 export const studentDocuments = pgTable('student_documents', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),

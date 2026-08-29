@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, pgEnum, date, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { students } from './students';
 
 // ─── Enums ───────────────────────────────────────────────────
@@ -10,6 +10,7 @@ export const consentResponseEnum = pgEnum('consent_response', ['ACCEPTED', 'DECL
 // ─── Consent Forms ──────────────────────────────────────────
 
 export const consentForms = pgTable('consent_forms', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     title: varchar('title', { length: 255 }).notNull(),
@@ -25,6 +26,7 @@ export const consentForms = pgTable('consent_forms', {
 // ─── Consent Responses ──────────────────────────────────────
 
 export const consentResponses = pgTable('consent_responses', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     formId: uuid('form_id').references(() => consentForms.id, { onDelete: 'cascade' }).notNull(),

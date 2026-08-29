@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, boolean, integer, date, pgEnum } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants } from './core';
+import { tenants, ownerGroupScope, schoolScope } from './core';
 
 // ─── Enums ───────────────────────────────────────────────────
 
@@ -9,6 +9,7 @@ export const termTypeEnum = pgEnum('term_type', ['TERM_1', 'TERM_2', 'TERM_3', '
 // ─── Academic Years ──────────────────────────────────────────
 
 export const academicYears = pgTable('academic_years', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 50 }).notNull(), // e.g., "2025-2026"
@@ -21,6 +22,7 @@ export const academicYears = pgTable('academic_years', {
 // ─── Terms ───────────────────────────────────────────────────
 
 export const terms = pgTable('terms', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     academicYearId: uuid('academic_year_id').references(() => academicYears.id, { onDelete: 'cascade' }).notNull(),
@@ -34,6 +36,7 @@ export const terms = pgTable('terms', {
 // ─── Grades ──────────────────────────────────────────────────
 
 export const grades = pgTable('grades', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 50 }).notNull(), // e.g., "Grade 1", "Pre-Primary"
@@ -45,6 +48,7 @@ export const grades = pgTable('grades', {
 // ─── Sections ────────────────────────────────────────────────
 
 export const sections = pgTable('sections', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     gradeId: uuid('grade_id').references(() => grades.id, { onDelete: 'cascade' }).notNull(),
@@ -59,6 +63,7 @@ export const sections = pgTable('sections', {
 // ─── Subjects ────────────────────────────────────────────────
 
 export const subjects = pgTable('subjects', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 100 }).notNull(),
@@ -71,6 +76,7 @@ export const subjects = pgTable('subjects', {
 // ─── Grade-Subject Mapping ───────────────────────────────────
 
 export const gradeSubjects = pgTable('grade_subjects', {
+    ...schoolScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     gradeId: uuid('grade_id').references(() => grades.id, { onDelete: 'cascade' }).notNull(),
     subjectId: uuid('subject_id').references(() => subjects.id, { onDelete: 'cascade' }).notNull(),

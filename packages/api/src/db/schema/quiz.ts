@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, pgEnum, jsonb, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 import { students } from './students';
 import { grades, sections, subjects } from './academic';
 
@@ -13,6 +13,7 @@ export const attemptStatusEnum = pgEnum('attempt_status', ['IN_PROGRESS', 'SUBMI
 // ─── Quizzes ─────────────────────────────────────────────────
 
 export const quizzes = pgTable('quizzes', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     title: varchar('title', { length: 255 }).notNull(),
@@ -33,6 +34,7 @@ export const quizzes = pgTable('quizzes', {
 // ─── Quiz Questions ──────────────────────────────────────────
 
 export const quizQuestions = pgTable('quiz_questions', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     quizId: uuid('quiz_id').references(() => quizzes.id, { onDelete: 'cascade' }).notNull(),
@@ -49,6 +51,7 @@ export const quizQuestions = pgTable('quiz_questions', {
 // ─── Quiz Attempts ───────────────────────────────────────────
 
 export const quizAttempts = pgTable('quiz_attempts', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     quizId: uuid('quiz_id').references(() => quizzes.id, { onDelete: 'cascade' }).notNull(),

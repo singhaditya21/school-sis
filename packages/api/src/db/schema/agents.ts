@@ -1,7 +1,8 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, jsonb, index, uniqueIndex, vector } from 'drizzle-orm/pg-core';
-import { tenants, users } from './core';
+import { tenants, users, ownerGroupScope } from './core';
 
 export const embeddings = pgTable('embeddings', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     collection: varchar('collection', { length: 50 }).notNull(),
@@ -19,6 +20,7 @@ export const embeddings = pgTable('embeddings', {
 }));
 
 export const agentAuditLogs = pgTable('agent_audit_logs', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     agentName: varchar('agent_name', { length: 50 }).notNull(),
@@ -36,6 +38,7 @@ export const agentAuditLogs = pgTable('agent_audit_logs', {
 }));
 
 export const agentApprovals = pgTable('agent_approvals', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     agentName: varchar('agent_name', { length: 50 }).notNull(),

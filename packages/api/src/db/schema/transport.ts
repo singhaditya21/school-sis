@@ -1,11 +1,12 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, numeric } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { tenants } from './core';
+import { tenants, ownerGroupScope, schoolScope } from './core';
 import { students } from './students';
 
 // ─── Vehicles ────────────────────────────────────────────────
 
 export const vehicles = pgTable('vehicles', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     vehicleNumber: varchar('vehicle_number', { length: 20 }).notNull(),
@@ -26,6 +27,7 @@ export const vehicles = pgTable('vehicles', {
 // ─── Routes ──────────────────────────────────────────────────
 
 export const routes = pgTable('routes', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     vehicleId: uuid('vehicle_id').references(() => vehicles.id).notNull(),
@@ -41,6 +43,7 @@ export const routes = pgTable('routes', {
 // ─── Stops ───────────────────────────────────────────────────
 
 export const stops = pgTable('stops', {
+    ...schoolScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     routeId: uuid('route_id').references(() => routes.id, { onDelete: 'cascade' }).notNull(),
     name: varchar('name', { length: 255 }).notNull(),
@@ -56,6 +59,7 @@ export const stops = pgTable('stops', {
 // ─── Student Transport Assignment ────────────────────────────
 
 export const studentTransport = pgTable('student_transport', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     studentId: uuid('student_id').references(() => students.id, { onDelete: 'cascade' }).notNull(),
@@ -69,6 +73,7 @@ export const studentTransport = pgTable('student_transport', {
 // ─── Vehicle Maintenance Logs ────────────────────────────────
 
 export const vehicleMaintenanceLogs = pgTable('vehicle_maintenance_logs', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     vehicleId: uuid('vehicle_id').references(() => vehicles.id, { onDelete: 'cascade' }).notNull(),
@@ -84,6 +89,7 @@ export const vehicleMaintenanceLogs = pgTable('vehicle_maintenance_logs', {
 // ─── Driver Background Checks ────────────────────────────────
 
 export const driverBackgroundChecks = pgTable('driver_background_checks', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     vehicleId: uuid('vehicle_id').references(() => vehicles.id), // Link the primary vehicle assigned
@@ -100,6 +106,7 @@ export const driverBackgroundChecks = pgTable('driver_background_checks', {
 // ─── Live GPS Pings ──────────────────────────────────────────
 
 export const liveGpsPings = pgTable('live_gps_pings', {
+    ...ownerGroupScope(),
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }).notNull(),
     vehicleId: uuid('vehicle_id').references(() => vehicles.id, { onDelete: 'cascade' }).notNull(),
