@@ -307,13 +307,13 @@ async function applyLocalDbContext(
 ): Promise<number | undefined> {
   if (!context) {
     await query(
-      "SELECT set_config('search_path', 'pg_catalog, public', true), set_config('app.current_tenant', '', true), set_config('app.tenant_context_audience', '', true), set_config('app.tenant_context_key_id', '', true), set_config('app.tenant_context_expires_at', '', true), set_config('app.tenant_context_nonce', '', true), set_config('app.tenant_context_signature', '', true), set_config('app.bypass_rls', 'off', true)",
+      "SELECT set_config('search_path', 'pg_catalog, public', true), set_config('app.current_tenant', '', true), set_config('app.tenant_context_audience', '', true), set_config('app.tenant_context_key_id', '', true), set_config('app.tenant_context_expires_at', '', true), set_config('app.tenant_context_nonce', '', true), set_config('app.tenant_context_signature', '', true), set_config('app.current_owner', '', true), set_config('app.current_group', '', true), set_config('app.bypass_rls', 'off', true)",
     );
     return undefined;
   }
   if (context.bypassRls) {
     await query(
-      "SELECT set_config('search_path', 'pg_catalog, public', true), set_config('app.current_tenant', '', true), set_config('app.tenant_context_audience', '', true), set_config('app.tenant_context_key_id', '', true), set_config('app.tenant_context_expires_at', '', true), set_config('app.tenant_context_nonce', '', true), set_config('app.tenant_context_signature', '', true), set_config('app.bypass_rls', 'on', true)",
+      "SELECT set_config('search_path', 'pg_catalog, public', true), set_config('app.current_tenant', '', true), set_config('app.tenant_context_audience', '', true), set_config('app.tenant_context_key_id', '', true), set_config('app.tenant_context_expires_at', '', true), set_config('app.tenant_context_nonce', '', true), set_config('app.tenant_context_signature', '', true), set_config('app.current_owner', '', true), set_config('app.current_group', '', true), set_config('app.bypass_rls', 'on', true)",
     );
     return undefined;
   }
@@ -346,7 +346,7 @@ async function applyLocalDbContext(
     transactionId,
   });
   const result = await query(
-    "WITH configured AS MATERIALIZED (SELECT set_config('search_path', 'pg_catalog, public', true), set_config('app.current_tenant', $1, true), set_config('app.tenant_context_audience', $2, true), set_config('app.tenant_context_key_id', $3, true), set_config('app.tenant_context_expires_at', $4, true), set_config('app.tenant_context_nonce', $5, true), set_config('app.tenant_context_signature', $6, true), set_config('app.bypass_rls', 'off', true)) SELECT app_private.verified_tenant_id()::text AS verified_tenant_id, GREATEST($4::bigint - floor(extract(epoch FROM clock_timestamp()))::bigint, 0)::integer AS remaining_seconds FROM configured",
+    "WITH configured AS MATERIALIZED (SELECT set_config('search_path', 'pg_catalog, public', true), set_config('app.current_tenant', $1, true), set_config('app.tenant_context_audience', $2, true), set_config('app.tenant_context_key_id', $3, true), set_config('app.tenant_context_expires_at', $4, true), set_config('app.tenant_context_nonce', $5, true), set_config('app.tenant_context_signature', $6, true), set_config('app.current_owner', '', true), set_config('app.current_group', '', true), set_config('app.bypass_rls', 'off', true)) SELECT app_private.verified_tenant_id()::text AS verified_tenant_id, GREATEST($4::bigint - floor(extract(epoch FROM clock_timestamp()))::bigint, 0)::integer AS remaining_seconds FROM configured",
     [
       signed.tenantId,
       signed.audience,
