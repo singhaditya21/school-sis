@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { setTimeout as sleepFor } from "node:timers/promises";
 import { Client, type QueryResultRow } from "pg";
-import { readMigrationFiles, type MigrationMeta } from "drizzle-orm/migrator";
+import { readMigrationFiles, type MigrationMeta } from "./read-migration-files";
 import {
   resolveDatabaseConnectionOptions,
   type DatabaseSslMode,
