@@ -1,6 +1,5 @@
 // Fee Cashflow Service — Production (Real DB)
-import { db } from '@/lib/db';
-import { sql } from 'drizzle-orm';
+import { sql } from '@/lib/db';
 
 function normalizeMonthWindow(months: number): number {
     if (!Number.isFinite(months)) return 12;
@@ -10,7 +9,7 @@ function normalizeMonthWindow(months: number): number {
 export const CashflowService = {
     async getMonthlyCashflow(tenantId: string, months: number = 12) {
         const windowMonths = normalizeMonthWindow(months);
-        const rows = await db.execute(sql`
+        const rows = await sql`
             WITH bounds AS (
                 SELECT
                     (date_trunc('month', CURRENT_DATE)::date - ((${windowMonths}::int - 1) * interval '1 month'))::date AS start_month,
@@ -48,11 +47,11 @@ export const CashflowService = {
             LEFT JOIN payment_rollup pr ON pr.month = ms.month
             LEFT JOIN invoice_rollup ir ON ir.month = ms.month
             ORDER BY ms.month ASC
-        `);
+        `;
         return rows;
     },
     async getOutstandingSummary(tenantId: string) {
-        const [s] = await db.execute(sql`
+        const [s] = await sql<{ totalInvoiced: number; totalCollected: number; totalOutstanding: number; overdueCount: number; overdueAmount: number }>`
             SELECT
                 COALESCE(SUM(total_amount), 0) AS "totalInvoiced",
                 COALESCE(SUM(paid_amount), 0) AS "totalCollected",
@@ -61,11 +60,11 @@ export const CashflowService = {
                 COALESCE(SUM(total_amount - paid_amount) FILTER (WHERE status = 'OVERDUE'), 0) AS "overdueAmount"
             FROM invoices
             WHERE tenant_id = ${tenantId}
-        `) as Array<{ totalInvoiced: number; totalCollected: number; totalOutstanding: number; overdueCount: number; overdueAmount: number }>;
+        `;
         return { totalInvoiced: Number(s?.totalInvoiced||0), totalCollected: Number(s?.totalCollected||0), totalOutstanding: Number(s?.totalOutstanding||0), overdueCount: Number(s?.overdueCount||0), overdueAmount: Number(s?.overdueAmount||0), collectionRate: s?.totalInvoiced>0?Math.round(Number(s.totalCollected)/Number(s.totalInvoiced)*100):0 };
     },
     async getPaymentMethodBreakdown(tenantId: string) {
-        const rows = await db.execute(sql`
+        const rows = await sql`
             SELECT p.method, SUM(p.amount) AS total, COUNT(*) AS count
             FROM payments p
             WHERE p.tenant_id = ${tenantId}
@@ -73,11 +72,11 @@ export const CashflowService = {
                 AND p.paid_at >= date_trunc('month', CURRENT_DATE)
             GROUP BY p.method
             ORDER BY total DESC
-        `);
+        `;
         return rows;
     },
     async getGradeWiseCollection(tenantId: string) {
-        const rows = await db.execute(sql`
+        const rows = await sql`
             SELECT
                 COALESCE(g.name, 'Unassigned') AS grade,
                 COALESCE(SUM(i.total_amount), 0) AS expected,
@@ -97,7 +96,7 @@ export const CashflowService = {
             WHERE i.tenant_id = ${tenantId}
             GROUP BY g.name, g.display_order
             ORDER BY g.display_order NULLS LAST, g.name ASC
-        `);
+        `;
         return rows;
     },
 };
