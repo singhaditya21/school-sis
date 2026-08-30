@@ -183,8 +183,8 @@ jobs:
       - name: Verify a Job Dispatch Driver Exists
         run: pnpm audit:scheduler
 
-      - name: Validate Drizzle Migrations
-        run: pnpm --filter @school-sis/web exec drizzle-kit check
+      - name: Validate Migration Chain
+        run: pnpm audit:migrations:chain
 
       - name: Validate Runtime Migration Manifest
         run: pnpm db:manifest:check

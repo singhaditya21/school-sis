@@ -54,7 +54,7 @@ The application and migration paths deliberately use different credentials:
 
 Set `DATABASE_SSL_MODE=verify-full`. Remote migration commands reject local, non-Neon, pooled, or TLS-downgraded URLs before connecting.
 
-`db:push`, standalone `db:rls`, and the destructive RLS integration test are local-only. All remote changes must use:
+Standalone `db:rls` and the destructive RLS integration test are local-only. All remote changes must use:
 
 ```bash
 pnpm db:migrate:deploy --target preview
@@ -785,7 +785,7 @@ readiness result as the evidence bundle for issue #18.
 
 ## Related application operations
 
-Local development remains local-first. Run `pnpm local:setup` for the guided setup, or use `pnpm db:up`, `pnpm dev`, and `pnpm db:down`. Schema source lives in `packages/api/src/db/schema`; generated Drizzle migrations live in `apps/web/drizzle`. `pnpm db:generate`, `pnpm db:migrate`, `pnpm db:seed`, `pnpm db:studio`, and `pnpm db:push` are local-development commands.
+Local development remains local-first. Run `pnpm local:setup` for the guided setup, or use `pnpm db:up`, `pnpm dev`, and `pnpm db:down`. The local schema is built from the raw-SQL migration chain in `apps/web/drizzle` — the same one the release applies to production, so local and prod never drift — and `pnpm db:seed` reseeds demo data.
 
 When all three tenant-context signing variables are absent, a non-production
 runtime whose `DATABASE_URL` resolves strictly to localhost uses the same

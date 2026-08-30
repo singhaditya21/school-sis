@@ -29,9 +29,8 @@ Then log in with a seeded account (see the `apps/web/scripts/seed.ts` output for
 | `pnpm dev` | Start the app on http://localhost:3000 |
 | `pnpm db:up` / `pnpm db:down` | Start / stop the local Postgres cluster |
 | `pnpm db:reset` | Wipe `.pgdata` and recreate an empty cluster (then `pnpm local:setup`) |
-| `pnpm db:push` | Apply schema changes to the local DB (`drizzle-kit push`) |
+| `pnpm local:setup` | (Re)build the local schema from the production migration chain, then seed |
 | `pnpm db:seed` | Reseed demo data |
-| `pnpm db:studio` | Browse the DB (Drizzle Studio) |
 | `pnpm scheduler` | Run the background-job/notification scheduler locally |
 
 ## How it fits together
