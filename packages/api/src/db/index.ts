@@ -7,6 +7,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
 import { getLimit } from "@/lib/config/limits";
 import { resolveDatabaseConnectionOptions } from "./ssl";
+import { createSqlTag } from "./sql";
 import {
   assertRlsBypassJustification,
   type RlsBypassJustification,
@@ -1039,6 +1040,16 @@ export const db = globalThis.drizzleDb || drizzle(pool, { schema });
 if (process.env.NODE_ENV !== "production") {
   globalThis.drizzleDb = db;
 }
+
+/**
+ * Raw-SQL tagged template bound to the RLS-routing pool — the raw-Neon-Postgres
+ * replacement for the Drizzle query builder. The runner is resolved lazily on each
+ * call, so every query observes the current tenant/platform routing and the signed
+ * per-connection context, exactly as `db` does. Prefer `sql` for new code.
+ */
+export const sql = createSqlTag(() => pool);
+export { SqlQuery, createSqlTag, sqlFor } from "./sql";
+export type { SqlRunner, SqlTag } from "./sql";
 
 export function getCurrentDbContext(): DbRlsContext | undefined {
   return currentContext();
