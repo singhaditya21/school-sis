@@ -8,6 +8,9 @@ import test from 'node:test';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CHECKER = join(REPO_ROOT, 'scripts', 'check-sql-columns.mjs');
+// The checker derives its schema through this shared module, so the scratch tree
+// must carry it too (at the same path, since the checker imports it relatively).
+const SCHEMA_LIB = join(REPO_ROOT, 'scripts', 'lib', 'migration-schema.mjs');
 
 /**
  * The checker derives its schema from the committed migrations and finds its
@@ -63,8 +66,10 @@ function scratch(source) {
     // The checker resolves itself relative to its own location, so it has to sit
     // in the scratch tree at the same path it occupies here.
     const checkerSource = execFileSync('cat', [CHECKER], { encoding: 'utf8' });
+    const schemaLibSource = execFileSync('cat', [SCHEMA_LIB], { encoding: 'utf8' });
     return {
         'scripts/check-sql-columns.mjs': checkerSource,
+        'scripts/lib/migration-schema.mjs': schemaLibSource,
         'apps/web/drizzle/0000_init_baseline.sql': BASELINE,
         'apps/web/src/lib/actions/probe.ts': source,
     };

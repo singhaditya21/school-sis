@@ -25,7 +25,7 @@
 - [ ] `pnpm test:unit`
 - [ ] `pnpm test:architecture`
 - [ ] `pnpm audit:ci`
-- [ ] `pnpm --filter @school-sis/web exec drizzle-kit check`
+- [ ] `pnpm audit:migrations:chain`
 - [ ] `pnpm --filter @school-sis/web exec tsc --noEmit --pretty false --incremental false`
 - [ ] `pnpm --filter @school-sis/web run build`
 - [ ] E2E/smoke tests, if applicable:

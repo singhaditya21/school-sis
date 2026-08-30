@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { buildMigrationSchema } from './lib/migration-schema.mjs';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
-const snapshot = JSON.parse(readFileSync(`${repoRoot}/apps/web/drizzle/meta/0000_snapshot.json`, 'utf8'));
 const rlsSql = readFileSync(`${repoRoot}/packages/api/src/db/migrations/tenant-rls.sql`, 'utf8');
+// The table→columns map now comes from the raw migration chain (the whole schema,
+// every migration) rather than the removed Drizzle 0000 snapshot.
+const schema = buildMigrationSchema();
 
 const specialPolicies = new Map([
   ['owners', 'tenant-ancestor'],
@@ -30,18 +33,14 @@ const specialPolicies = new Map([
   ['rate_limit_buckets', 'platform-only'],
 ]);
 
-const tableEntries = Object.entries(snapshot.tables).map(([qualifiedName, definition]) => [
-  qualifiedName.replace(/^public\./, ''),
-  definition,
-]);
+const tableEntries = [...schema.entries()];
 
 const directTenantTables = tableEntries
-  .filter(([name, definition]) => definition.columns.tenant_id && !specialPolicies.has(name))
+  .filter(([name, columns]) => columns.has('tenant_id') && !specialPolicies.has(name))
   .map(([name]) => name);
 const uncovered = tableEntries
-  .filter(([, definition]) => !definition.columns.tenant_id)
-  .map(([name]) => name)
-  .filter((name) => !specialPolicies.has(name));
+  .filter(([name, columns]) => !columns.has('tenant_id') && !specialPolicies.has(name))
+  .map(([name]) => name);
 
 const missingEnableRls = [...specialPolicies.keys()].filter(
   (name) => !rlsSql.includes(`ALTER TABLE public.${name} ENABLE ROW LEVEL SECURITY`),
