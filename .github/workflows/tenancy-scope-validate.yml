@@ -1,0 +1,190 @@
+name: Tenancy Scope Validation (operator)
+
+# On-demand operator step for the 3-tier tenancy migration.
+#
+# The expand→contract stages add their scope constraints (composite FKs in Stage 3,
+# owner/group presence CHECKs in Stage 4 phase 1) as NOT VALID: they enforce new
+# writes immediately but do not scan existing rows, so the automated release can
+# auto-apply them without a long lock. VALIDATING them against existing rows is a
+# separate, deliberately manual step — this workflow.
+#
+#   * db:validate:scope    — the Stage 3 composite scope FKs + the tier drift FK
+#   * db:validate:notnull  — the Stage 4 owner/group presence CHECKs
+#
+# Both take only SHARE UPDATE EXCLUSIVE (no read/write lockout), are idempotent (an
+# already-validated constraint is skipped), and change no data. A validated presence
+# CHECK is also what lets the later phase-2 `SET NOT NULL` skip its table scan.
+#
+# This runs entirely inside GitHub Actions against the production Neon branch, using
+# the same NEON_PRODUCTION_DIRECT_URL secret and verify-full TLS path the release
+# migrator uses — so it needs no operator laptop or local production credentials.
+#
+# Because it declares `environment: production`, it inherits that environment's
+# protection rules: if required reviewers are configured, each dispatch waits for an
+# approval before it runs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      step:
+        description: Which validation to run against production
+        type: choice
+        default: notnull
+        options:
+          - notnull   # db:validate:notnull — Stage 4 presence CHECKs
+          - scope     # db:validate:scope   — Stage 3 composite FKs
+          - both      # scope, then notnull
+      confirm:
+        description: Type 'validate production' to confirm
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  # Serialise validation runs with each other. VALIDATE is non-blocking, so this does
+  # not need to coordinate with the release beyond Postgres' own lock handling.
+  group: tenancy-scope-validate
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate the selected scope constraints on production
+    # Only ever run the reviewed code on main. workflow_dispatch lets the operator
+    # pick any ref, and this job both installs dependencies (branch-controlled
+    # lifecycle scripts) and runs the branch's validate scripts against production
+    # with DIRECT_URL in scope — so an unreviewed branch could exfiltrate the secret
+    # or run arbitrary SQL. Pinning to main means only merged, reviewed code ever
+    # touches production here, matching the main-branch gate deploy-production.yml
+    # enforces. Dispatching from any other ref skips the job.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Required so `secrets.NEON_PRODUCTION_DIRECT_URL`, a production-environment
+    # secret, resolves to its value rather than an empty string — and so the
+    # environment's protection rules gate the run.
+    environment: production
+    env:
+      NODE_VERSION: "24"
+      PNPM_VERSION: "9.15.9"
+    steps:
+      - name: Require explicit confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRM" != "validate production" ]; then
+            echo "Refusing to run: type exactly 'validate production' in the confirm field." >&2
+            exit 1
+          fi
+
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Fail closed on a wrong or missing production direct URL
+        env:
+          NEON_DIRECT_URL_VALUE: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
+          NEON_ROLE_VALUE: ${{ vars.NEON_MIGRATION_ROLE }}
+          NEON_DATABASE_VALUE: ${{ vars.NEON_DATABASE_NAME }}
+        run: |
+          set -euo pipefail
+          # Mirrors deploy-production.yml's direct-URL contract: the same secret must
+          # be a direct (non-pooled) Neon endpoint on :5432, verify-full with channel
+          # binding, using the migration role and production database — never a pooled,
+          # local, or downgraded connection.
+          node --input-type=module <<'NODE'
+          const raw = process.env.NEON_DIRECT_URL_VALUE || '';
+          if (!raw) {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL is not set for the production environment.');
+          }
+          const role = process.env.NEON_ROLE_VALUE || '';
+          const database = process.env.NEON_DATABASE_VALUE || '';
+          if (!role || !database) {
+            throw new Error('NEON_MIGRATION_ROLE and NEON_DATABASE_NAME repository variables must be set.');
+          }
+          let direct;
+          try {
+            direct = new URL(raw);
+          } catch {
+            // Never surface the raw value: a URL TypeError attaches the offending
+            // string (password and all) to err.input, which util.inspect / the
+            // uncaught-exception banner would print. Throw a constant instead.
+            throw new Error('NEON_PRODUCTION_DIRECT_URL is not a valid URL.');
+          }
+          const forbidden = new Set([
+            'database', 'db', 'host', 'options', 'password', 'port', 'ssl',
+            'sslcert', 'sslkey', 'sslnegotiation', 'sslpassword', 'sslrootcert',
+            'user', 'uselibpqcompat',
+          ]);
+          const queryEntries = [...direct.searchParams.entries()];
+          if (queryEntries.map(([key]) => key.toLowerCase()).some((key) => forbidden.has(key))) {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL must not contain connection identity, session, or TLS query overrides.');
+          }
+          const sslModes = queryEntries
+            .filter(([key]) => key.toLowerCase() === 'sslmode')
+            .map(([, value]) => value.toLowerCase());
+          if (sslModes.length > 1 || sslModes.some((value) => value !== 'verify-full')) {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL may only specify sslmode=verify-full.');
+          }
+          const channelBindings = queryEntries
+            .filter(([key]) => key.toLowerCase() === 'channel_binding')
+            .map(([, value]) => value.toLowerCase());
+          if (channelBindings.length > 1 || channelBindings.some((value) => value !== 'require')) {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL may only specify channel_binding=require.');
+          }
+          if (!direct.hostname.endsWith('.neon.tech') || direct.hostname.includes('-pooler')) {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL must use a direct Neon endpoint.');
+          }
+          if (direct.port && direct.port !== '5432') {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL must use PostgreSQL port 5432.');
+          }
+          if (decodeURIComponent(direct.username) !== role) {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL must use NEON_MIGRATION_ROLE.');
+          }
+          if (decodeURIComponent(direct.pathname.replace(/^\/+/, '')) !== database) {
+            throw new Error('NEON_PRODUCTION_DIRECT_URL must use NEON_DATABASE_NAME.');
+          }
+          console.log('NEON_PRODUCTION_DIRECT_URL passed the direct-migration-URL contract.');
+          NODE
+
+      - name: Validate the selected scope constraints
+        env:
+          STEP: ${{ inputs.step }}
+          DIRECT_URL: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
+          DATABASE_SSL_MODE: verify-full
+        run: |
+          set -euo pipefail
+          case "$STEP" in
+            notnull)
+              pnpm --filter @school-sis/web db:validate:notnull
+              ;;
+            scope)
+              pnpm --filter @school-sis/web db:validate:scope
+              ;;
+            both)
+              pnpm --filter @school-sis/web db:validate:scope
+              pnpm --filter @school-sis/web db:validate:notnull
+              ;;
+            *)
+              echo "Unknown step '$STEP'." >&2
+              exit 1
+              ;;
+          esac
