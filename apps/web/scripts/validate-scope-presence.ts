@@ -22,7 +22,8 @@
  *   pnpm --filter @school-sis/web exec tsx scripts/validate-scope-presence.ts
  */
 
-import pg from 'pg';
+import { Client } from 'pg';
+import { resolveDatabaseConnectionOptions } from '../../../packages/api/src/db/ssl';
 
 const connectionString =
     process.env.DIRECT_URL || process.env.DATABASE_URL || process.env.PLATFORM_DATABASE_URL;
@@ -32,9 +33,13 @@ if (!connectionString) {
 }
 
 async function main(): Promise<void> {
-    const client = new pg.Client({
-        connectionString,
-        ssl: /sslmode=disable/.test(connectionString!) ? false : undefined,
+    // Resolve TLS through the shared policy (honours DATABASE_SSL_MODE and strips
+    // embedded sslmode/channel_binding, which node-postgres would otherwise let
+    // override the ssl object) — the same connection path the deployment migrator
+    // uses against production Neon, so remote runs get real certificate verification.
+    const client = new Client({
+        ...resolveDatabaseConnectionOptions(connectionString),
+        application_name: 'school-sis-validate-scope-presence',
     });
     await client.connect();
     try {
