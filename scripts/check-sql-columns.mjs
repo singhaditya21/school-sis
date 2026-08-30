@@ -36,9 +36,10 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { buildMigrationSchema } from './lib/migration-schema.mjs';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATIONS_DIR = join(REPO_ROOT, 'apps', 'web', 'drizzle');
@@ -52,11 +53,7 @@ const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.mjs'];
  */
 const TABLES_OUTSIDE_THE_CHAIN = new Set(['__drizzle_migrations']);
 
-// ─── Schema, derived from the committed migrations ──────────────────────────
-
-function stripSqlComments(sql) {
-    return sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ');
-}
+// ─── Schema is derived from the committed migrations by lib/migration-schema.mjs ─
 
 /** Split a parenthesised column list on top-level commas only. */
 function splitTopLevel(body) {
@@ -75,63 +72,6 @@ function splitTopLevel(body) {
     }
     if (current.trim()) parts.push(current);
     return parts;
-}
-
-const CONSTRAINT_KEYWORDS = new Set([
-    'primary', 'foreign', 'unique', 'check', 'constraint', 'exclude', 'like',
-]);
-
-function buildSchema() {
-    const files = execFileSync('git', ['ls-files', 'apps/web/drizzle/*.sql'], {
-        cwd: REPO_ROOT,
-        encoding: 'utf8',
-    })
-        .split('\n')
-        .filter(Boolean)
-        .sort();
-
-    const tables = new Map();
-
-    for (const file of files) {
-        const path = join(REPO_ROOT, file);
-        if (!existsSync(path)) continue;
-        const sql = stripSqlComments(readFileSync(path, 'utf8'));
-
-        // CREATE TABLE [IF NOT EXISTS] [schema.]name ( ... )
-        const createRe = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"?([a-z_][a-z0-9_]*)"?\.)?"?([a-z_][a-z0-9_]*)"?\s*\(/giu;
-        let match;
-        while ((match = createRe.exec(sql)) !== null) {
-            const table = match[2];
-            // Walk to the matching close paren so nested types are handled.
-            let depth = 1;
-            let i = createRe.lastIndex;
-            for (; i < sql.length && depth > 0; i += 1) {
-                if (sql[i] === '(') depth += 1;
-                else if (sql[i] === ')') depth -= 1;
-            }
-            const body = sql.slice(createRe.lastIndex, i - 1);
-
-            const columns = tables.get(table) ?? new Set();
-            for (const part of splitTopLevel(body)) {
-                const name = part.trim().split(/\s+/)[0]?.replace(/"/g, '').toLowerCase();
-                if (!name || CONSTRAINT_KEYWORDS.has(name)) continue;
-                columns.add(name);
-            }
-            tables.set(table, columns);
-        }
-
-        // ALTER TABLE name ADD [COLUMN] [IF NOT EXISTS] col
-        const alterRe = /ALTER\s+TABLE\s+(?:ONLY\s+)?(?:"?[a-z_][a-z0-9_]*"?\.)?"?([a-z_][a-z0-9_]*)"?\s+ADD\s+(?:COLUMN\s+)?(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?/giu;
-        while ((match = alterRe.exec(sql)) !== null) {
-            const [, table, column] = match;
-            if (CONSTRAINT_KEYWORDS.has(column.toLowerCase())) continue;
-            const columns = tables.get(table) ?? new Set();
-            columns.add(column.toLowerCase());
-            tables.set(table, columns);
-        }
-    }
-
-    return tables;
 }
 
 // ─── Column references in application SQL ───────────────────────────────────
@@ -297,7 +237,7 @@ function findTableReferences(file, text) {
 
 const mode = process.argv.includes('--report') ? 'report' : 'check';
 
-const schema = buildSchema();
+const schema = buildMigrationSchema();
 if (schema.size === 0) {
     console.error('Could not derive any tables from the migration chain — refusing to pass vacuously.');
     process.exit(1);
