@@ -124,6 +124,12 @@ jobs:
           pnpm db:migrate:deploy -- --target ci
           pnpm db:migrate:deploy -- --target ci
 
+      # The generated table types are derived from this migrated schema, so verify
+      # them here where the database exists. A drift means a migration changed a
+      # table without `pnpm --filter @school-sis/web db:types` being re-run.
+      - name: Verify generated db types are current
+        run: pnpm --filter @school-sis/web db:types:check
+
       # The static checker derives a schema from the migrations and can check a
       # column only where a statement names its table beside it — INSERT lists,
       # UPDATE targets, RETURNING. A column in a SELECT list or a WHERE clause
