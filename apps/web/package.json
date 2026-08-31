@@ -38,7 +38,7 @@
     "perf:load": "node scripts/load-test.mjs"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^4.0.2",
+    "@ai-sdk/openai": "^4.0.50",
     "@ai-sdk/react": "^4.0.5",
     "@aws-sdk/client-kms": "^3.1075.0",
     "@aws-sdk/client-s3": "^3.1075.0",
