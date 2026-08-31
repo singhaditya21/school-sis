@@ -1,4 +1,4 @@
-import { createSqlTag, sqlFor, SqlQuery, type SqlRunner } from "@/lib/db/sql";
+import { createSqlTag, sqlFor, identifier, SqlQuery, type SqlRunner } from "@/lib/db/sql";
 
 /** A fake runner that records every query and returns a configured result. */
 function fakeRunner(rows: Array<Record<string, unknown>> = [], rowCount?: number) {
@@ -84,6 +84,18 @@ describe("sql`` helper — composition", () => {
         const q = sql`a = ${1} AND (${middle}) AND d = ${4}`;
         expect(q.text).toBe("a = $1 AND (b = $2 AND (c = $3)) AND d = $4");
         expect(q.params).toEqual([1, 2, 3, 4]);
+    });
+
+    it("composes an identifier() as quoted SQL text, contributing no parameters", () => {
+        const q = sql`SELECT ${identifier("fee_plans", "id")} FROM ${identifier("fee_plans")} WHERE ${identifier("fee_plans", "tenant_id")} = ${"t"}`;
+        expect(q.text).toBe('SELECT "fee_plans"."id" FROM "fee_plans" WHERE "fee_plans"."tenant_id" = $1');
+        expect(q.params).toEqual(["t"]);
+    });
+
+    it("rejects an unsafe identifier part and cannot be executed on its own", async () => {
+        expect(() => identifier("fee_plans; DROP TABLE x")).toThrow(/Unsafe SQL identifier/);
+        expect(() => identifier()).toThrow(/at least one name part/);
+        await expect(identifier("fee_plans", "id").rows()).rejects.toThrow(/not executable on its own/);
     });
 });
 
