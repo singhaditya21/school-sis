@@ -166,3 +166,32 @@ export function createSqlTag(getRunner: () => SqlRunner): SqlTag {
 export function sqlFor(runner: SqlRunner): SqlTag {
     return createSqlTag(() => runner);
 }
+
+const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_$]*$/;
+
+/** A fragment that is composed into a query but never executed on its own. */
+function unexecutable(): SqlRunner {
+    throw new Error("A SQL identifier fragment is not executable on its own — compose it into a query.");
+}
+
+/**
+ * A trusted, double-quoted, dotted SQL identifier as a composable fragment —
+ * `identifier('fee_plans', 'id')` renders `"fee_plans"."id"`. Every part is
+ * validated against a strict identifier pattern, so only known-safe names (schema
+ * table/column names, never user input) can be built. Generated column references
+ * are built from this so a value is never mistaken for an identifier.
+ */
+export function identifier(...parts: string[]): SqlQuery {
+    if (parts.length === 0) {
+        throw new Error("identifier() requires at least one name part.");
+    }
+    const rendered = parts
+        .map((part) => {
+            if (!IDENTIFIER_RE.test(part)) {
+                throw new Error(`Unsafe SQL identifier part: ${JSON.stringify(part)}.`);
+            }
+            return `"${part}"`;
+        })
+        .join(".");
+    return new SqlQuery([rendered], [], unexecutable);
+}
