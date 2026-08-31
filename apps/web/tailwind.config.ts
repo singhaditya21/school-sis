@@ -8,7 +8,7 @@ const config: Config = {
         "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
         "./node_modules/@tremor/**/*.{js,ts,jsx,tsx}",
     ],
-    darkMode: ["class", "class"],
+    darkMode: ["class"],
     safelist: [
         {
             pattern:
@@ -56,7 +56,27 @@ const config: Config = {
     			},
     			destructive: {
     				DEFAULT: 'hsl(var(--destructive))',
-    				foreground: 'hsl(var(--destructive-foreground))'
+    				foreground: 'hsl(var(--destructive-foreground))',
+    				subtle: 'hsl(var(--destructive-subtle))',
+    				'subtle-foreground': 'hsl(var(--destructive-subtle-foreground))'
+    			},
+    			success: {
+    				DEFAULT: 'hsl(var(--success))',
+    				foreground: 'hsl(var(--success-foreground))',
+    				subtle: 'hsl(var(--success-subtle))',
+    				'subtle-foreground': 'hsl(var(--success-subtle-foreground))'
+    			},
+    			warning: {
+    				DEFAULT: 'hsl(var(--warning))',
+    				foreground: 'hsl(var(--warning-foreground))',
+    				subtle: 'hsl(var(--warning-subtle))',
+    				'subtle-foreground': 'hsl(var(--warning-subtle-foreground))'
+    			},
+    			info: {
+    				DEFAULT: 'hsl(var(--info))',
+    				foreground: 'hsl(var(--info-foreground))',
+    				subtle: 'hsl(var(--info-subtle))',
+    				'subtle-foreground': 'hsl(var(--info-subtle-foreground))'
     			},
     			muted: {
     				DEFAULT: 'hsl(var(--muted))',
@@ -83,11 +103,11 @@ const config: Config = {
     			},
                 tremor: {
                     brand: {
-                        faint: colors.blue[50],
-                        muted: colors.blue[200],
-                        subtle: colors.blue[400],
-                        DEFAULT: colors.blue[500],
-                        emphasis: colors.blue[700],
+                        faint: colors.teal[50],
+                        muted: colors.teal[200],
+                        subtle: colors.teal[400],
+                        DEFAULT: colors.teal[600],
+                        emphasis: colors.teal[700],
                         inverted: colors.white,
                     },
                     background: {
@@ -111,10 +131,35 @@ const config: Config = {
                     },
                 }
     		},
+    		fontFamily: {
+    			sans: [
+    				'var(--font-sans)',
+    				'ui-sans-serif',
+    				'system-ui',
+    				'-apple-system',
+    				'Segoe UI',
+    				'Roboto',
+    				'Helvetica Neue',
+    				'Arial',
+    				'sans-serif'
+    			]
+    		},
     		borderRadius: {
-    			lg: 'var(--radius)',
+    			sm: 'calc(var(--radius) - 4px)',
     			md: 'calc(var(--radius) - 2px)',
-    			sm: 'calc(var(--radius) - 4px)'
+    			lg: 'var(--radius)',
+    			xl: 'calc(var(--radius) + 4px)',
+    			'2xl': 'calc(var(--radius) + 8px)'
+    		},
+    		zIndex: {
+    			dropdown: '1000',
+    			sticky: '1100',
+    			banner: '1200',
+    			overlay: '1300',
+    			modal: '1400',
+    			popover: '1500',
+    			toast: '1600',
+    			tooltip: '1700'
     		},
     		keyframes: {
     			'fade-in': {

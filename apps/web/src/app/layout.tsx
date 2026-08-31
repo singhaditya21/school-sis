@@ -5,12 +5,12 @@ import "sonner/dist/styles.css";
 import { Toaster } from "sonner";
 import { PWARegistry } from "@/components/pwa-registry";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-    title: "School Information System",
+    title: "ScholarMind",
     description: "Multi-tenant school management platform",
     manifest: "/manifest.json",
 };
@@ -21,8 +21,8 @@ export default function RootLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <html lang="en" suppressHydrationWarning>
-            <body className={inter.className} suppressHydrationWarning>
+        <html lang="en" className={inter.variable} suppressHydrationWarning>
+            <body className="font-sans" suppressHydrationWarning>
                 <PWARegistry />
                 {children}
                 <Toaster richColors position="top-right" closeButton />

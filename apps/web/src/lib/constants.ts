@@ -1,5 +1,5 @@
 // App constants
-export const APP_NAME = 'School SIS';
+export const APP_NAME = 'ScholarMind';
 export const APP_TAGLINE = 'Secure multi-tenant school management platform';
 
 export const ROLES = {
