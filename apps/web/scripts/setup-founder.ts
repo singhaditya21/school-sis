@@ -1,9 +1,8 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq } from 'drizzle-orm';
-import postgres from 'postgres';
+import { Pool, type QueryResultRow } from 'pg';
 import { hash } from 'bcryptjs';
-import * as schema from '../../../packages/api/src/db/schema';
+import { createSqlTag, identifier, type ColumnRef } from '../../../packages/api/src/db/sql';
 import { resolveDatabaseConnectionOptions } from '../../../packages/api/src/db/ssl';
+import { companies, tenants, users } from '../../../packages/api/src/db/generated/tables';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -11,53 +10,80 @@ if (!connectionString) {
     process.exit(1);
 }
 
-const databaseOptions = resolveDatabaseConnectionOptions(connectionString);
-const client = postgres(databaseOptions.connectionString, {
+// A direct owner connection. This script seeds cross-tenant platform data (the HQ
+// company/tenant and the founder), so it deliberately does NOT go through the app's
+// RLS-routing pool, which requires a signed per-request tenant context.
+const pool = new Pool({
+    ...resolveDatabaseConnectionOptions(connectionString),
     max: 1,
-    ...(databaseOptions.ssl ? { ssl: databaseOptions.ssl } : {}),
 });
-const db = drizzle(client, { schema });
+const sql = createSqlTag(() => pool);
+
+/**
+ * INSERT one row from a generated table object and a values map keyed by the table's
+ * own column properties. The keys are checked against the table at compile time (so a
+ * drifted column name fails `tsc`), and every value is bound as a parameter.
+ */
+async function insertRow<T extends { readonly $name: string }, Row extends QueryResultRow = QueryResultRow>(
+    table: T,
+    values: { [K in Exclude<keyof T, '$name'>]?: unknown },
+): Promise<Row> {
+    const entries = Object.entries(values).filter(([, value]) => value !== undefined);
+    const columns = entries.map(([key]) => `"${((table as Record<string, unknown>)[key] as ColumnRef).column}"`).join(', ');
+    const placeholders = entries.map((_, index) => `$${index + 1}`).join(', ');
+    const params = entries.map(([, value]) => value);
+    const { rows } = await pool.query<Row>(
+        `INSERT INTO "${table.$name}" (${columns}) VALUES (${placeholders}) RETURNING *`,
+        params,
+    );
+    return rows[0];
+}
 
 async function setup() {
     console.log('🚀 Setting up ScholarMind Platform Admin (Founder)...');
 
-    // 1. Check if HQ company exists
-    let hqCompany;
-    const [existingCompany] = await db.select().from(schema.companies).where(eq(schema.companies.name, 'ScholarMind HQ'));
+    // 1. HQ company
+    let companyId: string;
+    const existingCompany = await sql<{ id: string }>`
+        SELECT id FROM ${identifier(companies.$name)} WHERE ${companies.name} = ${'ScholarMind HQ'} LIMIT 1
+    `.maybeOne();
     if (existingCompany) {
         console.log('HQ Company already exists.');
-        hqCompany = existingCompany;
+        companyId = existingCompany.id;
     } else {
         console.log('🏢 Creating HQ company...');
-        const [company] = await db.insert(schema.companies).values({
+        const company = await insertRow<typeof companies, { id: string }>(companies, {
             name: 'ScholarMind HQ',
             subscriptionTier: 'ENTERPRISE',
             isActive: true,
             region: 'GLOBAL',
-        }).returning();
-        hqCompany = company;
+        });
+        companyId = company.id;
     }
 
-    // 2. Check if HQ tenant exists
-    const [existingHQ] = await db.select().from(schema.tenants).where(eq(schema.tenants.code, 'HQ'));
-    
-    let hqTenant;
+    // 2. HQ tenant
+    let tenantId: string;
+    const existingHQ = await sql<{ id: string }>`
+        SELECT id FROM ${identifier(tenants.$name)} WHERE ${tenants.code} = ${'HQ'} LIMIT 1
+    `.maybeOne();
     if (existingHQ) {
         console.log('HQ Tenant already exists.');
-        hqTenant = existingHQ;
+        tenantId = existingHQ.id;
     } else {
         console.log('📦 Creating HQ tenant...');
-        const [tenant] = await db.insert(schema.tenants).values({
+        const tenant = await insertRow<typeof tenants, { id: string }>(tenants, {
             name: 'ScholarMind HQ',
             code: 'HQ',
-            companyId: hqCompany.id,
+            companyId,
             isActive: true,
-        }).returning();
-        hqTenant = tenant;
+        });
+        tenantId = tenant.id;
     }
 
-    // 3. Check if founder exists
-    const [existingFounder] = await db.select().from(schema.users).where(eq(schema.users.email, 'founder@scholarmind.com'));
+    // 3. Founder user
+    const existingFounder = await sql<{ id: string }>`
+        SELECT id FROM ${identifier(users.$name)} WHERE ${users.email} = ${'founder@scholarmind.com'} LIMIT 1
+    `.maybeOne();
 
     if (existingFounder) {
         console.log('✅ Founder account already exists: founder@scholarmind.com');
@@ -68,9 +94,9 @@ async function setup() {
             throw new Error('FOUNDER_PASSWORD is required and must be at least 12 characters.');
         }
         const defaultPassword = await hash(founderPassword, 12);
-        
-        await db.insert(schema.users).values({
-            tenantId: hqTenant.id,
+
+        await insertRow(users, {
+            tenantId,
             email: 'founder@scholarmind.com',
             passwordHash: defaultPassword,
             firstName: 'SaaS',
@@ -80,7 +106,7 @@ async function setup() {
         console.log('✅ Founder account created: founder@scholarmind.com');
     }
 
-    await client.end();
+    await pool.end();
     process.exit(0);
 }
 
