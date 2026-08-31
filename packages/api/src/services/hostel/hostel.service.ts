@@ -1,14 +1,24 @@
 'use server';
 
 // Hostel Management Service — Production (Real DB)
-import { db, pool } from '@/lib/db';
-import { sql, eq, and } from 'drizzle-orm';
+import { pool } from '@/lib/db';
+import { tenantScope, eq } from '../../data';
 import { requireAuth } from '@/lib/auth/middleware';
-import { hostels, hostelRooms, hostelAllocations, hostelFees } from '@/lib/db/schema/hostel';
+import { hostels, hostelRooms, hostelAllocations, hostelFees } from '../../db/generated/tables';
 import type { Hostel, HostelRoom } from './types';
 
 export async function getHostels(tenantId: string): Promise<Hostel[]> {
-    const rows = await db.select().from(hostels).where(eq(hostels.tenantId, tenantId)).execute();
+    const rows = await tenantScope(tenantId)
+        .from(hostels)
+        .select<{ id: string; name: string; type: string; totalRooms: number; totalBeds: number; occupiedBeds: number }>({
+            id: hostels.id,
+            name: hostels.name,
+            type: hostels.type,
+            totalRooms: hostels.totalRooms,
+            totalBeds: hostels.totalBeds,
+            occupiedBeds: hostels.occupiedBeds,
+        })
+        .rows();
     return rows.map(r => ({
         id: r.id,
         name: r.name,
@@ -22,7 +32,20 @@ export async function getHostels(tenantId: string): Promise<Hostel[]> {
 }
 
 export async function getRooms(tenantId: string, hostelId: string): Promise<HostelRoom[]> {
-    const rows = await db.select().from(hostelRooms).where(and(eq(hostelRooms.tenantId, tenantId), eq(hostelRooms.hostelId, hostelId))).execute();
+    const rows = await tenantScope(tenantId)
+        .from(hostelRooms)
+        .select<{ id: string; hostelId: string; roomNumber: string; floor: number; totalBeds: number; occupiedBeds: number; type: string; status: string }>({
+            id: hostelRooms.id,
+            hostelId: hostelRooms.hostelId,
+            roomNumber: hostelRooms.roomNumber,
+            floor: hostelRooms.floor,
+            totalBeds: hostelRooms.totalBeds,
+            occupiedBeds: hostelRooms.occupiedBeds,
+            type: hostelRooms.type,
+            status: hostelRooms.status,
+        })
+        .where(eq(hostelRooms.hostelId, hostelId))
+        .rows();
     return rows.map(r => ({
         id: r.id,
         hostelId: r.hostelId,
@@ -36,9 +59,20 @@ export async function getRooms(tenantId: string, hostelId: string): Promise<Host
 }
 
 export async function getStats(tenantId: string) {
-    const hostelList = await db.select().from(hostels).where(eq(hostels.tenantId, tenantId)).execute();
-    const roomsList = await db.select().from(hostelRooms).where(eq(hostelRooms.tenantId, tenantId)).execute();
-    const activeAllocations = await db.select().from(hostelAllocations).where(and(eq(hostelAllocations.tenantId, tenantId), eq(hostelAllocations.status, 'ACTIVE'))).execute();
+    const scope = tenantScope(tenantId);
+    const hostelList = await scope
+        .from(hostels)
+        .select<{ totalBeds: number; occupiedBeds: number }>({ totalBeds: hostels.totalBeds, occupiedBeds: hostels.occupiedBeds })
+        .rows();
+    const roomsList = await scope
+        .from(hostelRooms)
+        .select<{ status: string }>({ status: hostelRooms.status })
+        .rows();
+    const activeAllocations = await scope
+        .from(hostelAllocations)
+        .select<{ id: string }>({ id: hostelAllocations.id })
+        .where(eq(hostelAllocations.status, 'ACTIVE'))
+        .rows();
 
     const totalBeds = hostelList.reduce((sum, h) => sum + (h.totalBeds || 0), 0);
     const occupiedBeds = hostelList.reduce((sum, h) => sum + (h.occupiedBeds || 0), 0);
@@ -56,9 +90,27 @@ export async function getStats(tenantId: string) {
 }
 
 export async function getHostelOverview(tenantId: string) {
-    const hostelList = await db.select().from(hostels).where(eq(hostels.tenantId, tenantId)).execute();
-    const roomsList = await db.select().from(hostelRooms).where(eq(hostelRooms.tenantId, tenantId)).execute();
-    const activeAllocations = await db.select().from(hostelAllocations).where(and(eq(hostelAllocations.tenantId, tenantId), eq(hostelAllocations.status, 'ACTIVE'))).execute();
+    const scope = tenantScope(tenantId);
+    const hostelList = await scope
+        .from(hostels)
+        .select<{ id: string; name: string; type: string; totalBeds: number; occupiedBeds: number }>({
+            id: hostels.id, name: hostels.name, type: hostels.type,
+            totalBeds: hostels.totalBeds, occupiedBeds: hostels.occupiedBeds,
+        })
+        .rows();
+    const roomsList = await scope
+        .from(hostelRooms)
+        .select<{ id: string; roomNumber: string; status: string }>({
+            id: hostelRooms.id, roomNumber: hostelRooms.roomNumber, status: hostelRooms.status,
+        })
+        .rows();
+    const activeAllocations = await scope
+        .from(hostelAllocations)
+        .select<{ id: string; studentId: string; status: string }>({
+            id: hostelAllocations.id, studentId: hostelAllocations.studentId, status: hostelAllocations.status,
+        })
+        .where(eq(hostelAllocations.status, 'ACTIVE'))
+        .rows();
 
     const totalBeds = hostelList.reduce((sum, h) => sum + (h.totalBeds || 0), 0);
     const occupiedBeds = hostelList.reduce((sum, h) => sum + (h.occupiedBeds || 0), 0);
@@ -86,8 +138,8 @@ export async function getHostelFees(
     let feeType: string | undefined;
 
     // Determine parameter layout: (tenantId, filters) vs (status, feeType)
-    const isFirstArgTenantId = 
-        typeof tenantIdOrStatus === 'string' && 
+    const isFirstArgTenantId =
+        typeof tenantIdOrStatus === 'string' &&
         (typeof filtersOrFeeType === 'object' || filtersOrFeeType === undefined) &&
         !['paid', 'pending', 'overdue'].includes(tenantIdOrStatus);
 
@@ -136,12 +188,13 @@ export async function getHostelFees(
 }
 
 export async function sendPaymentReminder(tenantId: string, feeId: string) {
-    const fee = await db.select().from(hostelFees)
-        .where(and(eq(hostelFees.tenantId, tenantId), eq(hostelFees.id, feeId)))
-        .limit(1)
-        .execute();
+    const fee = await tenantScope(tenantId)
+        .from(hostelFees)
+        .select<{ id: string }>({ id: hostelFees.id })
+        .where(eq(hostelFees.id, feeId))
+        .first();
 
-    if (!fee || fee.length === 0) {
+    if (!fee) {
         throw new Error('Fee record not found');
     }
 
