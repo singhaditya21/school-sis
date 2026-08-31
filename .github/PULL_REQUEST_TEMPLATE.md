@@ -10,7 +10,7 @@
 - [ ] PII exports, documents, files, or retention/deletion
 - [ ] Background jobs, notification delivery, or webhooks
 - [ ] AI agents, tool permissions, embeddings, or approval flows
-- [ ] Schema, Drizzle migrations, Neon, Vercel, or environment variables
+- [ ] Schema, SQL migrations, Neon, Vercel, or environment variables
 - [ ] Generated artifacts, audit evidence, or repository hygiene
 
 ## Migration And Environment Notes

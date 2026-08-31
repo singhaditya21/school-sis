@@ -19,10 +19,9 @@ A pnpm + Turborepo monorepo. Everything is TypeScript; there are no other langua
 | `apps/web` | The product. Next.js 16 (App Router), server actions, Tailwind + Tremor dashboards. |
 | `apps/website` | The public marketing site. Separate deploy so marketing changes cannot break the product. |
 | `apps/mobile` | Expo/React Native client. Not production-ready — see the roadmap. |
-| `packages/api` | Shared domain layer: Drizzle schema, services, authorization policy, workflows. |
+| `packages/api` | Shared domain layer: the raw-SQL data layer (a tenant-scoping query builder over generated types), services, authorization policy, workflows. |
 
-**Data**: PostgreSQL 16 with `pgvector`, accessed through Drizzle ORM plus hand-written SQL.
-Schema lives in `packages/api/src/db/schema/`; migrations in `apps/web/drizzle/`.
+**Data**: PostgreSQL 16 with `pgvector`, accessed through hand-written SQL — a small `` sql`` `` tagged-template helper and a tenant-scoping query builder over generated row/column types (`packages/api/src/db/generated/`). Migrations are hand-written SQL in `apps/web/drizzle/`.
 
 **Identity**: Iron Session. Page and API authorization run off a central matrix
 (`apps/web/src/lib/auth/page-access.ts`, `api-access.ts`); role permissions are defined in

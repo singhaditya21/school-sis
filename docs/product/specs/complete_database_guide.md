@@ -6,7 +6,7 @@ This document provides the definitive data access, relational database schema, i
 
 ## 1. Relational Database & Entity Relationship Map
 
-ScholarMind operates a Postgres database managed through Drizzle ORM. Tenancy isolation is enforced at the database level by partitioning tables with `tenant_id` UUID columns.
+ScholarMind operates a Postgres database accessed through hand-written raw SQL (a `` sql`` `` helper and a tenant-scoping query builder over generated types). Tenancy isolation is enforced at the database level by partitioning tables with `tenant_id` UUID columns.
 
 ```mermaid
 erDiagram

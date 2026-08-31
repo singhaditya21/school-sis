@@ -60,7 +60,7 @@ The RLS migration covers:
 
 ## Older Module Audit Result
 
-Older modules still using direct `pool.query`, `pool.connect`, or Drizzle `db.execute` are protected by the shared DB context layer. Session context is re-resolved at query time, so it survives an awaited `getSession`, `requireAuth`, or `requireApiAuth` boundary.
+Older modules still using direct `pool.query`, `pool.connect`, or the `` sql`` `` helper are protected by the shared DB context layer. Session context is re-resolved at query time, so it survives an awaited `getSession`, `requireAuth`, or `requireApiAuth` boundary.
 
 Modules that intentionally operate outside tenant context were converted to explicit platform/RLS bypasses rather than relying on unrestricted database access.
 
