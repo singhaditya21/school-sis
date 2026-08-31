@@ -3,8 +3,6 @@ import { createHmac, randomBytes } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { Pool } from "pg";
 import type { PoolClient } from "pg";
-import { drizzle } from "drizzle-orm/node-postgres";
-import * as schema from "./schema";
 import { getLimit } from "@/lib/config/limits";
 import { resolveDatabaseConnectionOptions } from "./ssl";
 import { createSqlTag } from "./sql";
@@ -102,7 +100,6 @@ if (!isBuildPhase && !platformConnectionString) {
 declare global {
   var pgPool: Pool | undefined;
   var pgPlatformPool: Pool | undefined;
-  var drizzleDb: any | undefined;
   var pgPoolContextPatched: boolean | undefined;
   var dbRlsContextStorage: AsyncLocalStorage<DbRlsContext> | undefined;
   var dbRlsContextResolver: DbRlsContextResolver | undefined;
@@ -132,7 +129,7 @@ const TENANT_CONTEXT_DOMAIN = "school-sis:tenant-context:v1";
 const TENANT_CONTEXT_TTL_SECONDS = 300;
 /**
  * Both of these MUST live on `globalThis`, for the same reason `pgPool` and
- * `drizzleDb` below do: Next.js loads this module more than once per process.
+ * `pgPlatformPool` below do: Next.js loads this module more than once per process.
  * `instrumentation.ts` runs in its own module graph, so a plain module-level
  * `let` set by `registerDbRlsContextResolver` is invisible to the instance the
  * page and server-action bundles import.
@@ -1033,12 +1030,6 @@ export const pool = createRlsRoutingPool(tenantPool, platformPool);
 if (process.env.NODE_ENV !== "production") {
   globalThis.pgPool = tenantPool;
   globalThis.pgPlatformPool = platformPool;
-}
-
-export const db = globalThis.drizzleDb || drizzle(pool, { schema });
-
-if (process.env.NODE_ENV !== "production") {
-  globalThis.drizzleDb = db;
 }
 
 /**

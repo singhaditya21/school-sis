@@ -2,9 +2,8 @@ import { getSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getTimetableForSection } from '@/lib/actions/timetable';
-import { db } from '@/lib/db';
-import { sections, grades } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { tenantScope, eq } from '@school-sis/api/src/data';
+import { sections, grades } from '@school-sis/api/src/db/generated/tables';
 
 export default async function SectionTimetablePage({ params }: { params: Promise<{ sectionId: string }> }) {
     const session = await getSession();
@@ -12,19 +11,17 @@ export default async function SectionTimetablePage({ params }: { params: Promise
 
     const { sectionId } = await params;
 
-    const rows = await db
-        .select({
+    const rows = await tenantScope(session.tenantId)
+        .from(sections)
+        .innerJoin(grades, eq(sections.gradeId, grades.id))
+        .select<{ id: string; sectionName: string; gradeName: string }>({
             id: sections.id,
             sectionName: sections.name,
             gradeName: grades.name,
         })
-        .from(sections)
-        .innerJoin(grades, eq(sections.gradeId, grades.id))
-        .where(and(
-            eq(sections.id, sectionId),
-            eq(sections.tenantId, session.tenantId)
-        ))
-        .limit(1);
+        .where(eq(sections.id, sectionId))
+        .limit(1)
+        .rows();
 
     if (rows.length === 0) {
         return (
