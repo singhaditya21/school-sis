@@ -46,11 +46,19 @@ async function insertRow<T extends { readonly $name: string }, Row extends Query
     const columns = entries.map(([key]) => `"${((table as Record<string, unknown>)[key] as ColumnRef).column}"`).join(', ');
     const placeholders = entries.map((_, index) => `$${index + 1}`).join(', ');
     const params = entries.map(([, value]) => value);
-    const { rows } = await pool.query<Row>(
+    const { rows } = await pool.query(
         `INSERT INTO "${table.$name}" (${columns}) VALUES (${placeholders}) RETURNING *`,
         params,
     );
-    return rows[0];
+    // node-pg returns raw snake_case column names; map them back to the table's own
+    // camelCase property names so callers read `.sectionId`, not `.section_id`.
+    const raw = rows[0] ?? {};
+    const mapped: Record<string, unknown> = {};
+    for (const [property, ref] of Object.entries(table)) {
+        if (property === '$name') continue;
+        mapped[property] = raw[(ref as ColumnRef).column];
+    }
+    return mapped as Row;
 }
 
 async function seed() {
