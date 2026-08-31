@@ -20,14 +20,6 @@ const migrations = readFileSync(
   resolve(process.cwd(), "drizzle", "0004_normal_jasper_sitwell.sql"),
   "utf8",
 );
-const integrationsSchema = readFileSync(
-  resolve(process.cwd(), "../..", "packages/api/src/db/schema/integrations.ts"),
-  "utf8",
-);
-const coreSchema = readFileSync(
-  resolve(process.cwd(), "../..", "packages/api/src/db/schema/core.ts"),
-  "utf8",
-);
 const ingestRoute = readFileSync(
   resolve(process.cwd(), "src/app/api/iot/ingest/route.ts"),
   "utf8",
@@ -59,13 +51,17 @@ describe("IoT attendance ingest schema", () => {
     // and applies ENABLE + FORCE row level security plus tenant_isolation_policy.
     // A tenant-scoped table without that column would silently sit outside the
     // isolation model that protects every other table in this schema.
-    const table = integrationsSchema.slice(
-      integrationsSchema.indexOf("export const hardwareTokens"),
-      integrationsSchema.indexOf("export const hardwareTokensRelations"),
+    // Pinned against the migration DDL (the schema source is gone); this is
+    // strictly stronger than the old DSL-intent check — it verifies the real
+    // NOT NULL column and the FK/cascade the DDL actually creates.
+    const createTable = migrations.slice(
+      migrations.indexOf('CREATE TABLE "hardware_tokens"'),
     );
-    expect(table).toContain("tenantId: uuid('tenant_id')");
-    expect(table).toContain(".notNull()");
-    expect(table).toContain("references(() => tenants.id, { onDelete: 'cascade' })");
+    const createBlock = createTable.slice(0, createTable.indexOf("--> statement-breakpoint"));
+    expect(createBlock).toContain('"tenant_id" uuid NOT NULL');
+    expect(migrations).toContain(
+      'ADD CONSTRAINT "hardware_tokens_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade',
+    );
   });
 
   it("keeps a token unique within a tenant, not globally", () => {
@@ -85,7 +81,8 @@ describe("IoT attendance ingest schema", () => {
 
   it("stores fcm_token wide enough for a real FCM registration token", () => {
     // FCM registration tokens run to roughly 160-200 characters today and have
-    // grown before; 512 leaves room without inviting arbitrary data.
-    expect(coreSchema).toContain("fcmToken: varchar('fcm_token', { length: 512 })");
+    // grown before; 512 leaves room without inviting arbitrary data. Pinned
+    // against the migration DDL (the schema source is gone).
+    expect(migrations).toContain('ALTER TABLE "users" ADD COLUMN "fcm_token" varchar(512)');
   });
 });
