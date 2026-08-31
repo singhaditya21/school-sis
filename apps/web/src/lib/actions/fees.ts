@@ -5,18 +5,29 @@
  *
  * Runs on the tenant-scoped data layer in packages/api/src/data: the tenant
  * predicate is attached by the query builder, and every column below is a
- * reference into the Drizzle schema, so a column that does not exist stops the
- * build instead of the page.
+ * reference into the generated schema, so a column that does not exist is caught
+ * by the CI SQL audits rather than a 500 on the page.
  *
- * One behavioural note. `due_date` now arrives as the stored calendar date
- * ("2025-05-15") instead of a `Date` pinned to the Node process's local
- * midnight. Under TZ=UTC — how this runs on Vercel — the two are identical, and
- * the full read surface was diffed against the previous raw-SQL implementations
- * on the seeded database to confirm it. Off UTC the old path shifted every due
- * date back a day; that shift is gone.
+ * One behavioural note. `due_date` is selected as `::text` so it arrives as the
+ * stored calendar date ("2025-05-15") rather than a `Date` pinned to the Node
+ * process's local midnight — matching the previous behaviour exactly. Under TZ=UTC
+ * (how this runs on Vercel) the two are identical; off UTC a bare `Date` would shift
+ * every due date back a day, which the cast avoids.
  */
 
-import { tenantScope } from '@school-sis/api/src/data';
+import {
+    tenantScope,
+    and,
+    asc,
+    desc,
+    eq,
+    ilike,
+    ne,
+    notInArray,
+    or,
+    sql,
+    identifier,
+} from '@school-sis/api/src/data';
 import {
     academicYears,
     feeComponents,
@@ -26,8 +37,8 @@ import {
     payments,
     sections,
     students,
-} from '@school-sis/api/src/db/schema';
-import { and, asc, desc, eq, ilike, ne, notInArray, or, sql } from 'drizzle-orm';
+    INVOICE_STATUS_VALUES,
+} from '@school-sis/api/src/db/generated/tables';
 import { requireAuth } from '@/lib/auth/middleware';
 
 export interface FeePlanListItem {
@@ -74,7 +85,7 @@ export async function getFeePlans(): Promise<FeePlanListItem[]> {
     const plans = await scope
         .from(feePlans)
         .innerJoin(academicYears, eq(feePlans.academicYearId, academicYears.id))
-        .select({
+        .select<{ id: string; name: string; description: string | null; isActive: boolean; academicYearName: string }>({
             id: feePlans.id,
             name: feePlans.name,
             description: feePlans.description,
@@ -91,15 +102,15 @@ export async function getFeePlans(): Promise<FeePlanListItem[]> {
         // fee_plans. `fromChild` is the only way to build it.
         const compRows = await scope
             .fromChild(feeComponents, { parent: feePlans, on: eq(feeComponents.feePlanId, feePlans.id) })
-            .select({ count: sql<string>`count(*)` })
+            .select<{ count: string }>({ count: sql`count(*)` })
             .where(eq(feeComponents.feePlanId, plan.id))
             .rows();
 
         const invRows = await scope
             .from(invoices)
-            .select({
-                count: sql<string>`count(*)`,
-                totalPaid: sql<string | null>`sum(${invoices.paidAmount})`,
+            .select<{ count: string; totalPaid: string | null }>({
+                count: sql`count(*)`,
+                totalPaid: sql`sum(${invoices.paidAmount})`,
             })
             .where(eq(invoices.feePlanId, plan.id))
             .rows();
@@ -129,7 +140,7 @@ export async function getFeePlanComponents(planId: string): Promise<FeeComponent
     // next author has to remember.
     return scope
         .fromChild(feeComponents, { parent: feePlans, on: eq(feeComponents.feePlanId, feePlans.id) })
-        .select({
+        .select<{ id: string; name: string; amount: string; frequency: string; isOptional: boolean }>({
             id: feeComponents.id,
             name: feeComponents.name,
             amount: feeComponents.amount,
@@ -141,9 +152,8 @@ export async function getFeePlanComponents(planId: string): Promise<FeeComponent
         .rows();
 }
 
-/** The invoice_status enum, read off the schema instead of retyped by hand. */
-const INVOICE_STATUSES: readonly string[] = invoices.status.enumValues;
-type InvoiceStatus = (typeof invoices.$inferSelect)['status'];
+/** The invoice_status enum, from the generated schema instead of retyped by hand. */
+const INVOICE_STATUSES: readonly string[] = INVOICE_STATUS_VALUES;
 
 export interface InvoiceListPage {
     items: InvoiceListItem[];
@@ -175,19 +185,29 @@ export async function getInvoices(options?: {
     const rows = await scope
         .from(invoices)
         .innerJoin(students, eq(invoices.studentId, students.id))
-        .select({
+        .select<{
+            id: string;
+            invoiceNumber: string;
+            studentFirstName: string;
+            studentLastName: string;
+            totalAmount: string;
+            paidAmount: string;
+            dueDate: string;
+            status: string;
+            totalCount: string;
+        }>({
             id: invoices.id,
             invoiceNumber: invoices.invoiceNumber,
             studentFirstName: students.firstName,
             studentLastName: students.lastName,
             totalAmount: invoices.totalAmount,
             paidAmount: invoices.paidAmount,
-            dueDate: invoices.dueDate,
+            dueDate: sql`${invoices.dueDate}::text`,
             status: invoices.status,
-            totalCount: sql<string>`count(*) over()`,
+            totalCount: sql`count(*) over()`,
         })
         .where(status && INVOICE_STATUSES.includes(status)
-            ? eq(invoices.status, status as InvoiceStatus)
+            ? eq(invoices.status, status)
             : undefined)
         .where(pattern
             ? or(
@@ -268,10 +288,10 @@ export async function getDefaulterStats(): Promise<DefaulterStats> {
 
     const overdueRows = await scope
         .from(invoices)
-        .select({
+        .select<{ totalAmount: string; paidAmount: string; dueDate: string; studentId: string }>({
             totalAmount: invoices.totalAmount,
             paidAmount: invoices.paidAmount,
-            dueDate: invoices.dueDate,
+            dueDate: sql`${invoices.dueDate}::text`,
             studentId: invoices.studentId,
         })
         .where(and(
@@ -323,10 +343,10 @@ export async function getFeeAgeingBreakdown(): Promise<AgeingBucket[]> {
 
     const overdueRows = await scope
         .from(invoices)
-        .select({
+        .select<{ totalAmount: string; paidAmount: string; dueDate: string }>({
             totalAmount: invoices.totalAmount,
             paidAmount: invoices.paidAmount,
-            dueDate: invoices.dueDate,
+            dueDate: sql`${invoices.dueDate}::text`,
         })
         .where(and(
             sql`${invoices.dueDate} < ${todayStr}`,
@@ -372,7 +392,16 @@ export async function getDefaulterList(options?: {
         .innerJoin(students, eq(invoices.studentId, students.id))
         .innerJoin(grades, eq(students.gradeId, grades.id))
         .innerJoin(sections, eq(students.sectionId, sections.id))
-        .select({
+        .select<{
+            studentId: string;
+            studentFirstName: string;
+            studentLastName: string;
+            gradeName: string;
+            sectionName: string;
+            totalAmount: string;
+            paidAmount: string;
+            dueDate: string;
+        }>({
             studentId: invoices.studentId,
             studentFirstName: students.firstName,
             studentLastName: students.lastName,
@@ -380,7 +409,7 @@ export async function getDefaulterList(options?: {
             sectionName: sections.name,
             totalAmount: invoices.totalAmount,
             paidAmount: invoices.paidAmount,
-            dueDate: invoices.dueDate,
+            dueDate: sql`${invoices.dueDate}::text`,
         })
         .where(and(
             sql`${invoices.dueDate} < ${todayStr}`,
@@ -453,7 +482,7 @@ export async function getCollectionTrend(months: number = 6): Promise<Collection
         SELECT
             to_char(${payments.paidAt}, 'YYYY-MM') AS month,
             SUM(${payments.amount}) AS total
-        FROM ${payments}
+        FROM ${identifier(payments.$name)}
         WHERE ${tenant('payments')} AND ${payments.status} = 'COMPLETED'
         GROUP BY to_char(${payments.paidAt}, 'YYYY-MM')
         ORDER BY to_char(${payments.paidAt}, 'YYYY-MM')
@@ -463,7 +492,7 @@ export async function getCollectionTrend(months: number = 6): Promise<Collection
         SELECT
             to_char(${invoices.createdAt}, 'YYYY-MM') AS month,
             SUM(${invoices.totalAmount}) AS total
-        FROM ${invoices}
+        FROM ${identifier(invoices.$name)}
         WHERE ${tenant('invoices')} AND ${invoices.status} != 'CANCELLED'
         GROUP BY to_char(${invoices.createdAt}, 'YYYY-MM')
         ORDER BY to_char(${invoices.createdAt}, 'YYYY-MM')
@@ -496,10 +525,10 @@ export async function getFeeOverview(): Promise<FeeOverview> {
 
     const invoiceStatsRows = await scope
         .from(invoices)
-        .select({
-            totalBilled: sql<string | null>`sum(${invoices.totalAmount})`,
-            totalPaid: sql<string | null>`sum(${invoices.paidAmount})`,
-            totalCount: sql<string>`count(*)`,
+        .select<{ totalBilled: string | null; totalPaid: string | null; totalCount: string }>({
+            totalBilled: sql`sum(${invoices.totalAmount})`,
+            totalPaid: sql`sum(${invoices.paidAmount})`,
+            totalCount: sql`count(*)`,
         })
         .where(ne(invoices.status, 'CANCELLED'))
         .rows();
@@ -510,7 +539,7 @@ export async function getFeeOverview(): Promise<FeeOverview> {
 
     const overdueRows = await scope
         .from(invoices)
-        .select({ studentId: invoices.studentId })
+        .select<{ studentId: string }>({ studentId: invoices.studentId })
         .where(and(
             sql`${invoices.dueDate} < ${todayStr}`,
             notInArray(invoices.status, [...UNSETTLED_STATUSES]),
@@ -554,11 +583,11 @@ export async function getDefaulterAlertStats(): Promise<DefaulterAlertStats> {
 
     const overdueRows = await scope
         .from(invoices)
-        .select({
+        .select<{ studentId: string; totalAmount: string; paidAmount: string; dueDate: string }>({
             studentId: invoices.studentId,
             totalAmount: invoices.totalAmount,
             paidAmount: invoices.paidAmount,
-            dueDate: invoices.dueDate,
+            dueDate: sql`${invoices.dueDate}::text`,
         })
         .where(and(
             sql`${invoices.dueDate} < ${todayStr}`,

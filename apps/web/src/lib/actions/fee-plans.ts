@@ -18,9 +18,15 @@
  * See packages/api/src/data/index.ts for how to move the next domain across.
  */
 
-import { tenantScope } from '@school-sis/api/src/data';
-import { academicYears, feeComponents, feePlans, invoices } from '@school-sis/api/src/db/schema';
-import { asc, desc, eq, notInArray, sql } from 'drizzle-orm';
+import { tenantScope, asc, desc, eq, notInArray, sql, identifier } from '@school-sis/api/src/data';
+import {
+    academicYears,
+    feeComponents,
+    feePlans,
+    invoices,
+    FEE_FREQUENCY_VALUES,
+    type FeeFrequency,
+} from '@school-sis/api/src/db/generated/tables';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 import { revalidatePath } from 'next/cache';
@@ -89,11 +95,10 @@ export interface FeePlanSaveResult {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
- * The fee_frequency enum, read off the schema rather than retyped. A value the
- * database would reject can no longer pass validation here.
+ * The fee_frequency enum, from the generated schema types rather than retyped. A
+ * value the database would reject can no longer pass validation here.
  */
-type FeeFrequency = (typeof feeComponents.$inferInsert)['frequency'];
-const FEE_FREQUENCY_VALUES: readonly string[] = feeComponents.frequency.enumValues;
+const FEE_FREQUENCY_STRINGS: readonly string[] = FEE_FREQUENCY_VALUES;
 
 /** numeric(12,2) with a positive rupee value: up to 10 integer digits, 2 decimals. */
 const AMOUNT_RE = /^\d{1,10}(\.\d{1,2})?$/;
@@ -142,7 +147,7 @@ function normaliseComponents(
         }
 
         const frequency = String(row?.frequency ?? '').trim().toUpperCase();
-        if (!FEE_FREQUENCY_VALUES.includes(frequency)) {
+        if (!FEE_FREQUENCY_STRINGS.includes(frequency)) {
             return { error: `Component "${name}": choose a valid frequency.` };
         }
 
@@ -200,28 +205,38 @@ export async function getFeePlanSummaries(): Promise<FeePlanSummary[]> {
     const rows = await scope
         .from(feePlans)
         .innerJoin(academicYears, eq(academicYears.id, feePlans.academicYearId))
-        .select({
+        .select<{
+            id: string;
+            name: string;
+            description: string | null;
+            isActive: boolean;
+            academicYearName: string;
+            componentCount: string;
+            mandatoryTotal: string;
+            optionalTotal: string;
+            invoiceCount: string;
+        }>({
             id: feePlans.id,
             name: feePlans.name,
             description: feePlans.description,
             isActive: feePlans.isActive,
             academicYearName: academicYears.name,
-            componentCount: sql<string>`(
-                SELECT COUNT(*) FROM ${feeComponents}
+            componentCount: sql`(
+                SELECT COUNT(*) FROM ${identifier(feeComponents.$name)}
                  WHERE ${feeComponents.feePlanId} = ${feePlans.id}
             )`,
-            mandatoryTotal: sql<string>`(
+            mandatoryTotal: sql`(
                 SELECT COALESCE(SUM(CASE WHEN ${feeComponents.isOptional} THEN 0 ELSE ${feeComponents.amount} END), 0)
-                  FROM ${feeComponents}
+                  FROM ${identifier(feeComponents.$name)}
                  WHERE ${feeComponents.feePlanId} = ${feePlans.id}
             )`,
-            optionalTotal: sql<string>`(
+            optionalTotal: sql`(
                 SELECT COALESCE(SUM(CASE WHEN ${feeComponents.isOptional} THEN ${feeComponents.amount} ELSE 0 END), 0)
-                  FROM ${feeComponents}
+                  FROM ${identifier(feeComponents.$name)}
                  WHERE ${feeComponents.feePlanId} = ${feePlans.id}
             )`,
-            invoiceCount: sql<string>`(
-                SELECT COUNT(*) FROM ${invoices}
+            invoiceCount: sql`(
+                SELECT COUNT(*) FROM ${identifier(invoices.$name)}
                  WHERE ${invoices.feePlanId} = ${feePlans.id}
                    AND ${invoices.tenantId} = ${feePlans.tenantId}
             )`,
@@ -252,15 +267,23 @@ export async function getFeePlanDetail(planId: string): Promise<FeePlanDetail | 
     const plan = await scope
         .from(feePlans)
         .innerJoin(academicYears, eq(academicYears.id, feePlans.academicYearId))
-        .select({
+        .select<{
+            id: string;
+            name: string;
+            description: string | null;
+            isActive: boolean;
+            academicYearId: string;
+            academicYearName: string;
+            invoiceCount: string;
+        }>({
             id: feePlans.id,
             name: feePlans.name,
             description: feePlans.description,
             isActive: feePlans.isActive,
             academicYearId: feePlans.academicYearId,
             academicYearName: academicYears.name,
-            invoiceCount: sql<string>`(
-                SELECT COUNT(*) FROM ${invoices}
+            invoiceCount: sql`(
+                SELECT COUNT(*) FROM ${identifier(invoices.$name)}
                  WHERE ${invoices.feePlanId} = ${feePlans.id}
                    AND ${invoices.tenantId} = ${feePlans.tenantId}
             )`,
@@ -272,7 +295,7 @@ export async function getFeePlanDetail(planId: string): Promise<FeePlanDetail | 
 
     const componentRows = await scope
         .fromChild(feeComponents, { parent: feePlans, on: eq(feeComponents.feePlanId, feePlans.id) })
-        .select({
+        .select<{ id: string; name: string; amount: string; frequency: string; isOptional: boolean }>({
             id: feeComponents.id,
             name: feeComponents.name,
             amount: feeComponents.amount,
@@ -351,7 +374,7 @@ export async function saveFeePlan(input: SaveFeePlanInput): Promise<FeePlanSaveR
 
             const existingRows = await tx
                 .childSelect(feeComponents, owned, 'feePlanId')
-                .select({ id: feeComponents.id })
+                .select<{ id: string }>({ id: feeComponents.id })
                 .rows();
             const existingIds = new Set<string>(existingRows.map((row) => row.id));
 

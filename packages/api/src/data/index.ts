@@ -42,18 +42,6 @@
  * attached by the builder, below the level a caller can forget it.
  */
 
-export {
-    tenantScope,
-    TenantScope,
-    ScopedFrom,
-    ScopedSelect,
-    type ScopedConnection,
-    type ScopedFields,
-    type ScopedRow,
-    type TenantOwnedTable,
-    type ClaimableTable,
-    type ChildTable,
-    type TenantInsert,
-    type TenantUpdate,
-    type OwnedRow,
-} from './tenant-scope';
+// tenant-scope re-exports the raw-SQL operators (eq/and/asc/…/sql) too, so a consumer
+// gets the scope and its condition builders from this one module.
+export * from './tenant-scope';

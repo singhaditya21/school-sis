@@ -12,9 +12,8 @@
  * id belonging to another school cannot bill this school's students.
  */
 
-import { tenantScope } from '@school-sis/api/src/data';
-import { concessions, feeComponents, feePlans, invoices, students } from '@school-sis/api/src/db/schema';
-import { and, eq, ne } from 'drizzle-orm';
+import { tenantScope, and, eq, ne } from '@school-sis/api/src/data';
+import { concessions, feeComponents, feePlans, invoices, students } from '@school-sis/api/src/db/generated/tables';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 
@@ -56,7 +55,7 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
 
     // Validate fee plan. `claim` reads it back under this tenant and returns the
     // handle that the fee_components read below requires.
-    const plan = await scope.claim(feePlans, options.feePlanId);
+    const plan = await scope.claim<{ name: string }>(feePlans, options.feePlanId);
 
     if (!plan) {
         return { success: false, generated: 0, skipped: 0, errors: ['Fee plan not found'] };
@@ -65,7 +64,7 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
     // Get fee components for this plan
     const components = await scope
         .childSelect(feeComponents, plan, 'feePlanId')
-        .select({
+        .select<{ id: string; name: string; amount: string; frequency: string; isOptional: boolean }>({
             id: feeComponents.id,
             name: feeComponents.name,
             amount: feeComponents.amount,
@@ -91,7 +90,7 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
             // Verify student belongs to tenant
             const student = await scope
                 .from(students)
-                .select({ firstName: students.firstName, lastName: students.lastName })
+                .select<{ firstName: string; lastName: string }>({ firstName: students.firstName, lastName: students.lastName })
                 .where(eq(students.id, studentId))
                 .first();
 
@@ -107,7 +106,7 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
             // same rule in the database for the concurrent case.
             const existing = await scope
                 .from(invoices)
-                .select({ invoiceNumber: invoices.invoiceNumber })
+                .select<{ invoiceNumber: string }>({ invoiceNumber: invoices.invoiceNumber })
                 .where(and(
                     eq(invoices.studentId, studentId),
                     eq(invoices.feePlanId, plan.id),
@@ -128,7 +127,7 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
             // Check for concessions
             const studentConcessions = await scope
                 .from(concessions)
-                .select({ type: concessions.type, value: concessions.value })
+                .select<{ type: string; value: string }>({ type: concessions.type, value: concessions.value })
                 .where(and(
                     eq(concessions.studentId, studentId),
                     eq(concessions.feePlanId, plan.id),
@@ -196,7 +195,7 @@ export async function generateBulkInvoices(options: BulkGenerateOptions): Promis
 
     const studentRows = await scope
         .from(students)
-        .select({ id: students.id })
+        .select<{ id: string }>({ id: students.id })
         .where(and(
             eq(students.status, 'ACTIVE'),
             options.gradeId ? eq(students.gradeId, options.gradeId) : undefined,
@@ -234,13 +233,13 @@ export async function getInvoiceGenerationPreview(
     const { tenantId } = await requireAuth('fees:read');
     const scope = tenantScope(tenantId);
 
-    const plan = await scope.claim(feePlans, feePlanId);
+    const plan = await scope.claim<{ name: string }>(feePlans, feePlanId);
 
     if (!plan) return null;
 
     const components = await scope
         .childSelect(feeComponents, plan, 'feePlanId')
-        .select({
+        .select<{ name: string; amount: string; frequency: string; isOptional: boolean }>({
             name: feeComponents.name,
             amount: feeComponents.amount,
             frequency: feeComponents.frequency,
