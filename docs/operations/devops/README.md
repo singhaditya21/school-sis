@@ -19,7 +19,7 @@ main               -> required CI -> staged Vercel production build
 - pnpm 9.15.9, pinned by `packageManager`
 - Vercel CLI 59.0.0, pinned as a root development dependency
 - PostgreSQL with `pgvector`
-- Drizzle migrations in `apps/web/drizzle`
+- Hand-written SQL migrations in `apps/web/drizzle`
 
 Release-path GitHub Actions are pinned to immutable commit SHAs. Update those
 pins deliberately and re-run the workflow syntax and shell checks with every
@@ -63,10 +63,10 @@ pnpm db:migrate:deploy --target production
 
 The deployment migrator:
 
-- holds a PostgreSQL advisory lock on the same direct session used by Drizzle;
+- holds a PostgreSQL advisory lock on the direct (non-pooled) migration session;
 - refuses unknown, duplicate, reordered, or changed migration ledger rows;
 - refuses a non-empty schema with no recognized ledger;
-- creates `pgvector`, applies pending Drizzle migrations, and applies tenant RLS while locked;
+- creates `pgvector`, applies pending migrations, and applies tenant RLS while locked;
 - verifies that the configured runtime role exists, can log in, is not the migration owner, has no elevated attributes, inherited role membership, object ownership, or schema-creation access;
 - grants only the required schema, table, sequence, and migration-ledger access to that role, including verified default privileges for future objects and only the three approved RLS helper functions;
 - verifies the exact ledger and forced RLS/policy coverage before releasing the lock.
@@ -79,7 +79,7 @@ pnpm audit:migrations:release
 
 The immutable maintenance registry is
 `scripts/destructive-migration-maintenance.json`. A record contains exactly the
-Drizzle migration path, its journal timestamp, the lowercase SHA-256 of the SQL
+migration path, its journal timestamp, the lowercase SHA-256 of the SQL
 file, an accountable owner, a single-line rollback plan, and an
 `https://github.com/...` review or run URL. The record is evidence, not
 permission for automation to execute destructive SQL: the production migrator
@@ -92,7 +92,7 @@ For a destructive migration, use this reviewed maintenance sequence:
    branch from the exact production root. Do not consume or replace the sole
    Neon Free manual snapshot reserved for the one-time ledger adoption.
 2. Prove the current production ledger and schema match the expected prefix.
-3. Apply the reviewed SQL and its exact Drizzle ledger entry through a protected,
+3. Apply the reviewed SQL and its exact migration-ledger entry through a protected,
    single-session maintenance operation with the production advisory lock.
 4. Verify application compatibility, schema/RLS state, and the exact ledger hash;
    execute the documented rollback plan if any proof fails.
@@ -143,7 +143,7 @@ auditor starts `REPEATABLE READ READ ONLY`, verifies that transaction mode,
 and emits canonical JSON without timestamps or database identity. The report
 contains normalized catalog rows and SHA-256 fingerprints for extensions,
 schemas, relations, columns, sequences, types, constraints, indexes, views,
-triggers, functions, and RLS policies. It fingerprints the Drizzle ledger separately;
+triggers, functions, and RLS policies. It fingerprints the migration ledger separately;
 `schema.fingerprint` deliberately excludes the internal `drizzle` schema and
 `drizzle.__drizzle_migrations` so the old-chain catalog can be compared with
 the current baseline without falsely treating ledger history as an application

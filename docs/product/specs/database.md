@@ -1,10 +1,10 @@
 # ScholarMind V6 — Database & Vector Specification
 
-This document details the database architecture, Drizzle schemas, pgvector definitions, and textual representations used for RAG operations.
+This document details the database architecture, relational schemas, pgvector definitions, and textual representations used for RAG operations.
 
 ## 🗄️ Relational & Vector Schema Topology
 
-ScholarMind utilizes Drizzle ORM to map the standard transactional database, while using a custom PostgreSQL schema extension (`pgvector`) for context-aware RAG querying.
+ScholarMind accesses the standard transactional database through hand-written SQL (a `` sql`` `` helper and a tenant-scoping query builder over generated types), while using a custom PostgreSQL schema extension (`pgvector`) for context-aware RAG querying.
 
 ```mermaid
 classDiagram

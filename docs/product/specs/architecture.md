@@ -11,7 +11,7 @@ graph TD
     User([User Client]) -->|HTTP/WebSockets| GW[Go API Gateway: services/gateway]
     GW -->|Web Routing / HTML| FE[Next.js Web: apps/web]
     GW -->|API Operations| BE[Next.js App Core Router: apps/web/src/app/api]
-    BE -->|SQL Query / Drizzle| DB[(Neon Postgres + pgvector)]
+    BE -->|Raw SQL| DB[(Neon Postgres + pgvector)]
     BE -->|JSON HTTP RPC| AG[Python Agents: services/agents]
     AG -->|Background Queue| RD[(Redis / Arq)]
     AG -->|pgvector Embeddings| DB
@@ -27,10 +27,10 @@ Below is the exhaustive categorization, ownership, and role mapping of the direc
 
 | Directory Path | Clean Architecture Tier | Primary Owner | Operational Role & Purpose |
 | :--- | :--- | :--- | :--- |
-| `apps/web/` | Presentation & Core API | Frontend & Product Team | The primary web application (Next.js 15), exposing user dashboard, multi-tenant authentication, and direct Drizzle schema integration. |
+| `apps/web/` | Presentation & Core API | Frontend & Product Team | The primary web application (Next.js), exposing user dashboard, multi-tenant authentication, and direct raw-SQL data access. |
 | `apps/web/src/app/` | Presentation Layer | Frontend Team | Next.js App Router folders defining pages, layouts, and server actions for dashboards. |
 | `apps/web/src/lib/db/` | Data Access Layer | Database & Backend Lead | Core database adapters, connection pooling configurations, and query clients. |
-| `apps/web/src/lib/db/schema/` | Domain / Entity Layer | Database & Backend Lead | Exhaustive list of 33 schema definition files declaring relational schemas and associations. |
+| `packages/api/src/db/generated/` | Domain / Entity Layer | Database & Backend Lead | Generated TypeScript row/column types for every table, derived from the migrated database (the source of truth for the raw-SQL layer's typing). |
 | `apps/web/drizzle/` | Data Migration Layer | Database & Backend Lead | Hand-written raw-SQL migration chain applied by the deployment migration runner. |
 | `apps/website/` | Public Marketing Site | GTM & Web Marketing Team | Next.js landing pages, marketing assets, and public info pages. |
 | `backend/` | Legacy / Reference Data | Legacy Arch Group | Retained database migration reference scripts (`V1__initial_schema.sql`). |

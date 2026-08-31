@@ -13,7 +13,7 @@ graph TD
     UserClient([Client Browser]) -->|HTTPS / WSS| Gateway[Go Gateway: services/gateway]
     Gateway -->|HTML / CSS / JS| Web[Next.js App: apps/web]
     Gateway -->|Database Ingestion / GraphQL| Web
-    Web -->|SQL Query / Drizzle| Postgres[(Neon Postgres + pgvector)]
+    Web -->|Raw SQL| Postgres[(Neon Postgres + pgvector)]
     Web -->|HTTP JSON RPC| Agents[FastAPI AI Swarm: services/agents]
     Agents -->|Background Processing| RedisQueue[(Redis Queue / Arq)]
     Agents -->|Embeddings Search| Postgres
@@ -25,7 +25,7 @@ graph TD
 
 1. **Presentation & Core API Layer (`/apps/web`)**:
    - **Framework**: Next.js 15 (App Router).
-   - **Database ORM**: Drizzle ORM (fully typed mapping).
+   - **Database access**: raw SQL — a `` sql`` `` tagged-template helper and a tenant-scoping query builder over generated row/column types (no ORM).
    - **Authentication**: NextAuth / IronSession tracking tenant scope (`tenantId`) and user role (`role`).
    - **Responsibility**: Serving responsive web views (Tailwind CSS, Tremor dashboards) and executing server-side transactional mutations.
    

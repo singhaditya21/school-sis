@@ -1,7 +1,7 @@
 # Database RLS Policy Matrix
 
 Last reviewed: 2026-08-07
-Schema source: `apps/web/drizzle/meta/0000_snapshot.json`
+Schema source: the migration chain (`apps/web/drizzle/*.sql`), parsed by `scripts/lib/migration-schema.mjs`
 Enforcement source: `packages/api/src/db/migrations/tenant-rls.sql`
 
 This document classifies every schema-managed public table. CI runs
@@ -53,7 +53,7 @@ context-setting statement from the data statement.
 | `rate_limit_buckets` | `platform-only` | Cross-tenant operational counters containing hashed endpoint/identity keys. |
 
 `password_reset_tokens` is a conditional runtime table not present in the
-Drizzle snapshot. When present, its policy inherits tenant ownership through
+migration chain. When present, its policy inherits tenant ownership through
 `users.tenant_id`.
 
 ## Direct tenant tables
@@ -193,7 +193,7 @@ diary_entries
   explicitly classified table lacks an RLS policy block.
 - `pnpm audit:migrations` rejects destructive SQL unless the statement has an
   adjacent owner-and-rollback approval marker.
-- The migration-chain CI job applies all Drizzle migrations, applies
+- The migration-chain CI job applies all migrations, applies
   `tenant-rls.sql`, and runs live cross-tenant read/write isolation assertions.
 - Remote database connections default to certificate-verifying TLS. The
   `DATABASE_SSL_MODE=require` compatibility waiver must be explicitly set when
