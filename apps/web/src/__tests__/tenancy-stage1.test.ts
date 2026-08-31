@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { gradingRubrics } from '@school-sis/api/src/db/generated/tables';
 
 /**
  * Stage 1 of the owner → group → school migration: the nullable triple on every
@@ -14,10 +15,6 @@ import { resolve } from 'node:path';
 const drizzleDir = resolve(process.cwd(), 'drizzle');
 const migrationFile = readdirSync(drizzleDir).find((f) => f.includes('stage1_scope_triple'));
 const migration = readFileSync(resolve(drizzleDir, migrationFile!), 'utf8');
-const core = readFileSync(
-    resolve(process.cwd(), '../../packages/api/src/db/schema/core.ts'),
-    'utf8',
-);
 const deployment = readFileSync(resolve(process.cwd(), 'scripts/deployment-migrations.ts'), 'utf8');
 
 describe('tenancy stage 1 — scope triple', () => {
@@ -37,10 +34,13 @@ describe('tenancy stage 1 — scope triple', () => {
         expect(school).toBe(9);
     });
 
-    it('keeps the scope helpers FK-free (columns only) in the schema', () => {
-        expect(core).toMatch(/ownerId: uuid\('owner_id'\),/);
-        expect(core).toMatch(/groupId: uuid\('group_id'\),/);
-        expect(core).toMatch(/schoolId: uuid\('school_id'\),/);
+    it('exposes the owner/group/school scope columns on scoped tables', () => {
+        // FK-free-ness is pinned by the "pure ADD COLUMN — no ADD CONSTRAINT" test
+        // above; the pgTable source is gone, so column existence is now checked
+        // against the generated schema (gradingRubrics carries the full triple).
+        expect(gradingRubrics.ownerId).toBeDefined();
+        expect(gradingRubrics.groupId).toBeDefined();
+        expect(gradingRubrics.schoolId).toBeDefined();
     });
 
     it('does not scope ai_token_logs group or the hq_* exception tables', () => {
