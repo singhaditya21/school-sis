@@ -1048,8 +1048,8 @@ if (process.env.NODE_ENV !== "production") {
  * per-connection context, exactly as `db` does. Prefer `sql` for new code.
  */
 export const sql = createSqlTag(() => pool);
-export { SqlQuery, createSqlTag, sqlFor, identifier } from "./sql";
-export type { SqlRunner, SqlTag } from "./sql";
+export { SqlQuery, createSqlTag, sqlFor, identifier, column } from "./sql";
+export type { SqlRunner, SqlTag, ColumnRef } from "./sql";
 
 export function getCurrentDbContext(): DbRlsContext | undefined {
   return currentContext();

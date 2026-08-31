@@ -195,3 +195,18 @@ export function identifier(...parts: string[]): SqlQuery {
         .join(".");
     return new SqlQuery([rendered], [], unexecutable);
 }
+
+/**
+ * A generated column reference: a composable `"<table>"."<column>"` fragment that
+ * also exposes the bare table and column names, so INSERT/UPDATE builders can quote
+ * an unqualified column without re-parsing rendered SQL. This is the single shape the
+ * generated schema (db/generated/tables.ts) emits per column.
+ */
+export interface ColumnRef extends SqlQuery {
+    readonly table: string;
+    readonly column: string;
+}
+
+export function column(table: string, name: string): ColumnRef {
+    return Object.assign(identifier(table, name), { table, column: name }) as ColumnRef;
+}

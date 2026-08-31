@@ -1,6 +1,5 @@
 import {
     feePlans,
-    feePlansColumns,
     FEE_FREQUENCY_VALUES,
     INVOICE_STATUS_VALUES,
     type FeePlansRow,
@@ -22,13 +21,15 @@ describe("generated db tables", () => {
         expect(typeof frequency).toBe("string");
     });
 
-    it("exposes column references as composable SqlQuery fragments and a name map", () => {
+    it("exposes column refs as composable fragments carrying their bare names", () => {
         expect(feePlans.$name).toBe("fee_plans");
         expect(feePlans.id).toBeInstanceOf(SqlQuery);
         expect(feePlans.id.text).toBe('"fee_plans"."id"');
         expect(feePlans.tenantId.text).toBe('"fee_plans"."tenant_id"');
-        expect(feePlansColumns.tenantId).toBe("tenant_id");
-        expect(feePlansColumns.academicYearId).toBe("academic_year_id");
+        // The bare table/column names, for building INSERT/UPDATE column lists.
+        expect(feePlans.tenantId.column).toBe("tenant_id");
+        expect(feePlans.academicYearId.column).toBe("academic_year_id");
+        expect(feePlans.id.table).toBe("fee_plans");
     });
 
     it("has Row/Insert types with the expected shape", () => {
