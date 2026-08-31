@@ -8,9 +8,9 @@
  * file is not allowed to do.
  */
 
-import { db } from '@/lib/db';
+import { tenantScope } from '@school-sis/api/src/data';
 import { getSession } from '@/lib/auth/session';
-import { auditLogs } from '@/lib/db/schema';
+import { auditLogs } from '@school-sis/api/src/db/generated/tables';
 import { randomUUID } from 'crypto';
 
 type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'EXPORT' | 'PAYMENT' | 'ROLE_CHANGE' | 'READ';
@@ -26,9 +26,9 @@ export async function logAudit(params: {
     afterState?: Record<string, unknown>;
 }) {
     try {
-        await db.insert(auditLogs).values({
+        // tenant_id is supplied by the scope; the rest map to real columns.
+        await tenantScope(params.tenantId).insert(auditLogs, {
             id: randomUUID(),
-            tenantId: params.tenantId,
             userId: params.userId,
             action: params.action,
             entityType: params.entityType,
