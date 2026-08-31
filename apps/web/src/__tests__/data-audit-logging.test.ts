@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { AUDIT_ACTION_VALUES } from '@school-sis/api/src/db/generated/tables';
 
 /**
  * The dynamic metadata data API must record audit-log entries for reads and
@@ -7,16 +8,14 @@ import path from 'path';
  * finding P0 #2 (residual: audit logging).
  */
 const ROUTE = path.join(process.cwd(), 'src/app/api/data/[object_name]/route.ts');
-const AUDIT_SCHEMA = path.join(process.cwd(), '../../packages/api/src/db/schema/audit.ts');
 
 describe('dynamic data API audit logging', () => {
     const routeSrc = fs.readFileSync(ROUTE, 'utf8');
 
     it("audit_action enum includes 'READ'", () => {
-        const schemaSrc = fs.readFileSync(AUDIT_SCHEMA, 'utf8');
-        const enumLine = schemaSrc.split('\n').find((l) => l.includes("pgEnum('audit_action'"));
-        expect(enumLine).toBeDefined();
-        expect(enumLine).toContain("'READ'");
+        // Pinned against the generated schema (from the migrated DB) now that the
+        // pgTable source is gone; AUDIT_ACTION_VALUES is the canonical enum list.
+        expect(AUDIT_ACTION_VALUES).toContain('READ');
     });
 
     it('imports the audit logger', () => {
