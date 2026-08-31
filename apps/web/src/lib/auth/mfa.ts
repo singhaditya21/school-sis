@@ -20,9 +20,8 @@ import QRCode from 'qrcode';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { encrypt, decrypt } from '@/lib/encryption';
-import { db } from '@/lib/db';
-import { users } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { tenantScope, eq } from '@school-sis/api/src/data';
+import { users } from '@school-sis/api/src/db/generated/tables';
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -81,14 +80,15 @@ export async function generateMFAEnrollment(
         backupCodes.map(code => bcrypt.hash(code, BCRYPT_ROUNDS))
     );
 
-    await db
-        .update(users)
-        .set({
+    await tenantScope(tenantId).update(
+        users,
+        {
             mfaSecret: encryptedSecret,
             mfaEnabled: false, // not active until user verifies a code
             mfaBackupCodes: hashedBackupCodes,
-        })
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
+        },
+        eq(users.id, userId),
+    );
 
     return { secret, qrCodeDataUrl, backupCodes };
 }
@@ -104,11 +104,12 @@ export async function activateMFA(
     tenantId: string,
     totpCode: string,
 ): Promise<{ success: boolean; error?: string }> {
-    const [user] = await db
-        .select({ mfaSecret: users.mfaSecret, mfaEnabled: users.mfaEnabled })
+    const scope = tenantScope(tenantId);
+    const user = await scope
         .from(users)
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
-        .limit(1);
+        .select<{ mfaSecret: string | null; mfaEnabled: boolean }>({ mfaSecret: users.mfaSecret, mfaEnabled: users.mfaEnabled })
+        .where(eq(users.id, userId))
+        .first();
 
     if (!user?.mfaSecret) {
         return { success: false, error: 'MFA enrollment not started. Call generateMFAEnrollment first.' };
@@ -125,10 +126,7 @@ export async function activateMFA(
         return { success: false, error: 'Invalid or expired code. Please try again.' };
     }
 
-    await db
-        .update(users)
-        .set({ mfaEnabled: true })
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
+    await scope.update(users, { mfaEnabled: true }, eq(users.id, userId));
 
     return { success: true };
 }
@@ -144,11 +142,11 @@ export async function verifyMFACode(
     tenantId: string,
     totpCode: string,
 ): Promise<{ success: boolean; error?: string }> {
-    const [user] = await db
-        .select({ mfaSecret: users.mfaSecret, mfaEnabled: users.mfaEnabled })
+    const user = await tenantScope(tenantId)
         .from(users)
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
-        .limit(1);
+        .select<{ mfaSecret: string | null; mfaEnabled: boolean }>({ mfaSecret: users.mfaSecret, mfaEnabled: users.mfaEnabled })
+        .where(eq(users.id, userId))
+        .first();
 
     if (!user?.mfaEnabled || !user.mfaSecret) {
         // MFA not configured — pass through (enforcement happens at middleware level)
@@ -178,11 +176,12 @@ export async function redeemBackupCode(
     tenantId: string,
     rawCode: string,
 ): Promise<{ success: boolean; codesRemaining?: number; error?: string }> {
-    const [user] = await db
-        .select({ mfaBackupCodes: users.mfaBackupCodes })
+    const scope = tenantScope(tenantId);
+    const user = await scope
         .from(users)
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
-        .limit(1);
+        .select<{ mfaBackupCodes: string[] | null }>({ mfaBackupCodes: users.mfaBackupCodes })
+        .where(eq(users.id, userId))
+        .first();
 
     const storedCodes = user?.mfaBackupCodes ?? [];
     if (storedCodes.length === 0) {
@@ -201,10 +200,7 @@ export async function redeemBackupCode(
 
     // Remove the consumed code (single-use)
     const remaining = storedCodes.filter((_, i) => i !== matchIndex);
-    await db
-        .update(users)
-        .set({ mfaBackupCodes: remaining })
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
+    await scope.update(users, { mfaBackupCodes: remaining }, eq(users.id, userId));
 
     return { success: true, codesRemaining: remaining.length };
 }
@@ -219,14 +215,15 @@ export async function disableMFA(
     userId: string,
     tenantId: string,
 ): Promise<void> {
-    await db
-        .update(users)
-        .set({
+    await tenantScope(tenantId).update(
+        users,
+        {
             mfaEnabled: false,
             mfaSecret: null,
             mfaBackupCodes: null,
-        })
-        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
+        },
+        eq(users.id, userId),
+    );
 }
 
 // ─── Middleware-level enforcement helper ──────────────────────
