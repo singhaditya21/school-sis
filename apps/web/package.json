@@ -81,7 +81,7 @@
     "react-hook-form": "^7.80.0",
     "recharts": "^2.15.4",
     "sonner": "^2.0.7",
-    "stripe": "^20.4.1",
+    "stripe": "^22.6.0",
     "tailwind-merge": "^2.6.1",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^13.0.0",
