@@ -21,6 +21,8 @@
     "test:e2e:smoke": "touch .env.test && node --env-file-if-exists=.env ./node_modules/@playwright/test/cli.js test e2e/smoke.spec.ts",
     "db:manifest": "node scripts/generate-migration-manifest.mjs",
     "db:manifest:check": "node scripts/generate-migration-manifest.mjs --check",
+    "db:types": "tsx scripts/generate-db-tables.ts",
+    "db:types:check": "tsx scripts/generate-db-tables.ts --check",
     "audit:migrations:chain": "tsx scripts/audit-migration-chain.ts",
     "db:reconciliation:audit": "node --import tsx scripts/run-migration-reconciliation-audit.ts",
     "db:migrate:deploy": "tsx scripts/migrate-deployment.ts",
