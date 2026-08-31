@@ -1,4 +1,4 @@
-import postgres from 'postgres';
+import { Pool } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
 import { resolveDatabaseConnectionOptions } from '../../../packages/api/src/db/ssl';
@@ -20,21 +20,22 @@ async function run() {
     }
 
     const sqlContent = fs.readFileSync(sqlFilePath, 'utf8');
-    const databaseOptions = resolveDatabaseConnectionOptions(connectionString);
-    const client = postgres(databaseOptions.connectionString, {
+    const pool = new Pool({
+        ...resolveDatabaseConnectionOptions(connectionString),
         max: 1,
-        ...(databaseOptions.ssl ? { ssl: databaseOptions.ssl } : {}),
     });
 
     try {
-        // Run the statements using unsafe which supports multi-statement queries
-        await client.unsafe(sqlContent);
+        // A parameter-less pool.query uses node-pg's simple-query protocol, which
+        // runs the whole multi-statement file in one call — the raw-pg equivalent
+        // of postgres-js's client.unsafe(...).
+        await pool.query(sqlContent);
         console.log('✅ E2E SQL script run completed successfully!');
     } catch (error) {
         console.error('❌ Error executing E2E SQL script:', error);
         process.exit(1);
     } finally {
-        await client.end();
+        await pool.end();
     }
 }
 
