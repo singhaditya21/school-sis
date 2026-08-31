@@ -1,11 +1,9 @@
 'use server';
 
-import { db, pool } from '@/lib/db';
-import { eq, and, sql } from 'drizzle-orm';
+import { pool } from '@/lib/db';
+import { tenantScope, eq, and, sql, identifier } from '../../data';
 import { requireAuth } from '@/lib/auth/middleware';
-import { timetableEntries, periods, substitutions, substitutionRequests } from '@/lib/db/schema/timetable';
-import { subjects, sections } from '@/lib/db/schema/academic';
-import { users } from '@/lib/db/schema/core';
+import { timetableEntries, periods, substitutions, substitutionRequests, subjects, users } from '../../db/generated/tables';
 
 /**
  * Retrieves all teachers who could be candidates for substitutions.
@@ -64,50 +62,52 @@ export async function getSubstitutionRequests(): Promise<{ id: string; originalT
 }
 
 export async function getTimetableGrid(tenantId: string, sectionId: string) {
-    const entries = await db.select({
-        id: timetableEntries.id,
-        sectionId: timetableEntries.sectionId,
-        dayOfWeek: timetableEntries.dayOfWeek,
-        roomNumber: timetableEntries.roomNumber,
-        subjectId: timetableEntries.subjectId,
-        subjectName: subjects.name,
-        teacherId: timetableEntries.teacherId,
-        teacherName: sql<string>`u.first_name || ' ' || u.last_name`,
-        periodId: timetableEntries.periodId,
-        periodName: periods.name,
-        startTime: periods.startTime,
-        endTime: periods.endTime,
-        isBreak: periods.isBreak,
-        displayOrder: periods.displayOrder,
-    })
-    .from(timetableEntries)
-    .innerJoin(periods, eq(timetableEntries.periodId, periods.id))
-    .innerJoin(subjects, eq(timetableEntries.subjectId, subjects.id))
-    .innerJoin(users, eq(timetableEntries.teacherId, users.id))
-    .where(and(
-        eq(timetableEntries.tenantId, tenantId),
-        eq(timetableEntries.sectionId, sectionId)
-    ))
-    .execute();
-
-    return entries;
+    return await tenantScope(tenantId)
+        .from(timetableEntries)
+        .innerJoin(periods, eq(timetableEntries.periodId, periods.id))
+        .innerJoin(subjects, eq(timetableEntries.subjectId, subjects.id))
+        .innerJoin(users, eq(timetableEntries.teacherId, users.id))
+        .select<{
+            id: string; sectionId: string; dayOfWeek: string; roomNumber: string | null;
+            subjectId: string; subjectName: string; teacherId: string; teacherName: string;
+            periodId: string; periodName: string; startTime: string; endTime: string;
+            isBreak: boolean; displayOrder: number;
+        }>({
+            id: timetableEntries.id,
+            sectionId: timetableEntries.sectionId,
+            dayOfWeek: timetableEntries.dayOfWeek,
+            roomNumber: timetableEntries.roomNumber,
+            subjectId: timetableEntries.subjectId,
+            subjectName: subjects.name,
+            teacherId: timetableEntries.teacherId,
+            teacherName: sql`${users.firstName} || ' ' || ${users.lastName}`,
+            periodId: timetableEntries.periodId,
+            periodName: periods.name,
+            startTime: periods.startTime,
+            endTime: periods.endTime,
+            isBreak: periods.isBreak,
+            displayOrder: periods.displayOrder,
+        })
+        .where(eq(timetableEntries.sectionId, sectionId))
+        .rows();
 }
 
 export async function createTimetableEntry(tenantId: string, data: any) {
     const { teacherId, roomNumber, sectionId, periodId, dayOfWeek, subjectId } = data;
+    const scope = tenantScope(tenantId);
 
     // 1. Teacher Conflict check
     if (teacherId) {
-        const teacherConflict = await db.select()
+        const teacherConflict = await scope
             .from(timetableEntries)
+            .select<{ id: string }>({ id: timetableEntries.id })
             .where(and(
-                eq(timetableEntries.tenantId, tenantId),
                 eq(timetableEntries.teacherId, teacherId),
                 eq(timetableEntries.dayOfWeek, dayOfWeek),
-                eq(timetableEntries.periodId, periodId)
+                eq(timetableEntries.periodId, periodId),
             ))
             .limit(1)
-            .execute();
+            .rows();
         if (teacherConflict.length > 0) {
             throw new Error('Teacher is already assigned to another class/section at this period on this day');
         }
@@ -115,16 +115,16 @@ export async function createTimetableEntry(tenantId: string, data: any) {
 
     // 2. Room Conflict check
     if (roomNumber) {
-        const roomConflict = await db.select()
+        const roomConflict = await scope
             .from(timetableEntries)
+            .select<{ id: string }>({ id: timetableEntries.id })
             .where(and(
-                eq(timetableEntries.tenantId, tenantId),
                 eq(timetableEntries.roomNumber, roomNumber),
                 eq(timetableEntries.dayOfWeek, dayOfWeek),
-                eq(timetableEntries.periodId, periodId)
+                eq(timetableEntries.periodId, periodId),
             ))
             .limit(1)
-            .execute();
+            .rows();
         if (roomConflict.length > 0) {
             throw new Error('Room is already occupied by another class/section at this period on this day');
         }
@@ -132,66 +132,63 @@ export async function createTimetableEntry(tenantId: string, data: any) {
 
     // 3. Section/Class Conflict check
     if (sectionId) {
-        const sectionConflict = await db.select()
+        const sectionConflict = await scope
             .from(timetableEntries)
+            .select<{ id: string }>({ id: timetableEntries.id })
             .where(and(
-                eq(timetableEntries.tenantId, tenantId),
                 eq(timetableEntries.sectionId, sectionId),
                 eq(timetableEntries.dayOfWeek, dayOfWeek),
-                eq(timetableEntries.periodId, periodId)
+                eq(timetableEntries.periodId, periodId),
             ))
             .limit(1)
-            .execute();
+            .rows();
         if (sectionConflict.length > 0) {
             throw new Error('Class/Section already has a subject scheduled at this period on this day');
         }
     }
 
-    // No conflicts, create entry
-    const [newEntry] = await db.insert(timetableEntries).values({
-        tenantId,
-        sectionId,
-        periodId,
-        subjectId,
-        teacherId,
-        dayOfWeek,
-        roomNumber,
-    }).returning().execute();
+    // No conflicts, create entry. tenant_id is set explicitly; the routing pool's RLS
+    // still enforces the tenant.
+    const [newEntry] = await sql`
+        INSERT INTO ${identifier(timetableEntries.$name)}
+            (tenant_id, section_id, period_id, subject_id, teacher_id, day_of_week, room_number)
+        VALUES (${tenantId}, ${sectionId}, ${periodId}, ${subjectId}, ${teacherId}, ${dayOfWeek}, ${roomNumber})
+        RETURNING *
+    `;
 
     return newEntry;
 }
 
 export async function getSubstitutions(tenantId: string) {
-    const list = await db.select({
-        id: substitutions.id,
-        timetableEntryId: substitutions.timetableEntryId,
-        originalTeacherId: substitutions.originalTeacherId,
-        originalTeacherName: sql<string>`orig.first_name || ' ' || orig.last_name`,
-        substituteTeacherId: substitutions.substituteTeacherId,
-        substituteTeacherName: sql<string>`sub.first_name || ' ' || sub.last_name`,
-        date: substitutions.date,
-        reason: substitutions.reason,
-    })
-    .from(substitutions)
-    .innerJoin(sql`users orig`, eq(substitutions.originalTeacherId, sql`orig.id`))
-    .innerJoin(sql`users sub`, eq(substitutions.substituteTeacherId, sql`sub.id`))
-    .where(eq(substitutions.tenantId, tenantId))
-    .execute();
-
-    return list;
+    // Two aliased self-joins on `users` (orig/sub) are beyond the scoped builder, so this
+    // uses the raw escape hatch. tenant("s") pins the query to this tenant's substitutions.
+    return await tenantScope(tenantId).raw<{
+        id: string; timetableEntryId: string; originalTeacherId: string; originalTeacherName: string;
+        substituteTeacherId: string; substituteTeacherName: string; date: string; reason: string | null;
+    }>((tenant, sql) => sql`
+        SELECT s.id AS "id",
+               s.timetable_entry_id AS "timetableEntryId",
+               s.original_teacher_id AS "originalTeacherId",
+               orig.first_name || ' ' || orig.last_name AS "originalTeacherName",
+               s.substitute_teacher_id AS "substituteTeacherId",
+               sub.first_name || ' ' || sub.last_name AS "substituteTeacherName",
+               s.date AS "date",
+               s.reason AS "reason"
+        FROM substitutions s
+        INNER JOIN users orig ON s.original_teacher_id = orig.id
+        INNER JOIN users sub ON s.substitute_teacher_id = sub.id
+        WHERE ${tenant("s")}
+    `);
 }
 
 export async function createSubstitutionRequest(tenantId: string, data: any) {
-    const [request] = await db.insert(substitutionRequests).values({
-        tenantId,
-        teacherId: data.teacherId,
-        substituteId: data.substituteId,
-        sectionId: data.sectionId,
-        period: Number(data.period),
-        date: data.date,
-        reason: data.reason,
-        status: data.status || 'pending',
-    }).returning().execute();
+    // tenant_id is set explicitly; the routing pool's RLS still enforces the tenant.
+    const [request] = await sql`
+        INSERT INTO ${identifier(substitutionRequests.$name)}
+            (tenant_id, teacher_id, substitute_id, section_id, period, date, reason, status)
+        VALUES (${tenantId}, ${data.teacherId}, ${data.substituteId}, ${data.sectionId}, ${Number(data.period)}, ${data.date}, ${data.reason}, ${data.status || 'pending'})
+        RETURNING *
+    `;
 
     return request;
 }
