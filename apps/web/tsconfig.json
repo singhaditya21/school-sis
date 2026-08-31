@@ -24,12 +24,6 @@
       }
     ],
     "paths": {
-      "drizzle-orm": [
-        "./node_modules/drizzle-orm"
-      ],
-      "drizzle-orm/*": [
-        "./node_modules/drizzle-orm/*"
-      ],
       "pg": [
         "./node_modules/pg"
       ],

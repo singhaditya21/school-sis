@@ -10,9 +10,10 @@ import { existsSync, readFileSync } from "node:fs";
  * and cross-checked by the release preflight. Any drift here would make the runner
  * reject an already-applied migration.
  *
- * The parity is asserted against the real drizzle function in
- * read-migration-files.test.ts for the whole live chain; keep them in lockstep
- * until drizzle-orm is removed entirely.
+ * drizzle-orm has been removed, so the byte-for-byte parity is now pinned by the
+ * committed migration manifest (the hash+timestamp cross-check in
+ * read-migration-files.test.ts). Do not change the splitting or hashing here — a
+ * differing hash would make the runner reject an already-applied migration.
  *
  *   hash         = sha256 of the full, unmodified .sql file text
  *   sql          = the file split on the `--> statement-breakpoint` marker (no trim)

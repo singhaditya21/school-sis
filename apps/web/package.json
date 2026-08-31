@@ -65,7 +65,6 @@
     "clsx": "^2.1.1",
     "csv-parse": "^6.2.1",
     "date-fns": "^3.6.0",
-    "drizzle-orm": "^0.45.2",
     "firebase-admin": "^14.1.0",
     "iron-session": "^8.0.4",
     "jose": "^6.2.2",

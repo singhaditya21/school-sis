@@ -22,7 +22,6 @@ const nextConfig: NextConfig = {
         config.resolve ??= {};
         config.resolve.alias = {
             ...(config.resolve.alias ?? {}),
-            'drizzle-orm': moduleRoot('drizzle-orm'),
             pg: moduleRoot('pg'),
         };
         return config;
