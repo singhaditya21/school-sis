@@ -12,7 +12,8 @@ export default function CreateBatchForm() {
         setIsSubmitting(true);
         setMessage(null);
         
-        // Inject a mock tenant ID to satisfy the Drizzle schema constraints for this demo
+        // Demo form: inject a mock tenant ID (the server action validates it as a
+        // UUID; RLS on the routing pool still enforces the real request tenant).
         formData.append('tenantId', uuidv4());
 
         const result = await createCoachingBatch(formData);
@@ -32,7 +33,7 @@ export default function CreateBatchForm() {
             <h2 className="text-2xl font-bold text-foreground mb-6">Create New Coaching Batch</h2>
             
             {message && (
-                <div className={`p-4 mb-6 rounded-lg ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                <div className={`p-4 mb-6 rounded-lg border ${message.type === 'success' ? 'bg-success-subtle text-success-subtle-foreground border-success/20' : 'bg-destructive-subtle text-destructive-subtle-foreground border-destructive/20'}`}>
                     {message.text}
                 </div>
             )}
@@ -76,14 +77,11 @@ export default function CreateBatchForm() {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-foreground mb-2">Max Capacity</label>
-                        <input 
-                            name="capacity" 
-                            type="number" 
-                            min="1" 
-                            max="500"
-                            required 
-                            defaultValue={40}
+                        <label className="block text-sm font-medium text-foreground mb-2">End Date</label>
+                        <input
+                            name="endDate"
+                            type="date"
+                            required
                             className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-ring outline-none transition"
                         />
                     </div>
@@ -93,7 +91,7 @@ export default function CreateBatchForm() {
                     <button 
                         type="submit" 
                         disabled={isSubmitting}
-                        className="px-8 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-blue-200"
+                        className="px-8 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary/20"
                     >
                         {isSubmitting ? 'Provisioning Batch...' : 'Create Batch'}
                     </button>
