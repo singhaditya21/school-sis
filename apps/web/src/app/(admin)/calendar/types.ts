@@ -56,7 +56,7 @@ export const EVENT_TYPE_STYLE: Record<EventType, { chip: string; border: string;
         border: 'border-indigo-400',
         dot: 'bg-indigo-500',
     },
-    OTHER: { chip: 'bg-slate-100 text-slate-800', border: 'border-slate-400', dot: 'bg-slate-500' },
+    OTHER: { chip: 'bg-muted text-foreground', border: 'border-slate-400', dot: 'bg-slate-500' },
 };
 
 export type CalendarEvent = {

@@ -68,7 +68,7 @@ export default async function StaffDetailPage({ params }: PageProps) {
                         {staffStatusLabel(staff.status)}
                     </span>
                 </div>
-                <p className="mt-1 text-gray-600">
+                <p className="mt-1 text-muted-foreground">
                     {staff.employeeId}
                     {staff.designationName ? ` · ${staff.designationName}` : ''}
                     {staff.departmentName ? ` · ${staff.departmentName}` : ''}
@@ -110,7 +110,7 @@ export default async function StaffDetailPage({ params }: PageProps) {
                                 }
                             />
                             <div className="col-span-2 md:col-span-3">
-                                <dt className="text-xs uppercase tracking-wide text-gray-500">Address</dt>
+                                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Address</dt>
                                 <dd className="mt-0.5 whitespace-pre-line">{staff.address || '—'}</dd>
                             </div>
                         </dl>
@@ -124,7 +124,7 @@ export default async function StaffDetailPage({ params }: PageProps) {
                     <CardContent className="space-y-3 text-sm">
                         {earnings.map(row => (
                             <div key={row.label} className="flex justify-between">
-                                <span className="text-gray-500">{row.label}</span>
+                                <span className="text-muted-foreground">{row.label}</span>
                                 <span>{rupees(row.value)}</span>
                             </div>
                         ))}
@@ -133,7 +133,7 @@ export default async function StaffDetailPage({ params }: PageProps) {
                             <span>{rupees(staff.salaryGross)}</span>
                         </div>
                         {deductions.map(row => (
-                            <div key={row.label} className="flex justify-between text-gray-500">
+                            <div key={row.label} className="flex justify-between text-muted-foreground">
                                 <span>{row.label}</span>
                                 <span>− {rupees(row.value)}</span>
                             </div>
@@ -149,18 +149,18 @@ export default async function StaffDetailPage({ params }: PageProps) {
             <Card>
                 <CardHeader className="pb-3">
                     <CardTitle className="text-base">
-                        Leave balance <span className="font-normal text-gray-500">· {new Date().getFullYear()}</span>
+                        Leave balance <span className="font-normal text-muted-foreground">· {new Date().getFullYear()}</span>
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="border-b bg-gray-50">
+                            <thead className="border-b bg-muted">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Policy</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Entitled</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Used</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Remaining</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Policy</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground">Entitled</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground">Used</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground">Remaining</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
@@ -168,7 +168,7 @@ export default async function StaffDetailPage({ params }: PageProps) {
                                     <tr key={b.leaveType}>
                                         <td className="px-4 py-3 text-sm">
                                             <span className="font-medium">{b.name}</span>
-                                            <span className="ml-2 text-xs text-gray-500">{leaveTypeLabel(b.leaveType)}</span>
+                                            <span className="ml-2 text-xs text-muted-foreground">{leaveTypeLabel(b.leaveType)}</span>
                                         </td>
                                         <td className="px-4 py-3 text-right text-sm">{b.total}</td>
                                         <td className="px-4 py-3 text-right text-sm">{b.used}</td>
@@ -179,7 +179,7 @@ export default async function StaffDetailPage({ params }: PageProps) {
                                 ))}
                                 {balances.length === 0 && (
                                     <tr>
-                                        <td colSpan={4} className="px-4 py-10 text-center text-gray-400">
+                                        <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">
                                             No active leave policies are configured, so no balance can be shown.
                                         </td>
                                     </tr>
@@ -200,13 +200,13 @@ export default async function StaffDetailPage({ params }: PageProps) {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="border-b bg-gray-50">
+                            <thead className="border-b bg-muted">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Type</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Dates</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Days</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Reason</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Status</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Type</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Dates</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground">Days</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Reason</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
@@ -229,7 +229,7 @@ export default async function StaffDetailPage({ params }: PageProps) {
                                 ))}
                                 {history.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="px-4 py-10 text-center text-gray-400">
+                                        <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
                                             No leave requests on record for this staff member.
                                         </td>
                                     </tr>
@@ -246,7 +246,7 @@ export default async function StaffDetailPage({ params }: PageProps) {
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
     return (
         <div>
-            <dt className="text-xs uppercase tracking-wide text-gray-500">{label}</dt>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
             <dd className="mt-0.5">{value || '—'}</dd>
         </div>
     );

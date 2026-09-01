@@ -28,8 +28,8 @@ export default function CreateBatchForm() {
     }
 
     return (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 mt-8">
-            <h2 className="text-2xl font-bold text-slate-800 mb-6">Create New Coaching Batch</h2>
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-border mt-8">
+            <h2 className="text-2xl font-bold text-foreground mb-6">Create New Coaching Batch</h2>
             
             {message && (
                 <div className={`p-4 mb-6 rounded-lg ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
@@ -40,21 +40,21 @@ export default function CreateBatchForm() {
             <form id="coaching-batch-form" action={formAction} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Batch Name</label>
+                        <label className="block text-sm font-medium text-foreground mb-2">Batch Name</label>
                         <input 
                             name="name" 
                             type="text" 
                             required 
-                            className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                             placeholder="e.g. Super 30 - JEE 2027"
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Target Exam</label>
+                        <label className="block text-sm font-medium text-foreground mb-2">Target Exam</label>
                         <select 
                             name="examTarget" 
                             required 
-                            className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition bg-white"
+                            className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition bg-white"
                         >
                             <option value="JEE">JEE (Mains + Advanced)</option>
                             <option value="NEET">NEET (UG)</option>
@@ -67,16 +67,16 @@ export default function CreateBatchForm() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Start Date</label>
+                        <label className="block text-sm font-medium text-foreground mb-2">Start Date</label>
                         <input 
                             name="startDate" 
                             type="date" 
                             required 
-                            className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Max Capacity</label>
+                        <label className="block text-sm font-medium text-foreground mb-2">Max Capacity</label>
                         <input 
                             name="capacity" 
                             type="number" 
@@ -84,7 +84,7 @@ export default function CreateBatchForm() {
                             max="500"
                             required 
                             defaultValue={40}
-                            className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                         />
                     </div>
                 </div>

@@ -22,7 +22,7 @@ const STATUS_STYLES: Record<string, { cell: string; chart: string; label: string
     ABSENT: { cell: 'bg-red-50 text-red-700 border-red-200', chart: '#ef4444', label: 'Absent' },
     HALF_DAY: { cell: 'bg-sky-50 text-sky-700 border-sky-200', chart: '#0ea5e9', label: 'Half day' },
     EXCUSED: { cell: 'bg-violet-50 text-violet-700 border-violet-200', chart: '#8b5cf6', label: 'Excused' },
-    HOLIDAY: { cell: 'bg-slate-50 text-slate-400 border-slate-200', chart: '#94a3b8', label: 'Holiday' },
+    HOLIDAY: { cell: 'bg-muted text-muted-foreground border-border', chart: '#94a3b8', label: 'Holiday' },
 };
 
 export function AttendanceClient() {
@@ -160,8 +160,8 @@ export function AttendanceClient() {
 
             <div className="flex flex-col items-start justify-between border-b pb-6 md:flex-row md:items-center">
                 <div>
-                    <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Attendance register</h1>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <h1 className="text-2xl font-semibold tracking-tight text-foreground">Attendance register</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">
                         {childName ? `Daily record for ${childName}` : 'Daily record'}
                     </p>
                 </div>
@@ -169,7 +169,7 @@ export function AttendanceClient() {
                     <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Previous month" onClick={() => stepMonth(-1)}>
                         <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <div className="w-40 px-4 text-center text-sm font-medium text-slate-700">
+                    <div className="w-40 px-4 text-center text-sm font-medium text-foreground">
                         {MONTHS[month - 1]} {year}
                     </div>
                     <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Next month" onClick={() => stepMonth(1)}>
@@ -185,23 +185,23 @@ export function AttendanceClient() {
             )}
 
             {!childrenLoading && students.length === 0 ? (
-                <div className="rounded-xl border border-dashed bg-white p-12 text-center text-slate-500">
+                <div className="rounded-xl border border-dashed bg-white p-12 text-center text-muted-foreground">
                     No child is linked to your account yet, so there is no attendance to show.
                 </div>
             ) : (
                 <>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                        <Card className="border-slate-200 shadow-sm">
+                        <Card className="border-border shadow-sm">
                             <CardContent className="p-6">
                                 <div className="mb-4 flex items-center justify-between">
-                                    <div className="text-sm font-medium text-slate-500">Present</div>
+                                    <div className="text-sm font-medium text-muted-foreground">Present</div>
                                     <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                                 </div>
-                                <div className="text-3xl font-bold text-slate-900">
-                                    {present} <span className="text-sm font-normal text-slate-400">days</span>
+                                <div className="text-3xl font-bold text-foreground">
+                                    {present} <span className="text-sm font-normal text-muted-foreground">days</span>
                                 </div>
                                 {(late > 0 || halfDay > 0 || excused > 0) && (
-                                    <p className="mt-1 text-xs text-slate-500">
+                                    <p className="mt-1 text-xs text-muted-foreground">
                                         {late > 0 ? `${late} late` : ''}
                                         {late > 0 && (halfDay > 0 || excused > 0) ? ' · ' : ''}
                                         {halfDay > 0 ? `${halfDay} half day` : ''}
@@ -211,36 +211,36 @@ export function AttendanceClient() {
                                 )}
                             </CardContent>
                         </Card>
-                        <Card className="border-slate-200 shadow-sm">
+                        <Card className="border-border shadow-sm">
                             <CardContent className="p-6">
                                 <div className="mb-4 flex items-center justify-between">
-                                    <div className="text-sm font-medium text-slate-500">Absent</div>
+                                    <div className="text-sm font-medium text-muted-foreground">Absent</div>
                                     <XCircle className="h-5 w-5 text-red-500" />
                                 </div>
-                                <div className="text-3xl font-bold text-slate-900">
-                                    {absent} <span className="text-sm font-normal text-slate-400">days</span>
+                                <div className="text-3xl font-bold text-foreground">
+                                    {absent} <span className="text-sm font-normal text-muted-foreground">days</span>
                                 </div>
                             </CardContent>
                         </Card>
-                        <Card className="border-slate-200 shadow-sm">
+                        <Card className="border-border shadow-sm">
                             <CardContent className="p-6">
                                 <div className="mb-4 flex items-center justify-between">
-                                    <div className="text-sm font-medium text-slate-500">Days marked</div>
+                                    <div className="text-sm font-medium text-muted-foreground">Days marked</div>
                                     <CalendarDays className="h-5 w-5 text-blue-500" />
                                 </div>
-                                <div className="text-3xl font-bold text-slate-900">
-                                    {marked} <span className="text-sm font-normal text-slate-400">days</span>
+                                <div className="text-3xl font-bold text-foreground">
+                                    {marked} <span className="text-sm font-normal text-muted-foreground">days</span>
                                 </div>
                             </CardContent>
                         </Card>
-                        <Card className="relative overflow-hidden border-slate-200 shadow-sm">
+                        <Card className="relative overflow-hidden border-border shadow-sm">
                             <CardContent className="relative p-6">
                                 <div className="mb-4 flex items-center justify-between">
-                                    <div className="text-sm font-medium text-slate-700">Attendance rate</div>
-                                    <AlertCircle className="h-5 w-5 text-slate-400" />
+                                    <div className="text-sm font-medium text-foreground">Attendance rate</div>
+                                    <AlertCircle className="h-5 w-5 text-muted-foreground" />
                                 </div>
                                 {percentage === null ? (
-                                    <div className="text-xl font-semibold text-slate-400">Not marked</div>
+                                    <div className="text-xl font-semibold text-muted-foreground">Not marked</div>
                                 ) : (
                                     <div
                                         className={`text-3xl font-bold ${
@@ -259,9 +259,9 @@ export function AttendanceClient() {
                     </div>
 
                     <div className="grid gap-6 lg:grid-cols-3">
-                        <Card className="border-slate-200 shadow-sm lg:col-span-2">
-                            <CardHeader className="flex flex-row items-center justify-between border-b bg-slate-50 px-6 py-4">
-                                <CardTitle className="flex items-center text-base font-semibold text-slate-800">
+                        <Card className="border-border shadow-sm lg:col-span-2">
+                            <CardHeader className="flex flex-row items-center justify-between border-b bg-muted px-6 py-4">
+                                <CardTitle className="flex items-center text-base font-semibold text-foreground">
                                     <CalendarDays className="mr-2 h-4 w-4" /> Daily log
                                 </CardTitle>
                                 <Button
@@ -276,7 +276,7 @@ export function AttendanceClient() {
                             </CardHeader>
                             <CardContent className="p-6">
                                 {loading ? (
-                                    <div className="flex h-64 items-center justify-center text-sm text-slate-400">
+                                    <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
                                         Loading register…
                                     </div>
                                 ) : (
@@ -284,7 +284,7 @@ export function AttendanceClient() {
                                         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
                                             <div
                                                 key={d}
-                                                className="py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-400"
+                                                className="py-2 text-center text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
                                             >
                                                 {d}
                                             </div>
@@ -292,7 +292,7 @@ export function AttendanceClient() {
                                         {Array.from({ length: firstDayOfWeek }).map((_, i) => (
                                             <div
                                                 key={`empty-${i}`}
-                                                className="aspect-square rounded-md border border-slate-100 bg-slate-50/50"
+                                                className="aspect-square rounded-md border border-border bg-muted/50"
                                             />
                                         ))}
                                         {calendarDays.map(({ day, status, remarks }) => (
@@ -302,8 +302,8 @@ export function AttendanceClient() {
                                                 className={`flex aspect-square flex-col items-center justify-center rounded-md border text-sm font-medium transition-all ${
                                                     status
                                                         ? (STATUS_STYLES[status]?.cell ??
-                                                          'bg-slate-50 text-slate-600 border-slate-200')
-                                                        : 'border-slate-100 bg-white text-slate-400'
+                                                          'bg-muted text-muted-foreground border-border')
+                                                        : 'border-border bg-white text-muted-foreground'
                                                 }`}
                                             >
                                                 <span>{day}</span>
@@ -319,13 +319,13 @@ export function AttendanceClient() {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-slate-200 shadow-sm">
-                            <CardHeader className="border-b bg-slate-50 px-6 py-4">
-                                <CardTitle className="text-base font-semibold text-slate-800">Distribution</CardTitle>
+                        <Card className="border-border shadow-sm">
+                            <CardHeader className="border-b bg-muted px-6 py-4">
+                                <CardTitle className="text-base font-semibold text-foreground">Distribution</CardTitle>
                             </CardHeader>
                             <CardContent className="p-6">
                                 {chartData.length === 0 ? (
-                                    <div className="flex h-48 items-center justify-center text-center text-sm text-slate-400">
+                                    <div className="flex h-48 items-center justify-center text-center text-sm text-muted-foreground">
                                         No attendance marked for this month
                                     </div>
                                 ) : (

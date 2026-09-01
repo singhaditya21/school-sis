@@ -77,7 +77,7 @@ export default async function AuditPage() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Platform Audit Log</h1>
-                <p className="text-sm text-slate-400 mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                     Cross-tenant actions taken from HQ — impersonation, provisioning and status changes.
                 </p>
             </div>
@@ -85,7 +85,7 @@ export default async function AuditPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Stat label="Recorded events" value={overall.total} hint="All time" icon={<Shield className="w-5 h-5 text-indigo-400" />} />
                 <Stat label="Last 7 days" value={overall.last7} hint="Recent activity" icon={<Shield className="w-5 h-5 text-cyan-400" />} />
-                <Stat label="Distinct actors" value={overall.actors} hint="Platform users who acted" icon={<Users className="w-5 h-5 text-slate-400" />} />
+                <Stat label="Distinct actors" value={overall.actors} hint="Platform users who acted" icon={<Users className="w-5 h-5 text-muted-foreground" />} />
                 <Stat
                     label="Impersonations"
                     value={countOf('IMPERSONATE')}
@@ -105,7 +105,7 @@ export default async function AuditPage() {
                                 className="text-xs font-mono px-3 py-1.5 rounded-md border border-slate-800 bg-slate-900 text-slate-300"
                             >
                                 {s.actionType}
-                                <span className="text-slate-500"> · {s.total}</span>
+                                <span className="text-muted-foreground"> · {s.total}</span>
                             </span>
                         ))}
                     </div>
@@ -115,13 +115,13 @@ export default async function AuditPage() {
             <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-white">Event log</h3>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-muted-foreground">
                         Showing most recent {Math.min(logs.length, PAGE_LIMIT)} of {overall.total}
                     </span>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-slate-300">
-                        <thead className="bg-slate-900 border-b border-slate-800 text-xs text-slate-500 uppercase tracking-widest">
+                        <thead className="bg-slate-900 border-b border-slate-800 text-xs text-muted-foreground uppercase tracking-widest">
                             <tr>
                                 <th className="px-6 py-4 font-semibold">Timestamp</th>
                                 <th className="px-6 py-4 font-semibold">Action</th>
@@ -134,14 +134,14 @@ export default async function AuditPage() {
                         <tbody className="divide-y divide-slate-800/60">
                             {logs.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                                    <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
                                         No platform actions have been recorded yet.
                                     </td>
                                 </tr>
                             )}
                             {logs.map((log) => (
                                 <tr key={log.id} className="hover:bg-slate-900/50 transition-colors align-top">
-                                    <td className="px-6 py-4 text-xs font-mono text-slate-500 whitespace-nowrap">
+                                    <td className="px-6 py-4 text-xs font-mono text-muted-foreground whitespace-nowrap">
                                         {format(new Date(log.createdAt), 'yyyy-MM-dd HH:mm:ss')}
                                     </td>
                                     <td className="px-6 py-4">
@@ -154,23 +154,23 @@ export default async function AuditPage() {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-xs text-slate-300">
-                                        {log.actorEmail ?? <span className="text-slate-600">System</span>}
+                                        {log.actorEmail ?? <span className="text-muted-foreground">System</span>}
                                     </td>
                                     <td className="px-6 py-4 text-xs">
                                         {log.targetTenantName ? (
                                             <>
                                                 <span className="text-white">{log.targetTenantName}</span>
-                                                <span className="block text-slate-500 font-mono mt-0.5">{log.targetTenantCode}</span>
+                                                <span className="block text-muted-foreground font-mono mt-0.5">{log.targetTenantCode}</span>
                                             </>
                                         ) : (
-                                            <span className="text-slate-600">Platform-wide</span>
+                                            <span className="text-muted-foreground">Platform-wide</span>
                                         )}
                                     </td>
-                                    <td className="px-6 py-4 text-xs text-slate-400 max-w-sm">
-                                        {log.metadata || <span className="text-slate-600">—</span>}
+                                    <td className="px-6 py-4 text-xs text-muted-foreground max-w-sm">
+                                        {log.metadata || <span className="text-muted-foreground">—</span>}
                                     </td>
-                                    <td className="px-6 py-4 font-mono text-xs text-slate-500">
-                                        {log.ipAddress || <span className="text-slate-600">Not captured</span>}
+                                    <td className="px-6 py-4 font-mono text-xs text-muted-foreground">
+                                        {log.ipAddress || <span className="text-muted-foreground">Not captured</span>}
                                     </td>
                                 </tr>
                             ))}
@@ -179,7 +179,7 @@ export default async function AuditPage() {
                 </div>
             </div>
 
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
                 This log records platform-level actions only. Per-campus activity is kept in each tenant&apos;s own audit trail
                 and is not aggregated here.
             </p>
@@ -200,11 +200,11 @@ function Stat({
         <div className="bg-slate-950 border border-slate-800 p-5 rounded-xl">
             <div className="flex justify-between items-start gap-3">
                 <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-400 mb-1">{label}</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">{label}</p>
                     <p className={`text-3xl font-bold tabular-nums ${tone === 'amber' ? 'text-amber-400' : 'text-white'}`}>
                         {value.toLocaleString('en-IN')}
                     </p>
-                    <p className="text-xs text-slate-500 mt-1">{hint}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{hint}</p>
                 </div>
                 <div className="shrink-0">{icon}</div>
             </div>

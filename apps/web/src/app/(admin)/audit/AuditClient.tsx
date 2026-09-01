@@ -32,11 +32,11 @@ const ACTION_STYLES: Record<string, string> = {
     UPDATE: 'bg-blue-50 text-blue-700 border-blue-200',
     DELETE: 'bg-red-50 text-red-700 border-red-200',
     LOGIN: 'bg-violet-50 text-violet-700 border-violet-200',
-    LOGOUT: 'bg-slate-50 text-slate-700 border-slate-200',
+    LOGOUT: 'bg-muted text-foreground border-border',
     EXPORT: 'bg-amber-50 text-amber-700 border-amber-200',
     PAYMENT: 'bg-teal-50 text-teal-700 border-teal-200',
     ROLE_CHANGE: 'bg-orange-50 text-orange-700 border-orange-200',
-    READ: 'bg-gray-50 text-gray-600 border-gray-200',
+    READ: 'bg-muted text-muted-foreground border-border',
 };
 
 function formatTimestamp(value: string): { date: string; time: string } {
@@ -102,9 +102,9 @@ export function AuditLogTable({ rows }: { rows: AuditRow[] }) {
 
     if (rows.length === 0) {
         return (
-            <div className="rounded-xl border border-dashed border-gray-300 bg-white py-16 text-center">
-                <p className="font-medium text-gray-700">No audit entries match these filters</p>
-                <p className="mt-1 text-sm text-gray-500">
+            <div className="rounded-xl border border-dashed border-border bg-white py-16 text-center">
+                <p className="font-medium text-foreground">No audit entries match these filters</p>
+                <p className="mt-1 text-sm text-muted-foreground">
                     Widen the time window or clear the filters. If the log is empty across all time,
                     no audited action has been performed in this school yet.
                 </p>
@@ -115,7 +115,7 @@ export function AuditLogTable({ rows }: { rows: AuditRow[] }) {
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                     Showing {rows.length} {rows.length === 1 ? 'entry' : 'entries'} on this page.
                 </p>
                 <Button variant="outline" size="sm" onClick={handleExport}>
@@ -123,9 +123,9 @@ export function AuditLogTable({ rows }: { rows: AuditRow[] }) {
                 </Button>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <div className="overflow-x-auto rounded-xl border border-border bg-white">
                 <table className="w-full text-sm">
-                    <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                    <thead className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                         <tr>
                             <th className="px-4 py-3 font-semibold">When</th>
                             <th className="px-4 py-3 font-semibold">Actor</th>
@@ -142,70 +142,70 @@ export function AuditLogTable({ rows }: { rows: AuditRow[] }) {
                             const isOpen = expandedId === row.id;
                             const diff = changedKeys(row.beforeState, row.afterState);
                             return (
-                                <tr key={row.id} className="align-top hover:bg-gray-50/70">
+                                <tr key={row.id} className="align-top hover:bg-muted/70">
                                     <td className="px-4 py-3 whitespace-nowrap">
-                                        <div className="font-medium text-gray-900">{stamp.date}</div>
-                                        <div className="text-xs text-gray-500">{stamp.time}</div>
+                                        <div className="font-medium text-foreground">{stamp.date}</div>
+                                        <div className="text-xs text-muted-foreground">{stamp.time}</div>
                                     </td>
                                     <td className="px-4 py-3">
                                         {row.actorName ? (
                                             <>
-                                                <div className="font-medium text-gray-900">{row.actorName}</div>
-                                                <div className="text-xs text-gray-500">
+                                                <div className="font-medium text-foreground">{row.actorName}</div>
+                                                <div className="text-xs text-muted-foreground">
                                                     {row.actorRole ?? 'role not recorded'}
                                                 </div>
                                             </>
                                         ) : (
-                                            <span className="text-gray-500 italic">no user recorded</span>
+                                            <span className="text-muted-foreground italic">no user recorded</span>
                                         )}
                                     </td>
                                     <td className="px-4 py-3">
                                         <Badge
                                             variant="outline"
-                                            className={ACTION_STYLES[row.action] ?? 'bg-gray-50 text-gray-600 border-gray-200'}
+                                            className={ACTION_STYLES[row.action] ?? 'bg-muted text-muted-foreground border-border'}
                                         >
                                             {row.action}
                                         </Badge>
                                     </td>
                                     <td className="px-4 py-3">
-                                        <div className="font-mono text-xs text-gray-900">{row.entityType}</div>
+                                        <div className="font-mono text-xs text-foreground">{row.entityType}</div>
                                         {row.entityId && (
-                                            <div className="font-mono text-[11px] text-gray-400" title={row.entityId}>
+                                            <div className="font-mono text-[11px] text-muted-foreground" title={row.entityId}>
                                                 {row.entityId.slice(0, 8)}…
                                             </div>
                                         )}
                                     </td>
-                                    <td className="px-4 py-3 text-gray-700">
+                                    <td className="px-4 py-3 text-foreground">
                                         <div className="max-w-md">
-                                            {row.description ?? <span className="text-gray-400">—</span>}
+                                            {row.description ?? <span className="text-muted-foreground">—</span>}
                                         </div>
                                         {isOpen && (
-                                            <div className="mt-3 space-y-3 rounded-lg bg-gray-50 p-3 text-xs">
+                                            <div className="mt-3 space-y-3 rounded-lg bg-muted p-3 text-xs">
                                                 <div>
-                                                    <span className="font-semibold text-gray-600">Log id: </span>
-                                                    <span className="font-mono text-gray-500">{row.id}</span>
+                                                    <span className="font-semibold text-muted-foreground">Log id: </span>
+                                                    <span className="font-mono text-muted-foreground">{row.id}</span>
                                                 </div>
                                                 {row.entityId && (
                                                     <div>
-                                                        <span className="font-semibold text-gray-600">Entity id: </span>
-                                                        <span className="font-mono text-gray-500">{row.entityId}</span>
+                                                        <span className="font-semibold text-muted-foreground">Entity id: </span>
+                                                        <span className="font-mono text-muted-foreground">{row.entityId}</span>
                                                     </div>
                                                 )}
                                                 <div>
-                                                    <span className="font-semibold text-gray-600">User agent: </span>
-                                                    <span className="text-gray-500 break-all">
+                                                    <span className="font-semibold text-muted-foreground">User agent: </span>
+                                                    <span className="text-muted-foreground break-all">
                                                         {row.userAgent ?? 'not recorded'}
                                                     </span>
                                                 </div>
                                                 <div>
-                                                    <div className="mb-1 font-semibold text-gray-600">Recorded state</div>
+                                                    <div className="mb-1 font-semibold text-muted-foreground">Recorded state</div>
                                                     {diff.length === 0 ? (
-                                                        <p className="text-gray-500">
+                                                        <p className="text-muted-foreground">
                                                             No before/after state was captured for this entry.
                                                         </p>
                                                     ) : (
                                                         <table className="w-full">
-                                                            <thead className="text-left text-gray-500">
+                                                            <thead className="text-left text-muted-foreground">
                                                                 <tr>
                                                                     <th className="py-1 pr-3 font-medium">Field</th>
                                                                     <th className="py-1 pr-3 font-medium">Before</th>
@@ -214,12 +214,12 @@ export function AuditLogTable({ rows }: { rows: AuditRow[] }) {
                                                             </thead>
                                                             <tbody>
                                                                 {diff.map((key) => (
-                                                                    <tr key={key} className="border-t border-gray-200">
+                                                                    <tr key={key} className="border-t border-border">
                                                                         <td className="py-1 pr-3 font-mono">{key}</td>
-                                                                        <td className="py-1 pr-3 font-mono text-gray-500 break-all">
+                                                                        <td className="py-1 pr-3 font-mono text-muted-foreground break-all">
                                                                             {renderValue(row.beforeState?.[key])}
                                                                         </td>
-                                                                        <td className="py-1 font-mono text-gray-900 break-all">
+                                                                        <td className="py-1 font-mono text-foreground break-all">
                                                                             {renderValue(row.afterState?.[key])}
                                                                         </td>
                                                                     </tr>
@@ -231,7 +231,7 @@ export function AuditLogTable({ rows }: { rows: AuditRow[] }) {
                                             </div>
                                         )}
                                     </td>
-                                    <td className="px-4 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">
+                                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
                                         {row.ipAddress ?? '—'}
                                     </td>
                                     <td className="px-4 py-3 text-right whitespace-nowrap">

@@ -13,15 +13,15 @@ export default async function TeacherHomeworkPage() {
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold">Homework</h1>
-                    <p className="text-gray-600">Work you have set, and what has come back.</p>
+                    <p className="text-muted-foreground">Work you have set, and what has come back.</p>
                 </div>
                 <NewHomeworkForm slots={slots} />
             </div>
 
             {items.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                    <p className="font-medium text-gray-900">You have not set any homework yet.</p>
-                    <p className="text-sm text-gray-500 mt-2">
+                    <p className="font-medium text-foreground">You have not set any homework yet.</p>
+                    <p className="text-sm text-muted-foreground mt-2">
                         Only homework recorded against your account appears here.
                     </p>
                 </div>
@@ -30,8 +30,8 @@ export default async function TeacherHomeworkPage() {
                     {items.map((item) => (
                         <div key={item.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
                             <div className="min-w-0">
-                                <p className="font-medium text-gray-900">{item.title}</p>
-                                <p className="text-sm text-gray-500">
+                                <p className="font-medium text-foreground">{item.title}</p>
+                                <p className="text-sm text-muted-foreground">
                                     {item.gradeName && item.sectionName
                                         ? `${item.gradeName} – ${item.sectionName}`
                                         : 'No class recorded'}
@@ -39,7 +39,7 @@ export default async function TeacherHomeworkPage() {
                                     {formatDate(item.dueDate)}
                                     {item.maxMarks !== null ? ` · max ${item.maxMarks}` : ''}
                                 </p>
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-xs text-muted-foreground mt-1">
                                     {item.submissionCount} of {item.studentCount} submitted ·{' '}
                                     {item.gradedCount} graded
                                 </p>

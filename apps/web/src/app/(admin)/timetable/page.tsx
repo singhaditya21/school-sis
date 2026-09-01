@@ -24,19 +24,19 @@ export default async function TimetablePage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold">Timetable</h1>
-                    <p className="text-gray-600 mt-1">Manage class schedules, periods and cover</p>
+                    <p className="text-muted-foreground mt-1">Manage class schedules, periods and cover</p>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                    <Link href="/timetable/periods" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <Link href="/timetable/periods" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">
                         Periods
                     </Link>
-                    <Link href="/timetable/substitution" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <Link href="/timetable/substitution" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">
                         Substitutions
                     </Link>
-                    <Link href="/timetable/bulk" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50" data-testid="bulk-upload-link">
+                    <Link href="/timetable/bulk" className="px-4 py-2 border border-border rounded-lg hover:bg-muted" data-testid="bulk-upload-link">
                         Bulk Upload
                     </Link>
-                    <Link href="/timetable/new" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <Link href="/timetable/new" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">
                         Add Entry
                     </Link>
                     <Link href="/timetable/grid" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
@@ -47,17 +47,17 @@ export default async function TimetablePage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white rounded-xl shadow-sm border p-4" data-testid="stat-periods">
-                    <div className="text-sm text-gray-500">Periods in the day</div>
-                    <div className="text-2xl font-bold text-gray-900">{periods.length}</div>
-                    <div className="text-xs text-gray-500 mt-1">{teachingPeriods} teaching · {periods.length - teachingPeriods} breaks</div>
+                    <div className="text-sm text-muted-foreground">Periods in the day</div>
+                    <div className="text-2xl font-bold text-foreground">{periods.length}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{teachingPeriods} teaching · {periods.length - teachingPeriods} breaks</div>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border p-4" data-testid="stat-scheduled-sections">
-                    <div className="text-sm text-gray-500">Classes with a timetable</div>
-                    <div className="text-2xl font-bold text-gray-900">{scheduledSections} / {sections.length}</div>
+                    <div className="text-sm text-muted-foreground">Classes with a timetable</div>
+                    <div className="text-2xl font-bold text-foreground">{scheduledSections} / {sections.length}</div>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border p-4" data-testid="stat-entries">
-                    <div className="text-sm text-gray-500">Scheduled entries</div>
-                    <div className="text-2xl font-bold text-gray-900">{totalEntries}</div>
+                    <div className="text-sm text-muted-foreground">Scheduled entries</div>
+                    <div className="text-2xl font-bold text-foreground">{totalEntries}</div>
                 </div>
             </div>
 
@@ -70,17 +70,17 @@ export default async function TimetablePage() {
 
             <div className="bg-white rounded-xl shadow-sm border">
                 <div className="p-4 border-b">
-                    <h2 className="font-semibold text-gray-900">Classes ({sections.length} sections)</h2>
+                    <h2 className="font-semibold text-foreground">Classes ({sections.length} sections)</h2>
                 </div>
                 <div className="divide-y">
                     {Object.entries(gradeGroups).length === 0 ? (
-                        <div className="p-8 text-center text-gray-500">
+                        <div className="p-8 text-center text-muted-foreground">
                             No classes found. Configure grades and sections first.
                         </div>
                     ) : (
                         Object.entries(gradeGroups).map(([gradeName, groupSections]) => (
                             <div key={gradeName} className="p-4">
-                                <h3 className="text-sm font-semibold text-gray-700 mb-2">{gradeName}</h3>
+                                <h3 className="text-sm font-semibold text-foreground mb-2">{gradeName}</h3>
                                 <div className="flex flex-wrap gap-2">
                                     {groupSections.map((section) => (
                                         <Link
@@ -91,10 +91,10 @@ export default async function TimetablePage() {
                                             <span className="w-8 h-8 bg-purple-200 rounded flex items-center justify-center text-purple-700 font-bold text-xs">
                                                 {section.sectionName}
                                             </span>
-                                            <span className="text-sm font-medium text-gray-900">
+                                            <span className="text-sm font-medium text-foreground">
                                                 {gradeName}-{section.sectionName}
                                             </span>
-                                            <span className="text-xs text-gray-500">
+                                            <span className="text-xs text-muted-foreground">
                                                 {section.entryCount === 0 ? 'not scheduled' : `${section.entryCount} entries`}
                                             </span>
                                         </Link>

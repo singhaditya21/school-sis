@@ -23,21 +23,21 @@ export default async function TeacherAttendancePage({
             <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold">Attendance</h1>
-                    <p className="text-gray-600">Your sections only. Pick a class to open its roll.</p>
+                    <p className="text-muted-foreground">Your sections only. Pick a class to open its roll.</p>
                 </div>
                 <form method="GET" className="flex items-end gap-2">
-                    <label className="text-sm text-gray-600">
+                    <label className="text-sm text-muted-foreground">
                         <span className="block mb-1">Date</span>
                         <input
                             type="date"
                             name="date"
                             defaultValue={date}
-                            className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="border border-border rounded-lg px-3 py-2 text-sm"
                         />
                     </label>
                     <button
                         type="submit"
-                        className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
+                        className="bg-white border border-border text-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-muted"
                     >
                         Show
                     </button>
@@ -46,8 +46,8 @@ export default async function TeacherAttendancePage({
 
             {classes.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                    <p className="font-medium text-gray-900">No classes are assigned to your account.</p>
-                    <p className="text-sm text-gray-500 mt-2">
+                    <p className="font-medium text-foreground">No classes are assigned to your account.</p>
+                    <p className="text-sm text-muted-foreground mt-2">
                         Attendance can only be marked for a section you are the class teacher of, or hold a
                         timetabled period in.
                     </p>
@@ -63,10 +63,10 @@ export default async function TeacherAttendancePage({
                                 className="p-4 flex flex-wrap items-center justify-between gap-3"
                             >
                                 <div>
-                                    <p className="font-medium text-gray-900">
+                                    <p className="font-medium text-foreground">
                                         {cls.gradeName} – {cls.sectionName}
                                     </p>
-                                    <p className="text-sm text-gray-500">
+                                    <p className="text-sm text-muted-foreground">
                                         {marked > 0
                                             ? `${marked} of ${cls.studentCount} marked · ${summary?.present ?? 0} present, ${summary?.absent ?? 0} absent, ${summary?.late ?? 0} late`
                                             : `${cls.studentCount} students · nothing recorded on ${date}`}

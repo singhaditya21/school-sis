@@ -35,22 +35,22 @@ export default function AnalyticsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
-                    <p className="text-gray-600 mt-1">School performance insights and trends</p>
+                    <p className="text-muted-foreground mt-1">School performance insights and trends</p>
                 </div>
                 <div className="flex gap-3">
                     <Link href="/analytics/fees" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">💰 Fee Analysis</Link>
-                    <Link href="/analytics/attendance" className="px-4 py-2 border rounded-lg hover:bg-gray-50">📊 Attendance</Link>
-                    <Link href="/analytics/exams" className="px-4 py-2 border rounded-lg hover:bg-gray-50">📝 Exams</Link>
-                    <Link href="/reports" className="px-4 py-2 border rounded-lg hover:bg-gray-50">Report builder</Link>
+                    <Link href="/analytics/attendance" className="px-4 py-2 border rounded-lg hover:bg-muted">📊 Attendance</Link>
+                    <Link href="/analytics/exams" className="px-4 py-2 border rounded-lg hover:bg-muted">📝 Exams</Link>
+                    <Link href="/reports" className="px-4 py-2 border rounded-lg hover:bg-muted">Report builder</Link>
                 </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Active students</div><div className="text-2xl font-bold text-blue-600">{summary.totalStudents.toLocaleString()}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Payments received (all time)</div><div className="text-2xl font-bold text-green-600">{formatCurrency(summary.totalFeeCollected)}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Outstanding invoices</div><div className="text-2xl font-bold text-orange-600">{formatCurrency(summary.pendingFees)}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Attendance (last 30 days)</div><div className="text-2xl font-bold text-purple-600">{summary.averageAttendance}%</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Avg exam score</div><div className="text-2xl font-bold text-indigo-600">{summary.averageExamScore}%</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Active students</div><div className="text-2xl font-bold text-blue-600">{summary.totalStudents.toLocaleString()}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Payments received (all time)</div><div className="text-2xl font-bold text-green-600">{formatCurrency(summary.totalFeeCollected)}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Outstanding invoices</div><div className="text-2xl font-bold text-orange-600">{formatCurrency(summary.pendingFees)}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Attendance (last 30 days)</div><div className="text-2xl font-bold text-purple-600">{summary.averageAttendance}%</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Avg exam score</div><div className="text-2xl font-bold text-indigo-600">{summary.averageExamScore}%</div></CardContent></Card>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -58,7 +58,7 @@ export default function AnalyticsPage() {
                     <CardHeader><CardTitle className="flex items-center justify-between"><span>💰 Fee Collection Trend</span><Link href="/analytics/fees" className="text-sm text-blue-600 hover:underline">View Details →</Link></CardTitle></CardHeader>
                     <CardContent>
                         {feeData.length === 0 ? (
-                            <p className="text-gray-500 text-center py-12">No payments recorded in the last 12 months.</p>
+                            <p className="text-muted-foreground text-center py-12">No payments recorded in the last 12 months.</p>
                         ) : (
                         <div className="h-64 flex items-end gap-2">
                             {feeData.map((d, idx) => (
@@ -66,7 +66,7 @@ export default function AnalyticsPage() {
                                     <div className="w-full flex flex-col gap-1" style={{ height: '200px' }}>
                                         <div className="w-full bg-blue-500 rounded-t transition-all" style={{ height: `${(d.collected / maxFee) * 100}%` }} title={`Collected: ₹${(d.collected / 100000).toFixed(1)}L`} />
                                     </div>
-                                    <span className="text-xs text-gray-500">{d.month}</span>
+                                    <span className="text-xs text-muted-foreground">{d.month}</span>
                                 </div>
                             ))}
                         </div>
@@ -78,7 +78,7 @@ export default function AnalyticsPage() {
                     <CardHeader><CardTitle className="flex items-center justify-between"><span>📊 Attendance (Last 30 Days)</span><Link href="/analytics/attendance" className="text-sm text-blue-600 hover:underline">View Details →</Link></CardTitle></CardHeader>
                     <CardContent>
                         {attendanceData.length === 0 ? (
-                            <p className="text-gray-500 text-center py-12">No attendance has been recorded in the last 30 days.</p>
+                            <p className="text-muted-foreground text-center py-12">No attendance has been recorded in the last 30 days.</p>
                         ) : (
                             <>
                                 <div className="grid grid-cols-10 gap-1">
@@ -87,7 +87,7 @@ export default function AnalyticsPage() {
                                         return (<div key={idx} className={`${color} rounded aspect-square flex items-center justify-center text-xs text-white font-medium`} title={`${d.date}: ${d.value}%`}>{d.value}</div>);
                                     })}
                                 </div>
-                                <p className="text-xs text-gray-500 mt-2">One cell per day that has attendance records — hover for the date.</p>
+                                <p className="text-xs text-muted-foreground mt-2">One cell per day that has attendance records — hover for the date.</p>
                             </>
                         )}
                     </CardContent>
@@ -97,13 +97,13 @@ export default function AnalyticsPage() {
                     <CardHeader><CardTitle className="flex items-center justify-between"><span>📈 Class-wise Exam Performance</span><Link href="/analytics/exams" className="text-sm text-blue-600 hover:underline">View Details →</Link></CardTitle></CardHeader>
                     <CardContent>
                         {classData.length === 0 ? (
-                            <p className="text-gray-500 text-center py-12">No exam results have been entered yet.</p>
+                            <p className="text-muted-foreground text-center py-12">No exam results have been entered yet.</p>
                         ) : (
                         <div className="space-y-2">
                             {classData.slice(0, 8).map((d, idx) => (
                                 <div key={idx} className="flex items-center gap-3">
-                                    <span className="w-16 text-sm text-gray-600">{d.label}</span>
-                                    <div className="flex-1 bg-gray-100 rounded-full h-6 relative overflow-hidden">
+                                    <span className="w-16 text-sm text-muted-foreground">{d.label}</span>
+                                    <div className="flex-1 bg-muted rounded-full h-6 relative overflow-hidden">
                                         <div className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all" style={{ width: `${d.value}%` }} />
                                         <span className="absolute inset-0 flex items-center justify-center text-xs font-medium">{d.value}%</span>
                                     </div>
@@ -118,14 +118,14 @@ export default function AnalyticsPage() {
                     <CardHeader><CardTitle>🏆 Top Performers</CardTitle></CardHeader>
                     <CardContent>
                         {topPerformers.length === 0 ? (
-                            <p className="text-gray-500 text-center py-12">No exam results have been entered yet.</p>
+                            <p className="text-muted-foreground text-center py-12">No exam results have been entered yet.</p>
                         ) : (
                         <div className="space-y-3">
                             {topPerformers.slice(0, 5).map((student, idx) => (
-                                <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                                <div key={idx} className="flex items-center justify-between p-2 bg-muted rounded-lg">
                                     <div className="flex items-center gap-3">
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${idx === 0 ? 'bg-yellow-400' : idx === 1 ? 'bg-gray-300' : idx === 2 ? 'bg-amber-400' : 'bg-gray-200'}`}>{idx + 1}</div>
-                                        <div><p className="font-medium">{student.name}</p><p className="text-xs text-gray-500">Class {student.class}</p></div>
+                                        <div><p className="font-medium">{student.name}</p><p className="text-xs text-muted-foreground">Class {student.class}</p></div>
                                     </div>
                                     <Badge className="bg-green-100 text-green-700">{student.percentage}%</Badge>
                                 </div>

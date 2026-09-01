@@ -17,11 +17,11 @@ export default async function AlertsPage({
         <div className="mx-auto max-w-4xl space-y-6">
             <ParentTopBar students={students} selectedId={selectedId} />
 
-            <div className="border-b border-slate-200 pb-4">
-                <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
+            <div className="border-b border-border pb-4">
+                <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
                     <span className="text-rose-500">🔔</span> Alerts
                 </h1>
-                <p className="mt-1 text-slate-500">
+                <p className="mt-1 text-muted-foreground">
                     Messages the school has sent to your account.
                     {students.length > 1
                         ? ' Alerts are addressed to you rather than to one child, so this list covers all of your children.'

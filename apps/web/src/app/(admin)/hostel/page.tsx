@@ -29,7 +29,7 @@ type MessMenuRow = {
 const HOSTEL_TYPE_STYLES: Record<string, string> = {
     BOYS: 'bg-blue-100 text-blue-700',
     GIRLS: 'bg-pink-100 text-pink-700',
-    CO_ED: 'bg-gray-100 text-gray-700',
+    CO_ED: 'bg-muted text-foreground',
 };
 
 export default async function HostelPage() {
@@ -69,7 +69,7 @@ export default async function HostelPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold">Hostel Management</h1>
-                    <p className="text-gray-600 mt-1">Manage hostels, rooms, and student allocations</p>
+                    <p className="text-muted-foreground mt-1">Manage hostels, rooms, and student allocations</p>
                 </div>
                 <Link href="/hostel/fees" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
                     Hostel Fees
@@ -77,16 +77,16 @@ export default async function HostelPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Total Hostels</div><div className="text-2xl font-bold text-blue-600" data-testid="kpi-total-hostels">{stats.totalHostels}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Total Beds</div><div className="text-2xl font-bold text-purple-600" data-testid="kpi-total-beds">{stats.totalBeds}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Occupied</div><div className="text-2xl font-bold text-orange-600" data-testid="kpi-occupied-beds">{stats.occupiedBeds}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Available</div><div className="text-2xl font-bold text-green-600" data-testid="kpi-available-beds">{stats.availableBeds}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Occupancy</div><div className="text-2xl font-bold text-indigo-600" data-testid="kpi-occupancy-rate">{stats.occupancyRate}%</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total Hostels</div><div className="text-2xl font-bold text-blue-600" data-testid="kpi-total-hostels">{stats.totalHostels}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total Beds</div><div className="text-2xl font-bold text-purple-600" data-testid="kpi-total-beds">{stats.totalBeds}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Occupied</div><div className="text-2xl font-bold text-orange-600" data-testid="kpi-occupied-beds">{stats.occupiedBeds}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Available</div><div className="text-2xl font-bold text-green-600" data-testid="kpi-available-beds">{stats.availableBeds}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Occupancy</div><div className="text-2xl font-bold text-indigo-600" data-testid="kpi-occupancy-rate">{stats.occupancyRate}%</div></CardContent></Card>
             </div>
 
             {hostelList.length === 0 ? (
                 <Card>
-                    <CardContent className="py-12 text-center text-gray-500" data-testid="no-hostels">
+                    <CardContent className="py-12 text-center text-muted-foreground" data-testid="no-hostels">
                         No active hostel is set up for this school yet.
                     </CardContent>
                 </Card>
@@ -100,24 +100,24 @@ export default async function HostelPage() {
                                     <div className="flex justify-between items-start gap-3">
                                         <div>
                                             <h3 className="text-lg font-bold">{hostel.name}</h3>
-                                            {hostel.address && <p className="text-sm text-gray-500">{hostel.address}</p>}
-                                            <p className="text-xs text-gray-500 mt-1">
+                                            {hostel.address && <p className="text-sm text-muted-foreground">{hostel.address}</p>}
+                                            <p className="text-xs text-muted-foreground mt-1">
                                                 Warden: {hostel.wardenName ?? 'not assigned'}
                                                 {hostel.phone ? ` · ${hostel.phone}` : ''}
                                             </p>
                                         </div>
                                         <Badge
                                             variant="outline"
-                                            className={`border-transparent ${HOSTEL_TYPE_STYLES[hostel.type] ?? 'bg-gray-100 text-gray-700'}`}
+                                            className={`border-transparent ${HOSTEL_TYPE_STYLES[hostel.type] ?? 'bg-muted text-foreground'}`}
                                             data-testid={`hostel-type-${hostel.id}`}
                                         >
                                             {hostel.type.replace('_', '-')}
                                         </Badge>
                                     </div>
                                     <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                                        <div className="bg-gray-50 p-2 rounded"><div className="text-xs text-gray-500">Rooms</div><div className="font-bold">{hostel.totalRooms}</div></div>
-                                        <div className="bg-gray-50 p-2 rounded"><div className="text-xs text-gray-500">Beds</div><div className="font-bold">{hostel.totalBeds}</div></div>
-                                        <div className="bg-gray-50 p-2 rounded"><div className="text-xs text-gray-500">Occupied</div><div className="font-bold">{hostel.occupiedBeds}</div></div>
+                                        <div className="bg-muted p-2 rounded"><div className="text-xs text-muted-foreground">Rooms</div><div className="font-bold">{hostel.totalRooms}</div></div>
+                                        <div className="bg-muted p-2 rounded"><div className="text-xs text-muted-foreground">Beds</div><div className="font-bold">{hostel.totalBeds}</div></div>
+                                        <div className="bg-muted p-2 rounded"><div className="text-xs text-muted-foreground">Occupied</div><div className="font-bold">{hostel.occupiedBeds}</div></div>
                                     </div>
                                     <div className="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden">
                                         <div
@@ -127,19 +127,19 @@ export default async function HostelPage() {
                                     </div>
 
                                     <div className="mt-6 border-t pt-4">
-                                        <h4 className="font-semibold text-sm mb-2 text-gray-700">Weekly Mess Menu</h4>
+                                        <h4 className="font-semibold text-sm mb-2 text-foreground">Weekly Mess Menu</h4>
                                         {myMenu.length === 0 ? (
-                                            <p className="text-xs text-gray-500 italic">No mess menu scheduled.</p>
+                                            <p className="text-xs text-muted-foreground italic">No mess menu scheduled.</p>
                                         ) : (
                                             <div className="space-y-2" data-testid="mess-menu-list">
                                                 {myMenu.map((item) => (
                                                     <div
                                                         key={item.id}
-                                                        className="text-xs flex justify-between border-b pb-1 border-gray-100 last:border-0"
+                                                        className="text-xs flex justify-between border-b pb-1 border-border last:border-0"
                                                         data-testid={`mess-menu-day-${item.day.toLowerCase()}`}
                                                     >
-                                                        <span className="font-bold text-gray-600">{item.day}:</span>
-                                                        <span className="text-gray-500">
+                                                        <span className="font-bold text-muted-foreground">{item.day}:</span>
+                                                        <span className="text-muted-foreground">
                                                             B: {item.breakfast || '-'} | L: {item.lunch || '-'} | S: {item.snacks || '-'} | D: {item.dinner || '-'}
                                                         </span>
                                                     </div>
@@ -158,14 +158,14 @@ export default async function HostelPage() {
                 <CardContent className="p-0">
                     <div className="p-4 border-b"><h3 className="font-bold">Active Allocations</h3></div>
                     <Table>
-                        <TableHeader className="bg-gray-50">
+                        <TableHeader className="bg-muted">
                             <TableRow>
-                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Student</TableHead>
-                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Hostel</TableHead>
-                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Room</TableHead>
-                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Bed</TableHead>
-                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Period</TableHead>
-                                {canWrite && <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Actions</TableHead>}
+                                <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Student</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Hostel</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Room</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Bed</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Period</TableHead>
+                                {canWrite && <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Actions</TableHead>}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -175,7 +175,7 @@ export default async function HostelPage() {
                                     <TableCell className="px-4 py-3">{a.hostelName}</TableCell>
                                     <TableCell className="px-4 py-3">{a.roomNumber}</TableCell>
                                     <TableCell className="px-4 py-3">{a.bedNumber}</TableCell>
-                                    <TableCell className="px-4 py-3 text-sm text-gray-500">{a.allocatedFrom} → {a.allocatedTo}</TableCell>
+                                    <TableCell className="px-4 py-3 text-sm text-muted-foreground">{a.allocatedFrom} → {a.allocatedTo}</TableCell>
                                     {canWrite && (
                                         <TableCell className="px-4 py-3">
                                             <form action={async () => {
@@ -193,7 +193,7 @@ export default async function HostelPage() {
                             ))}
                             {allocations.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={canWrite ? 6 : 5} className="px-4 py-12 text-center text-gray-400">No active allocations.</TableCell>
+                                    <TableCell colSpan={canWrite ? 6 : 5} className="px-4 py-12 text-center text-muted-foreground">No active allocations.</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>

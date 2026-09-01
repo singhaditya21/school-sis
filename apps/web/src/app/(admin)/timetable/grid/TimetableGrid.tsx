@@ -126,20 +126,20 @@ export default function TimetableGrid({
                 </div>
             )}
 
-            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                 <span data-testid="grid-filled-count">
-                    <strong className="text-gray-900">{entries.length}</strong> of {capacity} teaching slots filled
+                    <strong className="text-foreground">{entries.length}</strong> of {capacity} teaching slots filled
                 </span>
                 <span>{teachingPeriods.length} teaching periods · {periods.length - teachingPeriods.length} breaks</span>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
                 <table className="w-full min-w-[900px]" data-testid="timetable-grid">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-muted">
                         <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 w-40">Period</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground w-40">Period</th>
                             {DAY_OF_WEEK_VALUES.map((day) => (
-                                <th key={day} className="px-3 py-3 text-left text-sm font-medium text-gray-500">
+                                <th key={day} className="px-3 py-3 text-left text-sm font-medium text-muted-foreground">
                                     {DAY_LABELS[day]}
                                 </th>
                             ))}
@@ -149,8 +149,8 @@ export default function TimetableGrid({
                         {periods.map((period) => (
                             <tr key={period.id} className={period.isBreak ? 'bg-amber-50/60' : undefined}>
                                 <td className="px-4 py-3 align-top">
-                                    <div className="font-medium text-gray-900">{period.name}</div>
-                                    <div className="text-xs text-gray-500">{period.startTime} – {period.endTime}</div>
+                                    <div className="font-medium text-foreground">{period.name}</div>
+                                    <div className="text-xs text-muted-foreground">{period.startTime} – {period.endTime}</div>
                                 </td>
                                 {period.isBreak ? (
                                     <td className="px-4 py-3 text-sm text-amber-700 italic" colSpan={DAY_OF_WEEK_VALUES.length}>
@@ -168,15 +168,15 @@ export default function TimetableGrid({
                                                     className={
                                                         entry
                                                             ? 'w-full text-left p-2 rounded border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors'
-                                                            : 'w-full h-16 rounded border-2 border-dashed border-gray-200 text-xs text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors'
+                                                            : 'w-full h-16 rounded border-2 border-dashed border-border text-xs text-muted-foreground hover:border-blue-300 hover:text-blue-500 transition-colors'
                                                     }
                                                 >
                                                     {entry ? (
                                                         <span className="block text-xs">
                                                             <span className="block font-semibold text-blue-900">{entry.subjectName}</span>
-                                                            <span className="block text-gray-600">{entry.teacherName}</span>
+                                                            <span className="block text-muted-foreground">{entry.teacherName}</span>
                                                             {entry.roomNumber && (
-                                                                <span className="block text-gray-400 mt-0.5">Room {entry.roomNumber}</span>
+                                                                <span className="block text-muted-foreground mt-0.5">Room {entry.roomNumber}</span>
                                                             )}
                                                         </span>
                                                     ) : (
@@ -209,18 +209,18 @@ export default function TimetableGrid({
                                 </div>
                             )}
 
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-muted-foreground">
                                 {openCell.period.startTime} – {openCell.period.endTime}
                             </p>
 
                             {openCell.entry ? (
                                 <div className="space-y-4">
                                     <div className="rounded-lg border p-3 text-sm space-y-1">
-                                        <div><span className="text-gray-500">Subject:</span> <strong>{openCell.entry.subjectName}</strong> ({openCell.entry.subjectCode})</div>
-                                        <div><span className="text-gray-500">Teacher:</span> {openCell.entry.teacherName}</div>
-                                        <div><span className="text-gray-500">Room:</span> {openCell.entry.roomNumber || 'Not set'}</div>
+                                        <div><span className="text-muted-foreground">Subject:</span> <strong>{openCell.entry.subjectName}</strong> ({openCell.entry.subjectCode})</div>
+                                        <div><span className="text-muted-foreground">Teacher:</span> {openCell.entry.teacherName}</div>
+                                        <div><span className="text-muted-foreground">Room:</span> {openCell.entry.roomNumber || 'Not set'}</div>
                                     </div>
-                                    <p className="text-xs text-gray-500">
+                                    <p className="text-xs text-muted-foreground">
                                         Editing in place is not available in this release — clear the slot, then assign it again.
                                     </p>
                                     <div className="flex justify-end gap-3">

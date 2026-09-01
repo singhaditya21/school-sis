@@ -40,8 +40,8 @@ export default async function StudentLayout({
     const student = await resolveStudentSelf('profile:read:own');
 
     return (
-        <div className="min-h-screen bg-slate-50">
-            <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="min-h-screen bg-muted">
+            <header className="bg-white border-b border-border sticky top-0 z-50">
                 <div className="px-4 py-3 md:px-6 md:py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -49,16 +49,16 @@ export default async function StudentLayout({
                                 <span className="text-white text-lg md:text-xl">🎓</span>
                             </div>
                             <div>
-                                <h1 className="text-lg md:text-xl font-bold text-gray-900 leading-tight">
+                                <h1 className="text-lg md:text-xl font-bold text-foreground leading-tight">
                                     ScholarMind
                                 </h1>
-                                <p className="text-xs text-gray-500 font-medium">Student Portal</p>
+                                <p className="text-xs text-muted-foreground font-medium">Student Portal</p>
                             </div>
                         </div>
                         {student && (
                             <div className="flex items-center gap-3">
                                 <div className="hidden md:flex flex-col items-end mr-2">
-                                    <span className="text-sm font-semibold text-gray-700">{student.fullName}</span>
+                                    <span className="text-sm font-semibold text-foreground">{student.fullName}</span>
                                     <span className="text-xs text-violet-600 font-medium bg-violet-50 px-2 py-0.5 rounded">
                                         {student.gradeName} · {student.sectionName}
                                     </span>
@@ -73,7 +73,7 @@ export default async function StudentLayout({
             </header>
 
             <div className="flex flex-col md:flex-row min-h-[calc(100vh-65px)]">
-                <aside className="fixed bottom-0 left-0 right-0 md:relative md:w-64 bg-white border-t md:border-t-0 md:border-r border-gray-200 z-40">
+                <aside className="fixed bottom-0 left-0 right-0 md:relative md:w-64 bg-white border-t md:border-t-0 md:border-r border-border z-40">
                     <StudentNav links={STUDENT_NAV_LINKS} />
                 </aside>
 

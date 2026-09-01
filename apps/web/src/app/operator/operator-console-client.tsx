@@ -128,11 +128,11 @@ export default function OperatorConsoleClient({ initialScope, role, tenantId }: 
     const visibleSignals = snapshot?.signals.slice(0, 8) ?? [];
 
     return (
-        <main className="min-h-screen bg-slate-50 text-slate-950">
+        <main className="min-h-screen bg-muted text-slate-950">
             <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-                <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
+                <header className="flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
+                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                             <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                             Operator Console
                         </div>
@@ -143,7 +143,7 @@ export default function OperatorConsoleClient({ initialScope, role, tenantId }: 
 
                     <div className="flex flex-wrap items-center gap-2">
                         {canUsePlatformScope && (
-                            <div className="inline-flex rounded-md border border-slate-200 bg-white p-1">
+                            <div className="inline-flex rounded-md border border-border bg-white p-1">
                                 {(['PLATFORM', 'TENANT'] as const).map((value) => (
                                     <button
                                         key={value}
@@ -151,7 +151,7 @@ export default function OperatorConsoleClient({ initialScope, role, tenantId }: 
                                         className={`rounded px-3 py-1.5 text-sm font-medium transition ${
                                             scope === value
                                                 ? 'bg-slate-900 text-white'
-                                                : 'text-slate-600 hover:bg-slate-100'
+                                                : 'text-muted-foreground hover:bg-muted'
                                         }`}
                                         onClick={() => setScope(value)}
                                     >
@@ -178,26 +178,26 @@ export default function OperatorConsoleClient({ initialScope, role, tenantId }: 
                 )}
 
                 <section className="grid gap-4 md:grid-cols-3">
-                    <div className="rounded-md border border-slate-200 bg-white p-4">
-                        <div className="text-sm text-slate-500">Status</div>
+                    <div className="rounded-md border border-border bg-white p-4">
+                        <div className="text-sm text-muted-foreground">Status</div>
                         <div className="mt-2 flex items-center gap-2">
-                            <Badge className={snapshot ? severityStyles[snapshot.status] : 'border-slate-200 bg-slate-50 text-slate-600'}>
+                            <Badge className={snapshot ? severityStyles[snapshot.status] : 'border-border bg-muted text-muted-foreground'}>
                                 {snapshot ? statusIcon(snapshot.status) : <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                                 <span className="ml-1">{snapshot?.status ?? 'LOADING'}</span>
                             </Badge>
                         </div>
                     </div>
-                    <div className="rounded-md border border-slate-200 bg-white p-4">
-                        <div className="text-sm text-slate-500">Health score</div>
+                    <div className="rounded-md border border-border bg-white p-4">
+                        <div className="text-sm text-muted-foreground">Health score</div>
                         <div className="mt-2 text-3xl font-semibold">{snapshot?.healthScore ?? '--'}</div>
                     </div>
-                    <div className="rounded-md border border-slate-200 bg-white p-4">
-                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <div className="rounded-md border border-border bg-white p-4">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Database className="h-4 w-4" aria-hidden="true" />
                             Database
                         </div>
                         <div className="mt-2 text-lg font-semibold">{snapshot?.metrics.database?.status ?? 'unknown'}</div>
-                        <div className="text-sm text-slate-500">
+                        <div className="text-sm text-muted-foreground">
                             {typeof snapshot?.metrics.database?.latencyMs === 'number'
                                 ? `${snapshot.metrics.database.latencyMs} ms`
                                 : 'latency unavailable'}
@@ -207,11 +207,11 @@ export default function OperatorConsoleClient({ initialScope, role, tenantId }: 
 
                 <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {(snapshot?.tiles ?? []).map((tile) => (
-                        <article key={tile.id} className="rounded-md border border-slate-200 bg-white p-4">
+                        <article key={tile.id} className="rounded-md border border-border bg-white p-4">
                             <div className="flex items-start justify-between gap-3">
                                 <div>
                                     <h2 className="text-base font-semibold text-slate-950">{tile.label}</h2>
-                                    <p className="mt-1 text-sm leading-6 text-slate-600">{tile.description}</p>
+                                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{tile.description}</p>
                                 </div>
                                 <Badge className={severityStyles[tile.severity]}>
                                     {statusIcon(tile.severity)}
@@ -220,17 +220,17 @@ export default function OperatorConsoleClient({ initialScope, role, tenantId }: 
                             </div>
                             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                                 <div>
-                                    <dt className="text-slate-500">Signals</dt>
+                                    <dt className="text-muted-foreground">Signals</dt>
                                     <dd className="font-semibold text-slate-950">{tile.signalCount}</dd>
                                 </div>
                                 <div>
-                                    <dt className="text-slate-500">Freshness</dt>
+                                    <dt className="text-muted-foreground">Freshness</dt>
                                     <dd className="font-semibold text-slate-950">{tile.dataFreshness.replaceAll('_', ' ')}</dd>
                                 </div>
                             </dl>
                             <div className="mt-4 flex flex-wrap gap-1">
                                 {tile.actionTypes.slice(0, 3).map((action) => (
-                                    <span key={action} className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600">
+                                    <span key={action} className="rounded border border-border px-2 py-1 text-xs text-muted-foreground">
                                         {action.toLowerCase().replaceAll('_', ' ')}
                                     </span>
                                 ))}
@@ -239,21 +239,21 @@ export default function OperatorConsoleClient({ initialScope, role, tenantId }: 
                     ))}
                 </section>
 
-                <section className="rounded-md border border-slate-200 bg-white">
-                    <div className="flex flex-col gap-1 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <section className="rounded-md border border-border bg-white">
+                    <div className="flex flex-col gap-1 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                         <h2 className="text-base font-semibold text-slate-950">Active Signals</h2>
-                        <span className="text-sm text-slate-500">
+                        <span className="text-sm text-muted-foreground">
                             {snapshot ? `Generated ${formatDate(snapshot.generatedAt)}` : 'Waiting for snapshot'}
                         </span>
                     </div>
                     <div className="divide-y divide-slate-100">
                         {loading && !snapshot ? (
-                            <div className="flex items-center gap-2 px-4 py-5 text-sm text-slate-600">
+                            <div className="flex items-center gap-2 px-4 py-5 text-sm text-muted-foreground">
                                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                                 Loading operator signals
                             </div>
                         ) : visibleSignals.length === 0 ? (
-                            <div className="px-4 py-5 text-sm text-slate-600">No active operator signals.</div>
+                            <div className="px-4 py-5 text-sm text-muted-foreground">No active operator signals.</div>
                         ) : (
                             visibleSignals.map((signal) => (
                                 <div key={signal.id} className="grid gap-3 px-4 py-4 md:grid-cols-[160px_1fr_100px] md:items-center">
@@ -263,9 +263,9 @@ export default function OperatorConsoleClient({ initialScope, role, tenantId }: 
                                     </Badge>
                                     <div>
                                         <div className="font-medium text-slate-950">{signal.title}</div>
-                                        <div className="mt-1 text-sm text-slate-600">{signal.summary}</div>
+                                        <div className="mt-1 text-sm text-muted-foreground">{signal.summary}</div>
                                     </div>
-                                    <div className="text-left text-sm text-slate-500 md:text-right">
+                                    <div className="text-left text-sm text-muted-foreground md:text-right">
                                         {signal.count} from {signal.source}
                                     </div>
                                 </div>

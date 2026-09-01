@@ -22,16 +22,16 @@ export default async function StudentResultsPage() {
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto pb-6">
-            <div className="border-b border-gray-200 pb-4">
-                <h1 className="text-2xl font-bold tracking-tight text-gray-900">My results</h1>
-                <p className="mt-1 text-sm text-gray-500">
+            <div className="border-b border-border pb-4">
+                <h1 className="text-2xl font-bold tracking-tight text-foreground">My results</h1>
+                <p className="mt-1 text-sm text-muted-foreground">
                     Marks appear here once your school publishes the exam. Results still being
                     entered or reviewed are not shown.
                 </p>
             </div>
 
             {byExam.size === 0 ? (
-                <div className="rounded-xl border bg-white p-8 text-center text-sm text-gray-500">
+                <div className="rounded-xl border bg-white p-8 text-center text-sm text-muted-foreground">
                     No published results yet.
                 </div>
             ) : (
@@ -43,15 +43,15 @@ export default async function StudentResultsPage() {
 
                     return (
                         <div key={examId} className="rounded-xl border bg-white shadow-sm overflow-hidden">
-                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-b bg-gray-50 px-6 py-4">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-b bg-muted px-6 py-4">
                                 <div>
-                                    <h2 className="text-base font-semibold text-gray-900">{exam.name}</h2>
-                                    <p className="text-xs text-gray-500">
+                                    <h2 className="text-base font-semibold text-foreground">{exam.name}</h2>
+                                    <p className="text-xs text-muted-foreground">
                                         {exam.type.replace(/_/g, ' ')} · from {exam.date}
                                     </p>
                                 </div>
                                 {percentage !== null && (
-                                    <p className="text-sm font-medium text-gray-700">
+                                    <p className="text-sm font-medium text-foreground">
                                         {obtained} / {total} ({percentage}%)
                                     </p>
                                 )}
@@ -59,7 +59,7 @@ export default async function StudentResultsPage() {
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead>
-                                        <tr className="border-b text-left text-xs uppercase tracking-wider text-gray-500">
+                                        <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
                                             <th className="px-6 py-3 font-medium">Subject</th>
                                             <th className="px-6 py-3 font-medium">Marks</th>
                                             <th className="px-6 py-3 font-medium">Grade</th>
@@ -71,20 +71,20 @@ export default async function StudentResultsPage() {
                                             const passed = row.marksObtained !== null && row.marksObtained >= row.passingMarks;
                                             return (
                                                 <tr key={`${row.examId}-${row.subject}`} className="border-b last:border-0">
-                                                    <td className="px-6 py-3 font-medium text-gray-900">{row.subject}</td>
+                                                    <td className="px-6 py-3 font-medium text-foreground">{row.subject}</td>
                                                     <td className="px-6 py-3">
                                                         {row.isAbsent ? (
-                                                            <span className="text-gray-500">Absent</span>
+                                                            <span className="text-muted-foreground">Absent</span>
                                                         ) : row.marksObtained === null ? (
-                                                            <span className="text-gray-400">Not recorded</span>
+                                                            <span className="text-muted-foreground">Not recorded</span>
                                                         ) : (
                                                             <span className={passed ? 'text-emerald-700' : 'text-red-700'}>
                                                                 {row.marksObtained} / {row.maxMarks}
                                                             </span>
                                                         )}
                                                     </td>
-                                                    <td className="px-6 py-3 text-gray-700">{row.grade ?? '—'}</td>
-                                                    <td className="px-6 py-3 text-gray-500">{row.remarks ?? '—'}</td>
+                                                    <td className="px-6 py-3 text-foreground">{row.grade ?? '—'}</td>
+                                                    <td className="px-6 py-3 text-muted-foreground">{row.remarks ?? '—'}</td>
                                                 </tr>
                                             );
                                         })}

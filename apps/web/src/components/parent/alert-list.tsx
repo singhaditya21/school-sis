@@ -55,11 +55,11 @@ export function AlertList({ alerts }: { alerts: ParentAlertItem[] }) {
     if (alerts.length === 0) {
         return (
             <div className="py-16 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-3xl">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted text-3xl">
                     🔕
                 </div>
-                <p className="font-medium text-slate-500">No alerts yet</p>
-                <p className="mt-1 text-sm text-slate-400">
+                <p className="font-medium text-muted-foreground">No alerts yet</p>
+                <p className="mt-1 text-sm text-muted-foreground">
                     Messages the school sends to your account will appear here.
                 </p>
             </div>
@@ -69,7 +69,7 @@ export function AlertList({ alerts }: { alerts: ParentAlertItem[] }) {
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-muted-foreground">
                     {unread.length > 0
                         ? `${unread.length} unread of ${alerts.length}`
                         : `${alerts.length} alert${alerts.length === 1 ? '' : 's'}, all read`}
@@ -92,7 +92,7 @@ export function AlertList({ alerts }: { alerts: ParentAlertItem[] }) {
                     <Card
                         key={alert.id}
                         className={`border-l-4 shadow-sm ${style.border} ${
-                            alert.isRead ? 'bg-white' : 'bg-slate-50/80'
+                            alert.isRead ? 'bg-white' : 'bg-muted/80'
                         }`}
                     >
                         <CardContent className="flex items-start gap-4 p-5">
@@ -104,19 +104,19 @@ export function AlertList({ alerts }: { alerts: ParentAlertItem[] }) {
                             <div className="flex-1">
                                 <div className="flex items-start justify-between gap-4">
                                     <h2
-                                        className={`text-lg leading-tight text-slate-900 ${
+                                        className={`text-lg leading-tight text-foreground ${
                                             alert.isRead ? 'font-medium' : 'font-semibold'
                                         }`}
                                     >
                                         {alert.subject || 'Notification'}
                                     </h2>
-                                    <span className="shrink-0 text-xs font-medium text-slate-500">
+                                    <span className="shrink-0 text-xs font-medium text-muted-foreground">
                                         {timeAgo(alert.sentAt ?? alert.createdAt)}
                                     </span>
                                 </div>
-                                <p className="mt-1 whitespace-pre-line text-sm text-slate-600">{alert.body}</p>
+                                <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{alert.body}</p>
                                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                                    <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium uppercase text-slate-500">
+                                    <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
                                         {alert.channel}
                                     </span>
                                     <span
@@ -124,7 +124,7 @@ export function AlertList({ alerts }: { alerts: ParentAlertItem[] }) {
                                             alert.status === 'FAILED'
                                                 ? 'bg-red-100 text-red-700'
                                                 : alert.isRead
-                                                  ? 'bg-slate-100 text-slate-500'
+                                                  ? 'bg-muted text-muted-foreground'
                                                   : 'bg-emerald-100 text-emerald-700'
                                         }`}
                                     >

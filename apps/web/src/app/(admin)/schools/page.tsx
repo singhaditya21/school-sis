@@ -18,9 +18,9 @@ function formatDate(value: Date | string): string {
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
     return (
         <div>
-            <dt className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">{label}</dt>
-            <dd className="mt-1 font-medium text-gray-900 dark:text-gray-100">
-                {value && value.trim() !== '' ? value : <span className="text-gray-400">Not recorded</span>}
+            <dt className="text-xs uppercase tracking-wider text-muted-foreground dark:text-muted-foreground">{label}</dt>
+            <dd className="mt-1 font-medium text-foreground dark:text-gray-100">
+                {value && value.trim() !== '' ? value : <span className="text-muted-foreground">Not recorded</span>}
             </dd>
         </div>
     );
@@ -34,7 +34,7 @@ export default async function SchoolsPage() {
             <div className="space-y-6">
                 <h1 className="text-3xl font-bold">School Profile</h1>
                 <Card>
-                    <CardContent className="py-12 text-center text-gray-500 dark:text-gray-400">
+                    <CardContent className="py-12 text-center text-muted-foreground dark:text-muted-foreground">
                         Your session is not attached to a school record.
                     </CardContent>
                 </Card>
@@ -49,7 +49,7 @@ export default async function SchoolsPage() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">School Profile</h1>
-                    <p className="text-gray-600 dark:text-gray-400 mt-1">
+                    <p className="text-muted-foreground dark:text-muted-foreground mt-1">
                         The registered details and current roll of the school you are signed in to.
                     </p>
                 </div>
@@ -76,21 +76,21 @@ export default async function SchoolsPage() {
                             <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                                 {counts.activeStudents}
                             </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">Active students</div>
+                            <div className="text-sm text-muted-foreground dark:text-muted-foreground">Active students</div>
                         </div>
                         <div>
                             <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
                                 {counts.staffAccounts}
                             </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">Staff logins</div>
+                            <div className="text-sm text-muted-foreground dark:text-muted-foreground">Staff logins</div>
                         </div>
                         <div>
                             <div className="text-3xl font-bold">{counts.grades}</div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">Grades</div>
+                            <div className="text-sm text-muted-foreground dark:text-muted-foreground">Grades</div>
                         </div>
                         <div>
                             <div className="text-3xl font-bold">{counts.sections}</div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">Sections</div>
+                            <div className="text-sm text-muted-foreground dark:text-muted-foreground">Sections</div>
                         </div>
                     </div>
                 </CardContent>
@@ -140,7 +140,7 @@ export default async function SchoolsPage() {
                         Whether this school reports into a multi-campus headquarters.
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                <CardContent className="space-y-3 text-sm text-muted-foreground dark:text-muted-foreground">
                     {campus.groupName ? (
                         <>
                             <dl className="grid grid-cols-1 sm:grid-cols-3 gap-5">

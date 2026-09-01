@@ -74,7 +74,7 @@ export default async function CertificateRecordPage({ params }: PageProps) {
                         ← Certificates
                     </Link>
                     <h1 className="mt-1 text-2xl font-bold">{record.certificateNumber}</h1>
-                    <p className="mt-1 text-gray-600">
+                    <p className="mt-1 text-muted-foreground">
                         {certificateTypeLabel(record.type)}
                         {record.templateName ? ` · ${record.templateName}` : ''}
                     </p>
@@ -110,28 +110,28 @@ export default async function CertificateRecordPage({ params }: PageProps) {
 
             <div
                 id="certificate-sheet"
-                className="mx-auto max-w-3xl rounded-lg border-2 border-gray-300 bg-white p-10"
+                className="mx-auto max-w-3xl rounded-lg border-2 border-border bg-white p-10"
             >
                 <header className="border-b-2 border-gray-800 pb-4 text-center">
-                    <h2 className="text-2xl font-bold tracking-wide text-gray-900">{record.schoolName}</h2>
+                    <h2 className="text-2xl font-bold tracking-wide text-foreground">{record.schoolName}</h2>
                     {record.schoolAddress && (
-                        <p className="mt-1 text-sm text-gray-600">{record.schoolAddress}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{record.schoolAddress}</p>
                     )}
-                    {schoolLocation && <p className="text-sm text-gray-600">{schoolLocation}</p>}
-                    {affiliation && <p className="mt-1 text-xs text-gray-500">{affiliation}</p>}
+                    {schoolLocation && <p className="text-sm text-muted-foreground">{schoolLocation}</p>}
+                    {affiliation && <p className="mt-1 text-xs text-muted-foreground">{affiliation}</p>}
                     {record.schoolUdiseCode && (
-                        <p className="text-xs text-gray-500">UDISE: {record.schoolUdiseCode}</p>
+                        <p className="text-xs text-muted-foreground">UDISE: {record.schoolUdiseCode}</p>
                     )}
                 </header>
 
                 <div className="mt-6 flex items-baseline justify-between text-sm">
-                    <span className="font-mono font-semibold text-gray-900">
+                    <span className="font-mono font-semibold text-foreground">
                         No. {record.certificateNumber}
                     </span>
-                    <span className="text-gray-600">Date: {formatDate(record.issuedDate)}</span>
+                    <span className="text-muted-foreground">Date: {formatDate(record.issuedDate)}</span>
                 </div>
 
-                <h3 className="mt-6 text-center text-lg font-bold uppercase tracking-widest text-gray-900">
+                <h3 className="mt-6 text-center text-lg font-bold uppercase tracking-widest text-foreground">
                     {certificateTypeLabel(record.type)}
                 </h3>
 
@@ -143,48 +143,48 @@ export default async function CertificateRecordPage({ params }: PageProps) {
 
                 <dl className="mt-8 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
                     <div>
-                        <dt className="text-xs uppercase tracking-wide text-gray-500">Name of student</dt>
-                        <dd className="mt-0.5 font-semibold text-gray-900">{studentName ?? '—'}</dd>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Name of student</dt>
+                        <dd className="mt-0.5 font-semibold text-foreground">{studentName ?? '—'}</dd>
                     </div>
                     <div>
-                        <dt className="text-xs uppercase tracking-wide text-gray-500">Admission number</dt>
-                        <dd className="mt-0.5 font-semibold text-gray-900">{admissionNumber ?? '—'}</dd>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Admission number</dt>
+                        <dd className="mt-0.5 font-semibold text-foreground">{admissionNumber ?? '—'}</dd>
                     </div>
                     <div>
-                        <dt className="text-xs uppercase tracking-wide text-gray-500">Class</dt>
-                        <dd className="mt-0.5 text-gray-900">
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Class</dt>
+                        <dd className="mt-0.5 text-foreground">
                             {gradeName ? `${gradeName}${sectionName ? ` — ${sectionName}` : ''}` : '—'}
                         </dd>
                     </div>
                     <div>
-                        <dt className="text-xs uppercase tracking-wide text-gray-500">Date of birth</dt>
-                        <dd className="mt-0.5 text-gray-900">{dateOfBirth ? formatDate(dateOfBirth) : '—'}</dd>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Date of birth</dt>
+                        <dd className="mt-0.5 text-foreground">{dateOfBirth ? formatDate(dateOfBirth) : '—'}</dd>
                     </div>
                     <div>
-                        <dt className="text-xs uppercase tracking-wide text-gray-500">Date of admission</dt>
-                        <dd className="mt-0.5 text-gray-900">{admissionDate ? formatDate(admissionDate) : '—'}</dd>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Date of admission</dt>
+                        <dd className="mt-0.5 text-foreground">{admissionDate ? formatDate(admissionDate) : '—'}</dd>
                     </div>
                     <div>
-                        <dt className="text-xs uppercase tracking-wide text-gray-500">Issued by</dt>
-                        <dd className="mt-0.5 text-gray-900">{record.issuedByName ?? '—'}</dd>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Issued by</dt>
+                        <dd className="mt-0.5 text-foreground">{record.issuedByName ?? '—'}</dd>
                     </div>
                 </dl>
 
                 {remarks && (
                     <div className="mt-6">
-                        <dt className="text-xs uppercase tracking-wide text-gray-500">Remarks</dt>
-                        <dd className="mt-1 whitespace-pre-line text-gray-900">{remarks}</dd>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Remarks</dt>
+                        <dd className="mt-1 whitespace-pre-line text-foreground">{remarks}</dd>
                     </div>
                 )}
 
                 <div className="mt-16 flex justify-end">
-                    <div className="w-56 border-t border-gray-800 pt-2 text-center text-sm text-gray-700">
+                    <div className="w-56 border-t border-gray-800 pt-2 text-center text-sm text-foreground">
                         Principal / Registrar
                     </div>
                 </div>
             </div>
 
-            <div className="mx-auto max-w-3xl space-y-1 text-xs text-gray-500 print:hidden">
+            <div className="mx-auto max-w-3xl space-y-1 text-xs text-muted-foreground print:hidden">
                 <p>
                     {hasSnapshot
                         ? 'Student details are shown exactly as they were recorded when this certificate was issued.'

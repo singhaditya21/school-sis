@@ -55,9 +55,9 @@ function typeColor(t: string): string {
         ILLNESS: 'bg-orange-100 text-orange-700',
         ALLERGY: 'bg-yellow-100 text-yellow-700',
         EMERGENCY: 'bg-red-200 text-red-800',
-        OTHER: 'bg-gray-100 text-gray-700',
+        OTHER: 'bg-muted text-foreground',
     };
-    return m[t] || 'bg-gray-100 text-gray-700';
+    return m[t] || 'bg-muted text-foreground';
 }
 
 export default function HealthClient({
@@ -117,8 +117,8 @@ export default function HealthClient({
         <div className="space-y-6 max-w-7xl mx-auto pb-12">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">Health &amp; Medical</h1>
-                    <p className="text-gray-500 mt-1">Student health records, incident logging, and infirmary management.</p>
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">Health &amp; Medical</h1>
+                    <p className="text-muted-foreground mt-1">Student health records, incident logging, and infirmary management.</p>
                 </div>
                 {view === 'dashboard' ? (
                     canWrite ? (
@@ -130,7 +130,7 @@ export default function HealthClient({
                             <span>+</span> Log New Incident
                         </Button>
                     ) : (
-                        <p className="text-sm text-gray-500">Read-only access — incident logging needs the health:write permission.</p>
+                        <p className="text-sm text-muted-foreground">Read-only access — incident logging needs the health:write permission.</p>
                     )
                 ) : (
                     <Button variant="outline" onClick={() => setView('dashboard')}>Back to Dashboard</Button>
@@ -143,13 +143,13 @@ export default function HealthClient({
                         <Card className="shadow-sm border-blue-100 bg-blue-50/40">
                             <CardContent className="pt-6">
                                 <div className="text-sm font-medium text-blue-600 mb-1">Active Medical Files</div>
-                                <div className="text-3xl font-bold text-gray-900" data-testid="kpi-medical-files">{stats.studentsWithRecords.toLocaleString()}</div>
+                                <div className="text-3xl font-bold text-foreground" data-testid="kpi-medical-files">{stats.studentsWithRecords.toLocaleString()}</div>
                             </CardContent>
                         </Card>
                         <Card className="shadow-sm border-orange-100 bg-orange-50/40">
                             <CardContent className="pt-6">
                                 <div className="text-sm font-medium text-orange-600 mb-1">Incidents Recorded</div>
-                                <div className="text-3xl font-bold text-gray-900" data-testid="kpi-total-incidents">{stats.totalIncidents.toLocaleString()}</div>
+                                <div className="text-3xl font-bold text-foreground" data-testid="kpi-total-incidents">{stats.totalIncidents.toLocaleString()}</div>
                             </CardContent>
                         </Card>
                         <Card className="shadow-sm border-red-200 bg-red-50/40 relative overflow-hidden">
@@ -168,7 +168,7 @@ export default function HealthClient({
                         <Card className="shadow-sm border-green-100 bg-green-50/40">
                             <CardContent className="pt-6">
                                 <div className="text-sm font-medium text-green-600 mb-1">Immunization Records</div>
-                                <div className="text-3xl font-bold text-gray-900" data-testid="kpi-immunizations">{stats.totalImmunizations.toLocaleString()}</div>
+                                <div className="text-3xl font-bold text-foreground" data-testid="kpi-immunizations">{stats.totalImmunizations.toLocaleString()}</div>
                             </CardContent>
                         </Card>
                     </div>
@@ -183,7 +183,7 @@ export default function HealthClient({
                             </CardHeader>
                             <CardContent>
                                 {medicalAlerts.length === 0 ? (
-                                    <p className="text-sm text-gray-400 py-6 text-center" data-testid="no-medical-alerts">
+                                    <p className="text-sm text-muted-foreground py-6 text-center" data-testid="no-medical-alerts">
                                         No health record on file lists an allergy, condition or medication yet.
                                     </p>
                                 ) : (
@@ -191,12 +191,12 @@ export default function HealthClient({
                                         {medicalAlerts.map((row) => (
                                             <li key={row.studentId} className="py-3" data-testid={`medical-alert-${row.studentId}`}>
                                                 <div className="flex items-baseline justify-between gap-3">
-                                                    <span className="font-semibold text-gray-900">{row.studentName}</span>
-                                                    <span className="text-xs text-gray-500">{row.className ?? '—'}</span>
+                                                    <span className="font-semibold text-foreground">{row.studentName}</span>
+                                                    <span className="text-xs text-muted-foreground">{row.className ?? '—'}</span>
                                                 </div>
                                                 <div className="mt-1 flex flex-wrap gap-1">
                                                     {row.bloodGroup && (
-                                                        <Badge className="bg-slate-100 text-slate-700 border-0">{row.bloodGroup}</Badge>
+                                                        <Badge className="bg-muted text-foreground border-0">{row.bloodGroup}</Badge>
                                                     )}
                                                     {row.allergies.map((a) => (
                                                         <Badge key={`a-${a}`} className="bg-yellow-100 text-yellow-800 border-0">Allergy: {a}</Badge>
@@ -209,7 +209,7 @@ export default function HealthClient({
                                                     ))}
                                                 </div>
                                                 {(row.emergencyContact || row.emergencyPhone) && (
-                                                    <p className="text-xs text-gray-500 mt-1">
+                                                    <p className="text-xs text-muted-foreground mt-1">
                                                         Emergency: {row.emergencyContact ?? '—'} {row.emergencyPhone ? `· ${row.emergencyPhone}` : ''}
                                                     </p>
                                                 )}
@@ -227,7 +227,7 @@ export default function HealthClient({
                             </CardHeader>
                             <CardContent>
                                 {immunizationsDue.length === 0 ? (
-                                    <p className="text-sm text-gray-400 py-6 text-center" data-testid="no-immunizations-due">
+                                    <p className="text-sm text-muted-foreground py-6 text-center" data-testid="no-immunizations-due">
                                         No immunisation is recorded as due in this window.
                                     </p>
                                 ) : (
@@ -235,8 +235,8 @@ export default function HealthClient({
                                         {immunizationsDue.map((row) => (
                                             <li key={row.id} className="py-3 flex items-center justify-between gap-3">
                                                 <div>
-                                                    <div className="font-medium text-gray-900">{row.studentName}</div>
-                                                    <div className="text-xs text-gray-500">
+                                                    <div className="font-medium text-foreground">{row.studentName}</div>
+                                                    <div className="text-xs text-muted-foreground">
                                                         {row.vaccineName} · dose {row.doseNumber}
                                                     </div>
                                                 </div>
@@ -252,16 +252,16 @@ export default function HealthClient({
                     </div>
 
                     <Card className="shadow-sm overflow-hidden">
-                        <div className="p-5 border-b bg-gray-50/50 flex justify-between items-center">
-                            <h3 className="font-semibold text-gray-900 text-lg">Recent Medical Incidents</h3>
-                            <div className="text-sm text-gray-500 flex items-center gap-2">
+                        <div className="p-5 border-b bg-muted/50 flex justify-between items-center">
+                            <h3 className="font-semibold text-foreground text-lg">Recent Medical Incidents</h3>
+                            <div className="text-sm text-muted-foreground flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-red-500 block"></span> Injury
                                 <span className="w-2 h-2 rounded-full bg-orange-500 block ml-2"></span> Illness
                             </div>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
-                                <thead className="bg-white border-b border-gray-100 text-xs text-gray-500 font-semibold uppercase tracking-wider">
+                                <thead className="bg-white border-b border-border text-xs text-muted-foreground font-semibold uppercase tracking-wider">
                                     <tr>
                                         <th className="px-5 py-4">Date &amp; Time</th>
                                         <th className="px-5 py-4">Student</th>
@@ -273,34 +273,34 @@ export default function HealthClient({
                                 <tbody className="divide-y divide-gray-100">
                                     {incidents.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="px-5 py-12 text-center text-gray-400" data-testid="no-incidents">
+                                            <td colSpan={5} className="px-5 py-12 text-center text-muted-foreground" data-testid="no-incidents">
                                                 No incidents recorded yet.
                                             </td>
                                         </tr>
                                     ) : (
                                         incidents.map((inc) => (
-                                            <tr key={inc.id} className="hover:bg-gray-50/60 transition-colors" data-testid={`incident-row-${inc.id}`}>
+                                            <tr key={inc.id} className="hover:bg-muted/60 transition-colors" data-testid={`incident-row-${inc.id}`}>
                                                 <td className="px-5 py-4 whitespace-nowrap">
-                                                    <div className="font-medium text-gray-900">{new Date(inc.incidentDate).toLocaleDateString('en-IN')}</div>
-                                                    <div className="text-xs text-gray-500">{new Date(inc.incidentDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                                    <div className="font-medium text-foreground">{new Date(inc.incidentDate).toLocaleDateString('en-IN')}</div>
+                                                    <div className="text-xs text-muted-foreground">{new Date(inc.incidentDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                                 </td>
-                                                <td className="px-5 py-4 font-semibold text-gray-900 whitespace-nowrap">
+                                                <td className="px-5 py-4 font-semibold text-foreground whitespace-nowrap">
                                                     {inc.studentName || 'Unknown'}
                                                 </td>
                                                 <td className="px-5 py-4 whitespace-nowrap">
                                                     <Badge className={`${typeColor(inc.type)} font-bold tracking-tight shadow-none border-0`}>{inc.type}</Badge>
                                                 </td>
                                                 <td className="px-5 py-4">
-                                                    <div className="text-gray-900 font-medium mb-1 line-clamp-1">{inc.description}</div>
+                                                    <div className="text-foreground font-medium mb-1 line-clamp-1">{inc.description}</div>
                                                     {inc.actionTaken && (
-                                                        <div className="text-xs text-gray-600 line-clamp-2">↳ {inc.actionTaken}</div>
+                                                        <div className="text-xs text-muted-foreground line-clamp-2">↳ {inc.actionTaken}</div>
                                                     )}
                                                 </td>
                                                 <td className="px-5 py-4 text-center">
                                                     {inc.parentNotified ? (
                                                         <span className="inline-flex items-center justify-center bg-green-100 text-green-700 w-8 h-8 rounded-full" title="Parent informed">✓</span>
                                                     ) : (
-                                                        <span className="inline-flex items-center justify-center bg-gray-100 text-gray-400 w-8 h-8 rounded-full" title="Not recorded as informed">—</span>
+                                                        <span className="inline-flex items-center justify-center bg-muted text-muted-foreground w-8 h-8 rounded-full" title="Not recorded as informed">—</span>
                                                     )}
                                                 </td>
                                             </tr>
@@ -322,12 +322,12 @@ export default function HealthClient({
                             <div className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <Label htmlFor="incident-student" className="font-semibold text-gray-700">Student</Label>
+                                        <Label htmlFor="incident-student" className="font-semibold text-foreground">Student</Label>
                                         <select
                                             id="incident-student"
                                             value={form.studentId}
                                             onChange={(e) => set('studentId', e.target.value)}
-                                            className="w-full h-9 rounded-md border border-gray-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
+                                            className="w-full h-9 rounded-md border border-border bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
                                             data-testid="incident-student"
                                         >
                                             <option value="">
@@ -340,11 +340,11 @@ export default function HealthClient({
                                             ))}
                                         </select>
                                         {selectedStudent?.className && (
-                                            <p className="text-xs text-gray-500">Class {selectedStudent.className}</p>
+                                            <p className="text-xs text-muted-foreground">Class {selectedStudent.className}</p>
                                         )}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="incident-when" className="font-semibold text-gray-700">Incident Date &amp; Time</Label>
+                                        <Label htmlFor="incident-when" className="font-semibold text-foreground">Incident Date &amp; Time</Label>
                                         <Input
                                             id="incident-when"
                                             type="datetime-local"
@@ -353,17 +353,17 @@ export default function HealthClient({
                                             className="focus:ring-red-500 focus:border-red-500"
                                             data-testid="incident-when"
                                         />
-                                        <p className="text-xs text-gray-500">Leave blank to record the incident as happening now.</p>
+                                        <p className="text-xs text-muted-foreground">Leave blank to record the incident as happening now.</p>
                                     </div>
                                 </div>
 
                                 <div className="space-y-3 pt-2">
-                                    <Label className="font-semibold text-gray-700">Incident Category</Label>
+                                    <Label className="font-semibold text-foreground">Incident Category</Label>
                                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                                         {INCIDENT_CATEGORIES.map((cat) => (
                                             <label
                                                 key={cat}
-                                                className={`border rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-gray-50 ${form.type === cat ? 'border-red-500 ring-2 ring-red-200 bg-red-50' : 'border-gray-200'}`}
+                                                className={`border rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-muted ${form.type === cat ? 'border-red-500 ring-2 ring-red-200 bg-red-50' : 'border-border'}`}
                                             >
                                                 <input
                                                     type="radio"
@@ -374,14 +374,14 @@ export default function HealthClient({
                                                     onChange={() => set('type', cat)}
                                                     data-testid={`incident-type-${cat}`}
                                                 />
-                                                <span className={`text-sm font-bold ${form.type === cat ? 'text-red-700' : 'text-gray-600'}`}>{cat}</span>
+                                                <span className={`text-sm font-bold ${form.type === cat ? 'text-red-700' : 'text-muted-foreground'}`}>{cat}</span>
                                             </label>
                                         ))}
                                     </div>
                                 </div>
 
                                 <div className="space-y-2 pt-2">
-                                    <Label htmlFor="incident-description" className="font-semibold text-gray-700">Detailed Description</Label>
+                                    <Label htmlFor="incident-description" className="font-semibold text-foreground">Detailed Description</Label>
                                     <Textarea
                                         id="incident-description"
                                         value={form.description}
@@ -393,7 +393,7 @@ export default function HealthClient({
                                 </div>
 
                                 <div className="space-y-2 pt-2">
-                                    <Label htmlFor="incident-action" className="font-semibold text-gray-700">Action Taken (Nurse/Teacher)</Label>
+                                    <Label htmlFor="incident-action" className="font-semibold text-foreground">Action Taken (Nurse/Teacher)</Label>
                                     <Textarea
                                         id="incident-action"
                                         value={form.actionTaken}
@@ -410,7 +410,7 @@ export default function HealthClient({
                                         id="notifyParent"
                                         checked={form.parentNotified}
                                         onChange={(e) => set('parentNotified', e.target.checked)}
-                                        className="mt-1 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                                        className="mt-1 w-4 h-4 text-orange-600 border-border rounded focus:ring-orange-500"
                                         data-testid="incident-parent-notified"
                                     />
                                     <label htmlFor="notifyParent" className="text-sm text-orange-900">
@@ -420,17 +420,17 @@ export default function HealthClient({
                                     </label>
                                 </div>
 
-                                <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg space-y-3">
+                                <div className="bg-muted border border-border p-4 rounded-lg space-y-3">
                                     <div className="flex items-start gap-3">
                                         <input
                                             type="checkbox"
                                             id="followUp"
                                             checked={form.followUpRequired}
                                             onChange={(e) => set('followUpRequired', e.target.checked)}
-                                            className="mt-1 w-4 h-4 border-gray-300 rounded"
+                                            className="mt-1 w-4 h-4 border-border rounded"
                                             data-testid="incident-followup-required"
                                         />
-                                        <label htmlFor="followUp" className="text-sm text-gray-800">
+                                        <label htmlFor="followUp" className="text-sm text-foreground">
                                             <span className="font-bold block">Follow-up required</span>
                                             Flag this incident for review by the school nurse.
                                         </label>

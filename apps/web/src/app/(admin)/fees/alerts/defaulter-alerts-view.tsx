@@ -71,7 +71,7 @@ function matchesSeverity(daysOverdue: number, filter: SeverityFilter): boolean {
  * have a stated meaning, and they are labelled as manual throughout.
  */
 const ESCALATION_POLICY = [
-    { threshold: '7+ days', step: 'Gentle reminder', tone: 'border-gray-200 dark:border-gray-800' },
+    { threshold: '7+ days', step: 'Gentle reminder', tone: 'border-border dark:border-gray-800' },
     { threshold: '15+ days', step: 'Warning notice', tone: 'border-amber-300 dark:border-amber-900/60' },
     { threshold: '30+ days', step: 'Final notice', tone: 'border-orange-300 dark:border-orange-900/60' },
     { threshold: '60+ days', step: 'Escalate to principal', tone: 'border-red-300 dark:border-red-900/60' },
@@ -92,7 +92,7 @@ export default function DefaulterAlertsView({ stats, defaulters }: DefaulterAler
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Overdue Fee Watchlist</h1>
+                <h1 className="text-3xl font-bold text-foreground dark:text-white">Overdue Fee Watchlist</h1>
                 <p className="text-muted-foreground mt-1">
                     Students with invoices past their due date, graded by how long the oldest one has been
                     outstanding.
@@ -104,7 +104,7 @@ export default function DefaulterAlertsView({ stats, defaulters }: DefaulterAler
                 <div className="flex gap-3">
                     <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                     <div className="text-sm space-y-1">
-                        <p className="font-medium text-gray-900 dark:text-white">
+                        <p className="font-medium text-foreground dark:text-white">
                             Nothing on this page is sent automatically.
                         </p>
                         <p className="text-muted-foreground">
@@ -125,7 +125,7 @@ export default function DefaulterAlertsView({ stats, defaulters }: DefaulterAler
                             <Users className="h-5 w-5 text-muted-foreground" />
                             <span className="text-sm text-muted-foreground">Students overdue</span>
                         </div>
-                        <div className="text-2xl font-bold mt-1 text-gray-900 dark:text-white">{stats.total}</div>
+                        <div className="text-2xl font-bold mt-1 text-foreground dark:text-white">{stats.total}</div>
                     </CardContent>
                 </Card>
                 <Card className="border-red-200 dark:border-red-900/50 bg-red-50/60 dark:bg-red-950/20">
@@ -181,7 +181,7 @@ export default function DefaulterAlertsView({ stats, defaulters }: DefaulterAler
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                         {ESCALATION_POLICY.map((rule) => (
                             <div key={rule.threshold} className={`p-3 border rounded-lg ${rule.tone}`}>
-                                <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                                <div className="text-lg font-semibold text-foreground dark:text-white">
                                     {rule.threshold}
                                 </div>
                                 <Badge variant="outline" className="mt-1 font-normal">

@@ -71,7 +71,7 @@ export default function TemplatesClient({ templates }: { templates: TemplateRow[
             <div className="flex flex-wrap items-end justify-between gap-4">
                 <div className="flex flex-wrap items-end gap-3">
                     <div>
-                        <label htmlFor="template-search" className="mb-1 block text-xs font-medium text-slate-600">
+                        <label htmlFor="template-search" className="mb-1 block text-xs font-medium text-muted-foreground">
                             Search
                         </label>
                         <Input
@@ -83,14 +83,14 @@ export default function TemplatesClient({ templates }: { templates: TemplateRow[
                         />
                     </div>
                     <div>
-                        <label htmlFor="template-channel" className="mb-1 block text-xs font-medium text-slate-600">
+                        <label htmlFor="template-channel" className="mb-1 block text-xs font-medium text-muted-foreground">
                             Channel
                         </label>
                         <select
                             id="template-channel"
                             value={channelFilter}
                             onChange={(event) => setChannelFilter(event.target.value)}
-                            className="h-9 rounded-md border border-slate-300 px-3 text-sm"
+                            className="h-9 rounded-md border border-border px-3 text-sm"
                         >
                             <option value="ALL">All channels</option>
                             {MESSAGE_CHANNELS.map((channel) => (
@@ -100,7 +100,7 @@ export default function TemplatesClient({ templates }: { templates: TemplateRow[
                             ))}
                         </select>
                     </div>
-                    <label className="flex h-9 items-center gap-2 text-sm text-slate-600">
+                    <label className="flex h-9 items-center gap-2 text-sm text-muted-foreground">
                         <input
                             type="checkbox"
                             checked={showInactive}
@@ -122,8 +122,8 @@ export default function TemplatesClient({ templates }: { templates: TemplateRow[
             {templates.length === 0 ? (
                 <Card>
                     <CardContent className="py-16 text-center">
-                        <p className="text-slate-600">No message templates yet.</p>
-                        <p className="mt-1 text-sm text-slate-400">
+                        <p className="text-muted-foreground">No message templates yet.</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
                             Create one so recurring notices — fee reminders, absence alerts, PTM
                             invitations — do not have to be retyped.
                         </p>
@@ -137,7 +137,7 @@ export default function TemplatesClient({ templates }: { templates: TemplateRow[
                 </Card>
             ) : visible.length === 0 ? (
                 <Card>
-                    <CardContent className="py-12 text-center text-slate-500">
+                    <CardContent className="py-12 text-center text-muted-foreground">
                         No templates match those filters.
                     </CardContent>
                 </Card>
@@ -154,13 +154,13 @@ export default function TemplatesClient({ templates }: { templates: TemplateRow[
                                     <ChannelBadge channel={template.channel} />
                                 </CardTitle>
                                 {template.subject && (
-                                    <p className="mt-1 text-sm font-medium text-slate-500">
+                                    <p className="mt-1 text-sm font-medium text-muted-foreground">
                                         Subject: {template.subject}
                                     </p>
                                 )}
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <p className="line-clamp-5 whitespace-pre-wrap rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
+                                <p className="line-clamp-5 whitespace-pre-wrap rounded-md border bg-muted p-3 text-sm text-foreground">
                                     {template.body}
                                 </p>
 
@@ -178,7 +178,7 @@ export default function TemplatesClient({ templates }: { templates: TemplateRow[
                                     </div>
                                 )}
 
-                                <div className="flex items-center justify-between text-xs text-slate-500">
+                                <div className="flex items-center justify-between text-xs text-muted-foreground">
                                     <span>
                                         {template.usageCount === 0
                                             ? 'Never used'
@@ -192,7 +192,7 @@ export default function TemplatesClient({ templates }: { templates: TemplateRow[
                                 <div className="flex flex-wrap gap-2">
                                     <Link
                                         href={`/messages/compose?templateId=${template.id}`}
-                                        className="inline-flex h-9 items-center rounded-md border border-slate-300 px-3 text-sm font-medium hover:bg-slate-50"
+                                        className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-medium hover:bg-muted"
                                     >
                                         Use in compose
                                     </Link>

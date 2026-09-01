@@ -23,7 +23,7 @@ export default async function HQDashboard() {
             <div className="space-y-6">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Command Center</h1>
-                    <p className="text-gray-600 dark:text-gray-400 mt-1">
+                    <p className="text-muted-foreground dark:text-muted-foreground mt-1">
                         Multi-campus headquarters view for {campusName ?? 'this campus'}.
                     </p>
                 </div>
@@ -35,7 +35,7 @@ export default async function HQDashboard() {
                             headquarters to report into.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="text-sm text-gray-600 dark:text-gray-400 space-y-3">
+                    <CardContent className="text-sm text-muted-foreground dark:text-muted-foreground space-y-3">
                         <p>
                             Campus groups are created and campuses attached by a ScholarMind platform
                             operator. A campus login cannot create a group or attach itself to one, so there
@@ -65,7 +65,7 @@ export default async function HQDashboard() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">{group.name}</h1>
-                    <p className="text-gray-600 dark:text-gray-400 mt-1">
+                    <p className="text-muted-foreground dark:text-muted-foreground mt-1">
                         Headquarters in {group.hqCity} · group created {formatDate(group.createdAt)}
                     </p>
                 </div>
@@ -86,7 +86,7 @@ export default async function HQDashboard() {
                     <CardContent className="p-0">
                         <div className="divide-y divide-gray-100 dark:divide-gray-800">
                             {campuses.length === 0 ? (
-                                <p className="px-6 py-6 text-sm text-gray-500 dark:text-gray-400">
+                                <p className="px-6 py-6 text-sm text-muted-foreground dark:text-muted-foreground">
                                     No campus mapping is readable for this group.
                                 </p>
                             ) : (
@@ -94,7 +94,7 @@ export default async function HQDashboard() {
                                     <div key={campus.id} className="px-6 py-4 flex justify-between items-center">
                                         <div>
                                             <p className="font-semibold">{campus.name ?? 'Unnamed campus'}</p>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                            <p className="text-sm text-muted-foreground dark:text-muted-foreground">
                                                 Region: {campus.region}
                                             </p>
                                         </div>
@@ -103,7 +103,7 @@ export default async function HQDashboard() {
                                 ))
                             )}
                         </div>
-                        <p className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-800">
+                        <p className="px-6 py-4 text-xs text-muted-foreground dark:text-muted-foreground border-t border-border dark:border-gray-800">
                             A campus login can only read its own mapping row, so this list is not the full
                             group roster. The complete roster is visible to ScholarMind platform operators.
                         </p>
@@ -121,7 +121,7 @@ export default async function HQDashboard() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {policies.length === 0 ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-sm text-muted-foreground dark:text-muted-foreground">
                                 No group policy has been recorded for {group.name}.
                             </p>
                         ) : (
@@ -129,11 +129,11 @@ export default async function HQDashboard() {
                                 {policies.map((policy) => (
                                     <li
                                         key={policy.id}
-                                        className="flex items-start justify-between gap-4 border-b border-gray-100 dark:border-gray-800 pb-3 last:border-0 last:pb-0"
+                                        className="flex items-start justify-between gap-4 border-b border-border dark:border-gray-800 pb-3 last:border-0 last:pb-0"
                                     >
                                         <div>
                                             <p className="font-medium">{policy.policyName}</p>
-                                            <p className="text-xs font-mono uppercase text-gray-500 dark:text-gray-400 mt-1">
+                                            <p className="text-xs font-mono uppercase text-muted-foreground dark:text-muted-foreground mt-1">
                                                 {policy.policyKey} = {policy.policyValue}
                                             </p>
                                         </div>
@@ -150,7 +150,7 @@ export default async function HQDashboard() {
                                 ))}
                             </ul>
                         )}
-                        <div className="text-xs text-gray-500 dark:text-gray-400 space-y-2 pt-2">
+                        <div className="text-xs text-muted-foreground dark:text-muted-foreground space-y-2 pt-2">
                             <p>
                                 Group policies are recorded and changed by a ScholarMind platform operator.
                                 Campus roles — including group executives — have read-only access to them.

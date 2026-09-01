@@ -226,25 +226,25 @@ export default function SubstitutionBoard({
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card>
                     <CardContent className="pt-4" data-testid="kpi-today">
-                        <div className="text-sm text-gray-500">Requests on this date</div>
+                        <div className="text-sm text-muted-foreground">Requests on this date</div>
                         <div className="text-2xl font-bold text-blue-600">{requestsOnDate.length}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4" data-testid="kpi-pending">
-                        <div className="text-sm text-gray-500">Pending approval (all dates)</div>
+                        <div className="text-sm text-muted-foreground">Pending approval (all dates)</div>
                         <div className="text-2xl font-bold text-yellow-600">{pendingCount}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4" data-testid="kpi-absent">
-                        <div className="text-sm text-gray-500">Teachers on approved leave</div>
+                        <div className="text-sm text-muted-foreground">Teachers on approved leave</div>
                         <div className="text-2xl font-bold text-red-600">{absentTeachers.length}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4" data-testid="kpi-available">
-                        <div className="text-sm text-gray-500">Teachers not on leave</div>
+                        <div className="text-sm text-muted-foreground">Teachers not on leave</div>
                         <div className="text-2xl font-bold text-green-600">{availableCount}</div>
                     </CardContent>
                 </Card>
@@ -259,7 +259,7 @@ export default function SubstitutionBoard({
                 <CardContent>
                     <div className="space-y-4" data-testid="absent-teachers-list">
                         {absentTeachers.length === 0 ? (
-                            <p className="text-gray-500" data-testid="no-absent-msg">
+                            <p className="text-muted-foreground" data-testid="no-absent-msg">
                                 No approved leave covers this date. Absence is read from approved leave requests, so
                                 unrecorded absence will not appear here.
                             </p>
@@ -271,20 +271,20 @@ export default function SubstitutionBoard({
                                         <div className="flex flex-wrap items-center gap-2">
                                             <span className="font-medium text-red-700">{teacher.name}</span>
                                             <Badge variant="outline">{teacher.leaveType}</Badge>
-                                            <span className="text-xs text-gray-500">
+                                            <span className="text-xs text-muted-foreground">
                                                 {teacher.fromDate} → {teacher.toDate}
                                             </span>
                                         </div>
                                         {teacher.reason && (
-                                            <p className="text-xs text-gray-500 mt-1">{teacher.reason}</p>
+                                            <p className="text-xs text-muted-foreground mt-1">{teacher.reason}</p>
                                         )}
 
                                         {!isTimetabledDay ? (
-                                            <p className="text-sm text-gray-500 mt-2">
+                                            <p className="text-sm text-muted-foreground mt-2">
                                                 Nothing is timetabled on this date.
                                             </p>
                                         ) : obligations.length === 0 ? (
-                                            <p className="text-sm text-gray-500 mt-2">
+                                            <p className="text-sm text-muted-foreground mt-2">
                                                 No classes timetabled for this teacher on this day.
                                             </p>
                                         ) : (
@@ -292,11 +292,11 @@ export default function SubstitutionBoard({
                                                 {obligations.map((obligation) => (
                                                     <li
                                                         key={obligation.entryId}
-                                                        className="flex flex-wrap items-center justify-between gap-3 bg-gray-50 rounded px-3 py-2 text-sm"
+                                                        className="flex flex-wrap items-center justify-between gap-3 bg-muted rounded px-3 py-2 text-sm"
                                                     >
                                                         <span>
                                                             <strong>{obligation.periodName}</strong>
-                                                            <span className="text-gray-500"> ({obligation.startTime}–{obligation.endTime})</span>
+                                                            <span className="text-muted-foreground"> ({obligation.startTime}–{obligation.endTime})</span>
                                                             {' · '}{obligation.subjectName}
                                                             {' · '}{obligation.className}
                                                             {obligation.roomNumber ? ` · Room ${obligation.roomNumber}` : ''}
@@ -341,7 +341,7 @@ export default function SubstitutionBoard({
                 </CardHeader>
                 <CardContent>
                     {requests.length === 0 ? (
-                        <p className="text-gray-500 text-center py-8">No substitution requests yet.</p>
+                        <p className="text-muted-foreground text-center py-8">No substitution requests yet.</p>
                     ) : (
                         <div className="overflow-x-auto">
                             <Table data-testid="substitutions-table">
@@ -371,7 +371,7 @@ export default function SubstitutionBoard({
                                             <TableCell className="font-medium text-red-600">
                                                 {request.originalTeacher}
                                                 {request.reason && (
-                                                    <span className="text-xs text-gray-500 block font-normal">{request.reason}</span>
+                                                    <span className="text-xs text-muted-foreground block font-normal">{request.reason}</span>
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-green-700">{request.substitute || 'Unassigned'}</TableCell>
@@ -383,7 +383,7 @@ export default function SubstitutionBoard({
                                                 {request.linkedEntryId ? (
                                                     <span className="text-green-700">Attached</span>
                                                 ) : (
-                                                    <span className="text-gray-400">—</span>
+                                                    <span className="text-muted-foreground">—</span>
                                                 )}
                                             </TableCell>
                                             <TableCell>{statusBadge(request.status)}</TableCell>
@@ -398,7 +398,7 @@ export default function SubstitutionBoard({
                                                         Review
                                                     </Button>
                                                 ) : (
-                                                    <span className="text-xs text-gray-400">—</span>
+                                                    <span className="text-xs text-muted-foreground">—</span>
                                                 )}
                                             </TableCell>
                                         </TableRow>
@@ -501,7 +501,7 @@ export default function SubstitutionBoard({
                                 value={draft.substituteId}
                                 onChange={(event) => setDraft({ ...draft, substituteId: event.target.value })}
                                 disabled={!draft.periodOrder}
-                                className="w-full px-3 py-2 border rounded-lg bg-white disabled:bg-gray-100"
+                                className="w-full px-3 py-2 border rounded-lg bg-white disabled:bg-muted"
                             >
                                 <option value="">
                                     {draft.periodOrder ? 'Leave unassigned…' : 'Pick a period first'}
@@ -512,7 +512,7 @@ export default function SubstitutionBoard({
                                     </option>
                                 ))}
                             </select>
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-muted-foreground mt-1">
                                 {candidatesLoading
                                     ? 'Checking who is free…'
                                     : !draft.periodOrder
@@ -551,14 +551,14 @@ export default function SubstitutionBoard({
                                 </div>
                             )}
                             <div className="rounded-lg border p-3 space-y-1">
-                                <div><span className="text-gray-500">Date:</span> {decisionTarget.date}</div>
-                                <div><span className="text-gray-500">Absent:</span> {decisionTarget.originalTeacher}</div>
-                                <div><span className="text-gray-500">Class:</span> {decisionTarget.className ?? 'Not set'}</div>
+                                <div><span className="text-muted-foreground">Date:</span> {decisionTarget.date}</div>
+                                <div><span className="text-muted-foreground">Absent:</span> {decisionTarget.originalTeacher}</div>
+                                <div><span className="text-muted-foreground">Class:</span> {decisionTarget.className ?? 'Not set'}</div>
                                 <div>
-                                    <span className="text-gray-500">Period:</span>{' '}
+                                    <span className="text-muted-foreground">Period:</span>{' '}
                                     {decisionTarget.periodName || `Period ${decisionTarget.period}`}
                                 </div>
-                                <div><span className="text-gray-500">Reason:</span> {decisionTarget.reason || 'Not given'}</div>
+                                <div><span className="text-muted-foreground">Reason:</span> {decisionTarget.reason || 'Not given'}</div>
                             </div>
 
                             <div>
@@ -585,7 +585,7 @@ export default function SubstitutionBoard({
                                         </option>
                                     ))}
                                 </select>
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-xs text-muted-foreground mt-1">
                                     {candidatesLoading
                                         ? 'Checking who is free…'
                                         : decisionCandidates.length === 0

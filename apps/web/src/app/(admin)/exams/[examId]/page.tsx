@@ -15,7 +15,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-    DRAFT: 'bg-gray-100 text-gray-700',
+    DRAFT: 'bg-muted text-foreground',
     SCHEDULED: 'bg-blue-100 text-blue-700',
     MARKS_ENTRY: 'bg-amber-100 text-amber-800',
     RESULT_REVIEW: 'bg-purple-100 text-purple-700',
@@ -39,7 +39,7 @@ export default async function ExamDetailPage({
     if (!data) {
         return (
             <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                <p className="text-gray-600">Exam not found.</p>
+                <p className="text-muted-foreground">Exam not found.</p>
                 <Link href="/exams" className="text-blue-600 hover:underline text-sm mt-2 inline-block">
                     ← Back to exams
                 </Link>
@@ -66,8 +66,8 @@ export default async function ExamDetailPage({
         <div className="space-y-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">{exam.name}</h1>
-                    <p className="text-gray-600">
+                    <h1 className="text-3xl font-bold text-foreground">{exam.name}</h1>
+                    <p className="text-muted-foreground">
                         {exam.academicYearName} · {formatDate(exam.startDate)} – {formatDate(exam.endDate)}
                     </p>
                 </div>
@@ -87,14 +87,14 @@ export default async function ExamDetailPage({
             <div className="flex flex-wrap gap-2">
                 <span
                     className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        TYPE_COLORS[exam.type] || 'bg-gray-100 text-gray-700'
+                        TYPE_COLORS[exam.type] || 'bg-muted text-foreground'
                     }`}
                 >
                     {exam.type.replace(/_/g, ' ')}
                 </span>
                 <span
                     className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        STATUS_COLORS[exam.status] || 'bg-gray-100 text-gray-700'
+                        STATUS_COLORS[exam.status] || 'bg-muted text-foreground'
                     }`}
                 >
                     {exam.status.replace(/_/g, ' ')}
@@ -103,36 +103,36 @@ export default async function ExamDetailPage({
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-xl shadow-sm border p-4">
-                    <p className="text-sm text-gray-500">Papers scheduled</p>
-                    <p className="text-2xl font-bold text-gray-900">{schedules.length}</p>
+                    <p className="text-sm text-muted-foreground">Papers scheduled</p>
+                    <p className="text-2xl font-bold text-foreground">{schedules.length}</p>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border p-4">
-                    <p className="text-sm text-gray-500">Classes covered</p>
-                    <p className="text-2xl font-bold text-gray-900">{byGrade.size}</p>
+                    <p className="text-sm text-muted-foreground">Classes covered</p>
+                    <p className="text-2xl font-bold text-foreground">{byGrade.size}</p>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border p-4">
-                    <p className="text-sm text-gray-500">Marks entered</p>
+                    <p className="text-sm text-muted-foreground">Marks entered</p>
                     <p className="text-2xl font-bold text-blue-600">
                         {entered}
-                        <span className="text-base font-medium text-gray-400"> / {expected}</span>
+                        <span className="text-base font-medium text-muted-foreground"> / {expected}</span>
                     </p>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border p-4">
-                    <p className="text-sm text-gray-500">Locked by verification</p>
-                    <p className="text-2xl font-bold text-gray-900">{locked}</p>
+                    <p className="text-sm text-muted-foreground">Locked by verification</p>
+                    <p className="text-2xl font-bold text-foreground">{locked}</p>
                 </div>
             </div>
 
             {exam.description && (
                 <div className="bg-white rounded-xl shadow-sm border p-4">
-                    <p className="text-sm text-gray-700">{exam.description}</p>
+                    <p className="text-sm text-foreground">{exam.description}</p>
                 </div>
             )}
 
             {schedules.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                    <p className="font-medium text-gray-900">No papers scheduled yet</p>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="font-medium text-foreground">No papers scheduled yet</p>
+                    <p className="text-sm text-muted-foreground mt-1">
                         Marks entry and report cards both read from the exam schedule, so nothing can
                         be recorded against this exam until at least one class/subject paper exists.
                     </p>
@@ -154,8 +154,8 @@ export default async function ExamDetailPage({
                             <div key={gradeId} className="bg-white rounded-xl shadow-sm border">
                                 <div className="p-4 border-b flex flex-wrap items-center justify-between gap-3">
                                     <div>
-                                        <h2 className="font-semibold text-gray-900">{bucket.gradeName}</h2>
-                                        <p className="text-sm text-gray-500">
+                                        <h2 className="font-semibold text-foreground">{bucket.gradeName}</h2>
+                                        <p className="text-sm text-muted-foreground">
                                             {bucket.rows.length} paper(s) · {gradeEntered} of{' '}
                                             {gradeExpected} marks entered
                                         </p>
@@ -169,26 +169,26 @@ export default async function ExamDetailPage({
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
-                                        <thead className="bg-gray-50">
+                                        <thead className="bg-muted">
                                             <tr>
-                                                <th className="px-4 py-3 text-left font-medium text-gray-500">Date</th>
-                                                <th className="px-4 py-3 text-left font-medium text-gray-500">Subject</th>
-                                                <th className="px-4 py-3 text-left font-medium text-gray-500">Time</th>
-                                                <th className="px-4 py-3 text-left font-medium text-gray-500">Room</th>
-                                                <th className="px-4 py-3 text-center font-medium text-gray-500">Max</th>
-                                                <th className="px-4 py-3 text-center font-medium text-gray-500">Pass</th>
-                                                <th className="px-4 py-3 text-center font-medium text-gray-500">Entered</th>
-                                                <th className="px-4 py-3 text-center font-medium text-gray-500">Absent</th>
-                                                <th className="px-4 py-3 text-center font-medium text-gray-500">Locked</th>
+                                                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
+                                                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Subject</th>
+                                                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Time</th>
+                                                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Room</th>
+                                                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Max</th>
+                                                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Pass</th>
+                                                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Entered</th>
+                                                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Absent</th>
+                                                <th className="px-4 py-3 text-center font-medium text-muted-foreground">Locked</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y">
                                             {bucket.rows.map((row) => (
-                                                <tr key={row.scheduleId} className="hover:bg-gray-50">
+                                                <tr key={row.scheduleId} className="hover:bg-muted">
                                                     <td className="px-4 py-3">{formatDate(row.examDate)}</td>
                                                     <td className="px-4 py-3 font-medium">
                                                         {row.subjectName}{' '}
-                                                        <span className="text-gray-400">({row.subjectCode})</span>
+                                                        <span className="text-muted-foreground">({row.subjectCode})</span>
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         {row.startTime} – {row.endTime}

@@ -46,7 +46,7 @@ export default function CashflowView({ outlook }: { outlook: CashflowOutlook }) 
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Cashflow Outlook</h1>
+                <h1 className="text-3xl font-bold text-foreground dark:text-white">Cashflow Outlook</h1>
                 <p className="text-muted-foreground mt-1">
                     Unpaid invoice balances for the next {outlook.horizonMonths} months, read from the fee
                     ledger on {formatDay(outlook.asOf)}.
@@ -138,7 +138,7 @@ export default function CashflowView({ outlook }: { outlook: CashflowOutlook }) 
                     <div className="flex gap-3">
                         <Info className="w-4 h-4 text-purple-600 dark:text-purple-400 mt-0.5 shrink-0" />
                         <div className="text-sm space-y-1">
-                            <p className="font-medium text-gray-900 dark:text-white">
+                            <p className="font-medium text-foreground dark:text-white">
                                 Projected collection is an extrapolation, not a commitment.
                             </p>
                             <p className="text-muted-foreground">
@@ -154,11 +154,11 @@ export default function CashflowView({ outlook }: { outlook: CashflowOutlook }) 
                     </div>
                 </div>
             )) : (
-                <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/40 p-4">
+                <div className="rounded-lg border border-border dark:border-gray-800 bg-muted dark:bg-gray-900/40 p-4">
                     <div className="flex gap-3">
                         <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                         <div className="text-sm space-y-1">
-                            <p className="font-medium text-gray-900 dark:text-white">
+                            <p className="font-medium text-foreground dark:text-white">
                                 Not enough billing history to project collections.
                             </p>
                             <p className="text-muted-foreground">
@@ -239,7 +239,7 @@ export default function CashflowView({ outlook }: { outlook: CashflowOutlook }) 
                     ) : (
                         <div className="py-12 text-center">
                             <CalendarClock className="h-10 w-10 mx-auto mb-3 text-muted-foreground opacity-40" />
-                            <p className="font-medium text-gray-900 dark:text-white">
+                            <p className="font-medium text-foreground dark:text-white">
                                 No invoices fall due in the next {outlook.horizonMonths} months.
                             </p>
                             <p className="text-sm text-muted-foreground mt-1">
@@ -263,7 +263,7 @@ export default function CashflowView({ outlook }: { outlook: CashflowOutlook }) 
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                            <thead className="bg-gray-50 dark:bg-gray-900/50">
+                            <thead className="bg-muted dark:bg-gray-900/50">
                                 <tr>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                                         Month
@@ -281,8 +281,8 @@ export default function CashflowView({ outlook }: { outlook: CashflowOutlook }) 
                             </thead>
                             <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                                 {outlook.months.map((m) => (
-                                    <tr key={m.month} className="hover:bg-gray-50 dark:hover:bg-gray-900/30">
-                                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                    <tr key={m.month} className="hover:bg-muted dark:hover:bg-gray-900/30">
+                                        <td className="px-4 py-3 font-medium text-foreground dark:text-white">
                                             {m.label}
                                         </td>
                                         <td className="px-4 py-3 text-right text-muted-foreground">
@@ -299,9 +299,9 @@ export default function CashflowView({ outlook }: { outlook: CashflowOutlook }) 
                                     </tr>
                                 ))}
                             </tbody>
-                            <tfoot className="bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-800">
+                            <tfoot className="bg-muted dark:bg-gray-900/50 border-t border-border dark:border-gray-800">
                                 <tr>
-                                    <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white">Total</td>
+                                    <td className="px-4 py-3 font-semibold text-foreground dark:text-white">Total</td>
                                     <td className="px-4 py-3" />
                                     <td className="px-4 py-3 text-right font-semibold text-blue-600 dark:text-blue-400">
                                         {formatCurrency(outlook.totalOutstanding)}

@@ -24,7 +24,7 @@ interface Props {
 }
 
 function statusOf(item: LeadDocumentPack['items'][number]) {
-    if (!item.document) return { label: 'Not received', className: 'bg-gray-100 text-gray-600' };
+    if (!item.document) return { label: 'Not received', className: 'bg-muted text-muted-foreground' };
     if (!item.document.verifiedAt) return { label: 'Awaiting check', className: 'bg-amber-100 text-amber-700' };
     return { label: 'Verified', className: 'bg-emerald-100 text-emerald-700' };
 }
@@ -110,7 +110,7 @@ export default function DocumentsChecklist({ pack }: Props) {
         <div className="space-y-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Document Checklist</h1>
+                    <h1 className="text-2xl font-bold text-foreground dark:text-white">Document Checklist</h1>
                     <p className="text-muted-foreground mt-1">
                         {pack.childName} • {pack.applyingForGrade}
                         {pack.applicationNumber ? ` • Application ${pack.applicationNumber}` : ''}
@@ -124,19 +124,19 @@ export default function DocumentsChecklist({ pack }: Props) {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Card>
                     <CardContent className="pt-5">
-                        <div className="text-sm text-gray-500">Recorded</div>
+                        <div className="text-sm text-muted-foreground">Recorded</div>
                         <div className="text-2xl font-bold text-blue-600">{pack.recordedCount}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-5">
-                        <div className="text-sm text-gray-500">Verified</div>
+                        <div className="text-sm text-muted-foreground">Verified</div>
                         <div className="text-2xl font-bold text-emerald-600">{pack.verifiedCount}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-5">
-                        <div className="text-sm text-gray-500">Required still outstanding</div>
+                        <div className="text-sm text-muted-foreground">Required still outstanding</div>
                         <div className="text-2xl font-bold text-amber-600">{pack.requiredOutstanding}</div>
                     </CardContent>
                 </Card>
@@ -155,7 +155,7 @@ export default function DocumentsChecklist({ pack }: Props) {
                 <Card>
                     <CardContent className="pt-6 flex flex-wrap items-center justify-between gap-4">
                         <div>
-                            <p className="font-medium text-gray-900 dark:text-white">No application opened yet</p>
+                            <p className="font-medium text-foreground dark:text-white">No application opened yet</p>
                             <p className="text-sm text-muted-foreground mt-1">
                                 Documents are filed against an application record. Recording the first document
                                 opens one automatically, or you can open it now.
@@ -179,7 +179,7 @@ export default function DocumentsChecklist({ pack }: Props) {
                     <button
                         type="button"
                         onClick={() => openDialog('__other__')}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900"
+                        className="px-3 py-1.5 text-sm border border-border dark:border-gray-700 rounded-lg hover:bg-muted dark:hover:bg-gray-900"
                     >
                         + Other document
                     </button>
@@ -187,13 +187,13 @@ export default function DocumentsChecklist({ pack }: Props) {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="bg-gray-50 dark:bg-gray-900 border-y">
+                            <thead className="bg-muted dark:bg-gray-900 border-y">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Document</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stored file</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Checked by</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Document</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Status</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Stored file</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Checked by</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
@@ -201,11 +201,11 @@ export default function DocumentsChecklist({ pack }: Props) {
                                     const status = statusOf(item);
                                     const doc = item.document;
                                     return (
-                                        <tr key={item.documentType} className="hover:bg-gray-50 dark:hover:bg-gray-900/40">
+                                        <tr key={item.documentType} className="hover:bg-muted dark:hover:bg-gray-900/40">
                                             <td className="px-4 py-3">
-                                                <div className="font-medium text-gray-900 dark:text-white">{item.documentType}</div>
+                                                <div className="font-medium text-foreground dark:text-white">{item.documentType}</div>
                                                 {!item.required && (
-                                                    <div className="text-xs text-gray-400">Additional</div>
+                                                    <div className="text-xs text-muted-foreground">Additional</div>
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
@@ -222,7 +222,7 @@ export default function DocumentsChecklist({ pack }: Props) {
                                                         {doc.fileName}
                                                     </a>
                                                 ) : (
-                                                    <span className="text-gray-400">—</span>
+                                                    <span className="text-muted-foreground">—</span>
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-muted-foreground">
@@ -242,7 +242,7 @@ export default function DocumentsChecklist({ pack }: Props) {
                                                             )
                                                         }
                                                         disabled={isPending}
-                                                        className="px-3 py-1 text-xs border border-gray-300 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-900 disabled:opacity-50"
+                                                        className="px-3 py-1 text-xs border border-border dark:border-gray-700 rounded hover:bg-muted dark:hover:bg-gray-900 disabled:opacity-50"
                                                     >
                                                         {doc ? 'Replace link' : 'Record link'}
                                                     </button>
@@ -270,7 +270,7 @@ export default function DocumentsChecklist({ pack }: Props) {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setConfirmRemoveId(null)}
-                                                                    className="px-2 py-1 text-xs text-gray-500"
+                                                                    className="px-2 py-1 text-xs text-muted-foreground"
                                                                 >
                                                                     Cancel
                                                                 </button>
@@ -342,7 +342,7 @@ export default function DocumentsChecklist({ pack }: Props) {
                             <button
                                 type="button"
                                 onClick={closeDialog}
-                                className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900"
+                                className="px-4 py-2 text-sm border border-border dark:border-gray-700 rounded-lg hover:bg-muted dark:hover:bg-gray-900"
                             >
                                 Cancel
                             </button>

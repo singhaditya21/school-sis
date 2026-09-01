@@ -47,7 +47,7 @@ export default async function TeacherSchedulePage({
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold">My Schedule</h1>
-                <p className="text-gray-600">
+                <p className="text-muted-foreground">
                     {todayWeekday === null
                         ? `Today is Sunday (${todayDate}) — the timetable only runs Monday to Saturday. Showing ${titleCase(selectedDay)}.`
                         : isToday
@@ -64,7 +64,7 @@ export default async function TeacherSchedulePage({
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
                             day === selectedDay
                                 ? 'bg-emerald-600 text-white border-emerald-600'
-                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                : 'bg-white text-foreground border-border hover:bg-muted'
                         }`}
                     >
                         {titleCase(day)}
@@ -92,8 +92,8 @@ export default async function TeacherSchedulePage({
                             >
                                 <div className="flex justify-between items-start gap-4">
                                     <div>
-                                        <p className="font-medium text-gray-900">{period.name}</p>
-                                        <p className="text-sm text-gray-500">
+                                        <p className="font-medium text-foreground">{period.name}</p>
+                                        <p className="text-sm text-muted-foreground">
                                             {period.startTime} – {period.endTime}
                                         </p>
                                     </div>
@@ -109,7 +109,7 @@ export default async function TeacherSchedulePage({
                                                 <p className="text-sm font-semibold text-green-700">
                                                     {substitution.reason ?? 'Reason not recorded'}
                                                 </p>
-                                                <p className="text-xs text-gray-500">
+                                                <p className="text-xs text-muted-foreground">
                                                     Class: {substitution.className}
                                                 </p>
                                                 {substitution.sectionId && (
@@ -126,11 +126,11 @@ export default async function TeacherSchedulePage({
                                                 <p className="text-sm font-semibold text-blue-700">
                                                     {regular.subjectName}
                                                 </p>
-                                                <p className="text-xs text-gray-500">
+                                                <p className="text-xs text-muted-foreground">
                                                     Class: {regular.className}
                                                 </p>
                                                 {regular.roomNumber && (
-                                                    <p className="text-xs text-gray-400">
+                                                    <p className="text-xs text-muted-foreground">
                                                         Room {regular.roomNumber}
                                                     </p>
                                                 )}
@@ -146,7 +146,7 @@ export default async function TeacherSchedulePage({
                                                 Break
                                             </span>
                                         ) : (
-                                            <span className="text-xs text-gray-400 italic">Free period</span>
+                                            <span className="text-xs text-muted-foreground italic">Free period</span>
                                         )}
                                     </div>
                                 </div>
@@ -154,7 +154,7 @@ export default async function TeacherSchedulePage({
                         );
                     })}
                     {periods.length === 0 && (
-                        <div className="p-8 text-center text-gray-500">
+                        <div className="p-8 text-center text-muted-foreground">
                             No periods have been configured for this school, so no timetable can be shown.
                         </div>
                     )}

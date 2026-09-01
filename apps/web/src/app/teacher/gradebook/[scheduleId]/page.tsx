@@ -26,7 +26,7 @@ export default async function TeacherMarksEntryPage({
                     <h1 className="text-2xl font-bold">
                         {header.gradeName} · {header.subjectName}
                     </h1>
-                    <p className="text-gray-600">
+                    <p className="text-muted-foreground">
                         {header.examName} ({header.examType.replace(/_/g, ' ')}) ·{' '}
                         {formatDate(header.examDate)}
                     </p>

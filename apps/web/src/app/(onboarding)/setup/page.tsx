@@ -40,17 +40,17 @@ export default function SetupWorkspacePage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-muted flex flex-col justify-center py-12 sm:px-6 lg:px-8">
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="flex justify-center">
                     <div className="h-12 w-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg transform -rotate-6">
                         <Building2 className="h-8 w-8 text-white transform rotate-6" />
                     </div>
                 </div>
-                <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900 tracking-tight">
+                <h2 className="mt-6 text-center text-3xl font-extrabold text-foreground tracking-tight">
                     Onboard your school
                 </h2>
-                <p className="mt-2 text-center text-sm text-slate-600">
+                <p className="mt-2 text-center text-sm text-muted-foreground">
                     Set up your dedicated workspace in seconds.
                 </p>
             </div>
@@ -72,10 +72,10 @@ export default function SetupWorkspacePage() {
 
                             <div className="space-y-4">
                                 <div>
-                                    <label htmlFor="schoolName" className="block text-sm font-medium text-slate-700">Official School Name</label>
+                                    <label htmlFor="schoolName" className="block text-sm font-medium text-foreground">Official School Name</label>
                                     <div className="mt-1 relative rounded-md shadow-sm">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <Building2 className="h-5 w-5 text-slate-400" />
+                                            <Building2 className="h-5 w-5 text-muted-foreground" />
                                         </div>
                                         <Input
                                             type="text"
@@ -90,48 +90,48 @@ export default function SetupWorkspacePage() {
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label htmlFor="adminFirstName" className="block text-sm font-medium text-slate-700">Admin First Name</label>
+                                        <label htmlFor="adminFirstName" className="block text-sm font-medium text-foreground">Admin First Name</label>
                                         <div className="mt-1 relative rounded-md">
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <User className="h-5 w-5 text-slate-400" />
+                                                <User className="h-5 w-5 text-muted-foreground" />
                                             </div>
                                             <Input required type="text" name="adminFirstName" className="pl-10 h-11" placeholder="John" />
                                         </div>
                                     </div>
                                     <div>
-                                        <label htmlFor="adminLastName" className="block text-sm font-medium text-slate-700">Admin Last Name</label>
+                                        <label htmlFor="adminLastName" className="block text-sm font-medium text-foreground">Admin Last Name</label>
                                         <Input required type="text" name="adminLastName" className="mt-1 h-11" placeholder="Doe" />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label htmlFor="email" className="block text-sm font-medium text-slate-700">Admin Email Address</label>
+                                    <label htmlFor="email" className="block text-sm font-medium text-foreground">Admin Email Address</label>
                                     <div className="mt-1 relative rounded-md">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <Mail className="h-5 w-5 text-slate-400" />
+                                            <Mail className="h-5 w-5 text-muted-foreground" />
                                         </div>
                                         <Input required type="email" name="email" className="pl-10 h-11" placeholder="admin@stjudes.edu" />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label htmlFor="domain" className="block text-sm font-medium text-slate-700">Workspace Custom Domain URL</label>
+                                    <label htmlFor="domain" className="block text-sm font-medium text-foreground">Workspace Custom Domain URL</label>
                                     <div className="mt-1 relative rounded-md flex">
-                                        <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-slate-300 bg-slate-50 text-slate-500 sm:text-sm">
+                                        <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-border bg-muted text-muted-foreground sm:text-sm">
                                             https://
                                         </span>
                                         <Input required type="text" name="domain" className="flex-1 rounded-none rounded-r-md h-11" placeholder="stjudes" />
-                                        <span className="inline-flex items-center px-3 rounded-l-md border border-l-0 border-slate-300 bg-slate-50 text-slate-500 sm:text-sm">
+                                        <span className="inline-flex items-center px-3 rounded-l-md border border-l-0 border-border bg-muted text-muted-foreground sm:text-sm">
                                             .scholarmind.app
                                         </span>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label htmlFor="password" className="block text-sm font-medium text-slate-700">Secure Password</label>
+                                    <label htmlFor="password" className="block text-sm font-medium text-foreground">Secure Password</label>
                                     <div className="mt-1 relative rounded-md">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <Lock className="h-5 w-5 text-slate-400" />
+                                            <Lock className="h-5 w-5 text-muted-foreground" />
                                         </div>
                                         <Input required type="password" name="password" className="pl-10 h-11" placeholder="Minimum 12 characters" minLength={12} />
                                     </div>
@@ -157,7 +157,7 @@ export default function SetupWorkspacePage() {
                         </form>
                     </CardContent>
                 </Card>
-                <p className="mt-8 text-center text-sm text-slate-500 max-w-sm mx-auto">
+                <p className="mt-8 text-center text-sm text-muted-foreground max-w-sm mx-auto">
                     By proceeding, you agree to ScholarMind's Terms of Service and Data Processing Addendum.
                 </p>
             </div>

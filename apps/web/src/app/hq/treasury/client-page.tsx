@@ -160,13 +160,13 @@ export default function TreasuryClient({
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-white tracking-tight">Cross-Campus Finance</h1>
-                    <p className="text-sm text-slate-400 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                         Billing and collection performance across every campus, from the fee ledger.
                     </p>
                 </div>
                 {groups.length > 0 && (
                     <div className="flex items-center gap-2">
-                        <label htmlFor="hq-scope" className="text-xs uppercase tracking-widest text-slate-500">
+                        <label htmlFor="hq-scope" className="text-xs uppercase tracking-widest text-muted-foreground">
                             Scope
                         </label>
                         <select
@@ -186,8 +186,8 @@ export default function TreasuryClient({
 
             {!isGrouped && (
                 <div className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-950 px-5 py-4">
-                    <Info className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
-                    <p className="text-sm text-slate-400">
+                    <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <p className="text-sm text-muted-foreground">
                         No campus is mapped to an HQ group yet, so these figures are a flat rollup of every tenant.
                         Create a group and attach campuses in the{' '}
                         <Link href="/hq/policies" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">
@@ -204,7 +204,7 @@ export default function TreasuryClient({
                     label="Billed"
                     value={formatCurrency(totals.billed)}
                     hint={`${visible.length} campus${visible.length === 1 ? '' : 'es'}`}
-                    icon={<Landmark className="w-5 h-5 text-slate-500" />}
+                    icon={<Landmark className="w-5 h-5 text-muted-foreground" />}
                 />
                 <Kpi
                     label="Collected"
@@ -236,7 +236,7 @@ export default function TreasuryClient({
             </div>
 
             {pendingCash > 0 && (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground">
                     {formatCurrency(pendingCash)} of payment attempts are still <span className="font-mono">PENDING</span> and are
                     excluded from collected cash above.
                 </p>
@@ -260,12 +260,12 @@ export default function TreasuryClient({
                             <div key={r.region} className="bg-slate-950 border border-slate-800 rounded-xl p-5">
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm font-semibold text-white">{r.region}</span>
-                                    <span className="text-xs text-slate-500 flex items-center gap-1">
+                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
                                         <Building2 className="w-3 h-3" /> {r.campuses}
                                     </span>
                                 </div>
                                 <p className="text-2xl font-bold text-white mt-3">{formatCurrency(r.collected)}</p>
-                                <p className="text-xs text-slate-500 mt-1">
+                                <p className="text-xs text-muted-foreground mt-1">
                                     collected of {formatCurrency(r.billed)} billed
                                     {rate === null ? '' : ` · ${rate.toFixed(1)}%`}
                                 </p>
@@ -332,10 +332,10 @@ export default function TreasuryClient({
                     <div className="mt-4 space-y-2">
                         {methodData.map((m, i) => (
                             <div key={m.name} className="flex items-center justify-between text-xs">
-                                <span className="flex items-center gap-2 text-slate-400">
+                                <span className="flex items-center gap-2 text-muted-foreground">
                                     <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: METHOD_COLORS[i % METHOD_COLORS.length] }} />
                                     <span className="font-mono">{m.name}</span>
-                                    <span className="text-slate-600">({m.txns})</span>
+                                    <span className="text-muted-foreground">({m.txns})</span>
                                 </span>
                                 <span className="text-slate-200 tabular-nums">{formatCurrency(m.value)}</span>
                             </div>
@@ -376,11 +376,11 @@ export default function TreasuryClient({
             <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-slate-800">
                     <h3 className="text-sm font-semibold text-white">Campus ledger</h3>
-                    <p className="text-xs text-slate-500 mt-1">Amounts in rupees, from invoices and completed payments.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Amounts in rupees, from invoices and completed payments.</p>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-slate-300">
-                        <thead className="bg-slate-900 border-b border-slate-800 text-xs text-slate-500 uppercase tracking-widest">
+                        <thead className="bg-slate-900 border-b border-slate-800 text-xs text-muted-foreground uppercase tracking-widest">
                             <tr>
                                 <th className="px-6 py-4 font-semibold">Campus</th>
                                 <th className="px-6 py-4 font-semibold">Group / Region</th>
@@ -395,7 +395,7 @@ export default function TreasuryClient({
                         <tbody className="divide-y divide-slate-800/60">
                             {visible.length === 0 && (
                                 <tr>
-                                    <td colSpan={8} className="px-6 py-8 text-center text-slate-500">No campuses in this scope.</td>
+                                    <td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">No campuses in this scope.</td>
                                 </tr>
                             )}
                             {visible.map((c) => {
@@ -411,16 +411,16 @@ export default function TreasuryClient({
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="text-xs text-slate-500 font-mono mt-0.5">{c.code} · {c.tier}</div>
+                                            <div className="text-xs text-muted-foreground font-mono mt-0.5">{c.code} · {c.tier}</div>
                                         </td>
                                         <td className="px-6 py-4 text-xs">
                                             {c.groupName ? (
                                                 <>
                                                     <div className="text-slate-300">{c.groupName}</div>
-                                                    <div className="text-slate-500 mt-0.5">{c.groupRegion} · {c.campusType}</div>
+                                                    <div className="text-muted-foreground mt-0.5">{c.groupRegion} · {c.campusType}</div>
                                                 </>
                                             ) : (
-                                                <span className="text-slate-600">Unassigned</span>
+                                                <span className="text-muted-foreground">Unassigned</span>
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-right tabular-nums">{c.activeStudents.toLocaleString('en-IN')}</td>
@@ -430,7 +430,7 @@ export default function TreasuryClient({
                                         <td className="px-6 py-4 text-right tabular-nums text-rose-400">{formatCurrency(c.overdue)}</td>
                                         <td className="px-6 py-4">
                                             {rate === null ? (
-                                                <span className="text-xs text-slate-600">Not billed</span>
+                                                <span className="text-xs text-muted-foreground">Not billed</span>
                                             ) : (
                                                 <div className="flex items-center gap-3 min-w-[8rem]">
                                                     <div className="h-1.5 flex-1 bg-slate-800 rounded-full overflow-hidden">
@@ -475,9 +475,9 @@ function Kpi({
         <div className="bg-slate-950 border border-slate-800 p-5 rounded-xl">
             <div className="flex justify-between items-start gap-3">
                 <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-400 mb-1">{label}</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">{label}</p>
                     <p className={`text-2xl font-bold tabular-nums ${valueTone}`}>{value}</p>
-                    <p className="text-xs text-slate-500 mt-1">{hint}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{hint}</p>
                 </div>
                 <div className="shrink-0">{icon}</div>
             </div>
@@ -488,7 +488,7 @@ function Kpi({
 function EmptyChart({ message }: { message: string }) {
     return (
         <div className="h-full flex items-center justify-center">
-            <span className="text-sm text-slate-500">{message}</span>
+            <span className="text-sm text-muted-foreground">{message}</span>
         </div>
     );
 }

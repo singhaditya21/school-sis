@@ -70,14 +70,14 @@ export default async function CompliancePage() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Data Residency & Consent</h1>
-                <p className="text-sm text-slate-400 mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                     Where each campus&apos; data is hosted, what it is entitled to, and the communication consents on record.
                 </p>
             </div>
 
             <div className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-950 px-5 py-4">
-                <ShieldQuestion className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
-                <p className="text-sm text-slate-400">
+                <ShieldQuestion className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                <p className="text-sm text-muted-foreground">
                     Regulatory certification — FERPA and DPDP status, signed data processing agreements, encryption
                     attestations — is not tracked in this release. This page reports only what the platform actually stores,
                     so nothing here should be read as a compliance assertion.
@@ -88,9 +88,9 @@ export default async function CompliancePage() {
                 <div className="bg-slate-950 border border-slate-800 p-5 rounded-xl">
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-sm font-medium text-slate-400 mb-1">Hosting regions in use</p>
+                            <p className="text-sm font-medium text-muted-foreground mb-1">Hosting regions in use</p>
                             <p className="text-3xl font-bold text-white">{regions.size}</p>
-                            <p className="text-xs text-slate-500 mt-1">
+                            <p className="text-xs text-muted-foreground mt-1">
                                 Across {campuses.length} campus{campuses.length === 1 ? '' : 'es'}
                             </p>
                         </div>
@@ -100,9 +100,9 @@ export default async function CompliancePage() {
                 <div className="bg-slate-950 border border-slate-800 p-5 rounded-xl">
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-sm font-medium text-slate-400 mb-1">Campuses without a company record</p>
+                            <p className="text-sm font-medium text-muted-foreground mb-1">Campuses without a company record</p>
                             <p className={`text-3xl font-bold ${unlinked > 0 ? 'text-amber-400' : 'text-white'}`}>{unlinked}</p>
-                            <p className="text-xs text-slate-500 mt-1">Region and tier unknown for these</p>
+                            <p className="text-xs text-muted-foreground mt-1">Region and tier unknown for these</p>
                         </div>
                         <Info className="w-5 h-5 text-amber-400" />
                     </div>
@@ -110,9 +110,9 @@ export default async function CompliancePage() {
                 <div className="bg-slate-950 border border-slate-800 p-5 rounded-xl">
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-sm font-medium text-slate-400 mb-1">Communication consents recorded</p>
+                            <p className="text-sm font-medium text-muted-foreground mb-1">Communication consents recorded</p>
                             <p className="text-3xl font-bold text-white">{totalConsents.toLocaleString('en-IN')}</p>
-                            <p className="text-xs text-slate-500 mt-1">
+                            <p className="text-xs text-muted-foreground mt-1">
                                 {totalConsents === 0
                                     ? 'No consent captured yet'
                                     : `${totalOptedIn.toLocaleString('en-IN')} opted in`}
@@ -134,7 +134,7 @@ export default async function CompliancePage() {
                             >
                                 <Server className="w-3 h-3" />
                                 {region}
-                                <span className="text-slate-400">· {count}</span>
+                                <span className="text-muted-foreground">· {count}</span>
                             </span>
                         ))}
                 </div>
@@ -146,7 +146,7 @@ export default async function CompliancePage() {
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-slate-300">
-                        <thead className="bg-slate-900 border-b border-slate-800 text-xs text-slate-500 uppercase tracking-widest">
+                        <thead className="bg-slate-900 border-b border-slate-800 text-xs text-muted-foreground uppercase tracking-widest">
                             <tr>
                                 <th className="px-6 py-4 font-semibold">Campus</th>
                                 <th className="px-6 py-4 font-semibold">Hosting region</th>
@@ -158,14 +158,14 @@ export default async function CompliancePage() {
                         <tbody className="divide-y divide-slate-800/60">
                             {campuses.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">No campuses provisioned yet.</td>
+                                    <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">No campuses provisioned yet.</td>
                                 </tr>
                             )}
                             {campuses.map((campus) => (
                                 <tr key={campus.id} className="hover:bg-slate-900/50 transition-colors align-top">
                                     <td className="px-6 py-4">
                                         <div className="font-semibold text-white">{campus.name}</div>
-                                        <div className="text-xs text-slate-500 font-mono mt-0.5">
+                                        <div className="text-xs text-muted-foreground font-mono mt-0.5">
                                             {campus.code}{campus.isActive ? '' : ' · suspended'}
                                         </div>
                                     </td>
@@ -176,32 +176,32 @@ export default async function CompliancePage() {
                                                 {campus.region}
                                             </span>
                                         ) : (
-                                            <span className="text-xs text-slate-600">No company record</span>
+                                            <span className="text-xs text-muted-foreground">No company record</span>
                                         )}
                                     </td>
                                     <td className="px-6 py-4 text-xs">
-                                        {campus.tier ?? <span className="text-slate-600">Unknown</span>}
+                                        {campus.tier ?? <span className="text-muted-foreground">Unknown</span>}
                                     </td>
                                     <td className="px-6 py-4 text-xs">
                                         {campus.activeModules && campus.activeModules.length > 0 ? (
                                             <div className="flex flex-wrap gap-1 max-w-sm">
                                                 {campus.activeModules.map((m) => (
-                                                    <span key={m} className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 font-mono">
+                                                    <span key={m} className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-muted-foreground font-mono">
                                                         {m}
                                                     </span>
                                                 ))}
                                             </div>
                                         ) : (
-                                            <span className="text-slate-600">Not recorded</span>
+                                            <span className="text-muted-foreground">Not recorded</span>
                                         )}
                                     </td>
                                     <td className="px-6 py-4 text-xs">
                                         {campus.optedIn + campus.optedOut === 0 ? (
-                                            <span className="text-slate-600">None captured</span>
+                                            <span className="text-muted-foreground">None captured</span>
                                         ) : (
                                             <span className="tabular-nums">
                                                 <span className="text-emerald-400">{campus.optedIn} opted in</span>
-                                                <span className="text-slate-600"> · </span>
+                                                <span className="text-muted-foreground"> · </span>
                                                 <span className="text-amber-400">{campus.optedOut} opted out</span>
                                             </span>
                                         )}

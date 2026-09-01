@@ -149,7 +149,7 @@ export default function StopsManager({ routeId, stops, canWrite }: StopsManagerP
             </div>
 
             {stops.length === 0 ? (
-                <p className="text-gray-500 italic">No stops configured for this route.</p>
+                <p className="text-muted-foreground italic">No stops configured for this route.</p>
             ) : (
                 <div className="space-y-3">
                     {stops.map((stop, index) => (
@@ -164,12 +164,12 @@ export default function StopsManager({ routeId, stops, canWrite }: StopsManagerP
                                 </div>
                                 <div>
                                     <p className="font-semibold text-sm">{stop.name}</p>
-                                    {stop.address && <p className="text-xs text-gray-400">{stop.address}</p>}
-                                    <p className="text-xs text-gray-500">
+                                    {stop.address && <p className="text-xs text-muted-foreground">{stop.address}</p>}
+                                    <p className="text-xs text-muted-foreground">
                                         Pickup {stop.pickupTime || '—'} · Drop {stop.dropTime || '—'}
                                     </p>
                                     {stop.assignmentCount > 0 && (
-                                        <p className="text-xs text-gray-400">
+                                        <p className="text-xs text-muted-foreground">
                                             {stop.assignmentCount} assignment{stop.assignmentCount === 1 ? '' : 's'}
                                         </p>
                                     )}
@@ -180,7 +180,7 @@ export default function StopsManager({ routeId, stops, canWrite }: StopsManagerP
                                     <>
                                         <button
                                             type="button"
-                                            className="px-1 text-gray-500 hover:text-gray-900 disabled:opacity-30"
+                                            className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
                                             onClick={() => handleMove(stop, 'up')}
                                             disabled={index === 0 || movingId === stop.id}
                                             aria-label={`Move ${stop.name} earlier`}
@@ -189,7 +189,7 @@ export default function StopsManager({ routeId, stops, canWrite }: StopsManagerP
                                         </button>
                                         <button
                                             type="button"
-                                            className="px-1 text-gray-500 hover:text-gray-900 disabled:opacity-30"
+                                            className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
                                             onClick={() => handleMove(stop, 'down')}
                                             disabled={index === stops.length - 1 || movingId === stop.id}
                                             aria-label={`Move ${stop.name} later`}
@@ -214,7 +214,7 @@ export default function StopsManager({ routeId, stops, canWrite }: StopsManagerP
                                         </button>
                                     </>
                                 ) : (
-                                    <span className="text-gray-500">Order: {stop.displayOrder}</span>
+                                    <span className="text-muted-foreground">Order: {stop.displayOrder}</span>
                                 )}
                             </div>
                         </div>

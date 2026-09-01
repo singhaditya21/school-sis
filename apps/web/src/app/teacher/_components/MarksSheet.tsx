@@ -79,7 +79,7 @@ export function MarksSheet({
 
     if (rows.length === 0) {
         return (
-            <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
+            <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
                 No active students sit this paper in the sections you teach.
             </div>
         );
@@ -96,14 +96,14 @@ export function MarksSheet({
 
             <div className="overflow-x-auto">
                 <table className="w-full text-sm" data-testid="teacher-marks-sheet">
-                    <thead className="bg-gray-50 border-b">
+                    <thead className="bg-muted border-b">
                         <tr>
-                            <th className="px-4 py-3 text-left font-medium text-gray-500">Roll</th>
-                            <th className="px-4 py-3 text-left font-medium text-gray-500">Student</th>
-                            <th className="px-4 py-3 text-left font-medium text-gray-500">Section</th>
-                            <th className="px-4 py-3 text-left font-medium text-gray-500">Marks / {maxMarks}</th>
-                            <th className="px-4 py-3 text-left font-medium text-gray-500">Absent</th>
-                            <th className="px-4 py-3 text-left font-medium text-gray-500">Saved grade</th>
+                            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Roll</th>
+                            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Student</th>
+                            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Section</th>
+                            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Marks / {maxMarks}</th>
+                            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Absent</th>
+                            <th className="px-4 py-3 text-left font-medium text-muted-foreground">Saved grade</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -114,17 +114,17 @@ export function MarksSheet({
                             const failing =
                                 numeric !== null && Number.isFinite(numeric) && numeric < passingMarks;
                             return (
-                                <tr key={row.studentId} className={row.isLocked ? 'bg-gray-50' : ''}>
-                                    <td className="px-4 py-2 text-gray-500">{row.rollNumber ?? '—'}</td>
+                                <tr key={row.studentId} className={row.isLocked ? 'bg-muted' : ''}>
+                                    <td className="px-4 py-2 text-muted-foreground">{row.rollNumber ?? '—'}</td>
                                     <td className="px-4 py-2">
-                                        <div className="font-medium text-gray-900">
+                                        <div className="font-medium text-foreground">
                                             {row.firstName} {row.lastName}
                                         </div>
-                                        <div className="text-xs text-gray-500 font-mono">
+                                        <div className="text-xs text-muted-foreground font-mono">
                                             {row.admissionNumber}
                                         </div>
                                     </td>
-                                    <td className="px-4 py-2 text-gray-600">{row.sectionName}</td>
+                                    <td className="px-4 py-2 text-muted-foreground">{row.sectionName}</td>
                                     <td className="px-4 py-2">
                                         <input
                                             type="number"
@@ -135,10 +135,10 @@ export function MarksSheet({
                                             value={draft?.isAbsent ? '' : value}
                                             disabled={row.isLocked || pending || draft?.isAbsent}
                                             onChange={(e) => update(row.studentId, { marks: e.target.value })}
-                                            className={`w-24 border rounded px-2 py-1 disabled:bg-gray-100 disabled:text-gray-400 ${
+                                            className={`w-24 border rounded px-2 py-1 disabled:bg-muted disabled:text-muted-foreground ${
                                                 failing && !draft?.isAbsent
                                                     ? 'border-rose-400 text-rose-700'
-                                                    : 'border-gray-300'
+                                                    : 'border-border'
                                             }`}
                                             aria-label={`Marks for ${row.firstName} ${row.lastName}`}
                                         />
@@ -155,8 +155,8 @@ export function MarksSheet({
                                             aria-label={`Mark ${row.firstName} ${row.lastName} absent`}
                                         />
                                     </td>
-                                    <td className="px-4 py-2 text-gray-600">
-                                        {row.grade ?? <span className="text-gray-400">not entered</span>}
+                                    <td className="px-4 py-2 text-muted-foreground">
+                                        {row.grade ?? <span className="text-muted-foreground">not entered</span>}
                                     </td>
                                 </tr>
                             );
@@ -166,7 +166,7 @@ export function MarksSheet({
             </div>
 
             <div className="p-4 border-t flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted-foreground">
                     Pass mark {passingMarks} of {maxMarks}. Blank fields are skipped, not stored as zero.
                 </p>
                 <button

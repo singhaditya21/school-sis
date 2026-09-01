@@ -16,9 +16,9 @@ export default async function TimetablePeriodsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold">Periods</h1>
-                    <p className="text-gray-600 mt-1">The daily bell schedule every class timetable is built on</p>
+                    <p className="text-muted-foreground mt-1">The daily bell schedule every class timetable is built on</p>
                 </div>
-                <Link href="/timetable" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                <Link href="/timetable" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">
                     ← Back to Timetable
                 </Link>
             </div>

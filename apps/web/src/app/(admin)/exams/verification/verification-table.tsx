@@ -79,8 +79,8 @@ export function VerificationTable({ rows, truncated }: Props) {
     if (rows.length === 0) {
         return (
             <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                <p className="font-medium text-gray-900">Nothing awaiting verification</p>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="font-medium text-foreground">Nothing awaiting verification</p>
+                <p className="text-sm text-muted-foreground mt-1">
                     Every saved result for this selection has already been verified and locked.
                 </p>
             </div>
@@ -91,7 +91,7 @@ export function VerificationTable({ rows, truncated }: Props) {
         <div className="bg-white rounded-xl shadow-sm border">
             <div className="p-4 border-b flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 className="font-semibold text-gray-900">Awaiting verification</h2>
+                    <h2 className="font-semibold text-foreground">Awaiting verification</h2>
                     <p className="text-sm text-muted-foreground">
                         {rows.length} result(s) shown{truncated && ' (first 200)'} ·{' '}
                         {selected.size} selected

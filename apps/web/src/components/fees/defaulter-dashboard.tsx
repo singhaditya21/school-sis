@@ -102,8 +102,8 @@ function AgeingAnalysis({ buckets }: { buckets: AgeingBucket[] }) {
     ];
 
     return (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        <div className="rounded-xl border border-border dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
+            <h3 className="text-lg font-semibold text-foreground dark:text-white mb-4">
                 Ageing Analysis
             </h3>
             <div className="space-y-4">
@@ -119,12 +119,12 @@ function AgeingAnalysis({ buckets }: { buckets: AgeingBucket[] }) {
                                     <Badge variant="outline" className="text-xs">
                                         {bucket.count} invoice{bucket.count !== 1 ? 's' : ''}
                                     </Badge>
-                                    <span className="font-semibold text-gray-900 dark:text-white w-28 text-right">
+                                    <span className="font-semibold text-foreground dark:text-white w-28 text-right">
                                         {formatCurrency(bucket.amount)}
                                     </span>
                                 </div>
                             </div>
-                            <div className="h-3 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                            <div className="h-3 bg-muted dark:bg-gray-800 rounded-full overflow-hidden">
                                 <div
                                     className={`h-full ${ageingColors[idx].bar} rounded-full transition-all duration-500`}
                                     style={{ width: `${Math.max(percentage, 2)}%` }}
@@ -170,9 +170,9 @@ function DefaulterTable({
     }
 
     return (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="rounded-xl border border-border dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden">
+            <div className="p-4 border-b border-border dark:border-gray-800 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-foreground dark:text-white">
                     Defaulter List
                     <Badge variant="outline" className="ml-2 text-xs">
                         {defaulters.length} student{defaulters.length !== 1 ? 's' : ''}
@@ -184,7 +184,7 @@ function DefaulterTable({
                         onClick={() => onSortChange('amount')}
                         className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${sortBy === 'amount'
                                 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
-                                : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground'
+                                : 'hover:bg-muted dark:hover:bg-gray-800 text-muted-foreground'
                             }`}
                     >
                         <ArrowUpDown className="w-3 h-3 inline mr-1" />
@@ -194,7 +194,7 @@ function DefaulterTable({
                         onClick={() => onSortChange('days')}
                         className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${sortBy === 'days'
                                 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
-                                : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground'
+                                : 'hover:bg-muted dark:hover:bg-gray-800 text-muted-foreground'
                             }`}
                     >
                         <ArrowUpDown className="w-3 h-3 inline mr-1" />
@@ -206,7 +206,7 @@ function DefaulterTable({
             <div className="overflow-x-auto">
                 <table className="w-full">
                     <thead>
-                        <tr className="bg-gray-50 dark:bg-gray-900/50">
+                        <tr className="bg-muted dark:bg-gray-900/50">
                             <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                 Student
                             </th>
@@ -256,17 +256,17 @@ function DefaulterTable({
                             return (
                                 <tr
                                     key={d.studentId}
-                                    className={`${urgency} hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors`}
+                                    className={`${urgency} hover:bg-muted dark:hover:bg-gray-900/30 transition-colors`}
                                 >
                                     <td className="px-4 py-3">
-                                        <div className="font-medium text-gray-900 dark:text-white text-sm">
+                                        <div className="font-medium text-foreground dark:text-white text-sm">
                                             {d.studentName}
                                         </div>
                                     </td>
                                     <td className="px-4 py-3 text-sm text-muted-foreground">
                                         {d.className}
                                     </td>
-                                    <td className="px-4 py-3 text-right text-sm font-medium text-gray-900 dark:text-white">
+                                    <td className="px-4 py-3 text-right text-sm font-medium text-foreground dark:text-white">
                                         {formatCurrency(d.totalDue)}
                                     </td>
                                     <td className="px-4 py-3 text-right text-sm text-green-600 dark:text-green-400">
@@ -287,7 +287,7 @@ function DefaulterTable({
                                         <div className="flex items-center justify-end gap-1">
                                             <Link
                                                 href={studentInvoicesHref(d.studentName)}
-                                                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground hover:text-blue-600 transition-colors inline-flex"
+                                                className="p-1.5 rounded-lg hover:bg-muted dark:hover:bg-gray-800 text-muted-foreground hover:text-blue-600 transition-colors inline-flex"
                                                 title={`View all invoices for ${d.studentName}`}
                                                 aria-label={`View all invoices for ${d.studentName}`}
                                             >
@@ -305,7 +305,7 @@ function DefaulterTable({
                                             {payableInvoiceIds[d.studentId] ? (
                                                 <Link
                                                     href={`/invoices/${payableInvoiceIds[d.studentId]}`}
-                                                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground hover:text-green-600 transition-colors inline-flex"
+                                                    className="p-1.5 rounded-lg hover:bg-muted dark:hover:bg-gray-800 text-muted-foreground hover:text-green-600 transition-colors inline-flex"
                                                     title={`Record a payment against ${d.studentName}'s oldest overdue invoice`}
                                                     aria-label={`Record a payment for ${d.studentName}`}
                                                 >
@@ -314,7 +314,7 @@ function DefaulterTable({
                                             ) : (
                                                 <Link
                                                     href={studentInvoicesHref(d.studentName)}
-                                                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-muted-foreground hover:text-green-600 transition-colors inline-flex"
+                                                    className="p-1.5 rounded-lg hover:bg-muted dark:hover:bg-gray-800 text-muted-foreground hover:text-green-600 transition-colors inline-flex"
                                                     title={`Pick an invoice for ${d.studentName} to record a payment`}
                                                     aria-label={`Record a payment for ${d.studentName}`}
                                                 >
@@ -366,7 +366,7 @@ export default function DefaulterDashboard({
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-foreground dark:text-white flex items-center gap-2">
                         <AlertTriangle className="w-5 h-5 text-red-500" />
                         Fee Defaulter Dashboard
                     </h2>

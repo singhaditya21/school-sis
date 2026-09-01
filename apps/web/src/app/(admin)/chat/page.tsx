@@ -51,8 +51,8 @@ export default async function ChatPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Assistant</h1>
-                <p className="mt-1 text-sm text-gray-500">
+                <h1 className="text-2xl font-bold text-foreground">Assistant</h1>
+                <p className="mt-1 text-sm text-muted-foreground">
                     Two bounded tools, both human-in-the-loop. The school assistant answers questions using a fixed set
                     of permission-checked operations against your school only. The report copilot drafts a report
                     configuration you then run yourself on the{' '}
@@ -68,14 +68,14 @@ export default async function ChatPage() {
                     <CardHeader>
                         <CardTitle>No model provider is configured</CardTitle>
                     </CardHeader>
-                    <CardContent className="text-sm text-gray-600">{provider.reason}</CardContent>
+                    <CardContent className="text-sm text-muted-foreground">{provider.reason}</CardContent>
                 </Card>
             ) : assistantTools.length === 0 ? (
                 <Card>
                     <CardHeader>
                         <CardTitle>No assistant operation is open to your role</CardTitle>
                     </CardHeader>
-                    <CardContent className="text-sm text-gray-600">
+                    <CardContent className="text-sm text-muted-foreground">
                         Your role (<code>{session.role}</code>) holds none of the permissions the assistant&apos;s
                         operations require, so it has nothing it can look up for you.
                     </CardContent>
@@ -84,7 +84,7 @@ export default async function ChatPage() {
                 <div className="space-y-2">
                     <AssistantConsole tools={assistantTools} />
                     {usage ? (
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                             This school has used {usage.tokensUsedToday.toLocaleString('en-IN')} of{' '}
                             {usage.dailyTokenLimit.toLocaleString('en-IN')} model tokens and {usage.requestsToday} of{' '}
                             {usage.dailyRequestLimit} assistant requests today.
@@ -93,14 +93,14 @@ export default async function ChatPage() {
                 </div>
             )}
 
-            <h2 className="text-lg font-semibold text-gray-900">Report copilot</h2>
+            <h2 className="text-lg font-semibold text-foreground">Report copilot</h2>
 
             {!allowed ? (
                 <Card>
                     <CardHeader>
                         <CardTitle>Not available for your role</CardTitle>
                     </CardHeader>
-                    <CardContent className="text-sm text-gray-600">
+                    <CardContent className="text-sm text-muted-foreground">
                         The report copilot is limited to administrative and teaching roles. Your role (
                         <code>{session.role}</code>) is not one of them, so nothing is drafted here.
                     </CardContent>
@@ -110,7 +110,7 @@ export default async function ChatPage() {
                     <CardHeader>
                         <CardTitle>No dataset your role can report on</CardTitle>
                     </CardHeader>
-                    <CardContent className="text-sm text-gray-600">
+                    <CardContent className="text-sm text-muted-foreground">
                         The BI catalog grants your role no dataset that the reporting engine can execute, so there is
                         nothing for the copilot to draft against. Ask an administrator for the relevant read permission
                         (for example <code>fees:read</code> or <code>attendance:read</code>).
@@ -121,7 +121,7 @@ export default async function ChatPage() {
                     <CardHeader>
                         <CardTitle>No model provider is configured for the report copilot</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-3 text-sm text-gray-600">
+                    <CardContent className="space-y-3 text-sm text-muted-foreground">
                         <p>
                             This deployment has no <code>CEREBRAS_API_KEY</code> set, so the copilot cannot translate a
                             request into a report draft. Rather than guess at an answer, the console is switched off.
@@ -134,10 +134,10 @@ export default async function ChatPage() {
                             </Link>
                             , which needs no model provider.
                         </p>
-                        <ul className="list-disc space-y-1 pl-5 text-xs text-gray-500">
+                        <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
                             {datasets.map((dataset) => (
                                 <li key={dataset.id}>
-                                    <span className="font-medium text-gray-700">{dataset.label}</span> —{' '}
+                                    <span className="font-medium text-foreground">{dataset.label}</span> —{' '}
                                     {dataset.description}
                                 </li>
                             ))}

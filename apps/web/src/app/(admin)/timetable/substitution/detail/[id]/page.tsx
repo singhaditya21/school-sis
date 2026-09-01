@@ -18,7 +18,7 @@ function ErrorPanel({ title, body }: { title: string; body: string }) {
     return (
         <div data-testid="error-container" className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
             <h2 className="text-xl font-semibold text-red-700 mb-2">{title}</h2>
-            <p className="text-gray-600">{body}</p>
+            <p className="text-muted-foreground">{body}</p>
         </div>
     );
 }
@@ -52,28 +52,28 @@ export default async function SubstitutionDetailPage({ params }: { params: Promi
             <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
                 <h1 className="text-2xl font-bold">Substitution Request Detail</h1>
                 <div className="grid grid-cols-2 gap-4 text-sm pt-4">
-                    <span className="font-semibold text-gray-500">Date:</span>
+                    <span className="font-semibold text-muted-foreground">Date:</span>
                     <span>{request.date}</span>
 
-                    <span className="font-semibold text-gray-500">Absent Teacher:</span>
+                    <span className="font-semibold text-muted-foreground">Absent Teacher:</span>
                     <span className="font-medium text-red-600">{request.originalTeacher}</span>
 
-                    <span className="font-semibold text-gray-500">Substitute Teacher:</span>
+                    <span className="font-semibold text-muted-foreground">Substitute Teacher:</span>
                     <span className="font-medium text-green-700">{request.substitute || 'Unassigned'}</span>
 
-                    <span className="font-semibold text-gray-500">Class:</span>
+                    <span className="font-semibold text-muted-foreground">Class:</span>
                     <span>{request.className || 'Not set'}</span>
 
-                    <span className="font-semibold text-gray-500">Period:</span>
+                    <span className="font-semibold text-muted-foreground">Period:</span>
                     <span>{request.periodName || `Period ${request.period}`}</span>
 
-                    <span className="font-semibold text-gray-500">Reason:</span>
+                    <span className="font-semibold text-muted-foreground">Reason:</span>
                     <span>{request.reason || 'Not given'}</span>
 
-                    <span className="font-semibold text-gray-500">Status:</span>
+                    <span className="font-semibold text-muted-foreground">Status:</span>
                     <span className="capitalize font-semibold">{request.status}</span>
 
-                    <span className="font-semibold text-gray-500">Attached to timetable:</span>
+                    <span className="font-semibold text-muted-foreground">Attached to timetable:</span>
                     <span data-testid="detail-linked">
                         {request.linkedEntryId
                             ? 'Yes — cover is recorded against the scheduled slot'

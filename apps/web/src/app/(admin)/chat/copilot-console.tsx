@@ -114,7 +114,7 @@ export default function CopilotConsole({ datasets }: { datasets: CopilotDataset[
                                 disabled={pending}
                             />
                             <div className="flex items-center justify-between">
-                                <p className="text-xs text-gray-500">
+                                <p className="text-xs text-muted-foreground">
                                     Rate limited to 10 drafts per user per window.
                                 </p>
                                 <Button type="submit" disabled={pending || question.trim() === ''}>
@@ -133,7 +133,7 @@ export default function CopilotConsole({ datasets }: { datasets: CopilotDataset[
                 </Card>
 
                 {exchanges.length === 0 ? (
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                         No drafts yet. Anything the copilot proposes is checked against your role&apos;s catalog before
                         it is shown.
                     </p>
@@ -171,13 +171,13 @@ export default function CopilotConsole({ datasets }: { datasets: CopilotDataset[
                 </CardHeader>
                 <CardContent className="space-y-3">
                     {datasets.map((dataset) => (
-                        <div key={dataset.id} className="rounded-md border border-gray-200 p-3">
+                        <div key={dataset.id} className="rounded-md border border-border p-3">
                             <div className="flex items-center justify-between gap-2">
-                                <p className="text-sm font-medium text-gray-900">{dataset.label}</p>
+                                <p className="text-sm font-medium text-foreground">{dataset.label}</p>
                                 <Badge variant="outline">{dataset.domain}</Badge>
                             </div>
-                            <p className="mt-1 text-xs text-gray-500">{dataset.description}</p>
-                            <p className="mt-2 text-xs text-gray-400">
+                            <p className="mt-1 text-xs text-muted-foreground">{dataset.description}</p>
+                            <p className="mt-2 text-xs text-muted-foreground">
                                 {dataset.metrics.length} metric{dataset.metrics.length === 1 ? '' : 's'} ·{' '}
                                 {dataset.dimensions.length} dimension{dataset.dimensions.length === 1 ? '' : 's'}
                             </p>
@@ -198,16 +198,16 @@ function DraftDetail({ summary, draft }: { summary: string; draft: CopilotReport
 
     return (
         <div className="space-y-3">
-            <p className="text-sm text-gray-900">{summary}</p>
+            <p className="text-sm text-foreground">{summary}</p>
 
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
                 <div>
-                    <dt className="text-xs uppercase tracking-wide text-gray-500">Dataset</dt>
-                    <dd className="text-gray-900">{draft.datasetLabel}</dd>
-                    <dd className="text-xs text-gray-500">{draft.datasetDescription}</dd>
+                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">Dataset</dt>
+                    <dd className="text-foreground">{draft.datasetLabel}</dd>
+                    <dd className="text-xs text-muted-foreground">{draft.datasetDescription}</dd>
                 </div>
                 <div>
-                    <dt className="text-xs uppercase tracking-wide text-gray-500">Metrics</dt>
+                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">Metrics</dt>
                     <dd className="flex flex-wrap gap-1 pt-1">
                         {draft.metrics.map((metric) => (
                             <Badge key={metric.id} variant="secondary">
@@ -217,10 +217,10 @@ function DraftDetail({ summary, draft }: { summary: string; draft: CopilotReport
                     </dd>
                 </div>
                 <div>
-                    <dt className="text-xs uppercase tracking-wide text-gray-500">Group by</dt>
+                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">Group by</dt>
                     <dd className="flex flex-wrap gap-1 pt-1">
                         {draft.dimensions.length === 0 ? (
-                            <span className="text-xs text-gray-500">No breakdown</span>
+                            <span className="text-xs text-muted-foreground">No breakdown</span>
                         ) : (
                             draft.dimensions.map((dimension) => (
                                 <Badge key={dimension.id} variant="outline">
@@ -231,8 +231,8 @@ function DraftDetail({ summary, draft }: { summary: string; draft: CopilotReport
                     </dd>
                 </div>
                 <div>
-                    <dt className="text-xs uppercase tracking-wide text-gray-500">Filters</dt>
-                    <dd className="pt-1 text-xs text-gray-700">
+                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">Filters</dt>
+                    <dd className="pt-1 text-xs text-foreground">
                         {draft.filters.length === 0
                             ? 'None'
                             : draft.filters
@@ -243,7 +243,7 @@ function DraftDetail({ summary, draft }: { summary: string; draft: CopilotReport
             </dl>
 
             {draft.dateFilterLabel && (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted-foreground">
                     An optional date range on this dataset filters by {draft.dateFilterLabel}. Set it yourself when you
                     run the report.
                 </p>

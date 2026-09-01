@@ -62,10 +62,10 @@ export default function MfaSetupPage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 py-12 px-4">
+        <div className="min-h-screen bg-muted py-12 px-4">
             <div className="mx-auto max-w-lg">
-                <h1 className="text-2xl font-bold text-slate-900">Secure your account</h1>
-                <p className="mt-2 text-sm text-slate-600">
+                <h1 className="text-2xl font-bold text-foreground">Secure your account</h1>
+                <p className="mt-2 text-sm text-muted-foreground">
                     Administrator accounts require two-factor authentication. Scan this code with
                     an authenticator app — Google Authenticator, 1Password, Authy or similar.
                 </p>
@@ -80,7 +80,7 @@ export default function MfaSetupPage() {
                 )}
 
                 {loading ? (
-                    <p className="mt-8 text-sm text-slate-500">Preparing your security key…</p>
+                    <p className="mt-8 text-sm text-muted-foreground">Preparing your security key…</p>
                 ) : (
                     qrCodeDataUrl && (
                         <>
@@ -94,12 +94,12 @@ export default function MfaSetupPage() {
                                     className="mx-auto"
                                     data-testid="mfa-qr"
                                 />
-                                <p className="mt-4 text-xs text-slate-500">
+                                <p className="mt-4 text-xs text-muted-foreground">
                                     Can&apos;t scan? Enter this key manually:
                                 </p>
                                 <code
                                     data-testid="mfa-secret"
-                                    className="mt-1 block break-all font-mono text-xs text-slate-700"
+                                    className="mt-1 block break-all font-mono text-xs text-foreground"
                                 >
                                     {secret}
                                 </code>
@@ -135,7 +135,7 @@ export default function MfaSetupPage() {
                             <form onSubmit={onSubmit} className="mt-6">
                                 <label
                                     htmlFor="code"
-                                    className="block text-sm font-medium text-slate-700"
+                                    className="block text-sm font-medium text-foreground"
                                 >
                                     Enter the 6-digit code from your app
                                 </label>

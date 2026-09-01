@@ -42,7 +42,7 @@ export const ROLE_COLORS: Record<string, string> = {
     TEACHER: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-300',
     TRANSPORT_MANAGER: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
     PARENT: 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300',
-    STUDENT: 'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-300',
+    STUDENT: 'bg-muted text-foreground dark:bg-slate-900 dark:text-slate-300',
 };
 
 // Value propositions for auth page

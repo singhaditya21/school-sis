@@ -81,14 +81,14 @@ function toFormState(vehicle: VehicleView | null): VehicleFormState {
 
 /** An expiry that has passed, or falls inside the next 30 days, is worth flagging. */
 function expiryTone(value: string | null): string {
-    if (!value) return 'text-gray-400';
+    if (!value) return 'text-muted-foreground';
     const soon = new Date();
     soon.setDate(soon.getDate() + 30);
     const asDate = new Date(`${value}T00:00:00`);
-    if (Number.isNaN(asDate.getTime())) return 'text-gray-400';
+    if (Number.isNaN(asDate.getTime())) return 'text-muted-foreground';
     if (asDate < new Date()) return 'text-red-600 font-semibold';
     if (asDate < soon) return 'text-orange-600 font-semibold';
-    return 'text-gray-600';
+    return 'text-muted-foreground';
 }
 
 export default function VehiclesManager({ vehicles, canWrite }: VehiclesManagerProps) {
@@ -167,16 +167,16 @@ export default function VehiclesManager({ vehicles, canWrite }: VehiclesManagerP
             <Card>
                 <CardContent className="p-0">
                     <Table>
-                        <TableHeader className="bg-gray-50">
+                        <TableHeader className="bg-muted">
                             <TableRow>
-                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Vehicle</TableHead>
-                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Driver</TableHead>
-                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Conductor</TableHead>
-                                <TableHead className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Seats</TableHead>
-                                <TableHead className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Routes</TableHead>
-                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Compliance</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Vehicle</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Driver</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Conductor</TableHead>
+                                <TableHead className="px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase">Seats</TableHead>
+                                <TableHead className="px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase">Routes</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Compliance</TableHead>
                                 {canWrite && (
-                                    <TableHead className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</TableHead>
+                                    <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Actions</TableHead>
                                 )}
                             </TableRow>
                         </TableHeader>
@@ -185,28 +185,28 @@ export default function VehiclesManager({ vehicles, canWrite }: VehiclesManagerP
                                 <TableRow key={vehicle.id} data-testid="vehicle-row">
                                     <TableCell className="px-4 py-3">
                                         <div className="font-medium">{vehicle.vehicleNumber}</div>
-                                        <div className="text-xs text-gray-500">{vehicle.type}</div>
+                                        <div className="text-xs text-muted-foreground">{vehicle.type}</div>
                                         {vehicle.gpsDeviceId && (
-                                            <div className="text-xs text-gray-400">GPS {vehicle.gpsDeviceId}</div>
+                                            <div className="text-xs text-muted-foreground">GPS {vehicle.gpsDeviceId}</div>
                                         )}
                                     </TableCell>
                                     <TableCell className="px-4 py-3 text-sm">
                                         {vehicle.driverName}
-                                        <div className="text-xs text-gray-500">{vehicle.driverPhone}</div>
+                                        <div className="text-xs text-muted-foreground">{vehicle.driverPhone}</div>
                                         {vehicle.driverLicense && (
-                                            <div className="text-xs text-gray-400">Licence {vehicle.driverLicense}</div>
+                                            <div className="text-xs text-muted-foreground">Licence {vehicle.driverLicense}</div>
                                         )}
                                     </TableCell>
                                     <TableCell className="px-4 py-3 text-sm">
                                         {vehicle.conductorName || '—'}
                                         {vehicle.conductorPhone && (
-                                            <div className="text-xs text-gray-500">{vehicle.conductorPhone}</div>
+                                            <div className="text-xs text-muted-foreground">{vehicle.conductorPhone}</div>
                                         )}
                                     </TableCell>
                                     <TableCell className="px-4 py-3 text-center">
                                         <span
                                             className={`font-semibold ${
-                                                vehicle.assignedStudents > vehicle.capacity ? 'text-red-600' : 'text-gray-900'
+                                                vehicle.assignedStudents > vehicle.capacity ? 'text-red-600' : 'text-foreground'
                                             }`}
                                         >
                                             {vehicle.assignedStudents}/{vehicle.capacity}
@@ -249,7 +249,7 @@ export default function VehiclesManager({ vehicles, canWrite }: VehiclesManagerP
                             ))}
                             {vehicles.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={canWrite ? 7 : 6} className="px-4 py-12 text-center text-gray-400">
+                                    <TableCell colSpan={canWrite ? 7 : 6} className="px-4 py-12 text-center text-muted-foreground">
                                         No vehicles recorded yet.
                                     </TableCell>
                                 </TableRow>

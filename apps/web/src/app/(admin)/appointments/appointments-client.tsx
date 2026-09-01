@@ -20,7 +20,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const FIELD = 'w-full p-2 border rounded text-sm bg-white';
-const LABEL = 'block text-xs font-semibold text-gray-500 mb-1';
+const LABEL = 'block text-xs font-semibold text-muted-foreground mb-1';
 
 const EMPTY = {
     title: '',
@@ -91,7 +91,7 @@ export default function AppointmentsClient({
             <div className="flex items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">Appointments</h1>
-                    <p className="text-gray-600 mt-1">Manage meetings and appointments</p>
+                    <p className="text-muted-foreground mt-1">Manage meetings and appointments</p>
                 </div>
                 {canWrite && (
                     <Button
@@ -158,7 +158,7 @@ export default function AppointmentsClient({
 
             {appointments.length === 0 ? (
                 <Card>
-                    <CardContent className="py-12 text-center text-gray-500" data-testid="no-appointments">
+                    <CardContent className="py-12 text-center text-muted-foreground" data-testid="no-appointments">
                         No appointments scheduled.
                     </CardContent>
                 </Card>
@@ -169,18 +169,18 @@ export default function AppointmentsClient({
                             <CardHeader>
                                 <CardTitle className="flex items-center justify-between gap-3 text-lg">
                                     <span>{appt.title}</span>
-                                    <Badge className={STATUS_STYLES[appt.status] ?? 'bg-gray-100 text-gray-800'} data-testid={`appointment-status-${appt.id}`}>
+                                    <Badge className={STATUS_STYLES[appt.status] ?? 'bg-muted text-foreground'} data-testid={`appointment-status-${appt.id}`}>
                                         {appt.status}
                                     </Badge>
                                 </CardTitle>
-                                <p className="text-sm text-gray-500">
+                                <p className="text-sm text-muted-foreground">
                                     {appt.date} at {appt.time} • {appt.duration} min
                                     {appt.type ? ` • ${appt.type}` : ''}
                                 </p>
                             </CardHeader>
                             <CardContent>
-                                {appt.description && <p className="text-gray-700 mb-2">{appt.description}</p>}
-                                <p className="text-sm text-gray-500">
+                                {appt.description && <p className="text-foreground mb-2">{appt.description}</p>}
+                                <p className="text-sm text-muted-foreground">
                                     With: <strong>{appt.with ?? 'Not assigned'}</strong>
                                 </p>
                                 {canWrite && appt.status === 'scheduled' && (

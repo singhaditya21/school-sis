@@ -88,7 +88,7 @@ export default function InvoiceGenerationForm({
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <h2 className="text-xl font-bold text-foreground dark:text-white flex items-center gap-2">
                     <FileText className="w-5 h-5 text-blue-500" />
                     Generate Invoices
                 </h2>
@@ -97,11 +97,11 @@ export default function InvoiceGenerationForm({
                 </p>
             </div>
 
-            <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
+            <div className="rounded-xl border border-border dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Fee Plan Select */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-2">
                             Fee Plan *
                         </label>
                         <select
@@ -111,7 +111,7 @@ export default function InvoiceGenerationForm({
                                 setPreview(null);
                                 setResult(null);
                             }}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         >
                             <option value="">Select fee plan</option>
                             {feePlans.filter(p => p.isActive).map(p => (
@@ -122,7 +122,7 @@ export default function InvoiceGenerationForm({
 
                     {/* Grade Filter */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-2">
                             Grade (optional — all grades if empty)
                         </label>
                         <select
@@ -132,7 +132,7 @@ export default function InvoiceGenerationForm({
                                 setPreview(null);
                                 setResult(null);
                             }}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         >
                             <option value="">All grades</option>
                             {grades.map(g => (
@@ -143,20 +143,20 @@ export default function InvoiceGenerationForm({
 
                     {/* Due Date */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-2">
                             Due Date *
                         </label>
                         <input
                             type="date"
                             value={dueDate || defaultDueDate}
                             onChange={(e) => setDueDate(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
 
                     {/* Description */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-2">
                             Description (optional)
                         </label>
                         <input
@@ -164,7 +164,7 @@ export default function InvoiceGenerationForm({
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="e.g., Quarter 1 Fees"
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
                 </div>
@@ -174,7 +174,7 @@ export default function InvoiceGenerationForm({
                     <button
                         onClick={handlePreview}
                         disabled={!feePlanId || isPending}
-                        className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-4 py-2 rounded-lg border border-border dark:border-gray-700 text-sm font-medium hover:bg-muted dark:hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                         {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
                         Preview

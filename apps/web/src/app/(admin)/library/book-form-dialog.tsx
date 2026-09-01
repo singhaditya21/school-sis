@@ -230,7 +230,7 @@ export default function BookFormDialog({ open, onOpenChange, book }: BookFormDia
                                 required
                             />
                             {book && book.onLoan > 0 && (
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-xs text-muted-foreground mt-1">
                                     {book.onLoan} on loan — cannot go below {book.onLoan}.
                                 </p>
                             )}

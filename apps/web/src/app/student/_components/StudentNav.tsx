@@ -27,8 +27,8 @@ export function StudentNav({ links }: { links: StudentNavLink[] }) {
                         href={href}
                         className={`flex flex-col md:flex-row items-center gap-1 md:gap-3 px-3 py-2 md:py-3 rounded-lg transition-colors min-w-[72px] md:min-w-0 ${
                             active
-                                ? 'text-violet-700 bg-violet-50 md:bg-gray-50 md:text-gray-900 border-t-2 md:border-t-0 md:border-l-4 border-violet-600'
-                                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                                ? 'text-violet-700 bg-violet-50 md:bg-muted md:text-foreground border-t-2 md:border-t-0 md:border-l-4 border-violet-600'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         }`}
                     >
                         <span className={`text-xl md:text-lg ${active ? 'md:text-violet-600' : ''}`}>{icon}</span>

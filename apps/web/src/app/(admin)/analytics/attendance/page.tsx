@@ -32,9 +32,9 @@ export default function AttendanceAnalyticsPage() {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <div><h1 className="text-3xl font-bold">Attendance Analytics</h1><p className="text-gray-600 mt-1">Attendance trends and patterns</p></div>
+                <div><h1 className="text-3xl font-bold">Attendance Analytics</h1><p className="text-muted-foreground mt-1">Attendance trends and patterns</p></div>
                 <div className="flex gap-3">
-                    <Link href="/analytics" className="px-4 py-2 border rounded-lg hover:bg-gray-50">← Back to Analytics</Link>
+                    <Link href="/analytics" className="px-4 py-2 border rounded-lg hover:bg-muted">← Back to Analytics</Link>
                     <button
                         onClick={exportClassSummary}
                         disabled={classAttendance.length === 0}
@@ -46,23 +46,23 @@ export default function AttendanceAnalyticsPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Avg of weekly rates</div><div className="text-2xl font-bold text-green-600">{avgAttendance}%</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Classes with records (30d)</div><div className="text-2xl font-bold text-blue-600">{classAttendance.length}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Weeks Tracked</div><div className="text-2xl font-bold text-purple-600">{weeklyData.length}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Days with records (30d)</div><div className="text-2xl font-bold text-orange-600">{dailyData.length}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Avg of weekly rates</div><div className="text-2xl font-bold text-green-600">{avgAttendance}%</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Classes with records (30d)</div><div className="text-2xl font-bold text-blue-600">{classAttendance.length}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Weeks Tracked</div><div className="text-2xl font-bold text-purple-600">{weeklyData.length}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Days with records (30d)</div><div className="text-2xl font-bold text-orange-600">{dailyData.length}</div></CardContent></Card>
             </div>
 
             <Card>
                 <CardHeader><CardTitle>Weekly Attendance Trend</CardTitle></CardHeader>
                 <CardContent>
-                    {weeklyData.length === 0 ? <p className="text-gray-500 text-center py-12">No attendance data yet.</p> : (
+                    {weeklyData.length === 0 ? <p className="text-muted-foreground text-center py-12">No attendance data yet.</p> : (
                         <div className="h-64 flex items-end gap-2">
                             {weeklyData.map((d, idx) => (
                                 <div key={idx} className="flex-1 flex flex-col items-center">
                                     <div className="w-full flex flex-col justify-end" style={{ height: '200px' }}>
                                         <div className={`w-full rounded-t transition-all ${d.percentage >= 95 ? 'bg-green-500' : d.percentage >= 90 ? 'bg-green-400' : d.percentage >= 85 ? 'bg-yellow-400' : 'bg-orange-400'}`} style={{ height: `${d.percentage}%` }} />
                                     </div>
-                                    <span className="text-xs text-gray-500 mt-1">W{idx + 1}</span>
+                                    <span className="text-xs text-muted-foreground mt-1">W{idx + 1}</span>
                                     <span className="text-xs font-medium">{d.percentage}%</span>
                                 </div>
                             ))}
@@ -74,7 +74,7 @@ export default function AttendanceAnalyticsPage() {
             <Card>
                 <CardHeader><CardTitle>Daily Attendance Heatmap (Last 30 Days)</CardTitle></CardHeader>
                 <CardContent>
-                    {dailyData.length === 0 ? <p className="text-gray-500 text-center py-8">No daily data yet.</p> : (
+                    {dailyData.length === 0 ? <p className="text-muted-foreground text-center py-8">No daily data yet.</p> : (
                         <div className="grid grid-cols-10 gap-2">
                             {dailyData.map((d, idx) => {
                                 const color = d.value >= 95 ? 'bg-green-500' : d.value >= 90 ? 'bg-green-400' : d.value >= 85 ? 'bg-yellow-400' : 'bg-orange-400';
@@ -88,16 +88,16 @@ export default function AttendanceAnalyticsPage() {
             <Card>
                 <CardHeader><CardTitle>Class-wise Attendance</CardTitle></CardHeader>
                 <CardContent>
-                    {classAttendance.length === 0 ? <p className="text-gray-500 text-center py-8">No class attendance data.</p> : (
+                    {classAttendance.length === 0 ? <p className="text-muted-foreground text-center py-8">No class attendance data.</p> : (
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {classAttendance.map((c, idx) => (
-                                <div key={idx} className="p-4 bg-gray-50 rounded-lg">
+                                <div key={idx} className="p-4 bg-muted rounded-lg">
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="font-medium">{c.class}</span>
                                         <Badge className={c.percentage >= 95 ? 'bg-green-100 text-green-700' : c.percentage >= 90 ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}>{c.percentage}%</Badge>
                                     </div>
                                     <div className="bg-gray-200 rounded-full h-2"><div className={`h-2 rounded-full ${c.percentage >= 95 ? 'bg-green-500' : c.percentage >= 90 ? 'bg-blue-500' : 'bg-yellow-500'}`} style={{ width: `${c.percentage}%` }} /></div>
-                                    <p className="text-xs text-gray-500 mt-1">{c.present}/{c.total} present</p>
+                                    <p className="text-xs text-muted-foreground mt-1">{c.present}/{c.total} present</p>
                                 </div>
                             ))}
                         </div>

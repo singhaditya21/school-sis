@@ -23,7 +23,7 @@ const EMPTY = {
 type FormState = typeof EMPTY;
 
 const FIELD_CLASS =
-    'w-full p-2 border rounded text-sm bg-white disabled:bg-gray-50 disabled:text-gray-400';
+    'w-full p-2 border rounded text-sm bg-white disabled:bg-muted disabled:text-muted-foreground';
 
 export default function AllocationForm({
     hostels,
@@ -84,7 +84,7 @@ export default function AllocationForm({
             <Card>
                 <CardContent className="p-6">
                     <h3 className="font-bold text-lg mb-2">Allocate Student</h3>
-                    <p className="text-sm text-gray-500" data-testid="allocate-no-hostels">
+                    <p className="text-sm text-muted-foreground" data-testid="allocate-no-hostels">
                         No active hostel is set up for this school yet, so there is nothing to allocate against.
                     </p>
                 </CardContent>
@@ -96,14 +96,14 @@ export default function AllocationForm({
         <Card>
             <CardContent className="p-6">
                 <h3 className="font-bold text-lg mb-1">Allocate Student</h3>
-                <p className="text-xs text-gray-500 mb-4">
+                <p className="text-xs text-muted-foreground mb-4">
                     Allocating a bed also raises a hostel fee record for the student at this release&apos;s
                     fixed rate of ₹15,000 — it is not yet driven by a fee plan.
                 </p>
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                         <div>
-                            <label htmlFor="alloc-student" className="block text-xs font-semibold text-gray-500 mb-1">Student</label>
+                            <label htmlFor="alloc-student" className="block text-xs font-semibold text-muted-foreground mb-1">Student</label>
                             <select
                                 id="alloc-student"
                                 value={form.studentId}
@@ -122,7 +122,7 @@ export default function AllocationForm({
                             </select>
                         </div>
                         <div>
-                            <label htmlFor="alloc-hostel" className="block text-xs font-semibold text-gray-500 mb-1">Hostel</label>
+                            <label htmlFor="alloc-hostel" className="block text-xs font-semibold text-muted-foreground mb-1">Hostel</label>
                             <select
                                 id="alloc-hostel"
                                 value={form.hostelId}
@@ -137,7 +137,7 @@ export default function AllocationForm({
                             </select>
                         </div>
                         <div>
-                            <label htmlFor="alloc-room" className="block text-xs font-semibold text-gray-500 mb-1">Room</label>
+                            <label htmlFor="alloc-room" className="block text-xs font-semibold text-muted-foreground mb-1">Room</label>
                             <select
                                 id="alloc-room"
                                 value={form.roomId}
@@ -166,7 +166,7 @@ export default function AllocationForm({
                             </select>
                         </div>
                         <div>
-                            <label htmlFor="alloc-bed" className="block text-xs font-semibold text-gray-500 mb-1">Bed No.</label>
+                            <label htmlFor="alloc-bed" className="block text-xs font-semibold text-muted-foreground mb-1">Bed No.</label>
                             <input
                                 id="alloc-bed"
                                 type="text"
@@ -179,13 +179,13 @@ export default function AllocationForm({
                                 data-testid="alloc-bed-number"
                             />
                             {selectedRoom && selectedRoom.takenBedNumbers.length > 0 && (
-                                <p className="text-[11px] text-gray-500 mt-1">
+                                <p className="text-[11px] text-muted-foreground mt-1">
                                     Taken: {selectedRoom.takenBedNumbers.join(', ')}
                                 </p>
                             )}
                         </div>
                         <div>
-                            <label htmlFor="alloc-from" className="block text-xs font-semibold text-gray-500 mb-1">From Date</label>
+                            <label htmlFor="alloc-from" className="block text-xs font-semibold text-muted-foreground mb-1">From Date</label>
                             <input
                                 id="alloc-from"
                                 type="date"
@@ -196,7 +196,7 @@ export default function AllocationForm({
                             />
                         </div>
                         <div>
-                            <label htmlFor="alloc-to" className="block text-xs font-semibold text-gray-500 mb-1">To Date</label>
+                            <label htmlFor="alloc-to" className="block text-xs font-semibold text-muted-foreground mb-1">To Date</label>
                             <input
                                 id="alloc-to"
                                 type="date"

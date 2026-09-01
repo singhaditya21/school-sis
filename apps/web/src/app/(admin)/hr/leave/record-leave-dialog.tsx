@@ -189,7 +189,7 @@ export default function RecordLeaveDialog({ staff }: RecordLeaveDialogProps) {
                         </div>
                     </div>
                     {suggestedDays > 0 && totalDays === '' && (
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                             Defaults to {suggestedDays} calendar {suggestedDays === 1 ? 'day' : 'days'};
                             override for half days or to exclude holidays.
                         </p>

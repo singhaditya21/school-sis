@@ -77,7 +77,7 @@ export default function IdCardsClient({ cards, school }: IdCardsClientProps) {
     if (cards.length === 0) {
         return (
             <Card>
-                <CardContent className="py-12 text-center text-gray-500">
+                <CardContent className="py-12 text-center text-muted-foreground">
                     No ID cards match this view. Use &ldquo;Generate cards&rdquo; to create them.
                 </CardContent>
             </Card>
@@ -126,7 +126,7 @@ export default function IdCardsClient({ cards, school }: IdCardsClientProps) {
                         className={`id-card-wrapper rounded-lg border-2 p-3 transition-colors ${
                             selected.includes(card.id)
                                 ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200'
+                                : 'border-border'
                         }`}
                     >
                         <label className="id-card-meta mb-2 flex cursor-pointer items-center gap-2 text-sm print:hidden">
@@ -136,11 +136,11 @@ export default function IdCardsClient({ cards, school }: IdCardsClientProps) {
                                 onChange={() => toggle(card.id)}
                                 className="h-4 w-4"
                             />
-                            <span className="text-gray-600">Select for batch action</span>
+                            <span className="text-muted-foreground">Select for batch action</span>
                         </label>
 
-                        <div className="rounded-lg border border-gray-300 bg-white p-4 text-gray-900">
-                            <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
+                        <div className="rounded-lg border border-border bg-white p-4 text-foreground">
+                            <div className="flex items-center gap-2 border-b border-border pb-2">
                                 {school.logoUrl ? (
                                     // eslint-disable-next-line @next/next/no-img-element -- logo_url may point at any host; next/image would need every one allow-listed
                                     <img
@@ -154,13 +154,13 @@ export default function IdCardsClient({ cards, school }: IdCardsClientProps) {
                                         {school.name}
                                     </div>
                                     {school.city && (
-                                        <div className="truncate text-[10px] text-gray-500">{school.city}</div>
+                                        <div className="truncate text-[10px] text-muted-foreground">{school.city}</div>
                                     )}
                                 </div>
                             </div>
 
                             <div className="mt-3 flex gap-3">
-                                <div className="flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded border border-gray-300 bg-gray-100 text-sm font-semibold text-gray-500">
+                                <div className="flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded border border-border bg-muted text-sm font-semibold text-muted-foreground">
                                     {card.photoUrl ? (
                                         // eslint-disable-next-line @next/next/no-img-element -- photo_url may point at any host; next/image would need every one allow-listed
                                         <img
@@ -175,23 +175,23 @@ export default function IdCardsClient({ cards, school }: IdCardsClientProps) {
                                 <div className="min-w-0 flex-1">
                                     <div className="truncate font-bold leading-tight">{card.name}</div>
                                     {card.subtitle && (
-                                        <div className="truncate text-xs text-gray-600">{card.subtitle}</div>
+                                        <div className="truncate text-xs text-muted-foreground">{card.subtitle}</div>
                                     )}
-                                    <dl className="mt-1.5 space-y-0.5 text-[11px] text-gray-700">
+                                    <dl className="mt-1.5 space-y-0.5 text-[11px] text-foreground">
                                         {card.identifier && (
                                             <div className="flex gap-1">
-                                                <dt className="text-gray-500">ID</dt>
+                                                <dt className="text-muted-foreground">ID</dt>
                                                 <dd className="font-mono">{card.identifier}</dd>
                                             </div>
                                         )}
                                         {card.bloodGroup && (
                                             <div className="flex gap-1">
-                                                <dt className="text-gray-500">Blood</dt>
+                                                <dt className="text-muted-foreground">Blood</dt>
                                                 <dd>{card.bloodGroup}</dd>
                                             </div>
                                         )}
                                         <div className="flex gap-1">
-                                            <dt className="text-gray-500">Valid</dt>
+                                            <dt className="text-muted-foreground">Valid</dt>
                                             <dd>
                                                 {card.validFrom} → {card.validTo}
                                             </dd>
@@ -207,7 +207,7 @@ export default function IdCardsClient({ cards, school }: IdCardsClientProps) {
                                             className="h-14 w-14"
                                         />
                                     ) : (
-                                        <div className="flex h-14 w-14 items-center justify-center rounded border border-dashed border-gray-300 p-1 text-[8px] leading-tight text-gray-400">
+                                        <div className="flex h-14 w-14 items-center justify-center rounded border border-dashed border-border p-1 text-[8px] leading-tight text-muted-foreground">
                                             No card code
                                         </div>
                                     )}

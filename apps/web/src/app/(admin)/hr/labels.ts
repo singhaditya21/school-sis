@@ -48,23 +48,23 @@ const STAFF_STATUS_CLASSES: Record<string, string> = {
     ACTIVE: 'bg-green-100 text-green-700',
     ON_LEAVE: 'bg-amber-100 text-amber-700',
     PROBATION: 'bg-blue-100 text-blue-700',
-    RESIGNED: 'bg-gray-100 text-gray-600',
+    RESIGNED: 'bg-muted text-muted-foreground',
     TERMINATED: 'bg-red-100 text-red-700',
 };
 
 export function staffStatusClass(value: string): string {
-    return STAFF_STATUS_CLASSES[value] ?? 'bg-gray-100 text-gray-600';
+    return STAFF_STATUS_CLASSES[value] ?? 'bg-muted text-muted-foreground';
 }
 
 const LEAVE_STATUS_CLASSES: Record<string, string> = {
     PENDING: 'bg-amber-100 text-amber-700',
     APPROVED: 'bg-green-100 text-green-700',
     REJECTED: 'bg-red-100 text-red-700',
-    CANCELLED: 'bg-gray-100 text-gray-600',
+    CANCELLED: 'bg-muted text-muted-foreground',
 };
 
 export function leaveStatusClass(value: string): string {
-    return LEAVE_STATUS_CLASSES[value] ?? 'bg-gray-100 text-gray-600';
+    return LEAVE_STATUS_CLASSES[value] ?? 'bg-muted text-muted-foreground';
 }
 
 /** Dates arrive from pg as `Date` for `date` columns; render them in en-IN. */

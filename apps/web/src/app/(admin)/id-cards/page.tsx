@@ -57,7 +57,7 @@ export default async function IDCardsPage({ searchParams }: PageProps) {
             <div className="flex flex-wrap items-start justify-between gap-4 print:hidden">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">ID cards</h1>
-                    <p className="mt-1 text-gray-600">
+                    <p className="mt-1 text-muted-foreground">
                         Generate cards for a class or the whole school, print the sheet, and record
                         which cards have actually been handed over.
                     </p>
@@ -75,7 +75,7 @@ export default async function IDCardsPage({ searchParams }: PageProps) {
                         key={t}
                         href={href({ type: t, status: undefined })}
                         className={`rounded-md px-4 py-2 text-sm font-medium ${
-                            personType === t ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
+                            personType === t ? 'bg-gray-900 text-white' : 'text-muted-foreground hover:bg-muted'
                         }`}
                     >
                         {t === 'STUDENT' ? 'Student cards' : 'Staff cards'}
@@ -86,33 +86,33 @@ export default async function IDCardsPage({ searchParams }: PageProps) {
             <div className="grid grid-cols-2 gap-4 md:grid-cols-5 print:hidden">
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Total cards</div>
+                        <div className="text-sm text-muted-foreground">Total cards</div>
                         <div className="text-2xl font-bold">{stats.total}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Not printed</div>
+                        <div className="text-sm text-muted-foreground">Not printed</div>
                         <div className="text-2xl font-bold text-amber-600">{stats.pending}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Printed</div>
+                        <div className="text-sm text-muted-foreground">Printed</div>
                         <div className="text-2xl font-bold text-blue-600">{stats.printed}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Handed over</div>
+                        <div className="text-sm text-muted-foreground">Handed over</div>
                         <div className="text-2xl font-bold text-green-600">{stats.issued}</div>
                     </CardContent>
                 </Card>
                 <Card className={stats.withoutCard > 0 ? 'border-2 border-amber-200' : undefined}>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Without any card</div>
+                        <div className="text-sm text-muted-foreground">Without any card</div>
                         <div className="text-2xl font-bold">{stats.withoutCard}</div>
-                        <div className="mt-1 text-xs text-gray-500">
+                        <div className="mt-1 text-xs text-muted-foreground">
                             Active {personType === 'STUDENT' ? 'students' : 'staff'}
                         </div>
                     </CardContent>
@@ -123,7 +123,7 @@ export default async function IDCardsPage({ searchParams }: PageProps) {
                 <Link
                     href={href({ status: undefined })}
                     className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                        !status ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
+                        !status ? 'bg-gray-900 text-white' : 'text-muted-foreground hover:bg-muted'
                     }`}
                 >
                     All
@@ -133,7 +133,7 @@ export default async function IDCardsPage({ searchParams }: PageProps) {
                         key={s}
                         href={href({ status: s })}
                         className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                            status === s ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
+                            status === s ? 'bg-gray-900 text-white' : 'text-muted-foreground hover:bg-muted'
                         }`}
                     >
                         {ID_CARD_STATUS_LABELS[s]}
@@ -143,7 +143,7 @@ export default async function IDCardsPage({ searchParams }: PageProps) {
 
             <IdCardsClient cards={cards} school={school} />
 
-            <p className="text-xs text-gray-500 print:hidden">
+            <p className="text-xs text-muted-foreground print:hidden">
                 The QR on each card encodes that card&apos;s code — a student&apos;s admission number
                 or a staff member&apos;s employee ID — and nothing else. There is no public
                 verification endpoint in this release, so a scanner reads back the code for lookup

@@ -25,7 +25,7 @@ interface Props {
 }
 
 const FIELD =
-    'w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500';
+    'w-full px-3 py-2 border border-border rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500';
 
 export function AddPaperForm({
     examId,
@@ -75,7 +75,7 @@ export function AddPaperForm({
 
     if (disabled) {
         return (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
                 Papers need at least one class and one subject to exist first.
             </p>
         );
@@ -101,7 +101,7 @@ export function AddPaperForm({
                     <div className="space-y-3">
                         <div className="grid grid-cols-2 gap-3">
                             <label className="block text-sm">
-                                <span className="font-medium text-gray-700">Class</span>
+                                <span className="font-medium text-foreground">Class</span>
                                 <select
                                     className={FIELD}
                                     value={gradeId}
@@ -116,7 +116,7 @@ export function AddPaperForm({
                                 </select>
                             </label>
                             <label className="block text-sm">
-                                <span className="font-medium text-gray-700">Subject</span>
+                                <span className="font-medium text-foreground">Subject</span>
                                 <select
                                     className={FIELD}
                                     value={subjectId}
@@ -134,7 +134,7 @@ export function AddPaperForm({
 
                         <div className="grid grid-cols-3 gap-3">
                             <label className="block text-sm">
-                                <span className="font-medium text-gray-700">Date</span>
+                                <span className="font-medium text-foreground">Date</span>
                                 <input
                                     type="date"
                                     className={FIELD}
@@ -145,7 +145,7 @@ export function AddPaperForm({
                                 />
                             </label>
                             <label className="block text-sm">
-                                <span className="font-medium text-gray-700">Start</span>
+                                <span className="font-medium text-foreground">Start</span>
                                 <input
                                     type="time"
                                     className={FIELD}
@@ -154,7 +154,7 @@ export function AddPaperForm({
                                 />
                             </label>
                             <label className="block text-sm">
-                                <span className="font-medium text-gray-700">End</span>
+                                <span className="font-medium text-foreground">End</span>
                                 <input
                                     type="time"
                                     className={FIELD}
@@ -166,7 +166,7 @@ export function AddPaperForm({
 
                         <div className="grid grid-cols-3 gap-3">
                             <label className="block text-sm">
-                                <span className="font-medium text-gray-700">Max marks</span>
+                                <span className="font-medium text-foreground">Max marks</span>
                                 <input
                                     type="number"
                                     min={1}
@@ -176,7 +176,7 @@ export function AddPaperForm({
                                 />
                             </label>
                             <label className="block text-sm">
-                                <span className="font-medium text-gray-700">Passing marks</span>
+                                <span className="font-medium text-foreground">Passing marks</span>
                                 <input
                                     type="number"
                                     min={0}
@@ -186,7 +186,7 @@ export function AddPaperForm({
                                 />
                             </label>
                             <label className="block text-sm">
-                                <span className="font-medium text-gray-700">Room</span>
+                                <span className="font-medium text-foreground">Room</span>
                                 <input
                                     type="text"
                                     className={FIELD}

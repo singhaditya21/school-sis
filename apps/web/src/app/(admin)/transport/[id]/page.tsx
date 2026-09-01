@@ -66,17 +66,17 @@ export default async function RouteDetailsPage({ params }: { params: Promise<{ i
                             🚌
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900" data-testid="route-name-title">
+                            <h1 className="text-2xl font-bold text-foreground" data-testid="route-name-title">
                                 {route.name}
                             </h1>
-                            <p className="text-gray-500" data-testid="route-vehicle">
+                            <p className="text-muted-foreground" data-testid="route-vehicle">
                                 Vehicle: {route.vehicleNumber}
                             </p>
-                            <p className="text-sm text-gray-500">
+                            <p className="text-sm text-muted-foreground">
                                 {route.vehicleType} · Driver {route.driverName} ({route.driverPhone})
                             </p>
                             {route.description && (
-                                <p className="text-sm text-gray-400 mt-1">{route.description}</p>
+                                <p className="text-sm text-muted-foreground mt-1">{route.description}</p>
                             )}
                         </div>
                     </div>
@@ -102,25 +102,25 @@ export default async function RouteDetailsPage({ params }: { params: Promise<{ i
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm pt-4 border-t">
                     <div>
-                        <span className="text-gray-500 block">Morning Departure</span>
+                        <span className="text-muted-foreground block">Morning Departure</span>
                         <span className="font-semibold">{route.morningDepartureTime || '—'}</span>
                     </div>
                     <div>
-                        <span className="text-gray-500 block">Afternoon Departure</span>
+                        <span className="text-muted-foreground block">Afternoon Departure</span>
                         <span className="font-semibold">{route.afternoonDepartureTime || '—'}</span>
                     </div>
                     <div>
-                        <span className="text-gray-500 block">Monthly Fee</span>
+                        <span className="text-muted-foreground block">Monthly Fee</span>
                         <span className="font-semibold">
                             {route.monthlyFee ? formatCurrency(Number(route.monthlyFee)) : 'N/A'}
                         </span>
                     </div>
                     <div>
-                        <span className="text-gray-500 block">Total Stops</span>
+                        <span className="text-muted-foreground block">Total Stops</span>
                         <span className="font-semibold">{route.stopCount}</span>
                     </div>
                     <div>
-                        <span className="text-gray-500 block">Seats Left</span>
+                        <span className="text-muted-foreground block">Seats Left</span>
                         <span className={`font-semibold ${seatsLeft <= 0 ? 'text-red-600' : ''}`}>
                             {seatsLeft} of {route.capacity}
                         </span>

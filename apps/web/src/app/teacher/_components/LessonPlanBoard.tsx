@@ -11,7 +11,7 @@ import {
 } from '../_actions/lesson-plans';
 
 const STATUS_STYLES: Record<string, string> = {
-    DRAFT: 'bg-gray-100 text-gray-700 border-gray-200',
+    DRAFT: 'bg-muted text-foreground border-border',
     SUBMITTED: 'bg-blue-50 text-blue-700 border-blue-200',
     APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     COMPLETED: 'bg-purple-50 text-purple-700 border-purple-200',
@@ -88,7 +88,7 @@ export function LessonPlanBoard({
     return (
         <div className="space-y-6">
             {targets.length === 0 ? (
-                <div className="bg-white rounded-xl shadow-sm border p-5 text-sm text-gray-600">
+                <div className="bg-white rounded-xl shadow-sm border p-5 text-sm text-muted-foreground">
                     A lesson plan is filed against a grade and subject from your timetable. You have no
                     timetabled periods, so there is nothing to plan against yet.
                 </div>
@@ -102,14 +102,14 @@ export function LessonPlanBoard({
                 </button>
             ) : (
                 <div className="bg-white rounded-xl shadow-sm border p-5 space-y-4">
-                    <h2 className="font-semibold text-gray-900">New lesson plan</h2>
+                    <h2 className="font-semibold text-foreground">New lesson plan</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <label className="text-sm">
-                            <span className="block mb-1 text-gray-600">Grade and subject</span>
+                            <span className="block mb-1 text-muted-foreground">Grade and subject</span>
                             <select
                                 value={form.targetIndex}
                                 onChange={(e) => set('targetIndex', e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                className="w-full border border-border rounded-lg px-3 py-2"
                             >
                                 {targets.map((target, index) => (
                                     <option key={`${target.gradeId}-${target.subjectId}`} value={String(index)}>
@@ -119,34 +119,34 @@ export function LessonPlanBoard({
                             </select>
                         </label>
                         <label className="text-sm">
-                            <span className="block mb-1 text-gray-600">Topic</span>
+                            <span className="block mb-1 text-muted-foreground">Topic</span>
                             <input
                                 type="text"
                                 value={form.topic}
                                 onChange={(e) => set('topic', e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                className="w-full border border-border rounded-lg px-3 py-2"
                             />
                         </label>
                         <label className="text-sm">
-                            <span className="block mb-1 text-gray-600">Week number (optional)</span>
+                            <span className="block mb-1 text-muted-foreground">Week number (optional)</span>
                             <input
                                 type="number"
                                 min={1}
                                 step={1}
                                 value={form.weekNumber}
                                 onChange={(e) => set('weekNumber', e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                className="w-full border border-border rounded-lg px-3 py-2"
                             />
                         </label>
                         <label className="text-sm">
-                            <span className="block mb-1 text-gray-600">Duration in minutes (optional)</span>
+                            <span className="block mb-1 text-muted-foreground">Duration in minutes (optional)</span>
                             <input
                                 type="number"
                                 min={1}
                                 step={1}
                                 value={form.duration}
                                 onChange={(e) => set('duration', e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                className="w-full border border-border rounded-lg px-3 py-2"
                             />
                         </label>
                         <TextBlock
@@ -183,7 +183,7 @@ export function LessonPlanBoard({
                             type="button"
                             onClick={() => setOpen(false)}
                             disabled={pending}
-                            className="border border-gray-300 text-gray-700 px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
+                            className="border border-border text-foreground px-5 py-2 rounded-lg text-sm font-medium hover:bg-muted"
                         >
                             Cancel
                         </button>
@@ -193,8 +193,8 @@ export function LessonPlanBoard({
 
             {plans.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                    <p className="font-medium text-gray-900">You have no lesson plans yet.</p>
-                    <p className="text-sm text-gray-500 mt-2">Only plans filed by you appear here.</p>
+                    <p className="font-medium text-foreground">You have no lesson plans yet.</p>
+                    <p className="text-sm text-muted-foreground mt-2">Only plans filed by you appear here.</p>
                 </div>
             ) : (
                 <div className="bg-white rounded-xl shadow-sm border divide-y" data-testid="lesson-plan-list">
@@ -202,8 +202,8 @@ export function LessonPlanBoard({
                         <div key={plan.id} className="p-4 space-y-2">
                             <div className="flex flex-wrap items-start justify-between gap-2">
                                 <div>
-                                    <p className="font-medium text-gray-900">{plan.topic}</p>
-                                    <p className="text-sm text-gray-500">
+                                    <p className="font-medium text-foreground">{plan.topic}</p>
+                                    <p className="text-sm text-muted-foreground">
                                         {plan.gradeName ?? 'No grade'} · {plan.subjectName ?? 'No subject'}
                                         {plan.weekNumber !== null ? ` · week ${plan.weekNumber}` : ''}
                                         {plan.duration !== null ? ` · ${plan.duration} min` : ''}
@@ -212,7 +212,7 @@ export function LessonPlanBoard({
                                 <div className="flex items-center gap-2">
                                     <span
                                         className={`text-xs px-2 py-1 rounded border ${
-                                            STATUS_STYLES[plan.status] ?? 'bg-gray-100 text-gray-700 border-gray-200'
+                                            STATUS_STYLES[plan.status] ?? 'bg-muted text-foreground border-border'
                                         }`}
                                     >
                                         {plan.status}
@@ -260,12 +260,12 @@ function TextBlock({
 }) {
     return (
         <label className="text-sm md:col-span-1">
-            <span className="block mb-1 text-gray-600">{label} (optional)</span>
+            <span className="block mb-1 text-muted-foreground">{label} (optional)</span>
             <textarea
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 rows={3}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-border rounded-lg px-3 py-2"
             />
         </label>
     );
@@ -274,8 +274,8 @@ function TextBlock({
 function PlanField({ label, value }: { label: string; value: string | null }) {
     if (!value) return null;
     return (
-        <p className="text-sm text-gray-700">
-            <span className="text-gray-500">{label}: </span>
+        <p className="text-sm text-foreground">
+            <span className="text-muted-foreground">{label}: </span>
             <span className="whitespace-pre-wrap">{value}</span>
         </p>
     );

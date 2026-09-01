@@ -23,22 +23,22 @@ export default async function AIGovernancePage() {
         <div className="max-w-2xl space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">AI Governance</h1>
-                <p className="text-sm text-slate-400 mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                     Model spend, token budgets and per-agent limits across campuses.
                 </p>
             </div>
 
             <div className="rounded-xl border border-slate-800 bg-slate-950 p-8">
                 <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center">
-                    <Brain className="w-6 h-6 text-slate-500" />
+                    <Brain className="w-6 h-6 text-muted-foreground" />
                 </div>
                 <h2 className="text-lg font-semibold text-white mt-5">Not available in this release</h2>
-                <p className="text-sm text-slate-400 mt-2 leading-relaxed">
+                <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
                     The AI agent runtime that this console governed is not part of the current build, so no usage,
                     spend or token data is being produced. Rather than show a dashboard over an empty meter, the
                     surface is left blank until agent execution and its metering are shipped together.
                 </p>
-                <p className="text-sm text-slate-500 mt-4">
+                <p className="text-sm text-muted-foreground mt-4">
                     Governance controls that <em>are</em> live today sit in the{' '}
                     <Link href="/hq/policies" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">
                         Global Policy Engine

@@ -138,8 +138,8 @@ export function ResultsClient() {
             <ParentTopBar students={students} selectedId={selectedId} loading={childrenLoading} />
 
             <div className="border-b pb-6">
-                <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Academic records</h1>
-                <p className="mt-1 text-sm text-slate-500">
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground">Academic records</h1>
+                <p className="mt-1 text-sm text-muted-foreground">
                     {childName ? `Published exam results for ${childName}` : 'Published exam results'}
                 </p>
             </div>
@@ -151,14 +151,14 @@ export function ResultsClient() {
             )}
 
             {loading ? (
-                <div className="py-12 text-center text-sm text-slate-500">Loading academic records…</div>
+                <div className="py-12 text-center text-sm text-muted-foreground">Loading academic records…</div>
             ) : students.length === 0 ? (
-                <div className="rounded-lg border border-dashed bg-slate-50 p-12 text-center text-slate-500">
+                <div className="rounded-lg border border-dashed bg-muted p-12 text-center text-muted-foreground">
                     No child is linked to your account yet, so there are no results to show.
                 </div>
             ) : groups.length === 0 ? (
-                <div className="rounded-lg border border-dashed bg-slate-50 p-12 text-center text-slate-500">
-                    <p className="font-medium text-slate-600">No published results yet</p>
+                <div className="rounded-lg border border-dashed bg-muted p-12 text-center text-muted-foreground">
+                    <p className="font-medium text-muted-foreground">No published results yet</p>
                     <p className="mt-1 text-sm">
                         Marks become visible here only after the school publishes the exam.
                     </p>
@@ -171,10 +171,10 @@ export function ResultsClient() {
                         .map((r) => ({ subject: r.subject, percentage: r.percentage as number }));
 
                     return (
-                        <Card key={group.examId} className="overflow-hidden rounded-md border-slate-200 shadow-sm">
-                            <CardHeader className="flex flex-row items-center justify-between border-b bg-slate-50 px-6 py-4">
+                        <Card key={group.examId} className="overflow-hidden rounded-md border-border shadow-sm">
+                            <CardHeader className="flex flex-row items-center justify-between border-b bg-muted px-6 py-4">
                                 <div>
-                                    <CardTitle className="text-lg font-semibold text-slate-800">
+                                    <CardTitle className="text-lg font-semibold text-foreground">
                                         {group.examName}
                                     </CardTitle>
                                     <CardDescription className="mt-1 text-xs font-medium">
@@ -187,7 +187,7 @@ export function ResultsClient() {
                                     {average !== null && (
                                         <Badge
                                             variant="secondary"
-                                            className="border-slate-200 px-3 py-1 font-mono text-sm"
+                                            className="border-border px-3 py-1 font-mono text-sm"
                                         >
                                             Average: {average}%
                                         </Badge>
@@ -206,17 +206,17 @@ export function ResultsClient() {
                                 <div className="grid divide-y border-b lg:grid-cols-3 lg:divide-x lg:divide-y-0">
                                     <div className="overflow-x-auto p-0 lg:col-span-2">
                                         <Table>
-                                            <TableHeader className="bg-slate-50">
+                                            <TableHeader className="bg-muted">
                                                 <TableRow>
-                                                    <TableHead className="font-medium text-slate-500">Subject</TableHead>
-                                                    <TableHead className="text-right font-medium text-slate-500">
+                                                    <TableHead className="font-medium text-muted-foreground">Subject</TableHead>
+                                                    <TableHead className="text-right font-medium text-muted-foreground">
                                                         Score
                                                     </TableHead>
-                                                    <TableHead className="text-right font-medium text-slate-500">
+                                                    <TableHead className="text-right font-medium text-muted-foreground">
                                                         Percentage
                                                     </TableHead>
-                                                    <TableHead className="font-medium text-slate-500">Grade</TableHead>
-                                                    <TableHead className="font-medium text-slate-500">Remarks</TableHead>
+                                                    <TableHead className="font-medium text-muted-foreground">Grade</TableHead>
+                                                    <TableHead className="font-medium text-muted-foreground">Remarks</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
@@ -229,22 +229,22 @@ export function ResultsClient() {
 
                                                     return (
                                                         <TableRow key={`${row.examId}-${row.subject}-${idx}`}>
-                                                            <TableCell className="font-medium text-slate-700">
+                                                            <TableCell className="font-medium text-foreground">
                                                                 {row.subject}
                                                             </TableCell>
-                                                            <TableCell className="text-right font-mono text-slate-600">
+                                                            <TableCell className="text-right font-mono text-muted-foreground">
                                                                 {row.isAbsent ? (
-                                                                    <span className="text-slate-400">Absent</span>
+                                                                    <span className="text-muted-foreground">Absent</span>
                                                                 ) : (
                                                                     <>
                                                                         {row.marksObtained ?? '—'}{' '}
-                                                                        <span className="text-slate-400">
+                                                                        <span className="text-muted-foreground">
                                                                             / {row.maxMarks}
                                                                         </span>
                                                                     </>
                                                                 )}
                                                             </TableCell>
-                                                            <TableCell className="text-right font-mono font-medium text-slate-700">
+                                                            <TableCell className="text-right font-mono font-medium text-foreground">
                                                                 {row.isAbsent || row.percentage === null
                                                                     ? '—'
                                                                     : `${row.percentage}%`}
@@ -261,7 +261,7 @@ export function ResultsClient() {
                                                                     {row.grade ?? (row.isAbsent ? 'AB' : 'N/A')}
                                                                 </Badge>
                                                             </TableCell>
-                                                            <TableCell className="text-sm text-slate-500">
+                                                            <TableCell className="text-sm text-muted-foreground">
                                                                 {row.remarks ?? (failed ? 'Below passing marks' : '—')}
                                                             </TableCell>
                                                         </TableRow>
@@ -271,12 +271,12 @@ export function ResultsClient() {
                                         </Table>
                                     </div>
 
-                                    <div className="bg-slate-50/30 p-6">
-                                        <h2 className="mb-4 flex items-center text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <div className="bg-muted/30 p-6">
+                                        <h2 className="mb-4 flex items-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                                             <TrendingUp className="mr-2 h-4 w-4" /> Performance by subject
                                         </h2>
                                         {chartData.length === 0 ? (
-                                            <p className="text-sm text-slate-400">No scored subjects to chart.</p>
+                                            <p className="text-sm text-muted-foreground">No scored subjects to chart.</p>
                                         ) : (
                                             <div className="h-[200px] w-full">
                                                 <ResponsiveContainer width="100%" height="100%">

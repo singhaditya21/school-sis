@@ -161,7 +161,7 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
             <CardContent>
                 <div className="rounded-md border">
                     <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 border-b">
+                        <thead className="bg-muted text-muted-foreground border-b">
                             <tr>
                                 <th className="px-4 py-3 font-medium">Field Label</th>
                                 <th className="px-4 py-3 font-medium">API Name</th>
@@ -173,30 +173,30 @@ export default function FieldManagerClient({ objectId, initialFields }: { object
                         <tbody>
                             {fields.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
+                                    <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
                                         This object has no fields registered in the metadata
                                         catalogue yet.
                                     </td>
                                 </tr>
                             )}
                             {fields.map((f, i) => (
-                                <tr key={f.id || i} className="border-b last:border-0 hover:bg-slate-50">
-                                    <td className="px-4 py-3 font-medium text-slate-900">
+                                <tr key={f.id || i} className="border-b last:border-0 hover:bg-muted">
+                                    <td className="px-4 py-3 font-medium text-foreground">
                                         {f.label}
                                         {f.isRequired && <span className="text-red-500 ml-1" title="Required">*</span>}
                                         {f.dataType === 'PICKLIST' && f.picklistOptions?.length > 0 && (
-                                            <span className="block text-xs font-normal text-slate-400 mt-0.5">
+                                            <span className="block text-xs font-normal text-muted-foreground mt-0.5">
                                                 {f.picklistOptions.join(', ')}
                                             </span>
                                         )}
                                     </td>
-                                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{f.apiName}</td>
+                                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{f.apiName}</td>
                                     <td className="px-4 py-3">
-                                        <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded border">
+                                        <span className="px-2 py-1 bg-muted text-foreground text-xs rounded border">
                                             {f.dataType}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3 text-slate-500 text-xs">{f.status}</td>
+                                    <td className="px-4 py-3 text-muted-foreground text-xs">{f.status}</td>
                                     <td className="px-4 py-3 text-center">
                                         {f.isCustom ? (
                                             <span className="px-2 py-1 bg-purple-50 text-purple-700 text-xs rounded border border-purple-200">Custom</span>

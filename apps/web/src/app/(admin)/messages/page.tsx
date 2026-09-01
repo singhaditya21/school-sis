@@ -23,7 +23,7 @@ export default async function MessagesPage() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-3xl font-bold">Messages</h1>
-                <p className="mt-1 text-slate-600">
+                <p className="mt-1 text-muted-foreground">
                     Compose parent and staff communication, manage templates, and inspect the
                     notification outbox.
                 </p>
@@ -58,7 +58,7 @@ export default async function MessagesPage() {
                     <div className="flex items-center justify-between border-b p-4">
                         <div>
                             <h2 className="font-bold">Message log</h2>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-muted-foreground">
                                 Every batch composed in this tenant, newest first.
                             </p>
                         </div>
@@ -72,42 +72,42 @@ export default async function MessagesPage() {
 
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="border-b bg-slate-50">
+                            <thead className="border-b bg-muted">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                         Channel
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                         Message
                                     </th>
-                                    <th className="px-4 py-3 text-center text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-center text-xs font-medium uppercase text-muted-foreground">
                                         Recipients
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                         Composed
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                         Outbox state
                                     </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
                                 {batches.map((batch) => (
-                                    <tr key={batch.id} className="align-top hover:bg-slate-50">
+                                    <tr key={batch.id} className="align-top hover:bg-muted">
                                         <td className="px-4 py-3">
                                             <ChannelBadge channel={batch.channel} />
                                         </td>
                                         <td className="max-w-md px-4 py-3">
                                             {batch.subject && (
-                                                <div className="text-sm font-medium text-slate-800">
+                                                <div className="text-sm font-medium text-foreground">
                                                     {batch.subject}
                                                 </div>
                                             )}
-                                            <div className="line-clamp-2 text-sm text-slate-600">
+                                            <div className="line-clamp-2 text-sm text-muted-foreground">
                                                 {batch.message}
                                             </div>
                                             {batch.templateName && (
-                                                <div className="mt-1 text-xs text-slate-400">
+                                                <div className="mt-1 text-xs text-muted-foreground">
                                                     Template: {batch.templateName}
                                                 </div>
                                             )}
@@ -115,12 +115,12 @@ export default async function MessagesPage() {
                                         <td className="px-4 py-3 text-center text-sm">
                                             {batch.recipientCount}
                                         </td>
-                                        <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
+                                        <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
                                             {formatDateTime(batch.sentAt)}
                                         </td>
                                         <td className="px-4 py-3">
                                             <StatusBadge status={batch.status} />
-                                            <div className="mt-1 text-xs text-slate-500">
+                                            <div className="mt-1 text-xs text-muted-foreground">
                                                 {batch.outboxPending} awaiting · {batch.outboxSent}{' '}
                                                 dispatched · {batch.outboxFailed} failed
                                             </div>
@@ -135,7 +135,7 @@ export default async function MessagesPage() {
                                 ))}
                                 {batches.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="px-4 py-12 text-center text-slate-400">
+                                        <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
                                             No messages composed yet.{' '}
                                             <Link href="/messages/compose" className="text-blue-600 underline">
                                                 Compose the first one

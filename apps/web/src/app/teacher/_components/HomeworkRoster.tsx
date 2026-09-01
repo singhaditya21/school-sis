@@ -28,7 +28,7 @@ export function HomeworkRoster({
 
     if (rows.length === 0) {
         return (
-            <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
+            <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
                 No active students are enrolled in this section.
             </div>
         );
@@ -63,18 +63,18 @@ export function HomeworkRoster({
                     <div key={row.studentId} className="p-4 space-y-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
-                                <p className="font-medium text-gray-900">
+                                <p className="font-medium text-foreground">
                                     {row.rollNumber !== null ? `${row.rollNumber}. ` : ''}
                                     {row.firstName} {row.lastName}
                                 </p>
-                                <p className="text-xs text-gray-500 font-mono">{row.admissionNumber}</p>
+                                <p className="text-xs text-muted-foreground font-mono">{row.admissionNumber}</p>
                             </div>
                             {submissionId ? (
                                 <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded">
                                     Submitted{row.submittedAt ? ` ${row.submittedAt.slice(0, 10)}` : ''}
                                 </span>
                             ) : (
-                                <span className="text-xs text-gray-500 bg-gray-50 border border-gray-200 px-2 py-1 rounded">
+                                <span className="text-xs text-muted-foreground bg-muted border border-border px-2 py-1 rounded">
                                     Nothing submitted
                                 </span>
                             )}
@@ -83,13 +83,13 @@ export function HomeworkRoster({
                         {submissionId && (
                             <>
                                 {row.content && (
-                                    <p className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3 whitespace-pre-wrap">
+                                    <p className="text-sm text-foreground bg-muted border border-border rounded-lg p-3 whitespace-pre-wrap">
                                         {row.content}
                                     </p>
                                 )}
                                 <div className="flex flex-wrap items-end gap-3">
                                     <label className="text-sm">
-                                        <span className="block mb-1 text-gray-600">
+                                        <span className="block mb-1 text-muted-foreground">
                                             Marks{maxMarks !== null ? ` / ${maxMarks}` : ''}
                                         </span>
                                         <input
@@ -107,12 +107,12 @@ export function HomeworkRoster({
                                                     },
                                                 }))
                                             }
-                                            className="w-24 border border-gray-300 rounded px-2 py-1 disabled:bg-gray-100"
+                                            className="w-24 border border-border rounded px-2 py-1 disabled:bg-muted"
                                             aria-label={`Marks for ${row.firstName} ${row.lastName}`}
                                         />
                                     </label>
                                     <label className="text-sm flex-1 min-w-[200px]">
-                                        <span className="block mb-1 text-gray-600">Feedback</span>
+                                        <span className="block mb-1 text-muted-foreground">Feedback</span>
                                         <input
                                             type="text"
                                             value={draft?.feedback ?? ''}
@@ -126,7 +126,7 @@ export function HomeworkRoster({
                                                     },
                                                 }))
                                             }
-                                            className="w-full border border-gray-300 rounded px-2 py-1 disabled:bg-gray-100"
+                                            className="w-full border border-border rounded px-2 py-1 disabled:bg-muted"
                                             aria-label={`Feedback for ${row.firstName} ${row.lastName}`}
                                         />
                                     </label>

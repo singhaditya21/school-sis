@@ -35,7 +35,7 @@ export default async function AdminLayout({
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-muted">
             {isImpersonating && (
                 <div className="bg-rose-600 text-white px-4 py-2 flex items-center justify-between sticky top-0 z-[60]">
                     <div className="flex items-center gap-2">
@@ -57,7 +57,7 @@ export default async function AdminLayout({
             <PlatformBroadcastTicker />
 
             {/* Header */}
-            <header className={`bg-white border-b border-gray-200 sticky ${isImpersonating ? 'top-10' : 'top-0'} z-50`}>
+            <header className={`bg-white border-b border-border sticky ${isImpersonating ? 'top-10' : 'top-0'} z-50`}>
                 <div className="px-6 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -65,16 +65,16 @@ export default async function AdminLayout({
                                 <span className="text-white text-xl">🎓</span>
                             </div>
                             <div>
-                                <div className="text-xl font-bold text-gray-900">
+                                <div className="text-xl font-bold text-foreground">
                                     School SIS
                                 </div>
-                                <p className="text-sm text-gray-500">
+                                <p className="text-sm text-muted-foreground">
                                     Administration Portal
                                 </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-4">
-                            <span className="text-sm text-gray-600">
+                            <span className="text-sm text-muted-foreground">
                                 {session.email}
                             </span>
                             <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded">
@@ -83,7 +83,7 @@ export default async function AdminLayout({
                             <form action="/api/logout" method="POST">
                                 <button
                                     type="submit"
-                                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                                    className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
                                 >
                                     Logout
                                 </button>
@@ -95,7 +95,7 @@ export default async function AdminLayout({
 
             <div className="flex">
                 {/* Sidebar Navigation */}
-                <aside data-testid="sidebar" className="w-64 bg-white border-r border-gray-200 min-h-screen sticky top-16">
+                <aside data-testid="sidebar" className="w-64 bg-white border-r border-border min-h-screen sticky top-16">
                     <nav className="p-4 space-y-1">
                         {/* --- CORE / SHARED MODULES --- */}
                         <NavLink href="/dashboard" icon="📊">
@@ -137,8 +137,8 @@ export default async function AdminLayout({
 
                         {/* --- K-12 SPECIFIC MODULES --- */}
                         {(institutionType === 'K12' || institutionType === 'HYBRID') && (
-                            <div className="pt-2 mt-2 border-t border-gray-100">
-                                <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">K-12 School</p>
+                            <div className="pt-2 mt-2 border-t border-border">
+                                <p className="px-4 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">K-12 School</p>
                                 <NavLink href="/timetable" icon="📅">Timetable</NavLink>
                                 <NavLink href="/transport" icon="🚌">Transport</NavLink>
                                 <NavLink href="/lesson-plans" icon="📚">Lesson Plans</NavLink>
@@ -149,8 +149,8 @@ export default async function AdminLayout({
 
 
                         {/* --- SYSTEM SETTINGS --- */}
-                        <div className="pt-2 mt-2 border-t border-gray-100">
-                            <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Settings</p>
+                        <div className="pt-2 mt-2 border-t border-border">
+                            <p className="px-4 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Settings</p>
                             <NavLink href="/settings/objects" icon="⚙️">Object Manager</NavLink>
                             <NavLink href="/automation" icon="⚡">Automations</NavLink>
                             <NavLink href="/marketplace" icon="🧩">Marketplace</NavLink>
@@ -158,8 +158,8 @@ export default async function AdminLayout({
 
                         {/* --- HQ COMMAND CENTER --- */}
                         {session.role === 'PLATFORM_ADMIN' || session.role === 'SUPER_ADMIN' || session.role === 'GROUP_EXECUTIVE' ? (
-                            <div className="pt-2 mt-2 border-t border-gray-100">
-                                <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Group HQ</p>
+                            <div className="pt-2 mt-2 border-t border-border">
+                                <p className="px-4 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Group HQ</p>
                                 <NavLink href="/hq-overview" icon="🏢">Command Center</NavLink>
                                 <NavLink href="/settings/users" icon="👤">Users & Roles</NavLink>
                             </div>
@@ -188,7 +188,7 @@ function NavLink({
     return (
         <Link
             href={href}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground hover:bg-blue-50 hover:text-blue-700 transition-colors"
         >
             <span>{icon}</span>
             <span className="text-sm font-medium">{children}</span>

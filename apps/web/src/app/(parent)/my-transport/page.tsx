@@ -18,7 +18,7 @@ export default async function ParentTransportPage({
             <div className="mx-auto max-w-4xl space-y-6">
                 <ParentTopBar students={students} selectedId={null} />
                 <h1 className="text-2xl font-bold">My Transport</h1>
-                <div className="rounded-xl border bg-white p-8 text-center text-gray-500">
+                <div className="rounded-xl border bg-white p-8 text-center text-muted-foreground">
                     No child is linked to your account yet.
                 </div>
             </div>
@@ -33,7 +33,7 @@ export default async function ParentTransportPage({
 
             <div>
                 <h1 className="text-2xl font-bold">My Transport</h1>
-                <p className="mt-1 text-sm text-slate-500">Bus route assigned to {child.name}</p>
+                <p className="mt-1 text-sm text-muted-foreground">Bus route assigned to {child.name}</p>
             </div>
 
             {assignments.length > 0 ? (
@@ -52,7 +52,7 @@ export default async function ParentTransportPage({
                                     <h2 className="font-semibold" data-testid="route-name">
                                         {route.routeName}
                                     </h2>
-                                    <p className="text-sm text-gray-500" data-testid="vehicle-number">
+                                    <p className="text-sm text-muted-foreground" data-testid="vehicle-number">
                                         {route.vehicleNumber}
                                     </p>
                                 </div>
@@ -60,21 +60,21 @@ export default async function ParentTransportPage({
 
                             <div className="grid grid-cols-2 gap-4 text-sm">
                                 <div data-testid="stops-count">
-                                    <span className="text-gray-500">Stops:</span> {route.stopCount}
+                                    <span className="text-muted-foreground">Stops:</span> {route.stopCount}
                                 </div>
                                 {route.morningDeparture && (
                                     <div data-testid="morning-time">
-                                        <span className="text-gray-500">Morning:</span> {route.morningDeparture}
+                                        <span className="text-muted-foreground">Morning:</span> {route.morningDeparture}
                                     </div>
                                 )}
                                 {route.afternoonDeparture && (
                                     <div data-testid="afternoon-time">
-                                        <span className="text-gray-500">Afternoon:</span> {route.afternoonDeparture}
+                                        <span className="text-muted-foreground">Afternoon:</span> {route.afternoonDeparture}
                                     </div>
                                 )}
                                 {route.monthlyFee !== null && (
                                     <div data-testid="monthly-fee">
-                                        <span className="text-gray-500">Monthly Fee:</span>{' '}
+                                        <span className="text-muted-foreground">Monthly Fee:</span>{' '}
                                         {formatCurrency(route.monthlyFee)}
                                     </div>
                                 )}
@@ -82,16 +82,16 @@ export default async function ParentTransportPage({
 
                             <div className="mt-4 grid gap-4 border-t pt-4 text-sm sm:grid-cols-2">
                                 <div>
-                                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                                         {child.name}&apos;s stop
                                     </p>
                                     {route.stopName ? (
-                                        <p className="mt-1 font-medium text-slate-800">{route.stopName}</p>
+                                        <p className="mt-1 font-medium text-foreground">{route.stopName}</p>
                                     ) : (
-                                        <p className="mt-1 text-slate-400">Not assigned to a stop yet</p>
+                                        <p className="mt-1 text-muted-foreground">Not assigned to a stop yet</p>
                                     )}
                                     {(route.pickupTime || route.dropTime) && (
-                                        <p className="mt-1 text-slate-500">
+                                        <p className="mt-1 text-muted-foreground">
                                             {route.pickupTime ? `Pickup ${route.pickupTime}` : ''}
                                             {route.pickupTime && route.dropTime ? ' · ' : ''}
                                             {route.dropTime ? `Drop ${route.dropTime}` : ''}
@@ -99,13 +99,13 @@ export default async function ParentTransportPage({
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                                         Driver
                                     </p>
                                     {route.driverName ? (
-                                        <p className="mt-1 font-medium text-slate-800">{route.driverName}</p>
+                                        <p className="mt-1 font-medium text-foreground">{route.driverName}</p>
                                     ) : (
-                                        <p className="mt-1 text-slate-400">Not recorded</p>
+                                        <p className="mt-1 text-muted-foreground">Not recorded</p>
                                     )}
                                     {route.driverPhone && (
                                         <a
@@ -119,7 +119,7 @@ export default async function ParentTransportPage({
                             </div>
 
                             {(route.startDate || route.endDate) && (
-                                <p className="mt-4 text-xs text-slate-400">
+                                <p className="mt-4 text-xs text-muted-foreground">
                                     {route.startDate ? `From ${route.startDate}` : ''}
                                     {route.startDate && route.endDate ? ' · ' : ''}
                                     {route.endDate ? `until ${route.endDate}` : ''}
@@ -130,7 +130,7 @@ export default async function ParentTransportPage({
                 </div>
             ) : (
                 <div
-                    className="rounded-xl border bg-white p-8 text-center text-gray-500 shadow-sm"
+                    className="rounded-xl border bg-white p-8 text-center text-muted-foreground shadow-sm"
                     data-testid="unassigned-placeholder"
                 >
                     No transport assigned.

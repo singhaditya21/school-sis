@@ -46,15 +46,15 @@ export default async function TreasuryDashboard() {
 
     return (
         <div className="space-y-6">
-            <div className="border-b border-gray-200 dark:border-gray-800 pb-6">
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-50">
+            <div className="border-b border-border dark:border-gray-800 pb-6">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground dark:text-gray-50">
                     Payment Orchestration
                 </h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-2">
+                <p className="text-muted-foreground dark:text-muted-foreground mt-2">
                     Cash collected, receivables still open, and transactions that did not reconcile — read
                     straight from the fee ledger for {campusLabel}.
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
+                <p className="text-sm text-muted-foreground dark:text-muted-foreground mt-3">
                     {scope?.groupName ? (
                         <>
                             This campus is mapped to the <strong>{scope.groupName}</strong> group
@@ -84,7 +84,7 @@ export default async function TreasuryDashboard() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-muted-foreground dark:text-muted-foreground">
                             {summary.collectedYtdCount} settled receipt
                             {summary.collectedYtdCount === 1 ? '' : 's'} since {formatFyStart(fyStart)}.
                             {summary.collectedAllTime !== summary.collectedYtd && (
@@ -104,7 +104,7 @@ export default async function TreasuryDashboard() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-muted-foreground dark:text-muted-foreground">
                             Unpaid balance on {summary.outstandingCount} invoice
                             {summary.outstandingCount === 1 ? '' : 's'} that is still payable.
                         </p>
@@ -121,7 +121,7 @@ export default async function TreasuryDashboard() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-muted-foreground dark:text-muted-foreground">
                             {summary.overdueCount} invoice{summary.overdueCount === 1 ? '' : 's'} past the due
                             date.{' '}
                             {summary.overdueCount > 0 && (
@@ -143,7 +143,7 @@ export default async function TreasuryDashboard() {
                 </CardHeader>
                 <CardContent>
                     {methodMix.length === 0 ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-muted-foreground dark:text-muted-foreground">
                             No payments have been recorded this financial year.
                         </p>
                     ) : (
@@ -156,14 +156,14 @@ export default async function TreasuryDashboard() {
                                 return (
                                     <div
                                         key={row.method}
-                                        className="border border-gray-200 dark:border-gray-800 rounded-lg p-4"
+                                        className="border border-border dark:border-gray-800 rounded-lg p-4"
                                     >
                                         <div className="flex items-center justify-between">
                                             <span className="text-sm font-semibold">{methodLabel(row.method)}</span>
-                                            <span className="text-xs text-gray-500 dark:text-gray-400">{share}%</span>
+                                            <span className="text-xs text-muted-foreground dark:text-muted-foreground">{share}%</span>
                                         </div>
                                         <div className="text-xl font-mono mt-2">{formatCurrency(row.amount)}</div>
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        <div className="text-xs text-muted-foreground dark:text-muted-foreground mt-1">
                                             {row.txnCount} receipt{row.txnCount === 1 ? '' : 's'}
                                         </div>
                                     </div>
@@ -190,7 +190,7 @@ export default async function TreasuryDashboard() {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
-                            <thead className="border-y border-gray-100 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold">
+                            <thead className="border-y border-border dark:border-gray-800 text-xs text-muted-foreground dark:text-muted-foreground uppercase font-semibold">
                                 <tr>
                                     <th className="px-6 py-4">Transaction ID</th>
                                     <th className="px-6 py-4">Gateway / method</th>
@@ -203,15 +203,15 @@ export default async function TreasuryDashboard() {
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                 {paymentExceptions.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
+                                        <td colSpan={6} className="px-6 py-10 text-center text-muted-foreground dark:text-muted-foreground">
                                             Every recorded payment is settled — nothing is pending, failed or
                                             refunded.
                                         </td>
                                     </tr>
                                 ) : (
                                     paymentExceptions.map((ex) => (
-                                        <tr key={ex.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/40">
-                                            <td className="px-6 py-4 font-mono text-xs text-gray-500 dark:text-gray-400">
+                                        <tr key={ex.id} className="hover:bg-muted dark:hover:bg-gray-900/40">
+                                            <td className="px-6 py-4 font-mono text-xs text-muted-foreground dark:text-muted-foreground">
                                                 {ex.transactionId || '—'}
                                             </td>
                                             <td className="px-6 py-4 font-semibold">{methodLabel(ex.method)}</td>
@@ -237,10 +237,10 @@ export default async function TreasuryDashboard() {
                                                         {ex.invoiceNumber || 'View invoice'}
                                                     </Link>
                                                 ) : (
-                                                    <span className="text-gray-400">Unlinked</span>
+                                                    <span className="text-muted-foreground">Unlinked</span>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400">
+                                            <td className="px-6 py-4 text-xs text-muted-foreground dark:text-muted-foreground">
                                                 {formatDate(ex.paidAt)}
                                             </td>
                                         </tr>
@@ -262,7 +262,7 @@ export default async function TreasuryDashboard() {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
-                            <thead className="border-y border-gray-100 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold">
+                            <thead className="border-y border-border dark:border-gray-800 text-xs text-muted-foreground dark:text-muted-foreground uppercase font-semibold">
                                 <tr>
                                     <th className="px-6 py-4">Invoice</th>
                                     <th className="px-6 py-4">Status</th>
@@ -275,13 +275,13 @@ export default async function TreasuryDashboard() {
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                 {ledgerMismatches.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
+                                        <td colSpan={6} className="px-6 py-10 text-center text-muted-foreground dark:text-muted-foreground">
                                             Invoice balances agree with the payment ledger.
                                         </td>
                                     </tr>
                                 ) : (
                                     ledgerMismatches.map((row) => (
-                                        <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/40">
+                                        <tr key={row.id} className="hover:bg-muted dark:hover:bg-gray-900/40">
                                             <td className="px-6 py-4">
                                                 <Link
                                                     href={`/invoices/${row.id}`}
@@ -316,7 +316,7 @@ export default async function TreasuryDashboard() {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
-                            <thead className="border-y border-gray-100 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold">
+                            <thead className="border-y border-border dark:border-gray-800 text-xs text-muted-foreground dark:text-muted-foreground uppercase font-semibold">
                                 <tr>
                                     <th className="px-6 py-4">Invoice</th>
                                     <th className="px-6 py-4">Student</th>
@@ -329,13 +329,13 @@ export default async function TreasuryDashboard() {
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                 {ledger.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
+                                        <td colSpan={6} className="px-6 py-10 text-center text-muted-foreground dark:text-muted-foreground">
                                             No settled payments have been recorded for this campus yet.
                                         </td>
                                     </tr>
                                 ) : (
                                     ledger.map((row) => (
-                                        <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/40">
+                                        <tr key={row.id} className="hover:bg-muted dark:hover:bg-gray-900/40">
                                             <td className="px-6 py-4 font-semibold">
                                                 {row.invoiceId ? (
                                                     <Link
@@ -345,16 +345,16 @@ export default async function TreasuryDashboard() {
                                                         {row.invoiceNumber || 'View invoice'}
                                                     </Link>
                                                 ) : (
-                                                    <span className="text-gray-400">Unlinked</span>
+                                                    <span className="text-muted-foreground">Unlinked</span>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4">{row.studentName || '—'}</td>
                                             <td className="px-6 py-4">{methodLabel(row.method)}</td>
                                             <td className="px-6 py-4 font-mono">{formatCurrency(row.amount)}</td>
-                                            <td className="px-6 py-4 font-mono text-xs text-gray-500 dark:text-gray-400">
+                                            <td className="px-6 py-4 font-mono text-xs text-muted-foreground dark:text-muted-foreground">
                                                 {row.transactionId || '—'}
                                             </td>
-                                            <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400">
+                                            <td className="px-6 py-4 text-xs text-muted-foreground dark:text-muted-foreground">
                                                 {formatDate(row.paidAt)}
                                             </td>
                                         </tr>

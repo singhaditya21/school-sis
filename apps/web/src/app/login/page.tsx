@@ -64,19 +64,19 @@ export default function LoginPage() {
                                 <span className="text-white text-2xl">🎓</span>
                             </div>
                             <div>
-                                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{APP_NAME}</h1>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">School Management Platform</p>
+                                <h1 className="text-2xl font-bold text-foreground dark:text-white">{APP_NAME}</h1>
+                                <p className="text-sm text-muted-foreground dark:text-muted-foreground">School Management Platform</p>
                             </div>
                         </div>
 
                         {/* Hero Text - Changes based on login mode */}
                         <div className="max-w-md mb-10">
-                            <h2 className="text-4xl xl:text-5xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">
+                            <h2 className="text-4xl xl:text-5xl font-bold text-foreground dark:text-white mb-4 leading-tight">
                                 {loginMode === 'platform'
                                     ? 'Your SaaS Command Center'
                                     : 'Fees-First Intelligence for Modern Schools'}
                             </h2>
-                            <p className="text-lg text-gray-600 dark:text-gray-300">
+                            <p className="text-lg text-muted-foreground dark:text-gray-300">
                                 {loginMode === 'platform'
                                     ? 'Monitor all tenant schools, track ARR growth, and manage subscription tiers from a single unified dashboard.'
                                     : 'Streamline fee collections, automate reminders, and gain actionable insights into your school\u0027s financial health.'}
@@ -86,11 +86,11 @@ export default function LoginPage() {
                         {/* Value Props */}
                         <div className="space-y-4 mb-8">
                             {VALUE_PROPS.map((prop, i) => (
-                                <div key={i} className="flex items-start gap-4 p-4 rounded-xl bg-white/60 dark:bg-slate-800/40 backdrop-blur-sm border border-gray-200/50 dark:border-slate-700/50">
+                                <div key={i} className="flex items-start gap-4 p-4 rounded-xl bg-white/60 dark:bg-slate-800/40 backdrop-blur-sm border border-border/50 dark:border-slate-700/50">
                                     <span className="text-2xl">{prop.icon}</span>
                                     <div>
-                                        <h3 className="font-semibold text-gray-900 dark:text-white">{prop.title}</h3>
-                                        <p className="text-sm text-gray-600 dark:text-gray-400">{prop.description}</p>
+                                        <h3 className="font-semibold text-foreground dark:text-white">{prop.title}</h3>
+                                        <p className="text-sm text-muted-foreground dark:text-muted-foreground">{prop.description}</p>
                                     </div>
                                 </div>
                             ))}
@@ -99,7 +99,7 @@ export default function LoginPage() {
                         {/* Trust Badges */}
                         <div className="flex flex-wrap gap-2">
                             {TRUST_BADGES.map((badge, i) => (
-                                <Badge key={i} variant="secondary" className="bg-white/80 dark:bg-slate-800 text-gray-700 dark:text-gray-300">
+                                <Badge key={i} variant="secondary" className="bg-white/80 dark:bg-slate-800 text-foreground dark:text-gray-300">
                                     ✓ {badge}
                                 </Badge>
                             ))}
@@ -107,20 +107,20 @@ export default function LoginPage() {
                     </div>
 
                     {/* Preview Card */}
-                    <div className="mt-8 p-6 rounded-2xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-gray-200/50 dark:border-slate-700/50 shadow-xl">
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wide">Live Insights Preview</p>
+                    <div className="mt-8 p-6 rounded-2xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-border/50 dark:border-slate-700/50 shadow-xl">
+                        <p className="text-xs font-medium text-muted-foreground dark:text-muted-foreground mb-3 uppercase tracking-wide">Live Insights Preview</p>
                         <div className="grid grid-cols-3 gap-4">
                             <div>
                                 <p className="text-2xl font-bold text-red-600 dark:text-red-400">₹12.4L</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Overdue</p>
+                                <p className="text-xs text-muted-foreground dark:text-muted-foreground">Overdue</p>
                             </div>
                             <div>
                                 <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">₹8.2L</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Due this week</p>
+                                <p className="text-xs text-muted-foreground dark:text-muted-foreground">Due this week</p>
                             </div>
                             <div>
                                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">78%</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Collection rate</p>
+                                <p className="text-xs text-muted-foreground dark:text-muted-foreground">Collection rate</p>
                             </div>
                         </div>
                     </div>
@@ -134,10 +134,10 @@ export default function LoginPage() {
                             <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
                                 <span className="text-white text-xl">🎓</span>
                             </div>
-                            <h1 className="text-xl font-bold text-gray-900 dark:text-white">{APP_NAME}</h1>
+                            <h1 className="text-xl font-bold text-foreground dark:text-white">{APP_NAME}</h1>
                         </div>
 
-                        <Card className="shadow-xl border-gray-200/50 dark:border-slate-700/50">
+                        <Card className="shadow-xl border-border/50 dark:border-slate-700/50">
                             <CardHeader className="space-y-1 pb-4">
                                 <CardTitle className="text-2xl font-bold text-center">Welcome back</CardTitle>
                                 <CardDescription className="text-center">
@@ -148,14 +148,14 @@ export default function LoginPage() {
                             </CardHeader>
                             <CardContent>
                                 {/* Login Mode Toggle */}
-                                <div className="flex rounded-xl bg-gray-100 dark:bg-slate-800 p-1 mb-6">
+                                <div className="flex rounded-xl bg-muted dark:bg-slate-800 p-1 mb-6">
                                     <button
                                         type="button"
                                         onClick={() => setLoginMode('school')}
                                         className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
                                             loginMode === 'school'
-                                                ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
-                                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                                                ? 'bg-white dark:bg-slate-700 text-foreground dark:text-white shadow-sm'
+                                                : 'text-muted-foreground dark:text-muted-foreground hover:text-foreground'
                                         }`}
                                     >
                                         🏫 School Staff
@@ -166,7 +166,7 @@ export default function LoginPage() {
                                         className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
                                             loginMode === 'platform'
                                                 ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
-                                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                                                : 'text-muted-foreground dark:text-muted-foreground hover:text-foreground'
                                         }`}
                                     >
                                         🌍 Platform Admin

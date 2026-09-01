@@ -17,11 +17,11 @@ export default async function ParentConsentPage({
         <div className="mx-auto max-w-5xl space-y-6">
             <ParentTopBar students={students} selectedId={data?.child.id ?? null} />
 
-            <div className="border-b border-slate-200 pb-4">
-                <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
+            <div className="border-b border-border pb-4">
+                <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
                     <span className="text-teal-600">🛡️</span> Consent forms
                 </h1>
-                <p className="mt-1 text-slate-500">
+                <p className="mt-1 text-muted-foreground">
                     {data
                         ? `Permissions and waivers the school has asked you to answer for ${data.child.name}.`
                         : 'Permissions and waivers the school has asked you to answer.'}
@@ -31,7 +31,7 @@ export default async function ParentConsentPage({
             {data ? (
                 <ConsentForms forms={data.forms} studentId={data.child.id} studentName={data.child.name} />
             ) : (
-                <div className="rounded-xl border border-dashed bg-white p-12 text-center text-slate-500">
+                <div className="rounded-xl border border-dashed bg-white p-12 text-center text-muted-foreground">
                     No child is linked to your account yet, so there are no consent forms to answer.
                 </div>
             )}

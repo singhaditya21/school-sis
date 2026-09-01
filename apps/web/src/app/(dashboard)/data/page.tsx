@@ -89,14 +89,14 @@ export default async function MetadataEnginePage() {
       {/* Header & Tabs */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Database className="w-6 h-6 text-indigo-600" />
             No-Code Metadata Engine
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Build and manage infinite custom data structures.</p>
+          <p className="text-muted-foreground text-sm mt-1">Build and manage infinite custom data structures.</p>
         </div>
         <div className="flex gap-3">
-          <button className="text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm">
+          <button className="text-muted-foreground hover:text-foreground bg-white border border-border px-4 py-2 rounded-lg font-medium transition-colors shadow-sm">
             Create Object
           </button>
           <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors shadow-sm">
@@ -107,51 +107,51 @@ export default async function MetadataEnginePage() {
       </div>
 
       {/* Airtable-like Container */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col flex-1 overflow-hidden">
+      <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col flex-1 overflow-hidden">
         
         {/* Object Tabs */}
-        <div className="flex border-b border-slate-200 bg-slate-50 overflow-x-auto">
+        <div className="flex border-b border-border bg-muted overflow-x-auto">
           {objects.length === 0 ? (
-            <div className="px-6 py-3 text-sm text-slate-500 font-medium">No objects created yet.</div>
+            <div className="px-6 py-3 text-sm text-muted-foreground font-medium">No objects created yet.</div>
           ) : (
             objects.map((obj, i) => (
               <button 
                 key={obj.id}
-                className={`px-6 py-3 text-sm font-medium border-r border-slate-200 ${
-                  i === 0 ? 'bg-white text-indigo-600 border-b-2 border-b-indigo-600' : 'text-slate-600 hover:bg-slate-100'
+                className={`px-6 py-3 text-sm font-medium border-r border-border ${
+                  i === 0 ? 'bg-white text-indigo-600 border-b-2 border-b-indigo-600' : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
                 {obj.label}
               </button>
             ))
           )}
-          <button className="px-4 py-3 text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center transition-colors">
+          <button className="px-4 py-3 text-muted-foreground hover:text-muted-foreground hover:bg-muted flex items-center transition-colors">
             <Plus className="w-4 h-4" />
           </button>
         </div>
 
         {/* Toolbar */}
-        <div className="p-2 border-b border-slate-200 flex items-center gap-2 text-sm text-slate-600">
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded hover:bg-slate-100 transition-colors">
+        <div className="p-2 border-b border-border flex items-center gap-2 text-sm text-muted-foreground">
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded hover:bg-muted transition-colors">
             <Filter className="w-4 h-4" /> Filter
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded hover:bg-slate-100 transition-colors">
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded hover:bg-muted transition-colors">
             <Columns className="w-4 h-4" /> Fields
           </button>
           <div className="h-4 w-px bg-slate-300 mx-2"></div>
-          <span className="text-slate-400">{records.length} records</span>
+          <span className="text-muted-foreground">{records.length} records</span>
         </div>
 
         {/* Grid Area */}
         <div className="flex-1 overflow-auto bg-white">
           <table className="w-full text-left border-collapse whitespace-nowrap">
-            <thead className="sticky top-0 bg-slate-50 z-10 shadow-[0_1px_0_0_#e2e8f0]">
+            <thead className="sticky top-0 bg-muted z-10 shadow-[0_1px_0_0_#e2e8f0]">
               <tr>
-                <th className="w-12 border-r border-slate-200 px-4 py-2">
-                  <input type="checkbox" className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                <th className="w-12 border-r border-border px-4 py-2">
+                  <input type="checkbox" className="rounded border-border text-indigo-600 focus:ring-indigo-500" />
                 </th>
                 {fields.map(f => (
-                  <th key={f.id} className="border-r border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 tracking-wide uppercase group cursor-pointer hover:bg-slate-100">
+                  <th key={f.id} className="border-r border-border px-4 py-2 text-xs font-semibold text-muted-foreground tracking-wide uppercase group cursor-pointer hover:bg-muted">
                     <div className="flex items-center justify-between">
                       {f.label}
                       <MoreHorizontal className="w-4 h-4 opacity-0 group-hover:opacity-100" />
@@ -168,18 +168,18 @@ export default async function MetadataEnginePage() {
             <tbody className="text-sm">
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan={fields.length + 2} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={fields.length + 2} className="px-6 py-12 text-center text-muted-foreground">
                     No data in this object. Click "Add Record" to start.
                   </td>
                 </tr>
               ) : (
                 records.map((rec, idx) => (
-                  <tr key={rec.id} className="border-b border-slate-100 hover:bg-slate-50/50 group">
-                    <td className="border-r border-slate-100 px-4 py-2 text-center text-slate-300 group-hover:text-slate-400">
+                  <tr key={rec.id} className="border-b border-border hover:bg-muted/50 group">
+                    <td className="border-r border-border px-4 py-2 text-center text-slate-300 group-hover:text-muted-foreground">
                       {idx + 1}
                     </td>
                     {fields.map(f => (
-                      <td key={f.id} className="border-r border-slate-100 p-0">
+                      <td key={f.id} className="border-r border-border p-0">
                         <input 
                           type="text" 
                           defaultValue={rec[f.name] || ''} 
@@ -193,9 +193,9 @@ export default async function MetadataEnginePage() {
                 ))
               )}
               {/* Ghost Row for adding new records */}
-              <tr className="border-b border-slate-100">
-                <td className="border-r border-slate-100 px-4 py-2 text-center text-slate-300 font-bold">+</td>
-                <td colSpan={fields.length + 1} className="px-4 py-2 text-slate-400 cursor-pointer hover:bg-slate-50 transition-colors">
+              <tr className="border-b border-border">
+                <td className="border-r border-border px-4 py-2 text-center text-slate-300 font-bold">+</td>
+                <td colSpan={fields.length + 1} className="px-4 py-2 text-muted-foreground cursor-pointer hover:bg-muted transition-colors">
                   Add new record...
                 </td>
               </tr>

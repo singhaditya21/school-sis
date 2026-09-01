@@ -34,9 +34,9 @@ export default function FeeAnalyticsPage() {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <div><h1 className="text-3xl font-bold">Fee Collection Analysis</h1><p className="text-gray-600 mt-1">Detailed fee trends and class-wise breakdown</p></div>
+                <div><h1 className="text-3xl font-bold">Fee Collection Analysis</h1><p className="text-muted-foreground mt-1">Detailed fee trends and class-wise breakdown</p></div>
                 <div className="flex gap-3">
-                    <Link href="/analytics" className="px-4 py-2 border rounded-lg hover:bg-gray-50">← Back to Analytics</Link>
+                    <Link href="/analytics" className="px-4 py-2 border rounded-lg hover:bg-muted">← Back to Analytics</Link>
                     <button
                         onClick={exportClassSummary}
                         disabled={classWiseData.length === 0}
@@ -48,16 +48,16 @@ export default function FeeAnalyticsPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Collected (last 12 months)</div><div className="text-2xl font-bold text-green-600">{formatCurrency(totalCollected)}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Invoiced (same months)</div><div className="text-2xl font-bold text-blue-600">{formatCurrency(totalTarget)}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Still outstanding</div><div className="text-2xl font-bold text-orange-600">{formatCurrency(totalPending)}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Collection Rate</div><div className="text-2xl font-bold text-purple-600">{collectionRate}%</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Collected (last 12 months)</div><div className="text-2xl font-bold text-green-600">{formatCurrency(totalCollected)}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Invoiced (same months)</div><div className="text-2xl font-bold text-blue-600">{formatCurrency(totalTarget)}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Still outstanding</div><div className="text-2xl font-bold text-orange-600">{formatCurrency(totalPending)}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Collection Rate</div><div className="text-2xl font-bold text-purple-600">{collectionRate}%</div></CardContent></Card>
             </div>
 
             <Card>
                 <CardHeader><CardTitle>Monthly collection vs amount invoiced</CardTitle></CardHeader>
                 <CardContent>
-                    {feeData.length === 0 ? <p className="text-gray-500 text-center py-12">No fee data available yet.</p> : (
+                    {feeData.length === 0 ? <p className="text-muted-foreground text-center py-12">No fee data available yet.</p> : (
                         <div className="h-80">
                             <div className="flex items-end gap-4 h-64">
                                 {feeData.map((d, idx) => (
@@ -83,15 +83,15 @@ export default function FeeAnalyticsPage() {
             <Card>
                 <CardHeader><CardTitle>Class-wise Fee Collection</CardTitle></CardHeader>
                 <CardContent>
-                    {classWiseData.length === 0 ? <p className="text-gray-500 text-center py-8">No class-wise data available.</p> : (
+                    {classWiseData.length === 0 ? <p className="text-muted-foreground text-center py-8">No class-wise data available.</p> : (
                         <table className="w-full">
-                            <thead className="bg-gray-50">
+                            <thead className="bg-muted">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class Group</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Students</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Collected</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Pending</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Progress</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Class Group</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Students</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Collected</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Pending</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Progress</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
@@ -99,7 +99,7 @@ export default function FeeAnalyticsPage() {
                                     const total = row.collected + row.pending;
                                     const percent = total > 0 ? Math.round((row.collected / total) * 100) : 0;
                                     return (
-                                        <tr key={idx} className="hover:bg-gray-50">
+                                        <tr key={idx} className="hover:bg-muted">
                                             <td className="px-4 py-3 font-medium">{row.class}</td>
                                             <td className="px-4 py-3 text-right">{row.students.toLocaleString()}</td>
                                             <td className="px-4 py-3 text-right text-green-600 font-semibold">{formatCurrency(row.collected)}</td>

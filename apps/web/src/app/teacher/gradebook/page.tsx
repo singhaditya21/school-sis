@@ -21,15 +21,15 @@ export default async function TeacherGradebookPage() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold">Gradebook</h1>
-                <p className="text-gray-600">
+                <p className="text-muted-foreground">
                     Exam papers for the subjects you teach. Open one to enter or revise marks.
                 </p>
             </div>
 
             {schedules.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                    <p className="font-medium text-gray-900">No exam papers are assigned to you.</p>
-                    <p className="text-sm text-gray-500 mt-2 max-w-xl mx-auto">
+                    <p className="font-medium text-foreground">No exam papers are assigned to you.</p>
+                    <p className="text-sm text-muted-foreground mt-2 max-w-xl mx-auto">
                         {classes.length === 0
                             ? 'You have no timetabled classes yet, so no exam schedule can match your subjects.'
                             : 'A paper appears here once the office schedules an exam for a grade and subject you teach. Nothing is scheduled for your subjects at the moment.'}
@@ -46,7 +46,7 @@ export default async function TeacherGradebookPage() {
                             >
                                 <div>
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <p className="font-medium text-gray-900">
+                                        <p className="font-medium text-foreground">
                                             {sched.gradeName} · {sched.subjectName}
                                         </p>
                                         <Badge variant="outline" className="text-xs">
@@ -56,11 +56,11 @@ export default async function TeacherGradebookPage() {
                                             <Badge className="bg-emerald-600 text-white text-xs">Marks entered</Badge>
                                         )}
                                     </div>
-                                    <p className="text-sm text-gray-500 mt-1">
+                                    <p className="text-sm text-muted-foreground mt-1">
                                         {sched.examName} · {formatDate(sched.examDate)} · {sched.startTime}–
                                         {sched.endTime} · max {Number(sched.maxMarks)}
                                     </p>
-                                    <p className="text-xs text-gray-500 mt-1">
+                                    <p className="text-xs text-muted-foreground mt-1">
                                         {sched.enteredCount} of {sched.studentCount} of your students marked
                                         {sched.examStatus ? ` · exam status ${sched.examStatus}` : ''}
                                     </p>

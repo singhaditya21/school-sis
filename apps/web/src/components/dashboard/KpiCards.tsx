@@ -80,7 +80,7 @@ export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], col
                             <div className="text-sm text-muted-foreground">{overdueStudents.length} students with overdue fees</div>
                             <Badge variant="destructive">Total: {formatFullCurrency(overdueStudents.reduce((sum: number, s: OverdueStudent) => sum + Number(s.amount || 0), 0))}</Badge>
                         </div>
-                        {overdueStudents.length === 0 ? <p className="text-gray-500 text-center py-8">No overdue data available.</p> : (
+                        {overdueStudents.length === 0 ? <p className="text-muted-foreground text-center py-8">No overdue data available.</p> : (
                             <Table><TableHeader><TableRow>
                                 <TableHead>Student</TableHead><TableHead>Class</TableHead><TableHead>Invoice</TableHead>
                                 <TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Days Overdue</TableHead><TableHead>Phone</TableHead>
@@ -105,7 +105,7 @@ export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], col
                             <div className="text-sm text-muted-foreground">{dueSoonStudents.length} invoices due in the next 7 days</div>
                             <Badge className="bg-amber-500">Total: {formatFullCurrency(dueSoonStudents.reduce((sum: number, s: DueSoonStudent) => sum + Number(s.amount || 0), 0))}</Badge>
                         </div>
-                        {dueSoonStudents.length === 0 ? <p className="text-gray-500 text-center py-8">No upcoming due data.</p> : (
+                        {dueSoonStudents.length === 0 ? <p className="text-muted-foreground text-center py-8">No upcoming due data.</p> : (
                             <Table><TableHeader><TableRow>
                                 <TableHead>Student</TableHead><TableHead>Class</TableHead><TableHead>Invoice</TableHead>
                                 <TableHead className="text-right">Amount</TableHead><TableHead>Due Date</TableHead><TableHead>Phone</TableHead>
@@ -130,7 +130,7 @@ export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], col
                             <div className="text-sm text-muted-foreground">Class-wise collection breakdown for the last 30 days</div>
                             <Badge className="bg-green-500">Overall: {data.collectionRate}%</Badge>
                         </div>
-                        {collectionData.length === 0 ? <p className="text-gray-500 text-center py-8">No collection data.</p> : (
+                        {collectionData.length === 0 ? <p className="text-muted-foreground text-center py-8">No collection data.</p> : (
                             <Table><TableHeader><TableRow>
                                 <TableHead>Class</TableHead><TableHead className="text-right">Total Students</TableHead>
                                 <TableHead className="text-right">Collected</TableHead><TableHead className="text-right">Pending</TableHead>
@@ -163,7 +163,7 @@ export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], col
                             <div className="text-sm text-muted-foreground">{blockedReminders.length} students cannot receive automated reminders</div>
                             <Badge variant="outline" className="border-orange-500 text-orange-700">Action Required</Badge>
                         </div>
-                        {blockedReminders.length === 0 ? <p className="text-gray-500 text-center py-8">No blocked reminders.</p> : (
+                        {blockedReminders.length === 0 ? <p className="text-muted-foreground text-center py-8">No blocked reminders.</p> : (
                             <Table><TableHeader><TableRow>
                                 <TableHead>Student</TableHead><TableHead>Class</TableHead><TableHead>Reason</TableHead>
                                 <TableHead>Guardian</TableHead><TableHead>Phone</TableHead>

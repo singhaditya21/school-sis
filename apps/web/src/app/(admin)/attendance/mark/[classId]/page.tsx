@@ -22,7 +22,7 @@ export default async function MarkAttendancePage({ params }: { params: Promise<{
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold">Mark Attendance</h1>
-                    <p className="text-gray-600">
+                    <p className="text-muted-foreground">
                         {sectionInfo ? `${sectionInfo.gradeName} - ${sectionInfo.sectionName}` : 'Section'} • {formatDate(new Date())}
                     </p>
                 </div>
@@ -34,12 +34,12 @@ export default async function MarkAttendancePage({ params }: { params: Promise<{
                 <input type="hidden" name="date" value={today} />
 
                 <table className="w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-muted">
                         <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Roll</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Admission No</th>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Name</th>
-                            <th className="px-4 py-3 text-center text-sm font-medium text-gray-500">Status</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Roll</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Admission No</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Name</th>
+                            <th className="px-4 py-3 text-center text-sm font-medium text-muted-foreground">Status</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -72,7 +72,7 @@ export default async function MarkAttendancePage({ params }: { params: Promise<{
                             );
                         })}
                         {students.length === 0 && (
-                            <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-500">No students in this section.</td></tr>
+                            <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">No students in this section.</td></tr>
                         )}
                     </tbody>
                 </table>

@@ -94,7 +94,7 @@ export default function PolicyClient({
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Multi-Campus Policy Cascading</h1>
-                <p className="text-sm text-slate-400 mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                     Group campuses under a headquarters, then define the non-negotiables every campus in the group inherits.
                 </p>
             </div>
@@ -111,11 +111,11 @@ export default function PolicyClient({
                             className={`px-4 py-2.5 rounded-lg border text-left transition-colors ${
                                 isActive
                                     ? 'border-indigo-500 bg-indigo-500/10 text-white'
-                                    : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                                    : 'border-slate-800 bg-slate-950 text-muted-foreground hover:border-slate-700 hover:text-slate-200'
                             }`}
                         >
                             <span className="block text-sm font-semibold">{g.name}</span>
-                            <span className="block text-xs text-slate-500 mt-0.5">
+                            <span className="block text-xs text-muted-foreground mt-0.5">
                                 {g.hqCity} · {g.campusCount} campus{g.campusCount === 1 ? '' : 'es'} · {g.policyCount} polic{g.policyCount === 1 ? 'y' : 'ies'}
                             </span>
                         </button>
@@ -126,7 +126,7 @@ export default function PolicyClient({
             {groups.length === 0 && (
                 <div className="rounded-xl border border-slate-800 bg-slate-950 px-6 py-5">
                     <p className="text-sm text-slate-300 font-medium">No campus group exists yet.</p>
-                    <p className="text-sm text-slate-500 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                         A group is what makes campuses comparable in HQ — cross-campus finance rolls up by group region, and
                         policies cascade to every campus attached below.
                     </p>
@@ -177,16 +177,16 @@ export default function PolicyClient({
                             {activeGroup ? `Campuses in ${activeGroup.name}` : 'Campus membership'}
                         </h3>
                         {activeGroup && (
-                            <span className="text-xs text-slate-500">HQ: {activeGroup.hqCity}</span>
+                            <span className="text-xs text-muted-foreground">HQ: {activeGroup.hqCity}</span>
                         )}
                     </div>
 
                     {!activeGroup ? (
-                        <p className="text-sm text-slate-500">Create a group first to attach campuses.</p>
+                        <p className="text-sm text-muted-foreground">Create a group first to attach campuses.</p>
                     ) : (
                         <>
                             {campuses.length === 0 ? (
-                                <p className="text-sm text-slate-500">
+                                <p className="text-sm text-muted-foreground">
                                     No campus attached yet. Policies defined below will not reach anyone until a campus joins.
                                 </p>
                             ) : (
@@ -195,12 +195,12 @@ export default function PolicyClient({
                                         <li key={c.id} className="flex items-center justify-between gap-4 px-2 py-3">
                                             <div className="min-w-0">
                                                 <p className="text-sm font-semibold text-white truncate">{c.name}</p>
-                                                <p className="text-xs text-slate-500 font-mono mt-0.5">
+                                                <p className="text-xs text-muted-foreground font-mono mt-0.5">
                                                     {c.code} · {c.region} · {c.campusType}
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-4 shrink-0">
-                                                <span className="text-xs text-slate-400 flex items-center gap-1.5">
+                                                <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                                                     <Users className="w-3 h-3" /> {c.activeStudents.toLocaleString('en-IN')}
                                                 </span>
                                                 <button
@@ -209,7 +209,7 @@ export default function PolicyClient({
                                                     onClick={() =>
                                                         run(() => detachCampusAction(c.id), () => undefined, `${c.name} detached.`)
                                                     }
-                                                    className="text-slate-500 hover:text-rose-400 transition-colors p-1.5 disabled:opacity-50"
+                                                    className="text-muted-foreground hover:text-rose-400 transition-colors p-1.5 disabled:opacity-50"
                                                     title="Detach campus from group"
                                                 >
                                                     <Unlink className="w-4 h-4" />
@@ -232,7 +232,7 @@ export default function PolicyClient({
                                 className="border-t border-slate-800 pt-5 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end"
                             >
                                 <div className="sm:col-span-2">
-                                    <label className="block text-xs text-slate-400 mb-1">Campus</label>
+                                    <label className="block text-xs text-muted-foreground mb-1">Campus</label>
                                     <select
                                         required
                                         value={attachForm.tenantId}
@@ -246,7 +246,7 @@ export default function PolicyClient({
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs text-slate-400 mb-1">Region</label>
+                                    <label className="block text-xs text-muted-foreground mb-1">Region</label>
                                     <input
                                         required
                                         type="text"
@@ -257,7 +257,7 @@ export default function PolicyClient({
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs text-slate-400 mb-1">Type</label>
+                                    <label className="block text-xs text-muted-foreground mb-1">Type</label>
                                     <select
                                         value={attachForm.campusType}
                                         onChange={(e) => setAttachForm({ ...attachForm, campusType: e.target.value })}
@@ -292,7 +292,7 @@ export default function PolicyClient({
                             Policies cascading to {campuses.length} campus{campuses.length === 1 ? '' : 'es'}
                         </h3>
                         {policies.length === 0 ? (
-                            <div className="p-8 border border-slate-800 rounded-xl bg-slate-950 text-center text-slate-400 text-sm">
+                            <div className="p-8 border border-slate-800 rounded-xl bg-slate-950 text-center text-muted-foreground text-sm">
                                 No policies defined. Campuses in this group currently have full autonomy.
                             </div>
                         ) : (
@@ -304,7 +304,7 @@ export default function PolicyClient({
                                                 <Shield className="w-5 h-5 text-indigo-400 shrink-0" />
                                                 {policy.policyName}
                                             </p>
-                                            <p className="text-xs text-slate-500 font-mono mt-1">KEY: {policy.policyKey}</p>
+                                            <p className="text-xs text-muted-foreground font-mono mt-1">KEY: {policy.policyKey}</p>
                                         </div>
                                         {pendingDelete === policy.id ? (
                                             <div className="flex items-center gap-2 shrink-0">
@@ -325,7 +325,7 @@ export default function PolicyClient({
                                                 <button
                                                     type="button"
                                                     onClick={() => setPendingDelete(null)}
-                                                    className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5"
+                                                    className="text-xs text-muted-foreground hover:text-slate-200 px-2 py-1.5"
                                                 >
                                                     Cancel
                                                 </button>
@@ -334,7 +334,7 @@ export default function PolicyClient({
                                             <button
                                                 type="button"
                                                 onClick={() => setPendingDelete(policy.id)}
-                                                className="text-slate-500 hover:text-rose-400 transition-colors p-2 shrink-0"
+                                                className="text-muted-foreground hover:text-rose-400 transition-colors p-2 shrink-0"
                                                 title="Remove policy"
                                             >
                                                 <Trash2 className="w-4 h-4" />
@@ -343,11 +343,11 @@ export default function PolicyClient({
                                     </div>
                                     <div className="grid grid-cols-2 gap-4 mt-4">
                                         <div className="bg-slate-900 rounded-lg p-3 border border-slate-800">
-                                            <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Enforced value</p>
+                                            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Enforced value</p>
                                             <p className="font-semibold text-emerald-400">{policy.policyValue}</p>
                                         </div>
                                         <div className="bg-slate-900 rounded-lg p-3 border border-slate-800">
-                                            <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Override</p>
+                                            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Override</p>
                                             <p className="font-semibold text-amber-400 flex items-center gap-1.5">
                                                 {policy.isHardBlock ? (
                                                     <><ShieldAlert className="w-4 h-4" /> Blocked at campus</>
@@ -356,7 +356,7 @@ export default function PolicyClient({
                                         </div>
                                     </div>
                                     {campuses.length === 0 && (
-                                        <p className="text-xs text-slate-500 mt-4">
+                                        <p className="text-xs text-muted-foreground mt-4">
                                             No campus is attached to this group, so this policy currently reaches nobody.
                                         </p>
                                     )}
@@ -434,7 +434,7 @@ function Field({
 }) {
     return (
         <div>
-            <label className="block text-xs text-slate-400 mb-1">{label}</label>
+            <label className="block text-xs text-muted-foreground mb-1">{label}</label>
             <input
                 type="text"
                 required={required}

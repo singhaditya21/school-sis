@@ -14,16 +14,16 @@ export default async function StudentHomeworkPage() {
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto pb-6">
-            <div className="border-b border-gray-200 pb-4">
-                <h1 className="text-2xl font-bold tracking-tight text-gray-900">My homework</h1>
-                <p className="mt-1 text-sm text-gray-500">
+            <div className="border-b border-border pb-4">
+                <h1 className="text-2xl font-bold tracking-tight text-foreground">My homework</h1>
+                <p className="mt-1 text-sm text-muted-foreground">
                     Assignments set for {data.student.gradeName} · Section {data.student.sectionName},
                     with your own submission and feedback.
                 </p>
             </div>
 
             {data.homework.length === 0 ? (
-                <div className="rounded-xl border bg-white p-8 text-center text-sm text-gray-500">
+                <div className="rounded-xl border bg-white p-8 text-center text-sm text-muted-foreground">
                     No homework has been assigned to your class yet.
                 </div>
             ) : (
@@ -34,13 +34,13 @@ export default async function StudentHomeworkPage() {
                             <li key={item.id} className="rounded-xl border bg-white p-5 shadow-sm">
                                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                                     <div className="min-w-0">
-                                        <h2 className="font-semibold text-gray-900">{item.title}</h2>
-                                        <p className="mt-0.5 text-xs text-gray-500">
+                                        <h2 className="font-semibold text-foreground">{item.title}</h2>
+                                        <p className="mt-0.5 text-xs text-muted-foreground">
                                             {item.subject ?? 'General'} · due {item.dueDate}
                                             {item.maxMarks !== null && <> · out of {item.maxMarks}</>}
                                         </p>
                                         {item.description && (
-                                            <p className="mt-2 whitespace-pre-wrap text-sm text-gray-600">{item.description}</p>
+                                            <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{item.description}</p>
                                         )}
                                     </div>
                                     <span
@@ -61,14 +61,14 @@ export default async function StudentHomeworkPage() {
                                 </div>
 
                                 {item.gradedAt !== null && (
-                                    <div className="mt-4 rounded-lg bg-gray-50 p-4 text-sm">
-                                        <p className="font-medium text-gray-800">
+                                    <div className="mt-4 rounded-lg bg-muted p-4 text-sm">
+                                        <p className="font-medium text-foreground">
                                             Graded {item.gradedAt}
                                             {item.marks !== null && (
                                                 <> · {item.marks}{item.maxMarks !== null && <> / {item.maxMarks}</>}</>
                                             )}
                                         </p>
-                                        {item.feedback && <p className="mt-1 text-gray-600">{item.feedback}</p>}
+                                        {item.feedback && <p className="mt-1 text-muted-foreground">{item.feedback}</p>}
                                     </div>
                                 )}
                             </li>
@@ -77,7 +77,7 @@ export default async function StudentHomeworkPage() {
                 </ul>
             )}
 
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-muted-foreground">
                 Submitting work from this portal isn&apos;t built yet — hand in through your teacher.
             </p>
         </div>

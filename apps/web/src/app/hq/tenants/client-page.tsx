@@ -73,7 +73,7 @@ export default function TenantsClient({
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Campus Management</h1>
-                <p className="text-sm text-slate-400 mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                     Every campus tenant on the platform, with its subscription tier and fee collection to date.
                 </p>
             </div>
@@ -128,7 +128,7 @@ export default function TenantsClient({
                         {tierData.map((entry, index) => (
                             <div key={entry.name} className="flex items-center gap-2">
                                 <span className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index] }} />
-                                <span className="text-xs text-slate-400">{entry.name}</span>
+                                <span className="text-xs text-muted-foreground">{entry.name}</span>
                             </div>
                         ))}
                     </div>
@@ -136,7 +136,7 @@ export default function TenantsClient({
 
                 <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
                     <h3 className="text-sm font-semibold text-white mb-1">Fees collected by tier</h3>
-                    <p className="text-xs text-slate-500 mb-6">Completed campus fee payments, in rupees.</p>
+                    <p className="text-xs text-muted-foreground mb-6">Completed campus fee payments, in rupees.</p>
                     <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={collectedByTier}>
@@ -172,7 +172,7 @@ export default function TenantsClient({
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-slate-300">
-                        <thead className="bg-slate-900 border-b border-slate-800 text-xs text-slate-500 uppercase tracking-widest">
+                        <thead className="bg-slate-900 border-b border-slate-800 text-xs text-muted-foreground uppercase tracking-widest">
                             <tr>
                                 <th className="px-6 py-4 font-semibold">Campus</th>
                                 <th className="px-6 py-4 font-semibold">Tier</th>
@@ -185,7 +185,7 @@ export default function TenantsClient({
                         <tbody className="divide-y divide-slate-800/60">
                             {initialTenants.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-8 text-center text-slate-500">No campuses provisioned yet.</td>
+                                    <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">No campuses provisioned yet.</td>
                                 </tr>
                             )}
                             {initialTenants.map((tenant) => {
@@ -194,13 +194,13 @@ export default function TenantsClient({
                                     <tr key={tenant.id} className="hover:bg-slate-900/50 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="font-medium text-slate-200">{tenant.name}</div>
-                                            <div className="text-xs text-slate-500 font-mono mt-0.5">{tenant.code} · {tenant.adminEmail}</div>
+                                            <div className="text-xs text-muted-foreground font-mono mt-0.5">{tenant.code} · {tenant.adminEmail}</div>
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2 py-1 rounded text-xs font-medium ${
                                                 tenant.subscriptionTier === 'ENTERPRISE' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' :
                                                 tenant.subscriptionTier === 'AI_PRO' ? 'bg-pink-500/10 text-pink-400 border border-pink-500/20' :
-                                                'bg-slate-800 text-slate-400 border border-slate-700'
+                                                'bg-slate-800 text-muted-foreground border border-slate-700'
                                             }`}>
                                                 {tenant.subscriptionTier}
                                             </span>
@@ -210,7 +210,7 @@ export default function TenantsClient({
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
                                                 <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500'}`} />
-                                                <span className="text-xs font-medium text-slate-400">{tenant.status}</span>
+                                                <span className="text-xs font-medium text-muted-foreground">{tenant.status}</span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
@@ -228,7 +228,7 @@ export default function TenantsClient({
                                                         <button
                                                             type="button"
                                                             onClick={() => setConfirmingSuspend(null)}
-                                                            className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5"
+                                                            className="text-xs text-muted-foreground hover:text-slate-200 px-2 py-1.5"
                                                         >
                                                             Cancel
                                                         </button>
@@ -240,7 +240,7 @@ export default function TenantsClient({
                                                             title="Sign in to this campus as its administrator"
                                                             disabled={isPending || !isActive}
                                                             onClick={() => handleImpersonate(tenant)}
-                                                            className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors disabled:opacity-40 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
+                                                            className="p-1.5 text-muted-foreground hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors disabled:opacity-40 disabled:hover:text-muted-foreground disabled:hover:bg-transparent"
                                                         >
                                                             <PlayCircle className="w-4 h-4" />
                                                         </button>
@@ -250,7 +250,7 @@ export default function TenantsClient({
                                                                 title="Suspend this campus"
                                                                 disabled={isPending}
                                                                 onClick={() => setConfirmingSuspend(tenant.id)}
-                                                                className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors disabled:opacity-40"
+                                                                className="p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors disabled:opacity-40"
                                                             >
                                                                 <Ban className="w-4 h-4" />
                                                             </button>
@@ -260,7 +260,7 @@ export default function TenantsClient({
                                                                 title="Reactivate this campus"
                                                                 disabled={isPending}
                                                                 onClick={() => handleToggleStatus(tenant, true)}
-                                                                className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-md transition-colors disabled:opacity-40"
+                                                                className="p-1.5 text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10 rounded-md transition-colors disabled:opacity-40"
                                                             >
                                                                 <Undo2 className="w-4 h-4" />
                                                             </button>
@@ -293,9 +293,9 @@ function StatCard({
         <div className={`p-5 rounded-xl border ${tone === 'rose' ? 'border-red-900/50 bg-red-950/10' : 'border-slate-800 bg-slate-950'}`}>
             <div className="flex justify-between items-start gap-3">
                 <div className="min-w-0">
-                    <p className={`text-sm font-medium mb-1 ${tone === 'rose' ? 'text-red-400' : 'text-slate-400'}`}>{label}</p>
+                    <p className={`text-sm font-medium mb-1 ${tone === 'rose' ? 'text-red-400' : 'text-muted-foreground'}`}>{label}</p>
                     <p className={`text-2xl font-bold tabular-nums ${tone === 'rose' ? 'text-red-500' : 'text-white'}`}>{value}</p>
-                    <p className="text-xs text-slate-500 mt-1">{hint}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{hint}</p>
                 </div>
                 <div className="shrink-0">{icon}</div>
             </div>

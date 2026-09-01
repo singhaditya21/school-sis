@@ -111,7 +111,7 @@ export function AttendanceForm({
                     ✗ Mark All Absent
                 </button>
                 <div className="flex-1" />
-                <span className="px-4 py-2 bg-gray-100 rounded-lg text-sm">
+                <span className="px-4 py-2 bg-muted rounded-lg text-sm">
                     <span className="text-green-600 font-medium">{presentCount}</span> Present
                     {' • '}
                     <span className="text-red-600 font-medium">{absentCount}</span> Absent
@@ -121,23 +121,23 @@ export function AttendanceForm({
             {/* Student List */}
             <div className="bg-white rounded-xl shadow-sm border divide-y">
                 {students.length === 0 ? (
-                    <div className="p-8 text-center text-gray-500">
+                    <div className="p-8 text-center text-muted-foreground">
                         No students in this class.
                     </div>
                 ) : (
                     students.map((student, index) => (
                         <div key={student.id} className="p-4 flex items-center gap-4">
                             {/* Roll Number */}
-                            <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center font-medium text-gray-600">
+                            <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center font-medium text-muted-foreground">
                                 {index + 1}
                             </div>
 
                             {/* Student Info */}
                             <div className="flex-1 min-w-0">
-                                <p className="font-medium text-gray-900">
+                                <p className="font-medium text-foreground">
                                     {student.firstName} {student.lastName}
                                 </p>
-                                <p className="text-sm text-gray-500">{student.admissionNumber}</p>
+                                <p className="text-sm text-muted-foreground">{student.admissionNumber}</p>
                             </div>
 
                             {/* Status Buttons */}
@@ -153,7 +153,7 @@ export function AttendanceForm({
                                         }
                                         className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${attendance[student.id] === option.value
                                             ? `${option.color} text-white`
-                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            : 'bg-muted text-muted-foreground hover:bg-gray-200'
                                             }`}
                                     >
                                         {option.label}
@@ -169,7 +169,7 @@ export function AttendanceForm({
             <div className="flex gap-4 sticky bottom-0 bg-white py-4 border-t">
                 <Link
                     href="/attendance"
-                    className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                    className="px-6 py-3 border border-border rounded-lg text-foreground hover:bg-muted"
                 >
                     Cancel
                 </Link>

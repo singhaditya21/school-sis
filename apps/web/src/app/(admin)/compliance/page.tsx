@@ -158,8 +158,8 @@ export default async function CompliancePage() {
     return (
         <div className="space-y-8">
             <header>
-                <h1 className="text-3xl font-bold text-gray-900">Regulatory compliance</h1>
-                <p className="mt-1 max-w-3xl text-gray-600">
+                <h1 className="text-3xl font-bold text-foreground">Regulatory compliance</h1>
+                <p className="mt-1 max-w-3xl text-muted-foreground">
                     What ScholarMind can actually evidence about UDISE+, APAAR and the DPDP Act 2023 for{' '}
                     {tenant?.name ?? 'this school'}. Sections that a regulator would expect but that this
                     release does not implement are marked as such rather than shown with a status.
@@ -175,20 +175,20 @@ export default async function CompliancePage() {
                     <Note>The school record could not be read.</Note>
                 ) : (
                     <>
-                        <p className="mb-3 text-sm text-gray-600">
+                        <p className="mb-3 text-sm text-muted-foreground">
                             {profileMissing === 0
                                 ? 'All nine profile fields tracked on the school record are filled in.'
                                 : `${profileMissing} of ${profileFields.length} profile fields are empty.`}
                         </p>
-                        <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-gray-200 bg-gray-200 sm:grid-cols-2 lg:grid-cols-3">
+                        <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-border bg-gray-200 sm:grid-cols-2 lg:grid-cols-3">
                             {profileFields.map((field) => (
                                 <div key={field.label} className="bg-white p-3">
-                                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                         {field.label}
                                     </dt>
                                     <dd
                                         className={`mt-0.5 text-sm ${
-                                            field.value?.trim() ? 'text-gray-900' : 'italic text-red-600'
+                                            field.value?.trim() ? 'text-foreground' : 'italic text-red-600'
                                         }`}
                                     >
                                         {field.value?.trim() || 'Not recorded'}
@@ -324,9 +324,9 @@ export default async function CompliancePage() {
                 {proctoringResult.rows.length === 0 ? (
                     <EmptyState message="No proctoring anomalies have been recorded." />
                 ) : (
-                    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                    <div className="overflow-x-auto rounded-xl border border-border bg-white">
                         <table className="w-full text-sm">
-                            <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                            <thead className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                                 <tr>
                                     <th className="px-4 py-3 font-semibold">Student</th>
                                     <th className="px-4 py-3 font-semibold">Exam</th>
@@ -337,21 +337,21 @@ export default async function CompliancePage() {
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {proctoringResult.rows.map((row) => (
-                                    <tr key={row.id} className="hover:bg-gray-50/70">
-                                        <td className="px-4 py-3 font-medium text-gray-900">{row.student_name}</td>
-                                        <td className="px-4 py-3 text-gray-700">
+                                    <tr key={row.id} className="hover:bg-muted/70">
+                                        <td className="px-4 py-3 font-medium text-foreground">{row.student_name}</td>
+                                        <td className="px-4 py-3 text-foreground">
                                             {row.exam_name}
-                                            <div className="text-xs text-gray-500">{row.subject_name}</div>
+                                            <div className="text-xs text-muted-foreground">{row.subject_name}</div>
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className="rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
                                                 {row.flag_type}
                                             </span>
                                         </td>
-                                        <td className="max-w-sm px-4 py-3 text-gray-700">
-                                            {row.description ?? <span className="text-gray-400">—</span>}
+                                        <td className="max-w-sm px-4 py-3 text-foreground">
+                                            {row.description ?? <span className="text-muted-foreground">—</span>}
                                         </td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600">
+                                        <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
                                             {new Date(row.logged_at).toLocaleString('en-IN', {
                                                 day: '2-digit',
                                                 month: 'short',
@@ -367,7 +367,7 @@ export default async function CompliancePage() {
                 )}
             </Section>
 
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
                 Individual actions taken by staff are recorded separately in the{' '}
                 <Link href="/audit" className="font-medium text-blue-600 hover:underline">
                     audit log
@@ -390,8 +390,8 @@ function Section({
     return (
         <section className="space-y-3">
             <div>
-                <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-                <p className="text-sm text-gray-500">{subtitle}</p>
+                <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+                <p className="text-sm text-muted-foreground">{subtitle}</p>
             </div>
             {children}
         </section>
@@ -400,10 +400,10 @@ function Section({
 
 function Metric({ label, value, hint }: { label: string; value: string; hint: string }) {
     return (
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
-            <div className="mt-1 text-2xl font-bold text-gray-900">{value}</div>
-            <div className="mt-1 text-xs text-gray-500">{hint}</div>
+        <div className="rounded-xl border border-border bg-white p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+            <div className="mt-1 text-2xl font-bold text-foreground">{value}</div>
+            <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
         </div>
     );
 }
@@ -416,13 +416,13 @@ function Gap({ label, missing, total }: { label: string; missing: number; total:
                 complete ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'
             }`}
         >
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-600">{label}</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
             <div
                 className={`mt-1 text-2xl font-bold ${complete ? 'text-emerald-700' : 'text-amber-800'}`}
             >
                 {missing.toLocaleString('en-IN')}
             </div>
-            <div className="mt-1 text-xs text-gray-600">
+            <div className="mt-1 text-xs text-muted-foreground">
                 {complete ? 'none missing' : `of ${total.toLocaleString('en-IN')} records`}
             </div>
         </div>
@@ -439,7 +439,7 @@ function Note({ children }: { children: React.ReactNode }) {
 
 function EmptyState({ message }: { message: string }) {
     return (
-        <div className="rounded-xl border border-dashed border-gray-300 bg-white py-10 text-center text-sm text-gray-500">
+        <div className="rounded-xl border border-dashed border-border bg-white py-10 text-center text-sm text-muted-foreground">
             {message}
         </div>
     );

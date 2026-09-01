@@ -175,8 +175,8 @@ export default function VisitorsClient({
     return (
         <div className="space-y-6 pb-16">
             <div>
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Gate Desk</h1>
-                <p className="text-gray-500 mt-1">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">Gate Desk</h1>
+                <p className="text-muted-foreground mt-1">
                     Check visitors in, issue gate passes, and check them out.
                 </p>
             </div>
@@ -240,7 +240,7 @@ export default function VisitorsClient({
                                             'h-16 rounded-lg border-2 text-base font-semibold transition-colors flex flex-col items-center justify-center gap-0.5',
                                             form.purpose === p.value
                                                 ? 'border-green-600 bg-green-50 text-green-800'
-                                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50',
+                                                : 'border-border bg-white text-foreground hover:border-border hover:bg-muted',
                                         )}
                                     >
                                         <span className="text-xl leading-none">{p.icon}</span>
@@ -303,7 +303,7 @@ export default function VisitorsClient({
                                             'h-12 px-4 rounded-lg border-2 text-sm font-semibold transition-colors',
                                             form.idProof === proof
                                                 ? 'border-green-600 bg-green-50 text-green-800'
-                                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50',
+                                                : 'border-border bg-white text-foreground hover:border-border hover:bg-muted',
                                         )}
                                     >
                                         {proof}
@@ -330,7 +330,7 @@ export default function VisitorsClient({
                         </button>
 
                         {showExtras && (
-                            <div className="space-y-4 rounded-lg bg-gray-50 p-4">
+                            <div className="space-y-4 rounded-lg bg-muted p-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="visitor-company">Company</Label>
                                     <Input
@@ -406,12 +406,12 @@ export default function VisitorsClient({
                                         className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-indigo-50/50 p-4"
                                     >
                                         <div className="min-w-0">
-                                            <div className="text-lg font-semibold text-gray-900">{v.name}</div>
-                                            <div className="text-sm text-gray-600">
+                                            <div className="text-lg font-semibold text-foreground">{v.name}</div>
+                                            <div className="text-sm text-muted-foreground">
                                                 {v.phone} · {purposeLabel(v.purpose)} · {v.hostName} ({v.hostDepartment})
                                             </div>
                                             {v.preApprovedLabel && (
-                                                <div className="text-xs text-gray-500 mt-0.5">
+                                                <div className="text-xs text-muted-foreground mt-0.5">
                                                     Approved {v.preApprovedLabel}
                                                 </div>
                                             )}
@@ -463,8 +463,8 @@ export default function VisitorsClient({
                                     >
                                         <div className="min-w-0 flex-1">
                                             <div className="flex flex-wrap items-center gap-2">
-                                                <span className="text-lg font-semibold text-gray-900">{v.name}</span>
-                                                <span className="font-mono text-sm text-gray-600">
+                                                <span className="text-lg font-semibold text-foreground">{v.name}</span>
+                                                <span className="font-mono text-sm text-muted-foreground">
                                                     {v.visitorPass ?? 'no pass'}
                                                 </span>
                                                 {v.carriedOver && (
@@ -473,16 +473,16 @@ export default function VisitorsClient({
                                                     </Badge>
                                                 )}
                                             </div>
-                                            <div className="text-sm text-gray-600 mt-0.5">
+                                            <div className="text-sm text-muted-foreground mt-0.5">
                                                 {v.phone}
                                                 {v.company ? ` · ${v.company}` : ''} · {purposeLabel(v.purpose)}
                                             </div>
-                                            <div className="text-sm text-gray-600">
+                                            <div className="text-sm text-muted-foreground">
                                                 Meeting <span className="font-medium">{v.hostName}</span> ·{' '}
                                                 {v.hostDepartment}
                                                 {v.vehicleNumber ? ` · ${v.vehicleNumber}` : ''}
                                             </div>
-                                            <div className="text-sm text-gray-500 mt-0.5">
+                                            <div className="text-sm text-muted-foreground mt-0.5">
                                                 In {v.checkInLabel}
                                                 {inside
                                                     ? ` · on campus ${duration(v.minutesInside)}`
@@ -509,7 +509,7 @@ export default function VisitorsClient({
                             })}
 
                             {filtered.length === 0 && (
-                                <div className="py-14 text-center text-gray-500">
+                                <div className="py-14 text-center text-muted-foreground">
                                     {register.length === 0
                                         ? 'No visitors yet today. Check the first one in on the left.'
                                         : `No entry matches “${search.trim()}”.`}
@@ -537,7 +537,7 @@ function StatTile({
     const tones: Record<string, string> = {
         green: 'border-green-200 bg-green-50/60 text-green-700',
         blue: 'border-blue-100 bg-blue-50/50 text-blue-700',
-        slate: 'border-gray-200 bg-gray-50/60 text-gray-600',
+        slate: 'border-border bg-muted/60 text-muted-foreground',
         indigo: 'border-indigo-100 bg-indigo-50/50 text-indigo-700',
     };
 
@@ -553,7 +553,7 @@ function StatTile({
                     )}
                     {label}
                 </div>
-                <div className="text-4xl font-bold text-gray-900">{value}</div>
+                <div className="text-4xl font-bold text-foreground">{value}</div>
             </CardContent>
         </Card>
     );

@@ -20,8 +20,8 @@ export default async function ReportCardsPage({
             <div className="space-y-6">
                 <Header />
                 <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                    <p className="font-medium text-gray-900">No exams yet</p>
-                    <p className="text-sm text-gray-500 mt-1 mb-4">
+                    <p className="font-medium text-foreground">No exams yet</p>
+                    <p className="text-sm text-muted-foreground mt-1 mb-4">
                         Report cards are built from saved marks, so there is nothing to show until an
                         exam exists and marks have been entered.
                     </p>
@@ -56,7 +56,7 @@ export default async function ReportCardsPage({
 
             <div className="bg-white rounded-xl shadow-sm border">
                 <div className="p-4 border-b">
-                    <h2 className="font-semibold text-gray-900">1. Choose an exam</h2>
+                    <h2 className="font-semibold text-foreground">1. Choose an exam</h2>
                 </div>
                 <div className="divide-y">
                     {exams.map((exam) => {
@@ -65,12 +65,12 @@ export default async function ReportCardsPage({
                             <Link
                                 key={exam.id}
                                 href={`/exams/report-cards?examId=${exam.id}`}
-                                className={`flex flex-wrap items-center justify-between gap-3 p-4 hover:bg-gray-50 ${
+                                className={`flex flex-wrap items-center justify-between gap-3 p-4 hover:bg-muted ${
                                     active ? 'bg-blue-50/60' : ''
                                 }`}
                             >
                                 <div>
-                                    <p className="font-medium text-gray-900">
+                                    <p className="font-medium text-foreground">
                                         {exam.name}
                                         {active && (
                                             <span className="ml-2 text-xs font-semibold text-blue-600">
@@ -78,11 +78,11 @@ export default async function ReportCardsPage({
                                             </span>
                                         )}
                                     </p>
-                                    <p className="text-sm text-gray-500">
+                                    <p className="text-sm text-muted-foreground">
                                         {exam.academicYearName} · {formatDate(exam.startDate)}
                                     </p>
                                 </div>
-                                <p className="text-sm text-gray-500">
+                                <p className="text-sm text-muted-foreground">
                                     {exam.scheduleCount} paper(s) · {exam.resultCount} mark(s) saved
                                 </p>
                             </Link>
@@ -93,15 +93,15 @@ export default async function ReportCardsPage({
 
             <div className="bg-white rounded-xl shadow-sm border">
                 <div className="p-4 border-b">
-                    <h2 className="font-semibold text-gray-900">
+                    <h2 className="font-semibold text-foreground">
                         2. Choose a class — {selected.name}
                     </h2>
                 </div>
 
                 {classes.length === 0 ? (
                     <div className="p-8 text-center">
-                        <p className="font-medium text-gray-900">No classes scheduled for this exam</p>
-                        <p className="text-sm text-gray-500 mt-1">
+                        <p className="font-medium text-foreground">No classes scheduled for this exam</p>
+                        <p className="text-sm text-muted-foreground mt-1">
                             Add a paper for at least one class to this exam before generating report
                             cards.
                         </p>
@@ -116,18 +116,18 @@ export default async function ReportCardsPage({
                     <div className="p-4 space-y-5">
                         {Array.from(byGrade.entries()).map(([gradeName, sections]) => (
                             <div key={gradeName}>
-                                <h3 className="text-sm font-semibold text-gray-700 mb-2">{gradeName}</h3>
+                                <h3 className="text-sm font-semibold text-foreground mb-2">{gradeName}</h3>
                                 <div className="flex flex-wrap gap-2">
                                     {sections.map((cls) => (
                                         <Link
                                             key={cls.sectionId}
                                             href={`/exams/report-cards/${cls.sectionId}?examId=${selected.id}`}
-                                            className="px-3 py-2 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-sm"
+                                            className="px-3 py-2 rounded-lg border border-border hover:border-blue-300 hover:bg-blue-50 text-sm"
                                         >
-                                            <span className="font-medium text-gray-900">
+                                            <span className="font-medium text-foreground">
                                                 {gradeName}-{cls.sectionName}
                                             </span>
-                                            <span className="block text-xs text-gray-500">
+                                            <span className="block text-xs text-muted-foreground">
                                                 {cls.studentCount} student(s) · {cls.resultCount} mark(s)
                                             </span>
                                         </Link>
@@ -146,8 +146,8 @@ function Header() {
     return (
         <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Report cards</h1>
-                <p className="text-gray-600">
+                <h1 className="text-2xl font-bold text-foreground">Report cards</h1>
+                <p className="text-muted-foreground">
                     Built from marks saved against each exam paper — nothing is estimated.
                 </p>
             </div>

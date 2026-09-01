@@ -62,7 +62,7 @@ export default function CashflowForecastChart({ forecast }: { forecast: Cashflow
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-foreground dark:text-white flex items-center gap-2">
                         <TrendingUp className="w-5 h-5 text-blue-500" />
                         Cashflow Forecast
                     </h2>
@@ -94,7 +94,7 @@ export default function CashflowForecastChart({ forecast }: { forecast: Cashflow
             </div>
 
             {/* Chart */}
-            <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
+            <div className="rounded-xl border border-border dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
                 <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={chartData} barGap={4}>
@@ -127,9 +127,9 @@ export default function CashflowForecastChart({ forecast }: { forecast: Cashflow
             </div>
 
             {/* Monthly Breakdown Table */}
-            <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden">
+            <div className="rounded-xl border border-border dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden">
                 <table className="w-full text-sm">
-                    <thead className="bg-gray-50 dark:bg-gray-900/50">
+                    <thead className="bg-muted dark:bg-gray-900/50">
                         <tr>
                             <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Month</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Invoices</th>
@@ -142,8 +142,8 @@ export default function CashflowForecastChart({ forecast }: { forecast: Cashflow
                         {forecast.months.map(m => {
                             const gap = m.expectedInflow - m.projectedCollection;
                             return (
-                                <tr key={m.month} className="hover:bg-gray-50 dark:hover:bg-gray-900/30">
-                                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{m.label}</td>
+                                <tr key={m.month} className="hover:bg-muted dark:hover:bg-gray-900/30">
+                                    <td className="px-4 py-3 font-medium text-foreground dark:text-white">{m.label}</td>
                                     <td className="px-4 py-3 text-right text-muted-foreground">{m.invoiceCount}</td>
                                     <td className="px-4 py-3 text-right text-blue-600 dark:text-blue-400 font-medium">
                                         {formatCurrency(m.expectedInflow)}

@@ -86,45 +86,45 @@ export default function AssignmentsTable({ assignments, canWrite }: AssignmentsT
             <h3 className="font-bold text-lg mb-4">
                 Assigned Students ({assignments.length})
                 {assignments.length > 0 && (
-                    <span className="ml-2 text-sm font-normal text-gray-500">{active} riding today</span>
+                    <span className="ml-2 text-sm font-normal text-muted-foreground">{active} riding today</span>
                 )}
             </h3>
             {assignments.length === 0 ? (
-                <p className="text-gray-500 italic" data-testid="no-students-placeholder">
+                <p className="text-muted-foreground italic" data-testid="no-students-placeholder">
                     No students assigned to this route yet.
                 </p>
             ) : (
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-muted">
                             <tr>
-                                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
-                                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
-                                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Stop Name</th>
-                                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Period</th>
-                                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider">Student Name</th>
+                                <th className="px-6 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider">Student ID</th>
+                                <th className="px-6 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider">Stop Name</th>
+                                <th className="px-6 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider">Period</th>
+                                <th className="px-6 py-3 text-left font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                                 {canWrite && (
-                                    <th className="px-6 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th className="px-6 py-3 text-right font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
                                 )}
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                             {assignments.map((row) => (
                                 <tr key={row.id} data-testid="assigned-student-row" className={row.isActive ? '' : 'opacity-60'}>
-                                    <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
+                                    <td className="px-6 py-4 whitespace-nowrap font-medium text-foreground">
                                         {row.studentName}
-                                        <div className="text-xs text-gray-500 font-normal">
+                                        <div className="text-xs text-muted-foreground font-normal">
                                             {row.admissionNumber}
                                             {row.className ? ` · ${row.className}` : ''}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-gray-500 font-mono text-xs">{row.studentId}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">{row.stopName}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-gray-500 text-xs">
+                                    <td className="px-6 py-4 whitespace-nowrap text-muted-foreground font-mono text-xs">{row.studentId}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-muted-foreground">{row.stopName}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-muted-foreground text-xs">
                                         {row.startDate} → {row.endDate || 'open'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <Badge className={row.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>
+                                        <Badge className={row.isActive ? 'bg-green-100 text-green-700' : 'bg-muted text-foreground'}>
                                             {row.isActive ? 'Active' : 'Ended'}
                                         </Badge>
                                     </td>

@@ -49,9 +49,9 @@ export default async function TeacherProfilePage() {
                 </div>
             )}
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-                <div className="p-4 border-b border-gray-100">
-                    <h2 className="font-semibold text-gray-900">Account</h2>
+            <div className="bg-white rounded-xl shadow-sm border border-border">
+                <div className="p-4 border-b border-border">
+                    <h2 className="font-semibold text-foreground">Account</h2>
                 </div>
                 <div className="p-4 space-y-1">
                     <InfoRow label="Email" value={profile.email} />
@@ -65,9 +65,9 @@ export default async function TeacherProfilePage() {
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-                <div className="p-4 border-b border-gray-100">
-                    <h2 className="font-semibold text-gray-900">Staff record</h2>
+            <div className="bg-white rounded-xl shadow-sm border border-border">
+                <div className="p-4 border-b border-border">
+                    <h2 className="font-semibold text-foreground">Staff record</h2>
                 </div>
                 <div className="p-4 space-y-1">
                     <InfoRow label="Employee ID" value={profile.employeeId} />
@@ -93,13 +93,13 @@ export default async function TeacherProfilePage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-                    <div className="p-4 border-b border-gray-100">
-                        <h2 className="font-semibold text-gray-900">Subjects on your timetable</h2>
+                <div className="bg-white rounded-xl shadow-sm border border-border">
+                    <div className="p-4 border-b border-border">
+                        <h2 className="font-semibold text-foreground">Subjects on your timetable</h2>
                     </div>
                     <div className="p-4">
                         {subjects.length === 0 ? (
-                            <p className="text-sm text-gray-500">No timetabled subjects.</p>
+                            <p className="text-sm text-muted-foreground">No timetabled subjects.</p>
                         ) : (
                             <div className="flex flex-wrap gap-2">
                                 {subjects.map((subject) => (
@@ -115,13 +115,13 @@ export default async function TeacherProfilePage() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-                    <div className="p-4 border-b border-gray-100">
-                        <h2 className="font-semibold text-gray-900">Classes assigned</h2>
+                <div className="bg-white rounded-xl shadow-sm border border-border">
+                    <div className="p-4 border-b border-border">
+                        <h2 className="font-semibold text-foreground">Classes assigned</h2>
                     </div>
                     <div className="p-4">
                         {classes.length === 0 ? (
-                            <p className="text-sm text-gray-500">No classes assigned.</p>
+                            <p className="text-sm text-muted-foreground">No classes assigned.</p>
                         ) : (
                             <div className="flex flex-wrap gap-2">
                                 {classes.map((cls) => (
@@ -149,7 +149,7 @@ export default async function TeacherProfilePage() {
                 </form>
             </div>
 
-            <p className="text-xs text-gray-500 text-center">
+            <p className="text-xs text-muted-foreground text-center">
                 Staff details are maintained by the school office. There is no self-service edit for them, so
                 this page does not offer one.
             </p>
@@ -160,8 +160,8 @@ export default async function TeacherProfilePage() {
 function InfoRow({ label, value }: { label: string; value: string | null }) {
     return (
         <div className="flex justify-between items-center gap-4 py-2 border-b border-gray-50 last:border-0">
-            <span className="text-gray-500 text-sm">{label}</span>
-            <span className={value ? 'font-medium text-gray-900 text-sm' : 'text-gray-400 text-sm italic'}>
+            <span className="text-muted-foreground text-sm">{label}</span>
+            <span className={value ? 'font-medium text-foreground text-sm' : 'text-muted-foreground text-sm italic'}>
                 {value ?? 'Not recorded'}
             </span>
         </div>

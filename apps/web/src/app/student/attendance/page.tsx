@@ -15,7 +15,7 @@ const STATUS_STYLES: Record<string, string> = {
     LATE: 'bg-amber-50 text-amber-700 border-amber-200',
     HALF_DAY: 'bg-sky-50 text-sky-700 border-sky-200',
     EXCUSED: 'bg-violet-50 text-violet-700 border-violet-200',
-    HOLIDAY: 'bg-slate-100 text-slate-500 border-slate-200',
+    HOLIDAY: 'bg-muted text-muted-foreground border-border',
 };
 
 function parseIntInRange(value: string | undefined, fallback: number, min: number, max: number): number {
@@ -52,26 +52,26 @@ export default async function StudentAttendancePage({
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto pb-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-gray-200 pb-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border pb-4">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-gray-900">My attendance</h1>
-                    <p className="mt-1 text-sm text-gray-500">
+                    <h1 className="text-2xl font-bold tracking-tight text-foreground">My attendance</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">
                         Marked by your class teacher. Only your own record is shown.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
                     <Link
                         href={`/student/attendance?month=${prev.month}&year=${prev.year}`}
-                        className="rounded-md border bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                        className="rounded-md border bg-white px-3 py-1.5 text-sm text-foreground hover:bg-muted"
                     >
                         ← Prev
                     </Link>
-                    <span className="w-40 text-center text-sm font-medium text-gray-700">
+                    <span className="w-40 text-center text-sm font-medium text-foreground">
                         {MONTH_NAMES[month - 1]} {year}
                     </span>
                     <Link
                         href={`/student/attendance?month=${next.month}&year=${next.year}`}
-                        className="rounded-md border bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                        className="rounded-md border bg-white px-3 py-1.5 text-sm text-foreground hover:bg-muted"
                     >
                         Next →
                     </Link>
@@ -79,7 +79,7 @@ export default async function StudentAttendancePage({
             </div>
 
             {attendance.marked === 0 ? (
-                <div className="rounded-xl border bg-white p-8 text-center text-sm text-gray-500">
+                <div className="rounded-xl border bg-white p-8 text-center text-sm text-muted-foreground">
                     No attendance was marked for you in {MONTH_NAMES[month - 1]} {year}.
                 </div>
             ) : (
@@ -92,7 +92,7 @@ export default async function StudentAttendancePage({
                     </div>
 
                     <div className="rounded-xl border bg-white p-6">
-                        <h2 className="mb-4 text-sm font-semibold text-gray-800">Daily record</h2>
+                        <h2 className="mb-4 text-sm font-semibold text-foreground">Daily record</h2>
                         <div className="grid grid-cols-7 gap-2">
                             {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
                                 const record = byDay.get(day);
@@ -101,7 +101,7 @@ export default async function StudentAttendancePage({
                                         key={day}
                                         title={record?.remarks ?? undefined}
                                         className={`aspect-square flex flex-col items-center justify-center rounded-md border text-sm font-medium ${
-                                            record ? STATUS_STYLES[record.status] ?? 'bg-white text-gray-500 border-gray-100' : 'bg-white text-gray-300 border-gray-100'
+                                            record ? STATUS_STYLES[record.status] ?? 'bg-white text-muted-foreground border-border' : 'bg-white text-gray-300 border-border'
                                         }`}
                                     >
                                         <span>{day}</span>
@@ -114,7 +114,7 @@ export default async function StudentAttendancePage({
                                 );
                             })}
                         </div>
-                        <p className="mt-4 text-xs text-gray-400">
+                        <p className="mt-4 text-xs text-muted-foreground">
                             Blank squares are days with no attendance mark on record.
                         </p>
                     </div>
@@ -127,8 +127,8 @@ export default async function StudentAttendancePage({
 function Stat({ label, value }: { label: string; value: number | string }) {
     return (
         <div className="rounded-xl border bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-gray-500">{label}</p>
-            <p className="mt-1 text-2xl font-bold text-gray-900">{value}</p>
+            <p className="text-sm font-medium text-muted-foreground">{label}</p>
+            <p className="mt-1 text-2xl font-bold text-foreground">{value}</p>
         </div>
     );
 }

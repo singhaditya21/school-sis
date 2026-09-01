@@ -150,9 +150,9 @@ export default function HostelFeesPage() {
                     {loadError ? (
                         <p className="text-red-600 text-center py-8" data-testid="fees-load-error">{loadError}</p>
                     ) : loading ? (
-                        <p className="text-gray-500 text-center py-8" data-testid="fees-loading">Loading fee records…</p>
+                        <p className="text-muted-foreground text-center py-8" data-testid="fees-loading">Loading fee records…</p>
                     ) : fees.length === 0 ? (
-                        <p className="text-gray-500 text-center py-8" data-testid="no-fee-records">No fee records found.</p>
+                        <p className="text-muted-foreground text-center py-8" data-testid="no-fee-records">No fee records found.</p>
                     ) : (
                         <Table>
                             <TableHeader>
@@ -180,12 +180,12 @@ export default function HostelFeesPage() {
                                             {fee.roomNumber && <p className="text-sm text-muted-foreground">Room {fee.roomNumber}</p>}
                                         </TableCell>
                                         <TableCell>
-                                            <Badge className={FEE_TYPE_STYLES[fee.feeType] ?? 'bg-gray-100 text-gray-800'}>{fee.feeType}</Badge>
+                                            <Badge className={FEE_TYPE_STYLES[fee.feeType] ?? 'bg-muted text-foreground'}>{fee.feeType}</Badge>
                                         </TableCell>
                                         <TableCell className="font-medium text-right" data-testid={`fee-amount-${fee.id}`}>{formatCurrency(fee.amount)}</TableCell>
                                         <TableCell>{fee.dueDate ?? '—'}</TableCell>
                                         <TableCell>
-                                            <Badge className={STATUS_STYLES[fee.status] ?? 'bg-gray-100 text-gray-800'} data-testid={`fee-status-${fee.id}`}>{fee.status}</Badge>
+                                            <Badge className={STATUS_STYLES[fee.status] ?? 'bg-muted text-foreground'} data-testid={`fee-status-${fee.id}`}>{fee.status}</Badge>
                                             {fee.paidDate && (
                                                 <p className="text-xs text-muted-foreground mt-1">Paid: {fee.paidDate}</p>
                                             )}

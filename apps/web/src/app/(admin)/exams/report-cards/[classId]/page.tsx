@@ -25,8 +25,8 @@ export default async function ClassReportCardsPage({
         return (
             <Shell>
                 <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                    <p className="font-medium text-gray-900">No exam selected</p>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="font-medium text-foreground">No exam selected</p>
+                    <p className="text-sm text-muted-foreground mt-1">
                         This class has no saved marks for any exam yet, so there is no report card to
                         build. Pick an exam to see its (empty) sheet, or enter marks first.
                     </p>
@@ -47,7 +47,7 @@ export default async function ClassReportCardsPage({
         return (
             <Shell>
                 <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                    <p className="text-gray-600">This class or exam could not be found.</p>
+                    <p className="text-muted-foreground">This class or exam could not be found.</p>
                     <Link
                         href="/exams/report-cards"
                         className="text-blue-600 hover:underline text-sm mt-2 inline-block"
@@ -64,8 +64,8 @@ export default async function ClassReportCardsPage({
     const header = (
         <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Report cards — {className}</h1>
-                <p className="text-gray-600">
+                <h1 className="text-2xl font-bold text-foreground">Report cards — {className}</h1>
+                <p className="text-muted-foreground">
                     {data.examName} · {data.academicYearName} · {data.examStatus.replace(/_/g, ' ')}
                 </p>
             </div>
@@ -80,10 +80,10 @@ export default async function ClassReportCardsPage({
             <div className="space-y-6">
                 {header}
                 <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                    <p className="font-medium text-gray-900">
+                    <p className="font-medium text-foreground">
                         No papers scheduled for {data.gradeName} in this exam
                     </p>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                         A report card needs at least one scheduled subject to report against.
                     </p>
                 </div>
@@ -96,8 +96,8 @@ export default async function ClassReportCardsPage({
             <div className="space-y-6">
                 {header}
                 <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                    <p className="font-medium text-gray-900">No marks entered yet</p>
-                    <p className="text-sm text-gray-500 mt-1 mb-4">
+                    <p className="font-medium text-foreground">No marks entered yet</p>
+                    <p className="text-sm text-muted-foreground mt-1 mb-4">
                         {data.subjects.length} paper(s) are scheduled for {data.gradeName}, but no
                         results have been saved for {className}. Report cards appear here as soon as
                         marks are entered.
@@ -138,9 +138,9 @@ export default async function ClassReportCardsPage({
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-                <div className="p-4 border-b bg-gray-50">
-                    <h2 className="font-semibold text-gray-900">Subject-wise marks</h2>
-                    <p className="text-xs text-gray-500 mt-1">
+                <div className="p-4 border-b bg-muted">
+                    <h2 className="font-semibold text-foreground">Subject-wise marks</h2>
+                    <p className="text-xs text-muted-foreground mt-1">
                         &ldquo;—&rdquo; means no result has been saved for that paper. Totals and
                         percentages count only the papers that have been marked. Class rank is across
                         all {data.gradeStudentCount} students of {data.gradeName}.
@@ -148,36 +148,36 @@ export default async function ClassReportCardsPage({
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b">
+                        <thead className="bg-muted border-b">
                             <tr>
-                                <th className="px-3 py-3 text-left font-medium text-gray-500">Roll</th>
-                                <th className="px-3 py-3 text-left font-medium text-gray-500">Student</th>
+                                <th className="px-3 py-3 text-left font-medium text-muted-foreground">Roll</th>
+                                <th className="px-3 py-3 text-left font-medium text-muted-foreground">Student</th>
                                 {data.subjects.map((subject) => (
                                     <th
                                         key={subject.scheduleId}
-                                        className="px-3 py-3 text-center font-medium text-gray-500"
+                                        className="px-3 py-3 text-center font-medium text-muted-foreground"
                                         title={`${subject.subjectName} · max ${subject.maxMarks} · pass ${subject.passingMarks}`}
                                     >
                                         {subject.subjectCode}
-                                        <span className="block text-[10px] font-normal text-gray-400">
+                                        <span className="block text-[10px] font-normal text-muted-foreground">
                                             /{subject.maxMarks}
                                         </span>
                                     </th>
                                 ))}
-                                <th className="px-3 py-3 text-right font-medium text-gray-500">Total</th>
-                                <th className="px-3 py-3 text-right font-medium text-gray-500">%</th>
-                                <th className="px-3 py-3 text-center font-medium text-gray-500">Section rank</th>
-                                <th className="px-3 py-3 text-center font-medium text-gray-500">Class rank</th>
-                                <th className="px-3 py-3 text-center font-medium text-gray-500"></th>
+                                <th className="px-3 py-3 text-right font-medium text-muted-foreground">Total</th>
+                                <th className="px-3 py-3 text-right font-medium text-muted-foreground">%</th>
+                                <th className="px-3 py-3 text-center font-medium text-muted-foreground">Section rank</th>
+                                <th className="px-3 py-3 text-center font-medium text-muted-foreground">Class rank</th>
+                                <th className="px-3 py-3 text-center font-medium text-muted-foreground"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y">
                             {data.students.map((student) => (
-                                <tr key={student.studentId} className="hover:bg-gray-50">
-                                    <td className="px-3 py-3 text-gray-500">{student.rollNumber ?? '—'}</td>
+                                <tr key={student.studentId} className="hover:bg-muted">
+                                    <td className="px-3 py-3 text-muted-foreground">{student.rollNumber ?? '—'}</td>
                                     <td className="px-3 py-3">
-                                        <p className="font-medium text-gray-900">{student.fullName}</p>
-                                        <p className="text-xs text-gray-500">{student.admissionNumber}</p>
+                                        <p className="font-medium text-foreground">{student.fullName}</p>
+                                        <p className="text-xs text-muted-foreground">{student.admissionNumber}</p>
                                     </td>
                                     {data.subjects.map((subject) => {
                                         const mark = student.subjectMarks[subject.scheduleId];
@@ -207,7 +207,7 @@ export default async function ClassReportCardsPage({
                                             <td
                                                 key={subject.scheduleId}
                                                 className={`px-3 py-3 text-center font-medium ${
-                                                    failed ? 'text-red-600' : 'text-gray-900'
+                                                    failed ? 'text-red-600' : 'text-foreground'
                                                 }`}
                                             >
                                                 {value}
@@ -233,7 +233,7 @@ export default async function ClassReportCardsPage({
                                                 Report card
                                             </Link>
                                         ) : (
-                                            <span className="text-xs text-gray-400">no marks</span>
+                                            <span className="text-xs text-muted-foreground">no marks</span>
                                         )}
                                     </td>
                                 </tr>
@@ -249,8 +249,8 @@ export default async function ClassReportCardsPage({
 function Stat({ label, value }: { label: string; value: string }) {
     return (
         <div className="bg-white rounded-xl shadow-sm border p-4">
-            <p className="text-sm text-gray-500">{label}</p>
-            <p className="text-2xl font-bold text-gray-900">{value}</p>
+            <p className="text-sm text-muted-foreground">{label}</p>
+            <p className="text-2xl font-bold text-foreground">{value}</p>
         </div>
     );
 }
@@ -259,7 +259,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold text-gray-900">Report cards</h1>
+                <h1 className="text-2xl font-bold text-foreground">Report cards</h1>
                 <Link href="/exams" className="text-blue-600 hover:underline text-sm">
                     ← Back to exams
                 </Link>

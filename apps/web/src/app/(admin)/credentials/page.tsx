@@ -49,7 +49,7 @@ export default async function CredentialsPage({ searchParams }: PageProps) {
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Revocation register</h1>
-                    <p className="mt-1 max-w-3xl text-gray-600">
+                    <p className="mt-1 max-w-3xl text-muted-foreground">
                         Every certificate this school has issued, and whether it still stands.
                         Withdraw one here when it should no longer be honoured — the record is kept,
                         marked revoked, with the reason and the time it was withdrawn.
@@ -57,7 +57,7 @@ export default async function CredentialsPage({ searchParams }: PageProps) {
                 </div>
                 <Link
                     href="/certificates"
-                    className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-gray-50"
+                    className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted"
                 >
                     Issue a certificate
                 </Link>
@@ -70,7 +70,7 @@ export default async function CredentialsPage({ searchParams }: PageProps) {
                         <CardTitle className="text-4xl text-green-700">{stats.issued}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                             Issued and not withdrawn.
                         </p>
                     </CardContent>
@@ -82,7 +82,7 @@ export default async function CredentialsPage({ searchParams }: PageProps) {
                         <CardTitle className="text-4xl text-amber-600">{stats.drafts}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                             Records created but never issued. They carry no authority.
                         </p>
                     </CardContent>
@@ -94,7 +94,7 @@ export default async function CredentialsPage({ searchParams }: PageProps) {
                         <CardTitle className="text-4xl text-red-700">{stats.revoked}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                             Withdrawn by the school. Presenting one of these should be refused.
                         </p>
                     </CardContent>
@@ -107,7 +107,7 @@ export default async function CredentialsPage({ searchParams }: PageProps) {
                         key={tab}
                         href={tab === 'ALL' ? '/credentials' : `/credentials?status=${tab}`}
                         className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                            status === tab ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
+                            status === tab ? 'bg-gray-900 text-white' : 'text-muted-foreground hover:bg-muted'
                         }`}
                     >
                         {TAB_LABELS[tab]}
@@ -119,7 +119,7 @@ export default async function CredentialsPage({ searchParams }: PageProps) {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm">
-                            <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
+                            <thead className="border-b bg-muted text-xs uppercase text-muted-foreground">
                                 <tr>
                                     <th className="px-4 py-3 font-medium">Certificate no.</th>
                                     <th className="px-4 py-3 font-medium">Student</th>
@@ -131,25 +131,25 @@ export default async function CredentialsPage({ searchParams }: PageProps) {
                             </thead>
                             <tbody className="divide-y">
                                 {records.map(record => (
-                                    <tr key={record.id} className="hover:bg-gray-50">
-                                        <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-900">
+                                    <tr key={record.id} className="hover:bg-muted">
+                                        <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">
                                             {record.certificateNumber}
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div className="font-medium text-gray-900">
+                                            <div className="font-medium text-foreground">
                                                 {record.studentName ?? 'Student record removed'}
                                             </div>
-                                            <div className="text-xs text-gray-500">
+                                            <div className="text-xs text-muted-foreground">
                                                 {record.admissionNumber ?? '—'}
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3 text-gray-600">
+                                        <td className="px-4 py-3 text-muted-foreground">
                                             {certificateTypeLabel(record.type)}
                                         </td>
-                                        <td className="px-4 py-3 text-gray-600">
+                                        <td className="px-4 py-3 text-muted-foreground">
                                             <div>{formatDate(record.issuedDate)}</div>
                                             {record.issuedByName && (
-                                                <div className="text-xs text-gray-500">
+                                                <div className="text-xs text-muted-foreground">
                                                     by {record.issuedByName}
                                                 </div>
                                             )}
@@ -159,7 +159,7 @@ export default async function CredentialsPage({ searchParams }: PageProps) {
                                                 {record.status}
                                             </span>
                                             {record.status === 'REVOKED' && (
-                                                <div className="mt-1 max-w-xs text-xs text-gray-500">
+                                                <div className="mt-1 max-w-xs text-xs text-muted-foreground">
                                                     {formatDateTime(record.revokedAt)}
                                                     {record.revokeReason ? ` — ${record.revokeReason}` : ''}
                                                 </div>
@@ -186,7 +186,7 @@ export default async function CredentialsPage({ searchParams }: PageProps) {
                                 ))}
                                 {records.length === 0 && (
                                     <tr>
-                                        <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                                        <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
                                             {status === 'REVOKED'
                                                 ? 'Nothing has been revoked.'
                                                 : 'No certificates have been issued yet.'}
@@ -199,8 +199,8 @@ export default async function CredentialsPage({ searchParams }: PageProps) {
                 </CardContent>
             </Card>
 
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                <p className="font-medium text-gray-900">What this register is not</p>
+            <div className="rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">What this register is not</p>
                 <p className="mt-1">
                     Certificates here are records in this school&apos;s database. They are not
                     cryptographically signed, and there is no public endpoint an employer or another

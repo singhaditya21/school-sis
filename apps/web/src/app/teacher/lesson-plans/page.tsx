@@ -16,7 +16,7 @@ export default async function TeacherLessonPlansPage() {
         <div className="space-y-6 max-w-5xl">
             <div>
                 <h1 className="text-2xl font-bold">Lesson Plans</h1>
-                <p className="text-gray-600">
+                <p className="text-muted-foreground">
                     Plans you have filed for the grades and subjects on your timetable. A plan is approved by
                     the office, not from this page.
                 </p>
