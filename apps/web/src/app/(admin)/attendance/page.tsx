@@ -64,7 +64,7 @@ export default async function AttendancePage() {
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Sections Marked</p>
-                    <p className="text-2xl font-bold text-blue-600">{sectionsMarked}/{classSummary.length}</p>
+                    <p className="text-2xl font-bold text-primary">{sectionsMarked}/{classSummary.length}</p>
                 </div>
             </div>
 

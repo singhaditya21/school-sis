@@ -40,7 +40,7 @@ export default async function InvoiceGeneratePage() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div />
-                <Link href="/fees" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+                <Link href="/fees" className="text-primary hover:underline text-sm">
                     ← Back to Fees
                 </Link>
             </div>

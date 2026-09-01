@@ -10,7 +10,7 @@ import { resolve } from 'node:path';
  * the win (the test prints the current number). This mirrors the risk-debt
  * ratchet (`audit:debt`): it can only go down.
  */
-const BASELINE = 3320;
+const BASELINE = 3213;
 
 // A Tailwind utility (bg-/text-/border-/…) on one of the numbered color scales.
 // Semantic tokens (bg-primary, text-muted-foreground) have no numeric shade and

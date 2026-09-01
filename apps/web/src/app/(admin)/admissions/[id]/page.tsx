@@ -74,7 +74,7 @@ export default async function LeadDetailPage({ params }: Props) {
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${stageColors[lead.stage] || 'bg-muted text-foreground'}`}>
                         {lead.stage.replace(/_/g, ' ')}
                     </span>
-                    <Link href="/admissions" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+                    <Link href="/admissions" className="text-primary hover:underline text-sm">
                         ← Back
                     </Link>
                 </div>
@@ -127,7 +127,7 @@ export default async function LeadDetailPage({ params }: Props) {
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Phone</dt>
                             <dd>
-                                <a href={`tel:${lead.parentPhone}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                                <a href={`tel:${lead.parentPhone}`} className="text-primary hover:underline">
                                     {lead.parentPhone}
                                 </a>
                             </dd>
@@ -135,7 +135,7 @@ export default async function LeadDetailPage({ params }: Props) {
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Email</dt>
                             <dd>
-                                <a href={`mailto:${lead.parentEmail}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                                <a href={`mailto:${lead.parentEmail}`} className="text-primary hover:underline">
                                     {lead.parentEmail}
                                 </a>
                             </dd>
@@ -149,7 +149,7 @@ export default async function LeadDetailPage({ params }: Props) {
                 <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-semibold text-foreground dark:text-white">Documents</h2>
-                        <Link href={`/admissions/${id}/documents`} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                        <Link href={`/admissions/${id}/documents`} className="text-sm text-primary hover:underline">
                             Open checklist →
                         </Link>
                     </div>
@@ -191,7 +191,7 @@ export default async function LeadDetailPage({ params }: Props) {
                                 </div>
                                 <div className="mt-1 h-1.5 w-full rounded-full bg-muted dark:bg-gray-800">
                                     <div
-                                        className="h-1.5 rounded-full bg-blue-500"
+                                        className="h-1.5 rounded-full bg-primary"
                                         style={{ width: `${Math.round((b.score / b.maxScore) * 100)}%` }}
                                     />
                                 </div>
