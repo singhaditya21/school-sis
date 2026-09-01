@@ -45,7 +45,7 @@ export default async function StudentLayout({
                 <div className="px-4 py-3 md:px-6 md:py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-xl flex items-center justify-center">
+                            <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-xl flex items-center justify-center">
                                 <span className="text-white text-lg md:text-xl">🎓</span>
                             </div>
                             <div>
@@ -59,11 +59,11 @@ export default async function StudentLayout({
                             <div className="flex items-center gap-3">
                                 <div className="hidden md:flex flex-col items-end mr-2">
                                     <span className="text-sm font-semibold text-foreground">{student.fullName}</span>
-                                    <span className="text-xs text-violet-600 font-medium bg-violet-50 px-2 py-0.5 rounded">
+                                    <span className="text-xs text-accent-foreground font-medium bg-accent px-2 py-0.5 rounded">
                                         {student.gradeName} · {student.sectionName}
                                     </span>
                                 </div>
-                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-bold border border-violet-200 shadow-sm">
+                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-accent flex items-center justify-center text-accent-foreground font-bold border border-border shadow-sm">
                                     {initials(student.fullName)}
                                 </div>
                             </div>

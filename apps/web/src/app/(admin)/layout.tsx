@@ -61,7 +61,7 @@ export default async function AdminLayout({
                 <div className="px-6 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                            <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-xl flex items-center justify-center">
                                 <span className="text-white text-xl">🎓</span>
                             </div>
                             <div>
@@ -77,7 +77,7 @@ export default async function AdminLayout({
                             <span className="text-sm text-muted-foreground">
                                 {session.email}
                             </span>
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                            <span className="px-2 py-1 bg-accent text-accent-foreground text-xs font-medium rounded">
                                 {session.role}
                             </span>
                             <form action="/api/logout" method="POST">
@@ -188,7 +188,7 @@ function NavLink({
     return (
         <Link
             href={href}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground hover:bg-blue-50 hover:text-blue-700 transition-colors"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
         >
             <span>{icon}</span>
             <span className="text-sm font-medium">{children}</span>

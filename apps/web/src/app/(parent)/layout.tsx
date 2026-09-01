@@ -17,13 +17,13 @@ export default async function ParentLayout({
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent">
             {/* Top Bar */}
             <header className="bg-white/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
                 <div className="px-4 py-3">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                            <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-lg flex items-center justify-center">
                                 <span className="text-white text-lg">🎓</span>
                             </div>
                             <div className="text-lg font-bold text-foreground">School SIS</div>
@@ -60,7 +60,7 @@ function NavItem({
     label: string;
 }) {
     return (
-        <a href={href} className="flex flex-col items-center gap-1 text-muted-foreground hover:text-blue-600 transition-colors">
+        <a href={href} className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary transition-colors">
             <span className="text-2xl">{icon}</span>
             <span className="text-xs font-medium">{label}</span>
         </a>

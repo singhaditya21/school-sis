@@ -65,10 +65,10 @@ export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], col
     const [activeDrill, setActiveDrill] = useState<DrillDownType>(null);
 
     const kpis = [
-        { title: 'Overdue Amount', value: formatCurrency(data.overdueAmount), change: `${overdueStudents.length} students`, changeType: 'negative' as const, icon: '🔴', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-900/20', drillType: 'overdue' as DrillDownType },
-        { title: 'Due Next 7 Days', value: formatCurrency(data.dueSoon), change: `${dueSoonStudents.length} invoices pending`, changeType: 'neutral' as const, icon: '🟡', color: 'text-amber-600 dark:text-amber-400', bgColor: 'bg-amber-50 dark:bg-amber-900/20', drillType: 'dueSoon' as DrillDownType },
-        { title: 'Collection Rate (30d)', value: `${data.collectionRate}%`, change: `${collectionData.length} classes tracked`, changeType: 'positive' as const, icon: '🟢', color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-50 dark:bg-green-900/20', drillType: 'collection' as DrillDownType },
-        { title: 'Reminders Blocked', value: data.consentBlocked.toString(), change: 'Missing guardian consent', changeType: 'warning' as const, icon: '⚠️', color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-50 dark:bg-orange-900/20', drillType: 'blocked' as DrillDownType },
+        { title: 'Overdue Amount', value: formatCurrency(data.overdueAmount), change: `${overdueStudents.length} students`, changeType: 'negative' as const, icon: '🔴', color: 'text-destructive-subtle-foreground', bgColor: 'bg-destructive-subtle', drillType: 'overdue' as DrillDownType },
+        { title: 'Due Next 7 Days', value: formatCurrency(data.dueSoon), change: `${dueSoonStudents.length} invoices pending`, changeType: 'neutral' as const, icon: '🟡', color: 'text-warning-subtle-foreground', bgColor: 'bg-warning-subtle', drillType: 'dueSoon' as DrillDownType },
+        { title: 'Collection Rate (30d)', value: `${data.collectionRate}%`, change: `${collectionData.length} classes tracked`, changeType: 'positive' as const, icon: '🟢', color: 'text-success-subtle-foreground', bgColor: 'bg-success-subtle', drillType: 'collection' as DrillDownType },
+        { title: 'Reminders Blocked', value: data.consentBlocked.toString(), change: 'Missing guardian consent', changeType: 'warning' as const, icon: '⚠️', color: 'text-warning-subtle-foreground', bgColor: 'bg-warning-subtle', drillType: 'blocked' as DrillDownType },
     ];
 
     const renderDrillContent = () => {
@@ -88,7 +88,7 @@ export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], col
                                 {overdueStudents.map((student: OverdueStudent) => (
                                     <TableRow key={student.id} className="hover:bg-red-50">
                                         <TableCell className="font-medium">{student.name}</TableCell><TableCell>{student.class}</TableCell>
-                                        <TableCell className="text-blue-600">{student.invoice}</TableCell>
+                                        <TableCell className="text-primary">{student.invoice}</TableCell>
                                         <TableCell className="text-right font-semibold text-red-600">{formatFullCurrency(Number(student.amount))}</TableCell>
                                         <TableCell className="text-right"><Badge variant={student.daysOverdue > 30 ? 'destructive' : 'secondary'}>{student.daysOverdue} days</Badge></TableCell>
                                         <TableCell className="text-muted-foreground">{student.phone}</TableCell>
@@ -113,7 +113,7 @@ export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], col
                                 {dueSoonStudents.map((student: DueSoonStudent) => (
                                     <TableRow key={student.id} className="hover:bg-amber-50">
                                         <TableCell className="font-medium">{student.name}</TableCell><TableCell>{student.class}</TableCell>
-                                        <TableCell className="text-blue-600">{student.invoice}</TableCell>
+                                        <TableCell className="text-primary">{student.invoice}</TableCell>
                                         <TableCell className="text-right font-semibold">{formatFullCurrency(Number(student.amount))}</TableCell>
                                         <TableCell><Badge variant="outline" className="border-amber-500 text-amber-700">{student.dueDate}</Badge></TableCell>
                                         <TableCell className="text-muted-foreground">{student.phone}</TableCell>
@@ -211,7 +211,7 @@ export function KpiCards({ data, overdueStudents = [], dueSoonStudents = [], col
                         </CardHeader>
                         <CardContent>
                             <div className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</div>
-                            <p className="text-xs text-muted-foreground mt-1">{kpi.change}<span className="ml-2 text-blue-600 hover:underline">Click to drill down →</span></p>
+                            <p className="text-xs text-muted-foreground mt-1">{kpi.change}<span className="ml-2 text-primary hover:underline">Click to drill down →</span></p>
                         </CardContent>
                     </Card>
                 ))}
