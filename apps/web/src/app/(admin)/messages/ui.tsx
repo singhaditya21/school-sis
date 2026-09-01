@@ -78,13 +78,15 @@ export function DeliveryRealityNotice({
     const unconfigured = availability.filter((a) => !a.configured);
 
     return (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-            <p className="font-semibold">Messages are queued, not delivered.</p>
+        <div className="rounded-lg border border-warning/30 bg-warning-subtle p-4 text-sm text-warning-subtle-foreground">
+            <p className="font-semibold">Messages are queued and dispatched daily — delivery receipts are limited.</p>
             <p className="mt-1">
-                Composing writes a row to the notification outbox. This release ships no outbound
-                dispatcher, so queued messages stay queued until one runs.
+                Composing writes a row to the notification outbox. A scheduled dispatcher
+                (<code>/api/jobs/dispatch</code>, run daily) sends queued messages to their provider.
+                Provider delivery receipts are not yet ingested for every channel, so a message can be
+                sent without its status advancing to Delivered.
                 {dispatched === 0
-                    ? ' No message has been dispatched by a provider on this tenant.'
+                    ? ' No message has been reported on by a provider on this tenant yet.'
                     : ` ${dispatched} outbox row(s) have been reported on by a provider.`}
             </p>
             <dl className="mt-3 space-y-1 text-xs">

@@ -417,9 +417,11 @@ export default function ComposeClient({
                             {finalRecipients.length} recipient(s) will be written to the notification
                             outbox.
                         </p>
-                        <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-                            Queueing is not sending. This release runs no outbound dispatcher, so these
-                            rows stay in the outbox until one is deployed. Track them under{' '}
+                        <p className="rounded-md border border-warning/30 bg-warning-subtle p-3 text-xs text-warning-subtle-foreground">
+                            Queueing writes to the outbox; a scheduled dispatcher (/api/jobs/dispatch,
+                            run daily) sends queued rows to their provider. Delivery receipts aren&apos;t
+                            ingested for every channel yet, so a sent message may not show as Delivered.
+                            Track them under{' '}
                             <Link href="/messages/tracking" className="underline">
                                 Outbox
                             </Link>

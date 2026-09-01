@@ -12,9 +12,10 @@
  * layer lives in `notification_outbox` / `notification_delivery_events`, which is what
  * the tracking screen reads.
  *
- * HONESTY NOTE: nothing here sends anything. `enqueueNotification` writes an outbox row
- * and a background job. No dispatcher runs in production today, so a queued message
- * stays queued. Every label in the UI says "queued", never "sent".
+ * HONESTY NOTE: this module only ENQUEUES. `enqueueNotification` writes an outbox row;
+ * the scheduled dispatcher (`/api/jobs/dispatch`, cron'd daily in vercel.json) is what sends
+ * queued rows to their provider. Provider delivery RECEIPTS are not ingested for every
+ * channel yet, so a sent message may not advance to "delivered". Labels reflect this.
  */
 
 import { revalidatePath } from 'next/cache';
