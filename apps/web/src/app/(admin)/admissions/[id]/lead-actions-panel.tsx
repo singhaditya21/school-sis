@@ -26,7 +26,7 @@ interface Props {
 }
 
 const selectClass =
-    'w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 disabled:opacity-50';
+    'w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring disabled:opacity-50';
 
 export default function LeadActionsPanel({
     leadId,
@@ -130,7 +130,7 @@ export default function LeadActionsPanel({
                             type="button"
                             onClick={handleNotify}
                             disabled={isPending || !canNotify}
-                            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                            className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium"
                         >
                             Email parent about &ldquo;{STAGE_LABELS[stage] || stage}&rdquo;
                         </button>

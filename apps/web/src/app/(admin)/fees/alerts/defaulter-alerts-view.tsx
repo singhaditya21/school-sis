@@ -155,13 +155,13 @@ export default function DefaulterAlertsView({ stats, defaulters }: DefaulterAler
                         <div className="text-2xl font-bold mt-1 text-amber-700 dark:text-amber-300">{stats.warning}</div>
                     </CardContent>
                 </Card>
-                <Card className="border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/60 dark:bg-indigo-950/20">
+                <Card className="border-border bg-accent">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-2">
-                            <IndianRupee className="h-5 w-5 text-indigo-500" />
-                            <span className="text-sm text-indigo-600 dark:text-indigo-400">Total overdue</span>
+                            <IndianRupee className="h-5 w-5 text-primary" />
+                            <span className="text-sm text-primary">Total overdue</span>
                         </div>
-                        <div className="text-2xl font-bold mt-1 text-indigo-700 dark:text-indigo-300">
+                        <div className="text-2xl font-bold mt-1 text-primary">
                             {formatCurrency(stats.totalAmount)}
                         </div>
                     </CardContent>

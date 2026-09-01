@@ -60,7 +60,7 @@ export default async function FeePlansPage() {
                             <Link
                                 key={plan.id}
                                 href={`/fees/plans/${plan.id}/edit`}
-                                className="text-sm text-blue-600 underline-offset-4 hover:underline dark:text-blue-400"
+                                className="text-sm text-primary underline-offset-4 hover:underline dark:text-primary"
                             >
                                 {plan.name}
                             </Link>
@@ -131,7 +131,7 @@ export default async function FeePlansPage() {
                                             <TableCell className="text-right">
                                                 <Link
                                                     href={`/fees/plans/${plan.id}/edit`}
-                                                    className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+                                                    className="text-sm text-primary hover:underline dark:text-primary"
                                                 >
                                                     Edit →
                                                 </Link>

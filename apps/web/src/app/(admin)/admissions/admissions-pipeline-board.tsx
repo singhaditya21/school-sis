@@ -102,10 +102,10 @@ function LeadCard({ lead, borderClass }: { lead: AdmissionLeadItem; borderClass:
         <Card className={`transition-shadow ${borderClass} ${isPending ? 'opacity-50' : 'hover:shadow-md'}`}>
             <CardContent className="p-4">
                 <Link href={`/admissions/${lead.id}`} className="block group">
-                    <h4 className="font-semibold text-foreground group-hover:text-blue-700">
+                    <h4 className="font-semibold text-foreground group-hover:text-primary">
                         {lead.childFirstName} {lead.childLastName}
                     </h4>
-                    <p className="text-xs font-medium text-blue-600 mt-1 bg-blue-50 w-max px-2 py-0.5 rounded">
+                    <p className="text-xs font-medium text-primary mt-1 bg-accent w-max px-2 py-0.5 rounded">
                         {lead.applyingForGrade}
                     </p>
                     <div className="flex justify-between items-center mt-3 text-xs text-muted-foreground">
@@ -125,7 +125,7 @@ function LeadCard({ lead, borderClass }: { lead: AdmissionLeadItem; borderClass:
                     value={stage}
                     disabled={isPending}
                     onChange={(e) => handleStageChange(e.target.value)}
-                    className="mt-3 w-full text-xs border border-border rounded px-2 py-1.5 bg-white disabled:opacity-50 focus:ring-2 focus:ring-blue-500"
+                    className="mt-3 w-full text-xs border border-border rounded px-2 py-1.5 bg-white disabled:opacity-50 focus:ring-2 focus:ring-ring"
                 >
                     {PIPELINE_STAGES.map((s) => (
                         <option key={s} value={s}>
@@ -177,9 +177,9 @@ export default function AdmissionsPipelineBoard({
         <>
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="border-blue-100 bg-blue-50/50">
+                <Card className="border-border bg-accent">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-semibold text-blue-600 uppercase tracking-widest">
+                        <CardTitle className="text-xs font-semibold text-primary uppercase tracking-widest">
                             Active Leads
                         </CardTitle>
                     </CardHeader>
@@ -229,7 +229,7 @@ export default function AdmissionsPipelineBoard({
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search by child, parent, grade or contact…"
-                    className="w-full sm:w-96 px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                    className="w-full sm:w-96 px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-ring"
                 />
                 <span className="text-sm text-muted-foreground">
                     Showing {visibleLeads.length} of {leads.length} loaded leads

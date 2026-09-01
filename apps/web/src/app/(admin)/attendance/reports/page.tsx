@@ -29,7 +29,7 @@ export default async function AttendanceReportsPage() {
                         {new Date(startDate).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
                     </p>
                 </div>
-                <Link href="/attendance" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">← Back</Link>
+                <Link href="/attendance" className="text-primary hover:underline text-sm">← Back</Link>
             </div>
 
             {/* Summary Cards */}
@@ -38,9 +38,9 @@ export default async function AttendanceReportsPage() {
                     <p className="text-sm text-muted-foreground">Overall Rate</p>
                     <p className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{overallRate}%</p>
                 </div>
-                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-5">
+                <div className="bg-accent border border-border rounded-xl p-5">
                     <p className="text-sm text-muted-foreground">Present</p>
-                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-1">{totalPresent.toLocaleString()}</p>
+                    <p className="text-3xl font-bold text-primary mt-1">{totalPresent.toLocaleString()}</p>
                 </div>
                 <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl p-5">
                     <p className="text-sm text-muted-foreground">Absent</p>

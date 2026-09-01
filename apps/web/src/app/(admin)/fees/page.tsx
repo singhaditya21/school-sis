@@ -79,7 +79,7 @@ export default async function FeesPage() {
                     </a>
                     <a
                         href="/fees/plans/new"
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+                        className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium text-sm"
                     >
                         + New Fee Plan
                     </a>
@@ -152,7 +152,7 @@ export default async function FeesPage() {
                                                         <span
                                                             className={`px-2 py-0.5 rounded text-xs ${comp.isOptional
                                                                 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
-                                                                : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                                                : 'bg-accent text-primary'
                                                                 }`}
                                                         >
                                                             {comp.isOptional ? 'Optional' : 'Mandatory'}
@@ -173,7 +173,7 @@ export default async function FeesPage() {
                                     </p>
                                     <a
                                         href={`/invoices`}
-                                        className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                                        className="text-primary hover:underline text-sm"
                                     >
                                         View Invoices →
                                     </a>

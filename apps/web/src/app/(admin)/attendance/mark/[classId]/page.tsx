@@ -26,7 +26,7 @@ export default async function MarkAttendancePage({ params }: { params: Promise<{
                         {sectionInfo ? `${sectionInfo.gradeName} - ${sectionInfo.sectionName}` : 'Section'} • {formatDate(new Date())}
                     </p>
                 </div>
-                <Link href="/attendance" className="text-blue-600 hover:underline">← Back</Link>
+                <Link href="/attendance" className="text-primary hover:underline">← Back</Link>
             </div>
 
             <form action="/api/attendance" method="POST" className="bg-white rounded-xl shadow-sm border">

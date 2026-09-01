@@ -116,7 +116,7 @@ export default function DocumentsChecklist({ pack }: Props) {
                         {pack.applicationNumber ? ` • Application ${pack.applicationNumber}` : ''}
                     </p>
                 </div>
-                <Link href={`/admissions/${pack.leadId}`} className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+                <Link href={`/admissions/${pack.leadId}`} className="text-primary hover:underline text-sm">
                     ← Back to lead
                 </Link>
             </div>
@@ -125,7 +125,7 @@ export default function DocumentsChecklist({ pack }: Props) {
                 <Card>
                     <CardContent className="pt-5">
                         <div className="text-sm text-muted-foreground">Recorded</div>
-                        <div className="text-2xl font-bold text-blue-600">{pack.recordedCount}</div>
+                        <div className="text-2xl font-bold text-primary">{pack.recordedCount}</div>
                     </CardContent>
                 </Card>
                 <Card>
@@ -165,7 +165,7 @@ export default function DocumentsChecklist({ pack }: Props) {
                             type="button"
                             onClick={handleOpenApplication}
                             disabled={isPending}
-                            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                            className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium"
                         >
                             Open application
                         </button>
@@ -217,7 +217,7 @@ export default function DocumentsChecklist({ pack }: Props) {
                                                         href={doc.fileUrl}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="text-blue-600 dark:text-blue-400 hover:underline break-all"
+                                                        className="text-primary hover:underline break-all"
                                                     >
                                                         {doc.fileName}
                                                     </a>
@@ -251,7 +251,7 @@ export default function DocumentsChecklist({ pack }: Props) {
                                                             type="button"
                                                             onClick={() => handleVerify(doc.id, !doc.verifiedAt)}
                                                             disabled={isPending}
-                                                            className="px-3 py-1 text-xs border border-blue-200 text-blue-600 rounded hover:bg-blue-50 disabled:opacity-50"
+                                                            className="px-3 py-1 text-xs border border-border text-primary rounded hover:bg-accent disabled:opacity-50"
                                                         >
                                                             {doc.verifiedAt ? 'Unverify' : 'Verify'}
                                                         </button>
@@ -350,7 +350,7 @@ export default function DocumentsChecklist({ pack }: Props) {
                                 type="button"
                                 onClick={handleRecord}
                                 disabled={isPending}
-                                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                                className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium"
                             >
                                 Save record
                             </button>

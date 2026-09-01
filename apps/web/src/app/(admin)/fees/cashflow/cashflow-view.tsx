@@ -62,14 +62,14 @@ export default function CashflowView({ outlook }: { outlook: CashflowOutlook }) 
                                 <p className="text-sm font-medium text-muted-foreground">
                                     Due in next {outlook.horizonMonths} months
                                 </p>
-                                <p className="text-2xl font-bold mt-1 text-blue-600 dark:text-blue-400">
+                                <p className="text-2xl font-bold mt-1 text-primary">
                                     {formatCurrency(outlook.totalOutstanding)}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-1">
                                     Unpaid balance on issued invoices — measured, not estimated
                                 </p>
                             </div>
-                            <CalendarClock className="w-5 h-5 text-blue-500 shrink-0" />
+                            <CalendarClock className="w-5 h-5 text-primary shrink-0" />
                         </div>
                     </CardContent>
                 </Card>
@@ -102,7 +102,7 @@ export default function CashflowView({ outlook }: { outlook: CashflowOutlook }) 
                                 </p>
                                 {basis.measured ? (
                                     <>
-                                        <p className="text-2xl font-bold mt-1 text-purple-600 dark:text-purple-400">
+                                        <p className="text-2xl font-bold mt-1 text-primary">
                                             {basis.ratePercent}%
                                         </p>
                                         <p className="text-xs text-muted-foreground mt-1">
@@ -124,7 +124,7 @@ export default function CashflowView({ outlook }: { outlook: CashflowOutlook }) 
                                     </>
                                 )}
                             </div>
-                            <Wallet className="w-5 h-5 text-purple-500 shrink-0" />
+                            <Wallet className="w-5 h-5 text-primary shrink-0" />
                         </div>
                     </CardContent>
                 </Card>
@@ -134,9 +134,9 @@ export default function CashflowView({ outlook }: { outlook: CashflowOutlook }) 
                 falling due there is nothing to extrapolate, so the derivation note
                 is only worth showing when a projection is actually on screen. */}
             {basis.measured ? (hasFutureDues && (
-                <div className="rounded-lg border border-purple-200 dark:border-purple-900/50 bg-purple-50/60 dark:bg-purple-950/20 p-4">
+                <div className="rounded-lg border border-border bg-accent p-4">
                     <div className="flex gap-3">
-                        <Info className="w-4 h-4 text-purple-600 dark:text-purple-400 mt-0.5 shrink-0" />
+                        <Info className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                         <div className="text-sm space-y-1">
                             <p className="font-medium text-foreground dark:text-white">
                                 Projected collection is an extrapolation, not a commitment.
@@ -180,7 +180,7 @@ export default function CashflowView({ outlook }: { outlook: CashflowOutlook }) 
                     <div className="flex items-center justify-between gap-4">
                         <div>
                             <CardTitle className="flex items-center gap-2">
-                                <TrendingUp className="w-5 h-5 text-blue-500" />
+                                <TrendingUp className="w-5 h-5 text-primary" />
                                 Balance falling due by month
                             </CardTitle>
                             <CardDescription>
@@ -288,7 +288,7 @@ export default function CashflowView({ outlook }: { outlook: CashflowOutlook }) 
                                         <td className="px-4 py-3 text-right text-muted-foreground">
                                             {m.invoiceCount}
                                         </td>
-                                        <td className="px-4 py-3 text-right font-medium text-blue-600 dark:text-blue-400">
+                                        <td className="px-4 py-3 text-right font-medium text-primary">
                                             {formatCurrency(m.outstanding)}
                                         </td>
                                         <td className="px-4 py-3 text-right font-medium text-green-600 dark:text-green-400">
@@ -303,7 +303,7 @@ export default function CashflowView({ outlook }: { outlook: CashflowOutlook }) 
                                 <tr>
                                     <td className="px-4 py-3 font-semibold text-foreground dark:text-white">Total</td>
                                     <td className="px-4 py-3" />
-                                    <td className="px-4 py-3 text-right font-semibold text-blue-600 dark:text-blue-400">
+                                    <td className="px-4 py-3 text-right font-semibold text-primary">
                                         {formatCurrency(outlook.totalOutstanding)}
                                     </td>
                                     <td className="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400">

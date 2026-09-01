@@ -28,7 +28,7 @@ export default async function AdmissionsPipelinePage() {
                 </div>
                 <Link
                     href="/admissions/new"
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
                     + New Lead
                 </Link>
@@ -93,7 +93,7 @@ export default async function AdmissionsPipelinePage() {
                                     </div>
                                     <div className="mt-1 h-1.5 w-full rounded-full bg-muted">
                                         <div
-                                            className="h-1.5 rounded-full bg-blue-500"
+                                            className="h-1.5 rounded-full bg-primary"
                                             style={{
                                                 width: analytics.totalLeads
                                                     ? `${Math.round((s.count / analytics.totalLeads) * 100)}%`
