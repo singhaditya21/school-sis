@@ -39,7 +39,7 @@ export default function AssignStudentForm({ routeId, stops, students, canWrite }
 
     if (!canWrite) {
         return (
-            <p className="text-sm text-gray-500 italic">
+            <p className="text-sm text-muted-foreground italic">
                 You do not have permission to change transport assignments.
             </p>
         );
@@ -47,7 +47,7 @@ export default function AssignStudentForm({ routeId, stops, students, canWrite }
 
     if (stops.length === 0) {
         return (
-            <p className="text-sm text-gray-500 italic" data-testid="assign-needs-stop">
+            <p className="text-sm text-muted-foreground italic" data-testid="assign-needs-stop">
                 Add at least one stop to this route before assigning students.
             </p>
         );

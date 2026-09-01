@@ -10,8 +10,8 @@ export default async function InternationalDashboard() {
     return (
         <div className="max-w-7xl mx-auto p-8 space-y-8">
             <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">International Operations & Visas</h1>
-                <p className="text-gray-500">Manage student visas, homestay host families, and international placements.</p>
+                <h1 className="text-3xl font-bold text-foreground mb-2">International Operations & Visas</h1>
+                <p className="text-muted-foreground">Manage student visas, homestay host families, and international placements.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -27,7 +27,7 @@ export default async function InternationalDashboard() {
                     </CardContent>
                 </Card>
 
-                <Card className="border border-gray-200 shadow-sm">
+                <Card className="border border-border shadow-sm">
                     <CardHeader>
                         <CardTitle className="text-xl flex items-center gap-2">
                             <span>🏠</span> Host Families
@@ -39,7 +39,7 @@ export default async function InternationalDashboard() {
                     </CardContent>
                 </Card>
 
-                <Card className="border border-gray-200 shadow-sm">
+                <Card className="border border-border shadow-sm">
                     <CardHeader>
                         <CardTitle className="text-xl flex items-center gap-2">
                             <span>🌍</span> Placements
@@ -54,7 +54,7 @@ export default async function InternationalDashboard() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Visa Tracker List */}
-                <Card className="border border-gray-200 shadow-sm">
+                <Card className="border border-border shadow-sm">
                     <CardHeader>
                         <CardTitle className="text-lg">Visa Compliance Tracker</CardTitle>
                         <CardDescription>Monitor passport and visa expiration schedules.</CardDescription>
@@ -62,7 +62,7 @@ export default async function InternationalDashboard() {
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
-                                <thead className="bg-gray-50 border-b text-xs text-gray-500 uppercase font-semibold">
+                                <thead className="bg-muted border-b text-xs text-muted-foreground uppercase font-semibold">
                                     <tr>
                                         <th className="px-6 py-3">Student</th>
                                         <th className="px-6 py-3">Visa Type</th>
@@ -73,15 +73,15 @@ export default async function InternationalDashboard() {
                                 <tbody className="divide-y divide-gray-100">
                                     {visas.length === 0 ? (
                                         <tr>
-                                            <td colSpan={4} className="px-6 py-8 text-center text-gray-400">No student visas tracked.</td>
+                                            <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">No student visas tracked.</td>
                                         </tr>
                                     ) : (
                                         visas.map((v: { id: string; studentName: string; visaType: string; passportNumber: string; expirationDate: string | Date }) => (
-                                            <tr key={v.id} className="hover:bg-gray-50">
-                                                <td className="px-6 py-4 font-semibold text-gray-900">{v.studentName}</td>
+                                            <tr key={v.id} className="hover:bg-muted">
+                                                <td className="px-6 py-4 font-semibold text-foreground">{v.studentName}</td>
                                                 <td className="px-6 py-4"><Badge variant="outline">{v.visaType}</Badge></td>
                                                 <td className="px-6 py-4 font-mono text-xs">{v.passportNumber}</td>
-                                                <td className="px-6 py-4 text-xs text-gray-600">{new Date(v.expirationDate).toLocaleDateString()}</td>
+                                                <td className="px-6 py-4 text-xs text-muted-foreground">{new Date(v.expirationDate).toLocaleDateString()}</td>
                                             </tr>
                                         ))
                                     )}
@@ -92,7 +92,7 @@ export default async function InternationalDashboard() {
                 </Card>
 
                 {/* Host Families List */}
-                <Card className="border border-gray-200 shadow-sm">
+                <Card className="border border-border shadow-sm">
                     <CardHeader>
                         <CardTitle className="text-lg">Host Family Registry</CardTitle>
                         <CardDescription>Verified homestay provider contacts.</CardDescription>
@@ -100,7 +100,7 @@ export default async function InternationalDashboard() {
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
-                                <thead className="bg-gray-50 border-b text-xs text-gray-500 uppercase font-semibold">
+                                <thead className="bg-muted border-b text-xs text-muted-foreground uppercase font-semibold">
                                     <tr>
                                         <th className="px-6 py-3">Family Name</th>
                                         <th className="px-6 py-3">Address</th>
@@ -111,13 +111,13 @@ export default async function InternationalDashboard() {
                                 <tbody className="divide-y divide-gray-100">
                                     {families.length === 0 ? (
                                         <tr>
-                                            <td colSpan={4} className="px-6 py-8 text-center text-gray-400">No host families registered.</td>
+                                            <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">No host families registered.</td>
                                         </tr>
                                     ) : (
                                         families.map((f: { id: string; familyName: string; address: string; phone: string; backgroundChecked: string | Date | null }) => (
-                                            <tr key={f.id} className="hover:bg-gray-50">
-                                                <td className="px-6 py-4 font-semibold text-gray-900">{f.familyName}</td>
-                                                <td className="px-6 py-4 text-xs text-gray-600">{f.address}</td>
+                                            <tr key={f.id} className="hover:bg-muted">
+                                                <td className="px-6 py-4 font-semibold text-foreground">{f.familyName}</td>
+                                                <td className="px-6 py-4 text-xs text-muted-foreground">{f.address}</td>
                                                 <td className="px-6 py-4 font-mono text-xs">{f.phone}</td>
                                                 <td className="px-6 py-4 text-xs">
                                                     {f.backgroundChecked ? (

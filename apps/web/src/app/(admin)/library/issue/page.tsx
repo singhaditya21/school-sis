@@ -134,23 +134,23 @@ export default function IssueBookPage() {
             ISSUED: 'bg-blue-100 text-blue-700', 
             OVERDUE: 'bg-red-100 text-red-700', 
             RETURNED: 'bg-green-100 text-green-700', 
-            LOST: 'bg-gray-100 text-gray-700' 
+            LOST: 'bg-muted text-foreground' 
         };
-        return <Badge className={colors[status] || 'bg-gray-100 text-gray-700'}>{status}</Badge>;
+        return <Badge className={colors[status] || 'bg-muted text-foreground'}>{status}</Badge>;
     };
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <div><h1 className="text-3xl font-bold">Issue / Return Books</h1><p className="text-gray-600 mt-1">Manage book lending and returns</p></div>
-                <Link href="/library" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">← Back to Library</Link>
+                <div><h1 className="text-3xl font-bold">Issue / Return Books</h1><p className="text-muted-foreground mt-1">Manage book lending and returns</p></div>
+                <Link href="/library" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">← Back to Library</Link>
             </div>
 
             {message && (<div data-testid="message-banner" className={`p-4 rounded-lg ${message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{message.text}</div>)}
 
             <div className="flex gap-2">
-                <button data-testid="mode-issue" onClick={() => setMode('issue')} className={`px-6 py-3 rounded-lg font-medium ${mode === 'issue' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>📖 Issue Book</button>
-                <button data-testid="mode-return" onClick={() => setMode('return')} className={`px-6 py-3 rounded-lg font-medium ${mode === 'return' ? 'bg-green-600 text-white' : 'bg-gray-100'}`}>↩️ Return Book</button>
+                <button data-testid="mode-issue" onClick={() => setMode('issue')} className={`px-6 py-3 rounded-lg font-medium ${mode === 'issue' ? 'bg-blue-600 text-white' : 'bg-muted'}`}>📖 Issue Book</button>
+                <button data-testid="mode-return" onClick={() => setMode('return')} className={`px-6 py-3 rounded-lg font-medium ${mode === 'return' ? 'bg-green-600 text-white' : 'bg-muted'}`}>↩️ Return Book</button>
             </div>
 
             {mode === 'issue' ? (
@@ -178,7 +178,7 @@ export default function IssueBookPage() {
                                 {students.map((student: LibraryStudent) => (<option key={student.id} value={student.id}>{student.name} - Class {student.class} ({student.admissionNo})</option>))}
                             </select>
                         </div>
-                        <div className="bg-gray-50 p-4 rounded-lg text-sm"><p><strong>Loan Period:</strong> {LIBRARY_LOAN_PERIOD_DAYS} days</p><p><strong>Fine Rate:</strong> {LIBRARY_FINE_RATE_LABEL}</p></div>
+                        <div className="bg-muted p-4 rounded-lg text-sm"><p><strong>Loan Period:</strong> {LIBRARY_LOAN_PERIOD_DAYS} days</p><p><strong>Fine Rate:</strong> {LIBRARY_FINE_RATE_LABEL}</p></div>
                         <button data-testid="issue-submit-btn" onClick={handleIssue} className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">Issue Book</button>
                     </CardContent>
                 </Card>
@@ -186,7 +186,7 @@ export default function IssueBookPage() {
                 <Card>
                     <CardHeader><CardTitle>Currently Issued Books</CardTitle></CardHeader>
                     <CardContent>
-                        {issuedBooks.filter(i => i.status !== 'RETURNED').length === 0 ? <p className="text-gray-500 text-center py-8">No books currently issued.</p> : (
+                        {issuedBooks.filter(i => i.status !== 'RETURNED').length === 0 ? <p className="text-muted-foreground text-center py-8">No books currently issued.</p> : (
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -203,7 +203,7 @@ export default function IssueBookPage() {
                                             <TableCell className="font-medium">{issue.bookTitle}</TableCell>
                                             <TableCell>
                                                 <div>{issue.studentName}</div>
-                                                <div className="text-xs text-gray-500">{issue.studentClass}</div>
+                                                <div className="text-xs text-muted-foreground">{issue.studentClass}</div>
                                             </TableCell>
                                             <TableCell>{issue.dueDate}</TableCell>
                                             <TableCell>{getStatusBadge(issue.status)}</TableCell>

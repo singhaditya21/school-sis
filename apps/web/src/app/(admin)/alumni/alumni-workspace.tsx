@@ -29,7 +29,7 @@ interface Props {
 }
 
 const inputClass =
-    'w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 disabled:opacity-50';
+    'w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 disabled:opacity-50';
 
 const emptyAlumniForm = {
     name: '',
@@ -56,7 +56,7 @@ const emptyEventForm = {
 const statusBadgeClass: Record<string, string> = {
     UPCOMING: 'bg-blue-100 text-blue-700',
     ONGOING: 'bg-amber-100 text-amber-700',
-    COMPLETED: 'bg-gray-100 text-gray-600',
+    COMPLETED: 'bg-muted text-muted-foreground',
 };
 
 export default function AlumniWorkspace({ alumni, events, stats }: Props) {
@@ -177,7 +177,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">Alumni Network</h1>
-                    <p className="text-gray-600 mt-1">Alumni register, events and event registrations</p>
+                    <p className="text-muted-foreground mt-1">Alumni register, events and event registrations</p>
                 </div>
                 <div className="flex gap-2">
                     <button
@@ -190,7 +190,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                     <button
                         type="button"
                         onClick={() => setShowEventDialog(true)}
-                        className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                        className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted"
                     >
                         + New event
                     </button>
@@ -201,7 +201,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                 {stats.map((s) => (
                     <Card key={s.label}>
                         <CardContent className="pt-4">
-                            <div className="text-sm text-gray-500">{s.label}</div>
+                            <div className="text-sm text-muted-foreground">{s.label}</div>
                             <div className={`text-2xl font-bold ${s.className}`}>{s.value}</div>
                         </CardContent>
                     </Card>
@@ -217,7 +217,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                         className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
                             tab === t
                                 ? 'border-blue-600 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                                : 'border-transparent text-muted-foreground hover:text-foreground'
                         }`}
                     >
                         {t === 'directory' ? `Directory (${alumni.length})` : `Events (${events.length})`}
@@ -267,22 +267,22 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <table className="w-full">
-                                <thead className="bg-gray-50 border-y">
+                                <thead className="bg-muted border-y">
                                     <tr>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Batch</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
-                                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Verified</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Name</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Batch</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Company</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Location</th>
+                                        <th className="px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase">Verified</th>
+                                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
                                     {filteredAlumni.map((a) => (
-                                        <tr key={a.id} className="hover:bg-gray-50">
+                                        <tr key={a.id} className="hover:bg-muted">
                                             <td className="px-4 py-3">
                                                 <div className="font-medium">{a.name}</div>
-                                                <div className="text-xs text-gray-500">{a.email}</div>
+                                                <div className="text-xs text-muted-foreground">{a.email}</div>
                                                 {a.linkedIn && (
                                                     <a
                                                         href={a.linkedIn}
@@ -297,7 +297,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                             <td className="px-4 py-3 font-semibold">
                                                 {a.batch}
                                                 {a.graduationYear && (
-                                                    <div className="text-xs font-normal text-gray-500">
+                                                    <div className="text-xs font-normal text-muted-foreground">
                                                         Class of {a.graduationYear}
                                                     </div>
                                                 )}
@@ -305,7 +305,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                             <td className="px-4 py-3">
                                                 <div>{a.currentCompany || '—'}</div>
                                                 {a.designation && (
-                                                    <div className="text-xs text-gray-500">{a.designation}</div>
+                                                    <div className="text-xs text-muted-foreground">{a.designation}</div>
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-sm">{a.location || '—'}</td>
@@ -330,7 +330,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                     ))}
                                     {filteredAlumni.length === 0 && (
                                         <tr>
-                                            <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                                            <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
                                                 {alumni.length === 0
                                                     ? 'No alumni on the register yet.'
                                                     : 'No alumni match these filters.'}
@@ -346,7 +346,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                 <div className="space-y-4">
                     {events.length === 0 && (
                         <Card>
-                            <CardContent className="py-12 text-center text-gray-400">
+                            <CardContent className="py-12 text-center text-muted-foreground">
                                 No alumni events have been created yet.
                             </CardContent>
                         </Card>
@@ -363,11 +363,11 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                             <Badge variant="outline">
                                                 {EVENT_TYPE_LABELS[event.type] || event.type}
                                             </Badge>
-                                            <Badge className={statusBadgeClass[event.status] || 'bg-gray-100 text-gray-600'}>
+                                            <Badge className={statusBadgeClass[event.status] || 'bg-muted text-muted-foreground'}>
                                                 {event.status}
                                             </Badge>
                                         </CardTitle>
-                                        <p className="text-sm text-gray-500 mt-1">
+                                        <p className="text-sm text-muted-foreground mt-1">
                                             {new Date(`${event.date}T00:00:00`).toLocaleDateString('en-IN', {
                                                 day: 'numeric',
                                                 month: 'short',
@@ -407,7 +407,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                 </CardHeader>
                                 <CardContent className="space-y-3">
                                     {event.description && (
-                                        <p className="text-sm text-gray-600">{event.description}</p>
+                                        <p className="text-sm text-muted-foreground">{event.description}</p>
                                     )}
                                     <p className="text-sm">
                                         <span className="font-semibold">{event.registeredCount}</span>
@@ -421,17 +421,17 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                             {event.registrants.map((r) => (
                                                 <li
                                                     key={r.alumniId}
-                                                    className="flex items-center gap-2 text-xs bg-gray-100 rounded-full pl-3 pr-1 py-1"
+                                                    className="flex items-center gap-2 text-xs bg-muted rounded-full pl-3 pr-1 py-1"
                                                 >
                                                     <span>
-                                                        {r.name} <span className="text-gray-500">({r.batch})</span>
+                                                        {r.name} <span className="text-muted-foreground">({r.batch})</span>
                                                     </span>
                                                     <button
                                                         type="button"
                                                         onClick={() => handleCancelRegistration(event.id, r.alumniId)}
                                                         disabled={isPending}
                                                         aria-label={`Cancel registration for ${r.name}`}
-                                                        className="w-5 h-5 rounded-full text-gray-500 hover:bg-gray-200 disabled:opacity-50"
+                                                        className="w-5 h-5 rounded-full text-muted-foreground hover:bg-gray-200 disabled:opacity-50"
                                                     >
                                                         ×
                                                     </button>
@@ -546,7 +546,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                             <button
                                 type="button"
                                 onClick={() => setShowAlumniDialog(false)}
-                                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                                className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted"
                             >
                                 Cancel
                             </button>
@@ -647,7 +647,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                             <button
                                 type="button"
                                 onClick={() => setShowEventDialog(false)}
-                                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                                className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted"
                             >
                                 Cancel
                             </button>
@@ -701,7 +701,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                             <button
                                 type="button"
                                 onClick={() => setRegisterFor(null)}
-                                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                                className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted"
                             >
                                 Cancel
                             </button>

@@ -34,7 +34,7 @@ export default async function SchoolSettingsPage() {
                 <Card>
                     <CardContent className="py-16 text-center">
                         <ShieldAlert className="mx-auto mb-3 h-8 w-8 text-slate-300" />
-                        <p className="font-medium text-slate-700 dark:text-slate-200">
+                        <p className="font-medium text-foreground dark:text-slate-200">
                             Your role cannot view school settings.
                         </p>
                         <p className="mt-1 text-sm text-muted-foreground">
@@ -54,7 +54,7 @@ export default async function SchoolSettingsPage() {
         <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    <h1 className="text-2xl font-bold text-foreground dark:text-white">
                         School Settings
                     </h1>
                     <p className="text-muted-foreground mt-1">
@@ -70,7 +70,7 @@ export default async function SchoolSettingsPage() {
                 <Card>
                     <CardContent className="py-12 text-center text-muted-foreground">
                         <Building2 className="mx-auto mb-3 h-8 w-8 text-slate-300" />
-                        <p className="font-medium text-slate-700 dark:text-slate-200">
+                        <p className="font-medium text-foreground dark:text-slate-200">
                             No school record found for this session.
                         </p>
                         <p className="mt-1 text-sm">
@@ -84,7 +84,7 @@ export default async function SchoolSettingsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-lg">
-                        <Lock className="h-4 w-4 text-slate-500" />
+                        <Lock className="h-4 w-4 text-muted-foreground" />
                         Group Headquarters Policies
                     </CardTitle>
                     <CardDescription>
@@ -111,7 +111,7 @@ export default async function SchoolSettingsPage() {
                                     className="flex flex-wrap items-center justify-between gap-3 p-4"
                                 >
                                     <div className="min-w-0">
-                                        <p className="font-medium text-slate-900 dark:text-slate-100">
+                                        <p className="font-medium text-foreground dark:text-slate-100">
                                             {policy.policyName}
                                         </p>
                                         <p className="font-mono text-xs text-muted-foreground">
@@ -119,7 +119,7 @@ export default async function SchoolSettingsPage() {
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <span className="font-semibold text-slate-900 dark:text-slate-100">
+                                        <span className="font-semibold text-foreground dark:text-slate-100">
                                             {policy.policyValue ?? '—'}
                                         </span>
                                         {policy.isHardBlock ? (
@@ -142,8 +142,8 @@ export default async function SchoolSettingsPage() {
                 </CardContent>
             </Card>
 
-            <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300">
-                <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+            <div className="flex items-start gap-3 rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                 <p>
                     Operational thresholds such as minimum attendance, late-fee penalties and
                     discount caps are not campus-configurable in this release — the schema has no

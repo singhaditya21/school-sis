@@ -57,7 +57,7 @@ export function AttendanceSheet({
 
     if (roll.length === 0) {
         return (
-            <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
+            <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
                 No active students are enrolled in this section.
             </div>
         );
@@ -66,7 +66,7 @@ export function AttendanceSheet({
     return (
         <div className="bg-white rounded-xl shadow-sm border">
             <div className="p-4 border-b flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                     {roll.length} students · {unmarked} not yet marked
                 </p>
                 <div className="flex gap-2">
@@ -75,7 +75,7 @@ export function AttendanceSheet({
                             key={status}
                             type="button"
                             onClick={() => setAll(status)}
-                            className="text-xs px-2.5 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+                            className="text-xs px-2.5 py-1.5 rounded border border-border text-foreground hover:bg-muted"
                         >
                             All {status.toLowerCase()}
                         </button>
@@ -91,11 +91,11 @@ export function AttendanceSheet({
                         data-testid={`attendance-row-${student.studentId}`}
                     >
                         <div>
-                            <p className="font-medium text-gray-900">
+                            <p className="font-medium text-foreground">
                                 {student.rollNumber !== null ? `${student.rollNumber}. ` : ''}
                                 {student.firstName} {student.lastName}
                             </p>
-                            <p className="text-xs text-gray-500 font-mono">{student.admissionNumber}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{student.admissionNumber}</p>
                         </div>
                         <div className="flex gap-2">
                             {STATUSES.map((status) => {
@@ -111,7 +111,7 @@ export function AttendanceSheet({
                                         className={`text-xs px-3 py-1.5 rounded border font-medium transition-colors disabled:opacity-50 ${
                                             active
                                                 ? STATUS_STYLES[status]
-                                                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                                : 'bg-white text-muted-foreground border-border hover:bg-muted'
                                         }`}
                                     >
                                         {status.charAt(0) + status.slice(1).toLowerCase()}
@@ -124,7 +124,7 @@ export function AttendanceSheet({
             </div>
 
             <div className="p-4 border-t flex items-center justify-between gap-3">
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted-foreground">
                     Students left unmarked are not saved and keep whatever was recorded before.
                 </p>
                 <button

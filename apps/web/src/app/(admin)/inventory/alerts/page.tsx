@@ -79,32 +79,32 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div><h1 className="text-3xl font-bold">Inventory Alerts</h1><p className="text-gray-600 mt-1">Stock alerts and reorder suggestions</p></div>
+                <div><h1 className="text-3xl font-bold">Inventory Alerts</h1><p className="text-muted-foreground mt-1">Stock alerts and reorder suggestions</p></div>
                 <div className="flex items-center gap-2">
                     {canWrite && <RescanButton />}
-                    <Link href="/inventory" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">← Back to Inventory</Link>
+                    <Link href="/inventory" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">← Back to Inventory</Link>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Link href="?filter=critical" data-testid="filter-critical">
                     <Card className="cursor-pointer border-2 border-red-200 hover:bg-red-50 transition-colors">
-                        <CardContent className="pt-4"><div className="text-sm text-gray-500">Critical</div><div className="text-3xl font-bold text-red-600" data-testid="kpi-critical-count">{criticalCount}</div></CardContent>
+                        <CardContent className="pt-4"><div className="text-sm text-muted-foreground">Critical</div><div className="text-3xl font-bold text-red-600" data-testid="kpi-critical-count">{criticalCount}</div></CardContent>
                     </Card>
                 </Link>
                 <Link href="?filter=warning" data-testid="filter-warning">
                     <Card className="cursor-pointer border-2 border-orange-200 hover:bg-orange-50 transition-colors">
-                        <CardContent className="pt-4"><div className="text-sm text-gray-500">Warning</div><div className="text-3xl font-bold text-orange-600" data-testid="kpi-warning-count">{warningCount}</div></CardContent>
+                        <CardContent className="pt-4"><div className="text-sm text-muted-foreground">Warning</div><div className="text-3xl font-bold text-orange-600" data-testid="kpi-warning-count">{warningCount}</div></CardContent>
                     </Card>
                 </Link>
                 <Link href="?filter=info" data-testid="filter-info">
                     <Card className="cursor-pointer border-2 border-blue-200 hover:bg-blue-50 transition-colors">
-                        <CardContent className="pt-4"><div className="text-sm text-gray-500">Info</div><div className="text-3xl font-bold text-blue-600" data-testid="kpi-info-count">{infoCount}</div></CardContent>
+                        <CardContent className="pt-4"><div className="text-sm text-muted-foreground">Info</div><div className="text-3xl font-bold text-blue-600" data-testid="kpi-info-count">{infoCount}</div></CardContent>
                     </Card>
                 </Link>
                 <Link href="?filter=ALL" data-testid="filter-all">
-                    <Card className="cursor-pointer hover:bg-gray-50 transition-colors">
-                        <CardContent className="pt-4"><div className="text-sm text-gray-500">Total</div><div className="text-3xl font-bold text-purple-600" data-testid="kpi-total-alerts">{alerts.length}</div></CardContent>
+                    <Card className="cursor-pointer hover:bg-muted transition-colors">
+                        <CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total</div><div className="text-3xl font-bold text-purple-600" data-testid="kpi-total-alerts">{alerts.length}</div></CardContent>
                     </Card>
                 </Link>
             </div>
@@ -112,7 +112,7 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
             <Card>
                 <CardHeader><CardTitle>Active Alerts {filter !== 'ALL' && `(${filter.toUpperCase()})`}</CardTitle></CardHeader>
                 <CardContent>
-                    {filteredAlerts.length === 0 ? <div className="text-center py-8 text-gray-500" data-testid="no-alerts-placeholder">✅ No alerts</div> : (
+                    {filteredAlerts.length === 0 ? <div className="text-center py-8 text-muted-foreground" data-testid="no-alerts-placeholder">✅ No alerts</div> : (
                         <div className="space-y-3" data-testid="active-alerts-list">
                             {filteredAlerts.map(alert => {
                                 const severityStyle = SEVERITY_CONFIG[alert.severity];
@@ -123,7 +123,7 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
                                             <Badge variant="outline">{TYPE_LABELS[alert.type] || alert.type}</Badge>
                                         </div>
                                         <p className="mt-2 font-medium" data-testid={`alert-name-${alert.id}`}>{alert.itemName || 'Unknown Item'}</p>
-                                        <p className="text-sm text-gray-600" data-testid={`alert-message-${alert.id}`}>{alert.message}</p>
+                                        <p className="text-sm text-muted-foreground" data-testid={`alert-message-${alert.id}`}>{alert.message}</p>
                                     </div>
                                 );
                             })}
@@ -136,27 +136,27 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
                 <CardHeader><CardTitle>Reorder Suggestions</CardTitle></CardHeader>
                 <CardContent>
                     <table className="w-full">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-muted">
                             <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Current</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Reorder</th>
-                                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Suggested</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Item</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Current</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Reorder</th>
+                                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Suggested</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y" data-testid="reorder-suggestions-list">
                             {reorderItems.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="py-4 text-center text-gray-500" data-testid="no-suggestions-placeholder">No items need reordering.</td>
+                                    <td colSpan={4} className="py-4 text-center text-muted-foreground" data-testid="no-suggestions-placeholder">No items need reordering.</td>
                                 </tr>
                             ) : (
                                 reorderItems.map(item => {
                                     const suggestedQty = Math.max((item.reorderLevel || 0) * 2 - (item.currentStock || 0), item.minimumStock || 0);
                                     return (
-                                        <tr key={item.id} className="hover:bg-gray-50" data-testid={`reorder-row-${item.id}`}>
+                                        <tr key={item.id} className="hover:bg-muted" data-testid={`reorder-row-${item.id}`}>
                                             <td className="px-4 py-3 font-medium" data-testid={`reorder-item-name-${item.id}`}>{item.name}</td>
                                             <td className="px-4 py-3 text-right text-red-600 font-semibold" data-testid={`reorder-current-stock-${item.id}`}>{item.currentStock} {item.unit}</td>
-                                            <td className="px-4 py-3 text-right text-gray-500" data-testid={`reorder-level-${item.id}`}>{item.reorderLevel} {item.unit}</td>
+                                            <td className="px-4 py-3 text-right text-muted-foreground" data-testid={`reorder-level-${item.id}`}>{item.reorderLevel} {item.unit}</td>
                                             <td className="px-4 py-3 text-right font-semibold text-blue-600" data-testid={`reorder-suggested-qty-${item.id}`}>{suggestedQty} {item.unit}</td>
                                         </tr>
                                     );
@@ -164,7 +164,7 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
                             )}
                         </tbody>
                     </table>
-                    <p className="text-xs text-gray-500 mt-3">
+                    <p className="text-xs text-muted-foreground mt-3">
                         Suggested quantity is twice the reorder level less what is on hand, floored at the minimum stock.
                     </p>
                 </CardContent>

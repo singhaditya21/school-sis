@@ -6,7 +6,7 @@ import { getQuizDetail } from '../queries';
 import { addQuestionAction, deleteQuestionAction, deleteQuizAction, setQuizStatusAction } from '../actions';
 
 const STATUS_STYLES: Record<string, string> = {
-    DRAFT: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+    DRAFT: 'bg-muted text-foreground dark:bg-gray-800 dark:text-gray-300',
     PUBLISHED: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
     CLOSED: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
 };
@@ -18,8 +18,8 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const inputClass =
-    'w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500';
-const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1';
+    'w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500';
+const labelClass = 'block text-sm font-medium text-foreground dark:text-gray-300 mb-1';
 
 function formatWindow(value: Date | string | null) {
     if (!value) return null;
@@ -55,16 +55,16 @@ export default async function QuizDetailPage({
                 <div>
                     <div className="flex items-center gap-3">
                         <h1 className="text-2xl font-bold">{quiz.title}</h1>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[quiz.status] ?? 'bg-gray-100'}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[quiz.status] ?? 'bg-muted'}`}>
                             {quiz.status}
                         </span>
                     </div>
-                    <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm">
+                    <p className="text-muted-foreground dark:text-muted-foreground mt-1 text-sm">
                         {quiz.questions.length} question{quiz.questions.length === 1 ? '' : 's'} · {quiz.totalMarks} marks · {quiz.duration} min
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Link href={`/quiz/${quiz.id}/results`} className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <Link href={`/quiz/${quiz.id}/results`} className="px-3 py-2 text-sm rounded-lg border border-border dark:border-gray-700 hover:bg-muted dark:hover:bg-gray-800">
                         Results
                     </Link>
                     <Link href="/quiz" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">← All quizzes</Link>
@@ -84,11 +84,11 @@ export default async function QuizDetailPage({
                     </CardHeader>
                     <CardContent className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                            <div className="text-gray-500">Subject</div>
+                            <div className="text-muted-foreground">Subject</div>
                             <div className="font-medium">{quiz.subjectName ?? '—'}</div>
                         </div>
                         <div>
-                            <div className="text-gray-500">Class</div>
+                            <div className="text-muted-foreground">Class</div>
                             <div className="font-medium">
                                 {quiz.gradeName
                                     ? `${quiz.gradeName}${quiz.sectionName ? `-${quiz.sectionName}` : ''}`
@@ -96,23 +96,23 @@ export default async function QuizDetailPage({
                             </div>
                         </div>
                         <div>
-                            <div className="text-gray-500">Opens at</div>
+                            <div className="text-muted-foreground">Opens at</div>
                             <div className="font-medium">{opensAt ?? 'Not scheduled'}</div>
                         </div>
                         <div>
-                            <div className="text-gray-500">Closes at</div>
+                            <div className="text-muted-foreground">Closes at</div>
                             <div className="font-medium">{closesAt ?? 'Not scheduled'}</div>
                         </div>
                         <div>
-                            <div className="text-gray-500">Created by</div>
+                            <div className="text-muted-foreground">Created by</div>
                             <div className="font-medium">{quiz.createdByName ?? '—'}</div>
                         </div>
                         <div>
-                            <div className="text-gray-500">Attempts recorded</div>
+                            <div className="text-muted-foreground">Attempts recorded</div>
                             <div className="font-medium">{quiz.attemptCount}</div>
                         </div>
                         <div className="col-span-2">
-                            <div className="text-gray-500">Instructions</div>
+                            <div className="text-muted-foreground">Instructions</div>
                             <div className="font-medium whitespace-pre-wrap">
                                 {quiz.instructions ?? 'None'}
                             </div>
@@ -148,7 +148,7 @@ export default async function QuizDetailPage({
                             <form action={setQuizStatusAction}>
                                 <input type="hidden" name="quizId" value={quiz.id} />
                                 <input type="hidden" name="status" value="DRAFT" />
-                                <button type="submit" className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium">
+                                <button type="submit" className="w-full px-4 py-2 rounded-lg border border-border dark:border-gray-700 hover:bg-muted dark:hover:bg-gray-800 text-sm font-medium">
                                     Return to draft
                                 </button>
                             </form>
@@ -162,7 +162,7 @@ export default async function QuizDetailPage({
                             </form>
                         )}
                         {locked && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <p className="text-xs text-muted-foreground dark:text-muted-foreground">
                                 This quiz has recorded attempts, so it can no longer be edited or deleted.
                             </p>
                         )}
@@ -187,7 +187,7 @@ export default async function QuizDetailPage({
                                     <div className="flex flex-wrap items-center gap-2 mb-2">
                                         <Badge variant="outline">Q{i + 1}</Badge>
                                         <Badge variant="outline">{TYPE_LABELS[q.type] ?? q.type}</Badge>
-                                        <span className="text-xs text-gray-500">
+                                        <span className="text-xs text-muted-foreground">
                                             {q.marks} mark{q.marks === 1 ? '' : 's'}
                                             {q.negativeMarks > 0 ? ` · −${q.negativeMarks} if wrong` : ''}
                                             {q.section ? ` · ${q.section}` : ''}
@@ -203,7 +203,7 @@ export default async function QuizDetailPage({
                                                         key={`${q.id}-${oi}`}
                                                         className={isCorrect
                                                             ? 'text-green-700 dark:text-green-400 font-medium'
-                                                            : 'text-gray-600 dark:text-gray-400'}
+                                                            : 'text-muted-foreground dark:text-muted-foreground'}
                                                     >
                                                         {String.fromCharCode(65 + oi)}. {option}
                                                         {isCorrect ? ' ✓' : ''}
@@ -212,7 +212,7 @@ export default async function QuizDetailPage({
                                             })}
                                         </ul>
                                     ) : (
-                                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                        <p className="mt-2 text-sm text-muted-foreground dark:text-muted-foreground">
                                             Expected answer: <span className="font-medium text-green-700 dark:text-green-400">{q.correctAnswer}</span>
                                         </p>
                                     )}
@@ -231,14 +231,14 @@ export default async function QuizDetailPage({
                     ))}
 
                     {quiz.questions.length === 0 && (
-                        <p className="text-center py-8 text-gray-400">This quiz has no questions yet.</p>
+                        <p className="text-center py-8 text-muted-foreground">This quiz has no questions yet.</p>
                     )}
                 </CardContent>
             </Card>
 
             {locked ? (
                 <Card>
-                    <CardContent className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <CardContent className="py-8 text-center text-sm text-muted-foreground dark:text-muted-foreground">
                         Questions are locked because {quiz.attemptCount} attempt{quiz.attemptCount === 1 ? ' has' : 's have'} already been recorded.
                     </CardContent>
                 </Card>
@@ -288,7 +288,7 @@ export default async function QuizDetailPage({
                             <div>
                                 <label className={labelClass} htmlFor="correctAnswer">Correct answer *</label>
                                 <input id="correctAnswer" name="correctAnswer" type="text" required className={inputClass} />
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                <p className="text-xs text-muted-foreground dark:text-muted-foreground mt-1">
                                     Multiple choice: type the correct option exactly as written above. True / false: type True or False.
                                     Short answer: type the expected answer — it is matched case-insensitively when scoring.
                                 </p>

@@ -32,13 +32,13 @@ export default async function HQLayout({
                                 <h1 className="text-xl font-bold text-white tracking-tight">
                                     ScholarMind HQ
                                 </h1>
-                                <p className="text-sm text-slate-400">
+                                <p className="text-sm text-muted-foreground">
                                     Global Command Center
                                 </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-4">
-                            <span className="text-sm text-slate-400">
+                            <span className="text-sm text-muted-foreground">
                                 {session.email}
                             </span>
                             <span className="px-2 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-medium rounded-full">
@@ -62,7 +62,7 @@ export default async function HQLayout({
                 <aside className="w-64 bg-slate-950 border-r border-slate-800 min-h-[calc(100vh-73px)] sticky top-[73px]">
                     <nav className="p-4 space-y-2">
                         <div className="pb-4 mb-2 border-b border-slate-800">
-                            <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Orchestration</p>
+                            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Orchestration</p>
                             <NavLink href="/hq" icon="🌍">
                                 Global Dashboard
                             </NavLink>
@@ -78,7 +78,7 @@ export default async function HQLayout({
                         </div>
 
                         <div className="pb-4 mb-2 border-b border-slate-800">
-                            <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Operations</p>
+                            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Operations</p>
                             <NavLink href="/hq/treasury" icon="🏦">
                                 Cross-Campus Finance
                             </NavLink>
@@ -91,7 +91,7 @@ export default async function HQLayout({
                         </div>
 
                         <div>
-                            <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">System</p>
+                            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">System</p>
                             <NavLink href="/hq/policies" icon="⚙️">
                                 Global Policy Engine
                             </NavLink>
@@ -127,7 +127,7 @@ function NavLink({
     return (
         <Link
             href={href}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-slate-800 hover:text-slate-100 transition-colors"
         >
             <span className="text-lg">{icon}</span>
             <span className="text-sm font-medium">{children}</span>

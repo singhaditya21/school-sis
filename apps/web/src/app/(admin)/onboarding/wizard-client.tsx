@@ -69,14 +69,14 @@ export default function OnboardingWizardClient() {
     return (
         <Card className="shadow-lg border-0 ring-1 ring-slate-200 dark:ring-slate-800">
             {/* Stepper Header */}
-            <div className="flex border-b border-slate-100 dark:border-slate-800">
-                <div className={`flex-1 p-4 text-center border-r border-slate-100 dark:border-slate-800 transition-colors ${step === 1 ? 'bg-blue-50/50 dark:bg-blue-900/20 text-blue-600' : 'text-slate-500'}`}>
+            <div className="flex border-b border-border dark:border-slate-800">
+                <div className={`flex-1 p-4 text-center border-r border-border dark:border-slate-800 transition-colors ${step === 1 ? 'bg-blue-50/50 dark:bg-blue-900/20 text-blue-600' : 'text-muted-foreground'}`}>
                     <div className="flex items-center justify-center gap-2">
                         <Calendar className="w-5 h-5" />
                         <span className="font-medium text-sm">1. Academic Year</span>
                     </div>
                 </div>
-                <div className={`flex-1 p-4 text-center transition-colors ${step === 2 ? 'bg-blue-50/50 dark:bg-blue-900/20 text-blue-600' : 'text-slate-500'}`}>
+                <div className={`flex-1 p-4 text-center transition-colors ${step === 2 ? 'bg-blue-50/50 dark:bg-blue-900/20 text-blue-600' : 'text-muted-foreground'}`}>
                     <div className="flex items-center justify-center gap-2">
                         <School className="w-5 h-5" />
                         <span className="font-medium text-sm">2. Grades & Classes</span>
@@ -94,8 +94,8 @@ export default function OnboardingWizardClient() {
                 {step === 1 && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                         <div>
-                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Current Academic Year</h3>
-                            <p className="text-sm text-slate-500">Set the active academic session for your school.</p>
+                            <h3 className="text-lg font-semibold text-foreground dark:text-white">Current Academic Year</h3>
+                            <p className="text-sm text-muted-foreground">Set the active academic session for your school.</p>
                         </div>
 
                         <div className="grid gap-6">
@@ -136,13 +136,13 @@ export default function OnboardingWizardClient() {
                 {step === 2 && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                         <div>
-                            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Select Grades</h3>
-                            <p className="text-sm text-slate-500">Choose the grades/classes offered at your institution.</p>
+                            <h3 className="text-lg font-semibold text-foreground dark:text-white">Select Grades</h3>
+                            <p className="text-sm text-muted-foreground">Choose the grades/classes offered at your institution.</p>
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
                             {DEFAULT_GRADES.map((grade) => (
-                                <div key={grade} className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
+                                <div key={grade} className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-muted dark:hover:bg-slate-900 transition-colors">
                                     <Checkbox 
                                         id={`grade-${grade}`} 
                                         checked={selectedGrades.includes(grade)}
@@ -161,7 +161,7 @@ export default function OnboardingWizardClient() {
                 )}
             </CardContent>
 
-            <CardFooter className="px-8 py-4 bg-slate-50 dark:bg-slate-900/50 flex justify-between rounded-b-xl border-t border-slate-100 dark:border-slate-800">
+            <CardFooter className="px-8 py-4 bg-muted dark:bg-slate-900/50 flex justify-between rounded-b-xl border-t border-border dark:border-slate-800">
                 {step > 1 ? (
                     <Button variant="outline" onClick={() => setStep(step - 1)}>
                         Back

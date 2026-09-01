@@ -32,8 +32,8 @@ export default async function ParentOverviewPage({
             <div className="mx-auto max-w-4xl space-y-6">
                 <ParentTopBar students={students} selectedId={null} />
                 <div className="rounded-xl border border-dashed bg-white p-12 text-center">
-                    <p className="text-lg font-medium text-slate-700">No child linked to your account</p>
-                    <p className="mt-2 text-sm text-slate-500">
+                    <p className="text-lg font-medium text-foreground">No child linked to your account</p>
+                    <p className="mt-2 text-sm text-muted-foreground">
                         Your account is not yet connected to a student record. Please ask the school
                         office to link you as a guardian — attendance, results, fees and transport will
                         appear here once they do.
@@ -50,8 +50,8 @@ export default async function ParentOverviewPage({
             <ParentTopBar students={students} selectedId={child.id} />
 
             <div>
-                <h1 className="text-2xl font-bold text-slate-900">{child.name}</h1>
-                <p className="mt-1 text-sm text-slate-500">
+                <h1 className="text-2xl font-bold text-foreground">{child.name}</h1>
+                <p className="mt-1 text-sm text-muted-foreground">
                     {child.gradeName} · Section {child.sectionName} · Admission {child.admissionNumber}
                     {child.rollNumber !== null ? ` · Roll ${child.rollNumber}` : ''}
                     {child.status !== 'ACTIVE' ? ` · ${child.status}` : ''}
@@ -60,11 +60,11 @@ export default async function ParentOverviewPage({
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="rounded-xl border bg-white p-6 shadow-sm">
-                    <h2 className="mb-2 font-semibold text-slate-900">Attendance this month</h2>
+                    <h2 className="mb-2 font-semibold text-foreground">Attendance this month</h2>
                     {attendance.rate === null ? (
                         <>
-                            <p className="text-xl font-semibold text-slate-400">Not marked yet</p>
-                            <p className="text-sm text-slate-500">No register entries for this month</p>
+                            <p className="text-xl font-semibold text-muted-foreground">Not marked yet</p>
+                            <p className="text-sm text-muted-foreground">No register entries for this month</p>
                         </>
                     ) : (
                         <>
@@ -79,7 +79,7 @@ export default async function ParentOverviewPage({
                             >
                                 {attendance.rate}%
                             </p>
-                            <p className="text-sm text-slate-500">
+                            <p className="text-sm text-muted-foreground">
                                 {attendance.present} present · {attendance.late} late · {attendance.absent} absent
                                 {' '}of {attendance.marked} days
                             </p>
@@ -89,16 +89,16 @@ export default async function ParentOverviewPage({
 
                 <div
                     className={`rounded-xl border p-6 shadow-sm ${
-                        fees.outstanding > 0 ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'
+                        fees.outstanding > 0 ? 'border-amber-200 bg-amber-50' : 'border-border bg-white'
                     }`}
                 >
-                    <h2 className={`mb-2 font-semibold ${fees.outstanding > 0 ? 'text-amber-900' : 'text-slate-900'}`}>
+                    <h2 className={`mb-2 font-semibold ${fees.outstanding > 0 ? 'text-amber-900' : 'text-foreground'}`}>
                         Outstanding fees
                     </h2>
                     <p className={`text-3xl font-bold ${fees.outstanding > 0 ? 'text-amber-700' : 'text-emerald-600'}`}>
                         {formatCurrency(fees.outstanding)}
                     </p>
-                    <p className={`text-sm ${fees.outstanding > 0 ? 'text-amber-700' : 'text-slate-500'}`}>
+                    <p className={`text-sm ${fees.outstanding > 0 ? 'text-amber-700' : 'text-muted-foreground'}`}>
                         {fees.outstanding <= 0
                             ? 'Nothing due'
                             : fees.overdueCount > 0
@@ -110,19 +110,19 @@ export default async function ParentOverviewPage({
                 </div>
 
                 <div className="rounded-xl border bg-white p-6 shadow-sm">
-                    <h2 className="mb-2 font-semibold text-slate-900">Latest published result</h2>
+                    <h2 className="mb-2 font-semibold text-foreground">Latest published result</h2>
                     {latestExam ? (
                         <>
-                            <p className="text-3xl font-bold text-slate-900">{latestExam.average}%</p>
-                            <p className="text-sm text-slate-500">
+                            <p className="text-3xl font-bold text-foreground">{latestExam.average}%</p>
+                            <p className="text-sm text-muted-foreground">
                                 {latestExam.examName} · {latestExam.subjectCount} subject
                                 {latestExam.subjectCount === 1 ? '' : 's'}
                             </p>
                         </>
                     ) : (
                         <>
-                            <p className="text-xl font-semibold text-slate-400">Nothing published</p>
-                            <p className="text-sm text-slate-500">
+                            <p className="text-xl font-semibold text-muted-foreground">Nothing published</p>
+                            <p className="text-sm text-muted-foreground">
                                 Results appear once the school publishes the exam
                             </p>
                         </>
@@ -158,7 +158,7 @@ export default async function ParentOverviewPage({
             )}
 
             <div>
-                <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-400">
+                <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                     Go to
                 </h2>
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
@@ -169,9 +169,9 @@ export default async function ParentOverviewPage({
                             className="rounded-xl border bg-white p-4 text-center shadow-sm transition-shadow hover:shadow-md"
                         >
                             <div className="mb-2 text-2xl">{link.icon}</div>
-                            <p className="font-medium text-slate-800">{link.label}</p>
+                            <p className="font-medium text-foreground">{link.label}</p>
                             {link.href === '/my-transport' && transportRoute && (
-                                <p className="mt-1 truncate text-xs text-slate-500">{transportRoute}</p>
+                                <p className="mt-1 truncate text-xs text-muted-foreground">{transportRoute}</p>
                             )}
                         </Link>
                     ))}

@@ -65,7 +65,7 @@ export default async function DashboardPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <h1 className="text-2xl font-bold text-foreground dark:text-white">
                         {greeting}, {session.email?.split('@')[0] || 'User'}
                     </h1>
                     <p className="text-muted-foreground mt-1">
@@ -74,14 +74,14 @@ export default async function DashboardPage() {
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="text-right">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        <p className="text-sm font-medium text-foreground dark:text-white">
                             {tenant.name}
                         </p>
                         <p className="text-xs text-muted-foreground">
                             {tenant.slug.toUpperCase()}
                         </p>
                     </div>
-                    <Badge className={ROLE_COLORS[role] || 'bg-slate-100'}>
+                    <Badge className={ROLE_COLORS[role] || 'bg-muted'}>
                         {ROLE_LABELS[role] || role}
                     </Badge>
                 </div>
@@ -94,7 +94,7 @@ export default async function DashboardPage() {
                 <>
                     {/* KPI Cards */}
                     <section>
-                        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                        <h2 className="text-lg font-semibold mb-4 text-foreground dark:text-white">
                             Fee Intelligence
                         </h2>
                         <KpiCards data={kpiData} />
@@ -102,7 +102,7 @@ export default async function DashboardPage() {
 
                     {/* Modules Grid */}
                     <section>
-                        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                        <h2 className="text-lg font-semibold mb-4 text-foreground dark:text-white">
                             Quick Access
                         </h2>
                         <ModuleGrid role={role} />
@@ -119,7 +119,7 @@ export default async function DashboardPage() {
             {dashboardType === 'teacher' && (
                 <>
                     <section>
-                        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                        <h2 className="text-lg font-semibold mb-4 text-foreground dark:text-white">
                             Today&apos;s Schedule
                         </h2>
                         <ModuleGrid role={role} />
@@ -131,7 +131,7 @@ export default async function DashboardPage() {
             {dashboardType === 'parent' && (
                 <>
                     <section>
-                        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                        <h2 className="text-lg font-semibold mb-4 text-foreground dark:text-white">
                             Quick Actions
                         </h2>
                         <ModuleGrid role={role} />

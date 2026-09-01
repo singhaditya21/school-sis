@@ -23,7 +23,7 @@ const TYPE_COLORS: Record<string, string> = {
     admission: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
     reminder: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
     consent: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400',
-    login: 'bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-400',
+    login: 'bg-muted text-foreground dark:bg-slate-900/30 dark:text-muted-foreground',
     attendance: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
     exam: 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400',
     health: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400',
@@ -124,10 +124,10 @@ export function RecentActivity() {
                     <div className="space-y-4 max-h-[400px] overflow-hidden">
                         {[1, 2, 3].map(i => (
                             <div key={i} className="flex gap-3 animate-pulse">
-                                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800"></div>
+                                <div className="w-8 h-8 rounded-full bg-muted dark:bg-slate-800"></div>
                                 <div className="flex-1 space-y-2">
-                                    <div className="h-4 w-3/4 bg-slate-100 dark:bg-slate-800 rounded"></div>
-                                    <div className="h-3 w-1/2 bg-slate-50 dark:bg-slate-900 rounded"></div>
+                                    <div className="h-4 w-3/4 bg-muted dark:bg-slate-800 rounded"></div>
+                                    <div className="h-3 w-1/2 bg-muted dark:bg-slate-900 rounded"></div>
                                 </div>
                             </div>
                         ))}
@@ -157,7 +157,7 @@ export function RecentActivity() {
                             variant="outline"
                             className={`text-xs transition-all ${isLive
                                     ? 'bg-green-50 border-green-500 text-green-700 animate-pulse'
-                                    : 'bg-gray-50 border-gray-400 text-gray-600'
+                                    : 'bg-muted border-gray-400 text-muted-foreground'
                                 }`}
                         >
                             <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${isLive ? 'bg-green-500' : 'bg-gray-400'}`} />
@@ -168,7 +168,7 @@ export function RecentActivity() {
             </CardHeader>
             <CardContent>
                 {activities.length === 0 ? (
-                    <div className="py-8 text-center text-sm text-gray-500">
+                    <div className="py-8 text-center text-sm text-muted-foreground">
                         No activity found in the system.
                     </div>
                 ) : (
@@ -187,7 +187,7 @@ export function RecentActivity() {
                                     <span className="text-sm">{TYPE_ICONS[activity.type] || '⚡'}</span>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                    <p className="text-sm font-medium text-foreground dark:text-white">
                                         {activity.title}
                                     </p>
                                     <p className="text-sm text-muted-foreground truncate">

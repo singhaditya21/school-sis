@@ -18,15 +18,15 @@ export default async function TeacherClassesPage() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold">My Classes</h1>
-                <p className="text-gray-600">
+                <p className="text-muted-foreground">
                     Sections where you are the class teacher or hold at least one timetabled period.
                 </p>
             </div>
 
             {classes.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                    <p className="font-medium text-gray-900">No classes are assigned to your account.</p>
-                    <p className="text-sm text-gray-500 mt-2 max-w-lg mx-auto">
+                    <p className="font-medium text-foreground">No classes are assigned to your account.</p>
+                    <p className="text-sm text-muted-foreground mt-2 max-w-lg mx-auto">
                         A class reaches this page once the office makes you the class teacher of a section,
                         or puts you on the timetable for one. Until then there is nothing here to show.
                     </p>
@@ -40,10 +40,10 @@ export default async function TeacherClassesPage() {
                             <div key={cls.sectionId} className="bg-white rounded-xl shadow-sm border p-5 flex flex-col">
                                 <div className="flex items-start justify-between gap-2">
                                     <div>
-                                        <h2 className="font-semibold text-lg text-gray-900">
+                                        <h2 className="font-semibold text-lg text-foreground">
                                             {cls.gradeName} – {cls.sectionName}
                                         </h2>
-                                        <p className="text-sm text-gray-500">
+                                        <p className="text-sm text-muted-foreground">
                                             {cls.studentCount} active {cls.studentCount === 1 ? 'student' : 'students'}
                                             {cls.roomNumber ? ` · Room ${cls.roomNumber}` : ''}
                                         </p>
@@ -53,14 +53,14 @@ export default async function TeacherClassesPage() {
                                     )}
                                 </div>
 
-                                <div className="mt-3 text-sm text-gray-700">
+                                <div className="mt-3 text-sm text-foreground">
                                     {cls.subjects ? (
                                         <p>
-                                            <span className="text-gray-500">You teach:</span> {cls.subjects}
-                                            <span className="text-gray-400"> · {cls.periodsPerWeek} periods/week</span>
+                                            <span className="text-muted-foreground">You teach:</span> {cls.subjects}
+                                            <span className="text-muted-foreground"> · {cls.periodsPerWeek} periods/week</span>
                                         </p>
                                     ) : (
-                                        <p className="text-gray-500 italic">
+                                        <p className="text-muted-foreground italic">
                                             No timetabled periods here — class-teacher duties only.
                                         </p>
                                     )}
@@ -68,7 +68,7 @@ export default async function TeacherClassesPage() {
 
                                 <div className="mt-3 text-sm">
                                     {marked > 0 ? (
-                                        <p className="text-gray-600">
+                                        <p className="text-muted-foreground">
                                             Today: {summary?.present ?? 0} present, {summary?.absent ?? 0} absent,{' '}
                                             {summary?.late ?? 0} late
                                             {(summary?.excused ?? 0) > 0 ? `, ${summary?.excused} excused` : ''}

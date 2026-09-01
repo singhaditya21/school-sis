@@ -206,8 +206,8 @@ export default async function AuditPage({
     return (
         <div className="space-y-6">
             <header>
-                <h1 className="text-3xl font-bold text-gray-900">Audit log</h1>
-                <p className="mt-1 text-gray-600">
+                <h1 className="text-3xl font-bold text-foreground">Audit log</h1>
+                <p className="mt-1 text-muted-foreground">
                     Every entry recorded in this school&apos;s audit log, straight from the database.
                 </p>
             </header>
@@ -231,25 +231,25 @@ export default async function AuditPage({
                 />
             </section>
 
-            <form method="GET" className="rounded-xl border border-gray-200 bg-white p-4">
+            <form method="GET" className="rounded-xl border border-border bg-white p-4">
                 <div className="flex flex-wrap items-end gap-3">
                     <label className="flex min-w-[240px] flex-1 flex-col gap-1">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Search</span>
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Search</span>
                         <input
                             type="text"
                             name="q"
                             defaultValue={search}
                             placeholder="Description, actor, entity id or IP"
-                            className="h-9 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                            className="h-9 rounded-md border border-border px-3 text-sm outline-none focus:border-blue-500"
                         />
                     </label>
 
                     <label className="flex flex-col gap-1">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Action</span>
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Action</span>
                         <select
                             name="action"
                             defaultValue={action}
-                            className="h-9 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                            className="h-9 rounded-md border border-border px-3 text-sm outline-none focus:border-blue-500"
                         >
                             <option value="">All actions</option>
                             {AUDIT_ACTIONS.map((value) => (
@@ -261,11 +261,11 @@ export default async function AuditPage({
                     </label>
 
                     <label className="flex flex-col gap-1">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Entity type</span>
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Entity type</span>
                         <select
                             name="entity"
                             defaultValue={entityType}
-                            className="h-9 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                            className="h-9 rounded-md border border-border px-3 text-sm outline-none focus:border-blue-500"
                             disabled={knownEntityTypes.length === 0}
                         >
                             <option value="">
@@ -280,11 +280,11 @@ export default async function AuditPage({
                     </label>
 
                     <label className="flex flex-col gap-1">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Period</span>
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Period</span>
                         <select
                             name="window"
                             defaultValue={windowValue}
-                            className="h-9 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                            className="h-9 rounded-md border border-border px-3 text-sm outline-none focus:border-blue-500"
                         >
                             {WINDOW_OPTIONS.map((option) => (
                                 <option key={option.value} value={option.value}>
@@ -303,7 +303,7 @@ export default async function AuditPage({
                     {hasFilters && (
                         <Link
                             href="/audit"
-                            className="h-9 rounded-md border border-gray-300 px-4 text-sm font-medium leading-9 text-gray-700 hover:bg-gray-50"
+                            className="h-9 rounded-md border border-border px-4 text-sm font-medium leading-9 text-foreground hover:bg-muted"
                         >
                             Reset
                         </Link>
@@ -323,7 +323,7 @@ export default async function AuditPage({
                             className={`rounded-full border px-3 py-1 text-xs font-medium ${
                                 bucket.action === action
                                     ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                                    : 'border-border bg-white text-muted-foreground hover:border-border'
                             }`}
                         >
                             {bucket.action} · {bucket.count.toLocaleString('en-IN')}
@@ -336,7 +336,7 @@ export default async function AuditPage({
 
             {summary.total > PAGE_SIZE && (
                 <nav className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">
+                    <span className="text-muted-foreground">
                         Page {page} of {lastPage}
                     </span>
                     <div className="flex gap-2">
@@ -378,9 +378,9 @@ export default async function AuditPage({
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
-            <div className="mt-1 text-2xl font-bold text-gray-900">{value}</div>
+        <div className="rounded-xl border border-border bg-white p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+            <div className="mt-1 text-2xl font-bold text-foreground">{value}</div>
         </div>
     );
 }
@@ -396,13 +396,13 @@ function PageLink({
 }) {
     if (disabled) {
         return (
-            <span className="cursor-not-allowed rounded-md border border-gray-200 px-3 py-1.5 text-gray-400">
+            <span className="cursor-not-allowed rounded-md border border-border px-3 py-1.5 text-muted-foreground">
                 {children}
             </span>
         );
     }
     return (
-        <Link href={href} className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50">
+        <Link href={href} className="rounded-md border border-border px-3 py-1.5 text-foreground hover:bg-muted">
             {children}
         </Link>
     );

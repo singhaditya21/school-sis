@@ -38,7 +38,7 @@ function statusClasses(status: string) {
     if (status === 'NEW') return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
     if (status === 'CONTACTED') return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
     if (status === 'CLOSED') return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-    return 'bg-slate-800 text-slate-400 border-slate-700';
+    return 'bg-slate-800 text-muted-foreground border-slate-700';
 }
 
 export default function LeadsClient({
@@ -94,7 +94,7 @@ export default function LeadsClient({
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Lead Pipeline</h1>
-                <p className="text-sm text-slate-400 mt-1">Inbound schools captured from the marketing site.</p>
+                <p className="text-sm text-muted-foreground mt-1">Inbound schools captured from the marketing site.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -118,7 +118,7 @@ export default function LeadsClient({
                 />
             </div>
 
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
                 Leads record the seat capacity a school reports, not a contract value — deal amounts are not captured, so no
                 pipeline revenue is shown.
             </p>
@@ -145,7 +145,7 @@ export default function LeadsClient({
                         </ResponsiveContainer>
                     ) : (
                         <div className="h-full flex items-center justify-center">
-                            <span className="text-sm text-slate-500">No leads captured yet.</span>
+                            <span className="text-sm text-muted-foreground">No leads captured yet.</span>
                         </div>
                     )}
                 </div>
@@ -157,7 +157,7 @@ export default function LeadsClient({
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-slate-300">
-                        <thead className="bg-slate-900 border-b border-slate-800 text-xs text-slate-500 uppercase tracking-widest">
+                        <thead className="bg-slate-900 border-b border-slate-800 text-xs text-muted-foreground uppercase tracking-widest">
                             <tr>
                                 <th className="px-6 py-4 font-semibold">Received</th>
                                 <th className="px-6 py-4 font-semibold">School</th>
@@ -170,28 +170,28 @@ export default function LeadsClient({
                         <tbody className="divide-y divide-slate-800/60">
                             {leads.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                                    <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
                                         No inbound leads yet.
                                     </td>
                                 </tr>
                             )}
                             {leads.map((lead) => (
                                 <tr key={lead.id} className="hover:bg-slate-900/50 transition-colors align-top">
-                                    <td className="px-6 py-4 text-xs text-slate-400 whitespace-nowrap">
+                                    <td className="px-6 py-4 text-xs text-muted-foreground whitespace-nowrap">
                                         {format(new Date(lead.createdAt), 'd MMM yyyy')}
                                     </td>
                                     <td className="px-6 py-4">
                                         <p className="font-semibold text-white">{lead.schoolName}</p>
                                         {lead.painPoints && (
-                                            <p className="text-xs text-slate-500 mt-1 max-w-sm">{lead.painPoints}</p>
+                                            <p className="text-xs text-muted-foreground mt-1 max-w-sm">{lead.painPoints}</p>
                                         )}
                                     </td>
                                     <td className="px-6 py-4 text-xs">
                                         <span className="flex items-center gap-2 text-slate-300">
-                                            <Mail className="w-3 h-3 text-slate-500" />
+                                            <Mail className="w-3 h-3 text-muted-foreground" />
                                             {lead.contactEmail}
                                         </span>
-                                        <span className="block text-slate-500 mt-1">{lead.contactName}</span>
+                                        <span className="block text-muted-foreground mt-1">{lead.contactName}</span>
                                     </td>
                                     <td className="px-6 py-4 text-right tabular-nums">
                                         {lead.studentCapacity.toLocaleString('en-IN')}
@@ -217,7 +217,7 @@ export default function LeadsClient({
                                             <Link
                                                 href="/platform/tenants/new"
                                                 title="Provision a campus for this school"
-                                                className="p-1.5 text-slate-400 hover:text-indigo-400 transition-colors"
+                                                className="p-1.5 text-muted-foreground hover:text-indigo-400 transition-colors"
                                             >
                                                 <ExternalLink className="w-4 h-4" />
                                             </Link>
@@ -245,9 +245,9 @@ function Stat({
         <div className="bg-slate-950 border border-slate-800 p-5 rounded-xl">
             <div className="flex justify-between items-start gap-3">
                 <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-400 mb-1">{label}</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">{label}</p>
                     <p className="text-3xl font-bold text-white tabular-nums">{value}</p>
-                    <p className="text-xs text-slate-500 mt-1">{hint}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{hint}</p>
                 </div>
                 <div className="shrink-0">{icon}</div>
             </div>

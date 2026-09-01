@@ -20,9 +20,9 @@ export default async function TimetableGridPage({
         <div className="flex items-center justify-between">
             <div>
                 <h1 className="text-3xl font-bold">Timetable Grid</h1>
-                <p className="text-gray-600 mt-1">Weekly schedule, period by period</p>
+                <p className="text-muted-foreground mt-1">Weekly schedule, period by period</p>
             </div>
-            <Link href="/timetable" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+            <Link href="/timetable" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">
                 ← Back to Timetable
             </Link>
         </div>
@@ -32,8 +32,8 @@ export default async function TimetableGridPage({
         return (
             <div className="space-y-6">
                 {header}
-                <div data-testid="grid-no-sections" className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
-                    <p className="font-medium text-gray-700">No classes configured</p>
+                <div data-testid="grid-no-sections" className="bg-white rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
+                    <p className="font-medium text-foreground">No classes configured</p>
                     <p className="text-sm mt-1">Grades and sections have to exist before a timetable can be built.</p>
                 </div>
             </div>
@@ -44,8 +44,8 @@ export default async function TimetableGridPage({
         return (
             <div className="space-y-6">
                 {header}
-                <div data-testid="grid-no-periods" className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
-                    <p className="font-medium text-gray-700">No periods configured</p>
+                <div data-testid="grid-no-periods" className="bg-white rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
+                    <p className="font-medium text-foreground">No periods configured</p>
                     <p className="text-sm mt-1">
                         The grid rows come from the school&apos;s daily period structure. Define the periods first.
                     </p>
@@ -76,7 +76,7 @@ export default async function TimetableGridPage({
             {header}
 
             <div className="bg-white rounded-xl shadow-sm border p-4">
-                <p className="text-sm font-medium text-gray-700 mb-3">Class</p>
+                <p className="text-sm font-medium text-foreground mb-3">Class</p>
                 <div className="flex flex-wrap gap-2" data-testid="grid-section-picker">
                     {sections.map((option) => {
                         const isActive = option.id === selected.id;
@@ -87,11 +87,11 @@ export default async function TimetableGridPage({
                                 className={
                                     isActive
                                         ? 'px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white'
-                                        : 'px-3 py-2 rounded-lg text-sm font-medium bg-gray-50 text-gray-700 hover:bg-gray-100'
+                                        : 'px-3 py-2 rounded-lg text-sm font-medium bg-muted text-foreground hover:bg-muted'
                                 }
                             >
                                 {option.gradeName}-{option.sectionName}
-                                <span className={isActive ? 'ml-2 text-indigo-100' : 'ml-2 text-gray-400'}>
+                                <span className={isActive ? 'ml-2 text-indigo-100' : 'ml-2 text-muted-foreground'}>
                                     {option.entryCount}
                                 </span>
                             </Link>

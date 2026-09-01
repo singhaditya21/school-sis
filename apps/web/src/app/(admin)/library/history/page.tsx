@@ -80,11 +80,11 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold">Borrowing History</h1>
-                    <p className="text-gray-600 mt-1">
+                    <p className="text-muted-foreground mt-1">
                         Track all book issues, returns, and fines · {LIBRARY_FINE_RATE_LABEL}
                     </p>
                 </div>
-                <Link href="/library" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                <Link href="/library" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">
                     ← Back to Library
                 </Link>
             </div>
@@ -92,9 +92,9 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                 {statCards.map((card) => {
                     const body = (
-                        <Card className={card.href ? 'cursor-pointer hover:bg-gray-50 transition-colors h-full' : 'h-full'}>
+                        <Card className={card.href ? 'cursor-pointer hover:bg-muted transition-colors h-full' : 'h-full'}>
                             <CardContent className="pt-4">
-                                <div className="text-sm text-gray-500">{card.label}</div>
+                                <div className="text-sm text-muted-foreground">{card.label}</div>
                                 <div className={`text-2xl font-bold ${card.className}`}>{card.value}</div>
                             </CardContent>
                         </Card>
@@ -115,7 +115,7 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
                     <form action="/library/history" method="GET" className="flex flex-wrap gap-3 items-end">
                         <input type="hidden" name="filter" value={filter} />
                         <div className="flex-1 min-w-[220px]">
-                            <label htmlFor="history-q" className="block text-xs text-gray-500 mb-1">
+                            <label htmlFor="history-q" className="block text-xs text-muted-foreground mb-1">
                                 Search
                             </label>
                             <input
@@ -128,7 +128,7 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
                             />
                         </div>
                         <div>
-                            <label htmlFor="history-from" className="block text-xs text-gray-500 mb-1">
+                            <label htmlFor="history-from" className="block text-xs text-muted-foreground mb-1">
                                 Issued from
                             </label>
                             <input
@@ -141,7 +141,7 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
                             />
                         </div>
                         <div>
-                            <label htmlFor="history-to" className="block text-xs text-gray-500 mb-1">
+                            <label htmlFor="history-to" className="block text-xs text-muted-foreground mb-1">
                                 Issued to
                             </label>
                             <input
@@ -162,7 +162,7 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
                         {filtersActive && (
                             <Link
                                 href="/library/history"
-                                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                                className="px-4 py-2 border border-border rounded-lg hover:bg-muted text-sm"
                                 data-testid="history-clear-filters"
                             >
                                 Clear
@@ -176,7 +176,7 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
                                 key={status}
                                 href={buildHref(current, { filter: status })}
                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                                    filter === status ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                                    filter === status ? 'bg-blue-600 text-white' : 'bg-muted hover:bg-gray-200'
                                 }`}
                             >
                                 {status}
@@ -185,7 +185,7 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
                     </div>
 
                     {filtersActive && (
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                             Showing {issues.length} record{issues.length === 1 ? '' : 's'} of {summary.total}.
                         </p>
                     )}
@@ -207,7 +207,7 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
                         <TableBody>
                             {issues.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="py-8 text-center text-gray-500">
+                                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                                         No borrowing records found.
                                     </TableCell>
                                 </TableRow>
@@ -217,16 +217,16 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
                                         <TableCell className="font-medium">
                                             {issue.bookTitle || 'Unknown Book'}
                                             {issue.bookAuthor && (
-                                                <div className="text-xs text-gray-500">{issue.bookAuthor}</div>
+                                                <div className="text-xs text-muted-foreground">{issue.bookAuthor}</div>
                                             )}
                                         </TableCell>
                                         <TableCell>
                                             {issue.borrowerName || 'Unknown Borrower'}
                                             {issue.borrowerClass && (
-                                                <div className="text-xs text-gray-500">{issue.borrowerClass}</div>
+                                                <div className="text-xs text-muted-foreground">{issue.borrowerClass}</div>
                                             )}
                                         </TableCell>
-                                        <TableCell className="text-xs text-gray-500">
+                                        <TableCell className="text-xs text-muted-foreground">
                                             Out: {issue.issueDate}
                                             <br />
                                             Due: {issue.dueDate}
@@ -238,7 +238,7 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
                                             )}
                                         </TableCell>
                                         <TableCell>
-                                            <Badge className={HISTORY_STATUS_BADGE_CLASSES[issue.status] || 'bg-gray-100 text-gray-700'}>
+                                            <Badge className={HISTORY_STATUS_BADGE_CLASSES[issue.status] || 'bg-muted text-foreground'}>
                                                 {issue.status}
                                             </Badge>
                                         </TableCell>

@@ -21,8 +21,8 @@ export default async function MarksVerificationPage({
         <div className="space-y-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Marks verification</h1>
-                    <p className="text-gray-600">
+                    <h1 className="text-3xl font-bold text-foreground">Marks verification</h1>
+                    <p className="text-muted-foreground">
                         Verifying a result writes a tamper-evident hash of it and locks it against
                         further edits.
                     </p>
@@ -34,29 +34,29 @@ export default async function MarksVerificationPage({
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white rounded-xl shadow-sm border p-4">
-                    <p className="text-sm text-gray-500">Awaiting verification</p>
+                    <p className="text-sm text-muted-foreground">Awaiting verification</p>
                     <p className="text-2xl font-bold text-amber-600">{overview.stats.pending}</p>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border p-4">
-                    <p className="text-sm text-gray-500">Verified &amp; locked</p>
+                    <p className="text-sm text-muted-foreground">Verified &amp; locked</p>
                     <p className="text-2xl font-bold text-green-600">{overview.stats.verified}</p>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border p-4">
-                    <p className="text-sm text-gray-500">Saved results, all exams</p>
-                    <p className="text-2xl font-bold text-gray-900">{overview.stats.total}</p>
+                    <p className="text-sm text-muted-foreground">Saved results, all exams</p>
+                    <p className="text-2xl font-bold text-foreground">{overview.stats.total}</p>
                 </div>
             </div>
 
             {overview.exams.length > 0 && (
                 <div className="bg-white rounded-xl shadow-sm border p-4">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Filter by exam</p>
+                    <p className="text-sm font-medium text-foreground mb-2">Filter by exam</p>
                     <div className="flex flex-wrap gap-2">
                         <Link
                             href="/exams/verification"
                             className={`px-3 py-1.5 rounded-lg text-sm border ${
                                 activeExam === null
                                     ? 'bg-blue-600 text-white border-blue-600'
-                                    : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                                    : 'border-border text-foreground hover:bg-muted'
                             }`}
                         >
                             All exams
@@ -68,13 +68,13 @@ export default async function MarksVerificationPage({
                                 className={`px-3 py-1.5 rounded-lg text-sm border ${
                                     activeExam?.id === exam.id
                                         ? 'bg-blue-600 text-white border-blue-600'
-                                        : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                                        : 'border-border text-foreground hover:bg-muted'
                                 }`}
                             >
                                 {exam.name}
                                 <span
                                     className={`ml-2 text-xs ${
-                                        activeExam?.id === exam.id ? 'text-blue-100' : 'text-gray-500'
+                                        activeExam?.id === exam.id ? 'text-blue-100' : 'text-muted-foreground'
                                     }`}
                                 >
                                     {exam.pendingCount}

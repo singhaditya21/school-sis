@@ -140,7 +140,7 @@ export default function CatalogueManager({
                                 ))}
                             </select>
 
-                            <label className="flex items-center gap-2 text-sm text-gray-600">
+                            <label className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <input
                                     type="checkbox"
                                     checked={includeArchived}
@@ -159,7 +159,7 @@ export default function CatalogueManager({
                     </div>
 
                     {(query || (category && category !== 'ALL') || includeArchived) && (
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-muted-foreground">
                             Showing {books.length} title{books.length === 1 ? '' : 's'}
                             {query && <> matching “{query}”</>}
                             {category && category !== 'ALL' && <> in {category.replace('_', ' ')}</>}
@@ -182,16 +182,16 @@ export default function CatalogueManager({
             <Card>
                 <CardContent className="p-0">
                     <Table>
-                        <TableHeader className="bg-gray-50">
+                        <TableHeader className="bg-muted">
                             <TableRow>
-                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Title</TableHead>
-                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Author</TableHead>
-                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">ISBN</TableHead>
-                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Category</TableHead>
-                                <TableHead className="px-4 py-3 text-xs font-medium text-gray-500 uppercase">Location</TableHead>
-                                <TableHead className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Available</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Title</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Author</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">ISBN</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Category</TableHead>
+                                <TableHead className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Location</TableHead>
+                                <TableHead className="px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase">Available</TableHead>
                                 {canWrite && (
-                                    <TableHead className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</TableHead>
+                                    <TableHead className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Actions</TableHead>
                                 )}
                             </TableRow>
                         </TableHeader>
@@ -207,18 +207,18 @@ export default function CatalogueManager({
                                                 <div className="font-medium flex items-center gap-2">
                                                     {book.title}
                                                     {!book.isActive && (
-                                                        <Badge variant="outline" className="border-transparent bg-gray-200 text-gray-600">
+                                                        <Badge variant="outline" className="border-transparent bg-gray-200 text-muted-foreground">
                                                             Archived
                                                         </Badge>
                                                     )}
                                                 </div>
                                                 {book.publisher && (
-                                                    <div className="text-xs text-gray-500">
+                                                    <div className="text-xs text-muted-foreground">
                                                         {book.publisher} {book.edition && `· ${book.edition}`}
                                                     </div>
                                                 )}
                                                 {book.price && (
-                                                    <div className="text-xs text-gray-400">
+                                                    <div className="text-xs text-muted-foreground">
                                                         {formatCurrency(Number(book.price))}
                                                     </div>
                                                 )}
@@ -226,22 +226,22 @@ export default function CatalogueManager({
                                         </div>
                                     </TableCell>
                                     <TableCell className="px-4 py-3 text-sm">{book.author}</TableCell>
-                                    <TableCell className="px-4 py-3 text-sm font-mono text-gray-500">{book.isbn || '—'}</TableCell>
+                                    <TableCell className="px-4 py-3 text-sm font-mono text-muted-foreground">{book.isbn || '—'}</TableCell>
                                     <TableCell className="px-4 py-3">
                                         <Badge
                                             variant="outline"
-                                            className={`border-transparent ${CATEGORY_BADGE_CLASSES[book.category] || 'bg-gray-100 text-gray-700'}`}
+                                            className={`border-transparent ${CATEGORY_BADGE_CLASSES[book.category] || 'bg-muted text-foreground'}`}
                                         >
                                             {book.category}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell className="px-4 py-3 text-sm text-gray-500">{book.location || '—'}</TableCell>
+                                    <TableCell className="px-4 py-3 text-sm text-muted-foreground">{book.location || '—'}</TableCell>
                                     <TableCell className="px-4 py-3 text-center">
                                         <span className={`font-semibold ${book.availableCopies > 0 ? 'text-green-600' : 'text-red-600'}`}>
                                             {book.availableCopies}/{book.totalCopies}
                                         </span>
                                         {book.onLoan > 0 && (
-                                            <div className="text-xs text-gray-400">{book.onLoan} on loan</div>
+                                            <div className="text-xs text-muted-foreground">{book.onLoan} on loan</div>
                                         )}
                                     </TableCell>
                                     {canWrite && (
@@ -257,7 +257,7 @@ export default function CatalogueManager({
                                             <button
                                                 type="button"
                                                 onClick={() => setArchiveTarget(book)}
-                                                className="text-gray-500 hover:underline text-sm"
+                                                className="text-muted-foreground hover:underline text-sm"
                                                 data-testid="catalogue-archive-btn"
                                             >
                                                 {book.isActive ? 'Archive' : 'Restore'}
@@ -268,7 +268,7 @@ export default function CatalogueManager({
                             ))}
                             {books.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={canWrite ? 7 : 6} className="px-4 py-12 text-center text-gray-400">
+                                    <TableCell colSpan={canWrite ? 7 : 6} className="px-4 py-12 text-center text-muted-foreground">
                                         {query || (category && category !== 'ALL')
                                             ? 'No books match these filters.'
                                             : 'No books in the catalogue. Add your first book to get started.'}

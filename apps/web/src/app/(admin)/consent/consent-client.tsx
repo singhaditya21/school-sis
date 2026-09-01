@@ -170,7 +170,7 @@ export default function ConsentClient({
                 />
             </div>
 
-            <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+            <p className="rounded-lg border border-border bg-muted p-3 text-xs text-muted-foreground">
                 Forms record replies received. The schema does not link a form to a class list, so
                 there is no &ldquo;awaiting reply&rdquo; count — outstanding parents have to be
                 identified from the responses below.
@@ -202,7 +202,7 @@ export default function ConsentClient({
                                     id="consent-type"
                                     value={formType}
                                     onChange={(event) => setFormType(event.target.value)}
-                                    className="mt-1 h-9 w-full rounded-md border border-slate-300 px-3 text-sm"
+                                    className="mt-1 h-9 w-full rounded-md border border-border px-3 text-sm"
                                 >
                                     {CONSENT_FORM_TYPES.map((type) => (
                                         <option key={type} value={type}>
@@ -217,7 +217,7 @@ export default function ConsentClient({
                                     id="consent-audience"
                                     value={audience}
                                     onChange={(event) => setAudience(event.target.value)}
-                                    className="mt-1 h-9 w-full rounded-md border border-slate-300 px-3 text-sm"
+                                    className="mt-1 h-9 w-full rounded-md border border-border px-3 text-sm"
                                 >
                                     {CONSENT_AUDIENCES.map((option) => (
                                         <option key={option} value={option}>
@@ -247,7 +247,7 @@ export default function ConsentClient({
                                 />
                             </div>
                         </div>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-muted-foreground">
                             Creating a form does not notify parents. This release has no parent-facing
                             consent form; replies are recorded here by office staff from paper slips or
                             phone calls.
@@ -263,24 +263,24 @@ export default function ConsentClient({
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="border-b bg-slate-50">
+                            <thead className="border-b bg-muted">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                         Form
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                         Type
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                         Audience
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                         Due
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                         Replies
                                     </th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground">
                                         Actions
                                     </th>
                                 </tr>
@@ -289,19 +289,19 @@ export default function ConsentClient({
                                 {forms.map((form) => (
                                     <tr
                                         key={form.id}
-                                        className={`align-top hover:bg-slate-50 ${
+                                        className={`align-top hover:bg-muted ${
                                             selectedForm?.id === form.id ? 'bg-blue-50/60' : ''
                                         }`}
                                     >
                                         <td className="px-4 py-3">
                                             <Link
                                                 href={`/consent?formId=${form.id}`}
-                                                className="font-medium text-slate-900 hover:underline"
+                                                className="font-medium text-foreground hover:underline"
                                             >
                                                 {form.title}
                                             </Link>
                                             {form.description && (
-                                                <div className="max-w-md truncate text-xs text-slate-500">
+                                                <div className="max-w-md truncate text-xs text-muted-foreground">
                                                     {form.description}
                                                 </div>
                                             )}
@@ -324,7 +324,7 @@ export default function ConsentClient({
                                         <td className="px-4 py-3 text-sm">
                                             <span className="font-medium">{form.responseCount}</span>{' '}
                                             received
-                                            <div className="text-xs text-slate-500">
+                                            <div className="text-xs text-muted-foreground">
                                                 {form.acceptedCount} agreed · {form.declinedCount} refused
                                             </div>
                                         </td>
@@ -332,7 +332,7 @@ export default function ConsentClient({
                                             <div className="flex justify-end gap-2">
                                                 <Link
                                                     href={`/consent?formId=${form.id}`}
-                                                    className="inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium hover:bg-slate-50"
+                                                    className="inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium hover:bg-muted"
                                                 >
                                                     Replies
                                                 </Link>
@@ -350,7 +350,7 @@ export default function ConsentClient({
                                 ))}
                                 {forms.length === 0 && (
                                     <tr>
-                                        <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                                        <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
                                             No consent forms yet. Create one to start recording replies.
                                         </td>
                                     </tr>
@@ -367,7 +367,7 @@ export default function ConsentClient({
                         <div className="flex items-start justify-between gap-4">
                             <div>
                                 <h2 className="text-lg font-semibold">{selectedForm.title}</h2>
-                                <p className="text-sm text-slate-500">
+                                <p className="text-sm text-muted-foreground">
                                     {humanise(selectedForm.formType)} ·{' '}
                                     {humanise(selectedForm.audience)} · due{' '}
                                     {formatDate(selectedForm.dueDate)}
@@ -383,7 +383,7 @@ export default function ConsentClient({
 
                         <div className="rounded-lg border p-4">
                             <h3 className="font-medium">Record a reply</h3>
-                            <p className="mt-1 text-xs text-slate-500">
+                            <p className="mt-1 text-xs text-muted-foreground">
                                 For slips returned to the office or consent given over the phone. A
                                 second reply for the same student replaces the first.
                             </p>
@@ -404,7 +404,7 @@ export default function ConsentClient({
                                         id="reply-student"
                                         value={studentId}
                                         onChange={(event) => setStudentId(event.target.value)}
-                                        className="mt-1 h-9 w-full rounded-md border border-slate-300 px-3 text-sm"
+                                        className="mt-1 h-9 w-full rounded-md border border-border px-3 text-sm"
                                     >
                                         <option value="">Select a student…</option>
                                         {studentChoices.map((student) => (
@@ -416,7 +416,7 @@ export default function ConsentClient({
                                         ))}
                                     </select>
                                     {students.length === 0 && (
-                                        <p className="mt-1 text-xs text-slate-500">
+                                        <p className="mt-1 text-xs text-muted-foreground">
                                             No active students on record.
                                         </p>
                                     )}
@@ -466,38 +466,38 @@ export default function ConsentClient({
 
                         <div className="overflow-x-auto rounded-lg border">
                             <table className="w-full">
-                                <thead className="border-b bg-slate-50">
+                                <thead className="border-b bg-muted">
                                     <tr>
-                                        <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                        <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                             Student
                                         </th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                        <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                             Replying parent
                                         </th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                        <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                             Reply
                                         </th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                        <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                             Recorded
                                         </th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium uppercase text-slate-500">
+                                        <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground">
                                             Actions
                                         </th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
                                     {responses.map((row) => (
-                                        <tr key={row.id} className="hover:bg-slate-50">
+                                        <tr key={row.id} className="hover:bg-muted">
                                             <td className="px-4 py-3">
                                                 <div className="font-medium">{row.studentName}</div>
-                                                <div className="text-xs text-slate-500">
+                                                <div className="text-xs text-muted-foreground">
                                                     {row.className} · {row.admissionNumber}
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-sm">
                                                 {row.respondentName || '—'}
                                                 {row.notes && (
-                                                    <div className="text-xs text-slate-500">{row.notes}</div>
+                                                    <div className="text-xs text-muted-foreground">{row.notes}</div>
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
@@ -511,7 +511,7 @@ export default function ConsentClient({
                                                     {row.response === 'ACCEPTED' ? 'Agreed' : 'Refused'}
                                                 </span>
                                             </td>
-                                            <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
+                                            <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
                                                 {formatDateTime(row.respondedAt)}
                                             </td>
                                             <td className="px-4 py-3 text-right">
@@ -531,7 +531,7 @@ export default function ConsentClient({
                                         <tr>
                                             <td
                                                 colSpan={5}
-                                                className="px-4 py-10 text-center text-slate-400"
+                                                className="px-4 py-10 text-center text-muted-foreground"
                                             >
                                                 No replies recorded for this form yet.
                                             </td>
@@ -559,17 +559,17 @@ function Tile({
     tone?: 'default' | 'good' | 'danger' | 'muted';
 }) {
     const toneClass = {
-        default: 'text-slate-900',
+        default: 'text-foreground',
         good: 'text-emerald-600',
         danger: 'text-rose-600',
-        muted: 'text-slate-400',
+        muted: 'text-muted-foreground',
     }[tone];
 
     return (
         <div className="rounded-lg border bg-white p-4">
-            <div className="text-sm text-slate-500">{label}</div>
+            <div className="text-sm text-muted-foreground">{label}</div>
             <div className={`mt-1 text-2xl font-bold ${toneClass}`}>{value}</div>
-            {hint && <div className="mt-1 text-xs text-slate-400">{hint}</div>}
+            {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
         </div>
     );
 }

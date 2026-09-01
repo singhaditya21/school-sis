@@ -24,7 +24,7 @@ export default async function OnboardingWizardPage() {
     return (
         <div className="max-w-4xl mx-auto py-8">
             <div className="mb-8">
-                <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground dark:text-white">
                     Welcome to {tenantInfo.name}! 👋
                 </h1>
                 <p className="text-muted-foreground mt-2 text-lg">

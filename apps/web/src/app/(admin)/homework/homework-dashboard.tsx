@@ -202,8 +202,8 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
         <div className="space-y-6 max-w-7xl mx-auto pb-12">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">Homework</h1>
-                    <p className="text-gray-500 mt-1">
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">Homework</h1>
+                    <p className="text-muted-foreground mt-1">
                         Assign work to a class, watch submissions land, and enter marks.
                     </p>
                 </div>
@@ -215,25 +215,25 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Assignments</div>
-                        <div className="text-2xl font-bold text-gray-900">{stats.totalAssignments}</div>
+                        <div className="text-sm text-muted-foreground">Assignments</div>
+                        <div className="text-2xl font-bold text-foreground">{stats.totalAssignments}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Due in next 7 days</div>
+                        <div className="text-sm text-muted-foreground">Due in next 7 days</div>
                         <div className="text-2xl font-bold text-blue-600">{stats.dueThisWeek}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Submissions received</div>
+                        <div className="text-sm text-muted-foreground">Submissions received</div>
                         <div className="text-2xl font-bold text-green-600">{stats.totalSubmissions}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Awaiting marks</div>
+                        <div className="text-sm text-muted-foreground">Awaiting marks</div>
                         <div className="text-2xl font-bold text-orange-600">{stats.pendingGrading}</div>
                     </CardContent>
                 </Card>
@@ -242,10 +242,10 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
             <Card>
                 <CardContent className="pt-4 flex flex-col md:flex-row md:items-end gap-3">
                     <div className="space-y-1">
-                        <Label htmlFor="filter-grade" className="text-xs text-gray-500">Class</Label>
+                        <Label htmlFor="filter-grade" className="text-xs text-muted-foreground">Class</Label>
                         <select
                             id="filter-grade"
-                            className="h-10 w-full md:w-48 px-3 bg-white border border-gray-300 rounded-md text-sm"
+                            className="h-10 w-full md:w-48 px-3 bg-white border border-border rounded-md text-sm"
                             value={filters.gradeId}
                             onChange={(e) => applyFilter('gradeId', e.target.value)}
                         >
@@ -256,10 +256,10 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                         </select>
                     </div>
                     <div className="space-y-1">
-                        <Label htmlFor="filter-subject" className="text-xs text-gray-500">Subject</Label>
+                        <Label htmlFor="filter-subject" className="text-xs text-muted-foreground">Subject</Label>
                         <select
                             id="filter-subject"
-                            className="h-10 w-full md:w-48 px-3 bg-white border border-gray-300 rounded-md text-sm"
+                            className="h-10 w-full md:w-48 px-3 bg-white border border-border rounded-md text-sm"
                             value={filters.subjectId}
                             onChange={(e) => applyFilter('subjectId', e.target.value)}
                         >
@@ -288,7 +288,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
             <Card className="overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50 border-b text-xs text-gray-500 uppercase font-semibold">
+                        <thead className="bg-muted border-b text-xs text-muted-foreground uppercase font-semibold">
                             <tr>
                                 <th className="px-6 py-3">Assignment</th>
                                 <th className="px-6 py-3">Class</th>
@@ -301,7 +301,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                         <tbody className="divide-y divide-gray-100">
                             {assignments.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
                                         <p className="font-medium">No assignments match these filters</p>
                                         <p className="text-sm mt-1">
                                             Create an assignment to start tracking homework.
@@ -310,17 +310,17 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                 </tr>
                             ) : (
                                 assignments.map((a) => (
-                                    <tr key={a.id} className="hover:bg-gray-50/80">
+                                    <tr key={a.id} className="hover:bg-muted/80">
                                         <td className="px-6 py-4">
-                                            <div className="font-semibold text-gray-900">{a.title}</div>
-                                            <div className="text-xs text-gray-500 mt-0.5">
+                                            <div className="font-semibold text-foreground">{a.title}</div>
+                                            <div className="text-xs text-muted-foreground mt-0.5">
                                                 {a.subjectName ?? 'No subject'}
                                                 {a.assignedByName ? ` · set by ${a.assignedByName}` : ''}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-gray-700">{classLabel(a)}</td>
+                                        <td className="px-6 py-4 text-foreground">{classLabel(a)}</td>
                                         <td className="px-6 py-4">
-                                            <div className="text-gray-900">{formatDate(a.dueDate)}</div>
+                                            <div className="text-foreground">{formatDate(a.dueDate)}</div>
                                             <Badge
                                                 variant="secondary"
                                                 className={
@@ -332,15 +332,15 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                                 {isOverdue(a.dueDate) ? 'Past due' : 'Open'}
                                             </Badge>
                                         </td>
-                                        <td className="px-6 py-4 text-gray-700">
+                                        <td className="px-6 py-4 text-foreground">
                                             {a.expectedCount === null
                                                 ? a.submissionCount
                                                 : `${a.submissionCount} / ${a.expectedCount}`}
                                         </td>
-                                        <td className="px-6 py-4 text-gray-700">
+                                        <td className="px-6 py-4 text-foreground">
                                             {a.gradedCount} / {a.submissionCount}
                                             {a.maxMarks !== null && (
-                                                <span className="text-xs text-gray-500"> · out of {a.maxMarks}</span>
+                                                <span className="text-xs text-muted-foreground"> · out of {a.maxMarks}</span>
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-right whitespace-nowrap">
@@ -370,7 +370,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                 </div>
             </Card>
 
-            {isPending && <p className="text-xs text-gray-400">Updating…</p>}
+            {isPending && <p className="text-xs text-muted-foreground">Updating…</p>}
 
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -394,7 +394,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                     name="gradeId"
                                     value={formGradeId}
                                     onChange={(e) => setFormGradeId(e.target.value)}
-                                    className="w-full h-10 px-3 bg-white border border-gray-300 rounded-md text-sm"
+                                    className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm"
                                 >
                                     <option value="">Whole school</option>
                                     {options.grades.map((g) => (
@@ -408,7 +408,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                     id="sectionId"
                                     name="sectionId"
                                     disabled={!formGradeId}
-                                    className="w-full h-10 px-3 bg-white border border-gray-300 rounded-md text-sm disabled:bg-gray-100"
+                                    className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm disabled:bg-muted"
                                 >
                                     <option value="">All sections</option>
                                     {sectionsForForm.map((s) => (
@@ -421,7 +421,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                 <select
                                     id="subjectId"
                                     name="subjectId"
-                                    className="w-full h-10 px-3 bg-white border border-gray-300 rounded-md text-sm"
+                                    className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm"
                                 >
                                     <option value="">No subject</option>
                                     {options.subjects.map((s) => (
@@ -447,7 +447,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                             </div>
                         </div>
 
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                             File attachments are not available in this release — put links or instructions in the text above.
                         </p>
 
@@ -475,15 +475,15 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                     </DialogHeader>
 
                     {trackerLoading ? (
-                        <p className="py-8 text-center text-gray-500">Loading submissions…</p>
+                        <p className="py-8 text-center text-muted-foreground">Loading submissions…</p>
                     ) : (
                         <div className="space-y-6">
                             <section className="space-y-3">
-                                <h3 className="text-sm font-semibold text-gray-900">
+                                <h3 className="text-sm font-semibold text-foreground">
                                     Submitted ({submissions.length})
                                 </h3>
                                 {submissions.length === 0 ? (
-                                    <p className="text-sm text-gray-500">Nothing has been handed in yet.</p>
+                                    <p className="text-sm text-muted-foreground">Nothing has been handed in yet.</p>
                                 ) : (
                                     submissions.map((s) => (
                                         <form
@@ -492,18 +492,18 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                             className="border rounded-lg p-4 space-y-3"
                                         >
                                             <div className="flex flex-wrap items-baseline justify-between gap-2">
-                                                <div className="font-medium text-gray-900">
+                                                <div className="font-medium text-foreground">
                                                     {s.studentName ?? 'Unknown student'}
                                                     {s.rollNumber !== null && (
-                                                        <span className="text-gray-500 font-normal"> · Roll {s.rollNumber}</span>
+                                                        <span className="text-muted-foreground font-normal"> · Roll {s.rollNumber}</span>
                                                     )}
                                                 </div>
-                                                <div className="text-xs text-gray-500">
+                                                <div className="text-xs text-muted-foreground">
                                                     Submitted {formatDateTime(s.submittedAt)}
                                                 </div>
                                             </div>
                                             {s.content && (
-                                                <p className="text-sm text-gray-700 whitespace-pre-wrap">{s.content}</p>
+                                                <p className="text-sm text-foreground whitespace-pre-wrap">{s.content}</p>
                                             )}
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                                 <div className="space-y-1">
@@ -532,7 +532,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                                 </div>
                                             </div>
                                             <div className="flex items-center justify-between">
-                                                <span className="text-xs text-gray-500">
+                                                <span className="text-xs text-muted-foreground">
                                                     {s.gradedAt
                                                         ? `Marked ${formatDateTime(s.gradedAt)}${s.gradedByName ? ` by ${s.gradedByName}` : ''}`
                                                         : 'Not marked yet'}
@@ -547,22 +547,22 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                             </section>
 
                             <section className="space-y-2">
-                                <h3 className="text-sm font-semibold text-gray-900">
+                                <h3 className="text-sm font-semibold text-foreground">
                                     Still outstanding {rosterKnown ? `(${pending.length})` : ''}
                                 </h3>
                                 {!rosterKnown ? (
-                                    <p className="text-sm text-gray-500">
+                                    <p className="text-sm text-muted-foreground">
                                         This assignment is not tied to a class, so there is no roster to compare against.
                                     </p>
                                 ) : pending.length === 0 ? (
-                                    <p className="text-sm text-gray-500">Every student in this class has handed in.</p>
+                                    <p className="text-sm text-muted-foreground">Every student in this class has handed in.</p>
                                 ) : (
-                                    <ul className="text-sm text-gray-700 grid grid-cols-1 md:grid-cols-2 gap-1">
+                                    <ul className="text-sm text-foreground grid grid-cols-1 md:grid-cols-2 gap-1">
                                         {pending.map((p) => (
                                             <li key={p.studentId} className="border rounded px-3 py-2">
                                                 {p.studentName ?? 'Unknown student'}
                                                 {p.rollNumber !== null && (
-                                                    <span className="text-gray-500"> · Roll {p.rollNumber}</span>
+                                                    <span className="text-muted-foreground"> · Roll {p.rollNumber}</span>
                                                 )}
                                             </li>
                                         ))}

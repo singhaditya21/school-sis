@@ -68,12 +68,12 @@ export default async function QuizResultsPage({ params }: { params: Promise<{ id
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold">{quiz.title}</h1>
-                    <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
+                    <p className="text-muted-foreground dark:text-muted-foreground text-sm mt-1">
                         Results · {quiz.questions.length} question{quiz.questions.length === 1 ? '' : 's'} · {quiz.totalMarks} marks
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Link href={`/quiz/${quiz.id}`} className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <Link href={`/quiz/${quiz.id}`} className="px-3 py-2 text-sm rounded-lg border border-border dark:border-gray-700 hover:bg-muted dark:hover:bg-gray-800">
                         Quiz setup
                     </Link>
                     <Link href="/quiz" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">← All quizzes</Link>
@@ -84,7 +84,7 @@ export default async function QuizResultsPage({ params }: { params: Promise<{ id
                 <Card>
                     <CardContent className="py-14 text-center space-y-2">
                         <p className="font-medium">No attempts recorded for this quiz.</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xl mx-auto">
+                        <p className="text-sm text-muted-foreground dark:text-muted-foreground max-w-xl mx-auto">
                             Scores appear here once students submit the quiz. Student-facing quiz taking is not
                             part of this release, so attempts can only arrive from an external submission today.
                         </p>
@@ -93,15 +93,15 @@ export default async function QuizResultsPage({ params }: { params: Promise<{ id
             ) : (
                 <>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                        <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Attempts</div><div className="text-2xl font-bold">{attempts.length}</div></CardContent></Card>
-                        <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Average</div><div className="text-2xl font-bold text-blue-600">{average}%</div></CardContent></Card>
-                        <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Median</div><div className="text-2xl font-bold">{median(percentages)}%</div></CardContent></Card>
-                        <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Highest</div><div className="text-2xl font-bold text-green-600">{highest}%</div></CardContent></Card>
-                        <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Lowest</div><div className="text-2xl font-bold text-red-600">{lowest}%</div></CardContent></Card>
+                        <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Attempts</div><div className="text-2xl font-bold">{attempts.length}</div></CardContent></Card>
+                        <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Average</div><div className="text-2xl font-bold text-blue-600">{average}%</div></CardContent></Card>
+                        <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Median</div><div className="text-2xl font-bold">{median(percentages)}%</div></CardContent></Card>
+                        <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Highest</div><div className="text-2xl font-bold text-green-600">{highest}%</div></CardContent></Card>
+                        <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Lowest</div><div className="text-2xl font-bold text-red-600">{lowest}%</div></CardContent></Card>
                     </div>
 
                     {inProgress > 0 && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-muted-foreground dark:text-muted-foreground">
                             {inProgress} attempt{inProgress === 1 ? ' is' : 's are'} still unscored and excluded from the figures above.
                         </p>
                     )}
@@ -122,7 +122,7 @@ export default async function QuizResultsPage({ params }: { params: Promise<{ id
                                                 className={`w-full ${bucket.color} rounded-t`}
                                                 style={{ height: `${Math.round((count / maxBucketCount) * 100)}%`, minHeight: count > 0 ? '8px' : '2px' }}
                                             />
-                                            <span className="text-xs mt-2 text-gray-500">{bucket.label}</span>
+                                            <span className="text-xs mt-2 text-muted-foreground">{bucket.label}</span>
                                         </div>
                                     );
                                 })}
@@ -137,26 +137,26 @@ export default async function QuizResultsPage({ params }: { params: Promise<{ id
                         </CardHeader>
                         <CardContent className="p-0 overflow-x-auto">
                             <table className="w-full">
-                                <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800">
+                                <thead className="bg-muted dark:bg-gray-900 border-b dark:border-gray-800">
                                     <tr>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rank</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
-                                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Score</th>
-                                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Percentage</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Rank</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Student</th>
+                                        <th className="px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase">Score</th>
+                                        <th className="px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase">Percentage</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Status</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Submitted</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y dark:divide-gray-800">
                                     {attempts.map((attempt, index) => (
-                                        <tr key={attempt.id} className="hover:bg-gray-50 dark:hover:bg-gray-900">
+                                        <tr key={attempt.id} className="hover:bg-muted dark:hover:bg-gray-900">
                                             <td className="px-4 py-3 text-sm">
                                                 {attempt.percentage === null ? '—' : index + 1}
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="font-medium">{attempt.studentName ?? 'Unknown student'}</div>
                                                 {attempt.admissionNumber && (
-                                                    <div className="text-xs text-gray-500">{attempt.admissionNumber}</div>
+                                                    <div className="text-xs text-muted-foreground">{attempt.admissionNumber}</div>
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-center">
@@ -164,7 +164,7 @@ export default async function QuizResultsPage({ params }: { params: Promise<{ id
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 {attempt.percentage === null ? (
-                                                    <span className="text-gray-400">—</span>
+                                                    <span className="text-muted-foreground">—</span>
                                                 ) : (
                                                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${scoreColor(attempt.percentage)}`}>
                                                         {attempt.percentage}%
@@ -174,7 +174,7 @@ export default async function QuizResultsPage({ params }: { params: Promise<{ id
                                             <td className="px-4 py-3">
                                                 <Badge variant="outline">{attempt.status.replace('_', ' ')}</Badge>
                                             </td>
-                                            <td className="px-4 py-3 text-sm text-gray-500">
+                                            <td className="px-4 py-3 text-sm text-muted-foreground">
                                                 {attempt.submittedAt
                                                     ? new Date(attempt.submittedAt).toLocaleString('en-IN')
                                                     : 'Not submitted'}
@@ -207,7 +207,7 @@ export default async function QuizResultsPage({ params }: { params: Promise<{ id
                                         <Badge variant="outline">Q{i + 1}</Badge>
                                         <div className="flex-1 min-w-[12rem]">
                                             <p className="font-medium truncate">{q.text}</p>
-                                            <p className="text-xs text-gray-500">
+                                            <p className="text-xs text-muted-foreground">
                                                 {q.type.replace('_', ' ')} · {q.marks} mark{q.marks === 1 ? '' : 's'}
                                                 {q.negativeMarks > 0 ? ` · −${q.negativeMarks}` : ''}
                                                 {q.section ? ` · ${q.section}` : ''}
@@ -224,12 +224,12 @@ export default async function QuizResultsPage({ params }: { params: Promise<{ id
                                                 />
                                             </div>
                                         </div>
-                                        <span className="text-sm text-gray-500">{correctCount}/{scored.length} correct</span>
+                                        <span className="text-sm text-muted-foreground">{correctCount}/{scored.length} correct</span>
                                     </div>
                                 );
                             })}
                             {quiz.questions.length === 0 && (
-                                <p className="text-center py-6 text-gray-400">This quiz has no questions.</p>
+                                <p className="text-center py-6 text-muted-foreground">This quiz has no questions.</p>
                             )}
                         </CardContent>
                     </Card>

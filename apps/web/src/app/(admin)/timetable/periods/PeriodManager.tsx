@@ -171,7 +171,7 @@ export default function PeriodManager({ periods }: { periods: PeriodRow[] }) {
                 </CardHeader>
                 <CardContent>
                     {periods.length === 0 ? (
-                        <p data-testid="periods-empty" className="text-gray-500 text-center py-8">
+                        <p data-testid="periods-empty" className="text-muted-foreground text-center py-8">
                             No periods yet. Add the first one above — the weekly grid has no rows until then.
                         </p>
                     ) : (

@@ -34,7 +34,7 @@ interface Props {
 }
 
 const STATUS_STYLES: Record<LessonPlanStatus, string> = {
-    DRAFT: 'bg-gray-100 text-gray-700 hover:bg-gray-100',
+    DRAFT: 'bg-muted text-foreground hover:bg-muted',
     SUBMITTED: 'bg-blue-100 text-blue-700 hover:bg-blue-100',
     APPROVED: 'bg-green-100 text-green-700 hover:bg-green-100',
     COMPLETED: 'bg-purple-100 text-purple-700 hover:bg-purple-100',
@@ -158,8 +158,8 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
         <div className="space-y-6 max-w-7xl mx-auto pb-12">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">Lesson plans</h1>
-                    <p className="text-gray-500 mt-1">
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">Lesson plans</h1>
+                    <p className="text-muted-foreground mt-1">
                         Draft a plan, send it for review, and mark it once the lesson has been taught.
                     </p>
                 </div>
@@ -169,20 +169,20 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Total</div><div className="text-2xl font-bold text-gray-900">{stats.total}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Draft</div><div className="text-2xl font-bold text-gray-600">{stats.draft}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Awaiting review</div><div className="text-2xl font-bold text-blue-600">{stats.submitted}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Approved</div><div className="text-2xl font-bold text-green-600">{stats.approved}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-gray-500">Taught</div><div className="text-2xl font-bold text-purple-600">{stats.completed}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total</div><div className="text-2xl font-bold text-foreground">{stats.total}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Draft</div><div className="text-2xl font-bold text-muted-foreground">{stats.draft}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Awaiting review</div><div className="text-2xl font-bold text-blue-600">{stats.submitted}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Approved</div><div className="text-2xl font-bold text-green-600">{stats.approved}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Taught</div><div className="text-2xl font-bold text-purple-600">{stats.completed}</div></CardContent></Card>
             </div>
 
             <Card>
                 <CardContent className="pt-4 flex flex-col md:flex-row md:items-end gap-3">
                     <div className="space-y-1">
-                        <Label htmlFor="filter-status" className="text-xs text-gray-500">Status</Label>
+                        <Label htmlFor="filter-status" className="text-xs text-muted-foreground">Status</Label>
                         <select
                             id="filter-status"
-                            className="h-10 w-full md:w-44 px-3 bg-white border border-gray-300 rounded-md text-sm"
+                            className="h-10 w-full md:w-44 px-3 bg-white border border-border rounded-md text-sm"
                             value={filters.status}
                             onChange={(e) => applyFilter('status', e.target.value)}
                         >
@@ -193,10 +193,10 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                         </select>
                     </div>
                     <div className="space-y-1">
-                        <Label htmlFor="filter-grade" className="text-xs text-gray-500">Class</Label>
+                        <Label htmlFor="filter-grade" className="text-xs text-muted-foreground">Class</Label>
                         <select
                             id="filter-grade"
-                            className="h-10 w-full md:w-44 px-3 bg-white border border-gray-300 rounded-md text-sm"
+                            className="h-10 w-full md:w-44 px-3 bg-white border border-border rounded-md text-sm"
                             value={filters.gradeId}
                             onChange={(e) => applyFilter('gradeId', e.target.value)}
                         >
@@ -207,10 +207,10 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                         </select>
                     </div>
                     <div className="space-y-1">
-                        <Label htmlFor="filter-subject" className="text-xs text-gray-500">Subject</Label>
+                        <Label htmlFor="filter-subject" className="text-xs text-muted-foreground">Subject</Label>
                         <select
                             id="filter-subject"
-                            className="h-10 w-full md:w-44 px-3 bg-white border border-gray-300 rounded-md text-sm"
+                            className="h-10 w-full md:w-44 px-3 bg-white border border-border rounded-md text-sm"
                             value={filters.subjectId}
                             onChange={(e) => applyFilter('subjectId', e.target.value)}
                         >
@@ -221,10 +221,10 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                         </select>
                     </div>
                     <div className="space-y-1">
-                        <Label htmlFor="filter-teacher" className="text-xs text-gray-500">Teacher</Label>
+                        <Label htmlFor="filter-teacher" className="text-xs text-muted-foreground">Teacher</Label>
                         <select
                             id="filter-teacher"
-                            className="h-10 w-full md:w-48 px-3 bg-white border border-gray-300 rounded-md text-sm"
+                            className="h-10 w-full md:w-48 px-3 bg-white border border-border rounded-md text-sm"
                             value={filters.teacherId}
                             onChange={(e) => applyFilter('teacherId', e.target.value)}
                         >
@@ -237,12 +237,12 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                 </CardContent>
             </Card>
 
-            {isPending && <p className="text-xs text-gray-400">Updating…</p>}
+            {isPending && <p className="text-xs text-muted-foreground">Updating…</p>}
 
             <Card className="overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50 border-b text-xs text-gray-500 uppercase font-semibold">
+                        <thead className="bg-muted border-b text-xs text-muted-foreground uppercase font-semibold">
                             <tr>
                                 <th className="px-4 py-3">Topic</th>
                                 <th className="px-4 py-3">Class / subject</th>
@@ -256,33 +256,33 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                         <tbody className="divide-y divide-gray-100">
                             {plans.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                                    <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
                                         <p className="font-medium">No lesson plans match these filters</p>
                                         <p className="text-sm mt-1">Create a plan to start the review workflow.</p>
                                     </td>
                                 </tr>
                             ) : (
                                 plans.map((plan) => (
-                                    <tr key={plan.id} className="hover:bg-gray-50/80 align-top">
+                                    <tr key={plan.id} className="hover:bg-muted/80 align-top">
                                         <td className="px-4 py-4">
                                             <button
                                                 type="button"
-                                                className="font-semibold text-gray-900 hover:text-blue-600 text-left"
+                                                className="font-semibold text-foreground hover:text-blue-600 text-left"
                                                 onClick={() => setViewing(plan)}
                                             >
                                                 {plan.topic}
                                             </button>
                                             {plan.objectives && (
-                                                <div className="text-xs text-gray-500 truncate max-w-xs">{plan.objectives}</div>
+                                                <div className="text-xs text-muted-foreground truncate max-w-xs">{plan.objectives}</div>
                                             )}
                                         </td>
-                                        <td className="px-4 py-4 text-gray-700">
+                                        <td className="px-4 py-4 text-foreground">
                                             {plan.gradeName ?? '—'}
-                                            {plan.subjectName && <span className="text-gray-500"> · {plan.subjectName}</span>}
+                                            {plan.subjectName && <span className="text-muted-foreground"> · {plan.subjectName}</span>}
                                         </td>
-                                        <td className="px-4 py-4 text-gray-700">{plan.teacherName ?? '—'}</td>
-                                        <td className="px-4 py-4 text-center text-gray-700">{plan.weekNumber ?? '—'}</td>
-                                        <td className="px-4 py-4 text-center text-gray-700">
+                                        <td className="px-4 py-4 text-foreground">{plan.teacherName ?? '—'}</td>
+                                        <td className="px-4 py-4 text-center text-foreground">{plan.weekNumber ?? '—'}</td>
+                                        <td className="px-4 py-4 text-center text-foreground">
                                             {plan.duration ? `${plan.duration} min` : '—'}
                                         </td>
                                         <td className="px-4 py-4">
@@ -290,12 +290,12 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                                                 {plan.status.charAt(0) + plan.status.slice(1).toLowerCase()}
                                             </Badge>
                                             {plan.status === 'APPROVED' && plan.approvedByName && (
-                                                <div className="text-xs text-gray-500 mt-1">
+                                                <div className="text-xs text-muted-foreground mt-1">
                                                     by {plan.approvedByName} · {formatDate(plan.approvedAt)}
                                                 </div>
                                             )}
                                             {plan.status === 'COMPLETED' && plan.completedAt && (
-                                                <div className="text-xs text-gray-500 mt-1">
+                                                <div className="text-xs text-muted-foreground mt-1">
                                                     taught {formatDate(plan.completedAt)}
                                                 </div>
                                             )}
@@ -351,7 +351,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="gradeId">Class</Label>
-                                <select id="gradeId" name="gradeId" defaultValue={editing?.gradeId ?? ''} className="w-full h-10 px-3 bg-white border border-gray-300 rounded-md text-sm">
+                                <select id="gradeId" name="gradeId" defaultValue={editing?.gradeId ?? ''} className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm">
                                     <option value="">Not set</option>
                                     {options.grades.map((g) => (
                                         <option key={g.gradeId} value={g.gradeId}>{g.gradeName}</option>
@@ -360,7 +360,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="subjectId">Subject</Label>
-                                <select id="subjectId" name="subjectId" defaultValue={editing?.subjectId ?? ''} className="w-full h-10 px-3 bg-white border border-gray-300 rounded-md text-sm">
+                                <select id="subjectId" name="subjectId" defaultValue={editing?.subjectId ?? ''} className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm">
                                     <option value="">Not set</option>
                                     {options.subjects.map((s) => (
                                         <option key={s.subjectId} value={s.subjectId}>{s.subjectName}</option>
@@ -369,7 +369,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="teacherId">Teacher</Label>
-                                <select id="teacherId" name="teacherId" defaultValue={editing?.teacherId ?? ''} className="w-full h-10 px-3 bg-white border border-gray-300 rounded-md text-sm">
+                                <select id="teacherId" name="teacherId" defaultValue={editing?.teacherId ?? ''} className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm">
                                     <option value="">Me</option>
                                     {options.teachers.map((t) => (
                                         <option key={t.teacherId} value={t.teacherId}>{t.teacherName}</option>
@@ -439,13 +439,13 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                                 ['Assessment plan', viewing.assessmentPlan],
                             ] as const).map(([label, value]) => (
                                 <div key={label}>
-                                    <div className="font-semibold text-gray-900">{label}</div>
-                                    <p className="text-gray-700 whitespace-pre-wrap">
-                                        {value?.trim() ? value : <span className="text-gray-400">Not filled in</span>}
+                                    <div className="font-semibold text-foreground">{label}</div>
+                                    <p className="text-foreground whitespace-pre-wrap">
+                                        {value?.trim() ? value : <span className="text-muted-foreground">Not filled in</span>}
                                     </p>
                                 </div>
                             ))}
-                            <div className="text-xs text-gray-500 border-t pt-3">
+                            <div className="text-xs text-muted-foreground border-t pt-3">
                                 Created {formatDate(viewing.createdAt)} · last updated {formatDate(viewing.updatedAt)}
                             </div>
                         </div>

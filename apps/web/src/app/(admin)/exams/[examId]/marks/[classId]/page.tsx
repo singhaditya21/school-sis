@@ -26,7 +26,7 @@ export default async function ExamMarksPage({
     if (!sheet) {
         return (
             <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                <p className="text-gray-600">This exam or class could not be found.</p>
+                <p className="text-muted-foreground">This exam or class could not be found.</p>
                 <Link href="/exams" className="text-blue-600 hover:underline text-sm mt-2 inline-block">
                     ← Back to exams
                 </Link>
@@ -37,8 +37,8 @@ export default async function ExamMarksPage({
     const header = (
         <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Marks entry — {sheet.gradeName}</h1>
-                <p className="text-gray-600">
+                <h1 className="text-2xl font-bold text-foreground">Marks entry — {sheet.gradeName}</h1>
+                <p className="text-muted-foreground">
                     {sheet.exam.name} · {sheet.exam.academicYearName} ·{' '}
                     {formatDate(sheet.exam.startDate)} – {formatDate(sheet.exam.endDate)}
                 </p>
@@ -54,8 +54,8 @@ export default async function ExamMarksPage({
             <div className="space-y-6">
                 {header}
                 <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                    <p className="font-medium text-gray-900">No papers scheduled for {sheet.gradeName}</p>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="font-medium text-foreground">No papers scheduled for {sheet.gradeName}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
                         Marks can only be entered against a scheduled subject. Add a schedule for this
                         class to this exam first.
                     </p>
@@ -69,8 +69,8 @@ export default async function ExamMarksPage({
             <div className="space-y-6">
                 {header}
                 <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-                    <p className="font-medium text-gray-900">No active students in {sheet.gradeName}</p>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="font-medium text-foreground">No active students in {sheet.gradeName}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
                         There is nobody to enter marks for. Enrol students into this class first.
                     </p>
                 </div>

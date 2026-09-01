@@ -24,7 +24,7 @@ export default async function TeacherHomeworkDetailPage({
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold">{detail.title}</h1>
-                    <p className="text-gray-600">
+                    <p className="text-muted-foreground">
                         {detail.gradeName && detail.sectionName
                             ? `${detail.gradeName} – ${detail.sectionName}`
                             : 'No class recorded'}
@@ -40,10 +40,10 @@ export default async function TeacherHomeworkDetailPage({
 
             {detail.description && (
                 <div className="bg-white rounded-xl shadow-sm border p-4">
-                    <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                    <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                         Instructions
                     </h2>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{detail.description}</p>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{detail.description}</p>
                 </div>
             )}
 

@@ -158,7 +158,7 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
                         surface.
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3 text-sm text-gray-600">
+                <CardContent className="space-y-3 text-sm text-muted-foreground">
                     {blocked.map((entry) => (
                         <p key={entry.id}>
                             <span className="font-medium">{entry.label}:</span> {entry.unavailableReason}
@@ -237,7 +237,7 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
                     </div>
 
                     {dataset?.dateFilterLabel && (
-                        <p className="-mt-2 text-xs text-gray-500">
+                        <p className="-mt-2 text-xs text-muted-foreground">
                             The date range filters on <span className="font-medium">{dataset.dateFilterLabel}</span> and
                             accepts spans of up to 1,096 days. Leave both boxes empty to cover all history.
                         </p>
@@ -257,7 +257,7 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
                                             />
                                             <span>
                                                 <span className="font-medium">{metric.label}</span>
-                                                <span className="block text-xs text-gray-500">{metric.description}</span>
+                                                <span className="block text-xs text-muted-foreground">{metric.description}</span>
                                             </span>
                                         </label>
                                     ))}
@@ -276,7 +276,7 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
                                         </label>
                                     ))}
                                 </div>
-                                <p className="text-xs text-gray-500 mt-2">
+                                <p className="text-xs text-muted-foreground mt-2">
                                     With nothing selected the report returns a single total row.
                                 </p>
                             </div>
@@ -305,7 +305,7 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
                                         </div>
                                     ))}
                             </div>
-                            <p className="text-xs text-gray-500 mt-2">
+                            <p className="text-xs text-muted-foreground mt-2">
                                 Values are matched exactly. Separate several values with commas to match any of them.
                             </p>
                         </div>
@@ -317,7 +317,7 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
                             Run report
                         </Button>
                         {metricIds.length === 0 && (
-                            <span className="text-sm text-gray-500">Select at least one metric.</span>
+                            <span className="text-sm text-muted-foreground">Select at least one metric.</span>
                         )}
                     </div>
                 </CardContent>
@@ -376,7 +376,7 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
                                 <div className="flex items-center gap-2 text-sm font-semibold">
                                     <ShieldCheck className="h-4 w-4" /> Governed export — {dataset.exportPolicy.label}
                                 </div>
-                                <p className="text-xs text-gray-600">
+                                <p className="text-xs text-muted-foreground">
                                     CSV, up to {dataset.exportPolicy.maxRows.toLocaleString()} rows.{' '}
                                     {dataset.exportPolicy.requiresApproval
                                         ? 'This policy is approval-gated: the first request raises a workflow approval, and the file is released once it is approved.'
@@ -429,7 +429,7 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
                                 </div>
                             </div>
                         ) : (
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-muted-foreground">
                                 The catalog defines no export policy for this dataset, so it cannot be downloaded from
                                 here.
                             </p>
@@ -448,7 +448,7 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
                     </CardHeader>
                     <CardContent className="space-y-4 text-sm">
                         {workspace.governanceSignals.length > 0 && (
-                            <ul className="list-disc pl-5 space-y-1 text-gray-600">
+                            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
                                 {workspace.governanceSignals.map((signal) => (
                                     <li key={signal}>{signal}</li>
                                 ))}
@@ -462,7 +462,7 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
                                         <Link
                                             key={dashboard.id}
                                             href={dashboard.route}
-                                            className="px-3 py-1.5 rounded-md border text-xs hover:bg-gray-50"
+                                            className="px-3 py-1.5 rounded-md border text-xs hover:bg-muted"
                                         >
                                             {dashboard.title}
                                         </Link>
@@ -473,7 +473,7 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
                         {blocked.length > 0 && (
                             <div>
                                 <h3 className="font-semibold mb-2">Not runnable here</h3>
-                                <div className="space-y-2 text-gray-600">
+                                <div className="space-y-2 text-muted-foreground">
                                     {blocked.map((entry) => (
                                         <p key={entry.id}>
                                             <Badge variant="outline" className="mr-2">

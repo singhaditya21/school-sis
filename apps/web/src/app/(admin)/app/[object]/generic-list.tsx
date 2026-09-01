@@ -57,8 +57,8 @@ export default function GenericListClient({
                     </Link>
                 </div>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left text-slate-500">
-                        <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b">
+                    <table className="w-full text-sm text-left text-muted-foreground">
+                        <thead className="text-xs text-foreground uppercase bg-muted border-b">
                             <tr>
                                 {displayColumns.map((col: string) => {
                                     const field = fields.find(f => f.apiName === col);
@@ -74,12 +74,12 @@ export default function GenericListClient({
                         <tbody>
                             {records.length === 0 ? (
                                 <tr>
-                                    <td colSpan={displayColumns.length + 1} className="px-6 py-8 text-center text-slate-500">
+                                    <td colSpan={displayColumns.length + 1} className="px-6 py-8 text-center text-muted-foreground">
                                         No records found.
                                     </td>
                                 </tr>
                             ) : records.map(record => (
-                                <tr key={record.id} className="bg-white border-b hover:bg-slate-50">
+                                <tr key={record.id} className="bg-white border-b hover:bg-muted">
                                     {displayColumns.map((col: string) => (
                                         <td key={col} className="px-6 py-4">
                                             {renderCell(fields.find(f => f.apiName === col), record[col])}

@@ -15,7 +15,7 @@ const ASSET_CONDITIONS = ['EXCELLENT', 'GOOD', 'FAIR', 'NEEDS_REPAIR', 'DISPOSED
 const CONSUMABLE_CATEGORIES = ['STATIONERY', 'CLEANING', 'SPORTS', 'LAB_SUPPLIES', 'FIRST_AID', 'OFFICE'] as const;
 
 const FIELD = 'w-full p-2 border rounded text-sm bg-white';
-const LABEL = 'block text-xs font-semibold text-gray-500 mb-1';
+const LABEL = 'block text-xs font-semibold text-muted-foreground mb-1';
 
 const EMPTY_ASSET = {
     name: '',
@@ -96,7 +96,7 @@ export default function AddItemForms() {
                     <button
                         type="button"
                         onClick={() => setTab('asset')}
-                        className={`px-3 py-1.5 rounded text-sm font-medium ${tab === 'asset' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                        className={`px-3 py-1.5 rounded text-sm font-medium ${tab === 'asset' ? 'bg-blue-600 text-white' : 'bg-muted text-foreground'}`}
                         data-testid="tab-add-asset"
                     >
                         Asset
@@ -104,7 +104,7 @@ export default function AddItemForms() {
                     <button
                         type="button"
                         onClick={() => setTab('consumable')}
-                        className={`px-3 py-1.5 rounded text-sm font-medium ${tab === 'consumable' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                        className={`px-3 py-1.5 rounded text-sm font-medium ${tab === 'consumable' ? 'bg-green-600 text-white' : 'bg-muted text-foreground'}`}
                         data-testid="tab-add-consumable"
                     >
                         Consumable

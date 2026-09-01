@@ -47,7 +47,7 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
                 <Link href="/settings/objects" className="text-blue-600 hover:underline flex items-center text-sm mb-4">
                     <ChevronLeft className="w-4 h-4 mr-1" /> Back to Objects
                 </Link>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white capitalize flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-foreground dark:text-white capitalize flex items-center gap-3">
                     {objectDef.name} Object
                     {objectDef.is_custom ? (
                         <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded uppercase tracking-wide">Custom</span>

@@ -167,7 +167,7 @@ export default function ComposeClient({
                                     id="compose-channel"
                                     value={channel}
                                     onChange={(event) => setChannel(event.target.value as MessageChannel)}
-                                    className="mt-1 h-9 w-full rounded-md border border-slate-300 px-3 text-sm"
+                                    className="mt-1 h-9 w-full rounded-md border border-border px-3 text-sm"
                                 >
                                     {MESSAGE_CHANNELS.map((option) => {
                                         const entry = providerFor.get(option);
@@ -186,7 +186,7 @@ export default function ComposeClient({
                                     id="compose-template"
                                     value={templateId}
                                     onChange={(event) => applyTemplate(event.target.value)}
-                                    className="mt-1 h-9 w-full rounded-md border border-slate-300 px-3 text-sm"
+                                    className="mt-1 h-9 w-full rounded-md border border-border px-3 text-sm"
                                 >
                                     <option value="">Write from scratch</option>
                                     {templates.map((template) => (
@@ -196,7 +196,7 @@ export default function ComposeClient({
                                     ))}
                                 </select>
                                 {templates.length === 0 && (
-                                    <p className="mt-1 text-xs text-slate-500">
+                                    <p className="mt-1 text-xs text-muted-foreground">
                                         No active templates.{' '}
                                         <Link href="/messages/templates/new" className="text-blue-600 underline">
                                             Create one
@@ -237,7 +237,7 @@ export default function ComposeClient({
                                 onChange={(event) => setBody(event.target.value)}
                                 placeholder="Type the message. Use {{token}} for values you want to fill in below."
                             />
-                            <div className="mt-1 flex justify-between text-xs text-slate-500">
+                            <div className="mt-1 flex justify-between text-xs text-muted-foreground">
                                 <span>{finalRecipients.length} recipient(s) selected</span>
                                 <span>
                                     {resolvedBody.length} chars
@@ -247,11 +247,11 @@ export default function ComposeClient({
                         </div>
 
                         {variables.length > 0 && (
-                            <div className="rounded-md border bg-slate-50 p-3">
-                                <p className="mb-2 text-sm font-medium text-slate-700">
+                            <div className="rounded-md border bg-muted p-3">
+                                <p className="mb-2 text-sm font-medium text-foreground">
                                     Placeholder values
                                 </p>
-                                <p className="mb-3 text-xs text-slate-500">
+                                <p className="mb-3 text-xs text-muted-foreground">
                                     One value is used for the whole batch. Per-recipient personalisation
                                     from student records is not available in this release.
                                 </p>
@@ -298,7 +298,7 @@ export default function ComposeClient({
                                     id="compose-grade"
                                     value={gradeFilter}
                                     onChange={(event) => setGradeFilter(event.target.value)}
-                                    className="mt-1 h-9 rounded-md border border-slate-300 px-3 text-sm"
+                                    className="mt-1 h-9 rounded-md border border-border px-3 text-sm"
                                 >
                                     <option value="ALL">All grades</option>
                                     {grades.map((grade) => (
@@ -328,14 +328,14 @@ export default function ComposeClient({
                             </Button>
                         </div>
 
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-muted-foreground">
                             Primary guardians of active students who have{' '}
                             {channel === 'EMAIL' ? 'an email address' : 'a phone number'} on record.
                         </p>
 
                         <div className="max-h-72 overflow-y-auto rounded-md border">
                             {reachable.length === 0 ? (
-                                <p className="p-6 text-center text-sm text-slate-500">
+                                <p className="p-6 text-center text-sm text-muted-foreground">
                                     No guardian on record has{' '}
                                     {channel === 'EMAIL' ? 'an email address' : 'a phone number'} for this
                                     filter. Add contacts on the student record, or type addresses below.
@@ -344,7 +344,7 @@ export default function ComposeClient({
                                 <ul className="divide-y">
                                     {reachable.map((option) => (
                                         <li key={option.id}>
-                                            <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-slate-50">
+                                            <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-muted">
                                                 <input
                                                     type="checkbox"
                                                     className="h-4 w-4"
@@ -352,14 +352,14 @@ export default function ComposeClient({
                                                     onChange={() => toggleRecipient(option.id)}
                                                 />
                                                 <span className="flex-1">
-                                                    <span className="block text-sm font-medium text-slate-800">
+                                                    <span className="block text-sm font-medium text-foreground">
                                                         {option.label}
                                                     </span>
-                                                    <span className="block text-xs text-slate-500">
+                                                    <span className="block text-xs text-muted-foreground">
                                                         {option.detail}
                                                     </span>
                                                 </span>
-                                                <span className="font-mono text-xs text-slate-500">
+                                                <span className="font-mono text-xs text-muted-foreground">
                                                     {recipientValueFor(option, channel)}
                                                 </span>
                                             </label>
@@ -382,7 +382,7 @@ export default function ComposeClient({
                                         : '+919876543210, +919812345678'
                                 }
                             />
-                            <p className="mt-1 text-xs text-slate-500">
+                            <p className="mt-1 text-xs text-muted-foreground">
                                 Comma, semicolon, or newline separated. Maximum 100 recipients per batch.
                             </p>
                         </div>
@@ -400,9 +400,9 @@ export default function ComposeClient({
                             {CHANNEL_LABEL[channel]}
                         </Badge>
                         {channel === 'EMAIL' && resolvedSubject && (
-                            <p className="mb-2 text-sm font-medium text-slate-800">{resolvedSubject}</p>
+                            <p className="mb-2 text-sm font-medium text-foreground">{resolvedSubject}</p>
                         )}
-                        <p className="whitespace-pre-wrap rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
+                        <p className="whitespace-pre-wrap rounded-md border bg-muted p-3 text-sm text-foreground">
                             {resolvedBody || 'Your message will appear here.'}
                         </p>
                     </CardContent>
@@ -413,7 +413,7 @@ export default function ComposeClient({
                         <CardTitle className="text-base">Queue</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                        <p className="text-sm text-slate-600">
+                        <p className="text-sm text-muted-foreground">
                             {finalRecipients.length} recipient(s) will be written to the notification
                             outbox.
                         </p>
@@ -434,7 +434,7 @@ export default function ComposeClient({
                             {pending ? 'Queueing…' : `Queue for ${finalRecipients.length} recipient(s)`}
                         </Button>
                         {lastResult && (
-                            <p className="text-xs text-slate-600">
+                            <p className="text-xs text-muted-foreground">
                                 Last batch: {lastResult.queued} queued
                                 {lastResult.rejected > 0 ? `, ${lastResult.rejected} rejected` : ''}.
                             </p>

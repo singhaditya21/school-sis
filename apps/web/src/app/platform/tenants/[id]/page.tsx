@@ -13,7 +13,7 @@ export default async function CompanyDetailsPage({
 
     if (!company) {
         return (
-            <div className="max-w-4xl mx-auto py-12 text-center text-slate-500">
+            <div className="max-w-4xl mx-auto py-12 text-center text-muted-foreground">
                 Company node not found.
             </div>
         );
@@ -27,8 +27,8 @@ export default async function CompanyDetailsPage({
                 </Link>
                 <div className="flex justify-between items-end mt-4">
                     <div>
-                        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">{company.name}</h1>
-                        <p className="text-slate-500 mt-2 text-lg">System ID: <code className="text-sm bg-slate-100 px-2 py-0.5 rounded">{company.id}</code></p>
+                        <h1 className="text-4xl font-extrabold text-foreground tracking-tight">{company.name}</h1>
+                        <p className="text-muted-foreground mt-2 text-lg">System ID: <code className="text-sm bg-muted px-2 py-0.5 rounded">{company.id}</code></p>
                     </div>
                     <div className={`px-4 py-2 rounded-xl border ${company.isActive ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'} font-bold flex items-center gap-2`}>
                         <span className={`w-2 h-2 rounded-full ${company.isActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
@@ -40,21 +40,21 @@ export default async function CompanyDetailsPage({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left Column: Quick Stats & Tenants */}
                 <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Attached Tenants</h3>
+                    <div className="bg-white rounded-3xl border border-border shadow-sm p-6">
+                        <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">Attached Tenants</h3>
                         <div className="space-y-4">
                             {tenants.map(t => (
-                                <div key={t.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50 flex justify-between items-center group hover:border-indigo-200 transition">
+                                <div key={t.id} className="p-4 rounded-xl border border-border bg-muted flex justify-between items-center group hover:border-indigo-200 transition">
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500"><Building2 size={14} /></div>
                                         <div>
-                                            <p className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition">{t.name}</p>
-                                            <p className="text-xs text-slate-500 font-mono mt-0.5">Code: {t.code}</p>
+                                            <p className="font-bold text-foreground text-sm group-hover:text-indigo-600 transition">{t.name}</p>
+                                            <p className="text-xs text-muted-foreground font-mono mt-0.5">Code: {t.code}</p>
                                         </div>
                                     </div>
                                 </div>
                             ))}
-                            {tenants.length === 0 && <p className="text-sm text-slate-500 italic">No tenants provisioned yet.</p>}
+                            {tenants.length === 0 && <p className="text-sm text-muted-foreground italic">No tenants provisioned yet.</p>}
                         </div>
                     </div>
 

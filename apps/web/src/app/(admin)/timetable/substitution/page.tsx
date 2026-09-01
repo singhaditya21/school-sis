@@ -44,16 +44,16 @@ export default async function SubstitutionPage({
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold">Substitution Management</h1>
-                    <p className="text-gray-600 mt-1">
+                    <p className="text-muted-foreground mt-1">
                         Cover for staff on approved leave
                         {dayOfWeek ? ` — ${DAY_LABELS[dayOfWeek]}, ${date}` : ` — ${date} (Sunday: nothing is timetabled)`}
                     </p>
                 </div>
                 <div className="flex gap-3">
-                    <Link href="/timetable/grid" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <Link href="/timetable/grid" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">
                         Grid View
                     </Link>
-                    <Link href="/timetable" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <Link href="/timetable" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">
                         ← Back to Timetable
                     </Link>
                 </div>

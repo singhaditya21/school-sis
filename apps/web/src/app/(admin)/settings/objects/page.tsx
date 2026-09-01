@@ -37,7 +37,7 @@ export default async function ObjectManagerListPage() {
         <div className="space-y-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    <h1 className="text-2xl font-bold text-foreground dark:text-white">
                         Object Manager
                     </h1>
                     <p className="text-muted-foreground mt-1">
@@ -59,7 +59,7 @@ export default async function ObjectManagerListPage() {
                 <Card>
                     <CardContent className="py-16 text-center">
                         <Database className="mx-auto mb-3 h-8 w-8 text-slate-300" />
-                        <p className="font-medium text-slate-700 dark:text-slate-200">
+                        <p className="font-medium text-foreground dark:text-slate-200">
                             No objects are registered for this school.
                         </p>
                         <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
@@ -83,7 +83,7 @@ export default async function ObjectManagerListPage() {
                                     <div className="flex justify-between items-start mb-4 gap-3">
                                         <Link
                                             href={`/settings/objects/${obj.id}`}
-                                            className="font-bold text-lg text-slate-900 dark:text-slate-100 hover:underline"
+                                            className="font-bold text-lg text-foreground dark:text-slate-100 hover:underline"
                                         >
                                             {obj.name}
                                         </Link>
@@ -95,14 +95,14 @@ export default async function ObjectManagerListPage() {
                                             <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded shrink-0">Standard</span>
                                         )}
                                     </div>
-                                    <p className="text-sm text-slate-500 flex-grow">
+                                    <p className="text-sm text-muted-foreground flex-grow">
                                         {obj.description || 'No description provided.'}
                                     </p>
                                     <div className="mt-4 pt-4 border-t space-y-1">
-                                        <div className="text-xs text-slate-400 font-mono">
+                                        <div className="text-xs text-muted-foreground font-mono">
                                             API Name: {obj.api_name}
                                         </div>
-                                        <div className="text-xs text-slate-500">
+                                        <div className="text-xs text-muted-foreground">
                                             {total === 1 ? '1 field' : `${total} fields`}
                                             {custom > 0 ? ` · ${custom} custom` : ''}
                                             {isTenantDefined ? ` · ${records === 1 ? '1 record' : `${records} records`}` : ''}

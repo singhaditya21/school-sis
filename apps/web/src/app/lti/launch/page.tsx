@@ -17,27 +17,27 @@ export default async function LtiLaunchPage() {
         : '/student/homework';
 
     return (
-        <main className="min-h-screen bg-slate-50 px-6 py-16">
-            <section className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <main className="min-h-screen bg-muted px-6 py-16">
+            <section className="mx-auto max-w-2xl rounded-2xl border border-border bg-white p-8 shadow-sm">
                 <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
                     Verified LTI 1.3 launch
                 </p>
-                <h1 className="mt-3 text-3xl font-bold text-slate-900">
+                <h1 className="mt-3 text-3xl font-bold text-foreground">
                     {launch.courseTitle || launch.courseLabel || 'Course workspace'}
                 </h1>
-                <p className="mt-3 text-slate-600">
+                <p className="mt-3 text-muted-foreground">
                     Your signed LMS identity is linked to {session.email}. Course access uses your
                     local {session.role.toLowerCase()} permissions.
                 </p>
-                <dl className="mt-8 grid gap-3 rounded-xl bg-slate-50 p-5 text-sm">
+                <dl className="mt-8 grid gap-3 rounded-xl bg-muted p-5 text-sm">
                     <div className="flex justify-between gap-6">
-                        <dt className="font-medium text-slate-500">Course ID</dt>
-                        <dd className="break-all text-right text-slate-900">{launch.courseId}</dd>
+                        <dt className="font-medium text-muted-foreground">Course ID</dt>
+                        <dd className="break-all text-right text-foreground">{launch.courseId}</dd>
                     </div>
                     {launch.courseLabel ? (
                         <div className="flex justify-between gap-6">
-                            <dt className="font-medium text-slate-500">Course label</dt>
-                            <dd className="text-right text-slate-900">{launch.courseLabel}</dd>
+                            <dt className="font-medium text-muted-foreground">Course label</dt>
+                            <dd className="text-right text-foreground">{launch.courseLabel}</dd>
                         </div>
                     ) : null}
                 </dl>

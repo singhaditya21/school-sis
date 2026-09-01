@@ -16,9 +16,9 @@ export default function AppExchangePage() {
         </div>
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-        <h2 className="text-xl font-semibold text-slate-900">No live catalog configured</h2>
-        <p className="mx-auto mt-2 max-w-xl text-slate-600">
+      <section className="rounded-xl border border-border bg-white p-8 text-center shadow-sm">
+        <h2 className="text-xl font-semibold text-foreground">No live catalog configured</h2>
+        <p className="mx-auto mt-2 max-w-xl text-muted-foreground">
           Contact your platform administrator if your school needs a supported integration in the meantime.
         </p>
       </section>

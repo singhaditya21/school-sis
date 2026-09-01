@@ -14,20 +14,20 @@ export function ChannelBadge({ channel }: { channel: string }) {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-    PENDING: 'bg-slate-100 text-slate-700 border-slate-200',
+    PENDING: 'bg-muted text-foreground border-border',
     QUEUED: 'bg-amber-100 text-amber-800 border-amber-200',
     SENT: 'bg-blue-100 text-blue-800 border-blue-200',
     DELIVERED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     FAILED: 'bg-rose-100 text-rose-800 border-rose-200',
     DEAD_LETTER: 'bg-rose-100 text-rose-800 border-rose-200',
-    SUPPRESSED: 'bg-slate-100 text-slate-600 border-slate-200',
+    SUPPRESSED: 'bg-muted text-muted-foreground border-border',
 };
 
 export function StatusBadge({ status }: { status: string }) {
     return (
         <span
             className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
-                STATUS_STYLES[status] ?? 'bg-slate-100 text-slate-700 border-slate-200'
+                STATUS_STYLES[status] ?? 'bg-muted text-foreground border-border'
             }`}
         >
             {status.replace(/_/g, ' ')}
@@ -47,17 +47,17 @@ export function StatTile({
     tone?: 'default' | 'warning' | 'danger' | 'muted';
 }) {
     const toneClass = {
-        default: 'text-slate-900',
+        default: 'text-foreground',
         warning: 'text-amber-600',
         danger: 'text-rose-600',
-        muted: 'text-slate-400',
+        muted: 'text-muted-foreground',
     }[tone];
 
     return (
         <div className="rounded-lg border bg-white p-4">
-            <div className="text-sm text-slate-500">{label}</div>
+            <div className="text-sm text-muted-foreground">{label}</div>
             <div className={`mt-1 text-2xl font-bold ${toneClass}`}>{value}</div>
-            {hint && <div className="mt-1 text-xs text-slate-400">{hint}</div>}
+            {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
         </div>
     );
 }
@@ -125,8 +125,8 @@ export function MessagesTabs({ active }: { active: 'log' | 'compose' | 'template
                     href={tab.href}
                     className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
                         tab.key === active
-                            ? 'border-slate-900 text-slate-900'
-                            : 'border-transparent text-slate-500 hover:text-slate-800'
+                            ? 'border-slate-900 text-foreground'
+                            : 'border-transparent text-muted-foreground hover:text-foreground'
                     }`}
                 >
                     {tab.label}

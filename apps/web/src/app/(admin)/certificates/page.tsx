@@ -70,7 +70,7 @@ export default async function CertificatesPage({ searchParams }: PageProps) {
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Certificates</h1>
-                    <p className="mt-1 text-gray-600">
+                    <p className="mt-1 text-muted-foreground">
                         Issue transfer, bonafide and character certificates against a numbered
                         register, and revoke one when it should no longer be honoured.
                     </p>
@@ -84,28 +84,28 @@ export default async function CertificatesPage({ searchParams }: PageProps) {
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Active templates</div>
+                        <div className="text-sm text-muted-foreground">Active templates</div>
                         <div className="text-2xl font-bold">{stats.activeTemplates}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Issued</div>
+                        <div className="text-sm text-muted-foreground">Issued</div>
                         <div className="text-2xl font-bold text-green-600">{stats.issued}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Draft</div>
+                        <div className="text-sm text-muted-foreground">Draft</div>
                         <div className="text-2xl font-bold text-amber-600">{stats.drafts}</div>
-                        <div className="mt-1 text-xs text-gray-500">Imported records not yet issued</div>
+                        <div className="mt-1 text-xs text-muted-foreground">Imported records not yet issued</div>
                     </CardContent>
                 </Card>
                 <Card className={stats.revoked > 0 ? 'border-2 border-red-100' : undefined}>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Revoked</div>
+                        <div className="text-sm text-muted-foreground">Revoked</div>
                         <div className="text-2xl font-bold text-red-600">{stats.revoked}</div>
-                        <div className="mt-1 text-xs text-gray-500">
+                        <div className="mt-1 text-xs text-muted-foreground">
                             <Link href="/credentials" className="text-blue-600 hover:underline">
                                 Revocation register →
                             </Link>
@@ -120,7 +120,7 @@ export default async function CertificatesPage({ searchParams }: PageProps) {
                 </CardHeader>
                 <CardContent>
                     {templates.length === 0 ? (
-                        <p className="py-6 text-center text-sm text-gray-500">
+                        <p className="py-6 text-center text-sm text-muted-foreground">
                             No templates yet. Create one before issuing a certificate.
                         </p>
                     ) : (
@@ -128,19 +128,19 @@ export default async function CertificatesPage({ searchParams }: PageProps) {
                             {templates.map(t => (
                                 <div
                                     key={t.id}
-                                    className={`rounded-lg border p-4 ${t.isActive ? 'border-gray-200' : 'border-dashed border-gray-300 bg-gray-50'}`}
+                                    className={`rounded-lg border p-4 ${t.isActive ? 'border-border' : 'border-dashed border-border bg-muted'}`}
                                 >
                                     <div className="flex items-start justify-between gap-2">
                                         <div>
-                                            <div className="font-semibold text-gray-900">{t.name}</div>
-                                            <div className="mt-0.5 text-xs text-gray-500">
+                                            <div className="font-semibold text-foreground">{t.name}</div>
+                                            <div className="mt-0.5 text-xs text-muted-foreground">
                                                 {certificateTypeLabel(t.type)}
                                             </div>
                                         </div>
                                         {!t.isActive && <Badge variant="secondary">Retired</Badge>}
                                     </div>
                                     <div className="mt-3 flex items-center justify-between text-sm">
-                                        <span className="text-gray-500">
+                                        <span className="text-muted-foreground">
                                             {t.issuedCount} {t.issuedCount === 1 ? 'certificate' : 'certificates'} issued
                                         </span>
                                         <TemplateActiveToggle templateId={t.id} isActive={t.isActive} />
@@ -164,7 +164,7 @@ export default async function CertificatesPage({ searchParams }: PageProps) {
                                     className={`rounded-md px-3 py-1.5 text-sm font-medium ${
                                         status === tab
                                             ? 'bg-gray-900 text-white'
-                                            : 'text-gray-600 hover:bg-gray-100'
+                                            : 'text-muted-foreground hover:bg-muted'
                                     }`}
                                 >
                                     {STATUS_TAB_LABELS[tab]}
@@ -177,7 +177,7 @@ export default async function CertificatesPage({ searchParams }: PageProps) {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm">
-                            <thead className="border-y bg-gray-50 text-xs uppercase text-gray-500">
+                            <thead className="border-y bg-muted text-xs uppercase text-muted-foreground">
                                 <tr>
                                     <th className="px-4 py-3 font-medium">Certificate no.</th>
                                     <th className="px-4 py-3 font-medium">Student</th>
@@ -189,26 +189,26 @@ export default async function CertificatesPage({ searchParams }: PageProps) {
                             </thead>
                             <tbody className="divide-y">
                                 {certificates.map(c => (
-                                    <tr key={c.id} className="hover:bg-gray-50">
-                                        <td className="px-4 py-3 font-mono font-medium text-gray-900">
+                                    <tr key={c.id} className="hover:bg-muted">
+                                        <td className="px-4 py-3 font-mono font-medium text-foreground">
                                             {c.certificateNumber}
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div className="font-medium text-gray-900">
+                                            <div className="font-medium text-foreground">
                                                 {c.studentName ?? 'Student record removed'}
                                             </div>
-                                            <div className="text-xs text-gray-500">
+                                            <div className="text-xs text-muted-foreground">
                                                 {c.admissionNumber ?? '—'}
                                                 {c.gradeName ? ` · ${c.gradeName}${c.sectionName ? `-${c.sectionName}` : ''}` : ''}
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3 text-gray-600">
+                                        <td className="px-4 py-3 text-muted-foreground">
                                             {certificateTypeLabel(c.type)}
                                         </td>
-                                        <td className="px-4 py-3 text-gray-600">
+                                        <td className="px-4 py-3 text-muted-foreground">
                                             <div>{formatDate(c.issuedDate)}</div>
                                             {c.issuedByName && (
-                                                <div className="text-xs text-gray-500">by {c.issuedByName}</div>
+                                                <div className="text-xs text-muted-foreground">by {c.issuedByName}</div>
                                             )}
                                         </td>
                                         <td className="px-4 py-3">
@@ -216,7 +216,7 @@ export default async function CertificatesPage({ searchParams }: PageProps) {
                                                 {c.status}
                                             </span>
                                             {c.status === 'REVOKED' && c.revokeReason && (
-                                                <div className="mt-1 max-w-xs text-xs text-gray-500">
+                                                <div className="mt-1 max-w-xs text-xs text-muted-foreground">
                                                     {c.revokeReason}
                                                 </div>
                                             )}
@@ -242,7 +242,7 @@ export default async function CertificatesPage({ searchParams }: PageProps) {
                                 ))}
                                 {certificates.length === 0 && (
                                     <tr>
-                                        <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                                        <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
                                             {filtered
                                                 ? 'No certificates match these filters.'
                                                 : 'No certificates issued yet.'}
@@ -261,7 +261,7 @@ export default async function CertificatesPage({ searchParams }: PageProps) {
                 </p>
             )}
 
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
                 Certificates print from the standard record layout on the certificate page.
                 Server-side PDF generation and custom printed templates are not available in this release.
             </p>

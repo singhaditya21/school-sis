@@ -21,12 +21,12 @@ export default async function AppointmentsPage() {
             <div className="space-y-6">
                 <div>
                     <h1 className="text-3xl font-bold">Appointments</h1>
-                    <p className="text-gray-600 mt-1">Manage meetings and appointments</p>
+                    <p className="text-muted-foreground mt-1">Manage meetings and appointments</p>
                 </div>
                 <Card>
-                    <CardContent className="py-12 text-center text-gray-600" data-testid="appointments-no-access">
+                    <CardContent className="py-12 text-center text-muted-foreground" data-testid="appointments-no-access">
                         <p className="font-medium">Appointments are not available to your role.</p>
-                        <p className="text-sm text-gray-500 mt-2">
+                        <p className="text-sm text-muted-foreground mt-2">
                             The appointments module is granted to teaching staff and tenant operators.
                             Ask an operator to extend the appointments permission to {role.replace(/_/g, ' ').toLowerCase()} if you need it.
                         </p>

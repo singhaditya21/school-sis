@@ -42,7 +42,7 @@ function ModuleCard({
             </CardHeader>
 
             <CardContent className="flex-grow space-y-2 pb-4 text-xs text-muted-foreground">
-                <p className="font-mono text-[11px] text-slate-400">{module.code}</p>
+                <p className="font-mono text-[11px] text-muted-foreground">{module.code}</p>
                 {module.gatedRoute ? (
                     <p>
                         Controls access to <span className="font-mono">{module.gatedRoute}</span>.
@@ -141,8 +141,8 @@ export default function MarketplaceClient({
                     </div>
                 </div>
             ) : (
-                <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300">
-                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                <div className="flex items-start gap-3 rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                     <div className="space-y-1">
                         <p>
                             Entitlements apply to{' '}
@@ -162,7 +162,7 @@ export default function MarketplaceClient({
 
             <section className="space-y-4">
                 <div>
-                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    <h2 className="text-lg font-semibold text-foreground dark:text-slate-100">
                         Access-controlling modules
                     </h2>
                     <p className="text-sm text-muted-foreground">
@@ -175,7 +175,7 @@ export default function MarketplaceClient({
 
             <section className="space-y-4">
                 <div>
-                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    <h2 className="text-lg font-semibold text-foreground dark:text-slate-100">
                         Recorded entitlements
                     </h2>
                     <p className="text-sm text-muted-foreground">
@@ -189,7 +189,7 @@ export default function MarketplaceClient({
 
             {entitlements.unknownModules.length > 0 && (
                 <section className="space-y-2">
-                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    <h2 className="text-lg font-semibold text-foreground dark:text-slate-100">
                         Unrecognised codes
                     </h2>
                     <p className="text-sm text-muted-foreground">

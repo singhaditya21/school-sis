@@ -58,7 +58,7 @@ export default async function HROverviewPage({ searchParams }: PageProps) {
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">Staff &amp; HR</h1>
-                    <p className="mt-1 text-gray-600">
+                    <p className="mt-1 text-muted-foreground">
                         Headcount, payroll commitment and leave approvals for your school.
                     </p>
                 </div>
@@ -81,25 +81,25 @@ export default async function HROverviewPage({ searchParams }: PageProps) {
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Total staff</div>
+                        <div className="text-sm text-muted-foreground">Total staff</div>
                         <div className="text-2xl font-bold text-blue-600">{stats.totalStaff}</div>
-                        <div className="mt-1 text-xs text-gray-500">All employment records</div>
+                        <div className="mt-1 text-xs text-muted-foreground">All employment records</div>
                     </CardContent>
                 </Card>
                 <Card className="border-2 border-green-200">
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Active</div>
+                        <div className="text-sm text-muted-foreground">Active</div>
                         <div className="text-2xl font-bold text-green-600">{stats.activeStaff}</div>
-                        <div className="mt-1 text-xs text-gray-500">
+                        <div className="mt-1 text-xs text-muted-foreground">
                             {stats.totalStaff > 0 ? `${activeShare}% of headcount` : 'No staff yet'}
                         </div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Pending leave</div>
+                        <div className="text-sm text-muted-foreground">Pending leave</div>
                         <div className="text-2xl font-bold text-amber-600">{stats.pendingLeaves}</div>
-                        <div className="mt-1 text-xs text-gray-500">
+                        <div className="mt-1 text-xs text-muted-foreground">
                             {stats.pendingLeaves > 0 ? (
                                 <Link href="/hr/leave?status=PENDING" className="text-blue-600 hover:underline">
                                     Review now
@@ -112,11 +112,11 @@ export default async function HROverviewPage({ searchParams }: PageProps) {
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Monthly payroll</div>
+                        <div className="text-sm text-muted-foreground">Monthly payroll</div>
                         <div className="text-2xl font-bold text-indigo-600">
                             {formatCurrency(stats.monthlyPayroll)}
                         </div>
-                        <div className="mt-1 text-xs text-gray-500">Net pay, active staff</div>
+                        <div className="mt-1 text-xs text-muted-foreground">Net pay, active staff</div>
                     </CardContent>
                 </Card>
             </div>
@@ -127,7 +127,7 @@ export default async function HROverviewPage({ searchParams }: PageProps) {
                 </CardHeader>
                 <CardContent>
                     {stats.totalStaff === 0 ? (
-                        <p className="py-4 text-sm text-gray-400">
+                        <p className="py-4 text-sm text-muted-foreground">
                             No staff records yet, so there is nothing to break down.
                         </p>
                     ) : (
@@ -138,21 +138,21 @@ export default async function HROverviewPage({ searchParams }: PageProps) {
                                     <Link
                                         key={d.id}
                                         href={`/hr?dept=${encodeURIComponent(d.name)}`}
-                                        className={`rounded-lg border px-3 py-2 text-sm hover:bg-gray-50 ${dept === d.name ? 'border-blue-400 bg-blue-50' : ''}`}
+                                        className={`rounded-lg border px-3 py-2 text-sm hover:bg-muted ${dept === d.name ? 'border-blue-400 bg-blue-50' : ''}`}
                                     >
                                         <span className="font-medium">{d.name}</span>
-                                        <span className="ml-2 text-gray-500">{count}</span>
+                                        <span className="ml-2 text-muted-foreground">{count}</span>
                                     </Link>
                                 );
                             })}
                             {unassignedCount > 0 && (
-                                <div className="rounded-lg border border-dashed px-3 py-2 text-sm text-gray-600">
+                                <div className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">
                                     <span className="font-medium">Unassigned</span>
-                                    <span className="ml-2 text-gray-500">{unassignedCount}</span>
+                                    <span className="ml-2 text-muted-foreground">{unassignedCount}</span>
                                 </div>
                             )}
                             {departments.length === 0 && (
-                                <p className="py-2 text-sm text-gray-400">
+                                <p className="py-2 text-sm text-muted-foreground">
                                     No departments have been set up yet.
                                 </p>
                             )}
@@ -165,7 +165,7 @@ export default async function HROverviewPage({ searchParams }: PageProps) {
                 <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
                     <CardTitle className="text-base">
                         Staff directory
-                        {dept !== 'ALL' && <span className="ml-2 font-normal text-gray-500">· {dept}</span>}
+                        {dept !== 'ALL' && <span className="ml-2 font-normal text-muted-foreground">· {dept}</span>}
                     </CardTitle>
                     {dept !== 'ALL' && (
                         <Link href="/hr" className="text-sm text-blue-600 hover:underline">
@@ -176,25 +176,25 @@ export default async function HROverviewPage({ searchParams }: PageProps) {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="border-b bg-gray-50">
+                            <thead className="border-b bg-muted">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Employee</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Department</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Designation</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Type</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Joined</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Net pay</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Status</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Employee</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Department</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Designation</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Type</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Joined</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground">Net pay</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
                                 {staff.map(s => (
-                                    <tr key={s.id} className="hover:bg-gray-50">
+                                    <tr key={s.id} className="hover:bg-muted">
                                         <td className="px-4 py-3">
                                             <Link href={`/hr/staff/${s.id}`} className="font-medium text-blue-600 hover:underline">
                                                 {s.firstName} {s.lastName}
                                             </Link>
-                                            <div className="text-xs text-gray-500">
+                                            <div className="text-xs text-muted-foreground">
                                                 {s.employeeId} · {s.email}
                                             </div>
                                         </td>
@@ -214,7 +214,7 @@ export default async function HROverviewPage({ searchParams }: PageProps) {
                                 ))}
                                 {staff.length === 0 && (
                                     <tr>
-                                        <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
+                                        <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
                                             {dept === 'ALL'
                                                 ? 'No staff records yet. Use “Add staff member” to create the first one.'
                                                 : `No staff in ${dept}.`}

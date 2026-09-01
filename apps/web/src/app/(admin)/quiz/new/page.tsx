@@ -3,8 +3,8 @@ import { getQuizTargetOptions } from '../queries';
 import { createQuizAction } from '../actions';
 
 const inputClass =
-    'w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500';
-const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1';
+    'w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500';
+const labelClass = 'block text-sm font-medium text-foreground dark:text-gray-300 mb-1';
 
 export default async function NewQuizPage({
     searchParams,
@@ -19,7 +19,7 @@ export default async function NewQuizPage({
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold">Create Quiz</h1>
-                    <p className="text-gray-600 dark:text-gray-400 mt-1">
+                    <p className="text-muted-foreground dark:text-muted-foreground mt-1">
                         The quiz starts as a draft. Add questions next, then publish it.
                     </p>
                 </div>
@@ -34,7 +34,7 @@ export default async function NewQuizPage({
 
             <form
                 action={createQuizAction}
-                className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6 space-y-4"
+                className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6 space-y-4"
             >
                 <div>
                     <label className={labelClass} htmlFor="title">Title *</label>
@@ -96,7 +96,7 @@ export default async function NewQuizPage({
                     <textarea id="instructions" name="instructions" rows={3} placeholder="Shown to students before they start." className={inputClass} />
                 </div>
 
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-muted-foreground dark:text-muted-foreground">
                     Total marks are calculated from the questions you add, so there is nothing to enter here.
                 </p>
 

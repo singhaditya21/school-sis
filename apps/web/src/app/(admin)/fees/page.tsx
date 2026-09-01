@@ -41,7 +41,7 @@ export default async function FeesPage() {
             {/* Page Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Fee Management</h1>
+                    <h1 className="text-3xl font-bold text-foreground dark:text-white">Fee Management</h1>
                     <p className="text-muted-foreground mt-1">
                         Collections tracking and defaulter management
                     </p>
@@ -55,25 +55,25 @@ export default async function FeesPage() {
                     </a>
                     <a
                         href="/fees/cashflow"
-                        className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors font-medium text-sm"
+                        className="px-4 py-2 border border-border dark:border-gray-700 rounded-lg hover:bg-muted dark:hover:bg-gray-900 transition-colors font-medium text-sm"
                     >
                         Cashflow
                     </a>
                     <a
                         href="/fees/defaulters"
-                        className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors font-medium text-sm"
+                        className="px-4 py-2 border border-border dark:border-gray-700 rounded-lg hover:bg-muted dark:hover:bg-gray-900 transition-colors font-medium text-sm"
                     >
                         Defaulters
                     </a>
                     <a
                         href="/fees/alerts"
-                        className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors font-medium text-sm"
+                        className="px-4 py-2 border border-border dark:border-gray-700 rounded-lg hover:bg-muted dark:hover:bg-gray-900 transition-colors font-medium text-sm"
                     >
                         Alerts
                     </a>
                     <a
                         href="/fees/plans"
-                        className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors font-medium text-sm"
+                        className="px-4 py-2 border border-border dark:border-gray-700 rounded-lg hover:bg-muted dark:hover:bg-gray-900 transition-colors font-medium text-sm"
                     >
                         Fee Plans
                     </a>
@@ -103,17 +103,17 @@ export default async function FeesPage() {
 
             {/* Fee Plans */}
             <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                <h2 className="text-xl font-bold text-foreground dark:text-white mb-4">
                     Fee Plans
                 </h2>
 
                 <div className="space-y-4">
                     {plansWithComponents.map((plan) => (
-                        <div key={plan.id} className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800">
+                        <div key={plan.id} className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800">
                             <div className="p-6">
                                 <div className="flex items-center justify-between mb-4">
                                     <div>
-                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{plan.name}</h3>
+                                        <h3 className="text-lg font-semibold text-foreground dark:text-white">{plan.name}</h3>
                                         <p className="text-sm text-muted-foreground">
                                             {plan.academicYearName} • {plan.invoiceCount} invoices
                                         </p>
@@ -121,7 +121,7 @@ export default async function FeesPage() {
                                     <span
                                         className={`px-3 py-1 rounded-full text-xs font-medium ${plan.isActive
                                             ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                            : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
+                                            : 'bg-muted text-foreground dark:bg-gray-800 dark:text-muted-foreground'
                                             }`}
                                     >
                                         {plan.isActive ? 'Active' : 'Inactive'}
@@ -134,7 +134,7 @@ export default async function FeesPage() {
 
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
-                                        <thead className="bg-gray-50 dark:bg-gray-900/50">
+                                        <thead className="bg-muted dark:bg-gray-900/50">
                                             <tr>
                                                 <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Component</th>
                                                 <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground uppercase">Amount</th>
@@ -145,7 +145,7 @@ export default async function FeesPage() {
                                         <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                                             {plan.components.map((comp) => (
                                                 <tr key={comp.id}>
-                                                    <td className="px-4 py-2 font-medium text-gray-900 dark:text-white">{comp.name}</td>
+                                                    <td className="px-4 py-2 font-medium text-foreground dark:text-white">{comp.name}</td>
                                                     <td className="px-4 py-2 text-right">{formatCurrency(Number(comp.amount))}</td>
                                                     <td className="px-4 py-2 text-center capitalize">{comp.frequency.toLowerCase().replace('_', ' ')}</td>
                                                     <td className="px-4 py-2 text-center">
@@ -164,7 +164,7 @@ export default async function FeesPage() {
                                     </table>
                                 </div>
 
-                                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                                <div className="mt-4 pt-4 border-t border-border dark:border-gray-800 flex items-center justify-between">
                                     <p className="text-sm text-muted-foreground">
                                         Collected:{' '}
                                         <span className="font-semibold text-green-600 dark:text-green-400">
@@ -183,7 +183,7 @@ export default async function FeesPage() {
                     ))}
 
                     {plansWithComponents.length === 0 && (
-                        <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-12 text-center text-muted-foreground">
+                        <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-12 text-center text-muted-foreground">
                             No fee plans configured yet. Create your first fee plan to get started.
                         </div>
                     )}

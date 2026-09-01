@@ -85,8 +85,8 @@ export default async function ReportsPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Reporting Engine</h1>
-                <p className="text-sm text-gray-500 mt-1">
+                <h1 className="text-2xl font-bold text-foreground">Reporting Engine</h1>
+                <p className="text-sm text-muted-foreground mt-1">
                     Build reports over the governed BI catalog. Datasets, metrics and dimensions come from the
                     catalog your role is entitled to — no free-form SQL is accepted from this screen.
                 </p>
@@ -97,7 +97,7 @@ export default async function ReportsPage() {
                     <CardHeader>
                         <CardTitle>No datasets available for your role</CardTitle>
                     </CardHeader>
-                    <CardContent className="text-sm text-gray-600">
+                    <CardContent className="text-sm text-muted-foreground">
                         The BI catalog did not grant your role access to any tenant-scoped dataset. Ask an
                         administrator for the relevant read permission (for example <code>fees:read</code> or{' '}
                         <code>attendance:read</code>).

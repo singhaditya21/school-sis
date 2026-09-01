@@ -143,21 +143,21 @@ export default async function AuditTrailPage({
         <div className="space-y-6">
             <header className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Audit trail review</h1>
-                    <p className="mt-1 text-gray-600">
+                    <h1 className="text-3xl font-bold text-foreground">Audit trail review</h1>
+                    <p className="mt-1 text-muted-foreground">
                         Who did what, from where, and which entries deserve a second look. {windowLabel}.
                     </p>
                 </div>
                 <div className="flex items-end gap-3">
                     <form method="GET" className="flex items-end gap-2">
                         <label className="flex flex-col gap-1">
-                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                 Period
                             </span>
                             <select
                                 name="window"
                                 defaultValue={windowValue}
-                                className="h-9 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-blue-500"
+                                className="h-9 rounded-md border border-border px-3 text-sm outline-none focus:border-blue-500"
                             >
                                 {WINDOW_OPTIONS.map((option) => (
                                     <option key={option.value} value={option.value}>
@@ -175,7 +175,7 @@ export default async function AuditTrailPage({
                     </form>
                     <Link
                         href="/audit"
-                        className="h-9 rounded-md border border-gray-300 px-4 text-sm font-medium leading-9 text-gray-700 hover:bg-gray-50"
+                        className="h-9 rounded-md border border-border px-4 text-sm font-medium leading-9 text-foreground hover:bg-muted"
                     >
                         Full log
                     </Link>
@@ -203,13 +203,13 @@ export default async function AuditTrailPage({
             </section>
 
             <section className="space-y-3">
-                <h2 className="text-lg font-semibold text-gray-900">Activity by actor</h2>
+                <h2 className="text-lg font-semibold text-foreground">Activity by actor</h2>
                 {actorsResult.rows.length === 0 ? (
                     <EmptyState message="No audited activity in this window." />
                 ) : (
-                    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                    <div className="overflow-x-auto rounded-xl border border-border bg-white">
                         <table className="w-full text-sm">
-                            <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                            <thead className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                                 <tr>
                                     <th className="px-4 py-3 font-semibold">Actor</th>
                                     <th className="px-4 py-3 font-semibold">Role</th>
@@ -224,30 +224,30 @@ export default async function AuditTrailPage({
                                 {actorsResult.rows.map((row) => (
                                     <tr
                                         key={row.actor_email ?? 'unattributed'}
-                                        className="hover:bg-gray-50/70"
+                                        className="hover:bg-muted/70"
                                     >
                                         <td className="px-4 py-3">
                                             {row.actor_name ? (
                                                 <>
-                                                    <div className="font-medium text-gray-900">{row.actor_name}</div>
-                                                    <div className="text-xs text-gray-500">{row.actor_email}</div>
+                                                    <div className="font-medium text-foreground">{row.actor_name}</div>
+                                                    <div className="text-xs text-muted-foreground">{row.actor_email}</div>
                                                 </>
                                             ) : (
-                                                <span className="italic text-gray-500">No user recorded</span>
+                                                <span className="italic text-muted-foreground">No user recorded</span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-gray-600">{row.actor_role ?? '—'}</td>
+                                        <td className="px-4 py-3 text-muted-foreground">{row.actor_role ?? '—'}</td>
                                         <td className="px-4 py-3 text-right tabular-nums">{row.events}</td>
                                         <td className="px-4 py-3 text-right tabular-nums">
                                             {row.reviewable > 0 ? (
                                                 <span className="font-semibold text-amber-700">{row.reviewable}</span>
                                             ) : (
-                                                <span className="text-gray-400">0</span>
+                                                <span className="text-muted-foreground">0</span>
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-right tabular-nums">{row.ip_count}</td>
                                         <td className="px-4 py-3 text-right tabular-nums">{row.off_hours}</td>
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-600">
+                                        <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
                                             {new Date(row.last_seen).toLocaleString('en-IN', {
                                                 day: '2-digit',
                                                 month: 'short',
@@ -264,19 +264,19 @@ export default async function AuditTrailPage({
             </section>
 
             <section className="space-y-3">
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="text-lg font-semibold text-foreground">
                     Entries needing review
                 </h2>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                     Deletions, role changes, exports and payments recorded in this window, newest first
                     (up to 100).
                 </p>
                 {eventsResult.rows.length === 0 ? (
                     <EmptyState message="No deletions, role changes, exports or payments were recorded in this window." />
                 ) : (
-                    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                    <div className="overflow-x-auto rounded-xl border border-border bg-white">
                         <table className="w-full text-sm">
-                            <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                            <thead className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                                 <tr>
                                     <th className="px-4 py-3 font-semibold">When</th>
                                     <th className="px-4 py-3 font-semibold">Action</th>
@@ -288,8 +288,8 @@ export default async function AuditTrailPage({
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {eventsResult.rows.map((row) => (
-                                    <tr key={row.id} className="align-top hover:bg-gray-50/70">
-                                        <td className="px-4 py-3 whitespace-nowrap text-gray-700">
+                                    <tr key={row.id} className="align-top hover:bg-muted/70">
+                                        <td className="px-4 py-3 whitespace-nowrap text-foreground">
                                             {new Date(row.created_at).toLocaleString('en-IN', {
                                                 day: '2-digit',
                                                 month: 'short',
@@ -302,24 +302,24 @@ export default async function AuditTrailPage({
                                                 {row.action}
                                             </Badge>
                                         </td>
-                                        <td className="px-4 py-3 text-gray-700">
-                                            {row.actor_name ?? <span className="italic text-gray-500">No user recorded</span>}
+                                        <td className="px-4 py-3 text-foreground">
+                                            {row.actor_name ?? <span className="italic text-muted-foreground">No user recorded</span>}
                                             {row.actor_role && (
-                                                <div className="text-xs text-gray-500">{row.actor_role}</div>
+                                                <div className="text-xs text-muted-foreground">{row.actor_role}</div>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 font-mono text-xs text-gray-700">
+                                        <td className="px-4 py-3 font-mono text-xs text-foreground">
                                             {row.entity_type}
                                             {row.entity_id && (
-                                                <div className="text-[11px] text-gray-400" title={row.entity_id}>
+                                                <div className="text-[11px] text-muted-foreground" title={row.entity_id}>
                                                     {row.entity_id.slice(0, 8)}…
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="max-w-sm px-4 py-3 text-gray-700">
-                                            {row.description ?? <span className="text-gray-400">—</span>}
+                                        <td className="max-w-sm px-4 py-3 text-foreground">
+                                            {row.description ?? <span className="text-muted-foreground">—</span>}
                                         </td>
-                                        <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                                             {row.ip_address ?? '—'}
                                         </td>
                                     </tr>
@@ -363,21 +363,21 @@ function Metric({
     emphasise?: boolean;
 }) {
     return (
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
+        <div className="rounded-xl border border-border bg-white p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
             <div
-                className={`mt-1 text-2xl font-bold ${emphasise ? 'text-amber-700' : 'text-gray-900'}`}
+                className={`mt-1 text-2xl font-bold ${emphasise ? 'text-amber-700' : 'text-foreground'}`}
             >
                 {value.toLocaleString('en-IN')}
             </div>
-            <div className="mt-1 text-xs text-gray-500">{hint}</div>
+            <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
         </div>
     );
 }
 
 function EmptyState({ message }: { message: string }) {
     return (
-        <div className="rounded-xl border border-dashed border-gray-300 bg-white py-12 text-center text-sm text-gray-500">
+        <div className="rounded-xl border border-dashed border-border bg-white py-12 text-center text-sm text-muted-foreground">
             {message}
         </div>
     );

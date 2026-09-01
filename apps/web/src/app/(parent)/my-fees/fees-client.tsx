@@ -24,7 +24,7 @@ function statusClass(status: string): string {
         case 'PENDING':
             return 'bg-amber-100 text-amber-700';
         default:
-            return 'bg-slate-100 text-slate-700';
+            return 'bg-muted text-foreground';
     }
 }
 
@@ -84,7 +84,7 @@ export function FeesClient() {
 
             <div>
                 <h1 className="text-2xl font-bold tracking-tight">Fees</h1>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-muted-foreground">
                     {data ? `Invoices and payments for ${data.child.name}` : 'Invoices and payments'}
                 </p>
             </div>
@@ -96,14 +96,14 @@ export function FeesClient() {
             )}
 
             {!childrenLoading && students.length === 0 ? (
-                <div className="rounded-xl border border-dashed bg-white p-12 text-center text-slate-500">
+                <div className="rounded-xl border border-dashed bg-white p-12 text-center text-muted-foreground">
                     No child is linked to your account yet, so there are no fee records to show.
                 </div>
             ) : (
                 <>
                     <Card>
                         <CardContent className="pt-6">
-                            <div className="text-sm font-medium uppercase tracking-wider text-slate-500">
+                            <div className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
                                 Total outstanding
                             </div>
                             <div className="mt-2 text-4xl font-bold text-orange-600">
@@ -123,7 +123,7 @@ export function FeesClient() {
                             className={`rounded-md px-6 py-2.5 text-sm font-medium transition-colors ${
                                 tab === 'invoices'
                                     ? 'bg-slate-900 text-white'
-                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                    : 'bg-muted text-foreground hover:bg-slate-200'
                             }`}
                         >
                             Invoices
@@ -133,7 +133,7 @@ export function FeesClient() {
                             className={`rounded-md px-6 py-2.5 text-sm font-medium transition-colors ${
                                 tab === 'payments'
                                     ? 'bg-slate-900 text-white'
-                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                    : 'bg-muted text-foreground hover:bg-slate-200'
                             }`}
                         >
                             Payments
@@ -141,7 +141,7 @@ export function FeesClient() {
                     </div>
 
                     {loading ? (
-                        <div className="py-12 text-center text-slate-500">Loading fee records…</div>
+                        <div className="py-12 text-center text-muted-foreground">Loading fee records…</div>
                     ) : tab === 'invoices' ? (
                         <Card>
                             <CardHeader>
@@ -149,12 +149,12 @@ export function FeesClient() {
                             </CardHeader>
                             <CardContent className="p-0">
                                 {invoices.length === 0 ? (
-                                    <p className="py-12 text-center text-slate-500">No invoices raised yet.</p>
+                                    <p className="py-12 text-center text-muted-foreground">No invoices raised yet.</p>
                                 ) : (
                                     <div className="overflow-x-auto">
                                         <Table>
                                             <TableHeader>
-                                                <TableRow className="bg-slate-50">
+                                                <TableRow className="bg-muted">
                                                     <TableHead>Invoice</TableHead>
                                                     <TableHead>Description</TableHead>
                                                     <TableHead className="text-right">Amount</TableHead>
@@ -168,7 +168,7 @@ export function FeesClient() {
                                             <TableBody>
                                                 {invoices.map((inv) => (
                                                     <TableRow key={inv.id}>
-                                                        <TableCell className="font-mono text-xs text-slate-500">
+                                                        <TableCell className="font-mono text-xs text-muted-foreground">
                                                             {inv.invoiceNumber}
                                                         </TableCell>
                                                         <TableCell>{inv.description ?? '—'}</TableCell>
@@ -220,12 +220,12 @@ export function FeesClient() {
                             </CardHeader>
                             <CardContent className="p-0">
                                 {payments.length === 0 ? (
-                                    <p className="py-12 text-center text-slate-500">No payments recorded yet.</p>
+                                    <p className="py-12 text-center text-muted-foreground">No payments recorded yet.</p>
                                 ) : (
                                     <div className="overflow-x-auto">
                                         <Table>
                                             <TableHeader>
-                                                <TableRow className="bg-slate-50">
+                                                <TableRow className="bg-muted">
                                                     <TableHead>Receipt</TableHead>
                                                     <TableHead>Invoice</TableHead>
                                                     <TableHead className="text-right">Amount</TableHead>
@@ -237,10 +237,10 @@ export function FeesClient() {
                                             <TableBody>
                                                 {payments.map((p) => (
                                                     <TableRow key={p.id}>
-                                                        <TableCell className="font-mono text-xs text-slate-500">
+                                                        <TableCell className="font-mono text-xs text-muted-foreground">
                                                             {p.receiptNumber ?? 'Not issued'}
                                                         </TableCell>
-                                                        <TableCell className="font-mono text-xs text-slate-500">
+                                                        <TableCell className="font-mono text-xs text-muted-foreground">
                                                             {p.invoiceNumber}
                                                         </TableCell>
                                                         <TableCell className="text-right font-medium text-emerald-600">

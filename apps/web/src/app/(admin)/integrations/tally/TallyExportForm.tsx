@@ -51,26 +51,26 @@ export default function TallyExportForm() {
     return (
         <form onSubmit={handleExport} className="space-y-5">
             <div className="space-y-2">
-                <Label htmlFor="fromDate" className="text-slate-700">From Date</Label>
+                <Label htmlFor="fromDate" className="text-foreground">From Date</Label>
                 <Input 
                     id="fromDate"
                     type="date" 
                     value={fromDate}
                     onChange={(e) => setFromDate(e.target.value)}
                     required
-                    className="border-slate-300"
+                    className="border-border"
                 />
             </div>
             
             <div className="space-y-2">
-                <Label htmlFor="toDate" className="text-slate-700">To Date</Label>
+                <Label htmlFor="toDate" className="text-foreground">To Date</Label>
                 <Input 
                     id="toDate"
                     type="date" 
                     value={toDate}
                     onChange={(e) => setToDate(e.target.value)}
                     required
-                    className="border-slate-300"
+                    className="border-border"
                 />
             </div>
 
@@ -92,7 +92,7 @@ export default function TallyExportForm() {
                 )}
             </Button>
             
-            <p className="text-xs text-center text-slate-500">
+            <p className="text-xs text-center text-muted-foreground">
                 Downloaded file can be directly imported into Tally using: <br/>
                 <span className="font-mono mt-1 block">Gateway of Tally &gt; Import Data &gt; Vouchers</span>
             </p>

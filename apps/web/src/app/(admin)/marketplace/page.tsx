@@ -23,7 +23,7 @@ export default async function MarketplacePage() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    <h1 className="text-2xl font-bold text-foreground dark:text-white">
                         Modules & Entitlements
                     </h1>
                     <p className="text-muted-foreground mt-1">
@@ -38,7 +38,7 @@ export default async function MarketplacePage() {
                 <Card>
                     <CardContent className="py-16 text-center">
                         <ShieldAlert className="mx-auto mb-3 h-8 w-8 text-slate-300" />
-                        <p className="font-medium text-slate-700 dark:text-slate-200">
+                        <p className="font-medium text-foreground dark:text-slate-200">
                             Your role cannot view module entitlements.
                         </p>
                         <p className="mt-1 text-sm text-muted-foreground">

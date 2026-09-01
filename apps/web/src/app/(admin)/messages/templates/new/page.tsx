@@ -14,7 +14,7 @@ export default async function NewMessageTemplatePage() {
                     ← Back to templates
                 </Link>
                 <h1 className="mt-2 text-3xl font-bold">New message template</h1>
-                <p className="mt-1 text-slate-600">
+                <p className="mt-1 text-muted-foreground">
                     Templates are stored per channel and reused when composing.
                 </p>
             </div>

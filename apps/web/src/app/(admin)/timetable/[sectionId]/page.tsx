@@ -44,7 +44,7 @@ export default async function SectionTimetablePage({ params }: { params: Promise
                     <h1 className="text-3xl font-bold" data-testid="section-title">
                         Timetable for {gradeName} - {sectionName}
                     </h1>
-                    <p className="text-gray-600 mt-1">Weekly schedule details</p>
+                    <p className="text-muted-foreground mt-1">Weekly schedule details</p>
                 </div>
                 <div className="flex gap-3">
                     <Link
@@ -53,15 +53,15 @@ export default async function SectionTimetablePage({ params }: { params: Promise
                     >
                         Edit in grid
                     </Link>
-                    <Link href="/timetable" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <Link href="/timetable" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">
                         ← Back
                     </Link>
                 </div>
             </div>
 
             {timetableRows.length === 0 ? (
-                <div data-testid="section-no-periods" className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
-                    <p className="font-medium text-gray-700">No periods configured</p>
+                <div data-testid="section-no-periods" className="bg-white rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
+                    <p className="font-medium text-foreground">No periods configured</p>
                     <p className="text-sm mt-1">
                         A weekly schedule needs the school&apos;s daily period structure before it can show anything.
                     </p>
@@ -75,20 +75,20 @@ export default async function SectionTimetablePage({ params }: { params: Promise
             ) : (
             <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
                 <table className="w-full min-w-[800px]" data-testid="timetable-grid-table">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-muted">
                         <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Period</th>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Period</th>
                             {days.map((day) => (
-                                <th key={day} className="px-4 py-3 text-left text-sm font-medium text-gray-500">{day}</th>
+                                <th key={day} className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">{day}</th>
                             ))}
                         </tr>
                     </thead>
                     <tbody className="divide-y">
                         {timetableRows.map((row, idx) => (
                             <tr key={idx}>
-                                <td className="px-4 py-3 font-medium text-gray-900">
+                                <td className="px-4 py-3 font-medium text-foreground">
                                     <div>{row.periodName}</div>
-                                    <div className="text-xs text-gray-500">{row.startTime} - {row.endTime}</div>
+                                    <div className="text-xs text-muted-foreground">{row.startTime} - {row.endTime}</div>
                                 </td>
                                 {[
                                     row.monday,
@@ -102,11 +102,11 @@ export default async function SectionTimetablePage({ params }: { params: Promise
                                         {cell ? (
                                             <div className="p-2 bg-blue-50 rounded border border-blue-100 text-xs" data-testid="timetable-cell-content">
                                                 <div className="font-semibold text-blue-900">{cell.subjectName}</div>
-                                                <div className="text-gray-600">{cell.teacherName}</div>
-                                                {cell.roomNumber && <div className="text-gray-400 mt-1">Room {cell.roomNumber}</div>}
+                                                <div className="text-muted-foreground">{cell.teacherName}</div>
+                                                {cell.roomNumber && <div className="text-muted-foreground mt-1">Room {cell.roomNumber}</div>}
                                             </div>
                                         ) : (
-                                            <div className="text-xs text-gray-400 italic">Empty</div>
+                                            <div className="text-xs text-muted-foreground italic">Empty</div>
                                         )}
                                     </td>
                                 ))}

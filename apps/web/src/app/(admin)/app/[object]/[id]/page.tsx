@@ -43,7 +43,7 @@ export default async function GenericObjectFormPage({ params }: { params: Promis
             <div className="space-y-6 max-w-4xl mx-auto">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white capitalize">
+                        <h1 className="text-2xl font-bold text-foreground dark:text-white capitalize">
                             {resolvedParams.id === 'new' ? `New ${objectDef.name}` : `Edit ${objectDef.name}`}
                         </h1>
                         {hiddenFieldCount > 0 && (

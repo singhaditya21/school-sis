@@ -11,9 +11,9 @@ export default async function MessageTemplatesPage() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-3xl font-bold">Message templates</h1>
-                <p className="mt-1 text-slate-600">
+                <p className="mt-1 text-muted-foreground">
                     Reusable SMS, WhatsApp, and email bodies. Placeholders written as{' '}
-                    <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">{'{{token}}'}</code>{' '}
+                    <code className="rounded bg-muted px-1 py-0.5 text-xs">{'{{token}}'}</code>{' '}
                     are recorded with the template and filled in when you compose.
                 </p>
             </div>

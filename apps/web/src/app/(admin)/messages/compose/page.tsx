@@ -27,7 +27,7 @@ export default async function ComposeMessagePage({
         <div className="space-y-6">
             <div>
                 <h1 className="text-3xl font-bold">Compose message</h1>
-                <p className="mt-1 text-slate-600">
+                <p className="mt-1 text-muted-foreground">
                     Build a message, choose recipients, and place it in the notification outbox.
                 </p>
             </div>

@@ -51,7 +51,7 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
                         ← Staff &amp; HR
                     </Link>
                     <h1 className="mt-1 text-3xl font-bold">Leave requests</h1>
-                    <p className="mt-1 text-gray-600">
+                    <p className="mt-1 text-muted-foreground">
                         Approve or reject staff leave, and record requests received off-system.
                     </p>
                 </div>
@@ -61,32 +61,32 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 <Card className={stats.pending > 0 ? 'border-2 border-amber-200' : undefined}>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Awaiting decision</div>
+                        <div className="text-sm text-muted-foreground">Awaiting decision</div>
                         <div className="text-2xl font-bold text-amber-600">{stats.pending}</div>
-                        <div className="mt-1 text-xs text-gray-500">
+                        <div className="mt-1 text-xs text-muted-foreground">
                             {stats.pendingDays} {stats.pendingDays === 1 ? 'day' : 'days'} requested
                         </div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">On leave today</div>
+                        <div className="text-sm text-muted-foreground">On leave today</div>
                         <div className="text-2xl font-bold text-blue-600">{stats.onLeaveToday}</div>
-                        <div className="mt-1 text-xs text-gray-500">Approved and in date range</div>
+                        <div className="mt-1 text-xs text-muted-foreground">Approved and in date range</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Approved</div>
+                        <div className="text-sm text-muted-foreground">Approved</div>
                         <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
-                        <div className="mt-1 text-xs text-gray-500">All time</div>
+                        <div className="mt-1 text-xs text-muted-foreground">All time</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Rejected</div>
-                        <div className="text-2xl font-bold text-gray-600">{stats.rejected}</div>
-                        <div className="mt-1 text-xs text-gray-500">
+                        <div className="text-sm text-muted-foreground">Rejected</div>
+                        <div className="text-2xl font-bold text-muted-foreground">{stats.rejected}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
                             {stats.cancelled} cancelled
                         </div>
                     </CardContent>
@@ -101,7 +101,7 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
                             <Link
                                 key={f}
                                 href={`/hr/leave?status=${f}`}
-                                className={`rounded-md border px-3 py-1.5 text-sm ${status === f ? 'border-blue-400 bg-blue-50 font-medium' : 'hover:bg-gray-50'}`}
+                                className={`rounded-md border px-3 py-1.5 text-sm ${status === f ? 'border-blue-400 bg-blue-50 font-medium' : 'hover:bg-muted'}`}
                             >
                                 {FILTER_LABELS[f]}
                             </Link>
@@ -111,15 +111,15 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="border-b bg-gray-50">
+                            <thead className="border-b bg-muted">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Staff</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Type</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Dates</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Days</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Reason</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Status</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Decision</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Staff</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Type</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Dates</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground">Days</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Reason</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Status</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground">Decision</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
@@ -131,7 +131,7 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
                                                 <Link href={`/hr/staff/${r.staffId}`} className="font-medium text-blue-600 hover:underline">
                                                     {staffName}
                                                 </Link>
-                                                <div className="text-xs text-gray-500">
+                                                <div className="text-xs text-muted-foreground">
                                                     {r.staffEmployeeId}
                                                     {r.departmentName ? ` · ${r.departmentName}` : ''}
                                                 </div>
@@ -154,7 +154,7 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
                                                     {FILTER_LABELS[r.status] ?? r.status}
                                                 </span>
                                                 {r.approverFirstName && (
-                                                    <div className="mt-0.5 text-xs text-gray-500">
+                                                    <div className="mt-0.5 text-xs text-muted-foreground">
                                                         by {r.approverFirstName} {r.approverLastName}
                                                     </div>
                                                 )}
@@ -163,7 +163,7 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
                                                 {r.status === 'PENDING' ? (
                                                     <LeaveDecisionButtons leaveId={r.id} staffName={staffName} />
                                                 ) : (
-                                                    <span className="text-xs text-gray-400">
+                                                    <span className="text-xs text-muted-foreground">
                                                         {r.approvedAt ? formatDate(r.approvedAt) : '—'}
                                                     </span>
                                                 )}
@@ -173,7 +173,7 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
                                 })}
                                 {requests.length === 0 && (
                                     <tr>
-                                        <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
+                                        <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
                                             {status === 'PENDING'
                                                 ? 'Nothing is waiting for a decision.'
                                                 : `No ${FILTER_LABELS[status]?.toLowerCase() ?? status} leave requests.`}

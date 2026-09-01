@@ -116,8 +116,8 @@ export default async function PaymentLedgerPage() {
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-8">
-            <div className="border-b border-gray-200 dark:border-gray-800 pb-4">
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+            <div className="border-b border-border dark:border-gray-800 pb-4">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground dark:text-white">
                     Payment Ledger
                 </h1>
                 <p className="text-muted-foreground mt-1">
@@ -134,7 +134,7 @@ export default async function PaymentLedgerPage() {
                     <Card key={tile.label}>
                         <CardContent className="p-5">
                             <p className="text-sm font-medium text-muted-foreground">{tile.label}</p>
-                            <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-white">{tile.value}</p>
+                            <p className="text-2xl font-bold mt-1 text-foreground dark:text-white">{tile.value}</p>
                             <p className="text-xs text-muted-foreground mt-1">{tile.note}</p>
                         </CardContent>
                     </Card>
@@ -142,7 +142,7 @@ export default async function PaymentLedgerPage() {
             </div>
 
             <Card>
-                <CardHeader className="border-b border-gray-100 dark:border-gray-800">
+                <CardHeader className="border-b border-border dark:border-gray-800">
                     <CardTitle className="text-lg">
                         {truncated ? `Most recent ${ledger.length} payments` : 'All payments'}
                     </CardTitle>
@@ -155,7 +155,7 @@ export default async function PaymentLedgerPage() {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
-                            <thead className="bg-gray-50 dark:bg-gray-900/50 text-muted-foreground uppercase font-semibold text-xs border-b border-gray-100 dark:border-gray-800">
+                            <thead className="bg-muted dark:bg-gray-900/50 text-muted-foreground uppercase font-semibold text-xs border-b border-border dark:border-gray-800">
                                 <tr>
                                     <th className="px-6 py-4">Date</th>
                                     <th className="px-6 py-4">Student</th>
@@ -178,13 +178,13 @@ export default async function PaymentLedgerPage() {
                                     ledger.map((row) => (
                                         <tr
                                             key={row.paymentId}
-                                            className="hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors"
+                                            className="hover:bg-muted dark:hover:bg-gray-900/30 transition-colors"
                                         >
                                             <td className="px-6 py-4 whitespace-nowrap text-muted-foreground">
                                                 {formatDate(row.paidAt)}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className="text-gray-900 dark:text-white">
+                                                <span className="text-foreground dark:text-white">
                                                     {row.studentFirstName
                                                         ? `${row.studentFirstName} ${row.studentLastName ?? ''}`.trim()
                                                         : '—'}
@@ -206,7 +206,7 @@ export default async function PaymentLedgerPage() {
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <Badge variant="outline">{row.method}</Badge>
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right font-mono font-medium text-gray-900 dark:text-white">
+                                            <td className="px-6 py-4 whitespace-nowrap text-right font-mono font-medium text-foreground dark:text-white">
                                                 {formatCurrency(Number(row.amount))}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">

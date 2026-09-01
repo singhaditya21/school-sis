@@ -46,17 +46,17 @@ function renderCell(value: AiRow[string], format: string) {
 function ToolEvidence({ run }: { run: AiToolRun }) {
     if (run.status === 'read') {
         return (
-            <div className="rounded-md border border-gray-200 bg-white p-3">
-                <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
+            <div className="rounded-md border border-border bg-white p-3">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                     <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
                     <code>{run.toolName}</code>
-                    <span className="text-gray-400">read this school only</span>
+                    <span className="text-muted-foreground">read this school only</span>
                 </div>
-                <p className="mt-2 text-sm text-gray-800">{run.output.summary}</p>
+                <p className="mt-2 text-sm text-foreground">{run.output.summary}</p>
                 {run.output.rows.length > 0 && run.output.fields.length > 0 ? (
                     <div className="mt-2 overflow-x-auto">
                         <table className="w-full text-left text-xs">
-                            <thead className="text-gray-500">
+                            <thead className="text-muted-foreground">
                                 <tr>
                                     {run.output.fields.map((field) => (
                                         <th key={field.key} className="py-1 pr-4 font-medium">
@@ -65,9 +65,9 @@ function ToolEvidence({ run }: { run: AiToolRun }) {
                                     ))}
                                 </tr>
                             </thead>
-                            <tbody className="text-gray-800">
+                            <tbody className="text-foreground">
                                 {run.output.rows.map((row, index) => (
-                                    <tr key={index} className="border-t border-gray-100">
+                                    <tr key={index} className="border-t border-border">
                                         {run.output.fields.map((field) => (
                                             <td key={field.key} className="py-1 pr-4">
                                                 {renderCell(row[field.key], field.format)}
@@ -100,12 +100,12 @@ function ToolEvidence({ run }: { run: AiToolRun }) {
     }
 
     return (
-        <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
-            <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
+        <div className="rounded-md border border-border bg-muted p-3">
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                 <code>{run.toolName}</code>
                 <span>refused</span>
             </div>
-            <p className="mt-1 text-sm text-gray-700">{run.reason}</p>
+            <p className="mt-1 text-sm text-foreground">{run.reason}</p>
         </div>
     );
 }
@@ -211,14 +211,14 @@ export default function AssistantConsole({ tools }: { tools: AssistantToolDescri
 
                 <div className="space-y-4">
                     {exchanges.map((exchange) => (
-                        <div key={exchange.id} className="space-y-2 rounded-lg border border-gray-200 p-3">
-                            <p className="text-sm font-medium text-gray-900">{exchange.question}</p>
-                            <p className={exchange.ok ? 'text-sm text-gray-800' : 'text-sm text-gray-600'}>
+                        <div key={exchange.id} className="space-y-2 rounded-lg border border-border p-3">
+                            <p className="text-sm font-medium text-foreground">{exchange.question}</p>
+                            <p className={exchange.ok ? 'text-sm text-foreground' : 'text-sm text-muted-foreground'}>
                                 {exchange.message}
                             </p>
                             {exchange.toolRuns.length > 0 ? (
                                 <div className="space-y-2">
-                                    <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
+                                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                         What it actually ran
                                     </p>
                                     {exchange.toolRuns.map((run, index) => (

@@ -179,12 +179,12 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
                                         ? 'bg-blue-600 text-white'
                                         : savedForSubject > 0
                                           ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                          : 'bg-muted text-foreground hover:bg-gray-200'
                                 }`}
                                 title={`${s.subjectName} • ${savedForSubject} of ${students.length} saved`}
                             >
                                 {s.subjectCode}
-                                <span className={`ml-2 text-xs ${active ? 'text-blue-100' : 'text-gray-500'}`}>
+                                <span className={`ml-2 text-xs ${active ? 'text-blue-100' : 'text-muted-foreground'}`}>
                                     {savedForSubject}/{students.length}
                                 </span>
                             </button>
@@ -196,31 +196,31 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
             {/* Live tally for the open subject */}
             <div className="bg-white rounded-xl shadow-sm border p-4 flex flex-wrap items-center justify-between gap-4">
                 <div>
-                    <h2 className="font-semibold text-gray-900">
+                    <h2 className="font-semibold text-foreground">
                         {subject.subjectName} — {gradeName}
                     </h2>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                         Max {subject.maxMarks} · Pass {subject.passingMarks}
                     </p>
                 </div>
                 <div className="flex gap-6 text-sm">
                     <div>
-                        <p className="text-gray-500">Filled</p>
-                        <p className="font-semibold text-gray-900">
+                        <p className="text-muted-foreground">Filled</p>
+                        <p className="font-semibold text-foreground">
                             {stats.entered}/{students.length}
                         </p>
                     </div>
                     <div>
-                        <p className="text-gray-500">Absent</p>
-                        <p className="font-semibold text-gray-900">{stats.absent}</p>
+                        <p className="text-muted-foreground">Absent</p>
+                        <p className="font-semibold text-foreground">{stats.absent}</p>
                     </div>
                     <div>
-                        <p className="text-gray-500">At/above pass</p>
-                        <p className="font-semibold text-gray-900">{stats.passed}</p>
+                        <p className="text-muted-foreground">At/above pass</p>
+                        <p className="font-semibold text-foreground">{stats.passed}</p>
                     </div>
                     <div>
-                        <p className="text-gray-500">Average</p>
-                        <p className="font-semibold text-gray-900">
+                        <p className="text-muted-foreground">Average</p>
+                        <p className="font-semibold text-foreground">
                             {stats.average === null ? '—' : stats.average}
                         </p>
                     </div>
@@ -228,7 +228,7 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
             </div>
 
             {lockedCount > 0 && (
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 flex items-center gap-2">
+                <div className="rounded-lg border border-border bg-muted p-3 text-sm text-foreground flex items-center gap-2">
                     <Lock className="h-4 w-4" />
                     {lockedCount} result(s) for this subject were locked by verification and are read-only.
                 </div>
@@ -254,7 +254,7 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
                     return (
                         <div key={student.studentId}>
                             {sectionHeader && (
-                                <div className="px-4 py-2 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                <div className="px-4 py-2 bg-muted text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                     Section {sectionHeader}
                                 </div>
                             )}
@@ -263,25 +263,25 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
                                     field.isAbsent ? 'bg-red-50/60' : ''
                                 }`}
                             >
-                                <div className="w-9 h-9 shrink-0 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium text-gray-600">
+                                <div className="w-9 h-9 shrink-0 bg-muted rounded-full flex items-center justify-center text-sm font-medium text-muted-foreground">
                                     {student.rollNumber ?? index + 1}
                                 </div>
 
                                 <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-gray-900 truncate">
+                                    <p className="font-medium text-foreground truncate">
                                         {student.firstName} {student.lastName}
                                     </p>
-                                    <p className="text-xs text-gray-500">{student.admissionNumber}</p>
+                                    <p className="text-xs text-muted-foreground">{student.admissionNumber}</p>
                                 </div>
 
                                 {unchanged && savedRecord?.grade && (
-                                    <span className="hidden sm:inline px-2 py-1 rounded bg-gray-100 text-xs font-medium text-gray-600">
+                                    <span className="hidden sm:inline px-2 py-1 rounded bg-muted text-xs font-medium text-muted-foreground">
                                         {savedRecord.grade}
                                     </span>
                                 )}
 
                                 {locked ? (
-                                    <span className="flex items-center gap-1 text-xs text-gray-500">
+                                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                         <Lock className="h-3 w-3" />
                                         Locked
                                     </span>
@@ -297,7 +297,7 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
                                         className={`px-3 py-1 rounded-lg text-xs font-medium ${
                                             field.isAbsent
                                                 ? 'bg-red-500 text-white'
-                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                : 'bg-muted text-muted-foreground hover:bg-gray-200'
                                         }`}
                                     >
                                         Absent
@@ -323,14 +323,14 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
                                         aria-label={`Marks for ${student.firstName} ${student.lastName}`}
                                         className={`w-full px-3 py-2 border rounded-lg text-center font-medium ${
                                             locked || field.isAbsent
-                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
+                                                ? 'bg-muted text-muted-foreground cursor-not-allowed border-border'
                                                 : invalid
                                                   ? 'border-red-300 bg-red-50 text-red-700'
-                                                  : 'border-gray-300'
+                                                  : 'border-border'
                                         }`}
                                     />
                                 </div>
-                                <span className="text-xs text-gray-400 w-12">/ {subject.maxMarks}</span>
+                                <span className="text-xs text-muted-foreground w-12">/ {subject.maxMarks}</span>
                             </div>
                         </div>
                     );
@@ -340,7 +340,7 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
             <div className="flex flex-wrap items-center gap-3 sticky bottom-0 bg-white/95 backdrop-blur py-4 border-t">
                 <Link
                     href={`/exams/${examId}`}
-                    className="px-5 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                    className="px-5 py-3 border border-border rounded-lg text-foreground hover:bg-muted"
                 >
                     Back to exam
                 </Link>
@@ -352,7 +352,7 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
                 >
                     {isPending ? 'Saving…' : `Save ${subject.subjectCode} marks`}
                 </button>
-                <p className="text-xs text-gray-500 w-full">
+                <p className="text-xs text-muted-foreground w-full">
                     Blank fields clear any previously saved mark for that student. Grades are
                     recalculated from the marks on save.
                     {dirty && <span className="ml-1 font-medium text-amber-600">Unsaved changes.</span>}

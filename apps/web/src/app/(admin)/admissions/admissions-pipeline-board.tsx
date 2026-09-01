@@ -22,7 +22,7 @@ const PIPELINE_COLUMNS = [
         label: 'New Inquiries',
         dotColor: 'bg-blue-400',
         stages: ['NEW', 'CONTACTED'],
-        borderClass: 'border-gray-200',
+        borderClass: 'border-border',
     },
     {
         key: 'documents',
@@ -50,7 +50,7 @@ const PIPELINE_COLUMNS = [
         label: 'Closed',
         dotColor: 'bg-gray-400',
         stages: ['ENROLLED', 'REJECTED', 'WITHDRAWN'],
-        borderClass: 'border-gray-200 border-l-4 border-l-gray-300',
+        borderClass: 'border-border border-l-4 border-l-gray-300',
     },
 ] as const;
 
@@ -102,18 +102,18 @@ function LeadCard({ lead, borderClass }: { lead: AdmissionLeadItem; borderClass:
         <Card className={`transition-shadow ${borderClass} ${isPending ? 'opacity-50' : 'hover:shadow-md'}`}>
             <CardContent className="p-4">
                 <Link href={`/admissions/${lead.id}`} className="block group">
-                    <h4 className="font-semibold text-gray-900 group-hover:text-blue-700">
+                    <h4 className="font-semibold text-foreground group-hover:text-blue-700">
                         {lead.childFirstName} {lead.childLastName}
                     </h4>
                     <p className="text-xs font-medium text-blue-600 mt-1 bg-blue-50 w-max px-2 py-0.5 rounded">
                         {lead.applyingForGrade}
                     </p>
-                    <div className="flex justify-between items-center mt-3 text-xs text-gray-500">
+                    <div className="flex justify-between items-center mt-3 text-xs text-muted-foreground">
                         <span className="font-medium">{lead.assignedToName || 'Unassigned'}</span>
                         <span>{formatRelativeDate(lead.createdAt)}</span>
                     </div>
                     {lead.parentName && (
-                        <div className="mt-2 text-xs text-gray-400 truncate">{lead.parentName}</div>
+                        <div className="mt-2 text-xs text-muted-foreground truncate">{lead.parentName}</div>
                     )}
                 </Link>
 
@@ -125,7 +125,7 @@ function LeadCard({ lead, borderClass }: { lead: AdmissionLeadItem; borderClass:
                     value={stage}
                     disabled={isPending}
                     onChange={(e) => handleStageChange(e.target.value)}
-                    className="mt-3 w-full text-xs border border-gray-200 rounded px-2 py-1.5 bg-white disabled:opacity-50 focus:ring-2 focus:ring-blue-500"
+                    className="mt-3 w-full text-xs border border-border rounded px-2 py-1.5 bg-white disabled:opacity-50 focus:ring-2 focus:ring-blue-500"
                 >
                     {PIPELINE_STAGES.map((s) => (
                         <option key={s} value={s}>
@@ -184,27 +184,27 @@ export default function AdmissionsPipelineBoard({
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-gray-900">{analytics.activeInPipeline}</div>
+                        <div className="text-2xl font-bold text-foreground">{analytics.activeInPipeline}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
+                        <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
                             Awaiting Documents
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-gray-900">{documentsPendingCount}</div>
+                        <div className="text-2xl font-bold text-foreground">{documentsPendingCount}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
+                        <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
                             Offers Outstanding
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-gray-900">{offeredCount}</div>
+                        <div className="text-2xl font-bold text-foreground">{offeredCount}</div>
                     </CardContent>
                 </Card>
                 <Card className="border-emerald-100 bg-emerald-50/50">
@@ -214,7 +214,7 @@ export default function AdmissionsPipelineBoard({
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-gray-900">{analytics.enrolled}</div>
+                        <div className="text-2xl font-bold text-foreground">{analytics.enrolled}</div>
                     </CardContent>
                 </Card>
             </div>
@@ -229,9 +229,9 @@ export default function AdmissionsPipelineBoard({
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search by child, parent, grade or contact…"
-                    className="w-full sm:w-96 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                    className="w-full sm:w-96 px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-muted-foreground">
                     Showing {visibleLeads.length} of {leads.length} loaded leads
                 </span>
             </div>
@@ -245,18 +245,18 @@ export default function AdmissionsPipelineBoard({
                     return (
                         <div key={col.key} className="space-y-3 min-w-[260px]">
                             <div className="flex items-center justify-between">
-                                <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                                <h3 className="font-semibold text-foreground flex items-center gap-2">
                                     <span className={`w-2 h-2 rounded-full ${col.dotColor}`}></span>
                                     {col.label}
                                 </h3>
-                                <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs font-medium">
+                                <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded text-xs font-medium">
                                     {count}
                                 </span>
                             </div>
 
                             {colLeads.length === 0 ? (
-                                <div className="border border-dashed border-gray-200 rounded-lg p-6 text-center">
-                                    <p className="text-sm text-gray-400">
+                                <div className="border border-dashed border-border rounded-lg p-6 text-center">
+                                    <p className="text-sm text-muted-foreground">
                                         {search ? 'No matching leads' : 'No leads in this stage'}
                                     </p>
                                 </div>

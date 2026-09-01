@@ -30,10 +30,10 @@ export default async function TenantHQPoliciesPage() {
 
     if (!isMappedToHQ) {
         return (
-            <div className="p-8 text-center mt-12 max-w-2xl mx-auto bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl">
+            <div className="p-8 text-center mt-12 max-w-2xl mx-auto bg-muted dark:bg-gray-900 border border-border dark:border-gray-800 rounded-xl">
                 <Shield className="w-12 h-12 text-slate-300 mx-auto mb-4" />
                 <h2 className="text-xl font-bold mb-2">Independent Campus</h2>
-                <p className="text-slate-500 dark:text-gray-400">
+                <p className="text-muted-foreground dark:text-muted-foreground">
                     This campus operates independently and is not mapped to a central Multi-Campus
                     Headquarters. No cascaded policies apply.
                 </p>
@@ -50,9 +50,9 @@ export default async function TenantHQPoliciesPage() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Mandated Group Policies</h1>
-                    <p className="text-gray-600 dark:text-gray-400 mt-1">
+                    <p className="text-muted-foreground dark:text-muted-foreground mt-1">
                         Guidelines recorded by{' '}
-                        <strong className="text-gray-900 dark:text-gray-100">{hqGroup?.name}</strong>
+                        <strong className="text-foreground dark:text-gray-100">{hqGroup?.name}</strong>
                         {hqGroup?.headquartersCity ? ` (HQ in ${hqGroup.headquartersCity})` : ''} that apply
                         to this campus.
                     </p>
@@ -64,7 +64,7 @@ export default async function TenantHQPoliciesPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {policies.length === 0 ? (
-                    <div className="col-span-full p-12 text-center text-gray-500 dark:text-gray-400 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl">
+                    <div className="col-span-full p-12 text-center text-muted-foreground dark:text-muted-foreground border border-dashed border-border dark:border-gray-800 rounded-xl">
                         No policies have been recorded for this group yet.
                     </div>
                 ) : (
@@ -95,14 +95,14 @@ export default async function TenantHQPoliciesPage() {
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border border-gray-100 dark:border-gray-800">
-                                        <span className="block text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+                                    <div className="bg-muted dark:bg-gray-900 p-4 rounded-lg border border-border dark:border-gray-800">
+                                        <span className="block text-xs uppercase tracking-wider text-muted-foreground dark:text-muted-foreground mb-1">
                                             Mandated value
                                         </span>
                                         <span className="text-lg font-bold">{policy.policyValue}</span>
                                     </div>
 
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+                                    <p className="text-xs text-muted-foreground dark:text-muted-foreground mt-3">
                                         {locksASetting ? (
                                             <>
                                                 Applied automatically: this locks the matching field on{' '}
@@ -140,7 +140,7 @@ export default async function TenantHQPoliciesPage() {
             </div>
 
             {policies.length > 0 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-muted-foreground dark:text-muted-foreground">
                     {enforcedCount} of {policies.length} recorded {policies.length === 1 ? 'policy is' : 'policies are'}{' '}
                     applied automatically by the platform; the rest are written down here but not enforced by
                     any module in this release. Policies are added and removed by a ScholarMind platform

@@ -68,7 +68,7 @@ export default function AutomationClient({ initialWorkflows }: { initialWorkflow
     return (
         <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+                <h2 className="text-lg font-semibold text-foreground dark:text-slate-100">
                     Saved rules ({workflows.length})
                 </h2>
                 <Link href="/settings/automation/new">
@@ -79,8 +79,8 @@ export default function AutomationClient({ initialWorkflows }: { initialWorkflow
             </div>
 
             {workflows.length === 0 ? (
-                <div className="rounded-lg border-2 border-dashed py-12 text-center text-slate-500">
-                    <p className="font-medium text-slate-700 dark:text-slate-200">
+                <div className="rounded-lg border-2 border-dashed py-12 text-center text-muted-foreground">
+                    <p className="font-medium text-foreground dark:text-slate-200">
                         No automation rules defined yet.
                     </p>
                     <p className="mt-1 text-sm">

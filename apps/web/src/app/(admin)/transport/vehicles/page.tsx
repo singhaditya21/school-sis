@@ -34,9 +34,9 @@ export default async function TransportVehiclesPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold">Fleet</h1>
-                    <p className="text-gray-600 mt-1">Vehicles, drivers and compliance dates</p>
+                    <p className="text-muted-foreground mt-1">Vehicles, drivers and compliance dates</p>
                 </div>
-                <Link href="/transport" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                <Link href="/transport" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">
                     ← Back to Transport
                 </Link>
             </div>
@@ -45,7 +45,7 @@ export default async function TransportVehiclesPage() {
                 {cards.map((card) => (
                     <Card key={card.label}>
                         <CardContent className="pt-4">
-                            <div className="text-sm text-gray-500">{card.label}</div>
+                            <div className="text-sm text-muted-foreground">{card.label}</div>
                             <div className={`text-2xl font-bold ${card.className}`}>{card.value}</div>
                         </CardContent>
                     </Card>

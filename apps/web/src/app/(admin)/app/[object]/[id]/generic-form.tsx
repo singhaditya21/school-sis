@@ -101,7 +101,7 @@ export default function GenericFormClient({
                                     <div key={field.apiName} className="space-y-2">
                                         <Label className="flex gap-1" htmlFor={field.apiName}>
                                             {field.label}
-                                            <span className="ml-2 text-xs text-slate-500">(read only)</span>
+                                            <span className="ml-2 text-xs text-muted-foreground">(read only)</span>
                                         </Label>
                                         <Input
                                             id={field.apiName}
@@ -123,7 +123,7 @@ export default function GenericFormClient({
                                     {field.dataType === 'PICKLIST' ? (
                                         <select 
                                             id={field.apiName}
-                                            className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="flex h-10 w-full rounded-md border border-border bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                             defaultValue={initialValue}
                                             {...register(field.apiName, { required: field.isRequired })}
                                         >
@@ -135,7 +135,7 @@ export default function GenericFormClient({
                                     ) : field.dataType === 'BOOLEAN' ? (
                                         <select
                                             id={field.apiName}
-                                            className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="flex h-10 w-full rounded-md border border-border bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                             defaultValue={initialValue}
                                             {...register(field.apiName, { required: field.isRequired })}
                                         >
@@ -160,7 +160,7 @@ export default function GenericFormClient({
                         })}
                     </div>
                 </CardContent>
-                <CardFooter className="flex justify-between border-t p-4 bg-slate-50">
+                <CardFooter className="flex justify-between border-t p-4 bg-muted">
                     <Button variant="outline" type="button" onClick={() => router.back()}>Cancel</Button>
                     <Button type="submit" disabled={isSaving}>
                         {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

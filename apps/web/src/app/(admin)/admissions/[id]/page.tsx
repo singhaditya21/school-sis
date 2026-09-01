@@ -30,7 +30,7 @@ const stageColors: Record<string, string> = {
     ACCEPTED: 'bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-300',
     ENROLLED: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
     REJECTED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-    WITHDRAWN: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+    WITHDRAWN: 'bg-muted text-foreground dark:bg-gray-800 dark:text-gray-300',
 };
 
 export default async function LeadDetailPage({ params }: Props) {
@@ -63,7 +63,7 @@ export default async function LeadDetailPage({ params }: Props) {
         <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <h1 className="text-2xl font-bold text-foreground dark:text-white">
                         {lead.childFirstName} {lead.childLastName}
                     </h1>
                     <p className="text-muted-foreground mt-1">
@@ -71,7 +71,7 @@ export default async function LeadDetailPage({ params }: Props) {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${stageColors[lead.stage] || 'bg-gray-100 text-gray-700'}`}>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${stageColors[lead.stage] || 'bg-muted text-foreground'}`}>
                         {lead.stage.replace(/_/g, ' ')}
                     </span>
                     <Link href="/admissions" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
@@ -82,47 +82,47 @@ export default async function LeadDetailPage({ params }: Props) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Lead Details */}
-                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Lead Details</h2>
+                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
+                    <h2 className="text-lg font-semibold text-foreground dark:text-white mb-4">Lead Details</h2>
                     <dl className="space-y-3 text-sm">
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Child Name</dt>
-                            <dd className="font-medium text-gray-900 dark:text-white">{lead.childFirstName} {lead.childLastName}</dd>
+                            <dd className="font-medium text-foreground dark:text-white">{lead.childFirstName} {lead.childLastName}</dd>
                         </div>
                         {lead.childDob && (
                             <div className="flex justify-between">
                                 <dt className="text-muted-foreground">Date of Birth</dt>
-                                <dd className="font-medium text-gray-900 dark:text-white">{lead.childDob}</dd>
+                                <dd className="font-medium text-foreground dark:text-white">{lead.childDob}</dd>
                             </div>
                         )}
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Grade</dt>
-                            <dd className="font-medium text-gray-900 dark:text-white">{lead.applyingForGrade}</dd>
+                            <dd className="font-medium text-foreground dark:text-white">{lead.applyingForGrade}</dd>
                         </div>
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Source</dt>
-                            <dd className="font-medium text-gray-900 dark:text-white capitalize">{lead.source.toLowerCase().replace(/_/g, ' ')}</dd>
+                            <dd className="font-medium text-foreground dark:text-white capitalize">{lead.source.toLowerCase().replace(/_/g, ' ')}</dd>
                         </div>
                         {lead.previousSchool && (
                             <div className="flex justify-between">
                                 <dt className="text-muted-foreground">Previous School</dt>
-                                <dd className="font-medium text-gray-900 dark:text-white">{lead.previousSchool}</dd>
+                                <dd className="font-medium text-foreground dark:text-white">{lead.previousSchool}</dd>
                             </div>
                         )}
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Assigned To</dt>
-                            <dd className="font-medium text-gray-900 dark:text-white">{lead.assignedToName || 'Unassigned'}</dd>
+                            <dd className="font-medium text-foreground dark:text-white">{lead.assignedToName || 'Unassigned'}</dd>
                         </div>
                     </dl>
                 </div>
 
                 {/* Parent Contact */}
-                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Parent Contact</h2>
+                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
+                    <h2 className="text-lg font-semibold text-foreground dark:text-white mb-4">Parent Contact</h2>
                     <dl className="space-y-3 text-sm">
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Name</dt>
-                            <dd className="font-medium text-gray-900 dark:text-white">{lead.parentName}</dd>
+                            <dd className="font-medium text-foreground dark:text-white">{lead.parentName}</dd>
                         </div>
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Phone</dt>
@@ -146,18 +146,18 @@ export default async function LeadDetailPage({ params }: Props) {
 
             {/* Documents + score */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6">
+                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Documents</h2>
+                        <h2 className="text-lg font-semibold text-foreground dark:text-white">Documents</h2>
                         <Link href={`/admissions/${id}/documents`} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
                             Open checklist →
                         </Link>
                     </div>
                     <div className="flex items-baseline gap-2">
-                        <span className="text-3xl font-bold text-gray-900 dark:text-white">{requiredVerified}</span>
+                        <span className="text-3xl font-bold text-foreground dark:text-white">{requiredVerified}</span>
                         <span className="text-muted-foreground">/ {requiredTotal} required documents verified</span>
                     </div>
-                    <div className="mt-3 h-2 w-full rounded-full bg-gray-100 dark:bg-gray-800">
+                    <div className="mt-3 h-2 w-full rounded-full bg-muted dark:bg-gray-800">
                         <div
                             className="h-2 rounded-full bg-emerald-500"
                             style={{ width: requiredTotal ? `${Math.round((requiredVerified / requiredTotal) * 100)}%` : '0%' }}
@@ -170,14 +170,14 @@ export default async function LeadDetailPage({ params }: Props) {
                     </p>
                 </div>
 
-                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Lead Score</h2>
+                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
+                    <h2 className="text-lg font-semibold text-foreground dark:text-white mb-1">Lead Score</h2>
                     <p className="text-xs text-muted-foreground mb-4">
                         Rule-based score computed from this lead&apos;s own record — source, stage, data
                         completeness and recency.
                     </p>
                     <div className="flex items-baseline gap-2 mb-4">
-                        <span className="text-3xl font-bold text-gray-900 dark:text-white">{score.score}</span>
+                        <span className="text-3xl font-bold text-foreground dark:text-white">{score.score}</span>
                         <span className="text-muted-foreground">/ 100</span>
                     </div>
                     <ul className="space-y-2 text-sm">
@@ -185,11 +185,11 @@ export default async function LeadDetailPage({ params }: Props) {
                             <li key={b.factor}>
                                 <div className="flex justify-between">
                                     <span className="text-muted-foreground">{b.factor}</span>
-                                    <span className="font-medium text-gray-900 dark:text-white">
+                                    <span className="font-medium text-foreground dark:text-white">
                                         {b.score}/{b.maxScore}
                                     </span>
                                 </div>
-                                <div className="mt-1 h-1.5 w-full rounded-full bg-gray-100 dark:bg-gray-800">
+                                <div className="mt-1 h-1.5 w-full rounded-full bg-muted dark:bg-gray-800">
                                     <div
                                         className="h-1.5 rounded-full bg-blue-500"
                                         style={{ width: `${Math.round((b.score / b.maxScore) * 100)}%` }}
@@ -203,8 +203,8 @@ export default async function LeadDetailPage({ params }: Props) {
 
             {/* Notes */}
             {lead.notes && (
-                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Notes</h2>
+                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
+                    <h2 className="text-lg font-semibold text-foreground dark:text-white mb-2">Notes</h2>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap">{lead.notes}</p>
                 </div>
             )}

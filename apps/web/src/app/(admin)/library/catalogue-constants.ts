@@ -29,7 +29,7 @@ export const CATEGORY_BADGE_CLASSES: Record<string, string> = {
     FICTION: 'bg-green-100 text-green-700',
     NON_FICTION: 'bg-orange-100 text-orange-700',
     MAGAZINE: 'bg-pink-100 text-pink-700',
-    NEWSPAPER: 'bg-gray-100 text-gray-700',
+    NEWSPAPER: 'bg-muted text-foreground',
     JOURNAL: 'bg-teal-100 text-teal-700',
 };
 
@@ -37,7 +37,7 @@ export const HISTORY_STATUS_BADGE_CLASSES: Record<string, string> = {
     ISSUED: 'bg-blue-100 text-blue-700',
     OVERDUE: 'bg-red-100 text-red-700',
     RETURNED: 'bg-green-100 text-green-700',
-    LOST: 'bg-gray-100 text-gray-700',
+    LOST: 'bg-muted text-foreground',
 };
 
 export interface CatalogueBookView {

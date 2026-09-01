@@ -15,7 +15,7 @@ const METHOD_COLORS: Record<string, string> = {
 };
 
 const AUTH_BADGE: Record<string, string> = {
-    public: 'bg-gray-100 text-gray-700',
+    public: 'bg-muted text-foreground',
     session: 'bg-indigo-100 text-indigo-700',
     'session-permission': 'bg-purple-100 text-purple-700',
     'integration-key': 'bg-cyan-100 text-cyan-700',
@@ -51,7 +51,7 @@ export default function ApiDocsPage() {
             <div className="flex items-start justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">API Reference</h1>
-                    <p className="text-gray-600 mt-1">
+                    <p className="text-muted-foreground mt-1">
                         The {API_ROUTES.length} HTTP endpoints this deployment actually serves, read from the route
                         handlers themselves. A test fails the build if a route is added or removed without updating
                         this page.
@@ -67,7 +67,7 @@ export default function ApiDocsPage() {
                     <CardTitle className="text-base">Authentication</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
-                    <p className="text-gray-600">
+                    <p className="text-muted-foreground">
                         There is no single credential for the whole surface. Each endpoint uses one of the modes
                         below — most of the product API is a first-party browser session, not a bearer token.
                     </p>
@@ -75,7 +75,7 @@ export default function ApiDocsPage() {
                         {usedAuthModes.map((mode) => (
                             <div key={mode} className="rounded-md border p-3">
                                 <Badge className={`${AUTH_BADGE[mode]} mb-2`}>{API_AUTH_MODES[mode].label}</Badge>
-                                <p className="text-xs text-gray-600">{API_AUTH_MODES[mode].description}</p>
+                                <p className="text-xs text-muted-foreground">{API_AUTH_MODES[mode].description}</p>
                             </div>
                         ))}
                     </div>
@@ -87,7 +87,7 @@ export default function ApiDocsPage() {
                     <button
                         key={entry}
                         onClick={() => setGroup(entry)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${group === entry ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${group === entry ? 'bg-blue-600 text-white' : 'bg-muted hover:bg-gray-200'
                             }`}
                     >
                         {entry}
@@ -103,7 +103,7 @@ export default function ApiDocsPage() {
 
             {routes.length === 0 ? (
                 <Card>
-                    <CardContent className="py-8 text-center text-sm text-gray-500">
+                    <CardContent className="py-8 text-center text-sm text-muted-foreground">
                         No endpoint matches that filter.
                     </CardContent>
                 </Card>
@@ -156,7 +156,7 @@ function EndpointCard({
                     </Badge>
                     {hasDetail && (
                         <svg
-                            className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                            className={`w-4 h-4 shrink-0 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`}
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -166,7 +166,7 @@ function EndpointCard({
                     )}
                 </button>
 
-                <p className="text-sm text-gray-600 mt-2">{route.summary}</p>
+                <p className="text-sm text-muted-foreground mt-2">{route.summary}</p>
 
                 {expanded && hasDetail && (
                     <div className="mt-4 pt-4 border-t space-y-4 text-sm">
@@ -180,7 +180,7 @@ function EndpointCard({
                             <div>
                                 <h4 className="font-medium mb-2">Query parameters</h4>
                                 <table className="w-full text-sm">
-                                    <thead className="bg-gray-50">
+                                    <thead className="bg-muted">
                                         <tr>
                                             <th className="px-3 py-2 text-left">Name</th>
                                             <th className="px-3 py-2 text-left">Required</th>
@@ -196,7 +196,7 @@ function EndpointCard({
                                                         {param.required ? 'Required' : 'Optional'}
                                                     </Badge>
                                                 </td>
-                                                <td className="px-3 py-2 text-gray-600">{param.description}</td>
+                                                <td className="px-3 py-2 text-muted-foreground">{param.description}</td>
                                             </tr>
                                         ))}
                                     </tbody>

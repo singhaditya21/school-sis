@@ -39,13 +39,13 @@ export default async function LibraryPage({ searchParams }: PageProps) {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold">Library Management</h1>
-                    <p className="text-gray-600 mt-1">Manage book catalog, issues, and returns</p>
+                    <p className="text-muted-foreground mt-1">Manage book catalog, issues, and returns</p>
                 </div>
                 <div className="flex gap-3">
                     <Link href="/library/issue" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                         📖 Issue Book
                     </Link>
-                    <Link href="/library/history" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <Link href="/library/history" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">
                         📋 History
                     </Link>
                 </div>
@@ -55,7 +55,7 @@ export default async function LibraryPage({ searchParams }: PageProps) {
                 {cards.map((card) => (
                     <Card key={card.label}>
                         <CardContent className="pt-4">
-                            <div className="text-sm text-gray-500">{card.label}</div>
+                            <div className="text-sm text-muted-foreground">{card.label}</div>
                             <div className={`text-2xl font-bold ${card.className}`}>{card.value}</div>
                         </CardContent>
                     </Card>

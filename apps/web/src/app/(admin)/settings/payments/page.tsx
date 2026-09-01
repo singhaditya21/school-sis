@@ -16,7 +16,7 @@ export default async function PaymentsSettingsPage() {
     return (
         <div className="p-6 max-w-4xl mx-auto space-y-6">
             <div>
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground dark:text-white">
                     Payment Processing
                 </h1>
                 <p className="text-muted-foreground mt-1">
@@ -55,7 +55,7 @@ export default async function PaymentsSettingsPage() {
                 <CardContent className="space-y-4">
                     {state === 'PROVIDER_NOT_CONFIGURED' && (
                         <Notice tone="neutral">
-                            <p className="font-medium text-gray-900 dark:text-white">
+                            <p className="font-medium text-foreground dark:text-white">
                                 Stripe is not configured on this deployment.
                             </p>
                             <p className="text-muted-foreground">
@@ -89,7 +89,7 @@ export default async function PaymentsSettingsPage() {
                     {state === 'ONBOARDING_INCOMPLETE' && (
                         <>
                             <Notice tone="warning">
-                                <p className="font-medium text-gray-900 dark:text-white">
+                                <p className="font-medium text-foreground dark:text-white">
                                     Onboarding is not finished — this account cannot take payments yet.
                                 </p>
                                 <p className="text-muted-foreground">
@@ -104,7 +104,7 @@ export default async function PaymentsSettingsPage() {
                             </dl>
                             {settings.requirementsDue.length > 0 && (
                                 <div className="text-sm">
-                                    <p className="font-medium text-gray-900 dark:text-white mb-1">
+                                    <p className="font-medium text-foreground dark:text-white mb-1">
                                         Stripe is still waiting on:
                                     </p>
                                     <ul className="list-disc pl-5 space-y-0.5 text-muted-foreground font-mono text-xs">
@@ -121,7 +121,7 @@ export default async function PaymentsSettingsPage() {
                     {state === 'READY' && (
                         <>
                             <Notice tone="success">
-                                <p className="font-medium text-gray-900 dark:text-white">
+                                <p className="font-medium text-foreground dark:text-white">
                                     Stripe confirms this account can accept charges.
                                 </p>
                                 <p className="text-muted-foreground">
@@ -140,7 +140,7 @@ export default async function PaymentsSettingsPage() {
 
                     {state === 'STATUS_UNAVAILABLE' && (
                         <Notice tone="neutral">
-                            <p className="font-medium text-gray-900 dark:text-white">
+                            <p className="font-medium text-foreground dark:text-white">
                                 An account is linked, but its status could not be confirmed.
                             </p>
                             <p className="text-muted-foreground">
@@ -175,7 +175,7 @@ export default async function PaymentsSettingsPage() {
                         </Notice>
                     ) : (
                         <Notice tone="warning">
-                            <p className="font-medium text-gray-900 dark:text-white">
+                            <p className="font-medium text-foreground dark:text-white">
                                 No webhook signing secret is configured.
                             </p>
                             <p className="text-muted-foreground">
@@ -198,7 +198,7 @@ export default async function PaymentsSettingsPage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <section>
-                        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                        <h3 className="text-sm font-medium text-foreground dark:text-white mb-2">
                             Checkout sessions
                         </h3>
                         {settings.orders.length === 0 ? (
@@ -208,7 +208,7 @@ export default async function PaymentsSettingsPage() {
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
-                                    <thead className="text-xs uppercase text-muted-foreground border-b border-gray-200 dark:border-gray-800">
+                                    <thead className="text-xs uppercase text-muted-foreground border-b border-border dark:border-gray-800">
                                         <tr>
                                             <th className="py-2 text-left">Provider</th>
                                             <th className="py-2 text-left">Status</th>
@@ -240,7 +240,7 @@ export default async function PaymentsSettingsPage() {
                     </section>
 
                     <section>
-                        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                        <h3 className="text-sm font-medium text-foreground dark:text-white mb-2">
                             Provider callbacks
                         </h3>
                         {settings.events.length === 0 ? (
@@ -250,7 +250,7 @@ export default async function PaymentsSettingsPage() {
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
-                                    <thead className="text-xs uppercase text-muted-foreground border-b border-gray-200 dark:border-gray-800">
+                                    <thead className="text-xs uppercase text-muted-foreground border-b border-border dark:border-gray-800">
                                         <tr>
                                             <th className="py-2 text-left">Provider</th>
                                             <th className="py-2 text-right">Received</th>
@@ -308,7 +308,7 @@ function StateBadge({ state }: { state: string }) {
 
 function Capability({ label, enabled }: { label: string; enabled: boolean | null }) {
     return (
-        <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
+        <div className="rounded-lg border border-border dark:border-gray-800 p-3">
             <dt className="text-xs text-muted-foreground">{label}</dt>
             <dd
                 className={`text-sm font-medium mt-0.5 ${
@@ -333,7 +333,7 @@ function Notice({
     children: React.ReactNode;
 }) {
     const tones = {
-        neutral: 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/40',
+        neutral: 'border-border dark:border-gray-800 bg-muted dark:bg-gray-900/40',
         warning: 'border-amber-200 dark:border-amber-900/50 bg-amber-50/60 dark:bg-amber-950/20',
         success: 'border-green-200 dark:border-green-900/50 bg-green-50/60 dark:bg-green-950/20',
     } as const;

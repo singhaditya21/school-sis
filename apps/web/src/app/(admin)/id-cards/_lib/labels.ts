@@ -18,7 +18,7 @@ export function idCardStatusClass(status: string): string {
         case 'PENDING':
             return 'bg-amber-100 text-amber-800';
         default:
-            return 'bg-gray-100 text-gray-800';
+            return 'bg-muted text-foreground';
     }
 }
 

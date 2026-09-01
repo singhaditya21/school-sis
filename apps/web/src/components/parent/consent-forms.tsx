@@ -51,8 +51,8 @@ export function ConsentForms({
 
     if (forms.length === 0) {
         return (
-            <div className="rounded-xl border border-dashed bg-white p-12 text-center text-slate-500">
-                <p className="font-medium text-slate-600">No consent forms</p>
+            <div className="rounded-xl border border-dashed bg-white p-12 text-center text-muted-foreground">
+                <p className="font-medium text-muted-foreground">No consent forms</p>
                 <p className="mt-1 text-sm">The school has not published any forms for parents yet.</p>
             </div>
         );
@@ -62,14 +62,14 @@ export function ConsentForms({
         <div className="space-y-8">
             <section>
                 <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-slate-900">Open forms</h2>
+                    <h2 className="text-lg font-semibold text-foreground">Open forms</h2>
                     <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
                         {awaiting.length} awaiting your answer
                     </span>
                 </div>
 
                 {open.length === 0 ? (
-                    <div className="rounded-lg border border-dashed bg-white p-8 text-center text-slate-500">
+                    <div className="rounded-lg border border-dashed bg-white p-8 text-center text-muted-foreground">
                         No forms are open at the moment.
                     </div>
                 ) : (
@@ -83,18 +83,18 @@ export function ConsentForms({
                                     key={form.id}
                                     data-testid="consent-form-card"
                                     className={`rounded-xl border bg-white p-5 shadow-sm ${
-                                        form.response ? 'border-slate-200' : 'border-amber-200'
+                                        form.response ? 'border-border' : 'border-amber-200'
                                     }`}
                                 >
                                     <div className="flex flex-wrap items-start justify-between gap-3">
                                         <div>
                                             <div className="mb-1 flex flex-wrap items-center gap-2">
-                                                <h3 className="font-semibold text-slate-900">{form.title}</h3>
-                                                <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium uppercase text-slate-600">
+                                                <h3 className="font-semibold text-foreground">{form.title}</h3>
+                                                <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
                                                     {form.formType}
                                                 </span>
                                             </div>
-                                            <p className="text-xs text-slate-500">
+                                            <p className="text-xs text-muted-foreground">
                                                 For {studentName}
                                                 {form.dueDate ? ` · due ${form.dueDate}` : ' · no deadline'}
                                             </p>
@@ -113,15 +113,15 @@ export function ConsentForms({
                                     </div>
 
                                     {form.description && (
-                                        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                                            <p className="whitespace-pre-line text-sm text-slate-600">
+                                        <div className="mt-4 rounded-lg border border-border bg-muted p-4">
+                                            <p className="whitespace-pre-line text-sm text-muted-foreground">
                                                 {form.description}
                                             </p>
                                         </div>
                                     )}
 
                                     {form.response && (
-                                        <p className="mt-3 text-xs text-slate-500">
+                                        <p className="mt-3 text-xs text-muted-foreground">
                                             Answered {form.respondedAt ? form.respondedAt.slice(0, 10) : ''}
                                             {form.respondentName ? ` by ${form.respondentName}` : ''}
                                             {form.notes ? ` — “${form.notes}”` : ''}
@@ -135,7 +135,7 @@ export function ConsentForms({
                                             maxLength={2000}
                                             rows={3}
                                             placeholder="Optional note for the school"
-                                            className="mt-4 w-full rounded-lg border border-slate-200 p-3 text-sm focus:border-slate-400 focus:outline-none"
+                                            className="mt-4 w-full rounded-lg border border-border p-3 text-sm focus:border-slate-400 focus:outline-none"
                                         />
                                     )}
 
@@ -163,7 +163,7 @@ export function ConsentForms({
                                                 setOpenNoteFor(noteOpen ? null : form.id);
                                                 setNote('');
                                             }}
-                                            className="text-xs font-medium text-slate-500 hover:text-slate-800"
+                                            className="text-xs font-medium text-muted-foreground hover:text-foreground"
                                         >
                                             {noteOpen ? 'Remove note' : 'Add a note'}
                                         </button>
@@ -176,13 +176,13 @@ export function ConsentForms({
             </section>
 
             <section>
-                <h2 className="mb-3 text-lg font-semibold text-slate-900">Closed forms</h2>
+                <h2 className="mb-3 text-lg font-semibold text-foreground">Closed forms</h2>
                 {closed.length === 0 ? (
-                    <p className="text-sm text-slate-500">No closed forms.</p>
+                    <p className="text-sm text-muted-foreground">No closed forms.</p>
                 ) : (
                     <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
                         <table className="w-full text-left text-sm">
-                            <thead className="border-b border-slate-200 bg-slate-50/50 text-xs font-semibold uppercase text-slate-500">
+                            <thead className="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground">
                                 <tr>
                                     <th className="px-6 py-3">Form</th>
                                     <th className="px-6 py-3">Answered</th>
@@ -193,11 +193,11 @@ export function ConsentForms({
                             <tbody className="divide-y divide-slate-100">
                                 {closed.map((form) => (
                                     <tr key={form.id}>
-                                        <td className="px-6 py-4 font-medium text-slate-900">{form.title}</td>
-                                        <td className="px-6 py-4 text-slate-500">
+                                        <td className="px-6 py-4 font-medium text-foreground">{form.title}</td>
+                                        <td className="px-6 py-4 text-muted-foreground">
                                             {form.respondedAt ? form.respondedAt.slice(0, 10) : 'No response'}
                                         </td>
-                                        <td className="px-6 py-4 text-slate-500">{form.respondentName ?? '—'}</td>
+                                        <td className="px-6 py-4 text-muted-foreground">{form.respondentName ?? '—'}</td>
                                         <td className="px-6 py-4 text-center">
                                             <span
                                                 className={`rounded px-2 py-0.5 text-[10px] font-bold ${
@@ -205,7 +205,7 @@ export function ConsentForms({
                                                         ? 'bg-emerald-100 text-emerald-700'
                                                         : form.response === 'DECLINED'
                                                           ? 'bg-red-100 text-red-700'
-                                                          : 'bg-slate-100 text-slate-500'
+                                                          : 'bg-muted text-muted-foreground'
                                                 }`}
                                             >
                                                 {form.response ?? 'NOT ANSWERED'}

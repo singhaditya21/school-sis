@@ -72,15 +72,15 @@ export default async function ExecutiveDashboardPage() {
         <Card>
           <Title>Past Due</Title>
           <div className="mt-6 space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <Text className="font-medium text-gray-700">Overdue Balance</Text>
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+              <Text className="font-medium text-foreground">Overdue Balance</Text>
               <Text className="text-xl font-bold text-red-600">{formatCurrency(metrics.overdueBalance)}</Text>
             </div>
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <Text className="font-medium text-gray-700">Students With Dues</Text>
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+              <Text className="font-medium text-foreground">Students With Dues</Text>
               <Text className="text-xl font-bold text-red-600">{metrics.defaulterCount}</Text>
             </div>
-            <p className="text-sm text-gray-500 mt-4">
+            <p className="text-sm text-muted-foreground mt-4">
               Counts invoices whose due date has passed and which still carry a balance.
               Cancelled, waived and draft invoices are excluded.
             </p>

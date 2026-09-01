@@ -108,16 +108,16 @@ export function CollectionRateBar({ rate }: { rate: number }) {
                     : 'bg-red-500';
 
     return (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
+        <div className="rounded-xl border border-border dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
             <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                <h3 className="text-sm font-semibold text-foreground dark:text-white">
                     Collection Rate
                 </h3>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                <span className="text-2xl font-bold text-foreground dark:text-white">
                     {rate}%
                 </span>
             </div>
-            <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+            <div className="h-4 bg-muted dark:bg-gray-800 rounded-full overflow-hidden">
                 <div
                     className={`h-full ${color} rounded-full transition-all duration-700 ease-out`}
                     style={{ width: `${rate}%` }}
@@ -141,9 +141,9 @@ export function CollectionTrendChart({ data }: { data: CollectionTrendItem[] }) 
     };
 
     return (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
+        <div className="rounded-xl border border-border dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
             <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-foreground dark:text-white flex items-center gap-2">
                     <BarChart3 className="w-5 h-5 text-blue-500" />
                     Collection Trend
                 </h3>

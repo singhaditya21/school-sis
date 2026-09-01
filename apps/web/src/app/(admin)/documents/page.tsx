@@ -68,7 +68,7 @@ export default async function DocumentsPage({ searchParams }: PageProps) {
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Student documents</h1>
-                    <p className="mt-1 text-gray-600">
+                    <p className="mt-1 text-muted-foreground">
                         Birth certificates, ID proofs and previous school records, with a note of
                         who checked each one against the original.
                     </p>
@@ -79,27 +79,27 @@ export default async function DocumentsPage({ searchParams }: PageProps) {
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Documents on file</div>
+                        <div className="text-sm text-muted-foreground">Documents on file</div>
                         <div className="text-2xl font-bold">{stats.total}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Verified</div>
+                        <div className="text-sm text-muted-foreground">Verified</div>
                         <div className="text-2xl font-bold text-green-600">{stats.verified}</div>
                     </CardContent>
                 </Card>
                 <Card className={stats.pending > 0 ? 'border-2 border-amber-200' : undefined}>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Awaiting check</div>
+                        <div className="text-sm text-muted-foreground">Awaiting check</div>
                         <div className="text-2xl font-bold text-amber-600">{stats.pending}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Students with a document</div>
+                        <div className="text-sm text-muted-foreground">Students with a document</div>
                         <div className="text-2xl font-bold">{stats.studentsCovered}</div>
-                        <div className="mt-1 text-xs text-gray-500">
+                        <div className="mt-1 text-xs text-muted-foreground">
                             of {stats.activeStudents} active
                         </div>
                     </CardContent>
@@ -118,7 +118,7 @@ export default async function DocumentsPage({ searchParams }: PageProps) {
                                     className={`rounded-md px-3 py-1.5 text-sm font-medium ${
                                         verification === tab
                                             ? 'bg-gray-900 text-white'
-                                            : 'text-gray-600 hover:bg-gray-100'
+                                            : 'text-muted-foreground hover:bg-muted'
                                     }`}
                                 >
                                     {TAB_LABELS[tab]}
@@ -136,7 +136,7 @@ export default async function DocumentsPage({ searchParams }: PageProps) {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm">
-                            <thead className="border-y bg-gray-50 text-xs uppercase text-gray-500">
+                            <thead className="border-y bg-muted text-xs uppercase text-muted-foreground">
                                 <tr>
                                     <th className="px-4 py-3 font-medium">Student</th>
                                     <th className="px-4 py-3 font-medium">Document</th>
@@ -149,12 +149,12 @@ export default async function DocumentsPage({ searchParams }: PageProps) {
                             </thead>
                             <tbody className="divide-y">
                                 {documents.map(doc => (
-                                    <tr key={doc.id} className="hover:bg-gray-50">
+                                    <tr key={doc.id} className="hover:bg-muted">
                                         <td className="px-4 py-3">
-                                            <div className="font-medium text-gray-900">
+                                            <div className="font-medium text-foreground">
                                                 {doc.studentName ?? 'Student record removed'}
                                             </div>
-                                            <div className="text-xs text-gray-500">
+                                            <div className="text-xs text-muted-foreground">
                                                 {doc.admissionNumber ?? '—'}
                                                 {doc.gradeName ? ` · ${doc.gradeName}${doc.sectionName ? `-${doc.sectionName}` : ''}` : ''}
                                             </div>
@@ -170,7 +170,7 @@ export default async function DocumentsPage({ searchParams }: PageProps) {
                                                     {doc.fileName}
                                                 </a>
                                             ) : (
-                                                <span className="text-gray-900">{doc.fileName}</span>
+                                                <span className="text-foreground">{doc.fileName}</span>
                                             )}
                                             {!doc.fileUrl && (
                                                 <div className="text-xs text-amber-700">
@@ -178,17 +178,17 @@ export default async function DocumentsPage({ searchParams }: PageProps) {
                                                 </div>
                                             )}
                                             {doc.notes && (
-                                                <div className="mt-0.5 max-w-xs text-xs text-gray-500">
+                                                <div className="mt-0.5 max-w-xs text-xs text-muted-foreground">
                                                     {doc.notes}
                                                 </div>
                                             )}
                                         </td>
                                         <td className="px-4 py-3">
-                                            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+                                            <span className="rounded bg-muted px-2 py-0.5 text-xs text-foreground">
                                                 {doc.documentType}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 text-right text-gray-600">
+                                        <td className="px-4 py-3 text-right text-muted-foreground">
                                             {formatFileSize(doc.fileSize)}
                                         </td>
                                         <td className="px-4 py-3">
@@ -197,7 +197,7 @@ export default async function DocumentsPage({ searchParams }: PageProps) {
                                                     <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
                                                         Verified
                                                     </span>
-                                                    <div className="mt-1 text-xs text-gray-500">
+                                                    <div className="mt-1 text-xs text-muted-foreground">
                                                         {doc.verifiedByName ? `by ${doc.verifiedByName}` : 'by an unknown user'}
                                                         {doc.verifiedAt ? ` · ${formatDateTime(doc.verifiedAt)}` : ''}
                                                     </div>
@@ -208,10 +208,10 @@ export default async function DocumentsPage({ searchParams }: PageProps) {
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-gray-600">
+                                        <td className="px-4 py-3 text-muted-foreground">
                                             <div>{formatDateTime(doc.createdAt)}</div>
                                             {doc.uploadedByName && (
-                                                <div className="text-xs text-gray-500">by {doc.uploadedByName}</div>
+                                                <div className="text-xs text-muted-foreground">by {doc.uploadedByName}</div>
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-right">
@@ -221,7 +221,7 @@ export default async function DocumentsPage({ searchParams }: PageProps) {
                                 ))}
                                 {documents.length === 0 && (
                                     <tr>
-                                        <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                                        <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
                                             {filtered
                                                 ? 'No documents match these filters.'
                                                 : 'No documents on file yet.'}
@@ -240,7 +240,7 @@ export default async function DocumentsPage({ searchParams }: PageProps) {
                 </p>
             )}
 
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
                 Verifying a document records that a member of staff checked it against the original.
                 Nothing is validated automatically, and no external register is contacted.
             </p>

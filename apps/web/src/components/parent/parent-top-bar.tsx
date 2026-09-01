@@ -38,15 +38,15 @@ export function ParentTopBar({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
                 {loading ? (
-                    <div className="h-9 w-48 animate-pulse rounded-md bg-slate-100" />
+                    <div className="h-9 w-48 animate-pulse rounded-md bg-muted" />
                 ) : students.length === 0 ? (
-                    <p className="text-sm text-slate-500">No child is linked to your account yet.</p>
+                    <p className="text-sm text-muted-foreground">No child is linked to your account yet.</p>
                 ) : students.length === 1 && selected ? (
                     <div className="flex items-center gap-2">
                         <span className="rounded-full bg-slate-900 px-3 py-1 text-sm font-medium text-white">
                             {selected.name}
                         </span>
-                        <span className="text-sm text-slate-500">
+                        <span className="text-sm text-muted-foreground">
                             {selected.gradeName} · {selected.sectionName}
                         </span>
                     </div>
@@ -56,7 +56,7 @@ export function ParentTopBar({
                         aria-label="Choose a child"
                         data-testid="child-switcher"
                     >
-                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                             Viewing
                         </span>
                         {students.map((student) => {
@@ -72,13 +72,13 @@ export function ParentTopBar({
                                     className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
                                         isSelected
                                             ? 'border-slate-900 bg-slate-900 text-white'
-                                            : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
+                                            : 'border-border bg-white text-foreground hover:border-slate-400'
                                     }`}
                                 >
                                     {student.name}
                                     <span
                                         className={`ml-2 text-xs font-normal ${
-                                            isSelected ? 'text-slate-300' : 'text-slate-400'
+                                            isSelected ? 'text-slate-300' : 'text-muted-foreground'
                                         }`}
                                     >
                                         {student.gradeName} · {student.sectionName}
@@ -94,7 +94,7 @@ export function ParentTopBar({
                 <button
                     type="submit"
                     data-testid="parent-sign-out"
-                    className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                    className="inline-flex items-center gap-2 rounded-md border border-border bg-white px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                     <LogOut className="h-4 w-4" />
                     Sign out

@@ -76,7 +76,7 @@ export default function TemplateForm({ availability }: { availability: ChannelAv
                             id="template-channel"
                             value={channel}
                             onChange={(event) => setChannel(event.target.value as MessageChannel)}
-                            className="mt-1 h-9 w-full rounded-md border border-slate-300 px-3 text-sm"
+                            className="mt-1 h-9 w-full rounded-md border border-border px-3 text-sm"
                         >
                             {MESSAGE_CHANNELS.map((option) => (
                                 <option key={option} value={option}>
@@ -84,7 +84,7 @@ export default function TemplateForm({ availability }: { availability: ChannelAv
                                 </option>
                             ))}
                         </select>
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="mt-1 text-xs text-muted-foreground">
                             {selectedProvider?.configured
                                 ? `Messages on this channel are accepted by the "${selectedProvider.provider}" provider and held in the outbox until a dispatcher runs.`
                                 : `${selectedProvider?.reason ?? 'This channel has no provider in this deployment.'} The template can still be written, but composing on it will be refused until that is fixed.`}
@@ -114,10 +114,10 @@ export default function TemplateForm({ availability }: { availability: ChannelAv
                                 'Dear {{guardianName}}, the term 2 fee for {{studentName}} is due on {{dueDate}}.'
                             }
                         />
-                        <div className="mt-1 flex justify-between text-xs text-slate-500">
+                        <div className="mt-1 flex justify-between text-xs text-muted-foreground">
                             <span>
                                 Wrap placeholders in double braces, e.g.{' '}
-                                <code className="rounded bg-slate-100 px-1">{'{{studentName}}'}</code>
+                                <code className="rounded bg-muted px-1">{'{{studentName}}'}</code>
                             </span>
                             <span>
                                 {body.length} chars
@@ -149,7 +149,7 @@ export default function TemplateForm({ availability }: { availability: ChannelAv
                     </CardHeader>
                     <CardContent>
                         {variables.length === 0 ? (
-                            <p className="text-sm text-slate-500">
+                            <p className="text-sm text-muted-foreground">
                                 None yet. Placeholders are read straight out of the text you type — there
                                 is no fixed list of supported variables.
                             </p>
@@ -166,7 +166,7 @@ export default function TemplateForm({ availability }: { availability: ChannelAv
                                 ))}
                             </div>
                         )}
-                        <p className="mt-3 text-xs text-slate-500">
+                        <p className="mt-3 text-xs text-muted-foreground">
                             When you compose from this template you will be asked for a value for each
                             placeholder. Values are not auto-filled from student records in this release.
                         </p>
@@ -179,9 +179,9 @@ export default function TemplateForm({ availability }: { availability: ChannelAv
                     </CardHeader>
                     <CardContent>
                         {channel === 'EMAIL' && subject && (
-                            <p className="mb-2 text-sm font-medium text-slate-800">{subject}</p>
+                            <p className="mb-2 text-sm font-medium text-foreground">{subject}</p>
                         )}
-                        <p className="whitespace-pre-wrap rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
+                        <p className="whitespace-pre-wrap rounded-md border bg-muted p-3 text-sm text-foreground">
                             {body || 'Your message will appear here.'}
                         </p>
                     </CardContent>

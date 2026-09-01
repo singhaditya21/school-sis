@@ -178,7 +178,7 @@ export default function CalendarClient({
                 <div className="flex items-center gap-2">
                     <Link
                         href={`/calendar?month=${prev.month}&year=${prev.year}`}
-                        className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50"
+                        className="rounded-md border px-3 py-2 text-sm hover:bg-muted"
                         aria-label="Previous month"
                     >
                         ←
@@ -188,14 +188,14 @@ export default function CalendarClient({
                     </h2>
                     <Link
                         href={`/calendar?month=${next.month}&year=${next.year}`}
-                        className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50"
+                        className="rounded-md border px-3 py-2 text-sm hover:bg-muted"
                         aria-label="Next month"
                     >
                         →
                     </Link>
                     <Link
                         href="/calendar"
-                        className="ml-2 rounded-md border px-3 py-2 text-sm hover:bg-slate-50"
+                        className="ml-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
                     >
                         Today
                     </Link>
@@ -205,7 +205,7 @@ export default function CalendarClient({
                     <select
                         value={typeFilter}
                         onChange={(event) => setTypeFilter(event.target.value)}
-                        className="h-9 rounded-md border border-slate-300 px-3 text-sm"
+                        className="h-9 rounded-md border border-border px-3 text-sm"
                         aria-label="Filter by event type"
                     >
                         <option value="ALL">All event types</option>
@@ -245,7 +245,7 @@ export default function CalendarClient({
                                     onChange={(e) =>
                                         setForm({ ...form, eventType: e.target.value as EventType })
                                     }
-                                    className="mt-1 h-9 w-full rounded-md border border-slate-300 px-3 text-sm"
+                                    className="mt-1 h-9 w-full rounded-md border border-border px-3 text-sm"
                                 >
                                     {EVENT_TYPES.map((type) => (
                                         <option key={type} value={type}>
@@ -266,7 +266,7 @@ export default function CalendarClient({
                                             audienceType: e.target.value as AudienceType,
                                         })
                                     }
-                                    className="mt-1 h-9 w-full rounded-md border border-slate-300 px-3 text-sm"
+                                    className="mt-1 h-9 w-full rounded-md border border-border px-3 text-sm"
                                 >
                                     {AUDIENCE_TYPES.map((audience) => (
                                         <option key={audience} value={audience}>
@@ -360,7 +360,7 @@ export default function CalendarClient({
                             </div>
                         </div>
 
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-muted-foreground">
                             Saving an event records it on the calendar. It does not notify anyone —
                             announcements are composed separately under Messages.
                         </p>
@@ -379,7 +379,7 @@ export default function CalendarClient({
 
             <Card>
                 <CardContent className="p-0">
-                    <div className="grid grid-cols-7 border-b bg-slate-50 text-center text-xs font-medium uppercase text-slate-500">
+                    <div className="grid grid-cols-7 border-b bg-muted text-center text-xs font-medium uppercase text-muted-foreground">
                         {WEEKDAYS.map((day) => (
                             <div key={day} className="px-2 py-2">
                                 {day}
@@ -392,7 +392,7 @@ export default function CalendarClient({
                                 return (
                                     <div
                                         key={`blank-${index}`}
-                                        className="min-h-28 border-b border-r bg-slate-50/60"
+                                        className="min-h-28 border-b border-r bg-muted/60"
                                     />
                                 );
                             }
@@ -410,7 +410,7 @@ export default function CalendarClient({
                                             className={`text-xs font-medium ${
                                                 isToday
                                                     ? 'rounded-full bg-blue-600 px-1.5 py-0.5 text-white'
-                                                    : 'text-slate-500'
+                                                    : 'text-muted-foreground'
                                             }`}
                                         >
                                             {cell.day}
@@ -418,7 +418,7 @@ export default function CalendarClient({
                                         <button
                                             type="button"
                                             aria-label={`Add event on ${cell.iso}`}
-                                            className="text-xs text-slate-300 hover:text-slate-700"
+                                            className="text-xs text-slate-300 hover:text-foreground"
                                             onClick={() => setForm(blankForm(cell.iso as string))}
                                         >
                                             +
@@ -439,7 +439,7 @@ export default function CalendarClient({
                                             </button>
                                         ))}
                                         {dayEvents.length > 3 && (
-                                            <span className="block px-1.5 text-[10px] text-slate-500">
+                                            <span className="block px-1.5 text-[10px] text-muted-foreground">
                                                 +{dayEvents.length - 3} more
                                             </span>
                                         )}
@@ -455,7 +455,7 @@ export default function CalendarClient({
                 <CardContent className="p-0">
                     <div className="border-b p-4">
                         <h2 className="font-bold">Upcoming events</h2>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-muted-foreground">
                             The next dated entries from today onward, across all months.
                         </p>
                     </div>
@@ -473,9 +473,9 @@ export default function CalendarClient({
                                 <div className="flex-1">
                                     <h3 className="font-semibold">{event.title}</h3>
                                     {event.description && (
-                                        <p className="mt-1 text-sm text-slate-600">{event.description}</p>
+                                        <p className="mt-1 text-sm text-muted-foreground">{event.description}</p>
                                     )}
-                                    <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                                    <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                                         <span>📅 {formatDayRange(event)}</span>
                                         {event.venue && <span>📍 {event.venue}</span>}
                                         {!event.isAllDay && event.startTime && (
@@ -517,7 +517,7 @@ export default function CalendarClient({
                             </div>
                         ))}
                         {upcoming.length === 0 && (
-                            <div className="p-12 text-center text-slate-400">
+                            <div className="p-12 text-center text-muted-foreground">
                                 No upcoming events on the calendar.
                             </div>
                         )}
@@ -531,8 +531,8 @@ export default function CalendarClient({
 function SummaryTile({ label, value }: { label: string; value: number }) {
     return (
         <div className="rounded-lg border bg-white p-4">
-            <div className="text-sm text-slate-500">{label}</div>
-            <div className="mt-1 text-2xl font-bold text-slate-900">{value}</div>
+            <div className="text-sm text-muted-foreground">{label}</div>
+            <div className="mt-1 text-2xl font-bold text-foreground">{value}</div>
         </div>
     );
 }

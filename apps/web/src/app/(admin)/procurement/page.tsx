@@ -26,11 +26,11 @@ export default async function ProcurementPage() {
 
     return (
         <div className="space-y-6">
-            <div className="border-b border-gray-200 dark:border-gray-800 pb-6">
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-50">
+            <div className="border-b border-border dark:border-gray-800 pb-6">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground dark:text-gray-50">
                     Vendor &amp; Data Processing
                 </h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-2">
+                <p className="text-muted-foreground dark:text-muted-foreground mt-2">
                     The third-party systems {campusName ?? 'this campus'} has connected, what each one is
                     allowed to reach, and when it last exchanged data.
                 </p>
@@ -45,7 +45,7 @@ export default async function ProcurementPage() {
                         <CardTitle className="text-3xl">{processors.length}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-muted-foreground dark:text-muted-foreground">
                             {liveCount} sending live data, {processors.length - liveCount} in mock mode.
                         </p>
                     </CardContent>
@@ -58,7 +58,7 @@ export default async function ProcurementPage() {
                         <CardTitle className="text-3xl">{apiKeyCount}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-muted-foreground dark:text-muted-foreground">
                             Credentials that can read this campus&rsquo;s data over the API.
                         </p>
                     </CardContent>
@@ -71,7 +71,7 @@ export default async function ProcurementPage() {
                         <CardTitle className="text-3xl">{webhookCount}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-muted-foreground dark:text-muted-foreground">
                             Endpoints this campus pushes event data to.
                         </p>
                     </CardContent>
@@ -96,7 +96,7 @@ export default async function ProcurementPage() {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
-                            <thead className="border-y border-gray-100 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold">
+                            <thead className="border-y border-border dark:border-gray-800 text-xs text-muted-foreground dark:text-muted-foreground uppercase font-semibold">
                                 <tr>
                                     <th className="px-6 py-4">Provider</th>
                                     <th className="px-6 py-4">Mode</th>
@@ -108,7 +108,7 @@ export default async function ProcurementPage() {
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                 {processors.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                        <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground dark:text-muted-foreground">
                                             No third-party system is connected to this campus, so no student or
                                             fee data leaves ScholarMind through an integration. Connections are
                                             provisioned through the integrations API — there is no
@@ -119,7 +119,7 @@ export default async function ProcurementPage() {
                                     processors.map((row) => {
                                         const scopes = readScopes(row.scopes);
                                         return (
-                                            <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/40">
+                                            <tr key={row.id} className="hover:bg-muted dark:hover:bg-gray-900/40">
                                                 <td className="px-6 py-4 font-semibold">{row.provider}</td>
                                                 <td className="px-6 py-4">
                                                     <Badge
@@ -152,12 +152,12 @@ export default async function ProcurementPage() {
                                                 </td>
                                                 <td className="px-6 py-4 text-xs">
                                                     {scopes.length === 0 ? (
-                                                        <span className="text-gray-400">No scopes recorded</span>
+                                                        <span className="text-muted-foreground">No scopes recorded</span>
                                                     ) : (
                                                         <span className="font-mono">{scopes.join(', ')}</span>
                                                     )}
                                                 </td>
-                                                <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400">
+                                                <td className="px-6 py-4 text-xs text-muted-foreground dark:text-muted-foreground">
                                                     {formatDateTime(row.lastSuccessAt)}
                                                 </td>
                                             </tr>
@@ -175,7 +175,7 @@ export default async function ProcurementPage() {
                     <CardTitle className="text-xl">Procurement evidence packs</CardTitle>
                     <CardDescription>Certifications, DPAs and responsibility matrices.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                <CardContent className="space-y-3 text-sm text-muted-foreground dark:text-muted-foreground">
                     <p>
                         Not available in this release. ScholarMind does not store compliance certificates,
                         data processing agreements, subprocessor attestations or a shared-responsibility

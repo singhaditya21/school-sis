@@ -195,7 +195,7 @@ export default function GradingSettingsPage() {
                                 onClick={() => setSelectedScheme(scheme)}
                                 className={`w-full text-left p-3 rounded-lg border transition-colors ${selectedScheme?.id === scheme.id
                                         ? 'border-blue-500 bg-blue-50'
-                                        : 'border-gray-200 hover:bg-gray-50'
+                                        : 'border-border hover:bg-muted'
                                     }`}
                             >
                                 <div className="flex items-center justify-between">
@@ -211,7 +211,7 @@ export default function GradingSettingsPage() {
                                     {scheme.isActive ? (
                                         <Badge className="bg-green-100 text-green-800 text-xs">Active</Badge>
                                     ) : (
-                                        <Badge className="bg-gray-100 text-gray-800 text-xs">Inactive</Badge>
+                                        <Badge className="bg-muted text-foreground text-xs">Inactive</Badge>
                                     )}
                                 </div>
                             </button>

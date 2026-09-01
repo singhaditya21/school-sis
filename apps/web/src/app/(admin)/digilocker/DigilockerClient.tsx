@@ -75,11 +75,11 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">DigiLocker &amp; APAAR</h1>
-                    <p className="text-gray-600 mt-1">
+                    <p className="text-muted-foreground mt-1">
                         APAAR ID register, issued documents, and the history of delivery attempts
                     </p>
                 </div>
-                <Link href="/certificates" className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                <Link href="/certificates" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">
                     ← Back to Certificates
                 </Link>
             </div>
@@ -98,26 +98,26 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Students</div>
+                        <div className="text-sm text-muted-foreground">Students</div>
                         <div className="text-2xl font-bold text-blue-600">{students.length}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">APAAR recorded</div>
+                        <div className="text-sm text-muted-foreground">APAAR recorded</div>
                         <div className="text-2xl font-bold text-purple-600">{linkedCount}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Issued documents</div>
+                        <div className="text-sm text-muted-foreground">Issued documents</div>
                         <div className="text-2xl font-bold text-emerald-600">{certificates.length}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
-                        <div className="text-sm text-gray-500">Delivery attempts logged</div>
-                        <div className="text-2xl font-bold text-gray-600">{syncAttempts.length}</div>
+                        <div className="text-sm text-muted-foreground">Delivery attempts logged</div>
+                        <div className="text-2xl font-bold text-muted-foreground">{syncAttempts.length}</div>
                     </CardContent>
                 </Card>
             </div>
@@ -125,7 +125,7 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
             <Card>
                 <CardHeader className="gap-3">
                     <CardTitle>APAAR ID Register</CardTitle>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                         Recorded locally by your office. ScholarMind does not check these against NAD.
                     </p>
                     <div className="flex flex-wrap gap-3">
@@ -134,13 +134,13 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search name, admission number, APAAR ID…"
-                            className="w-full sm:w-80 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                            className="w-full sm:w-80 px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                         />
                         <select
                             value={linkedFilter}
                             onChange={(e) => setLinkedFilter(e.target.value as 'all' | 'linked' | 'unlinked')}
                             aria-label="Filter by APAAR status"
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                            className="px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                         >
                             <option value="all">All students</option>
                             <option value="linked">APAAR recorded</option>
@@ -151,22 +151,22 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="bg-gray-50 border-y">
+                            <thead className="bg-muted border-y">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">APAAR ID</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Student</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Class</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">APAAR ID</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
                                 {filteredStudents.map((student) => (
-                                    <tr key={student.studentId} className="hover:bg-gray-50">
+                                    <tr key={student.studentId} className="hover:bg-muted">
                                         <td className="px-4 py-3">
                                             <div className="font-medium">
                                                 {student.firstName} {student.lastName}
                                             </div>
-                                            <div className="text-xs text-gray-500">{student.admissionNumber}</div>
+                                            <div className="text-xs text-muted-foreground">{student.admissionNumber}</div>
                                         </td>
                                         <td className="px-4 py-3 text-sm">
                                             {student.gradeName ?? '—'}
@@ -176,7 +176,7 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                                             {student.apaarId ? (
                                                 <span className="font-mono text-sm">{student.apaarId}</span>
                                             ) : (
-                                                <span className="text-gray-400 text-sm">Not recorded</span>
+                                                <span className="text-muted-foreground text-sm">Not recorded</span>
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-right">
@@ -193,7 +193,7 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                                 ))}
                                 {filteredStudents.length === 0 && (
                                     <tr>
-                                        <td colSpan={4} className="px-4 py-12 text-center text-gray-400">
+                                        <td colSpan={4} className="px-4 py-12 text-center text-muted-foreground">
                                             {students.length === 0
                                                 ? 'No students on roll yet.'
                                                 : 'No students match these filters.'}
@@ -209,7 +209,7 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
             <Card>
                 <CardHeader>
                     <CardTitle>Issued documents</CardTitle>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                         Certificates already issued from ScholarMind. These are what would be handed to
                         DigiLocker once a gateway is available.
                     </p>
@@ -217,19 +217,19 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="bg-gray-50 border-y">
+                            <thead className="bg-muted border-y">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Document</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Number</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">APAAR</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Issued</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last delivery attempt</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Document</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Number</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Student</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">APAAR</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Issued</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Last delivery attempt</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
                                 {certificates.map((doc) => (
-                                    <tr key={doc.id} className="hover:bg-gray-50">
+                                    <tr key={doc.id} className="hover:bg-muted">
                                         <td className="px-4 py-3">
                                             <div className="font-medium">{doc.templateName || 'Certificate'}</div>
                                             {doc.templateType && (
@@ -247,13 +247,13 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                                                 <span className="text-orange-500">Not recorded</span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-sm text-gray-500">
+                                        <td className="px-4 py-3 text-sm text-muted-foreground">
                                             {new Date(`${doc.issuedDate}T00:00:00`).toLocaleDateString('en-IN')}
                                         </td>
                                         <td className="px-4 py-3 text-sm">
                                             {doc.lastSyncStatus ? (
                                                 <>
-                                                    <Badge className={syncBadgeClass[doc.lastSyncStatus] || 'bg-gray-100 text-gray-600'}>
+                                                    <Badge className={syncBadgeClass[doc.lastSyncStatus] || 'bg-muted text-muted-foreground'}>
                                                         {doc.lastSyncStatus}
                                                     </Badge>
                                                     {doc.lastSyncError && (
@@ -261,14 +261,14 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                                                     )}
                                                 </>
                                             ) : (
-                                                <span className="text-gray-400">Never attempted</span>
+                                                <span className="text-muted-foreground">Never attempted</span>
                                             )}
                                         </td>
                                     </tr>
                                 ))}
                                 {certificates.length === 0 && (
                                     <tr>
-                                        <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                                        <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
                                             No certificates have been issued yet.
                                         </td>
                                     </tr>
@@ -282,31 +282,31 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
             <Card>
                 <CardHeader>
                     <CardTitle>Delivery attempt log</CardTitle>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                         Every recorded attempt to push a document, most recent first.
                     </p>
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="bg-gray-50 border-y">
+                            <thead className="bg-muted border-y">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">When</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Document type</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Result</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">When</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Document type</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Student</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Result</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
                                 {syncAttempts.map((log) => (
-                                    <tr key={log.id} className="hover:bg-gray-50">
-                                        <td className="px-4 py-3 text-sm text-gray-500">
+                                    <tr key={log.id} className="hover:bg-muted">
+                                        <td className="px-4 py-3 text-sm text-muted-foreground">
                                             {new Date(log.syncAttemptedAt).toLocaleString('en-IN')}
                                         </td>
                                         <td className="px-4 py-3 text-sm">{log.documentType}</td>
                                         <td className="px-4 py-3 text-sm">{log.studentName ?? '—'}</td>
                                         <td className="px-4 py-3 text-sm">
-                                            <Badge className={syncBadgeClass[log.status] || 'bg-gray-100 text-gray-600'}>
+                                            <Badge className={syncBadgeClass[log.status] || 'bg-muted text-muted-foreground'}>
                                                 {log.status}
                                             </Badge>
                                             {log.errorMessage && (
@@ -317,7 +317,7 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                                 ))}
                                 {syncAttempts.length === 0 && (
                                     <tr>
-                                        <td colSpan={4} className="px-4 py-12 text-center text-gray-400">
+                                        <td colSpan={4} className="px-4 py-12 text-center text-muted-foreground">
                                             No delivery has ever been attempted.
                                         </td>
                                     </tr>
@@ -341,7 +341,7 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                     {editing && (
                         <div className="space-y-4 pt-2">
                             <div>
-                                <p className="text-sm text-gray-500">Student</p>
+                                <p className="text-sm text-muted-foreground">Student</p>
                                 <p className="font-medium">
                                     {editing.firstName} {editing.lastName} · {editing.admissionNumber}
                                 </p>
@@ -374,7 +374,7 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                                     <button
                                         type="button"
                                         onClick={() => setEditing(null)}
-                                        className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                                        className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted"
                                     >
                                         Cancel
                                     </button>

@@ -34,22 +34,22 @@ export default async function MarkMyAttendancePage({
                     <h1 className="text-2xl font-bold">
                         {section.gradeName} – {section.sectionName}
                     </h1>
-                    <p className="text-gray-600">Attendance for {date}</p>
+                    <p className="text-muted-foreground">Attendance for {date}</p>
                 </div>
                 <div className="flex items-end gap-3">
                     <form method="GET" className="flex items-end gap-2">
-                        <label className="text-sm text-gray-600">
+                        <label className="text-sm text-muted-foreground">
                             <span className="block mb-1">Date</span>
                             <input
                                 type="date"
                                 name="date"
                                 defaultValue={date}
-                                className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </label>
                         <button
                             type="submit"
-                            className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
+                            className="bg-white border border-border text-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-muted"
                         >
                             Show
                         </button>

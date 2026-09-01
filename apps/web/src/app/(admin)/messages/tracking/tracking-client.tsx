@@ -71,14 +71,14 @@ export default function TrackingClient({ rows }: { rows: OutboxRow[] }) {
 
             <div className="flex flex-wrap items-end gap-3">
                 <div>
-                    <label htmlFor="outbox-status" className="mb-1 block text-xs font-medium text-slate-600">
+                    <label htmlFor="outbox-status" className="mb-1 block text-xs font-medium text-muted-foreground">
                         Status
                     </label>
                     <select
                         id="outbox-status"
                         value={status}
                         onChange={(event) => setStatus(event.target.value)}
-                        className="h-9 rounded-md border border-slate-300 px-3 text-sm"
+                        className="h-9 rounded-md border border-border px-3 text-sm"
                     >
                         <option value="ALL">All statuses</option>
                         {STATUS_OPTIONS.map((option) => (
@@ -89,14 +89,14 @@ export default function TrackingClient({ rows }: { rows: OutboxRow[] }) {
                     </select>
                 </div>
                 <div>
-                    <label htmlFor="outbox-channel" className="mb-1 block text-xs font-medium text-slate-600">
+                    <label htmlFor="outbox-channel" className="mb-1 block text-xs font-medium text-muted-foreground">
                         Channel
                     </label>
                     <select
                         id="outbox-channel"
                         value={channel}
                         onChange={(event) => setChannel(event.target.value)}
-                        className="h-9 rounded-md border border-slate-300 px-3 text-sm"
+                        className="h-9 rounded-md border border-border px-3 text-sm"
                     >
                         <option value="ALL">All channels</option>
                         {channels.map((option) => (
@@ -107,7 +107,7 @@ export default function TrackingClient({ rows }: { rows: OutboxRow[] }) {
                     </select>
                 </div>
                 <div>
-                    <label htmlFor="outbox-search" className="mb-1 block text-xs font-medium text-slate-600">
+                    <label htmlFor="outbox-search" className="mb-1 block text-xs font-medium text-muted-foreground">
                         Search
                     </label>
                     <input
@@ -115,10 +115,10 @@ export default function TrackingClient({ rows }: { rows: OutboxRow[] }) {
                         value={search}
                         onChange={(event) => setSearch(event.target.value)}
                         placeholder="Recipient or message text"
-                        className="h-9 w-64 rounded-md border border-slate-300 px-3 text-sm"
+                        className="h-9 w-64 rounded-md border border-border px-3 text-sm"
                     />
                 </div>
-                <p className="pb-2 text-sm text-slate-500">
+                <p className="pb-2 text-sm text-muted-foreground">
                     Showing {visible.length} of {rows.length}
                 </p>
             </div>
@@ -127,21 +127,21 @@ export default function TrackingClient({ rows }: { rows: OutboxRow[] }) {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="border-b bg-slate-50">
+                            <thead className="border-b bg-muted">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                         Channel
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                         Recipient
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                         Message
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                         Queued
                                     </th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
                                         Status
                                     </th>
                                 </tr>
@@ -150,7 +150,7 @@ export default function TrackingClient({ rows }: { rows: OutboxRow[] }) {
                                 {visible.map((row) => (
                                     <tr
                                         key={row.id}
-                                        className={`align-top hover:bg-slate-50 ${
+                                        className={`align-top hover:bg-muted ${
                                             row.status === 'FAILED' || row.status === 'DEAD_LETTER'
                                                 ? 'bg-rose-50'
                                                 : ''
@@ -158,38 +158,38 @@ export default function TrackingClient({ rows }: { rows: OutboxRow[] }) {
                                     >
                                         <td className="px-4 py-3">
                                             <ChannelBadge channel={row.channel} />
-                                            <div className="mt-1 text-xs text-slate-400">
+                                            <div className="mt-1 text-xs text-muted-foreground">
                                                 via {row.provider}
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3 font-mono text-sm text-slate-700">
+                                        <td className="px-4 py-3 font-mono text-sm text-foreground">
                                             {row.recipient}
                                         </td>
                                         <td className="max-w-sm px-4 py-3">
                                             {row.subject && (
-                                                <div className="text-sm font-medium text-slate-800">
+                                                <div className="text-sm font-medium text-foreground">
                                                     {row.subject}
                                                 </div>
                                             )}
-                                            <div className="line-clamp-2 text-sm text-slate-600">
+                                            <div className="line-clamp-2 text-sm text-muted-foreground">
                                                 {row.body}
                                             </div>
                                         </td>
-                                        <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
+                                        <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
                                             {formatDateTime(row.createdAt)}
                                         </td>
                                         <td className="px-4 py-3">
                                             <StatusBadge status={row.status} />
-                                            <div className="mt-1 text-xs text-slate-500">
+                                            <div className="mt-1 text-xs text-muted-foreground">
                                                 attempt {row.attempts} of {row.maxAttempts}
                                             </div>
                                             {row.sentAt && (
-                                                <div className="text-xs text-slate-500">
+                                                <div className="text-xs text-muted-foreground">
                                                     dispatched {formatDateTime(row.sentAt)}
                                                 </div>
                                             )}
                                             {row.providerMessageId && (
-                                                <div className="font-mono text-[10px] text-slate-400">
+                                                <div className="font-mono text-[10px] text-muted-foreground">
                                                     {row.providerMessageId}
                                                 </div>
                                             )}
@@ -203,7 +203,7 @@ export default function TrackingClient({ rows }: { rows: OutboxRow[] }) {
                                 ))}
                                 {visible.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="px-4 py-12 text-center text-slate-400">
+                                        <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
                                             {rows.length === 0
                                                 ? 'The outbox is empty. Compose a message to put something in it.'
                                                 : 'No outbox rows match those filters.'}

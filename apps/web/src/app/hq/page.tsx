@@ -89,7 +89,7 @@ export default async function HQDashboardPage() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-white">Global Command Center</h1>
-                    <p className="text-slate-400 mt-1">Every campus on the platform, and how its fee ledger is performing.</p>
+                    <p className="text-muted-foreground mt-1">Every campus on the platform, and how its fee ledger is performing.</p>
                 </div>
                 <Link
                     href="/hq/treasury"
@@ -104,13 +104,13 @@ export default async function HQDashboardPage() {
                     label="Campuses"
                     value={String(totals.campuses)}
                     hint={`${totals.active} active`}
-                    icon={<Building className="w-4 h-4 text-slate-500" />}
+                    icon={<Building className="w-4 h-4 text-muted-foreground" />}
                 />
                 <Kpi
                     label="Active students"
                     value={totals.students.toLocaleString('en-IN')}
                     hint="Enrolment across all campuses"
-                    icon={<Users className="w-4 h-4 text-slate-500" />}
+                    icon={<Users className="w-4 h-4 text-muted-foreground" />}
                 />
                 <Kpi
                     label="Fees collected"
@@ -135,7 +135,7 @@ export default async function HQDashboardPage() {
                 />
             </div>
 
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
                 Figures come from the campus fee ledger. Platform subscription revenue is billed outside this database and is
                 not shown here.
                 {groupedCount === 0
@@ -149,7 +149,7 @@ export default async function HQDashboardPage() {
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-900/50 border-b border-slate-700 text-xs text-slate-400 uppercase font-semibold">
+                        <thead className="bg-slate-900/50 border-b border-slate-700 text-xs text-muted-foreground uppercase font-semibold">
                             <tr>
                                 <th className="px-6 py-4">Campus</th>
                                 <th className="px-6 py-4">Group</th>
@@ -163,14 +163,14 @@ export default async function HQDashboardPage() {
                         <tbody className="divide-y divide-slate-700/50">
                             {fleet.length === 0 && (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-8 text-center text-slate-500">No campuses provisioned yet.</td>
+                                    <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">No campuses provisioned yet.</td>
                                 </tr>
                             )}
                             {fleet.map((t) => (
                                 <tr key={t.id} className="hover:bg-slate-800/80 transition-colors">
                                     <td className="px-6 py-4">
                                         <div className="font-semibold text-white">{t.name}</div>
-                                        <div className="text-xs text-slate-400 font-mono mt-0.5">
+                                        <div className="text-xs text-muted-foreground font-mono mt-0.5">
                                             {t.code}{t.adminEmail ? ` · ${t.adminEmail}` : ''}
                                         </div>
                                     </td>
@@ -178,17 +178,17 @@ export default async function HQDashboardPage() {
                                         {t.groupName ? (
                                             <>
                                                 <div className="text-slate-200">{t.groupName}</div>
-                                                <div className="text-slate-500 mt-0.5">{t.groupRegion}</div>
+                                                <div className="text-muted-foreground mt-0.5">{t.groupRegion}</div>
                                             </>
                                         ) : (
-                                            <span className="text-slate-600">Unassigned</span>
+                                            <span className="text-muted-foreground">Unassigned</span>
                                         )}
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
                                             t.tier === 'ENTERPRISE' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
                                             t.tier === 'AI_PRO' ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' :
-                                            'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                                            'bg-slate-500/10 text-muted-foreground border-slate-500/20'
                                         }`}>
                                             {t.tier}
                                         </span>
@@ -229,11 +229,11 @@ function Kpi({
     return (
         <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5">
             <div className="flex items-start justify-between gap-3">
-                <p className="text-sm font-medium text-slate-400">{label}</p>
+                <p className="text-sm font-medium text-muted-foreground">{label}</p>
                 <span className="shrink-0">{icon}</span>
             </div>
             <p className={`text-2xl font-bold tabular-nums mt-2 ${valueTone}`}>{value}</p>
-            <p className="text-xs text-slate-500 mt-1">{hint}</p>
+            <p className="text-xs text-muted-foreground mt-1">{hint}</p>
         </div>
     );
 }

@@ -171,7 +171,7 @@ export default function IssueCertificateDialog({ templates, students }: IssueCer
                             ))}
                         </select>
                         {studentQuery.trim() && matchingStudents.length === 0 && (
-                            <p className="text-xs text-gray-500">No student matches that search.</p>
+                            <p className="text-xs text-muted-foreground">No student matches that search.</p>
                         )}
                         {selectedStudent && selectedStudent.status !== 'ACTIVE' && (
                             <p className="text-xs text-amber-700">

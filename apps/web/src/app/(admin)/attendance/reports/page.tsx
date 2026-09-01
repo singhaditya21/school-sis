@@ -24,7 +24,7 @@ export default async function AttendanceReportsPage() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Attendance Reports</h1>
+                    <h1 className="text-2xl font-bold text-foreground dark:text-white">Attendance Reports</h1>
                     <p className="text-muted-foreground mt-1">
                         {new Date(startDate).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
                     </p>
@@ -53,9 +53,9 @@ export default async function AttendanceReportsPage() {
             </div>
 
             {/* Class-wise Report Table */}
-            <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 overflow-hidden">
                 <table className="w-full text-sm">
-                    <thead className="bg-gray-50 dark:bg-gray-900/50">
+                    <thead className="bg-muted dark:bg-gray-900/50">
                         <tr>
                             <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Class</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">Students</th>
@@ -75,8 +75,8 @@ export default async function AttendanceReportsPage() {
                             </tr>
                         ) : (
                             report.map((row, i) => (
-                                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-900/30">
-                                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                <tr key={i} className="hover:bg-muted dark:hover:bg-gray-900/30">
+                                    <td className="px-4 py-3 font-medium text-foreground dark:text-white">
                                         {row.gradeName} - {row.sectionName}
                                     </td>
                                     <td className="px-4 py-3 text-right text-muted-foreground">{row.totalStudents}</td>
