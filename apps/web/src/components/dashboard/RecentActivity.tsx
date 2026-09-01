@@ -156,11 +156,11 @@ export function RecentActivity() {
                         <Badge
                             variant="outline"
                             className={`text-xs transition-all ${isLive
-                                    ? 'bg-green-50 border-green-500 text-green-700 animate-pulse'
-                                    : 'bg-muted border-gray-400 text-muted-foreground'
+                                    ? 'bg-success-subtle border-success text-success-subtle-foreground animate-pulse'
+                                    : 'bg-muted border-border text-muted-foreground'
                                 }`}
                         >
-                            <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${isLive ? 'bg-green-500' : 'bg-gray-400'}`} />
+                            <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${isLive ? 'bg-success' : 'bg-muted-foreground'}`} />
                             {isLive ? 'Live' : 'Paused'}
                         </Badge>
                     </div>
@@ -177,7 +177,7 @@ export function RecentActivity() {
                             <div
                                 key={activity.id}
                                 className={`flex items-start gap-3 transition-all duration-500 ${activity.isNew
-                                        ? 'animate-in fade-in slide-in-from-top-4 duration-300 bg-yellow-50 dark:bg-yellow-900/10 -mx-2 px-2 py-1 rounded-lg'
+                                        ? 'animate-in fade-in slide-in-from-top-4 duration-300 bg-accent -mx-2 px-2 py-1 rounded-lg'
                                         : ''
                                     }`}
                             >
