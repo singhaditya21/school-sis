@@ -50,7 +50,7 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950">
+        <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent dark:from-background dark:via-background dark:to-accent">
             {/* Background Pattern */}
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiM5NDk0OTQiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyem0wLTRoLTEydjJoMTJ2LTJ6bTAtNGgtMTJ2MmgxMnYtMnptMC00aC0xMnYyaDEydi0yem0tMTgtNHYyaDEydi0ySDEyem0xOCAwaC0xMnYyaDEydi0yem0wIDR2LTJIMTh2MmgxMnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-50" />
 
@@ -60,7 +60,7 @@ export default function LoginPage() {
                     <div>
                         {/* Logo */}
                         <div className="flex items-center gap-3 mb-12">
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                            <div className="w-12 h-12 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
                                 <span className="text-white text-2xl">🎓</span>
                             </div>
                             <div>
@@ -111,16 +111,16 @@ export default function LoginPage() {
                         <p className="text-xs font-medium text-muted-foreground dark:text-muted-foreground mb-3 uppercase tracking-wide">Live Insights Preview</p>
                         <div className="grid grid-cols-3 gap-4">
                             <div>
-                                <p className="text-2xl font-bold text-red-600 dark:text-red-400">₹12.4L</p>
-                                <p className="text-xs text-muted-foreground dark:text-muted-foreground">Overdue</p>
+                                <p className="text-2xl font-bold tabular-nums text-destructive">₹12.4L</p>
+                                <p className="text-xs text-muted-foreground">Overdue</p>
                             </div>
                             <div>
-                                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">₹8.2L</p>
-                                <p className="text-xs text-muted-foreground dark:text-muted-foreground">Due this week</p>
+                                <p className="text-2xl font-bold tabular-nums text-warning">₹8.2L</p>
+                                <p className="text-xs text-muted-foreground">Due this week</p>
                             </div>
                             <div>
-                                <p className="text-2xl font-bold text-green-600 dark:text-green-400">78%</p>
-                                <p className="text-xs text-muted-foreground dark:text-muted-foreground">Collection rate</p>
+                                <p className="text-2xl font-bold tabular-nums text-success">78%</p>
+                                <p className="text-xs text-muted-foreground">Collection rate</p>
                             </div>
                         </div>
                     </div>
@@ -131,7 +131,7 @@ export default function LoginPage() {
                     <div className="w-full max-w-md">
                         {/* Mobile Logo */}
                         <div className="flex items-center justify-center gap-3 mb-8 lg:hidden">
-                            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                            <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
                                 <span className="text-white text-xl">🎓</span>
                             </div>
                             <h1 className="text-xl font-bold text-foreground dark:text-white">{APP_NAME}</h1>
@@ -165,7 +165,7 @@ export default function LoginPage() {
                                         onClick={() => setLoginMode('platform')}
                                         className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
                                             loginMode === 'platform'
-                                                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
+                                                ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/30'
                                                 : 'text-muted-foreground dark:text-muted-foreground hover:text-foreground'
                                         }`}
                                     >
@@ -237,7 +237,7 @@ export default function LoginPage() {
                                                 <div className="space-y-2">
                                                     <div className="flex items-center justify-between">
                                                         <Label htmlFor="password">Password</Label>
-                                                        <a href="/forgot-password" className="text-xs text-blue-600 hover:underline dark:text-blue-400">
+                                                        <a href="/forgot-password" className="text-xs font-medium text-primary hover:underline">
                                                             Forgot password?
                                                         </a>
                                                     </div>
@@ -312,8 +312,8 @@ export default function LoginPage() {
 
                                     {/* Error Message */}
                                     {error && (
-                                        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800" data-testid="login-error">
-                                            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                                        <div className="p-3 rounded-lg bg-destructive-subtle border border-destructive/20" data-testid="login-error">
+                                            <p className="text-sm font-medium text-destructive-subtle-foreground">{error}</p>
                                         </div>
                                     )}
 
