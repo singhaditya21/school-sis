@@ -105,6 +105,13 @@ export const PAGE_ACCESS_POLICIES = [
         level: 'public',
     },
     {
+        // The design-system catalog: component samples only, no tenant data.
+        // Public so it can serve as a shareable reference (like a Storybook).
+        name: 'design-catalog',
+        prefixes: ['/ui'],
+        level: 'public',
+    },
+    {
         name: 'platform',
         prefixes: ['/platform', '/hq'],
         level: 'role',
