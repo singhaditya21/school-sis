@@ -29,7 +29,7 @@ export default async function MarkAttendancePage({ params }: { params: Promise<{
                 <Link href="/attendance" className="text-primary hover:underline">← Back</Link>
             </div>
 
-            <form action="/api/attendance" method="POST" className="bg-white rounded-xl shadow-sm border">
+            <form action="/api/attendance" method="POST" className="bg-card rounded-xl shadow-sm border">
                 <input type="hidden" name="sectionId" value={sectionId} />
                 <input type="hidden" name="date" value={today} />
 

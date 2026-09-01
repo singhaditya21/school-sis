@@ -27,7 +27,7 @@ export default async function TeacherGradebookPage() {
             </div>
 
             {schedules.length === 0 ? (
-                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                     <p className="font-medium text-foreground">No exam papers are assigned to you.</p>
                     <p className="text-sm text-muted-foreground mt-2 max-w-xl mx-auto">
                         {classes.length === 0
@@ -36,7 +36,7 @@ export default async function TeacherGradebookPage() {
                     </p>
                 </div>
             ) : (
-                <div className="bg-white rounded-xl shadow-sm border divide-y" data-testid="teacher-exam-papers">
+                <div className="bg-card rounded-xl shadow-sm border divide-y" data-testid="teacher-exam-papers">
                     {schedules.map((sched) => {
                         const complete = sched.studentCount > 0 && sched.enteredCount >= sched.studentCount;
                         return (

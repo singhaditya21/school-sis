@@ -19,12 +19,12 @@ export default async function TestSeriesDashboard() {
                     <p className="text-muted-foreground mt-2 text-base">Schedule rank predictors, manage question banks, and sync OMR results.</p>
                 </div>
                 <div className="flex gap-3">
-                    <Button variant="outline" className="bg-white">OMR Scanner App</Button>
+                    <Button variant="outline" className="bg-card">OMR Scanner App</Button>
                     <Button className="bg-purple-600 hover:bg-purple-700">Schedule New Mock Test</Button>
                 </div>
             </div>
 
-            <Card className="border-0 shadow-lg bg-white overflow-hidden mt-8">
+            <Card className="border-0 shadow-lg bg-card overflow-hidden mt-8">
                 <CardHeader className="bg-muted border-b border-border px-6 py-5 flex flex-row items-center justify-between">
                     <div>
                         <CardTitle className="text-xl">Upcoming & Completed Tests</CardTitle>
@@ -33,7 +33,7 @@ export default async function TestSeriesDashboard() {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
-                            <thead className="bg-white border-b border-border text-xs text-muted-foreground uppercase font-semibold">
+                            <thead className="bg-card border-b border-border text-xs text-muted-foreground uppercase font-semibold">
                                 <tr>
                                     <th className="px-6 py-4">Test Name (AITS)</th>
                                     <th className="px-6 py-4">Target Batch</th>

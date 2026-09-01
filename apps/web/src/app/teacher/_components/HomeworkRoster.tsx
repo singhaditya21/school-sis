@@ -28,7 +28,7 @@ export function HomeworkRoster({
 
     if (rows.length === 0) {
         return (
-            <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
+            <div className="bg-card rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
                 No active students are enrolled in this section.
             </div>
         );
@@ -55,7 +55,7 @@ export function HomeworkRoster({
     }
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border divide-y" data-testid="homework-roster">
+        <div className="bg-card rounded-xl shadow-sm border divide-y" data-testid="homework-roster">
             {rows.map((row) => {
                 const submissionId = row.submissionId;
                 const draft = submissionId ? drafts[submissionId] : undefined;

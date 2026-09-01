@@ -162,7 +162,7 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
     return (
         <div className="space-y-4">
             {/* Subject tabs — one per scheduled paper for this class */}
-            <div className="bg-white rounded-xl shadow-sm border p-2">
+            <div className="bg-card rounded-xl shadow-sm border p-2">
                 <div className="flex gap-2 overflow-x-auto">
                     {subjects.map((s) => {
                         const savedForSubject = marks[s.scheduleId]
@@ -194,7 +194,7 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
             </div>
 
             {/* Live tally for the open subject */}
-            <div className="bg-white rounded-xl shadow-sm border p-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="bg-card rounded-xl shadow-sm border p-4 flex flex-wrap items-center justify-between gap-4">
                 <div>
                     <h2 className="font-semibold text-foreground">
                         {subject.subjectName} — {gradeName}
@@ -235,7 +235,7 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
             )}
 
             {/* Entry table */}
-            <div className="bg-white rounded-xl shadow-sm border divide-y">
+            <div className="bg-card rounded-xl shadow-sm border divide-y">
                 {students.map((student, index) => {
                     const field = current[student.studentId] ?? { value: '', isAbsent: false };
                     const locked = isLocked(student.studentId);
@@ -337,7 +337,7 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
                 })}
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 sticky bottom-0 bg-white/95 backdrop-blur py-4 border-t">
+            <div className="flex flex-wrap items-center gap-3 sticky bottom-0 bg-card/95 backdrop-blur py-4 border-t">
                 <Link
                     href={`/exams/${examId}`}
                     className="px-5 py-3 border border-border rounded-lg text-foreground hover:bg-muted"

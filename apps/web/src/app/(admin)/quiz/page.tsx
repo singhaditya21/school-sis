@@ -62,7 +62,7 @@ export default async function QuizPage({
                             className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
                                 active
                                     ? 'bg-primary text-primary-foreground border-blue-600'
-                                    : 'bg-white dark:bg-gray-900 border-border dark:border-gray-700 hover:bg-muted dark:hover:bg-gray-800'
+                                    : 'bg-card border-border dark:border-gray-700 hover:bg-muted dark:hover:bg-gray-800'
                             }`}
                         >
                             {f.label}

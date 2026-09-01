@@ -82,7 +82,7 @@ export default async function LeadDetailPage({ params }: Props) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Lead Details */}
-                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
+                <div className="bg-card rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
                     <h2 className="text-lg font-semibold text-foreground dark:text-white mb-4">Lead Details</h2>
                     <dl className="space-y-3 text-sm">
                         <div className="flex justify-between">
@@ -117,7 +117,7 @@ export default async function LeadDetailPage({ params }: Props) {
                 </div>
 
                 {/* Parent Contact */}
-                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
+                <div className="bg-card rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
                     <h2 className="text-lg font-semibold text-foreground dark:text-white mb-4">Parent Contact</h2>
                     <dl className="space-y-3 text-sm">
                         <div className="flex justify-between">
@@ -146,7 +146,7 @@ export default async function LeadDetailPage({ params }: Props) {
 
             {/* Documents + score */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
+                <div className="bg-card rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-semibold text-foreground dark:text-white">Documents</h2>
                         <Link href={`/admissions/${id}/documents`} className="text-sm text-primary hover:underline">
@@ -170,7 +170,7 @@ export default async function LeadDetailPage({ params }: Props) {
                     </p>
                 </div>
 
-                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
+                <div className="bg-card rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
                     <h2 className="text-lg font-semibold text-foreground dark:text-white mb-1">Lead Score</h2>
                     <p className="text-xs text-muted-foreground mb-4">
                         Rule-based score computed from this lead&apos;s own record — source, stage, data
@@ -203,7 +203,7 @@ export default async function LeadDetailPage({ params }: Props) {
 
             {/* Notes */}
             {lead.notes && (
-                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
+                <div className="bg-card rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
                     <h2 className="text-lg font-semibold text-foreground dark:text-white mb-2">Notes</h2>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap">{lead.notes}</p>
                 </div>

@@ -28,7 +28,7 @@ export default function CreateBatchForm() {
     }
 
     return (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-border mt-8">
+        <div className="bg-card p-8 rounded-2xl shadow-sm border border-border mt-8">
             <h2 className="text-2xl font-bold text-foreground mb-6">Create New Coaching Batch</h2>
             
             {message && (
@@ -54,7 +54,7 @@ export default function CreateBatchForm() {
                         <select 
                             name="examTarget" 
                             required 
-                            className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-ring outline-none transition bg-white"
+                            className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-ring outline-none transition bg-card"
                         >
                             <option value="JEE">JEE (Mains + Advanced)</option>
                             <option value="NEET">NEET (UG)</option>

@@ -33,7 +33,7 @@ export default function PlatformBroadcastTicker() {
     return (
         <div className="bg-indigo-600 text-white px-4 py-3 flex items-start sm:items-center justify-between shadow-md relative z-50">
             <div className="flex items-start sm:items-center gap-3">
-                <div className="mt-0.5 sm:mt-0 p-1 bg-white/20 rounded-md">
+                <div className="mt-0.5 sm:mt-0 p-1 bg-card/20 rounded-md">
                     <Megaphone size={16} className="text-white" />
                 </div>
                 <div>
@@ -43,7 +43,7 @@ export default function PlatformBroadcastTicker() {
             </div>
             <button 
                 onClick={() => setDismissedId(activeBcast.id)}
-                className="p-1 hover:bg-white/20 rounded-md transition ml-4 shrink-0"
+                className="p-1 hover:bg-card/20 rounded-md transition ml-4 shrink-0"
             >
                 <X size={16} />
             </button>

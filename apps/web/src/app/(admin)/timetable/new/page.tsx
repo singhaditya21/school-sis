@@ -110,7 +110,7 @@ export default function NewTimetablePage() {
                                     data-testid="class-select"
                                     value={sectionId}
                                     onChange={(e) => setSectionId(e.target.value)}
-                                    className="w-full px-3 py-2 border rounded-lg bg-white mt-1"
+                                    className="w-full px-3 py-2 border rounded-lg bg-card mt-1"
                                 >
                                     <option value="">Select class...</option>
                                     {sections.map((sec) => (
@@ -127,7 +127,7 @@ export default function NewTimetablePage() {
                                     data-testid="subject-select"
                                     value={subjectId}
                                     onChange={(e) => setSubjectId(e.target.value)}
-                                    className="w-full px-3 py-2 border rounded-lg bg-white mt-1"
+                                    className="w-full px-3 py-2 border rounded-lg bg-card mt-1"
                                 >
                                     <option value="">Select subject...</option>
                                     {subjects.map((sub) => (
@@ -147,7 +147,7 @@ export default function NewTimetablePage() {
                                     data-testid="day-select"
                                     value={dayOfWeek}
                                     onChange={(e) => setDayOfWeek(e.target.value)}
-                                    className="w-full px-3 py-2 border rounded-lg bg-white mt-1"
+                                    className="w-full px-3 py-2 border rounded-lg bg-card mt-1"
                                 >
                                     <option value="">Select day...</option>
                                     <option value="MONDAY">Monday</option>
@@ -165,7 +165,7 @@ export default function NewTimetablePage() {
                                     data-testid="period-select"
                                     value={periodId}
                                     onChange={(e) => setPeriodId(e.target.value)}
-                                    className="w-full px-3 py-2 border rounded-lg bg-white mt-1"
+                                    className="w-full px-3 py-2 border rounded-lg bg-card mt-1"
                                 >
                                     <option value="">Select period...</option>
                                     {periods.map((p) => (
@@ -184,7 +184,7 @@ export default function NewTimetablePage() {
                                 data-testid="teacher-select"
                                 value={teacherId}
                                 onChange={(e) => setTeacherId(e.target.value)}
-                                className="w-full px-3 py-2 border rounded-lg bg-white mt-1"
+                                className="w-full px-3 py-2 border rounded-lg bg-card mt-1"
                             >
                                 <option value="">Select teacher...</option>
                                 {teachers.map((t) => (

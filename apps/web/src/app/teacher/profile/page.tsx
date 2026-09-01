@@ -49,7 +49,7 @@ export default async function TeacherProfilePage() {
                 </div>
             )}
 
-            <div className="bg-white rounded-xl shadow-sm border border-border">
+            <div className="bg-card rounded-xl shadow-sm border border-border">
                 <div className="p-4 border-b border-border">
                     <h2 className="font-semibold text-foreground">Account</h2>
                 </div>
@@ -65,7 +65,7 @@ export default async function TeacherProfilePage() {
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-border">
+            <div className="bg-card rounded-xl shadow-sm border border-border">
                 <div className="p-4 border-b border-border">
                     <h2 className="font-semibold text-foreground">Staff record</h2>
                 </div>
@@ -93,7 +93,7 @@ export default async function TeacherProfilePage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-xl shadow-sm border border-border">
+                <div className="bg-card rounded-xl shadow-sm border border-border">
                     <div className="p-4 border-b border-border">
                         <h2 className="font-semibold text-foreground">Subjects on your timetable</h2>
                     </div>
@@ -115,7 +115,7 @@ export default async function TeacherProfilePage() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-sm border border-border">
+                <div className="bg-card rounded-xl shadow-sm border border-border">
                     <div className="p-4 border-b border-border">
                         <h2 className="font-semibold text-foreground">Classes assigned</h2>
                     </div>

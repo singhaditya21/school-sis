@@ -109,7 +109,7 @@ export default async function FeesPage() {
 
                 <div className="space-y-4">
                     {plansWithComponents.map((plan) => (
-                        <div key={plan.id} className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800">
+                        <div key={plan.id} className="bg-card rounded-xl shadow-sm border border-border dark:border-gray-800">
                             <div className="p-6">
                                 <div className="flex items-center justify-between mb-4">
                                     <div>
@@ -183,7 +183,7 @@ export default async function FeesPage() {
                     ))}
 
                     {plansWithComponents.length === 0 && (
-                        <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-12 text-center text-muted-foreground">
+                        <div className="bg-card rounded-xl shadow-sm border border-border dark:border-gray-800 p-12 text-center text-muted-foreground">
                             No fee plans configured yet. Create your first fee plan to get started.
                         </div>
                     )}

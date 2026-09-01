@@ -15,13 +15,13 @@ export default async function CoachingDashboard() {
                     <p className="text-muted-foreground mt-2 text-base">Advanced Batch Management, Performance Analytics, and Competitive Exam Tracking.</p>
                 </div>
                 <div className="flex gap-3">
-                    <Button variant="outline" className="bg-white">Configure Exam Targets</Button>
+                    <Button variant="outline" className="bg-card">Configure Exam Targets</Button>
                     <Button className="bg-indigo-600 hover:bg-indigo-700">Create New Batch</Button>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card className="border-none shadow-md overflow-hidden bg-white group hover:shadow-lg transition-all">
+                <Card className="border-none shadow-md overflow-hidden bg-card group hover:shadow-lg transition-all">
                     <div className="h-2 w-full bg-blue-500 group-hover:bg-primary/90 transition-colors"></div>
                     <CardContent className="p-6">
                         <div className="flex justify-between items-start">
@@ -36,7 +36,7 @@ export default async function CoachingDashboard() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-none shadow-md overflow-hidden bg-white group hover:shadow-lg transition-all">
+                <Card className="border-none shadow-md overflow-hidden bg-card group hover:shadow-lg transition-all">
                     <div className="h-2 w-full bg-purple-500 group-hover:bg-purple-600 transition-colors"></div>
                     <CardContent className="p-6">
                         <div className="flex justify-between items-start">
@@ -51,7 +51,7 @@ export default async function CoachingDashboard() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-none shadow-md overflow-hidden bg-white group hover:shadow-lg transition-all">
+                <Card className="border-none shadow-md overflow-hidden bg-card group hover:shadow-lg transition-all">
                     <div className="h-2 w-full bg-teal-500 group-hover:bg-teal-600 transition-colors"></div>
                     <CardContent className="p-6">
                         <div className="flex justify-between items-start">
@@ -66,7 +66,7 @@ export default async function CoachingDashboard() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-none shadow-md overflow-hidden bg-white group hover:shadow-lg transition-all">
+                <Card className="border-none shadow-md overflow-hidden bg-card group hover:shadow-lg transition-all">
                     <div className="h-2 w-full bg-orange-500 group-hover:bg-orange-600 transition-colors"></div>
                     <CardContent className="p-6">
                         <div className="flex justify-between items-start">
@@ -81,7 +81,7 @@ export default async function CoachingDashboard() {
                 </Card>
             </div>
 
-            <Card className="border-0 shadow-lg bg-white overflow-hidden mt-8">
+            <Card className="border-0 shadow-lg bg-card overflow-hidden mt-8">
                 <CardHeader className="bg-muted border-b border-border px-6 py-5 flex flex-row items-center justify-between">
                     <div>
                         <CardTitle className="text-xl">Target Batches</CardTitle>
@@ -91,7 +91,7 @@ export default async function CoachingDashboard() {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
-                            <thead className="bg-white border-b border-border text-xs text-muted-foreground uppercase font-semibold">
+                            <thead className="bg-card border-b border-border text-xs text-muted-foreground uppercase font-semibold">
                                 <tr>
                                     <th className="px-6 py-4">Batch Name</th>
                                     <th className="px-6 py-4">Target Exam</th>

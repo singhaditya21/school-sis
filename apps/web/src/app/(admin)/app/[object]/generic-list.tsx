@@ -79,7 +79,7 @@ export default function GenericListClient({
                                     </td>
                                 </tr>
                             ) : records.map(record => (
-                                <tr key={record.id} className="bg-white border-b hover:bg-muted">
+                                <tr key={record.id} className="bg-card border-b hover:bg-muted">
                                     {displayColumns.map((col: string) => (
                                         <td key={col} className="px-6 py-4">
                                             {renderCell(fields.find(f => f.apiName === col), record[col])}

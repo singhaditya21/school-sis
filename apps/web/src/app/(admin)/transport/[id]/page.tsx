@@ -59,7 +59,7 @@ export default async function RouteDetailsPage({ params }: { params: Promise<{ i
                 </Link>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div className="bg-card rounded-xl shadow-sm border p-6">
                 <div className="flex items-start justify-between gap-4 mb-4">
                     <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-2xl">
@@ -131,7 +131,7 @@ export default async function RouteDetailsPage({ params }: { params: Promise<{ i
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <StopsManager routeId={id} stops={stops} canWrite={canWrite} />
 
-                <div className="bg-white rounded-xl shadow-sm border p-6">
+                <div className="bg-card rounded-xl shadow-sm border p-6">
                     <h3 className="font-bold text-lg mb-4">Assign Student</h3>
                     <AssignStudentForm
                         routeId={id}

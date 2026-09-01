@@ -138,7 +138,7 @@ export default function StopsManager({ routeId, stops, canWrite }: StopsManagerP
     };
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="bg-card rounded-xl shadow-sm border p-6">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-lg">Stops ({stops.length})</h3>
                 {canWrite && (

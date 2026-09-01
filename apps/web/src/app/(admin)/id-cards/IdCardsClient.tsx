@@ -139,7 +139,7 @@ export default function IdCardsClient({ cards, school }: IdCardsClientProps) {
                             <span className="text-muted-foreground">Select for batch action</span>
                         </label>
 
-                        <div className="rounded-lg border border-border bg-white p-4 text-foreground">
+                        <div className="rounded-lg border border-border bg-card p-4 text-foreground">
                             <div className="flex items-center gap-2 border-b border-border pb-2">
                                 {school.logoUrl ? (
                                     // eslint-disable-next-line @next/next/no-img-element -- logo_url may point at any host; next/image would need every one allow-listed

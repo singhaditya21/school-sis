@@ -66,7 +66,7 @@ export default function LeadStageManager({
     };
 
     return (
-        <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
+        <div className="bg-card rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
             <h2 className="text-lg font-semibold text-foreground dark:text-white mb-4">Pipeline Stage</h2>
 
             {/* Visual Pipeline */}

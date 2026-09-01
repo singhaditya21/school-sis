@@ -155,7 +155,7 @@ export default function ApprovalsPage() {
                     <button
                         type="button"
                         onClick={() => void fetchApprovals()}
-                        className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
                         disabled={loading}
                     >
                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -173,7 +173,7 @@ export default function ApprovalsPage() {
                         className={`h-9 rounded-md border px-3 text-sm font-medium transition ${
                             statusFilter === filter.value
                                 ? 'border-slate-950 bg-slate-950 text-white'
-                                : 'border-border bg-white text-foreground hover:bg-muted'
+                                : 'border-border bg-card text-foreground hover:bg-muted'
                         }`}
                     >
                         {filter.label}
@@ -195,7 +195,7 @@ export default function ApprovalsPage() {
                 </div>
             )}
 
-            <div className="overflow-hidden rounded-lg border border-border bg-white">
+            <div className="overflow-hidden rounded-lg border border-border bg-card">
                 <div className="grid grid-cols-[minmax(280px,1.4fr)_minmax(180px,.8fr)_minmax(180px,.7fr)_minmax(260px,1fr)] border-b border-border bg-muted px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground max-xl:hidden">
                     <div>Request</div>
                     <div>Policy</div>
@@ -301,7 +301,7 @@ export default function ApprovalsPage() {
                                                 type="button"
                                                 onClick={() => void handleReview(approval.id, 'REJECTED')}
                                                 disabled={submittingId === approval.id}
-                                                className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                                                className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
                                             >
                                                 <XCircle className="h-4 w-4" />
                                                 Reject

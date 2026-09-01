@@ -14,12 +14,12 @@ export default async function UniversityCoursesPage() {
                     <p className="text-muted-foreground mt-2 text-base">Manage degree-specific courses, CBCS credits, and faculty syllabi.</p>
                 </div>
                 <div className="flex gap-3">
-                    <Button variant="outline" className="bg-white">Import Syllabi</Button>
+                    <Button variant="outline" className="bg-card">Import Syllabi</Button>
                     <Button className="bg-primary hover:bg-primary/90">Add New Course</Button>
                 </div>
             </div>
 
-            <Card className="border-0 shadow-lg bg-white overflow-hidden mt-8">
+            <Card className="border-0 shadow-lg bg-card overflow-hidden mt-8">
                 <CardHeader className="bg-muted border-b border-border px-6 py-5 flex flex-row items-center justify-between">
                     <div>
                         <CardTitle className="text-xl">Associated Courses</CardTitle>
@@ -29,7 +29,7 @@ export default async function UniversityCoursesPage() {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
-                            <thead className="bg-white border-b border-border text-xs text-muted-foreground uppercase font-semibold">
+                            <thead className="bg-card border-b border-border text-xs text-muted-foreground uppercase font-semibold">
                                 <tr>
                                     <th className="px-6 py-4">Course Code</th>
                                     <th className="px-6 py-4">Title</th>

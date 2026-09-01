@@ -19,7 +19,7 @@ const STATUS_STYLES: Record<string, string> = {
     cancelled: 'bg-red-100 text-red-800',
 };
 
-const FIELD = 'w-full p-2 border rounded text-sm bg-white';
+const FIELD = 'w-full p-2 border rounded text-sm bg-card';
 const LABEL = 'block text-xs font-semibold text-muted-foreground mb-1';
 
 const EMPTY = {

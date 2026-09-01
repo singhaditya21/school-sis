@@ -57,7 +57,7 @@ test.describe('Transport Module Core E2E Tests', () => {
         await expect(page.locator('main h1')).toContainText('Transport');
         
         // Verify Route 1 card displays route name, stops count, monthly fee
-        const routeCard = page.locator('div.bg-white.rounded-xl.shadow-sm.border:has-text("Route 1")');
+        const routeCard = page.locator('div.bg-card.rounded-xl.shadow-sm.border:has-text("Route 1")');
         await expect(routeCard).toBeVisible();
         await expect(routeCard.locator('h3')).toContainText('Route 1');
         await expect(routeCard).toContainText('Stops: 3');

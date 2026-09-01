@@ -31,7 +31,7 @@ export default async function ParentConsentPage({
             {data ? (
                 <ConsentForms forms={data.forms} studentId={data.child.id} studentName={data.child.name} />
             ) : (
-                <div className="rounded-xl border border-dashed bg-white p-12 text-center text-muted-foreground">
+                <div className="rounded-xl border border-dashed bg-card p-12 text-center text-muted-foreground">
                     No child is linked to your account yet, so there are no consent forms to answer.
                 </div>
             )}

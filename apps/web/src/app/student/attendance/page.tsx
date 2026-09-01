@@ -62,7 +62,7 @@ export default async function StudentAttendancePage({
                 <div className="flex items-center gap-2">
                     <Link
                         href={`/student/attendance?month=${prev.month}&year=${prev.year}`}
-                        className="rounded-md border bg-white px-3 py-1.5 text-sm text-foreground hover:bg-muted"
+                        className="rounded-md border bg-card px-3 py-1.5 text-sm text-foreground hover:bg-muted"
                     >
                         ← Prev
                     </Link>
@@ -71,7 +71,7 @@ export default async function StudentAttendancePage({
                     </span>
                     <Link
                         href={`/student/attendance?month=${next.month}&year=${next.year}`}
-                        className="rounded-md border bg-white px-3 py-1.5 text-sm text-foreground hover:bg-muted"
+                        className="rounded-md border bg-card px-3 py-1.5 text-sm text-foreground hover:bg-muted"
                     >
                         Next →
                     </Link>
@@ -79,7 +79,7 @@ export default async function StudentAttendancePage({
             </div>
 
             {attendance.marked === 0 ? (
-                <div className="rounded-xl border bg-white p-8 text-center text-sm text-muted-foreground">
+                <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
                     No attendance was marked for you in {MONTH_NAMES[month - 1]} {year}.
                 </div>
             ) : (
@@ -91,7 +91,7 @@ export default async function StudentAttendancePage({
                         <Stat label="Attendance rate" value={rate === null ? '—' : `${rate}%`} />
                     </div>
 
-                    <div className="rounded-xl border bg-white p-6">
+                    <div className="rounded-xl border bg-card p-6">
                         <h2 className="mb-4 text-sm font-semibold text-foreground">Daily record</h2>
                         <div className="grid grid-cols-7 gap-2">
                             {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
@@ -101,7 +101,7 @@ export default async function StudentAttendancePage({
                                         key={day}
                                         title={record?.remarks ?? undefined}
                                         className={`aspect-square flex flex-col items-center justify-center rounded-md border text-sm font-medium ${
-                                            record ? STATUS_STYLES[record.status] ?? 'bg-white text-muted-foreground border-border' : 'bg-white text-gray-300 border-border'
+                                            record ? STATUS_STYLES[record.status] ?? 'bg-card text-muted-foreground border-border' : 'bg-card text-gray-300 border-border'
                                         }`}
                                     >
                                         <span>{day}</span>
@@ -126,7 +126,7 @@ export default async function StudentAttendancePage({
 
 function Stat({ label, value }: { label: string; value: number | string }) {
     return (
-        <div className="rounded-xl border bg-white p-5 shadow-sm">
+        <div className="rounded-xl border bg-card p-5 shadow-sm">
             <p className="text-sm font-medium text-muted-foreground">{label}</p>
             <p className="mt-1 text-2xl font-bold text-foreground">{value}</p>
         </div>

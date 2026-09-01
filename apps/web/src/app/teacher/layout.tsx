@@ -20,7 +20,7 @@ export default async function TeacherLayout({
     return (
         <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
             {/* Sidebar */}
-            <aside data-testid="sidebar" className="fixed left-0 top-0 h-full w-64 bg-white border-r border-border z-40 hidden lg:block">
+            <aside data-testid="sidebar" className="fixed left-0 top-0 h-full w-64 bg-card border-r border-border z-40 hidden lg:block">
                 <div className="p-4 border-b border-border">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
@@ -59,7 +59,7 @@ export default async function TeacherLayout({
             </aside>
 
             {/* Mobile Header */}
-            <header className="lg:hidden bg-white/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
+            <header className="lg:hidden bg-card/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
                 <div className="px-4 py-3">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
@@ -79,7 +79,7 @@ export default async function TeacherLayout({
             </main>
 
             {/* Mobile Bottom Navigation */}
-            <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border px-2 py-2 safe-area-pb">
+            <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border px-2 py-2 safe-area-pb">
                 <div className="flex justify-around items-center max-w-lg mx-auto">
                     <MobileNavItem href="/teacher" icon="🏠" label="Home" />
                     <MobileNavItem href="/teacher/my-classes" icon="📚" label="Classes" />

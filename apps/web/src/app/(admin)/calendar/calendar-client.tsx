@@ -530,7 +530,7 @@ export default function CalendarClient({
 
 function SummaryTile({ label, value }: { label: string; value: number }) {
     return (
-        <div className="rounded-lg border bg-white p-4">
+        <div className="rounded-lg border bg-card p-4">
             <div className="text-sm text-muted-foreground">{label}</div>
             <div className="mt-1 text-2xl font-bold text-foreground">{value}</div>
         </div>

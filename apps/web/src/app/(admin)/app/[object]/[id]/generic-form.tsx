@@ -123,7 +123,7 @@ export default function GenericFormClient({
                                     {field.dataType === 'PICKLIST' ? (
                                         <select 
                                             id={field.apiName}
-                                            className="flex h-10 w-full rounded-md border border-border bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                             defaultValue={initialValue}
                                             {...register(field.apiName, { required: field.isRequired })}
                                         >
@@ -135,7 +135,7 @@ export default function GenericFormClient({
                                     ) : field.dataType === 'BOOLEAN' ? (
                                         <select
                                             id={field.apiName}
-                                            className="flex h-10 w-full rounded-md border border-border bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                             defaultValue={initialValue}
                                             {...register(field.apiName, { required: field.isRequired })}
                                         >

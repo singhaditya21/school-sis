@@ -45,7 +45,7 @@ export default async function AdmissionsPipelinePage() {
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white rounded-xl border border-border p-6">
+                <div className="bg-card rounded-xl border border-border p-6">
                     <h2 className="text-lg font-semibold text-foreground mb-4">Conversion</h2>
                     <dl className="space-y-3 text-sm">
                         <div className="flex justify-between">
@@ -77,7 +77,7 @@ export default async function AdmissionsPipelinePage() {
                     </dl>
                 </div>
 
-                <div className="bg-white rounded-xl border border-border p-6">
+                <div className="bg-card rounded-xl border border-border p-6">
                     <h2 className="text-lg font-semibold text-foreground mb-4">Where leads come from</h2>
                     {sourceBreakdown.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No leads recorded yet.</p>

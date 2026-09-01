@@ -33,22 +33,22 @@ export default async function MarksVerificationPage({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Awaiting verification</p>
                     <p className="text-2xl font-bold text-amber-600">{overview.stats.pending}</p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Verified &amp; locked</p>
                     <p className="text-2xl font-bold text-green-600">{overview.stats.verified}</p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Saved results, all exams</p>
                     <p className="text-2xl font-bold text-foreground">{overview.stats.total}</p>
                 </div>
             </div>
 
             {overview.exams.length > 0 && (
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm font-medium text-foreground mb-2">Filter by exam</p>
                     <div className="flex flex-wrap gap-2">
                         <Link

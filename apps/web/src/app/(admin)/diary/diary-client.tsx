@@ -162,7 +162,7 @@ export default function DiaryClient({ entries, options, filters, today }: Props)
                         <Label htmlFor="filter-grade" className="text-xs text-muted-foreground">Class</Label>
                         <select
                             id="filter-grade"
-                            className="h-10 w-full md:w-48 px-3 bg-white border border-border rounded-md text-sm"
+                            className="h-10 w-full md:w-48 px-3 bg-card border border-border rounded-md text-sm"
                             value={filters.gradeId}
                             onChange={(e) => applyFilter('gradeId', e.target.value)}
                         >
@@ -176,7 +176,7 @@ export default function DiaryClient({ entries, options, filters, today }: Props)
                         <Label htmlFor="filter-type" className="text-xs text-muted-foreground">Type</Label>
                         <select
                             id="filter-type"
-                            className="h-10 w-full md:w-40 px-3 bg-white border border-border rounded-md text-sm"
+                            className="h-10 w-full md:w-40 px-3 bg-card border border-border rounded-md text-sm"
                             value={filters.type}
                             onChange={(e) => applyFilter('type', e.target.value)}
                         >
@@ -288,7 +288,7 @@ export default function DiaryClient({ entries, options, filters, today }: Props)
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="type">Type</Label>
-                                <select id="type" name="type" className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm" defaultValue="HOMEWORK">
+                                <select id="type" name="type" className="w-full h-10 px-3 bg-card border border-border rounded-md text-sm" defaultValue="HOMEWORK">
                                     {DIARY_TYPES.map((t) => (
                                         <option key={t} value={t}>{t.charAt(0) + t.slice(1).toLowerCase()}</option>
                                     ))}
@@ -304,7 +304,7 @@ export default function DiaryClient({ entries, options, filters, today }: Props)
                                     name="gradeId"
                                     value={formGradeId}
                                     onChange={(e) => setFormGradeId(e.target.value)}
-                                    className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm"
+                                    className="w-full h-10 px-3 bg-card border border-border rounded-md text-sm"
                                 >
                                     <option value="">Whole school</option>
                                     {options.grades.map((g) => (
@@ -318,7 +318,7 @@ export default function DiaryClient({ entries, options, filters, today }: Props)
                                     id="sectionId"
                                     name="sectionId"
                                     disabled={!formGradeId}
-                                    className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm disabled:bg-muted"
+                                    className="w-full h-10 px-3 bg-card border border-border rounded-md text-sm disabled:bg-muted"
                                 >
                                     <option value="">All sections</option>
                                     {sectionsForForm.map((s) => (
@@ -328,7 +328,7 @@ export default function DiaryClient({ entries, options, filters, today }: Props)
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="subjectId">Subject</Label>
-                                <select id="subjectId" name="subjectId" className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm">
+                                <select id="subjectId" name="subjectId" className="w-full h-10 px-3 bg-card border border-border rounded-md text-sm">
                                     <option value="">No subject</option>
                                     {options.subjects.map((s) => (
                                         <option key={s.subjectId} value={s.subjectId}>{s.subjectName}</option>
@@ -340,7 +340,7 @@ export default function DiaryClient({ entries, options, filters, today }: Props)
                         {options.teachers.length > 0 && (
                             <div className="space-y-2">
                                 <Label htmlFor="teacherId">Posted by</Label>
-                                <select id="teacherId" name="teacherId" className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm">
+                                <select id="teacherId" name="teacherId" className="w-full h-10 px-3 bg-card border border-border rounded-md text-sm">
                                     <option value="">Me</option>
                                     {options.teachers.map((t) => (
                                         <option key={t.teacherId} value={t.teacherId}>{t.teacherName}</option>
@@ -389,7 +389,7 @@ export default function DiaryClient({ entries, options, filters, today }: Props)
                                         id="edit-type"
                                         name="type"
                                         defaultValue={editing.type ?? ''}
-                                        className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm"
+                                        className="w-full h-10 px-3 bg-card border border-border rounded-md text-sm"
                                     >
                                         <option value="">No type</option>
                                         {DIARY_TYPES.map((t) => (

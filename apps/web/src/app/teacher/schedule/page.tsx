@@ -64,7 +64,7 @@ export default async function TeacherSchedulePage({
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
                             day === selectedDay
                                 ? 'bg-emerald-600 text-white border-emerald-600'
-                                : 'bg-white text-foreground border-border hover:bg-muted'
+                                : 'bg-card text-foreground border-border hover:bg-muted'
                         }`}
                     >
                         {titleCase(day)}
@@ -72,7 +72,7 @@ export default async function TeacherSchedulePage({
                 ))}
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border">
+            <div className="bg-card rounded-xl shadow-sm border">
                 <div className="p-4 border-b">
                     <h2 className="font-semibold">Periods</h2>
                 </div>

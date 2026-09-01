@@ -96,7 +96,7 @@ export function FeesClient() {
             )}
 
             {!childrenLoading && students.length === 0 ? (
-                <div className="rounded-xl border border-dashed bg-white p-12 text-center text-muted-foreground">
+                <div className="rounded-xl border border-dashed bg-card p-12 text-center text-muted-foreground">
                     No child is linked to your account yet, so there are no fee records to show.
                 </div>
             ) : (

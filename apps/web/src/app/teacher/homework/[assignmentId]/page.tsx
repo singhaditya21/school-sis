@@ -39,7 +39,7 @@ export default async function TeacherHomeworkDetailPage({
             </div>
 
             {detail.description && (
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                         Instructions
                     </h2>

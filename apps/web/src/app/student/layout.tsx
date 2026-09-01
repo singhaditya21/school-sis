@@ -41,7 +41,7 @@ export default async function StudentLayout({
 
     return (
         <div className="min-h-screen bg-muted">
-            <header className="bg-white border-b border-border sticky top-0 z-50">
+            <header className="bg-card border-b border-border sticky top-0 z-50">
                 <div className="px-4 py-3 md:px-6 md:py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -73,7 +73,7 @@ export default async function StudentLayout({
             </header>
 
             <div className="flex flex-col md:flex-row min-h-[calc(100vh-65px)]">
-                <aside className="fixed bottom-0 left-0 right-0 md:relative md:w-64 bg-white border-t md:border-t-0 md:border-r border-border z-40">
+                <aside className="fixed bottom-0 left-0 right-0 md:relative md:w-64 bg-card border-t md:border-t-0 md:border-r border-border z-40">
                     <StudentNav links={STUDENT_NAV_LINKS} />
                 </aside>
 

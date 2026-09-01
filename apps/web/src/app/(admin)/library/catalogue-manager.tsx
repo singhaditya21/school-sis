@@ -129,7 +129,7 @@ export default function CatalogueManager({
                             <select
                                 value={category}
                                 onChange={(e) => applyFilters({ category: e.target.value })}
-                                className="h-10 px-3 border rounded-lg text-sm bg-white"
+                                className="h-10 px-3 border rounded-lg text-sm bg-card"
                                 data-testid="catalogue-category-filter"
                             >
                                 <option value="ALL">All categories</option>

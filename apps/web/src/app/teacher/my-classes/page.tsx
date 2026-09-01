@@ -24,7 +24,7 @@ export default async function TeacherClassesPage() {
             </div>
 
             {classes.length === 0 ? (
-                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                     <p className="font-medium text-foreground">No classes are assigned to your account.</p>
                     <p className="text-sm text-muted-foreground mt-2 max-w-lg mx-auto">
                         A class reaches this page once the office makes you the class teacher of a section,
@@ -37,7 +37,7 @@ export default async function TeacherClassesPage() {
                         const summary = summaryBySection.get(cls.sectionId);
                         const marked = summary?.marked ?? 0;
                         return (
-                            <div key={cls.sectionId} className="bg-white rounded-xl shadow-sm border p-5 flex flex-col">
+                            <div key={cls.sectionId} className="bg-card rounded-xl shadow-sm border p-5 flex flex-col">
                                 <div className="flex items-start justify-between gap-2">
                                     <div>
                                         <h2 className="font-semibold text-lg text-foreground">

@@ -182,7 +182,7 @@ export default async function CompliancePage() {
                         </p>
                         <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-border bg-gray-200 sm:grid-cols-2 lg:grid-cols-3">
                             {profileFields.map((field) => (
-                                <div key={field.label} className="bg-white p-3">
+                                <div key={field.label} className="bg-card p-3">
                                     <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                         {field.label}
                                     </dt>
@@ -324,7 +324,7 @@ export default async function CompliancePage() {
                 {proctoringResult.rows.length === 0 ? (
                     <EmptyState message="No proctoring anomalies have been recorded." />
                 ) : (
-                    <div className="overflow-x-auto rounded-xl border border-border bg-white">
+                    <div className="overflow-x-auto rounded-xl border border-border bg-card">
                         <table className="w-full text-sm">
                             <thead className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                                 <tr>
@@ -400,7 +400,7 @@ function Section({
 
 function Metric({ label, value, hint }: { label: string; value: string; hint: string }) {
     return (
-        <div className="rounded-xl border border-border bg-white p-4">
+        <div className="rounded-xl border border-border bg-card p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
             <div className="mt-1 text-2xl font-bold text-foreground">{value}</div>
             <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
@@ -439,7 +439,7 @@ function Note({ children }: { children: React.ReactNode }) {
 
 function EmptyState({ message }: { message: string }) {
     return (
-        <div className="rounded-xl border border-dashed border-border bg-white py-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-border bg-card py-10 text-center text-sm text-muted-foreground">
             {message}
         </div>
     );

@@ -79,14 +79,14 @@ export function MarksSheet({
 
     if (rows.length === 0) {
         return (
-            <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
+            <div className="bg-card rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
                 No active students sit this paper in the sections you teach.
             </div>
         );
     }
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border">
+        <div className="bg-card rounded-xl shadow-sm border">
             {lockedCount > 0 && (
                 <div className="p-3 bg-amber-50 border-b border-amber-200 text-sm text-amber-800">
                     {lockedCount} result(s) have been locked by the verification workflow and can no longer be

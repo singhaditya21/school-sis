@@ -49,7 +49,7 @@ export default async function SubstitutionDetailPage({ params }: { params: Promi
 
     return (
         <Shell>
-            <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
+            <div className="bg-card rounded-xl shadow-sm border p-6 space-y-4">
                 <h1 className="text-2xl font-bold">Substitution Request Detail</h1>
                 <div className="grid grid-cols-2 gap-4 text-sm pt-4">
                     <span className="font-semibold text-muted-foreground">Date:</span>

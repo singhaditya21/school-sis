@@ -38,7 +38,7 @@ export default async function ExamDetailPage({
 
     if (!data) {
         return (
-            <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+            <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                 <p className="text-muted-foreground">Exam not found.</p>
                 <Link href="/exams" className="text-primary hover:underline text-sm mt-2 inline-block">
                     ← Back to exams
@@ -102,35 +102,35 @@ export default async function ExamDetailPage({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Papers scheduled</p>
                     <p className="text-2xl font-bold text-foreground">{schedules.length}</p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Classes covered</p>
                     <p className="text-2xl font-bold text-foreground">{byGrade.size}</p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Marks entered</p>
                     <p className="text-2xl font-bold text-blue-600">
                         {entered}
                         <span className="text-base font-medium text-muted-foreground"> / {expected}</span>
                     </p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Locked by verification</p>
                     <p className="text-2xl font-bold text-foreground">{locked}</p>
                 </div>
             </div>
 
             {exam.description && (
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-foreground">{exam.description}</p>
                 </div>
             )}
 
             {schedules.length === 0 ? (
-                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                     <p className="font-medium text-foreground">No papers scheduled yet</p>
                     <p className="text-sm text-muted-foreground mt-1">
                         Marks entry and report cards both read from the exam schedule, so nothing can
@@ -151,7 +151,7 @@ export default async function ExamDetailPage({
                         const gradeEntered = bucket.rows.reduce((s, r) => s + r.enteredCount, 0);
                         const gradeExpected = bucket.rows.reduce((s, r) => s + r.studentCount, 0);
                         return (
-                            <div key={gradeId} className="bg-white rounded-xl shadow-sm border">
+                            <div key={gradeId} className="bg-card rounded-xl shadow-sm border">
                                 <div className="p-4 border-b flex flex-wrap items-center justify-between gap-3">
                                     <div>
                                         <h2 className="font-semibold text-foreground">{bucket.gradeName}</h2>

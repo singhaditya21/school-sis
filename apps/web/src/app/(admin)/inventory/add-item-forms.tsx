@@ -14,7 +14,7 @@ const ASSET_CONDITIONS = ['EXCELLENT', 'GOOD', 'FAIR', 'NEEDS_REPAIR', 'DISPOSED
 /** Mirrors the `consumable_category` enum in the database. */
 const CONSUMABLE_CATEGORIES = ['STATIONERY', 'CLEANING', 'SPORTS', 'LAB_SUPPLIES', 'FIRST_AID', 'OFFICE'] as const;
 
-const FIELD = 'w-full p-2 border rounded text-sm bg-white';
+const FIELD = 'w-full p-2 border rounded text-sm bg-card';
 const LABEL = 'block text-xs font-semibold text-muted-foreground mb-1';
 
 const EMPTY_ASSET = {

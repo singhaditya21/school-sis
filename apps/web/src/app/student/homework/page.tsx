@@ -23,7 +23,7 @@ export default async function StudentHomeworkPage() {
             </div>
 
             {data.homework.length === 0 ? (
-                <div className="rounded-xl border bg-white p-8 text-center text-sm text-muted-foreground">
+                <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
                     No homework has been assigned to your class yet.
                 </div>
             ) : (
@@ -31,7 +31,7 @@ export default async function StudentHomeworkPage() {
                     {data.homework.map((item) => {
                         const overdue = item.submittedAt === null && item.dueDate < today;
                         return (
-                            <li key={item.id} className="rounded-xl border bg-white p-5 shadow-sm">
+                            <li key={item.id} className="rounded-xl border bg-card p-5 shadow-sm">
                                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                                     <div className="min-w-0">
                                         <h2 className="font-semibold text-foreground">{item.title}</h2>

@@ -25,7 +25,7 @@ export default async function ExamMarksPage({
 
     if (!sheet) {
         return (
-            <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+            <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                 <p className="text-muted-foreground">This exam or class could not be found.</p>
                 <Link href="/exams" className="text-primary hover:underline text-sm mt-2 inline-block">
                     ← Back to exams
@@ -53,7 +53,7 @@ export default async function ExamMarksPage({
         return (
             <div className="space-y-6">
                 {header}
-                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                     <p className="font-medium text-foreground">No papers scheduled for {sheet.gradeName}</p>
                     <p className="text-sm text-muted-foreground mt-1">
                         Marks can only be entered against a scheduled subject. Add a schedule for this
@@ -68,7 +68,7 @@ export default async function ExamMarksPage({
         return (
             <div className="space-y-6">
                 {header}
-                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                     <p className="font-medium text-foreground">No active students in {sheet.gradeName}</p>
                     <p className="text-sm text-muted-foreground mt-1">
                         There is nobody to enter marks for. Enrol students into this class first.

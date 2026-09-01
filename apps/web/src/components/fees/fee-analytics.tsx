@@ -108,7 +108,7 @@ export function CollectionRateBar({ rate }: { rate: number }) {
                     : 'bg-red-500';
 
     return (
-        <div className="rounded-xl border border-border dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
+        <div className="rounded-xl border border-border dark:border-gray-800 bg-card p-6">
             <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-foreground dark:text-white">
                     Collection Rate
@@ -141,7 +141,7 @@ export function CollectionTrendChart({ data }: { data: CollectionTrendItem[] }) 
     };
 
     return (
-        <div className="rounded-xl border border-border dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
+        <div className="rounded-xl border border-border dark:border-gray-800 bg-card p-6">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-foreground dark:text-white flex items-center gap-2">
                     <BarChart3 className="w-5 h-5 text-blue-500" />

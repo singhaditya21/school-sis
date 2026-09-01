@@ -15,25 +15,25 @@ export default async function UniversityDashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Link href="/university/courses">
-                    <div className="bg-white p-6 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
+                    <div className="bg-card p-6 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
                         <span className="text-4xl mb-4 block group-hover:scale-110 transition-transform">🎓</span>
                         <h3 className="text-xl font-semibold mb-2">Programs & Courses</h3>
                         <p className="text-muted-foreground text-sm">Manage Bachelor, Master, and PhD program requirements and CBCS credits.</p>
                     </div>
                 </Link>
-                <div className="bg-white p-6 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
+                <div className="bg-card p-6 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
                     <span className="text-4xl mb-4 block group-hover:scale-110 transition-transform">👨‍🏫</span>
                     <h3 className="text-xl font-semibold mb-2">Faculty Workload</h3>
                     <p className="text-muted-foreground text-sm">Track professor assignments, research hours, and semester scheduling.</p>
                 </div>
-                <div className="bg-white p-6 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
+                <div className="bg-card p-6 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
                     <span className="text-4xl mb-4 block group-hover:scale-110 transition-transform">🔬</span>
                     <h3 className="text-xl font-semibold mb-2">Research Grants</h3>
                     <p className="text-muted-foreground text-sm">Track institutional ethics committee (IEC) approvals and patent tracking.</p>
                 </div>
             </div>
 
-            <Card className="border-0 shadow-lg bg-white overflow-hidden mt-8">
+            <Card className="border-0 shadow-lg bg-card overflow-hidden mt-8">
                 <CardHeader className="bg-muted border-b border-border px-6 py-5 flex flex-row items-center justify-between">
                     <div>
                         <CardTitle className="text-xl">Active Degree Programs</CardTitle>
@@ -43,7 +43,7 @@ export default async function UniversityDashboard() {
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
-                            <thead className="bg-white border-b border-border text-xs text-muted-foreground uppercase font-semibold">
+                            <thead className="bg-card border-b border-border text-xs text-muted-foreground uppercase font-semibold">
                                 <tr>
                                     <th className="px-6 py-4">Program Name</th>
                                     <th className="px-6 py-4">Degree Type</th>

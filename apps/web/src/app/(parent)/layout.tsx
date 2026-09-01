@@ -19,7 +19,7 @@ export default async function ParentLayout({
     return (
         <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent">
             {/* Top Bar */}
-            <header className="bg-white/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
+            <header className="bg-card/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
                 <div className="px-4 py-3">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
@@ -37,7 +37,7 @@ export default async function ParentLayout({
             <main className="p-4 pb-20">{children}</main>
 
             {/* Bottom Navigation (Mobile-First) */}
-            <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-border px-4 py-2 safe-area-pb">
+            <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 py-2 safe-area-pb">
                 <div className="flex justify-around items-center max-w-lg mx-auto">
                     <NavItem href="/overview" icon="🏠" label="Home" />
                     <NavItem href="/my-attendance" icon="📅" label="Attendance" />

@@ -3,7 +3,7 @@ import { getQuizTargetOptions } from '../queries';
 import { createQuizAction } from '../actions';
 
 const inputClass =
-    'w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring';
+    'w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-card text-sm focus:ring-2 focus:ring-ring';
 const labelClass = 'block text-sm font-medium text-foreground dark:text-gray-300 mb-1';
 
 export default async function NewQuizPage({
@@ -34,7 +34,7 @@ export default async function NewQuizPage({
 
             <form
                 action={createQuizAction}
-                className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6 space-y-4"
+                className="bg-card rounded-xl shadow-sm border border-border dark:border-gray-800 p-6 space-y-4"
             >
                 <div>
                     <label className={labelClass} htmlFor="title">Title *</label>

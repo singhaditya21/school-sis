@@ -102,7 +102,7 @@ export function AuditLogTable({ rows }: { rows: AuditRow[] }) {
 
     if (rows.length === 0) {
         return (
-            <div className="rounded-xl border border-dashed border-border bg-white py-16 text-center">
+            <div className="rounded-xl border border-dashed border-border bg-card py-16 text-center">
                 <p className="font-medium text-foreground">No audit entries match these filters</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                     Widen the time window or clear the filters. If the log is empty across all time,
@@ -123,7 +123,7 @@ export function AuditLogTable({ rows }: { rows: AuditRow[] }) {
                 </Button>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-border bg-white">
+            <div className="overflow-x-auto rounded-xl border border-border bg-card">
                 <table className="w-full text-sm">
                     <thead className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                         <tr>

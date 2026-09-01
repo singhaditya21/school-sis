@@ -37,7 +37,7 @@ export default async function TeacherAttendancePage({
                     </label>
                     <button
                         type="submit"
-                        className="bg-white border border-border text-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-muted"
+                        className="bg-card border border-border text-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-muted"
                     >
                         Show
                     </button>
@@ -45,7 +45,7 @@ export default async function TeacherAttendancePage({
             </div>
 
             {classes.length === 0 ? (
-                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                     <p className="font-medium text-foreground">No classes are assigned to your account.</p>
                     <p className="text-sm text-muted-foreground mt-2">
                         Attendance can only be marked for a section you are the class teacher of, or hold a
@@ -53,7 +53,7 @@ export default async function TeacherAttendancePage({
                     </p>
                 </div>
             ) : (
-                <div className="bg-white rounded-xl shadow-sm border divide-y">
+                <div className="bg-card rounded-xl shadow-sm border divide-y">
                     {classes.map((cls) => {
                         const summary = summaryBySection.get(cls.sectionId);
                         const marked = summary?.marked ?? 0;

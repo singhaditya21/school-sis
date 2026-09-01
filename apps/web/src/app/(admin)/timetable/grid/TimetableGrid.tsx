@@ -133,7 +133,7 @@ export default function TimetableGrid({
                 <span>{teachingPeriods.length} teaching periods · {periods.length - teachingPeriods.length} breaks</span>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
+            <div className="bg-card rounded-xl shadow-sm border overflow-x-auto">
                 <table className="w-full min-w-[900px]" data-testid="timetable-grid">
                     <thead className="bg-muted">
                         <tr>
@@ -245,7 +245,7 @@ export default function TimetableGrid({
                                             data-testid="grid-subject-select"
                                             value={subjectId}
                                             onChange={(event) => setSubjectId(event.target.value)}
-                                            className="w-full px-3 py-2 border rounded-lg bg-white mt-1"
+                                            className="w-full px-3 py-2 border rounded-lg bg-card mt-1"
                                         >
                                             <option value="">Select subject…</option>
                                             {subjects.map((subject) => (
@@ -262,7 +262,7 @@ export default function TimetableGrid({
                                             data-testid="grid-teacher-select"
                                             value={teacherId}
                                             onChange={(event) => setTeacherId(event.target.value)}
-                                            className="w-full px-3 py-2 border rounded-lg bg-white mt-1"
+                                            className="w-full px-3 py-2 border rounded-lg bg-card mt-1"
                                         >
                                             <option value="">Select teacher…</option>
                                             {teachers.map((teacher) => (
