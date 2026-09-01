@@ -27,7 +27,7 @@ export default async function SectionTimetablePage({ params }: { params: Promise
         return (
             <div className="container mx-auto p-6 text-center">
                 <h1 className="text-2xl font-bold text-red-600">Section not found</h1>
-                <Link href="/timetable" className="text-blue-600 hover:underline mt-4 block">← Back to Timetable</Link>
+                <Link href="/timetable" className="text-primary hover:underline mt-4 block">← Back to Timetable</Link>
             </div>
         );
     }
@@ -67,7 +67,7 @@ export default async function SectionTimetablePage({ params }: { params: Promise
                     </p>
                     <Link
                         href="/timetable/periods"
-                        className="inline-block mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        className="inline-block mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
                     >
                         Set up periods
                     </Link>

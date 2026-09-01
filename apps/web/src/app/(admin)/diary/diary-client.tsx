@@ -151,7 +151,7 @@ export default function DiaryClient({ entries, options, filters, today }: Props)
                     <h1 className="text-3xl font-bold tracking-tight text-foreground">School diary</h1>
                     <p className="text-muted-foreground mt-1">Daily notes, homework reminders and class announcements.</p>
                 </div>
-                <Button onClick={() => setComposeOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+                <Button onClick={() => setComposeOpen(true)} className="bg-primary hover:bg-primary/90">
                     New entry
                 </Button>
             </div>
@@ -356,7 +356,7 @@ export default function DiaryClient({ entries, options, filters, today }: Props)
 
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setComposeOpen(false)}>Cancel</Button>
-                            <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+                            <Button type="submit" disabled={saving} className="bg-primary hover:bg-primary/90">
                                 {saving ? 'Posting…' : 'Post entry'}
                             </Button>
                         </DialogFooter>

@@ -92,7 +92,7 @@ export default function NewRouteForm() {
     return (
         <div className="container mx-auto p-6 max-w-2xl">
             <div className="mb-6">
-                <Link href="/transport" className="text-blue-600 hover:underline">← Back</Link>
+                <Link href="/transport" className="text-primary hover:underline">← Back</Link>
             </div>
 
             <Card>

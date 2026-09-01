@@ -44,7 +44,7 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
     return (
         <div className="space-y-6">
             <div>
-                <Link href="/settings/objects" className="text-blue-600 hover:underline flex items-center text-sm mb-4">
+                <Link href="/settings/objects" className="text-primary hover:underline flex items-center text-sm mb-4">
                     <ChevronLeft className="w-4 h-4 mr-1" /> Back to Objects
                 </Link>
                 <h1 className="text-2xl font-bold text-foreground dark:text-white capitalize flex items-center gap-3">

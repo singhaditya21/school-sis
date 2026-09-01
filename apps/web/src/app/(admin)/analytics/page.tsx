@@ -38,7 +38,7 @@ export default function AnalyticsPage() {
                     <p className="text-muted-foreground mt-1">School performance insights and trends</p>
                 </div>
                 <div className="flex gap-3">
-                    <Link href="/analytics/fees" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">💰 Fee Analysis</Link>
+                    <Link href="/analytics/fees" className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90">💰 Fee Analysis</Link>
                     <Link href="/analytics/attendance" className="px-4 py-2 border rounded-lg hover:bg-muted">📊 Attendance</Link>
                     <Link href="/analytics/exams" className="px-4 py-2 border rounded-lg hover:bg-muted">📝 Exams</Link>
                     <Link href="/reports" className="px-4 py-2 border rounded-lg hover:bg-muted">Report builder</Link>
@@ -55,7 +55,7 @@ export default function AnalyticsPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
-                    <CardHeader><CardTitle className="flex items-center justify-between"><span>💰 Fee Collection Trend</span><Link href="/analytics/fees" className="text-sm text-blue-600 hover:underline">View Details →</Link></CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="flex items-center justify-between"><span>💰 Fee Collection Trend</span><Link href="/analytics/fees" className="text-sm text-primary hover:underline">View Details →</Link></CardTitle></CardHeader>
                     <CardContent>
                         {feeData.length === 0 ? (
                             <p className="text-muted-foreground text-center py-12">No payments recorded in the last 12 months.</p>
@@ -75,7 +75,7 @@ export default function AnalyticsPage() {
                 </Card>
 
                 <Card>
-                    <CardHeader><CardTitle className="flex items-center justify-between"><span>📊 Attendance (Last 30 Days)</span><Link href="/analytics/attendance" className="text-sm text-blue-600 hover:underline">View Details →</Link></CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="flex items-center justify-between"><span>📊 Attendance (Last 30 Days)</span><Link href="/analytics/attendance" className="text-sm text-primary hover:underline">View Details →</Link></CardTitle></CardHeader>
                     <CardContent>
                         {attendanceData.length === 0 ? (
                             <p className="text-muted-foreground text-center py-12">No attendance has been recorded in the last 30 days.</p>
@@ -94,7 +94,7 @@ export default function AnalyticsPage() {
                 </Card>
 
                 <Card>
-                    <CardHeader><CardTitle className="flex items-center justify-between"><span>📈 Class-wise Exam Performance</span><Link href="/analytics/exams" className="text-sm text-blue-600 hover:underline">View Details →</Link></CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="flex items-center justify-between"><span>📈 Class-wise Exam Performance</span><Link href="/analytics/exams" className="text-sm text-primary hover:underline">View Details →</Link></CardTitle></CardHeader>
                     <CardContent>
                         {classData.length === 0 ? (
                             <p className="text-muted-foreground text-center py-12">No exam results have been entered yet.</p>

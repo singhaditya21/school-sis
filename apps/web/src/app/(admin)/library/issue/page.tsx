@@ -149,7 +149,7 @@ export default function IssueBookPage() {
             {message && (<div data-testid="message-banner" className={`p-4 rounded-lg ${message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{message.text}</div>)}
 
             <div className="flex gap-2">
-                <button data-testid="mode-issue" onClick={() => setMode('issue')} className={`px-6 py-3 rounded-lg font-medium ${mode === 'issue' ? 'bg-blue-600 text-white' : 'bg-muted'}`}>📖 Issue Book</button>
+                <button data-testid="mode-issue" onClick={() => setMode('issue')} className={`px-6 py-3 rounded-lg font-medium ${mode === 'issue' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>📖 Issue Book</button>
                 <button data-testid="mode-return" onClick={() => setMode('return')} className={`px-6 py-3 rounded-lg font-medium ${mode === 'return' ? 'bg-green-600 text-white' : 'bg-muted'}`}>↩️ Return Book</button>
             </div>
 
@@ -179,7 +179,7 @@ export default function IssueBookPage() {
                             </select>
                         </div>
                         <div className="bg-muted p-4 rounded-lg text-sm"><p><strong>Loan Period:</strong> {LIBRARY_LOAN_PERIOD_DAYS} days</p><p><strong>Fine Rate:</strong> {LIBRARY_FINE_RATE_LABEL}</p></div>
-                        <button data-testid="issue-submit-btn" onClick={handleIssue} className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">Issue Book</button>
+                        <button data-testid="issue-submit-btn" onClick={handleIssue} className="w-full px-4 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90">Issue Book</button>
                     </CardContent>
                 </Card>
             ) : (

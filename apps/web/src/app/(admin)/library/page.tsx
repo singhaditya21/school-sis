@@ -42,7 +42,7 @@ export default async function LibraryPage({ searchParams }: PageProps) {
                     <p className="text-muted-foreground mt-1">Manage book catalog, issues, and returns</p>
                 </div>
                 <div className="flex gap-3">
-                    <Link href="/library/issue" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <Link href="/library/issue" className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90">
                         📖 Issue Book
                     </Link>
                     <Link href="/library/history" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">

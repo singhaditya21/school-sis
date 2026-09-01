@@ -168,7 +168,7 @@ export default async function AuditTrailPage({
                         </label>
                         <button
                             type="submit"
-                            className="h-9 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700"
+                            className="h-9 rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary/90"
                         >
                             Apply
                         </button>

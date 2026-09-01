@@ -36,7 +36,7 @@ export default function RescanButton() {
             type="button"
             onClick={handleRescan}
             disabled={isPending}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-sm font-medium disabled:opacity-50"
             data-testid="rescan-stock-btn"
         >
             {isPending ? 'Re-scanning…' : 'Re-scan Stock Levels'}

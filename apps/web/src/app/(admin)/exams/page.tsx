@@ -54,7 +54,7 @@ export default async function ExamsPage() {
                     </Link>
                     <Link
                         href="/exams/create"
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90"
                     >
                         + Create exam
                     </Link>
@@ -92,7 +92,7 @@ export default async function ExamsPage() {
                         </p>
                         <Link
                             href="/exams/create"
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
                         >
                             Create your first exam
                         </Link>

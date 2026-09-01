@@ -70,7 +70,7 @@ export default async function ReceiptDetailPage({ params }: { params: Promise<{ 
                 <p className="text-muted-foreground mt-2">
                     No receipt with this reference exists for your school.
                 </p>
-                <Link href="/receipts" className="text-blue-600 hover:underline mt-4 inline-block">
+                <Link href="/receipts" className="text-primary hover:underline mt-4 inline-block">
                     Back to payment ledger
                 </Link>
             </div>
@@ -109,7 +109,7 @@ export default async function ReceiptDetailPage({ params }: { params: Promise<{ 
             <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
 
             <div className="flex items-center justify-between print:hidden">
-                <Link href="/receipts" className="text-sm text-blue-600 hover:underline">
+                <Link href="/receipts" className="text-sm text-primary hover:underline">
                     ← Payment ledger
                 </Link>
                 <span className="text-sm text-muted-foreground">Receipt {receipt.receiptNumber}</span>

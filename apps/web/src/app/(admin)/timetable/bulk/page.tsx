@@ -64,7 +64,7 @@ export default function BulkUploadTimetablePage() {
     return (
         <div className="container mx-auto p-6 max-w-3xl">
             <div className="mb-6">
-                <Link href="/timetable" className="text-blue-600 hover:underline">← Back</Link>
+                <Link href="/timetable" className="text-primary hover:underline">← Back</Link>
             </div>
 
             <Card>

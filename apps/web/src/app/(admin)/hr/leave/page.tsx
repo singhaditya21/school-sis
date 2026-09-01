@@ -47,7 +47,7 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
         <div className="space-y-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <Link href="/hr" className="text-sm text-blue-600 hover:underline">
+                    <Link href="/hr" className="text-sm text-primary hover:underline">
                         ← Staff &amp; HR
                     </Link>
                     <h1 className="mt-1 text-3xl font-bold">Leave requests</h1>
@@ -128,7 +128,7 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
                                     return (
                                         <tr key={r.id} className={r.status === 'PENDING' ? 'bg-amber-50/40' : undefined}>
                                             <td className="px-4 py-3">
-                                                <Link href={`/hr/staff/${r.staffId}`} className="font-medium text-blue-600 hover:underline">
+                                                <Link href={`/hr/staff/${r.staffId}`} className="font-medium text-primary hover:underline">
                                                     {staffName}
                                                 </Link>
                                                 <div className="text-xs text-muted-foreground">

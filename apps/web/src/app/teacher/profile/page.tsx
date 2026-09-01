@@ -139,7 +139,7 @@ export default async function TeacherProfilePage() {
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <Link href="/teacher/schedule" className="text-sm text-blue-600 hover:underline">
+                <Link href="/teacher/schedule" className="text-sm text-primary hover:underline">
                     View my schedule →
                 </Link>
                 <form action={logoutAction}>

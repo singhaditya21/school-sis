@@ -287,7 +287,7 @@ function DefaulterTable({
                                         <div className="flex items-center justify-end gap-1">
                                             <Link
                                                 href={studentInvoicesHref(d.studentName)}
-                                                className="p-1.5 rounded-lg hover:bg-muted dark:hover:bg-gray-800 text-muted-foreground hover:text-blue-600 transition-colors inline-flex"
+                                                className="p-1.5 rounded-lg hover:bg-muted dark:hover:bg-gray-800 text-muted-foreground hover:text-primary transition-colors inline-flex"
                                                 title={`View all invoices for ${d.studentName}`}
                                                 aria-label={`View all invoices for ${d.studentName}`}
                                             >

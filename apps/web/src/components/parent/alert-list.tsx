@@ -135,7 +135,7 @@ export function AlertList({ alerts }: { alerts: ParentAlertItem[] }) {
                                             type="button"
                                             disabled={pending && busyId === alert.id}
                                             onClick={() => handleMarkRead(alert.id)}
-                                            className="text-xs font-medium text-blue-600 hover:underline disabled:opacity-50"
+                                            className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
                                         >
                                             {pending && busyId === alert.id ? 'Marking…' : 'Mark as read'}
                                         </button>

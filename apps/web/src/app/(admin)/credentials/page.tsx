@@ -168,7 +168,7 @@ export default async function CredentialsPage({ searchParams }: PageProps) {
                                         <td className="px-4 py-3 text-right whitespace-nowrap">
                                             <Link
                                                 href={`/certificates/${record.id}`}
-                                                className="text-sm font-medium text-blue-600 hover:underline"
+                                                className="text-sm font-medium text-primary hover:underline"
                                             >
                                                 Open
                                             </Link>

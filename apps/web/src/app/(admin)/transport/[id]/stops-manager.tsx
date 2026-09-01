@@ -198,7 +198,7 @@ export default function StopsManager({ routeId, stops, canWrite }: StopsManagerP
                                         </button>
                                         <button
                                             type="button"
-                                            className="text-blue-600 hover:underline"
+                                            className="text-primary hover:underline"
                                             onClick={() => openEdit(stop)}
                                             data-testid="edit-stop-btn"
                                         >

@@ -163,7 +163,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                         Draft a plan, send it for review, and mark it once the lesson has been taught.
                     </p>
                 </div>
-                <Button onClick={() => openEditor(null)} className="bg-blue-600 hover:bg-blue-700">
+                <Button onClick={() => openEditor(null)} className="bg-primary hover:bg-primary/90">
                     New lesson plan
                 </Button>
             </div>
@@ -267,7 +267,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                                         <td className="px-4 py-4">
                                             <button
                                                 type="button"
-                                                className="font-semibold text-foreground hover:text-blue-600 text-left"
+                                                className="font-semibold text-foreground hover:text-primary text-left"
                                                 onClick={() => setViewing(plan)}
                                             >
                                                 {plan.topic}
@@ -306,7 +306,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                                                     key={action.to}
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                    className="text-blue-600 hover:text-primary hover:bg-accent"
                                                     disabled={busyId === plan.id}
                                                     onClick={() => handleTransition(plan, action.to)}
                                                 >
@@ -410,7 +410,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                             <Button type="button" variant="outline" onClick={() => { setEditorOpen(false); setEditing(null); }}>
                                 Cancel
                             </Button>
-                            <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+                            <Button type="submit" disabled={saving} className="bg-primary hover:bg-primary/90">
                                 {saving ? 'Saving…' : editing ? 'Save changes' : 'Create plan'}
                             </Button>
                         </DialogFooter>

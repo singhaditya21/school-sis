@@ -224,7 +224,7 @@ export default async function CompliancePage() {
                     </div>
                 )}
                 <div className="mt-3">
-                    <Link href="/students" className="text-sm font-medium text-blue-600 hover:underline">
+                    <Link href="/students" className="text-sm font-medium text-primary hover:underline">
                         Open the student register to fill these in →
                     </Link>
                 </div>
@@ -369,7 +369,7 @@ export default async function CompliancePage() {
 
             <p className="text-sm text-muted-foreground">
                 Individual actions taken by staff are recorded separately in the{' '}
-                <Link href="/audit" className="font-medium text-blue-600 hover:underline">
+                <Link href="/audit" className="font-medium text-primary hover:underline">
                     audit log
                 </Link>
                 .

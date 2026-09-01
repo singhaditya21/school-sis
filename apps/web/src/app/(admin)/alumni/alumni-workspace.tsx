@@ -29,7 +29,7 @@ interface Props {
 }
 
 const inputClass =
-    'w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 disabled:opacity-50';
+    'w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring disabled:opacity-50';
 
 const emptyAlumniForm = {
     name: '',
@@ -183,7 +183,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                     <button
                         type="button"
                         onClick={() => setShowAlumniDialog(true)}
-                        className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                        className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 font-medium"
                     >
                         + Add alumnus
                     </button>
@@ -288,7 +288,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                                         href={a.linkedIn}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="text-xs text-blue-600 hover:underline"
+                                                        className="text-xs text-primary hover:underline"
                                                     >
                                                         LinkedIn
                                                     </a>
@@ -321,7 +321,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                                     type="button"
                                                     onClick={() => handleVerify(a)}
                                                     disabled={isPending}
-                                                    className="px-3 py-1 text-xs border border-blue-200 text-blue-600 rounded hover:bg-blue-50 disabled:opacity-50"
+                                                    className="px-3 py-1 text-xs border border-blue-200 text-blue-600 rounded hover:bg-accent disabled:opacity-50"
                                                 >
                                                     {a.isVerified ? 'Unverify' : 'Verify'}
                                                 </button>
@@ -399,7 +399,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                                 setRegisterAlumniId('');
                                             }}
                                             disabled={isPending || alumni.length === 0}
-                                            className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                            className="px-3 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50"
                                         >
                                             Register alumnus
                                         </button>
@@ -554,7 +554,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                 type="button"
                                 onClick={handleAddAlumni}
                                 disabled={isPending}
-                                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium"
                             >
                                 Add to register
                             </button>
@@ -655,7 +655,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                 type="button"
                                 onClick={handleAddEvent}
                                 disabled={isPending}
-                                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium"
                             >
                                 Create event
                             </button>
@@ -709,7 +709,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                 type="button"
                                 onClick={handleRegister}
                                 disabled={isPending || !registerAlumniId}
-                                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium"
                             >
                                 Register
                             </button>

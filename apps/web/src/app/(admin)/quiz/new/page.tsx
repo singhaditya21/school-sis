@@ -3,7 +3,7 @@ import { getQuizTargetOptions } from '../queries';
 import { createQuizAction } from '../actions';
 
 const inputClass =
-    'w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500';
+    'w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring';
 const labelClass = 'block text-sm font-medium text-foreground dark:text-gray-300 mb-1';
 
 export default async function NewQuizPage({
@@ -23,7 +23,7 @@ export default async function NewQuizPage({
                         The quiz starts as a draft. Add questions next, then publish it.
                     </p>
                 </div>
-                <Link href="/quiz" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">← Back</Link>
+                <Link href="/quiz" className="text-primary hover:underline text-sm">← Back</Link>
             </div>
 
             {error && (
@@ -100,7 +100,7 @@ export default async function NewQuizPage({
                     Total marks are calculated from the questions you add, so there is nothing to enter here.
                 </p>
 
-                <button type="submit" className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                <button type="submit" className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 font-medium">
                     Create Quiz
                 </button>
             </form>

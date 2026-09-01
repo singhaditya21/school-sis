@@ -125,7 +125,7 @@ export default async function TreasuryDashboard() {
                             {summary.overdueCount} invoice{summary.overdueCount === 1 ? '' : 's'} past the due
                             date.{' '}
                             {summary.overdueCount > 0 && (
-                                <Link href="/fees/defaulters" className="text-blue-600 dark:text-blue-400 hover:underline">
+                                <Link href="/fees/defaulters" className="text-primary hover:underline">
                                     Open defaulters
                                 </Link>
                             )}
@@ -232,7 +232,7 @@ export default async function TreasuryDashboard() {
                                                 {ex.invoiceId ? (
                                                     <Link
                                                         href={`/invoices/${ex.invoiceId}`}
-                                                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                                                        className="text-primary hover:underline"
                                                     >
                                                         {ex.invoiceNumber || 'View invoice'}
                                                     </Link>
@@ -285,7 +285,7 @@ export default async function TreasuryDashboard() {
                                             <td className="px-6 py-4">
                                                 <Link
                                                     href={`/invoices/${row.id}`}
-                                                    className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                                                    className="text-primary hover:underline font-semibold"
                                                 >
                                                     {row.invoiceNumber}
                                                 </Link>
@@ -340,7 +340,7 @@ export default async function TreasuryDashboard() {
                                                 {row.invoiceId ? (
                                                     <Link
                                                         href={`/invoices/${row.invoiceId}`}
-                                                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                                                        className="text-primary hover:underline"
                                                     >
                                                         {row.invoiceNumber || 'View invoice'}
                                                     </Link>

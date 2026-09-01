@@ -375,7 +375,7 @@ export default function ConsentClient({
                             </div>
                             <Link
                                 href="/consent"
-                                className="text-sm text-blue-600 hover:underline"
+                                className="text-sm text-primary hover:underline"
                             >
                                 Close
                             </Link>

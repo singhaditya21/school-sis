@@ -93,7 +93,7 @@ export default async function InventoryPage() {
                                                     </select>
                                                     <button
                                                         type="submit"
-                                                        className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 font-medium"
+                                                        className="px-2 py-1 bg-primary text-primary-foreground rounded text-xs hover:bg-primary/90 font-medium"
                                                         data-testid={`asset-condition-submit-${a.id}`}
                                                     >
                                                         Update

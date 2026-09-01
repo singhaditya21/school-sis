@@ -39,7 +39,7 @@ export default async function QuizPage({
                 </div>
                 <Link
                     href="/quiz/new"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-sm font-medium"
                 >
                     New Quiz
                 </Link>
@@ -61,7 +61,7 @@ export default async function QuizPage({
                             href={f.value ? `/quiz?status=${f.value}` : '/quiz'}
                             className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
                                 active
-                                    ? 'bg-blue-600 text-white border-blue-600'
+                                    ? 'bg-primary text-primary-foreground border-blue-600'
                                     : 'bg-white dark:bg-gray-900 border-border dark:border-gray-700 hover:bg-muted dark:hover:bg-gray-800'
                             }`}
                         >
@@ -90,7 +90,7 @@ export default async function QuizPage({
                             {quizzes.map((q) => (
                                 <tr key={q.id} className="hover:bg-muted dark:hover:bg-gray-900">
                                     <td className="px-4 py-3 font-medium">
-                                        <Link href={`/quiz/${q.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                                        <Link href={`/quiz/${q.id}`} className="text-primary hover:underline">
                                             {q.title}
                                         </Link>
                                     </td>
@@ -103,7 +103,7 @@ export default async function QuizPage({
                                     <td className="px-4 py-3 text-center">{q.totalMarks}</td>
                                     <td className="px-4 py-3 text-center">
                                         {q.attemptCount > 0 ? (
-                                            <Link href={`/quiz/${q.id}/results`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                                            <Link href={`/quiz/${q.id}/results`} className="text-primary hover:underline">
                                                 {q.attemptCount}
                                             </Link>
                                         ) : (

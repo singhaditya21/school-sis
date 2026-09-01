@@ -27,7 +27,7 @@ export default async function ExamMarksPage({
         return (
             <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
                 <p className="text-muted-foreground">This exam or class could not be found.</p>
-                <Link href="/exams" className="text-blue-600 hover:underline text-sm mt-2 inline-block">
+                <Link href="/exams" className="text-primary hover:underline text-sm mt-2 inline-block">
                     ← Back to exams
                 </Link>
             </div>
@@ -43,7 +43,7 @@ export default async function ExamMarksPage({
                     {formatDate(sheet.exam.startDate)} – {formatDate(sheet.exam.endDate)}
                 </p>
             </div>
-            <Link href={`/exams/${examId}`} className="text-blue-600 hover:underline text-sm">
+            <Link href={`/exams/${examId}`} className="text-primary hover:underline text-sm">
                 ← Back to exam
             </Link>
         </div>

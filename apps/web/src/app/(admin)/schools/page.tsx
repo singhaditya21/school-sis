@@ -153,7 +153,7 @@ export default async function SchoolsPage() {
                                 the group. Mandates pushed down by the group are listed on{' '}
                                 <Link
                                     href="/hq-policies"
-                                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                                    className="text-primary hover:underline"
                                 >
                                     HQ Policies
                                 </Link>

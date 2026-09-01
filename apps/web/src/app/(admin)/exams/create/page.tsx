@@ -17,21 +17,21 @@ export default async function CreateExamPage() {
                     <h1 className="text-2xl font-bold text-foreground dark:text-white">Create Exam</h1>
                     <p className="text-muted-foreground mt-1">Set up a new examination</p>
                 </div>
-                <Link href="/exams" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">← Back</Link>
+                <Link href="/exams" className="text-primary hover:underline text-sm">← Back</Link>
             </div>
 
             <form action={createExam} className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6 space-y-4">
                 <div>
                     <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">Exam Name *</label>
                     <input type="text" name="name" required placeholder="e.g. Term 1 Exam 2025-26"
-                        className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500" />
+                        className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">Type *</label>
                         <select name="type" required
-                            className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500">
+                            className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring">
                             <option value="UNIT_TEST">Unit Test</option>
                             <option value="MID_TERM">Mid-Term</option>
                             <option value="FINAL">Final</option>
@@ -42,7 +42,7 @@ export default async function CreateExamPage() {
                     <div>
                         <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">Academic Year *</label>
                         <select name="academicYearId" required
-                            className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500">
+                            className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring">
                             <option value="">Select</option>
                             {academicYears.map(ay => <option key={ay.id} value={ay.id}>{ay.name} {ay.isCurrent ? '(Current)' : ''}</option>)}
                         </select>
@@ -53,22 +53,22 @@ export default async function CreateExamPage() {
                     <div>
                         <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">Start Date *</label>
                         <input type="date" name="startDate" required
-                            className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500" />
+                            className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring" />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">End Date *</label>
                         <input type="date" name="endDate" required
-                            className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500" />
+                            className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring" />
                     </div>
                 </div>
 
                 <div>
                     <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">Description</label>
                     <textarea name="description" rows={3} placeholder="Optional description..."
-                        className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500" />
+                        className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring" />
                 </div>
 
-                <button type="submit" className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                <button type="submit" className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 font-medium">
                     Create Exam
                 </button>
             </form>

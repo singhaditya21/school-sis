@@ -108,7 +108,7 @@ export default async function TenantHQPoliciesPage() {
                                                 Applied automatically: this locks the matching field on{' '}
                                                 <Link
                                                     href="/settings/school"
-                                                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                                                    className="text-primary hover:underline"
                                                 >
                                                     School Settings
                                                 </Link>
@@ -127,7 +127,7 @@ export default async function TenantHQPoliciesPage() {
                                             href={policy.documentUrl}
                                             target="_blank"
                                             rel="noreferrer"
-                                            className="mt-4 flex items-center justify-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 py-2 rounded-md transition-colors"
+                                            className="mt-4 flex items-center justify-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-accent dark:hover:bg-blue-950/40 py-2 rounded-md transition-colors"
                                         >
                                             <FileText className="w-4 h-4" /> Reference document supplied by HQ
                                         </a>

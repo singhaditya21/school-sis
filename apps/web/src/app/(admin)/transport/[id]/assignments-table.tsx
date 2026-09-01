@@ -133,7 +133,7 @@ export default function AssignmentsTable({ assignments, canWrite }: AssignmentsT
                                             {row.isActive && (
                                                 <button
                                                     type="button"
-                                                    className="text-blue-600 hover:underline mr-3"
+                                                    className="text-primary hover:underline mr-3"
                                                     onClick={() => openEnd(row)}
                                                     data-testid="end-assignment-btn"
                                                 >

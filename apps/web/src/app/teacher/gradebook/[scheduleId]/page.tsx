@@ -31,7 +31,7 @@ export default async function TeacherMarksEntryPage({
                         {formatDate(header.examDate)}
                     </p>
                 </div>
-                <Link href="/teacher/gradebook" className="text-sm text-blue-600 hover:underline">
+                <Link href="/teacher/gradebook" className="text-sm text-primary hover:underline">
                     ← All papers
                 </Link>
             </div>

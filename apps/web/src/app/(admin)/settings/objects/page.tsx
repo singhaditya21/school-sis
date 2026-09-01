@@ -108,10 +108,10 @@ export default async function ObjectManagerListPage() {
                                             {isTenantDefined ? ` · ${records === 1 ? '1 record' : `${records} records`}` : ''}
                                         </div>
                                         <div className="flex gap-3 pt-2 text-xs font-medium">
-                                            <Link href={`/settings/objects/${obj.id}`} className="text-blue-600 hover:underline">
+                                            <Link href={`/settings/objects/${obj.id}`} className="text-primary hover:underline">
                                                 Configure fields
                                             </Link>
-                                            <Link href={`/app/${obj.api_name}`} className="text-blue-600 hover:underline">
+                                            <Link href={`/app/${obj.api_name}`} className="text-primary hover:underline">
                                                 Open records
                                             </Link>
                                         </div>

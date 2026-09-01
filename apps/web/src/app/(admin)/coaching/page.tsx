@@ -22,7 +22,7 @@ export default async function CoachingDashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Card className="border-none shadow-md overflow-hidden bg-white group hover:shadow-lg transition-all">
-                    <div className="h-2 w-full bg-blue-500 group-hover:bg-blue-600 transition-colors"></div>
+                    <div className="h-2 w-full bg-blue-500 group-hover:bg-primary/90 transition-colors"></div>
                     <CardContent className="p-6">
                         <div className="flex justify-between items-start">
                             <div className="text-3xl mb-4 bg-blue-50 w-14 h-14 rounded-2xl flex items-center justify-center border border-blue-100">👥</div>

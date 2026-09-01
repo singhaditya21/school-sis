@@ -67,7 +67,7 @@ export default async function TeacherGradebookPage() {
                                 </div>
                                 <Link
                                     href={`/teacher/gradebook/${sched.scheduleId}`}
-                                    className="text-sm font-medium text-blue-600 hover:underline"
+                                    className="text-sm font-medium text-primary hover:underline"
                                 >
                                     {sched.enteredCount > 0 ? 'Revise marks' : 'Enter marks'} →
                                 </Link>

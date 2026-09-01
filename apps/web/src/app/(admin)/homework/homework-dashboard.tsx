@@ -207,7 +207,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                         Assign work to a class, watch submissions land, and enter marks.
                     </p>
                 </div>
-                <Button onClick={() => setCreateOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+                <Button onClick={() => setCreateOpen(true)} className="bg-primary hover:bg-primary/90">
                     New assignment
                 </Button>
             </div>
@@ -347,7 +347,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                className="text-blue-600 hover:text-primary hover:bg-accent"
                                                 onClick={() => loadTracking(a)}
                                             >
                                                 Submissions
@@ -455,7 +455,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                             <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
                                 Cancel
                             </Button>
-                            <Button type="submit" disabled={creating} className="bg-blue-600 hover:bg-blue-700">
+                            <Button type="submit" disabled={creating} className="bg-primary hover:bg-primary/90">
                                 {creating ? 'Creating…' : 'Create assignment'}
                             </Button>
                         </DialogFooter>

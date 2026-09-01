@@ -211,7 +211,7 @@ export default function AllocationForm({
                         type="button"
                         onClick={handleSubmit}
                         disabled={!canSubmit}
-                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                         data-testid="allocate-submit-btn"
                     >
                         {isPending ? 'Allocating…' : 'Allocate Bed'}

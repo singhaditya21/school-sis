@@ -96,7 +96,7 @@ export default function AddItemForms() {
                     <button
                         type="button"
                         onClick={() => setTab('asset')}
-                        className={`px-3 py-1.5 rounded text-sm font-medium ${tab === 'asset' ? 'bg-blue-600 text-white' : 'bg-muted text-foreground'}`}
+                        className={`px-3 py-1.5 rounded text-sm font-medium ${tab === 'asset' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}
                         data-testid="tab-add-asset"
                     >
                         Asset

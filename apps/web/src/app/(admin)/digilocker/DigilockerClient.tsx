@@ -134,13 +134,13 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search name, admission number, APAAR ID…"
-                            className="w-full sm:w-80 px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                            className="w-full sm:w-80 px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-ring"
                         />
                         <select
                             value={linkedFilter}
                             onChange={(e) => setLinkedFilter(e.target.value as 'all' | 'linked' | 'unlinked')}
                             aria-label="Filter by APAAR status"
-                            className="px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                            className="px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-ring"
                         >
                             <option value="all">All students</option>
                             <option value="linked">APAAR recorded</option>
@@ -184,7 +184,7 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                                                 type="button"
                                                 onClick={() => openEditor(student)}
                                                 disabled={isPending}
-                                                className="text-blue-600 hover:underline text-sm disabled:opacity-50"
+                                                className="text-primary hover:underline text-sm disabled:opacity-50"
                                             >
                                                 {student.apaarId ? 'Edit' : 'Record APAAR ID'}
                                             </button>
@@ -382,7 +382,7 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                                         type="button"
                                         onClick={() => handleSave(false)}
                                         disabled={isPending}
-                                        className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                                        className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium"
                                     >
                                         Save
                                     </button>
