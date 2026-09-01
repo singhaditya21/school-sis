@@ -241,6 +241,13 @@ export const API_ROUTES: readonly ApiRouteDoc[] = [
         summary: 'Stripe webhook.',
         auth: 'webhook-signature',
     },
+    {
+        path: '/api/webhooks/whatsapp',
+        methods: ['GET', 'POST'],
+        group: 'Webhooks',
+        summary: 'WhatsApp (Meta Cloud) delivery-status webhook. GET is the subscription handshake; POST ingests message status receipts.',
+        auth: 'webhook-signature',
+    },
 
     // ---- Reporting & analytics ------------------------------------------------
     {
