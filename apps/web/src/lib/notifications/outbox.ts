@@ -214,6 +214,78 @@ async function recordDeliveryEvent(params: {
 }
 
 /**
+ * Records a provider DELIVERY RECEIPT for an already-sent notification. Called by
+ * the provider status webhook, which carries no tenant session — so it resolves the
+ * outbox row (and its tenant) by (provider, provider_message_id) under a reviewed
+ * RLS bypass, then records the receipt inside that row's own tenant context.
+ *
+ * Idempotent: the outbox row is only promoted forward from SENT, so a duplicate or
+ * late receipt is a no-op. Returns whether a row matched (an unknown message id is
+ * not an error — providers retry, and receipts can arrive for pruned rows).
+ */
+export async function recordDeliveryReceipt(params: {
+  provider: string;
+  providerMessageId: string;
+  status: 'DELIVERED' | 'FAILED';
+  error?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<{ matched: boolean }> {
+  if (!params.providerMessageId) return { matched: false };
+
+  const row = await runWithRlsBypass(
+    RLS_BYPASS_JUSTIFICATIONS.NOTIFICATION_RECEIPT,
+    async () => {
+      const { rows } = await pool.query<{
+        id: string;
+        tenantId: string;
+        jobId: string | null;
+        payload: Record<string, unknown> | null;
+      }>(
+        `SELECT id, tenant_id AS "tenantId", job_id AS "jobId", payload
+         FROM notification_outbox
+         WHERE provider = $1 AND provider_message_id = $2
+         LIMIT 1`,
+        [params.provider, params.providerMessageId],
+      );
+      return rows[0] ?? null;
+    },
+  );
+
+  if (!row) return { matched: false };
+
+  await runWithTenantContext(row.tenantId, async () => {
+    await updateLinkedMessage({
+      tenantId: row.tenantId,
+      payload: row.payload ?? {},
+      status: params.status,
+      providerMessageId: params.providerMessageId,
+      error: params.error,
+      metadata: params.metadata,
+    });
+    await recordDeliveryEvent({
+      tenantId: row.tenantId,
+      notificationId: row.id,
+      jobId: row.jobId,
+      status: params.status,
+      provider: params.provider,
+      providerMessageId: params.providerMessageId,
+      error: params.error,
+      metadata: params.metadata,
+    });
+    // Promote the outbox row itself — only forward from SENT, so a late or
+    // duplicate receipt never overwrites a terminal state.
+    await pool.query(
+      `UPDATE notification_outbox
+       SET status = $1, last_error = COALESCE($2, last_error), updated_at = NOW()
+       WHERE tenant_id = $3 AND id = $4 AND status = 'SENT'`,
+      [params.status, params.error ?? null, row.tenantId, row.id],
+    );
+  });
+
+  return { matched: true };
+}
+
+/**
  * Translates one adapter result into an outbox result.
  *
  * The `!result.data` arm is the load-bearing one: an adapter that claims success

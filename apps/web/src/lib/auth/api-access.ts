@@ -309,6 +309,12 @@ export const API_ACCESS_POLICIES = [
         expectedGuardSnippets: ['stripe-signature'],
     },
     {
+        prefix: '/api/webhooks/whatsapp',
+        boundary: 'provider-webhook',
+        description: 'WhatsApp (Meta Cloud) delivery-status webhook.',
+        expectedGuardSnippets: ['x-hub-signature-256'],
+    },
+    {
         prefix: '/api/workflow-approvals',
         boundary: 'session',
         description: 'Workflow approval APIs with downstream authorization.',

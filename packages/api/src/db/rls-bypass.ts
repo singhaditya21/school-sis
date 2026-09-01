@@ -76,6 +76,10 @@ export const RLS_BYPASS_JUSTIFICATIONS = {
     "worker.notification-sweep",
     "The scheduler must discover due notification identifiers across tenants before per-tenant delivery.",
   ),
+  NOTIFICATION_RECEIPT: defineJustification(
+    "notifications.provider-receipt-lookup",
+    "A verified notification-provider delivery callback must map its provider message identifier to a tenant.",
+  ),
   PLATFORM_METRICS: defineJustification(
     "observability.platform-metrics",
     "Platform metrics aggregate operational counts across all tenant and platform records.",
