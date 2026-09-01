@@ -82,7 +82,7 @@ export default function AssignmentsTable({ assignments, canWrite }: AssignmentsT
     };
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="bg-card rounded-xl shadow-sm border p-6">
             <h3 className="font-bold text-lg mb-4">
                 Assigned Students ({assignments.length})
                 {assignments.length > 0 && (
@@ -108,7 +108,7 @@ export default function AssignmentsTable({ assignments, canWrite }: AssignmentsT
                                 )}
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody className="bg-card divide-y divide-gray-200">
                             {assignments.map((row) => (
                                 <tr key={row.id} data-testid="assigned-student-row" className={row.isActive ? '' : 'opacity-60'}>
                                     <td className="px-6 py-4 whitespace-nowrap font-medium text-foreground">

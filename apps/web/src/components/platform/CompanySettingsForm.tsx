@@ -66,7 +66,7 @@ export default function CompanySettingsForm({
     };
 
     return (
-        <div className="bg-white rounded-3xl border border-border shadow-sm overflow-hidden">
+        <div className="bg-card rounded-3xl border border-border shadow-sm overflow-hidden">
             <div className="p-8 border-b border-border flex justify-between items-center bg-muted/50">
                 <div>
                     <h3 className="text-xl font-bold text-foreground">Provisioning Toggles</h3>
@@ -78,7 +78,7 @@ export default function CompanySettingsForm({
                         onClick={() => setIsActive(!isActive)}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
                     >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-6' : 'translate-x-1'}`} />
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform ${isActive ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                 </div>
             </div>
@@ -116,11 +116,11 @@ export default function CompanySettingsForm({
                                     className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
                                         active 
                                         ? 'border-emerald-500 bg-emerald-50' 
-                                        : 'border-border bg-white hover:border-border'
+                                        : 'border-border bg-card hover:border-border'
                                     }`}
                                 >
                                     <div className={`w-5 h-5 rounded-md flex items-center justify-center border ${
-                                        active ? 'bg-emerald-500 border-emerald-600 text-white' : 'bg-white border-border'
+                                        active ? 'bg-emerald-500 border-emerald-600 text-white' : 'bg-card border-border'
                                     }`}>
                                         {active && <span className="text-xs">✓</span>}
                                     </div>

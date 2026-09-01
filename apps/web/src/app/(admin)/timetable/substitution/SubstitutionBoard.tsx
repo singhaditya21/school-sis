@@ -429,7 +429,7 @@ export default function SubstitutionBoard({
                                 data-testid="absent-teacher-select"
                                 value={draft.teacherId}
                                 onChange={(event) => setDraft({ ...draft, teacherId: event.target.value, substituteId: '' })}
-                                className="w-full px-3 py-2 border rounded-lg bg-white"
+                                className="w-full px-3 py-2 border rounded-lg bg-card"
                             >
                                 <option value="">Select teacher…</option>
                                 {teachers.map((teacher) => (
@@ -448,7 +448,7 @@ export default function SubstitutionBoard({
                                     data-testid="class-select"
                                     value={draft.sectionId}
                                     onChange={(event) => setDraft({ ...draft, sectionId: event.target.value })}
-                                    className="w-full px-3 py-2 border rounded-lg bg-white"
+                                    className="w-full px-3 py-2 border rounded-lg bg-card"
                                 >
                                     <option value="">Select class…</option>
                                     {sections.map((section) => (
@@ -465,7 +465,7 @@ export default function SubstitutionBoard({
                                     data-testid="period-select"
                                     value={draft.periodOrder}
                                     onChange={(event) => setDraft({ ...draft, periodOrder: event.target.value, substituteId: '' })}
-                                    className="w-full px-3 py-2 border rounded-lg bg-white"
+                                    className="w-full px-3 py-2 border rounded-lg bg-card"
                                 >
                                     <option value="">Select period…</option>
                                     {periods.map((period) => (
@@ -501,7 +501,7 @@ export default function SubstitutionBoard({
                                 value={draft.substituteId}
                                 onChange={(event) => setDraft({ ...draft, substituteId: event.target.value })}
                                 disabled={!draft.periodOrder}
-                                className="w-full px-3 py-2 border rounded-lg bg-white disabled:bg-muted"
+                                className="w-full px-3 py-2 border rounded-lg bg-card disabled:bg-muted"
                             >
                                 <option value="">
                                     {draft.periodOrder ? 'Leave unassigned…' : 'Pick a period first'}
@@ -570,7 +570,7 @@ export default function SubstitutionBoard({
                                     data-testid="decision-substitute-select"
                                     value={decisionSubstitute}
                                     onChange={(event) => setDecisionSubstitute(event.target.value)}
-                                    className="w-full px-3 py-2 border rounded-lg bg-white"
+                                    className="w-full px-3 py-2 border rounded-lg bg-card"
                                 >
                                     <option value="">Select a free teacher…</option>
                                     {decisionTarget.substituteId && decisionTarget.substitute &&

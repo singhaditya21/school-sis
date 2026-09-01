@@ -24,7 +24,7 @@ export default async function ClassReportCardsPage({
     if (!examId) {
         return (
             <Shell>
-                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                     <p className="font-medium text-foreground">No exam selected</p>
                     <p className="text-sm text-muted-foreground mt-1">
                         This class has no saved marks for any exam yet, so there is no report card to
@@ -46,7 +46,7 @@ export default async function ClassReportCardsPage({
     if (!data) {
         return (
             <Shell>
-                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                     <p className="text-muted-foreground">This class or exam could not be found.</p>
                     <Link
                         href="/exams/report-cards"
@@ -79,7 +79,7 @@ export default async function ClassReportCardsPage({
         return (
             <div className="space-y-6">
                 {header}
-                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                     <p className="font-medium text-foreground">
                         No papers scheduled for {data.gradeName} in this exam
                     </p>
@@ -95,7 +95,7 @@ export default async function ClassReportCardsPage({
         return (
             <div className="space-y-6">
                 {header}
-                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                     <p className="font-medium text-foreground">No marks entered yet</p>
                     <p className="text-sm text-muted-foreground mt-1 mb-4">
                         {data.subjects.length} paper(s) are scheduled for {data.gradeName}, but no
@@ -137,7 +137,7 @@ export default async function ClassReportCardsPage({
                 />
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+            <div className="bg-card rounded-xl shadow-sm border overflow-hidden">
                 <div className="p-4 border-b bg-muted">
                     <h2 className="font-semibold text-foreground">Subject-wise marks</h2>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -248,7 +248,7 @@ export default async function ClassReportCardsPage({
 
 function Stat({ label, value }: { label: string; value: string }) {
     return (
-        <div className="bg-white rounded-xl shadow-sm border p-4">
+        <div className="bg-card rounded-xl shadow-sm border p-4">
             <p className="text-sm text-muted-foreground">{label}</p>
             <p className="text-2xl font-bold text-foreground">{value}</p>
         </div>

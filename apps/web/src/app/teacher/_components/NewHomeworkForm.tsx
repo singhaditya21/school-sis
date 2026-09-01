@@ -17,7 +17,7 @@ export function NewHomeworkForm({ slots }: { slots: TeachingSlot[] }) {
 
     if (slots.length === 0) {
         return (
-            <div className="bg-white rounded-xl shadow-sm border p-5 text-sm text-muted-foreground">
+            <div className="bg-card rounded-xl shadow-sm border p-5 text-sm text-muted-foreground">
                 Homework is attached to a subject you teach in a specific section. You have no timetabled
                 periods, so there is nothing to set homework against yet.
             </div>
@@ -68,7 +68,7 @@ export function NewHomeworkForm({ slots }: { slots: TeachingSlot[] }) {
     }
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border p-5 space-y-4 w-full">
+        <div className="bg-card rounded-xl shadow-sm border p-5 space-y-4 w-full">
             <h2 className="font-semibold text-foreground">Set homework</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

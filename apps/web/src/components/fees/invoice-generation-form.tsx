@@ -97,7 +97,7 @@ export default function InvoiceGenerationForm({
                 </p>
             </div>
 
-            <div className="rounded-xl border border-border dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
+            <div className="rounded-xl border border-border dark:border-gray-800 bg-card p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Fee Plan Select */}
                     <div>
@@ -111,7 +111,7 @@ export default function InvoiceGenerationForm({
                                 setPreview(null);
                                 setResult(null);
                             }}
-                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring focus:border-blue-500"
+                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-card text-sm focus:ring-2 focus:ring-ring focus:border-blue-500"
                         >
                             <option value="">Select fee plan</option>
                             {feePlans.filter(p => p.isActive).map(p => (
@@ -132,7 +132,7 @@ export default function InvoiceGenerationForm({
                                 setPreview(null);
                                 setResult(null);
                             }}
-                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring focus:border-blue-500"
+                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-card text-sm focus:ring-2 focus:ring-ring focus:border-blue-500"
                         >
                             <option value="">All grades</option>
                             {grades.map(g => (
@@ -150,7 +150,7 @@ export default function InvoiceGenerationForm({
                             type="date"
                             value={dueDate || defaultDueDate}
                             onChange={(e) => setDueDate(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring focus:border-blue-500"
+                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-card text-sm focus:ring-2 focus:ring-ring focus:border-blue-500"
                         />
                     </div>
 
@@ -164,7 +164,7 @@ export default function InvoiceGenerationForm({
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="e.g., Quarter 1 Fees"
-                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring focus:border-blue-500"
+                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-card text-sm focus:ring-2 focus:ring-ring focus:border-blue-500"
                         />
                     </div>
                 </div>

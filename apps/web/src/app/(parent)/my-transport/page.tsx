@@ -18,7 +18,7 @@ export default async function ParentTransportPage({
             <div className="mx-auto max-w-4xl space-y-6">
                 <ParentTopBar students={students} selectedId={null} />
                 <h1 className="text-2xl font-bold">My Transport</h1>
-                <div className="rounded-xl border bg-white p-8 text-center text-muted-foreground">
+                <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
                     No child is linked to your account yet.
                 </div>
             </div>
@@ -41,7 +41,7 @@ export default async function ParentTransportPage({
                     {assignments.map((route) => (
                         <div
                             key={route.assignmentId}
-                            className="rounded-xl border bg-white p-6 shadow-sm"
+                            className="rounded-xl border bg-card p-6 shadow-sm"
                             data-testid="route-card"
                         >
                             <div className="mb-4 flex items-center gap-4">
@@ -130,7 +130,7 @@ export default async function ParentTransportPage({
                 </div>
             ) : (
                 <div
-                    className="rounded-xl border bg-white p-8 text-center text-muted-foreground shadow-sm"
+                    className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm"
                     data-testid="unassigned-placeholder"
                 >
                     No transport assigned.

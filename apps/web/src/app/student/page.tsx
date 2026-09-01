@@ -26,7 +26,7 @@ export default async function StudentOverviewPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-white rounded-xl border shadow-sm p-6">
+                <div className="bg-card rounded-xl border shadow-sm p-6">
                     <h2 className="text-sm font-medium text-muted-foreground">Attendance to date</h2>
                     {attendanceToDate.rate === null ? (
                         <p className="mt-2 text-sm text-muted-foreground">No attendance marked yet</p>
@@ -40,13 +40,13 @@ export default async function StudentOverviewPage() {
                     )}
                 </div>
 
-                <div className="bg-white rounded-xl border shadow-sm p-6">
+                <div className="bg-card rounded-xl border shadow-sm p-6">
                     <h2 className="text-sm font-medium text-muted-foreground">Published results</h2>
                     <p className="mt-2 text-3xl font-bold text-foreground">{publishedResultCount}</p>
                     <p className="text-sm text-muted-foreground">subject marks released</p>
                 </div>
 
-                <div className="bg-white rounded-xl border shadow-sm p-6">
+                <div className="bg-card rounded-xl border shadow-sm p-6">
                     <h2 className="text-sm font-medium text-muted-foreground">Homework</h2>
                     <p className="mt-2 text-3xl font-bold text-foreground">{homeworkDueSoon}</p>
                     <p className="text-sm text-muted-foreground">
@@ -59,15 +59,15 @@ export default async function StudentOverviewPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Link href="/student/attendance" className="bg-white rounded-xl border shadow-sm p-4 text-center hover:shadow-md transition-shadow">
+                <Link href="/student/attendance" className="bg-card rounded-xl border shadow-sm p-4 text-center hover:shadow-md transition-shadow">
                     <div className="text-2xl mb-1">🗓️</div>
                     <p className="font-medium text-foreground">My attendance</p>
                 </Link>
-                <Link href="/student/results" className="bg-white rounded-xl border shadow-sm p-4 text-center hover:shadow-md transition-shadow">
+                <Link href="/student/results" className="bg-card rounded-xl border shadow-sm p-4 text-center hover:shadow-md transition-shadow">
                     <div className="text-2xl mb-1">📄</div>
                     <p className="font-medium text-foreground">My results</p>
                 </Link>
-                <Link href="/student/homework" className="bg-white rounded-xl border shadow-sm p-4 text-center hover:shadow-md transition-shadow">
+                <Link href="/student/homework" className="bg-card rounded-xl border shadow-sm p-4 text-center hover:shadow-md transition-shadow">
                     <div className="text-2xl mb-1">📝</div>
                     <p className="font-medium text-foreground">My homework</p>
                 </Link>

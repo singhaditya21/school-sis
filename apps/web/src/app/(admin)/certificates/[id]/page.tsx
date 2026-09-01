@@ -110,7 +110,7 @@ export default async function CertificateRecordPage({ params }: PageProps) {
 
             <div
                 id="certificate-sheet"
-                className="mx-auto max-w-3xl rounded-lg border-2 border-border bg-white p-10"
+                className="mx-auto max-w-3xl rounded-lg border-2 border-border bg-card p-10"
             >
                 <header className="border-b-2 border-gray-800 pb-4 text-center">
                     <h2 className="text-2xl font-bold tracking-wide text-foreground">{record.schoolName}</h2>

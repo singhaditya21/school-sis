@@ -21,65 +21,65 @@ export default async function NewAdmissionLeadPage() {
 
             <form action={createLead} className="space-y-6">
                 {/* Child Information */}
-                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
+                <div className="bg-card rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
                     <h2 className="text-lg font-semibold text-foreground dark:text-white mb-4">Child Information</h2>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">First Name *</label>
                             <input type="text" name="childFirstName" required placeholder="First name"
-                                className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring" />
+                                className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-card text-sm focus:ring-2 focus:ring-ring" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">Last Name *</label>
                             <input type="text" name="childLastName" required placeholder="Last name"
-                                className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring" />
+                                className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-card text-sm focus:ring-2 focus:ring-ring" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">Date of Birth</label>
                             <input type="date" name="childDob"
-                                className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring" />
+                                className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-card text-sm focus:ring-2 focus:ring-ring" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">Applying for Grade *</label>
                             <input type="text" name="applyingForGrade" required placeholder="e.g., Grade 1"
-                                className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring" />
+                                className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-card text-sm focus:ring-2 focus:ring-ring" />
                         </div>
                     </div>
                 </div>
 
                 {/* Parent Information */}
-                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
+                <div className="bg-card rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
                     <h2 className="text-lg font-semibold text-foreground dark:text-white mb-4">Parent / Guardian</h2>
                     <div className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">Parent&apos;s Name *</label>
                             <input type="text" name="parentName" required placeholder="Full name"
-                                className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring" />
+                                className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-card text-sm focus:ring-2 focus:ring-ring" />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">Phone *</label>
                                 <input type="tel" name="parentPhone" required placeholder="+91 9876543210"
-                                    className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring" />
+                                    className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-card text-sm focus:ring-2 focus:ring-ring" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">Email *</label>
                                 <input type="email" name="parentEmail" required placeholder="parent@example.com"
-                                    className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring" />
+                                    className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-card text-sm focus:ring-2 focus:ring-ring" />
                             </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Additional Info */}
-                <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
+                <div className="bg-card rounded-xl shadow-sm border border-border dark:border-gray-800 p-6">
                     <h2 className="text-lg font-semibold text-foreground dark:text-white mb-4">Additional Details</h2>
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">Lead Source</label>
                                 <select name="source"
-                                    className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring">
+                                    className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-card text-sm focus:ring-2 focus:ring-ring">
                                     <option value="WEBSITE">Website</option>
                                     <option value="WALK_IN">Walk-in</option>
                                     <option value="REFERRAL">Referral</option>
@@ -91,13 +91,13 @@ export default async function NewAdmissionLeadPage() {
                             <div>
                                 <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">Previous School</label>
                                 <input type="text" name="previousSchool" placeholder="School name"
-                                    className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring" />
+                                    className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-card text-sm focus:ring-2 focus:ring-ring" />
                             </div>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-foreground dark:text-gray-300 mb-1">Notes</label>
                             <textarea name="notes" rows={3} placeholder="Any additional notes..."
-                                className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring" />
+                                className="w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-card text-sm focus:ring-2 focus:ring-ring" />
                         </div>
                     </div>
                 </div>

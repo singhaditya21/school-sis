@@ -125,7 +125,7 @@ function LeadCard({ lead, borderClass }: { lead: AdmissionLeadItem; borderClass:
                     value={stage}
                     disabled={isPending}
                     onChange={(e) => handleStageChange(e.target.value)}
-                    className="mt-3 w-full text-xs border border-border rounded px-2 py-1.5 bg-white disabled:opacity-50 focus:ring-2 focus:ring-ring"
+                    className="mt-3 w-full text-xs border border-border rounded px-2 py-1.5 bg-card disabled:opacity-50 focus:ring-2 focus:ring-ring"
                 >
                     {PIPELINE_STAGES.map((s) => (
                         <option key={s} value={s}>

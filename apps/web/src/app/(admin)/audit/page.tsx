@@ -231,7 +231,7 @@ export default async function AuditPage({
                 />
             </section>
 
-            <form method="GET" className="rounded-xl border border-border bg-white p-4">
+            <form method="GET" className="rounded-xl border border-border bg-card p-4">
                 <div className="flex flex-wrap items-end gap-3">
                     <label className="flex min-w-[240px] flex-1 flex-col gap-1">
                         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Search</span>
@@ -323,7 +323,7 @@ export default async function AuditPage({
                             className={`rounded-full border px-3 py-1 text-xs font-medium ${
                                 bucket.action === action
                                     ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                    : 'border-border bg-white text-muted-foreground hover:border-border'
+                                    : 'border-border bg-card text-muted-foreground hover:border-border'
                             }`}
                         >
                             {bucket.action} · {bucket.count.toLocaleString('en-IN')}
@@ -378,7 +378,7 @@ export default async function AuditPage({
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-xl border border-border bg-white p-4">
+        <div className="rounded-xl border border-border bg-card p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
             <div className="mt-1 text-2xl font-bold text-foreground">{value}</div>
         </div>

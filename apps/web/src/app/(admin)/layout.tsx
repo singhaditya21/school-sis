@@ -47,7 +47,7 @@ export default async function AdminLayout({
                         'use server';
                         await returnToHQAction();
                     }}>
-                        <button type="submit" className="text-xs bg-white text-rose-600 font-bold px-3 py-1 rounded-md hover:bg-rose-50 transition shadow-sm">
+                        <button type="submit" className="text-xs bg-card text-rose-600 font-bold px-3 py-1 rounded-md hover:bg-rose-50 transition shadow-sm">
                             Return to HQ
                         </button>
                     </form>
@@ -57,7 +57,7 @@ export default async function AdminLayout({
             <PlatformBroadcastTicker />
 
             {/* Header */}
-            <header className={`bg-white border-b border-border sticky ${isImpersonating ? 'top-10' : 'top-0'} z-50`}>
+            <header className={`bg-card border-b border-border sticky ${isImpersonating ? 'top-10' : 'top-0'} z-50`}>
                 <div className="px-6 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -95,7 +95,7 @@ export default async function AdminLayout({
 
             <div className="flex">
                 {/* Sidebar Navigation */}
-                <aside data-testid="sidebar" className="w-64 bg-white border-r border-border min-h-screen sticky top-16">
+                <aside data-testid="sidebar" className="w-64 bg-card border-r border-border min-h-screen sticky top-16">
                     <nav className="p-4 space-y-1">
                         {/* --- CORE / SHARED MODULES --- */}
                         <NavLink href="/dashboard" icon="📊">

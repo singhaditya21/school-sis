@@ -240,7 +240,7 @@ export default function VisitorsClient({
                                             'h-16 rounded-lg border-2 text-base font-semibold transition-colors flex flex-col items-center justify-center gap-0.5',
                                             form.purpose === p.value
                                                 ? 'border-green-600 bg-green-50 text-green-800'
-                                                : 'border-border bg-white text-foreground hover:border-border hover:bg-muted',
+                                                : 'border-border bg-card text-foreground hover:border-border hover:bg-muted',
                                         )}
                                     >
                                         <span className="text-xl leading-none">{p.icon}</span>
@@ -303,7 +303,7 @@ export default function VisitorsClient({
                                             'h-12 px-4 rounded-lg border-2 text-sm font-semibold transition-colors',
                                             form.idProof === proof
                                                 ? 'border-green-600 bg-green-50 text-green-800'
-                                                : 'border-border bg-white text-foreground hover:border-border hover:bg-muted',
+                                                : 'border-border bg-card text-foreground hover:border-border hover:bg-muted',
                                         )}
                                     >
                                         {proof}
@@ -458,7 +458,7 @@ export default function VisitorsClient({
                                         key={v.id}
                                         className={cn(
                                             'flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4',
-                                            inside ? 'border-green-200 bg-green-50/60' : 'bg-white',
+                                            inside ? 'border-green-200 bg-green-50/60' : 'bg-card',
                                         )}
                                     >
                                         <div className="min-w-0 flex-1">

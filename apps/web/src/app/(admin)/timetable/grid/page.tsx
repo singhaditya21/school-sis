@@ -32,7 +32,7 @@ export default async function TimetableGridPage({
         return (
             <div className="space-y-6">
                 {header}
-                <div data-testid="grid-no-sections" className="bg-white rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
+                <div data-testid="grid-no-sections" className="bg-card rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
                     <p className="font-medium text-foreground">No classes configured</p>
                     <p className="text-sm mt-1">Grades and sections have to exist before a timetable can be built.</p>
                 </div>
@@ -44,7 +44,7 @@ export default async function TimetableGridPage({
         return (
             <div className="space-y-6">
                 {header}
-                <div data-testid="grid-no-periods" className="bg-white rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
+                <div data-testid="grid-no-periods" className="bg-card rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
                     <p className="font-medium text-foreground">No periods configured</p>
                     <p className="text-sm mt-1">
                         The grid rows come from the school&apos;s daily period structure. Define the periods first.
@@ -75,7 +75,7 @@ export default async function TimetableGridPage({
         <div className="space-y-6">
             {header}
 
-            <div className="bg-white rounded-xl shadow-sm border p-4">
+            <div className="bg-card rounded-xl shadow-sm border p-4">
                 <p className="text-sm font-medium text-foreground mb-3">Class</p>
                 <div className="flex flex-wrap gap-2" data-testid="grid-section-picker">
                     {sections.map((option) => {

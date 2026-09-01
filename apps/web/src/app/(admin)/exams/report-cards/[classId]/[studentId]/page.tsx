@@ -27,7 +27,7 @@ export default async function StudentReportCardPage({
 
     if (!data || !student) {
         return (
-            <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+            <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                 <p className="text-muted-foreground">
                     No report card found for this student in the selected exam.
                 </p>
@@ -56,7 +56,7 @@ export default async function StudentReportCardPage({
                 <PrintButton />
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border print:border-0 print:shadow-none">
+            <div className="bg-card rounded-xl shadow-sm border print:border-0 print:shadow-none">
                 <div className="p-6 border-b">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Report card</p>
                     <h1 className="text-2xl font-bold text-foreground mt-1">{student.fullName}</h1>

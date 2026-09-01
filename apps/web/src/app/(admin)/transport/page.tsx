@@ -36,13 +36,13 @@ export default async function TransportPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {routes.length === 0 ? (
-                    <div className="col-span-full bg-white rounded-xl shadow-sm border p-8 text-center">
+                    <div className="col-span-full bg-card rounded-xl shadow-sm border p-8 text-center">
                         <div className="text-4xl mb-3">🚌</div>
                         <p className="text-muted-foreground">No routes configured yet.</p>
                     </div>
                 ) : (
                     routes.map((route) => (
-                        <div key={route.id} className="bg-white rounded-xl shadow-sm border p-6">
+                        <div key={route.id} className="bg-card rounded-xl shadow-sm border p-6">
                             <div className="flex items-center gap-4 mb-4">
                                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                                     🚌

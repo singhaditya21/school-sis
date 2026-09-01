@@ -88,7 +88,7 @@ export function LessonPlanBoard({
     return (
         <div className="space-y-6">
             {targets.length === 0 ? (
-                <div className="bg-white rounded-xl shadow-sm border p-5 text-sm text-muted-foreground">
+                <div className="bg-card rounded-xl shadow-sm border p-5 text-sm text-muted-foreground">
                     A lesson plan is filed against a grade and subject from your timetable. You have no
                     timetabled periods, so there is nothing to plan against yet.
                 </div>
@@ -101,7 +101,7 @@ export function LessonPlanBoard({
                     New lesson plan
                 </button>
             ) : (
-                <div className="bg-white rounded-xl shadow-sm border p-5 space-y-4">
+                <div className="bg-card rounded-xl shadow-sm border p-5 space-y-4">
                     <h2 className="font-semibold text-foreground">New lesson plan</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <label className="text-sm">
@@ -192,12 +192,12 @@ export function LessonPlanBoard({
             )}
 
             {plans.length === 0 ? (
-                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                     <p className="font-medium text-foreground">You have no lesson plans yet.</p>
                     <p className="text-sm text-muted-foreground mt-2">Only plans filed by you appear here.</p>
                 </div>
             ) : (
-                <div className="bg-white rounded-xl shadow-sm border divide-y" data-testid="lesson-plan-list">
+                <div className="bg-card rounded-xl shadow-sm border divide-y" data-testid="lesson-plan-list">
                     {plans.map((plan) => (
                         <div key={plan.id} className="p-4 space-y-2">
                             <div className="flex flex-wrap items-start justify-between gap-2">

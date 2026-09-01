@@ -62,15 +62,15 @@ export default async function ExamsPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Exams</p>
                     <p className="text-2xl font-bold text-foreground">{exams.length}</p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Papers scheduled</p>
                     <p className="text-2xl font-bold text-blue-600">{totalSchedules}</p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Marks entered</p>
                     <p className="text-2xl font-bold text-foreground">
                         {totalEntered}
@@ -79,7 +79,7 @@ export default async function ExamsPage() {
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border">
+            <div className="bg-card rounded-xl shadow-sm border">
                 <div className="p-4 border-b">
                     <h2 className="font-semibold text-foreground">All exams</h2>
                 </div>

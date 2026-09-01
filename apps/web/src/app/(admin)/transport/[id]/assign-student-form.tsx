@@ -105,7 +105,7 @@ export default function AssignStudentForm({ routeId, stops, students, canWrite }
                     id="assign-student-picker"
                     value={students.some((s) => s.id === studentId) ? studentId : ''}
                     onChange={(e) => setStudentId(e.target.value)}
-                    className="w-full p-2 border rounded text-sm bg-white"
+                    className="w-full p-2 border rounded text-sm bg-card"
                     data-testid="assign-student-picker"
                 >
                     <option value="">Select a student…</option>
@@ -140,7 +140,7 @@ export default function AssignStudentForm({ routeId, stops, students, canWrite }
                     id="assign-stop-id"
                     value={stopId}
                     onChange={(e) => setStopId(e.target.value)}
-                    className="w-full p-2 border rounded text-sm bg-white"
+                    className="w-full p-2 border rounded text-sm bg-card"
                     data-testid="assign-stop-id"
                 >
                     {stops.map((stop) => (

@@ -31,7 +31,7 @@ export default async function ParentOverviewPage({
         return (
             <div className="mx-auto max-w-4xl space-y-6">
                 <ParentTopBar students={students} selectedId={null} />
-                <div className="rounded-xl border border-dashed bg-white p-12 text-center">
+                <div className="rounded-xl border border-dashed bg-card p-12 text-center">
                     <p className="text-lg font-medium text-foreground">No child linked to your account</p>
                     <p className="mt-2 text-sm text-muted-foreground">
                         Your account is not yet connected to a student record. Please ask the school
@@ -59,7 +59,7 @@ export default async function ParentOverviewPage({
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="rounded-xl border bg-white p-6 shadow-sm">
+                <div className="rounded-xl border bg-card p-6 shadow-sm">
                     <h2 className="mb-2 font-semibold text-foreground">Attendance this month</h2>
                     {attendance.rate === null ? (
                         <>
@@ -89,7 +89,7 @@ export default async function ParentOverviewPage({
 
                 <div
                     className={`rounded-xl border p-6 shadow-sm ${
-                        fees.outstanding > 0 ? 'border-amber-200 bg-amber-50' : 'border-border bg-white'
+                        fees.outstanding > 0 ? 'border-amber-200 bg-amber-50' : 'border-border bg-card'
                     }`}
                 >
                     <h2 className={`mb-2 font-semibold ${fees.outstanding > 0 ? 'text-amber-900' : 'text-foreground'}`}>
@@ -109,7 +109,7 @@ export default async function ParentOverviewPage({
                     </p>
                 </div>
 
-                <div className="rounded-xl border bg-white p-6 shadow-sm">
+                <div className="rounded-xl border bg-card p-6 shadow-sm">
                     <h2 className="mb-2 font-semibold text-foreground">Latest published result</h2>
                     {latestExam ? (
                         <>
@@ -166,7 +166,7 @@ export default async function ParentOverviewPage({
                         <Link
                             key={link.href}
                             href={withChild(link.href, child.id)}
-                            className="rounded-xl border bg-white p-4 text-center shadow-sm transition-shadow hover:shadow-md"
+                            className="rounded-xl border bg-card p-4 text-center shadow-sm transition-shadow hover:shadow-md"
                         >
                             <div className="mb-2 text-2xl">{link.icon}</div>
                             <p className="font-medium text-foreground">{link.label}</p>

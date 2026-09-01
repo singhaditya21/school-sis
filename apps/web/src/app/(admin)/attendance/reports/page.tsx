@@ -53,7 +53,7 @@ export default async function AttendanceReportsPage() {
             </div>
 
             {/* Class-wise Report Table */}
-            <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm border border-border dark:border-gray-800 overflow-hidden">
+            <div className="bg-card rounded-xl shadow-sm border border-border dark:border-gray-800 overflow-hidden">
                 <table className="w-full text-sm">
                     <thead className="bg-muted dark:bg-gray-900/50">
                         <tr>

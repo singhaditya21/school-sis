@@ -127,7 +127,7 @@ export default function RouteEditor({ routeId, initial, vehicles, assignmentCoun
                                 id="route-vehicle"
                                 value={form.vehicleId}
                                 onChange={(e) => set('vehicleId', e.target.value)}
-                                className="w-full p-2 border rounded text-sm bg-white"
+                                className="w-full p-2 border rounded text-sm bg-card"
                                 data-testid="edit-route-vehicle-select"
                             >
                                 {vehicles.map((v) => (

@@ -287,7 +287,7 @@ export default function VehiclesManager({ vehicles, canWrite }: VehiclesManagerP
                                     id="vehicle-type"
                                     value={form.type}
                                     onChange={(e) => set('type', e.target.value)}
-                                    className="w-full h-10 px-3 border rounded-md text-sm bg-white"
+                                    className="w-full h-10 px-3 border rounded-md text-sm bg-card"
                                 >
                                     {VEHICLE_TYPES.map((t) => (
                                         <option key={t} value={t}>

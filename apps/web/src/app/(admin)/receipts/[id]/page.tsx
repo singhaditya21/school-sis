@@ -115,7 +115,7 @@ export default async function ReceiptDetailPage({ params }: { params: Promise<{ 
                 <span className="text-sm text-muted-foreground">Receipt {receipt.receiptNumber}</span>
             </div>
 
-            <div className="bg-white rounded-xl border border-border shadow-sm p-8 print:border-0 print:shadow-none print:rounded-none print:p-0">
+            <div className="bg-card rounded-xl border border-border shadow-sm p-8 print:border-0 print:shadow-none print:rounded-none print:p-0">
                 {/* School header */}
                 <div className="text-center border-b border-border pb-5">
                     <h1 className="text-2xl font-bold text-foreground">{receipt.schoolName}</h1>

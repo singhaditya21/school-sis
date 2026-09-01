@@ -60,7 +60,7 @@ export default async function SectionTimetablePage({ params }: { params: Promise
             </div>
 
             {timetableRows.length === 0 ? (
-                <div data-testid="section-no-periods" className="bg-white rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
+                <div data-testid="section-no-periods" className="bg-card rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
                     <p className="font-medium text-foreground">No periods configured</p>
                     <p className="text-sm mt-1">
                         A weekly schedule needs the school&apos;s daily period structure before it can show anything.
@@ -73,7 +73,7 @@ export default async function SectionTimetablePage({ params }: { params: Promise
                     </Link>
                 </div>
             ) : (
-            <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
+            <div className="bg-card rounded-xl shadow-sm border overflow-x-auto">
                 <table className="w-full min-w-[800px]" data-testid="timetable-grid-table">
                     <thead className="bg-muted">
                         <tr>

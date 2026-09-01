@@ -19,7 +19,7 @@ export default async function ReportCardsPage({
         return (
             <div className="space-y-6">
                 <Header />
-                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                     <p className="font-medium text-foreground">No exams yet</p>
                     <p className="text-sm text-muted-foreground mt-1 mb-4">
                         Report cards are built from saved marks, so there is nothing to show until an
@@ -54,7 +54,7 @@ export default async function ReportCardsPage({
         <div className="space-y-6">
             <Header />
 
-            <div className="bg-white rounded-xl shadow-sm border">
+            <div className="bg-card rounded-xl shadow-sm border">
                 <div className="p-4 border-b">
                     <h2 className="font-semibold text-foreground">1. Choose an exam</h2>
                 </div>
@@ -91,7 +91,7 @@ export default async function ReportCardsPage({
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border">
+            <div className="bg-card rounded-xl shadow-sm border">
                 <div className="p-4 border-b">
                     <h2 className="font-semibold text-foreground">
                         2. Choose a class — {selected.name}

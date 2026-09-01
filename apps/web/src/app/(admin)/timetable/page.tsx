@@ -46,16 +46,16 @@ export default async function TimetablePage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-xl shadow-sm border p-4" data-testid="stat-periods">
+                <div className="bg-card rounded-xl shadow-sm border p-4" data-testid="stat-periods">
                     <div className="text-sm text-muted-foreground">Periods in the day</div>
                     <div className="text-2xl font-bold text-foreground">{periods.length}</div>
                     <div className="text-xs text-muted-foreground mt-1">{teachingPeriods} teaching · {periods.length - teachingPeriods} breaks</div>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border p-4" data-testid="stat-scheduled-sections">
+                <div className="bg-card rounded-xl shadow-sm border p-4" data-testid="stat-scheduled-sections">
                     <div className="text-sm text-muted-foreground">Classes with a timetable</div>
                     <div className="text-2xl font-bold text-foreground">{scheduledSections} / {sections.length}</div>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border p-4" data-testid="stat-entries">
+                <div className="bg-card rounded-xl shadow-sm border p-4" data-testid="stat-entries">
                     <div className="text-sm text-muted-foreground">Scheduled entries</div>
                     <div className="text-2xl font-bold text-foreground">{totalEntries}</div>
                 </div>
@@ -68,7 +68,7 @@ export default async function TimetablePage() {
                 </div>
             )}
 
-            <div className="bg-white rounded-xl shadow-sm border">
+            <div className="bg-card rounded-xl shadow-sm border">
                 <div className="p-4 border-b">
                     <h2 className="font-semibold text-foreground">Classes ({sections.length} sections)</h2>
                 </div>

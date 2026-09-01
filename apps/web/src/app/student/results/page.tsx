@@ -31,7 +31,7 @@ export default async function StudentResultsPage() {
             </div>
 
             {byExam.size === 0 ? (
-                <div className="rounded-xl border bg-white p-8 text-center text-sm text-muted-foreground">
+                <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
                     No published results yet.
                 </div>
             ) : (
@@ -42,7 +42,7 @@ export default async function StudentResultsPage() {
                     const percentage = total > 0 ? Math.round((obtained / total) * 1000) / 10 : null;
 
                     return (
-                        <div key={examId} className="rounded-xl border bg-white shadow-sm overflow-hidden">
+                        <div key={examId} className="rounded-xl border bg-card shadow-sm overflow-hidden">
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border-b bg-muted px-6 py-4">
                                 <div>
                                     <h2 className="text-base font-semibold text-foreground">{exam.name}</h2>

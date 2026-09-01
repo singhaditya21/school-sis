@@ -102,7 +102,7 @@ function AgeingAnalysis({ buckets }: { buckets: AgeingBucket[] }) {
     ];
 
     return (
-        <div className="rounded-xl border border-border dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
+        <div className="rounded-xl border border-border dark:border-gray-800 bg-card p-6">
             <h3 className="text-lg font-semibold text-foreground dark:text-white mb-4">
                 Ageing Analysis
             </h3>
@@ -170,7 +170,7 @@ function DefaulterTable({
     }
 
     return (
-        <div className="rounded-xl border border-border dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden">
+        <div className="rounded-xl border border-border dark:border-gray-800 bg-card overflow-hidden">
             <div className="p-4 border-b border-border dark:border-gray-800 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-foreground dark:text-white">
                     Defaulter List

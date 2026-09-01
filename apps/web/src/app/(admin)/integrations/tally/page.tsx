@@ -69,7 +69,7 @@ export default async function TallyIntegrationPage() {
                 {/* Right Column - Ledger Mapping Settings */}
                 <div className="lg:col-span-2">
                     <Card className="border border-border shadow-sm rounded-xl h-full">
-                        <CardHeader className="bg-white border-b border-border pb-4 flex flex-row items-center justify-between">
+                        <CardHeader className="bg-card border-b border-border pb-4 flex flex-row items-center justify-between">
                             <div>
                                 <CardTitle className="text-xl flex items-center gap-2">
                                     <Settings2 className="w-5 h-5 text-foreground" /> Ledger Mapping configuration

@@ -158,7 +158,7 @@ export default function BookFormDialog({ open, onOpenChange, book }: BookFormDia
                                 id="book-category"
                                 value={form.category}
                                 onChange={(e) => set('category')(e.target.value)}
-                                className="w-full h-10 px-3 border rounded-md text-sm bg-white"
+                                className="w-full h-10 px-3 border rounded-md text-sm bg-card"
                                 data-testid="book-category-input"
                             >
                                 {BOOK_CATEGORIES_LIST.map((c) => (

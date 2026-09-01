@@ -94,7 +94,7 @@ export default function CashflowForecastChart({ forecast }: { forecast: Cashflow
             </div>
 
             {/* Chart */}
-            <div className="rounded-xl border border-border dark:border-gray-800 bg-white dark:bg-gray-950 p-6">
+            <div className="rounded-xl border border-border dark:border-gray-800 bg-card p-6">
                 <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={chartData} barGap={4}>
@@ -127,7 +127,7 @@ export default function CashflowForecastChart({ forecast }: { forecast: Cashflow
             </div>
 
             {/* Monthly Breakdown Table */}
-            <div className="rounded-xl border border-border dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden">
+            <div className="rounded-xl border border-border dark:border-gray-800 bg-card overflow-hidden">
                 <table className="w-full text-sm">
                     <thead className="bg-muted dark:bg-gray-900/50">
                         <tr>

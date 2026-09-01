@@ -72,7 +72,7 @@ export function ParentTopBar({
                                     className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
                                         isSelected
                                             ? 'border-slate-900 bg-slate-900 text-white'
-                                            : 'border-border bg-white text-foreground hover:border-slate-400'
+                                            : 'border-border bg-card text-foreground hover:border-slate-400'
                                     }`}
                                 >
                                     {student.name}
@@ -94,7 +94,7 @@ export function ParentTopBar({
                 <button
                     type="submit"
                     data-testid="parent-sign-out"
-                    className="inline-flex items-center gap-2 rounded-md border border-border bg-white px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                     <LogOut className="h-4 w-4" />
                     Sign out

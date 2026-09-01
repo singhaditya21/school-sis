@@ -30,7 +30,7 @@ export function SchoolSwitcher({ currentSchool, schools = [], onSchoolChange }: 
         <div className="relative">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-2 px-3 py-2 bg-white border rounded-lg hover:bg-muted transition-colors"
+                className="flex items-center gap-2 px-3 py-2 bg-card border rounded-lg hover:bg-muted transition-colors"
             >
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
                     <span className="text-white text-sm">🏫</span>
@@ -47,7 +47,7 @@ export function SchoolSwitcher({ currentSchool, schools = [], onSchoolChange }: 
             {isOpen && (
                 <>
                     <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-                    <div className="absolute top-full left-0 mt-2 w-72 bg-white border rounded-lg shadow-lg z-50">
+                    <div className="absolute top-full left-0 mt-2 w-72 bg-card border rounded-lg shadow-lg z-50">
                         <div className="p-2 border-b">
                             <div className="text-xs text-muted-foreground uppercase font-medium px-2">{trustName}</div>
                         </div>

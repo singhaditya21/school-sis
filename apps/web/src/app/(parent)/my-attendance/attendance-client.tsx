@@ -165,7 +165,7 @@ export function AttendanceClient() {
                         {childName ? `Daily record for ${childName}` : 'Daily record'}
                     </p>
                 </div>
-                <div className="mt-4 flex items-center rounded-md border bg-white p-1 shadow-sm md:mt-0">
+                <div className="mt-4 flex items-center rounded-md border bg-card p-1 shadow-sm md:mt-0">
                     <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Previous month" onClick={() => stepMonth(-1)}>
                         <ChevronLeft className="h-4 w-4" />
                     </Button>
@@ -185,7 +185,7 @@ export function AttendanceClient() {
             )}
 
             {!childrenLoading && students.length === 0 ? (
-                <div className="rounded-xl border border-dashed bg-white p-12 text-center text-muted-foreground">
+                <div className="rounded-xl border border-dashed bg-card p-12 text-center text-muted-foreground">
                     No child is linked to your account yet, so there is no attendance to show.
                 </div>
             ) : (
@@ -267,7 +267,7 @@ export function AttendanceClient() {
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-8 bg-white text-xs font-medium"
+                                    className="h-8 bg-card text-xs font-medium"
                                     disabled={loading || records.length === 0}
                                     onClick={generatePDF}
                                 >
@@ -303,7 +303,7 @@ export function AttendanceClient() {
                                                     status
                                                         ? (STATUS_STYLES[status]?.cell ??
                                                           'bg-muted text-muted-foreground border-border')
-                                                        : 'border-border bg-white text-muted-foreground'
+                                                        : 'border-border bg-card text-muted-foreground'
                                                 }`}
                                             >
                                                 <span>{day}</span>

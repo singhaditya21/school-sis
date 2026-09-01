@@ -92,7 +92,7 @@ export function AlertList({ alerts }: { alerts: ParentAlertItem[] }) {
                     <Card
                         key={alert.id}
                         className={`border-l-4 shadow-sm ${style.border} ${
-                            alert.isRead ? 'bg-white' : 'bg-muted/80'
+                            alert.isRead ? 'bg-card' : 'bg-muted/80'
                         }`}
                     >
                         <CardContent className="flex items-start gap-4 p-5">

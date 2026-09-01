@@ -57,14 +57,14 @@ export function AttendanceSheet({
 
     if (roll.length === 0) {
         return (
-            <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
+            <div className="bg-card rounded-xl shadow-sm border p-8 text-center text-muted-foreground">
                 No active students are enrolled in this section.
             </div>
         );
     }
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border">
+        <div className="bg-card rounded-xl shadow-sm border">
             <div className="p-4 border-b flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-muted-foreground">
                     {roll.length} students · {unmarked} not yet marked
@@ -111,7 +111,7 @@ export function AttendanceSheet({
                                         className={`text-xs px-3 py-1.5 rounded border font-medium transition-colors disabled:opacity-50 ${
                                             active
                                                 ? STATUS_STYLES[status]
-                                                : 'bg-white text-muted-foreground border-border hover:bg-muted'
+                                                : 'bg-card text-muted-foreground border-border hover:bg-muted'
                                         }`}
                                     >
                                         {status.charAt(0) + status.slice(1).toLowerCase()}

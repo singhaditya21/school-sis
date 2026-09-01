@@ -207,7 +207,7 @@ export default async function AuditTrailPage({
                 {actorsResult.rows.length === 0 ? (
                     <EmptyState message="No audited activity in this window." />
                 ) : (
-                    <div className="overflow-x-auto rounded-xl border border-border bg-white">
+                    <div className="overflow-x-auto rounded-xl border border-border bg-card">
                         <table className="w-full text-sm">
                             <thead className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                                 <tr>
@@ -274,7 +274,7 @@ export default async function AuditTrailPage({
                 {eventsResult.rows.length === 0 ? (
                     <EmptyState message="No deletions, role changes, exports or payments were recorded in this window." />
                 ) : (
-                    <div className="overflow-x-auto rounded-xl border border-border bg-white">
+                    <div className="overflow-x-auto rounded-xl border border-border bg-card">
                         <table className="w-full text-sm">
                             <thead className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                                 <tr>
@@ -363,7 +363,7 @@ function Metric({
     emphasise?: boolean;
 }) {
     return (
-        <div className="rounded-xl border border-border bg-white p-4">
+        <div className="rounded-xl border border-border bg-card p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
             <div
                 className={`mt-1 text-2xl font-bold ${emphasise ? 'text-amber-700' : 'text-foreground'}`}
@@ -377,7 +377,7 @@ function Metric({
 
 function EmptyState({ message }: { message: string }) {
     return (
-        <div className="rounded-xl border border-dashed border-border bg-white py-12 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-border bg-card py-12 text-center text-sm text-muted-foreground">
             {message}
         </div>
     );

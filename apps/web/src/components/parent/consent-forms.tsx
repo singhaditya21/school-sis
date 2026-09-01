@@ -51,7 +51,7 @@ export function ConsentForms({
 
     if (forms.length === 0) {
         return (
-            <div className="rounded-xl border border-dashed bg-white p-12 text-center text-muted-foreground">
+            <div className="rounded-xl border border-dashed bg-card p-12 text-center text-muted-foreground">
                 <p className="font-medium text-muted-foreground">No consent forms</p>
                 <p className="mt-1 text-sm">The school has not published any forms for parents yet.</p>
             </div>
@@ -69,7 +69,7 @@ export function ConsentForms({
                 </div>
 
                 {open.length === 0 ? (
-                    <div className="rounded-lg border border-dashed bg-white p-8 text-center text-muted-foreground">
+                    <div className="rounded-lg border border-dashed bg-card p-8 text-center text-muted-foreground">
                         No forms are open at the moment.
                     </div>
                 ) : (
@@ -82,7 +82,7 @@ export function ConsentForms({
                                 <div
                                     key={form.id}
                                     data-testid="consent-form-card"
-                                    className={`rounded-xl border bg-white p-5 shadow-sm ${
+                                    className={`rounded-xl border bg-card p-5 shadow-sm ${
                                         form.response ? 'border-border' : 'border-amber-200'
                                     }`}
                                 >
@@ -180,7 +180,7 @@ export function ConsentForms({
                 {closed.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No closed forms.</p>
                 ) : (
-                    <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
+                    <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
                         <table className="w-full text-left text-sm">
                             <thead className="border-b border-border bg-muted/50 text-xs font-semibold uppercase text-muted-foreground">
                                 <tr>

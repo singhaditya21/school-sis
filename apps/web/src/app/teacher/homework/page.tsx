@@ -19,14 +19,14 @@ export default async function TeacherHomeworkPage() {
             </div>
 
             {items.length === 0 ? (
-                <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
                     <p className="font-medium text-foreground">You have not set any homework yet.</p>
                     <p className="text-sm text-muted-foreground mt-2">
                         Only homework recorded against your account appears here.
                     </p>
                 </div>
             ) : (
-                <div className="bg-white rounded-xl shadow-sm border divide-y" data-testid="teacher-homework-list">
+                <div className="bg-card rounded-xl shadow-sm border divide-y" data-testid="teacher-homework-list">
                     {items.map((item) => (
                         <div key={item.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
                             <div className="min-w-0">

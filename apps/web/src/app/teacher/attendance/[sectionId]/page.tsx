@@ -49,7 +49,7 @@ export default async function MarkMyAttendancePage({
                         </label>
                         <button
                             type="submit"
-                            className="bg-white border border-border text-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-muted"
+                            className="bg-card border border-border text-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-muted"
                         >
                             Show
                         </button>

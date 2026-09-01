@@ -245,7 +245,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                         <Label htmlFor="filter-grade" className="text-xs text-muted-foreground">Class</Label>
                         <select
                             id="filter-grade"
-                            className="h-10 w-full md:w-48 px-3 bg-white border border-border rounded-md text-sm"
+                            className="h-10 w-full md:w-48 px-3 bg-card border border-border rounded-md text-sm"
                             value={filters.gradeId}
                             onChange={(e) => applyFilter('gradeId', e.target.value)}
                         >
@@ -259,7 +259,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                         <Label htmlFor="filter-subject" className="text-xs text-muted-foreground">Subject</Label>
                         <select
                             id="filter-subject"
-                            className="h-10 w-full md:w-48 px-3 bg-white border border-border rounded-md text-sm"
+                            className="h-10 w-full md:w-48 px-3 bg-card border border-border rounded-md text-sm"
                             value={filters.subjectId}
                             onChange={(e) => applyFilter('subjectId', e.target.value)}
                         >
@@ -394,7 +394,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                     name="gradeId"
                                     value={formGradeId}
                                     onChange={(e) => setFormGradeId(e.target.value)}
-                                    className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm"
+                                    className="w-full h-10 px-3 bg-card border border-border rounded-md text-sm"
                                 >
                                     <option value="">Whole school</option>
                                     {options.grades.map((g) => (
@@ -408,7 +408,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                     id="sectionId"
                                     name="sectionId"
                                     disabled={!formGradeId}
-                                    className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm disabled:bg-muted"
+                                    className="w-full h-10 px-3 bg-card border border-border rounded-md text-sm disabled:bg-muted"
                                 >
                                     <option value="">All sections</option>
                                     {sectionsForForm.map((s) => (
@@ -421,7 +421,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                 <select
                                     id="subjectId"
                                     name="subjectId"
-                                    className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm"
+                                    className="w-full h-10 px-3 bg-card border border-border rounded-md text-sm"
                                 >
                                     <option value="">No subject</option>
                                     {options.subjects.map((s) => (

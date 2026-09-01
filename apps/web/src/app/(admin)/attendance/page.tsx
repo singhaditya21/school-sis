@@ -46,23 +46,23 @@ export default async function AttendancePage() {
 
             {/* Summary Cards */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Total Students</p>
                     <p className="text-2xl font-bold">{totalStudents}</p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Present Today</p>
                     <p className="text-2xl font-bold text-green-600">{totalPresent}</p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Absent Today</p>
                     <p className="text-2xl font-bold text-red-600">{totalAbsent}</p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Late Today</p>
                     <p className="text-2xl font-bold text-yellow-600">{totalLate}</p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border p-4">
+                <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Sections Marked</p>
                     <p className="text-2xl font-bold text-primary">{sectionsMarked}/{classSummary.length}</p>
                 </div>
@@ -70,7 +70,7 @@ export default async function AttendancePage() {
 
             {/* Weekly Stats */}
             {weeklyStats.length > 0 && (
-                <div className="bg-white rounded-xl shadow-sm border p-6">
+                <div className="bg-card rounded-xl shadow-sm border p-6">
                     <h2 className="text-lg font-semibold mb-3">Last 7 Days</h2>
                     <div className="flex flex-wrap gap-3">
                         {weeklyStats.map(stat => (
@@ -83,7 +83,7 @@ export default async function AttendancePage() {
             )}
 
             {/* Class-wise Attendance Grid */}
-            <div className="bg-white rounded-xl shadow-sm border">
+            <div className="bg-card rounded-xl shadow-sm border">
                 <div className="p-6">
                     <h2 className="text-lg font-semibold mb-4">Class-wise Attendance</h2>
                     <div className="space-y-6">

@@ -182,7 +182,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                         <Label htmlFor="filter-status" className="text-xs text-muted-foreground">Status</Label>
                         <select
                             id="filter-status"
-                            className="h-10 w-full md:w-44 px-3 bg-white border border-border rounded-md text-sm"
+                            className="h-10 w-full md:w-44 px-3 bg-card border border-border rounded-md text-sm"
                             value={filters.status}
                             onChange={(e) => applyFilter('status', e.target.value)}
                         >
@@ -196,7 +196,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                         <Label htmlFor="filter-grade" className="text-xs text-muted-foreground">Class</Label>
                         <select
                             id="filter-grade"
-                            className="h-10 w-full md:w-44 px-3 bg-white border border-border rounded-md text-sm"
+                            className="h-10 w-full md:w-44 px-3 bg-card border border-border rounded-md text-sm"
                             value={filters.gradeId}
                             onChange={(e) => applyFilter('gradeId', e.target.value)}
                         >
@@ -210,7 +210,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                         <Label htmlFor="filter-subject" className="text-xs text-muted-foreground">Subject</Label>
                         <select
                             id="filter-subject"
-                            className="h-10 w-full md:w-44 px-3 bg-white border border-border rounded-md text-sm"
+                            className="h-10 w-full md:w-44 px-3 bg-card border border-border rounded-md text-sm"
                             value={filters.subjectId}
                             onChange={(e) => applyFilter('subjectId', e.target.value)}
                         >
@@ -224,7 +224,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                         <Label htmlFor="filter-teacher" className="text-xs text-muted-foreground">Teacher</Label>
                         <select
                             id="filter-teacher"
-                            className="h-10 w-full md:w-48 px-3 bg-white border border-border rounded-md text-sm"
+                            className="h-10 w-full md:w-48 px-3 bg-card border border-border rounded-md text-sm"
                             value={filters.teacherId}
                             onChange={(e) => applyFilter('teacherId', e.target.value)}
                         >
@@ -351,7 +351,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="gradeId">Class</Label>
-                                <select id="gradeId" name="gradeId" defaultValue={editing?.gradeId ?? ''} className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm">
+                                <select id="gradeId" name="gradeId" defaultValue={editing?.gradeId ?? ''} className="w-full h-10 px-3 bg-card border border-border rounded-md text-sm">
                                     <option value="">Not set</option>
                                     {options.grades.map((g) => (
                                         <option key={g.gradeId} value={g.gradeId}>{g.gradeName}</option>
@@ -360,7 +360,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="subjectId">Subject</Label>
-                                <select id="subjectId" name="subjectId" defaultValue={editing?.subjectId ?? ''} className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm">
+                                <select id="subjectId" name="subjectId" defaultValue={editing?.subjectId ?? ''} className="w-full h-10 px-3 bg-card border border-border rounded-md text-sm">
                                     <option value="">Not set</option>
                                     {options.subjects.map((s) => (
                                         <option key={s.subjectId} value={s.subjectId}>{s.subjectName}</option>
@@ -369,7 +369,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="teacherId">Teacher</Label>
-                                <select id="teacherId" name="teacherId" defaultValue={editing?.teacherId ?? ''} className="w-full h-10 px-3 bg-white border border-border rounded-md text-sm">
+                                <select id="teacherId" name="teacherId" defaultValue={editing?.teacherId ?? ''} className="w-full h-10 px-3 bg-card border border-border rounded-md text-sm">
                                     <option value="">Me</option>
                                     {options.teachers.map((t) => (
                                         <option key={t.teacherId} value={t.teacherId}>{t.teacherName}</option>

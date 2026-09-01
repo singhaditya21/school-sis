@@ -46,7 +46,7 @@ function renderCell(value: AiRow[string], format: string) {
 function ToolEvidence({ run }: { run: AiToolRun }) {
     if (run.status === 'read') {
         return (
-            <div className="rounded-md border border-border bg-white p-3">
+            <div className="rounded-md border border-border bg-card p-3">
                 <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                     <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
                     <code>{run.toolName}</code>

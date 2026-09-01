@@ -261,7 +261,7 @@ export default function HealthClient({
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
-                                <thead className="bg-white border-b border-border text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+                                <thead className="bg-card border-b border-border text-xs text-muted-foreground font-semibold uppercase tracking-wider">
                                     <tr>
                                         <th className="px-5 py-4">Date &amp; Time</th>
                                         <th className="px-5 py-4">Student</th>
@@ -327,7 +327,7 @@ export default function HealthClient({
                                             id="incident-student"
                                             value={form.studentId}
                                             onChange={(e) => set('studentId', e.target.value)}
-                                            className="w-full h-9 rounded-md border border-border bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
+                                            className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
                                             data-testid="incident-student"
                                         >
                                             <option value="">

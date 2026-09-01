@@ -54,7 +54,7 @@ export function StatTile({
     }[tone];
 
     return (
-        <div className="rounded-lg border bg-white p-4">
+        <div className="rounded-lg border bg-card p-4">
             <div className="text-sm text-muted-foreground">{label}</div>
             <div className={`mt-1 text-2xl font-bold ${toneClass}`}>{value}</div>
             {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}

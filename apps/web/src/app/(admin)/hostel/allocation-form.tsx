@@ -23,7 +23,7 @@ const EMPTY = {
 type FormState = typeof EMPTY;
 
 const FIELD_CLASS =
-    'w-full p-2 border rounded text-sm bg-white disabled:bg-muted disabled:text-muted-foreground';
+    'w-full p-2 border rounded text-sm bg-card disabled:bg-muted disabled:text-muted-foreground';
 
 export default function AllocationForm({
     hostels,

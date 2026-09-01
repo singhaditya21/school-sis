@@ -119,7 +119,7 @@ export function AttendanceForm({
             </div>
 
             {/* Student List */}
-            <div className="bg-white rounded-xl shadow-sm border divide-y">
+            <div className="bg-card rounded-xl shadow-sm border divide-y">
                 {students.length === 0 ? (
                     <div className="p-8 text-center text-muted-foreground">
                         No students in this class.
@@ -166,7 +166,7 @@ export function AttendanceForm({
             </div>
 
             {/* Submit */}
-            <div className="flex gap-4 sticky bottom-0 bg-white py-4 border-t">
+            <div className="flex gap-4 sticky bottom-0 bg-card py-4 border-t">
                 <Link
                     href="/attendance"
                     className="px-6 py-3 border border-border rounded-lg text-foreground hover:bg-muted"
