@@ -275,7 +275,7 @@ export default function UiCatalogPage() {
                         <Section title="Forms">
                             <div className="grid max-w-lg gap-4">
                                 <FormField label="School code" hint="Ask your administrator for the code.">
-                                    <Input placeholder="GREENWOOD" />
+                                    <Input placeholder="SCH-1024" />
                                 </FormField>
                                 <FormField label="Email" required error="Enter a valid email address.">
                                     <Input type="email" placeholder="you@school.edu" />
@@ -351,9 +351,9 @@ export default function UiCatalogPage() {
                                 </TableHeader>
                                 <TableBody>
                                     {[
-                                        ["Aarav Sharma", "Grade 1-A", "PAID", "₹ 0"],
-                                        ["Diya Verma", "Grade 2-B", "OVERDUE", "₹ 15,000"],
-                                        ["Vivaan Gupta", "Grade 1-A", "PARTIAL", "₹ 7,500"],
+                                        ["Sample Student A", "Grade 1-A", "PAID", "₹ 0"],
+                                        ["Sample Student B", "Grade 2-B", "OVERDUE", "₹ 15,000"],
+                                        ["Sample Student C", "Grade 1-A", "PARTIAL", "₹ 7,500"],
                                     ].map(([name, klass, status, due]) => (
                                         <TableRow key={name}>
                                             <TableCell className="font-medium">{name}</TableCell>
