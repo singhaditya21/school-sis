@@ -111,7 +111,7 @@ export default function InvoiceGenerationForm({
                                 setPreview(null);
                                 setResult(null);
                             }}
-                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring focus:border-blue-500"
                         >
                             <option value="">Select fee plan</option>
                             {feePlans.filter(p => p.isActive).map(p => (
@@ -132,7 +132,7 @@ export default function InvoiceGenerationForm({
                                 setPreview(null);
                                 setResult(null);
                             }}
-                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring focus:border-blue-500"
                         >
                             <option value="">All grades</option>
                             {grades.map(g => (
@@ -150,7 +150,7 @@ export default function InvoiceGenerationForm({
                             type="date"
                             value={dueDate || defaultDueDate}
                             onChange={(e) => setDueDate(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring focus:border-blue-500"
                         />
                     </div>
 
@@ -164,7 +164,7 @@ export default function InvoiceGenerationForm({
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="e.g., Quarter 1 Fees"
-                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring focus:border-blue-500"
                         />
                     </div>
                 </div>
@@ -182,7 +182,7 @@ export default function InvoiceGenerationForm({
                     <button
                         onClick={handleGenerate}
                         disabled={!feePlanId || !dueDate || isPending}
-                        className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                         {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                         Generate Invoices

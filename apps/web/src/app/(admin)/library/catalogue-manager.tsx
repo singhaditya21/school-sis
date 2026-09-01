@@ -166,7 +166,7 @@ export default function CatalogueManager({
                             {includeArchived && <> (archived included)</>}.{' '}
                             <button
                                 type="button"
-                                className="text-blue-600 hover:underline"
+                                className="text-primary hover:underline"
                                 onClick={() => {
                                     setSearchValue('');
                                     applyFilters({ q: '', category: 'ALL', archived: false });
@@ -249,7 +249,7 @@ export default function CatalogueManager({
                                             <button
                                                 type="button"
                                                 onClick={() => openEdit(book)}
-                                                className="text-blue-600 hover:underline text-sm mr-3"
+                                                className="text-primary hover:underline text-sm mr-3"
                                                 data-testid="catalogue-edit-btn"
                                             >
                                                 Edit

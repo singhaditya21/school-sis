@@ -106,7 +106,7 @@ export default async function CertificatesPage({ searchParams }: PageProps) {
                         <div className="text-sm text-muted-foreground">Revoked</div>
                         <div className="text-2xl font-bold text-red-600">{stats.revoked}</div>
                         <div className="mt-1 text-xs text-muted-foreground">
-                            <Link href="/credentials" className="text-blue-600 hover:underline">
+                            <Link href="/credentials" className="text-primary hover:underline">
                                 Revocation register →
                             </Link>
                         </div>
@@ -224,7 +224,7 @@ export default async function CertificatesPage({ searchParams }: PageProps) {
                                         <td className="px-4 py-3 text-right whitespace-nowrap">
                                             <Link
                                                 href={`/certificates/${c.id}`}
-                                                className="text-sm font-medium text-blue-600 hover:underline"
+                                                className="text-sm font-medium text-primary hover:underline"
                                             >
                                                 Open
                                             </Link>

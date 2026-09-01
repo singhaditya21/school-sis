@@ -98,7 +98,7 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
                     </Card>
                 </Link>
                 <Link href="?filter=info" data-testid="filter-info">
-                    <Card className="cursor-pointer border-2 border-blue-200 hover:bg-blue-50 transition-colors">
+                    <Card className="cursor-pointer border-2 border-blue-200 hover:bg-accent transition-colors">
                         <CardContent className="pt-4"><div className="text-sm text-muted-foreground">Info</div><div className="text-3xl font-bold text-blue-600" data-testid="kpi-info-count">{infoCount}</div></CardContent>
                     </Card>
                 </Link>

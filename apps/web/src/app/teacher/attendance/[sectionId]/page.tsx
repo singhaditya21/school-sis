@@ -54,7 +54,7 @@ export default async function MarkMyAttendancePage({
                             Show
                         </button>
                     </form>
-                    <Link href="/teacher/attendance" className="text-sm text-blue-600 hover:underline pb-2">
+                    <Link href="/teacher/attendance" className="text-sm text-primary hover:underline pb-2">
                         ← All classes
                     </Link>
                 </div>

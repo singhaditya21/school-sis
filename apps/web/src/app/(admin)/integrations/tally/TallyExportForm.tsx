@@ -77,7 +77,7 @@ export default function TallyExportForm() {
             <Button 
                 type="submit" 
                 disabled={isLoading} 
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-2 h-12 mt-6"
+                className="w-full bg-primary hover:bg-primary/90 text-white font-semibold flex items-center justify-center gap-2 h-12 mt-6"
             >
                 {isLoading ? (
                     <>

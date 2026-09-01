@@ -76,7 +76,7 @@ export function SchoolSwitcher({ currentSchool, schools = [], onSchoolChange }: 
                             )}
                         </div>
                         <div className="p-2 border-t">
-                            <a href="/schools" className="block w-full text-center text-sm text-blue-600 hover:underline py-2">Manage Schools →</a>
+                            <a href="/schools" className="block w-full text-center text-sm text-primary hover:underline py-2">Manage Schools →</a>
                         </div>
                     </div>
                 </>

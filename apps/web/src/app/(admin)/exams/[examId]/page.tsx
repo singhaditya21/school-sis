@@ -40,7 +40,7 @@ export default async function ExamDetailPage({
         return (
             <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
                 <p className="text-muted-foreground">Exam not found.</p>
-                <Link href="/exams" className="text-blue-600 hover:underline text-sm mt-2 inline-block">
+                <Link href="/exams" className="text-primary hover:underline text-sm mt-2 inline-block">
                     ← Back to exams
                 </Link>
             </div>
@@ -78,7 +78,7 @@ export default async function ExamDetailPage({
                         examEndDate={exam.endDate}
                         picklists={picklists}
                     />
-                    <Link href="/exams" className="text-blue-600 hover:underline text-sm">
+                    <Link href="/exams" className="text-primary hover:underline text-sm">
                         ← Back to exams
                     </Link>
                 </div>
@@ -162,7 +162,7 @@ export default async function ExamDetailPage({
                                     </div>
                                     <Link
                                         href={`/exams/${exam.id}/marks/${gradeId}`}
-                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                                        className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90"
                                     >
                                         Enter marks
                                     </Link>

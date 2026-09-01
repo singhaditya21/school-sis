@@ -119,7 +119,7 @@ export default function LeadStageManager({
                     <button
                         onClick={() => handleMove(PIPELINE_STAGES[currentIndex + 1])}
                         disabled={isPending}
-                        className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                        className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 font-medium"
                     >
                         {isPending ? (
                             <Loader2 className="w-4 h-4 animate-spin inline mr-1" />

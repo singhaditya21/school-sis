@@ -184,7 +184,7 @@ export default async function ProcurementPage() {
                     </p>
                     <p>
                         The records that <em>are</em> available for a procurement review live on{' '}
-                        <Link href="/audit" className="text-blue-600 dark:text-blue-400 hover:underline">
+                        <Link href="/audit" className="text-primary hover:underline">
                             the audit log
                         </Link>
                         , which shows who changed what inside this campus.

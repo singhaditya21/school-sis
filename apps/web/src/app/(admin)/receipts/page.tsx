@@ -198,7 +198,7 @@ export default async function PaymentLedgerPage() {
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <Link
                                                     href={`/invoices/${row.invoiceId}`}
-                                                    className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                                                    className="font-semibold text-primary hover:underline"
                                                 >
                                                     {row.invoiceNumber ?? 'View invoice'}
                                                 </Link>
@@ -218,7 +218,7 @@ export default async function PaymentLedgerPage() {
                                                 {row.receiptId ? (
                                                     <Link
                                                         href={`/receipts/${row.receiptId}`}
-                                                        className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium"
+                                                        className="text-primary hover:underline text-sm font-medium"
                                                     >
                                                         {row.receiptNumber}
                                                     </Link>

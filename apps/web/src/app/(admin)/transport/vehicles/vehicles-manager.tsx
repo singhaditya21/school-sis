@@ -229,7 +229,7 @@ export default function VehiclesManager({ vehicles, canWrite }: VehiclesManagerP
                                         <TableCell className="px-4 py-3 text-right whitespace-nowrap">
                                             <button
                                                 type="button"
-                                                className="text-blue-600 hover:underline text-sm mr-3"
+                                                className="text-primary hover:underline text-sm mr-3"
                                                 onClick={() => openEdit(vehicle)}
                                                 data-testid="edit-vehicle-btn"
                                             >

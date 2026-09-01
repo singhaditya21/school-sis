@@ -70,7 +70,7 @@ export default async function CertificateRecordPage({ params }: PageProps) {
 
             <div className="flex flex-wrap items-start justify-between gap-4 print:hidden">
                 <div>
-                    <Link href="/certificates" className="text-sm text-blue-600 hover:underline">
+                    <Link href="/certificates" className="text-sm text-primary hover:underline">
                         ← Certificates
                     </Link>
                     <h1 className="mt-1 text-2xl font-bold">{record.certificateNumber}</h1>

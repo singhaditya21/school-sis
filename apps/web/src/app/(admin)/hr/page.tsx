@@ -101,7 +101,7 @@ export default async function HROverviewPage({ searchParams }: PageProps) {
                         <div className="text-2xl font-bold text-amber-600">{stats.pendingLeaves}</div>
                         <div className="mt-1 text-xs text-muted-foreground">
                             {stats.pendingLeaves > 0 ? (
-                                <Link href="/hr/leave?status=PENDING" className="text-blue-600 hover:underline">
+                                <Link href="/hr/leave?status=PENDING" className="text-primary hover:underline">
                                     Review now
                                 </Link>
                             ) : (
@@ -168,7 +168,7 @@ export default async function HROverviewPage({ searchParams }: PageProps) {
                         {dept !== 'ALL' && <span className="ml-2 font-normal text-muted-foreground">· {dept}</span>}
                     </CardTitle>
                     {dept !== 'ALL' && (
-                        <Link href="/hr" className="text-sm text-blue-600 hover:underline">
+                        <Link href="/hr" className="text-sm text-primary hover:underline">
                             Clear filter
                         </Link>
                     )}
@@ -191,7 +191,7 @@ export default async function HROverviewPage({ searchParams }: PageProps) {
                                 {staff.map(s => (
                                     <tr key={s.id} className="hover:bg-muted">
                                         <td className="px-4 py-3">
-                                            <Link href={`/hr/staff/${s.id}`} className="font-medium text-blue-600 hover:underline">
+                                            <Link href={`/hr/staff/${s.id}`} className="font-medium text-primary hover:underline">
                                                 {s.firstName} {s.lastName}
                                             </Link>
                                             <div className="text-xs text-muted-foreground">

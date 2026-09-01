@@ -363,7 +363,7 @@ export default function SubstitutionBoard({
                                             <TableCell>
                                                 <Link
                                                     href={`/timetable/substitution/detail/${request.id}`}
-                                                    className="text-blue-600 hover:underline"
+                                                    className="text-primary hover:underline"
                                                 >
                                                     {request.date}
                                                 </Link>

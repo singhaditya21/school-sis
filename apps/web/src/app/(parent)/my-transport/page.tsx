@@ -110,7 +110,7 @@ export default async function ParentTransportPage({
                                     {route.driverPhone && (
                                         <a
                                             href={`tel:${route.driverPhone}`}
-                                            className="mt-1 inline-block text-blue-600 hover:underline"
+                                            className="mt-1 inline-block text-primary hover:underline"
                                         >
                                             {route.driverPhone}
                                         </a>

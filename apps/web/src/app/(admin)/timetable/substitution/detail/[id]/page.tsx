@@ -7,7 +7,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     return (
         <div className="container mx-auto p-6 max-w-xl">
             <div className="mb-6">
-                <Link href="/timetable/substitution" className="text-blue-600 hover:underline">← Back</Link>
+                <Link href="/timetable/substitution" className="text-primary hover:underline">← Back</Link>
             </div>
             {children}
         </div>
@@ -83,7 +83,7 @@ export default async function SubstitutionDetailPage({ params }: { params: Promi
 
                 {request.sectionId && (
                     <div className="pt-2">
-                        <Link href={`/timetable/grid?section=${request.sectionId}`} className="text-blue-600 hover:underline text-sm">
+                        <Link href={`/timetable/grid?section=${request.sectionId}`} className="text-primary hover:underline text-sm">
                             View this class in the grid
                         </Link>
                     </div>

@@ -155,7 +155,7 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
                         </div>
                         <button
                             type="submit"
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-sm"
                         >
                             Search
                         </button>
@@ -176,7 +176,7 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
                                 key={status}
                                 href={buildHref(current, { filter: status })}
                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                                    filter === status ? 'bg-blue-600 text-white' : 'bg-muted hover:bg-gray-200'
+                                    filter === status ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-gray-200'
                                 }`}
                             >
                                 {status}

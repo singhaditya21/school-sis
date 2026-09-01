@@ -15,7 +15,7 @@ export default async function UniversityCoursesPage() {
                 </div>
                 <div className="flex gap-3">
                     <Button variant="outline" className="bg-white">Import Syllabi</Button>
-                    <Button className="bg-blue-600 hover:bg-blue-700">Add New Course</Button>
+                    <Button className="bg-primary hover:bg-primary/90">Add New Course</Button>
                 </div>
             </div>
 
@@ -57,7 +57,7 @@ export default async function UniversityCoursesPage() {
                                             {course.programName} ({course.degreeType})
                                         </td>
                                         <td className="px-6 py-4 text-right space-x-2">
-                                            <Button variant="ghost" size="sm" className="hidden lg:inline-flex text-blue-600 hover:text-blue-800 hover:bg-blue-50 font-semibold">Assign Faculty</Button>
+                                            <Button variant="ghost" size="sm" className="hidden lg:inline-flex text-blue-600 hover:text-blue-800 hover:bg-accent font-semibold">Assign Faculty</Button>
                                             <Button variant="outline" size="sm" className="font-semibold">Edit</Button>
                                         </td>
                                     </tr>

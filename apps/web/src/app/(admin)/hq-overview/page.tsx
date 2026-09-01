@@ -46,7 +46,7 @@ export default async function HQDashboard() {
                             on{' '}
                             <Link
                                 href="/hq-policies"
-                                className="text-blue-600 dark:text-blue-400 hover:underline"
+                                className="text-primary hover:underline"
                             >
                                 HQ Policies
                             </Link>
@@ -158,7 +158,7 @@ export default async function HQDashboard() {
                             <p>
                                 <Link
                                     href="/hq-policies"
-                                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                                    className="text-primary hover:underline"
                                 >
                                     See how each mandate applies to this campus
                                 </Link>

@@ -76,7 +76,7 @@ export default async function QuizResultsPage({ params }: { params: Promise<{ id
                     <Link href={`/quiz/${quiz.id}`} className="px-3 py-2 text-sm rounded-lg border border-border dark:border-gray-700 hover:bg-muted dark:hover:bg-gray-800">
                         Quiz setup
                     </Link>
-                    <Link href="/quiz" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">← All quizzes</Link>
+                    <Link href="/quiz" className="text-primary hover:underline text-sm">← All quizzes</Link>
                 </div>
             </div>
 

@@ -28,7 +28,7 @@ export default async function TransportPage() {
                     <Link href="/transport/vehicles" className="px-4 py-2 border border-border rounded-lg hover:bg-muted">
                         🚐 Fleet
                     </Link>
-                    <Link href="/transport/new" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <Link href="/transport/new" className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90">
                         + Add Route
                     </Link>
                 </div>
@@ -63,7 +63,7 @@ export default async function TransportPage() {
                                 )}
                             </div>
                             <div className="mt-4 pt-4 border-t flex justify-end">
-                                <Link href={`/transport/${route.id}`} className="text-blue-600 hover:underline text-sm">
+                                <Link href={`/transport/${route.id}`} className="text-primary hover:underline text-sm">
                                     View Details →
                                 </Link>
                             </div>

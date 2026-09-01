@@ -27,7 +27,7 @@ export default async function MarksVerificationPage({
                         further edits.
                     </p>
                 </div>
-                <Link href="/exams" className="text-blue-600 hover:underline text-sm">
+                <Link href="/exams" className="text-primary hover:underline text-sm">
                     ← Back to exams
                 </Link>
             </div>
@@ -55,7 +55,7 @@ export default async function MarksVerificationPage({
                             href="/exams/verification"
                             className={`px-3 py-1.5 rounded-lg text-sm border ${
                                 activeExam === null
-                                    ? 'bg-blue-600 text-white border-blue-600'
+                                    ? 'bg-primary text-primary-foreground border-blue-600'
                                     : 'border-border text-foreground hover:bg-muted'
                             }`}
                         >
@@ -67,7 +67,7 @@ export default async function MarksVerificationPage({
                                 href={`/exams/verification?examId=${exam.id}`}
                                 className={`px-3 py-1.5 rounded-lg text-sm border ${
                                     activeExam?.id === exam.id
-                                        ? 'bg-blue-600 text-white border-blue-600'
+                                        ? 'bg-primary text-primary-foreground border-blue-600'
                                         : 'border-border text-foreground hover:bg-muted'
                                 }`}
                             >

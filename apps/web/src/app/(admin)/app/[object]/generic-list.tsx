@@ -86,7 +86,7 @@ export default function GenericListClient({
                                         </td>
                                     ))}
                                     <td className="px-6 py-4 text-right">
-                                        <Link href={`/app/${objectName}/${record.id}`} className="font-medium text-blue-600 hover:underline">
+                                        <Link href={`/app/${objectName}/${record.id}`} className="font-medium text-primary hover:underline">
                                             Edit
                                         </Link>
                                     </td>

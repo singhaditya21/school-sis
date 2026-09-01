@@ -176,7 +176,7 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
                                 onClick={() => setActiveSchedule(s.scheduleId)}
                                 className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                                     active
-                                        ? 'bg-blue-600 text-white'
+                                        ? 'bg-primary text-primary-foreground'
                                         : savedForSubject > 0
                                           ? 'bg-green-50 text-green-700 hover:bg-green-100'
                                           : 'bg-muted text-foreground hover:bg-gray-200'
@@ -348,7 +348,7 @@ export function MarksSheetEditor({ examId, gradeName, subjects, students, marks 
                     type="button"
                     onClick={handleSave}
                     disabled={isPending}
-                    className="flex-1 min-w-[12rem] px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    className="flex-1 min-w-[12rem] px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50"
                 >
                     {isPending ? 'Saving…' : `Save ${subject.subjectCode} marks`}
                 </button>

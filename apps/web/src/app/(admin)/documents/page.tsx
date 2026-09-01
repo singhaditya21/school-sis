@@ -165,7 +165,7 @@ export default async function DocumentsPage({ searchParams }: PageProps) {
                                                     href={doc.fileUrl}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="font-medium text-blue-600 hover:underline"
+                                                    className="font-medium text-primary hover:underline"
                                                 >
                                                     {doc.fileName}
                                                 </a>

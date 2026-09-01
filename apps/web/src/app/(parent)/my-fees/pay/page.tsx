@@ -131,7 +131,7 @@ export default function PaymentCheckoutPage() {
                     </p>
 
                     <p className="text-center text-sm">
-                        <Link href="/my-fees" className="text-blue-600 hover:underline">
+                        <Link href="/my-fees" className="text-primary hover:underline">
                             Back to fees
                         </Link>
                     </p>

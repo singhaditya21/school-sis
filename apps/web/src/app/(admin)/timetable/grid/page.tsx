@@ -51,7 +51,7 @@ export default async function TimetableGridPage({
                     </p>
                     <Link
                         href="/timetable/periods"
-                        className="inline-block mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        className="inline-block mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
                     >
                         Set up periods
                     </Link>
@@ -120,13 +120,13 @@ export default async function TimetableGridPage({
             />
 
             <div className="flex flex-wrap gap-3 text-sm">
-                <Link href={`/timetable/${selected.id}`} className="text-blue-600 hover:underline">
+                <Link href={`/timetable/${selected.id}`} className="text-primary hover:underline">
                     Printable view for {sectionLabel}
                 </Link>
-                <Link href="/timetable/periods" className="text-blue-600 hover:underline">
+                <Link href="/timetable/periods" className="text-primary hover:underline">
                     Manage periods
                 </Link>
-                <Link href="/timetable/substitution" className="text-blue-600 hover:underline">
+                <Link href="/timetable/substitution" className="text-primary hover:underline">
                     Substitution cover
                 </Link>
             </div>

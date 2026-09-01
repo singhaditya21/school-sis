@@ -8,7 +8,7 @@ import { API_AUTH_MODES, API_GROUPS, API_ROUTES, type ApiRouteDoc } from './rout
 
 const METHOD_COLORS: Record<string, string> = {
     GET: 'bg-green-600 text-white',
-    POST: 'bg-blue-600 text-white',
+    POST: 'bg-primary text-primary-foreground',
     PUT: 'bg-orange-500 text-white',
     PATCH: 'bg-yellow-500 text-white',
     DELETE: 'bg-red-600 text-white',
@@ -87,7 +87,7 @@ export default function ApiDocsPage() {
                     <button
                         key={entry}
                         onClick={() => setGroup(entry)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${group === entry ? 'bg-blue-600 text-white' : 'bg-muted hover:bg-gray-200'
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${group === entry ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-gray-200'
                             }`}
                     >
                         {entry}

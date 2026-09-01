@@ -32,7 +32,7 @@ export default async function ClassReportCardsPage({
                     </p>
                     <Link
                         href="/exams/report-cards"
-                        className="text-blue-600 hover:underline text-sm mt-3 inline-block"
+                        className="text-primary hover:underline text-sm mt-3 inline-block"
                     >
                         ← Choose an exam
                     </Link>
@@ -50,7 +50,7 @@ export default async function ClassReportCardsPage({
                     <p className="text-muted-foreground">This class or exam could not be found.</p>
                     <Link
                         href="/exams/report-cards"
-                        className="text-blue-600 hover:underline text-sm mt-2 inline-block"
+                        className="text-primary hover:underline text-sm mt-2 inline-block"
                     >
                         ← Back to report cards
                     </Link>
@@ -69,7 +69,7 @@ export default async function ClassReportCardsPage({
                     {data.examName} · {data.academicYearName} · {data.examStatus.replace(/_/g, ' ')}
                 </p>
             </div>
-            <Link href="/exams/report-cards" className="text-blue-600 hover:underline text-sm">
+            <Link href="/exams/report-cards" className="text-primary hover:underline text-sm">
                 ← Change exam or class
             </Link>
         </div>
@@ -104,7 +104,7 @@ export default async function ClassReportCardsPage({
                     </p>
                     <Link
                         href={`/exams/${data.examId}/marks/${data.gradeId}`}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
                     >
                         Enter marks for {data.gradeName}
                     </Link>
@@ -228,7 +228,7 @@ export default async function ClassReportCardsPage({
                                         {student.subjectsEntered > 0 ? (
                                             <Link
                                                 href={`/exams/report-cards/${data.sectionId}/${student.studentId}?examId=${data.examId}`}
-                                                className="text-blue-600 hover:underline text-xs"
+                                                className="text-primary hover:underline text-xs"
                                             >
                                                 Report card
                                             </Link>
@@ -260,7 +260,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold text-foreground">Report cards</h1>
-                <Link href="/exams" className="text-blue-600 hover:underline text-sm">
+                <Link href="/exams" className="text-primary hover:underline text-sm">
                     ← Back to exams
                 </Link>
             </div>

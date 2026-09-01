@@ -33,7 +33,7 @@ export default async function StudentReportCardPage({
                 </p>
                 <Link
                     href={`/exams/report-cards/${sectionId}`}
-                    className="text-blue-600 hover:underline text-sm mt-2 inline-block"
+                    className="text-primary hover:underline text-sm mt-2 inline-block"
                 >
                     ← Back to class
                 </Link>
@@ -49,7 +49,7 @@ export default async function StudentReportCardPage({
             <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
                 <Link
                     href={`/exams/report-cards/${sectionId}?examId=${data.examId}`}
-                    className="text-blue-600 hover:underline text-sm"
+                    className="text-primary hover:underline text-sm"
                 >
                     ← Back to {className}
                 </Link>

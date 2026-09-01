@@ -45,7 +45,7 @@ export default function CreateBatchForm() {
                             name="name" 
                             type="text" 
                             required 
-                            className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-ring outline-none transition"
                             placeholder="e.g. Super 30 - JEE 2027"
                         />
                     </div>
@@ -54,7 +54,7 @@ export default function CreateBatchForm() {
                         <select 
                             name="examTarget" 
                             required 
-                            className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition bg-white"
+                            className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-ring outline-none transition bg-white"
                         >
                             <option value="JEE">JEE (Mains + Advanced)</option>
                             <option value="NEET">NEET (UG)</option>
@@ -72,7 +72,7 @@ export default function CreateBatchForm() {
                             name="startDate" 
                             type="date" 
                             required 
-                            className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-ring outline-none transition"
                         />
                     </div>
                     <div>
@@ -84,7 +84,7 @@ export default function CreateBatchForm() {
                             max="500"
                             required 
                             defaultValue={40}
-                            className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            className="w-full p-3 border border-border rounded-xl focus:ring-2 focus:ring-ring outline-none transition"
                         />
                     </div>
                 </div>
@@ -93,7 +93,7 @@ export default function CreateBatchForm() {
                     <button 
                         type="submit" 
                         disabled={isSubmitting}
-                        className="px-8 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-blue-200"
+                        className="px-8 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-blue-200"
                     >
                         {isSubmitting ? 'Provisioning Batch...' : 'Create Batch'}
                     </button>

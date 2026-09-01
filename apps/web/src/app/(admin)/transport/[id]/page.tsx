@@ -51,10 +51,10 @@ export default async function RouteDetailsPage({ params }: { params: Promise<{ i
     return (
         <div className="space-y-6">
             <div className="flex items-center gap-4">
-                <Link href="/transport" className="text-blue-600 hover:underline">
+                <Link href="/transport" className="text-primary hover:underline">
                     ← Back to Transport
                 </Link>
-                <Link href="/transport/vehicles" className="text-blue-600 hover:underline">
+                <Link href="/transport/vehicles" className="text-primary hover:underline">
                     Vehicles →
                 </Link>
             </div>

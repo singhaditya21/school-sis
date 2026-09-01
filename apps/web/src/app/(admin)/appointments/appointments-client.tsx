@@ -96,7 +96,7 @@ export default function AppointmentsClient({
                 {canWrite && (
                     <Button
                         onClick={() => setShowForm((v) => !v)}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className="bg-primary hover:bg-primary/90"
                         data-testid="toggle-appointment-form"
                     >
                         {showForm ? 'Close' : '+ New Appointment'}

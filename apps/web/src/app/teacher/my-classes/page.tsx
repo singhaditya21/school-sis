@@ -85,7 +85,7 @@ export default async function TeacherClassesPage() {
                                     >
                                         Mark attendance
                                     </Link>
-                                    <Link href="/teacher/gradebook" className="text-blue-600 hover:underline">
+                                    <Link href="/teacher/gradebook" className="text-primary hover:underline">
                                         Marks
                                     </Link>
                                     <Link href="/teacher/homework" className="text-purple-600 hover:underline">

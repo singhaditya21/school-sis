@@ -27,7 +27,7 @@ export default async function ReportCardsPage({
                     </p>
                     <Link
                         href="/exams/create"
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
                     >
                         Create an exam
                     </Link>
@@ -107,7 +107,7 @@ export default async function ReportCardsPage({
                         </p>
                         <Link
                             href={`/exams/${selected.id}`}
-                            className="text-blue-600 hover:underline text-sm mt-3 inline-block"
+                            className="text-primary hover:underline text-sm mt-3 inline-block"
                         >
                             Open exam →
                         </Link>
@@ -122,7 +122,7 @@ export default async function ReportCardsPage({
                                         <Link
                                             key={cls.sectionId}
                                             href={`/exams/report-cards/${cls.sectionId}?examId=${selected.id}`}
-                                            className="px-3 py-2 rounded-lg border border-border hover:border-blue-300 hover:bg-blue-50 text-sm"
+                                            className="px-3 py-2 rounded-lg border border-border hover:border-blue-300 hover:bg-accent text-sm"
                                         >
                                             <span className="font-medium text-foreground">
                                                 {gradeName}-{cls.sectionName}
@@ -151,7 +151,7 @@ function Header() {
                     Built from marks saved against each exam paper — nothing is estimated.
                 </p>
             </div>
-            <Link href="/exams" className="text-blue-600 hover:underline text-sm">
+            <Link href="/exams" className="text-primary hover:underline text-sm">
                 ← Back to exams
             </Link>
         </div>

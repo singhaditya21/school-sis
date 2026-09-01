@@ -96,7 +96,7 @@ export function LessonPlanBoard({
                 <button
                     type="button"
                     onClick={() => setOpen(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                    className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-medium"
                 >
                     New lesson plan
                 </button>
@@ -175,7 +175,7 @@ export function LessonPlanBoard({
                             type="button"
                             onClick={create}
                             disabled={pending}
-                            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white px-5 py-2 rounded-lg text-sm font-medium"
+                            className="bg-primary hover:bg-primary/90 disabled:opacity-60 text-white px-5 py-2 rounded-lg text-sm font-medium"
                         >
                             {pending ? 'Saving…' : 'Save draft'}
                         </button>
@@ -222,7 +222,7 @@ export function LessonPlanBoard({
                                             type="button"
                                             onClick={() => submitPlan(plan.id)}
                                             disabled={pending}
-                                            className="text-xs border border-blue-300 text-blue-700 px-3 py-1.5 rounded hover:bg-blue-50 disabled:opacity-60"
+                                            className="text-xs border border-blue-300 text-blue-700 px-3 py-1.5 rounded hover:bg-accent disabled:opacity-60"
                                         >
                                             Submit for approval
                                         </button>

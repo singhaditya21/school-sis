@@ -238,7 +238,7 @@ export function AuditLogTable({ rows }: { rows: AuditRow[] }) {
                                         <button
                                             type="button"
                                             onClick={() => setExpandedId(isOpen ? null : row.id)}
-                                            className="text-xs font-medium text-blue-600 hover:underline"
+                                            className="text-xs font-medium text-primary hover:underline"
                                         >
                                             {isOpen ? 'Hide' : 'Details'}
                                         </button>

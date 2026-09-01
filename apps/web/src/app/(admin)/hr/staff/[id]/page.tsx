@@ -57,7 +57,7 @@ export default async function StaffDetailPage({ params }: PageProps) {
     return (
         <div className="space-y-6">
             <div>
-                <Link href="/hr" className="text-sm text-blue-600 hover:underline">
+                <Link href="/hr" className="text-sm text-primary hover:underline">
                     ← Staff &amp; HR
                 </Link>
                 <div className="mt-1 flex flex-wrap items-center gap-3">
@@ -193,7 +193,7 @@ export default async function StaffDetailPage({ params }: PageProps) {
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
                     <CardTitle className="text-base">Leave history</CardTitle>
-                    <Link href="/hr/leave" className="text-sm text-blue-600 hover:underline">
+                    <Link href="/hr/leave" className="text-sm text-primary hover:underline">
                         All requests
                     </Link>
                 </CardHeader>

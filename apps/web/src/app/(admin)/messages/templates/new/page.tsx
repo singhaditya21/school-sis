@@ -10,7 +10,7 @@ export default async function NewMessageTemplatePage() {
     return (
         <div className="space-y-6">
             <div>
-                <Link href="/messages/templates" className="text-sm text-blue-600 hover:underline">
+                <Link href="/messages/templates" className="text-sm text-primary hover:underline">
                     ← Back to templates
                 </Link>
                 <h1 className="mt-2 text-3xl font-bold">New message template</h1>

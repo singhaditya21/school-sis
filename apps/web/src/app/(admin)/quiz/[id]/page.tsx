@@ -18,7 +18,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const inputClass =
-    'w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500';
+    'w-full px-3 py-2 border border-border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-ring';
 const labelClass = 'block text-sm font-medium text-foreground dark:text-gray-300 mb-1';
 
 function formatWindow(value: Date | string | null) {
@@ -67,7 +67,7 @@ export default async function QuizDetailPage({
                     <Link href={`/quiz/${quiz.id}/results`} className="px-3 py-2 text-sm rounded-lg border border-border dark:border-gray-700 hover:bg-muted dark:hover:bg-gray-800">
                         Results
                     </Link>
-                    <Link href="/quiz" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">← All quizzes</Link>
+                    <Link href="/quiz" className="text-primary hover:underline text-sm">← All quizzes</Link>
                 </div>
             </div>
 
@@ -294,7 +294,7 @@ export default async function QuizDetailPage({
                                 </p>
                             </div>
 
-                            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+                            <button type="submit" className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-sm font-medium">
                                 Add question
                             </button>
                         </form>

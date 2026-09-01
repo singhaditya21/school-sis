@@ -162,22 +162,22 @@ export default async function TeacherSchedulePage({
             </div>
 
             <div className="flex flex-wrap gap-4 text-sm">
-                <Link href="/teacher/my-classes" className="text-blue-600 hover:underline">
+                <Link href="/teacher/my-classes" className="text-primary hover:underline">
                     My classes
                 </Link>
-                <Link href="/teacher/attendance" className="text-blue-600 hover:underline">
+                <Link href="/teacher/attendance" className="text-primary hover:underline">
                     Attendance
                 </Link>
-                <Link href="/teacher/gradebook" className="text-blue-600 hover:underline">
+                <Link href="/teacher/gradebook" className="text-primary hover:underline">
                     Gradebook
                 </Link>
-                <Link href="/teacher/homework" className="text-blue-600 hover:underline">
+                <Link href="/teacher/homework" className="text-primary hover:underline">
                     Homework
                 </Link>
-                <Link href="/teacher/lesson-plans" className="text-blue-600 hover:underline">
+                <Link href="/teacher/lesson-plans" className="text-primary hover:underline">
                     Lesson plans
                 </Link>
-                <Link href="/teacher/profile" className="text-blue-600 hover:underline">
+                <Link href="/teacher/profile" className="text-primary hover:underline">
                     My profile
                 </Link>
             </div>

@@ -33,7 +33,7 @@ export default async function TeacherHomeworkDetailPage({
                         {detail.maxMarks !== null ? ` · max ${detail.maxMarks}` : ''}
                     </p>
                 </div>
-                <Link href="/teacher/homework" className="text-sm text-blue-600 hover:underline">
+                <Link href="/teacher/homework" className="text-sm text-primary hover:underline">
                     ← All homework
                 </Link>
             </div>

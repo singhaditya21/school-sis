@@ -64,7 +64,7 @@ export default function FeeAnalyticsPage() {
                                     <div key={idx} className={`flex-1 flex flex-col items-center gap-1 cursor-pointer transition-opacity ${selectedMonth && selectedMonth !== d.month ? 'opacity-50' : ''}`}
                                         onClick={() => setSelectedMonth(selectedMonth === d.month ? null : d.month)}>
                                         <div className="w-full flex gap-1" style={{ height: '240px' }}>
-                                            <div className="flex-1 flex flex-col justify-end"><div className="w-full bg-blue-500 rounded-t transition-all hover:bg-blue-600" style={{ height: `${(d.collected / maxValue) * 100}%` }} /></div>
+                                            <div className="flex-1 flex flex-col justify-end"><div className="w-full bg-blue-500 rounded-t transition-all hover:bg-primary/90" style={{ height: `${(d.collected / maxValue) * 100}%` }} /></div>
                                             <div className="flex-1 flex flex-col justify-end"><div className="w-full bg-gray-300 rounded-t" style={{ height: `${(d.target / maxValue) * 100}%` }} /></div>
                                         </div>
                                         <span className="text-xs font-medium">{d.month}</span>
