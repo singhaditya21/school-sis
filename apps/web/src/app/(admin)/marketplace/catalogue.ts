@@ -6,7 +6,7 @@
  * module codes this codebase actually recognises, and records honestly what
  * each one does today:
  *
- *  - `gatedRoute` codes are enforced by `apps/web/src/middleware.ts`, which
+ *  - `gatedRoute` codes are enforced by `apps/web/src/proxy.ts`, which
  *    redirects to /upgrade when the code is missing from the session.
  *  - the rest are recognised by the platform company-settings screen and stored
  *    on the company record, but no route or query reads them yet.

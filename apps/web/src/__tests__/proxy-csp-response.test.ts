@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { middleware } from '@/middleware';
+import { proxy } from '@/proxy';
 import {
     CONTENT_SECURITY_POLICY_HEADER,
     CONTENT_SECURITY_POLICY_REPORT_ONLY_HEADER,
@@ -21,10 +21,10 @@ afterAll(() => {
     process.env = ORIGINAL_ENV;
 });
 
-describe('middleware Content Security Policy response', () => {
+describe('proxy Content Security Policy response', () => {
     it('defaults production document responses to a fresh enforced nonce policy', async () => {
-        const first = await middleware(new NextRequest('https://school.example.edu/login'));
-        const second = await middleware(new NextRequest('https://school.example.edu/login'));
+        const first = await proxy(new NextRequest('https://school.example.edu/login'));
+        const second = await proxy(new NextRequest('https://school.example.edu/login'));
         const firstPolicy = first.headers.get(CONTENT_SECURITY_POLICY_HEADER);
         const secondPolicy = second.headers.get(CONTENT_SECURITY_POLICY_HEADER);
         const firstScriptDirective = scriptDirective(firstPolicy);
@@ -46,7 +46,7 @@ describe('middleware Content Security Policy response', () => {
     it('uses report-only mode only through the explicit rollback flag', async () => {
         process.env.CSP_ENFORCE = 'false';
 
-        const response = await middleware(new NextRequest('https://school.example.edu/login'));
+        const response = await proxy(new NextRequest('https://school.example.edu/login'));
         const reportOnlyPolicy = response.headers.get(CONTENT_SECURITY_POLICY_REPORT_ONLY_HEADER);
 
         expect(response.headers.get(CONTENT_SECURITY_POLICY_HEADER)).toBeNull();
