@@ -7,6 +7,8 @@ import Link from 'next/link';
 export default function BookDemoPage() {
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [errMsg, setErrMsg] = useState('');
+    // Captured once on mount; the API drops submissions completed implausibly fast.
+    const [formLoadedAt] = useState(() => String(Date.now()));
 
     async function handleSubmit(formData: FormData) {
         setStatus('loading');
@@ -86,6 +88,17 @@ export default function BookDemoPage() {
 
                     <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-8 md:p-10">
                         <form action={handleSubmit} className="space-y-6">
+                            {/* Bot screening (issue #31): honeypot + form dwell time.
+                                Off-screen, hidden from assistive tech, never tab-focusable. */}
+                            <input
+                                type="text"
+                                name="homepageUrl"
+                                tabIndex={-1}
+                                autoComplete="off"
+                                aria-hidden="true"
+                                className="absolute -left-[9999px] -top-[9999px] h-0 w-0 opacity-0"
+                            />
+                            <input type="hidden" name="formLoadedAt" value={formLoadedAt} />
                             <div className="grid grid-cols-2 gap-6">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 mb-2">Full Name</label>
