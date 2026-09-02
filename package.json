@@ -7,6 +7,8 @@
     "node": ">=24 <25"
   },
   "scripts": {
+    "preinstall": "node scripts/preflight-toolchain.mjs",
+    "check:toolchain": "node scripts/preflight-toolchain.mjs --strict",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "deployment:check": "pnpm --filter @school-sis/web run deployment:check",

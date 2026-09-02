@@ -169,6 +169,9 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Enforce Pinned Toolchain (Corepack/pnpm/Node)
+        run: pnpm check:toolchain
+
       - name: Run Dependency Audit
         run: |
           pnpm audit --json > pnpm-audit-high.json || true

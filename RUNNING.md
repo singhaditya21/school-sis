@@ -8,7 +8,11 @@ Production and preview deployments are a separate, GitHub-Actions-owned path to 
 here deploys anything.
 
 ## Prerequisites
-- **Node 24.x** and **pnpm 9.15.9** (`corepack enable`)
+- **Node 24.x** and **pnpm 9.15.9**. Run `corepack enable` once — Corepack reads the
+  `packageManager` pin in `package.json` and uses the exact pnpm automatically, so you
+  never install pnpm by hand. A preflight guard (`scripts/preflight-toolchain.mjs`) runs on
+  every `pnpm install` and **warns** if your Node/pnpm drift from the pins; `pnpm check:toolchain`
+  runs the same check in **strict** mode (it also gates CI), so you can verify before pushing.
 - **PostgreSQL 16** client + server — macOS: `brew install postgresql@16`
 - **pgvector** (for AI/search embedding columns) — one-time:
   ```
