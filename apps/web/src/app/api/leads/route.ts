@@ -3,6 +3,7 @@ import { captureLeadAction } from '@/lib/actions/marketing';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
 import { logger } from '@/lib/observability/logger';
 import { screenLeadSubmission, LEAD_HONEYPOT_FIELD, LEAD_TIMESTAMP_FIELD } from '@/lib/marketing/lead-screening';
+import { verifyTurnstileToken } from '@/lib/marketing/turnstile';
 
 function clientIpFrom(request: Request): string {
     return (request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown')
@@ -39,6 +40,19 @@ export async function POST(request: Request) {
                 metadata: { signal: screen.signal, ip: clientIpFrom(request) },
             });
             return NextResponse.json({ success: true });
+        }
+
+        // CAPTCHA (Cloudflare Turnstile). Skipped until keys are set; once configured,
+        // a missing/rejected token is refused (a real user error, so it's surfaced).
+        const captcha = await verifyTurnstileToken(formData.get('cf-turnstile-response') as string | null, {
+            remoteIp: clientIpFrom(request),
+        });
+        if (!captcha.ok) {
+            logger.warn('lead_capture.captcha_failed', 'Lead submission failed human verification', {
+                source: 'api',
+                metadata: { reason: captcha.reason, ip: clientIpFrom(request) },
+            });
+            return NextResponse.json({ error: 'Human verification failed. Please try again.' }, { status: 400 });
         }
 
         const contactEmail = String(formData.get('contactEmail') || '').trim().toLowerCase();

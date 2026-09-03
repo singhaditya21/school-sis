@@ -1,14 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle, Building } from 'lucide-react';
 import Link from 'next/link';
+
+// Configured per environment; the widget and its check are inert until it is set.
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 export default function BookDemoPage() {
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [errMsg, setErrMsg] = useState('');
     // Captured once on mount; the API drops submissions completed implausibly fast.
     const [formLoadedAt] = useState(() => String(Date.now()));
+
+    // Load the Cloudflare Turnstile script once, only when a site key is configured.
+    // Plain DOM injection keeps this independent of any framework script API.
+    useEffect(() => {
+        if (!TURNSTILE_SITE_KEY) return;
+        const SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+        if (document.querySelector(`script[src="${SRC}"]`)) return;
+        const script = document.createElement('script');
+        script.src = SRC;
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+    }, []);
 
     async function handleSubmit(formData: FormData) {
         setStatus('loading');
@@ -130,6 +146,10 @@ export default function BookDemoPage() {
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Biggest Administrative Hurdle</label>
                                 <textarea name="painPoints" rows={3} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition" placeholder="e.g. Too many manual excel sheets, fee defaults are causing cash flow issues..."></textarea>
                             </div>
+
+                            {TURNSTILE_SITE_KEY && (
+                                <div className="cf-turnstile" data-sitekey={TURNSTILE_SITE_KEY} data-theme="light"></div>
+                            )}
 
                             {status === 'error' && (
                                 <div className="p-4 bg-rose-50 text-rose-600 rounded-xl border border-rose-100 text-sm font-medium">
