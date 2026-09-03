@@ -50,11 +50,13 @@ re-encryption pass — deterministic ciphertext changes with the key.
 - **guardians** (migration `0011`): `guardians.email`/`phone`/`alternate_phone` — the
   highest-value contact PII (every notification path), across 5 files (messages, student
   record, absence SMS, admissions INSERT, erasure). No value-equality lookup.
+- **small batch** (migration `0012`): `alumni_profiles.email`/`phone` (email keeps a
+  case-insensitive uniqueness check → `encryptEmail` on ciphertext), `host_families.phone`,
+  `health_records.emergency_phone`/`doctor_phone`.
 
-### Medium — display only, contained (next)
-- `alumni_profiles.email` / `.phone`, `host_families.phone`
-- `health_records.emergency_phone` / `.doctor_phone`
+### Medium — remaining
 - `admission_leads.parent_email` / `.parent_phone`, `marketing_leads.contact_email`
+  (lead-capture tables — pair with the #31 lead-consent work).
 
 ### High-risk — auth and/or search; do LAST, with the most testing
 - **`users.email`** — the login lookup. Encrypting it means the login path must
