@@ -187,3 +187,13 @@ export function encryptIdNumber(id: string): string {
 export function decryptField(value: string): string {
     return decrypt(value);
 }
+
+/**
+ * Tolerant read for a column mid-transition: a `det.v1:` value is decrypted, a raw
+ * plaintext value (not yet backfilled) is returned unchanged. Use this to read a
+ * column while encrypt-on-write is rolling out and before the backfill completes.
+ */
+export function decryptFieldTolerant(value: string | null | undefined): string {
+    if (!value) return '';
+    return value.startsWith(`${DETERMINISTIC_PREFIX}:`) ? decrypt(value) : value;
+}

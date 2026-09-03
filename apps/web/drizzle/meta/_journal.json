@@ -64,6 +64,13 @@
       "when": 1788025293940,
       "tag": "0008_stage4_scope_presence_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788630000000,
+      "tag": "0009_encrypt_pii_identifiers",
+      "breakpoints": true
     }
   ]
 }

@@ -5917,6 +5917,7 @@ export interface StaffProfilesRow {
     updatedAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    aadhaarNumberEnc: string | null;
 }
 export interface StaffProfilesInsert {
     id?: string;
@@ -5954,6 +5955,7 @@ export interface StaffProfilesInsert {
     updatedAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    aadhaarNumberEnc?: string | null;
 }
 export const staffProfiles = {
     $name: "staff_profiles" as const,
@@ -5992,6 +5994,7 @@ export const staffProfiles = {
     updatedAt: column("staff_profiles", "updated_at"),
     ownerId: column("staff_profiles", "owner_id"),
     groupId: column("staff_profiles", "group_id"),
+    aadhaarNumberEnc: column("staff_profiles", "aadhaar_number_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── stock_alerts ────────────────────────────────
@@ -6307,6 +6310,8 @@ export interface StudentsRow {
     updatedAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    apaarIdEnc: string | null;
+    aadhaarNumberEnc: string | null;
 }
 export interface StudentsInsert {
     id?: string;
@@ -6341,6 +6346,8 @@ export interface StudentsInsert {
     updatedAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    apaarIdEnc?: string | null;
+    aadhaarNumberEnc?: string | null;
 }
 export const students = {
     $name: "students" as const,
@@ -6376,6 +6383,8 @@ export const students = {
     updatedAt: column("students", "updated_at"),
     ownerId: column("students", "owner_id"),
     groupId: column("students", "group_id"),
+    apaarIdEnc: column("students", "apaar_id_enc"),
+    aadhaarNumberEnc: column("students", "aadhaar_number_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── subjects ────────────────────────────────────

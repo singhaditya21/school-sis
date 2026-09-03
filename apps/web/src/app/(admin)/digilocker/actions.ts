@@ -16,6 +16,12 @@ import { revalidatePath } from 'next/cache';
 
 import { requireAuth } from '@/lib/auth/middleware';
 import { pool } from '@/lib/db';
+import { encryptIdNumber, decryptFieldTolerant } from '@/lib/encryption';
+
+/** Decrypt the `apaarId` on rows read as COALESCE(apaar_id_enc, apaar_id). */
+function decodeApaar<T extends { apaarId: string | null }>(rows: T[]): T[] {
+    return rows.map((row) => ({ ...row, apaarId: row.apaarId == null ? null : decryptFieldTolerant(row.apaarId) }));
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -69,7 +75,7 @@ export async function listApaarStudents(): Promise<ApaarStudentRow[]> {
                 s.first_name AS "firstName",
                 s.last_name AS "lastName",
                 s.status,
-                s.apaar_id AS "apaarId",
+                COALESCE(s.apaar_id_enc, s.apaar_id) AS "apaarId",
                 g.name AS "gradeName",
                 sec.name AS "sectionName"
          FROM students s
@@ -80,7 +86,7 @@ export async function listApaarStudents(): Promise<ApaarStudentRow[]> {
         [tenantId],
     );
 
-    return rows as ApaarStudentRow[];
+    return decodeApaar(rows as ApaarStudentRow[]);
 }
 
 /**
@@ -97,24 +103,28 @@ export async function setStudentApaarId(
     if (!isUuid(studentId)) return { success: false, error: 'Invalid student reference.' };
 
     let normalised: string | null = null;
+    let encValue: string | null = null;
     if (apaarId !== null && apaarId.trim() !== '') {
         normalised = apaarId.replace(/[\s-]/g, '');
         if (!/^\d{12}$/.test(normalised)) {
             return { success: false, error: 'An APAAR ID is 12 digits. Spaces and hyphens are ignored.' };
         }
+        encValue = encryptIdNumber(normalised);
 
+        // Match either an already-encrypted row or a legacy plaintext one (pre-backfill).
         const { rows: clash } = await pool.query(
-            `SELECT id FROM students WHERE tenant_id = $1 AND apaar_id = $2 AND id <> $3`,
-            [tenantId, normalised, studentId],
+            `SELECT id FROM students WHERE tenant_id = $1 AND (apaar_id_enc = $2 OR apaar_id = $3) AND id <> $4`,
+            [tenantId, encValue, normalised, studentId],
         );
         if (clash.length) {
             return { success: false, error: 'That APAAR ID is already recorded against another student.' };
         }
     }
 
+    // Store ciphertext and clear the legacy plaintext column in the same write.
     const { rows } = await pool.query(
-        `UPDATE students SET apaar_id = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3 RETURNING id`,
-        [normalised, studentId, tenantId],
+        `UPDATE students SET apaar_id_enc = $1, apaar_id = NULL, updated_at = NOW() WHERE id = $2 AND tenant_id = $3 RETURNING id`,
+        [encValue, studentId, tenantId],
     );
     if (!rows.length) return { success: false, error: 'Student not found.' };
 
@@ -137,7 +147,7 @@ export async function listDigilockerCertificates(): Promise<DigilockerCertificat
                 s.id AS "studentId",
                 s.first_name AS "studentFirstName",
                 s.last_name AS "studentLastName",
-                s.apaar_id AS "apaarId",
+                COALESCE(s.apaar_id_enc, s.apaar_id) AS "apaarId",
                 latest.status AS "lastSyncStatus",
                 latest.sync_attempted_at AS "lastSyncAt",
                 latest.error_message AS "lastSyncError"
@@ -182,7 +192,7 @@ export async function listDigilockerCertificates(): Promise<DigilockerCertificat
         templateType: r.templateType,
         studentId: r.studentId,
         studentName: `${r.studentFirstName} ${r.studentLastName}`.trim(),
-        apaarId: r.apaarId,
+        apaarId: r.apaarId == null ? null : decryptFieldTolerant(r.apaarId),
         lastSyncStatus: r.lastSyncStatus,
         lastSyncAt: r.lastSyncAt ? new Date(r.lastSyncAt).toISOString() : null,
         lastSyncError: r.lastSyncError,

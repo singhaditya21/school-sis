@@ -2,6 +2,12 @@
 
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { decryptFieldTolerant } from '@/lib/encryption';
+
+/** Decrypt the tolerant-read `apaarId` on each row (ciphertext or legacy plaintext). */
+function decodeApaar<T extends { apaarId: string | null }>(rows: T[]): T[] {
+    return rows.map((row) => ({ ...row, apaarId: row.apaarId == null ? null : decryptFieldTolerant(row.apaarId) }));
+}
 
 export async function getDigilockerSyncLogs() {
     const { tenantId } = await requireAuth('certificate:read');
@@ -13,7 +19,7 @@ export async function getDigilockerSyncLogs() {
             dsl.student_id AS "studentId",
             s.first_name AS "studentName",
             s.last_name AS "studentLastName",
-            s.apaar_id AS "apaarId",
+            COALESCE(s.apaar_id_enc, s.apaar_id) AS "apaarId",
             dsl.reference_id AS "referenceId",
             dsl.status,
             dsl.sync_attempted_at AS "syncAttemptedAt",
@@ -29,7 +35,7 @@ export async function getDigilockerSyncLogs() {
         [tenantId]
     );
 
-    return rows;
+    return decodeApaar(rows);
 }
 
 export async function pushToDigilocker(
@@ -56,13 +62,13 @@ export async function getStudentsWithApaar() {
             id AS "studentId",
             first_name AS "firstName",
             last_name AS "lastName",
-            apaar_id AS "apaarId"
+            COALESCE(apaar_id_enc, apaar_id) AS "apaarId"
          FROM students
          WHERE tenant_id = $1
          ORDER BY first_name ASC`,
         [tenantId]
     );
-    return rows;
+    return decodeApaar(rows);
 }
 
 export async function verifyAPAARId(studentId: string, apaarId: string) {

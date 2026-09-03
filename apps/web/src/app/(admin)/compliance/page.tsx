@@ -80,8 +80,8 @@ export default async function CompliancePage() {
             ),
             pool.query<StudentCoverageRow>(
                 `SELECT count(*)::int AS active,
-                        count(*) FILTER (WHERE s.aadhaar_number IS NULL OR btrim(s.aadhaar_number) = '')::int AS no_aadhaar,
-                        count(*) FILTER (WHERE s.apaar_id IS NULL OR btrim(s.apaar_id) = '')::int AS no_apaar,
+                        count(*) FILTER (WHERE COALESCE(s.aadhaar_number_enc, s.aadhaar_number) IS NULL OR btrim(COALESCE(s.aadhaar_number_enc, s.aadhaar_number)) = '')::int AS no_aadhaar,
+                        count(*) FILTER (WHERE COALESCE(s.apaar_id_enc, s.apaar_id) IS NULL OR btrim(COALESCE(s.apaar_id_enc, s.apaar_id)) = '')::int AS no_apaar,
                         count(*) FILTER (WHERE s.category IS NULL OR btrim(s.category) = '')::int AS no_category,
                         count(*) FILTER (WHERE s.address IS NULL OR s.city IS NULL OR s.state IS NULL OR s.pincode IS NULL)::int AS no_address,
                         count(*) FILTER (
@@ -96,7 +96,7 @@ export default async function CompliancePage() {
             ),
             pool.query<StaffCoverageRow>(
                 `SELECT count(*)::int AS active,
-                        count(*) FILTER (WHERE aadhaar_number IS NULL OR btrim(aadhaar_number) = '')::int AS no_aadhaar,
+                        count(*) FILTER (WHERE COALESCE(aadhaar_number_enc, aadhaar_number) IS NULL OR btrim(COALESCE(aadhaar_number_enc, aadhaar_number)) = '')::int AS no_aadhaar,
                         count(*) FILTER (WHERE pan_number IS NULL OR btrim(pan_number) = '')::int AS no_pan,
                         count(*) FILTER (WHERE qualification IS NULL OR btrim(qualification) = '')::int AS no_qualification
                    FROM staff_profiles
