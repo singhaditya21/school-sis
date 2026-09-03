@@ -14,7 +14,7 @@
  */
 import { Pool } from 'pg';
 import { resolveDatabaseConnectionOptions } from '../../../packages/api/src/db/ssl';
-import { encryptIdNumber, encryptDeterministic } from '@/lib/encryption';
+import { encryptIdNumber, encryptDeterministic, encryptEmail } from '@/lib/encryption';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -37,6 +37,12 @@ const TARGETS = [
     { table: 'guardians', plain: 'phone', enc: 'phone_enc', encrypt: encryptDeterministic },
     { table: 'guardians', plain: 'email', enc: 'email_enc', encrypt: encryptDeterministic },
     { table: 'guardians', plain: 'alternate_phone', enc: 'alternate_phone_enc', encrypt: encryptDeterministic },
+    // alumni email keeps a case-insensitive uniqueness check → encryptEmail (normalising).
+    { table: 'alumni_profiles', plain: 'email', enc: 'email_enc', encrypt: encryptEmail },
+    { table: 'alumni_profiles', plain: 'phone', enc: 'phone_enc', encrypt: encryptDeterministic },
+    { table: 'host_families', plain: 'phone', enc: 'phone_enc', encrypt: encryptDeterministic },
+    { table: 'health_records', plain: 'emergency_phone', enc: 'emergency_phone_enc', encrypt: encryptDeterministic },
+    { table: 'health_records', plain: 'doctor_phone', enc: 'doctor_phone_enc', encrypt: encryptDeterministic },
 ] as const;
 
 const BATCH = 500;

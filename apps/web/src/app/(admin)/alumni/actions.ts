@@ -10,6 +10,7 @@ import { revalidatePath } from 'next/cache';
 
 import { requireAuth } from '@/lib/auth/middleware';
 import { pool } from '@/lib/db';
+import { encryptEmail, encryptDeterministic, decryptFieldTolerant } from '@/lib/encryption';
 
 import { ALUMNI_EVENT_STATUSES, ALUMNI_EVENT_TYPES } from './constants';
 
@@ -56,7 +57,10 @@ export async function listAlumni(): Promise<AlumniProfileRow[]> {
     const { tenantId } = await requireAuth('alumni:read');
 
     const { rows } = await pool.query(
-        `SELECT id, name, email, phone, batch,
+        `SELECT id, name,
+                COALESCE(email_enc, email) AS email,
+                COALESCE(phone_enc, phone) AS phone,
+                batch,
                 graduation_year AS "graduationYear",
                 current_company AS "currentCompany",
                 designation, location,
@@ -71,6 +75,8 @@ export async function listAlumni(): Promise<AlumniProfileRow[]> {
 
     return (rows as (Omit<AlumniProfileRow, 'createdAt'> & { createdAt: Date })[]).map((r) => ({
         ...r,
+        email: decryptFieldTolerant(r.email),
+        phone: r.phone == null ? null : decryptFieldTolerant(r.phone),
         createdAt: new Date(r.createdAt).toISOString(),
     }));
 }
@@ -108,8 +114,8 @@ export async function addAlumniProfile(input: {
     }
 
     const { rows: duplicate } = await pool.query(
-        `SELECT id FROM alumni_profiles WHERE tenant_id = $1 AND lower(email) = lower($2)`,
-        [tenantId, email],
+        `SELECT id FROM alumni_profiles WHERE tenant_id = $1 AND (email_enc = $2 OR lower(email) = lower($3))`,
+        [tenantId, encryptEmail(email), email],
     );
     if (duplicate.length) {
         return { success: false, error: 'An alumnus with that email is already on the register.' };
@@ -117,14 +123,14 @@ export async function addAlumniProfile(input: {
 
     await pool.query(
         `INSERT INTO alumni_profiles
-            (id, tenant_id, name, email, phone, batch, graduation_year, current_company, designation, location, linkedin)
+            (id, tenant_id, name, email_enc, phone_enc, batch, graduation_year, current_company, designation, location, linkedin)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         [
             randomUUID(),
             tenantId,
             name,
-            email,
-            input.phone?.trim() || null,
+            encryptEmail(email),
+            input.phone?.trim() ? encryptDeterministic(input.phone.trim()) : null,
             batch,
             graduationYear,
             input.currentCompany?.trim() || null,

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { decryptFieldTolerant } from '@/lib/encryption';
 
 /**
  * Infirmary server actions.
@@ -104,7 +105,7 @@ export async function getMedicalAlerts(): Promise<MedicalAlertRow[]> {
              hr.conditions,
              hr.medications,
              hr.emergency_contact AS "emergencyContact",
-             hr.emergency_phone AS "emergencyPhone"
+             COALESCE(hr.emergency_phone_enc, hr.emergency_phone) AS "emergencyPhone"
          FROM health_records hr
          JOIN students s ON s.id = hr.student_id AND s.tenant_id = hr.tenant_id
          LEFT JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = s.tenant_id
@@ -129,7 +130,7 @@ export async function getMedicalAlerts(): Promise<MedicalAlertRow[]> {
         conditions: toStringArray(row.conditions),
         medications: toStringArray(row.medications),
         emergencyContact: (row.emergencyContact as string | null) ?? null,
-        emergencyPhone: (row.emergencyPhone as string | null) ?? null,
+        emergencyPhone: row.emergencyPhone == null ? null : decryptFieldTolerant(row.emergencyPhone as string),
     }));
 }
 

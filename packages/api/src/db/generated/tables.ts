@@ -626,7 +626,7 @@ export interface AlumniProfilesRow {
     id: string;
     tenantId: string;
     name: string;
-    email: string;
+    email: string | null;
     phone: string | null;
     batch: string;
     graduationYear: number | null;
@@ -639,12 +639,14 @@ export interface AlumniProfilesRow {
     createdAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    emailEnc: string | null;
+    phoneEnc: string | null;
 }
 export interface AlumniProfilesInsert {
     id?: string;
     tenantId: string;
     name: string;
-    email: string;
+    email?: string | null;
     phone?: string | null;
     batch: string;
     graduationYear?: number | null;
@@ -657,6 +659,8 @@ export interface AlumniProfilesInsert {
     createdAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    emailEnc?: string | null;
+    phoneEnc?: string | null;
 }
 export const alumniProfiles = {
     $name: "alumni_profiles" as const,
@@ -676,6 +680,8 @@ export const alumniProfiles = {
     createdAt: column("alumni_profiles", "created_at"),
     ownerId: column("alumni_profiles", "owner_id"),
     groupId: column("alumni_profiles", "group_id"),
+    emailEnc: column("alumni_profiles", "email_enc"),
+    phoneEnc: column("alumni_profiles", "phone_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── alumni_registrations ────────────────────────
@@ -2886,6 +2892,8 @@ export interface HealthRecordsRow {
     updatedAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    emergencyPhoneEnc: string | null;
+    doctorPhoneEnc: string | null;
 }
 export interface HealthRecordsInsert {
     id?: string;
@@ -2907,6 +2915,8 @@ export interface HealthRecordsInsert {
     updatedAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    emergencyPhoneEnc?: string | null;
+    doctorPhoneEnc?: string | null;
 }
 export const healthRecords = {
     $name: "health_records" as const,
@@ -2929,6 +2939,8 @@ export const healthRecords = {
     updatedAt: column("health_records", "updated_at"),
     ownerId: column("health_records", "owner_id"),
     groupId: column("health_records", "group_id"),
+    emergencyPhoneEnc: column("health_records", "emergency_phone_enc"),
+    doctorPhoneEnc: column("health_records", "doctor_phone_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── homework_assignments ────────────────────────
@@ -3036,20 +3048,22 @@ export interface HostFamiliesRow {
     tenantId: string;
     familyName: string;
     address: string;
-    phone: string;
+    phone: string | null;
     backgroundChecked: Date | null;
     ownerId: string | null;
     groupId: string | null;
+    phoneEnc: string | null;
 }
 export interface HostFamiliesInsert {
     id?: string;
     tenantId: string;
     familyName: string;
     address: string;
-    phone: string;
+    phone?: string | null;
     backgroundChecked?: Date | null;
     ownerId?: string | null;
     groupId?: string | null;
+    phoneEnc?: string | null;
 }
 export const hostFamilies = {
     $name: "host_families" as const,
@@ -3061,6 +3075,7 @@ export const hostFamilies = {
     backgroundChecked: column("host_families", "background_checked"),
     ownerId: column("host_families", "owner_id"),
     groupId: column("host_families", "group_id"),
+    phoneEnc: column("host_families", "phone_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── hostel_allocations ──────────────────────────

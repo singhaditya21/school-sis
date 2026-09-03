@@ -2,6 +2,7 @@
 
 import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
+import { encryptDeterministic, decryptFieldTolerant } from '@/lib/encryption';
 import { revalidatePath } from 'next/cache';
 
 // Visa Compliance Actions
@@ -43,12 +44,14 @@ export async function getHostFamiliesAction() {
     if (!session.tenantId) throw new Error('Unauthorized');
 
     const { rows } = await pool.query(`
-        SELECT id, family_name AS "familyName", address, phone, background_checked AS "backgroundChecked"
+        SELECT id, family_name AS "familyName", address,
+               COALESCE(phone_enc, phone) AS "phone",
+               background_checked AS "backgroundChecked"
         FROM host_families
         WHERE tenant_id = $1
         ORDER BY family_name ASC
     `, [session.tenantId]);
-    return rows;
+    return rows.map((r) => ({ ...r, phone: r.phone == null ? null : decryptFieldTolerant(r.phone) }));
 }
 
 export async function createHostFamilyAction(data: { familyName: string; address: string; phone: string; backgroundChecked?: string }) {
@@ -56,9 +59,9 @@ export async function createHostFamilyAction(data: { familyName: string; address
     if (!session.tenantId) throw new Error('Unauthorized');
 
     await pool.query(`
-        INSERT INTO host_families (tenant_id, family_name, address, phone, background_checked)
+        INSERT INTO host_families (tenant_id, family_name, address, phone_enc, background_checked)
         VALUES ($1, $2, $3, $4, $5)
-    `, [session.tenantId, data.familyName, data.address, data.phone, data.backgroundChecked ? new Date(data.backgroundChecked) : null]);
+    `, [session.tenantId, data.familyName, data.address, encryptDeterministic(data.phone), data.backgroundChecked ? new Date(data.backgroundChecked) : null]);
 
     revalidatePath('/international');
     return { success: true };

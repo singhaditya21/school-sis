@@ -2,10 +2,20 @@
 
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { encryptEmail, encryptDeterministic, decryptFieldTolerant } from '@/lib/encryption';
+
+/** Decrypt the tolerant-read email/phone on alumni rows (COALESCE(*_enc, plain)). */
+function decodeAlumnus<T extends { email?: string | null; phone?: string | null }>(row: T): T {
+    return {
+        ...row,
+        ...('email' in row ? { email: row.email == null ? null : decryptFieldTolerant(row.email) } : {}),
+        ...('phone' in row ? { phone: row.phone == null ? null : decryptFieldTolerant(row.phone) } : {}),
+    };
+}
 
 export async function getAlumni(filters?: { batch?: string; verified?: boolean }) {
     const { tenantId } = await requireAuth('alumni:read');
-    let query = 'SELECT id, tenant_id AS "tenantId", name, email, phone, batch, current_company AS "currentCompany", designation, location, linkedin AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt" FROM alumni_profiles WHERE tenant_id = $1';
+    let query = 'SELECT id, tenant_id AS "tenantId", name, COALESCE(email_enc, email) AS email, COALESCE(phone_enc, phone) AS phone, batch, current_company AS "currentCompany", designation, location, linkedin AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt" FROM alumni_profiles WHERE tenant_id = $1';
     const params: (string | boolean)[] = [tenantId];
     if (filters?.batch) {
         params.push(filters.batch);
@@ -17,7 +27,7 @@ export async function getAlumni(filters?: { batch?: string; verified?: boolean }
     }
     query += ' ORDER BY created_at DESC';
     const { rows } = await pool.query(query, params);
-    return rows;
+    return rows.map(decodeAlumnus);
 }
 
 export async function registerAlumni(data: {
@@ -26,11 +36,11 @@ export async function registerAlumni(data: {
 }) {
     const { tenantId } = await requireAuth('alumni:write');
     const { rows } = await pool.query(
-        `INSERT INTO alumni_profiles (tenant_id, name, email, phone, batch, current_company, designation, location, linkedin) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, tenant_id AS "tenantId", name, email, phone, batch, current_company AS "currentCompany", designation, location, linkedin AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt"`,
-        [tenantId, data.name, data.email, data.phone || null, data.batch, data.currentCompany || null, data.designation || null, data.location || null, data.linkedIn || null]
+        `INSERT INTO alumni_profiles (tenant_id, name, email_enc, phone_enc, batch, current_company, designation, location, linkedin)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, tenant_id AS "tenantId", name, COALESCE(email_enc, email) AS email, COALESCE(phone_enc, phone) AS phone, batch, current_company AS "currentCompany", designation, location, linkedin AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt"`,
+        [tenantId, data.name, encryptEmail(data.email), data.phone ? encryptDeterministic(data.phone) : null, data.batch, data.currentCompany || null, data.designation || null, data.location || null, data.linkedIn || null]
     );
-    return { success: true, alumni: rows[0] };
+    return { success: true, alumni: decodeAlumnus(rows[0]) };
 }
 
 export async function verifyAlumni(alumniId: string) {
