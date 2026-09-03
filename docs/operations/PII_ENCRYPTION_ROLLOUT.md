@@ -42,14 +42,16 @@ re-encryption pass — deterministic ciphertext changes with the key.
 
 ## Field inventory, by risk (do top-down)
 
-### Pilot — contained, equality/display only, no sort/search
-Lowest risk; validates the whole pattern end to end.
-- `students.aadhaar_number`, `students.apaar_id`
-- `staff_profiles.aadhaar_number`
+### ✅ Done
+- **Pilot** (migration `0009`): `students.aadhaar_number`, `students.apaar_id`,
+  `staff_profiles.aadhaar_number` — validates the whole pattern end to end.
+- **visitors** (migration `0010`): `visitors.phone`, `visitors.email` — no equality
+  lookup and no sort/search, so the cleanest case; contained to `lib/actions/visitor.ts`.
 
-### Medium — display + some equality, little/no sort
-- `guardians.email` / `guardians.phone` / `guardians.alternate_phone`
-- `alumni_profiles.email` / `.phone`, `host_families.phone`, `visitors.email` / `.phone`
+### Medium — display + some equality, little/no sort (next)
+- `guardians.email` / `guardians.phone` / `guardians.alternate_phone` — highest value but
+  spread across ~10 files incl. messaging; its own careful PR.
+- `alumni_profiles.email` / `.phone`, `host_families.phone`
 - `health_records.emergency_phone` / `.doctor_phone`
 - `admission_leads.parent_email` / `.parent_phone`, `marketing_leads.contact_email`
 
