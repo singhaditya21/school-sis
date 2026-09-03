@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { generateSSOAuthorizationUrl, handleSSOCallback } from '@/lib/auth/enterprise';
 import { verifyMFACode } from '@/lib/auth/mfa';
 import { establishSession, shouldRequireMfaEnrollment } from '@/lib/auth/identity';
+import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
 
 /**
  * Login action — production-ready authentication.
@@ -89,7 +90,7 @@ async function loginActionV2WithBypass(formData: FormData) {
                     u.tenant_id as "tenantId",
                     t.code as "tenantCode",
                     t.domain as "tenantDomain",
-                    u.email,
+                    COALESCE(u.email_enc, u.email) AS "email",
                     u.password_hash as "passwordHash",
                     u.role,
                     u.first_name as "firstName",
@@ -97,14 +98,15 @@ async function loginActionV2WithBypass(formData: FormData) {
                     u.mfa_enabled as "mfaEnabled"
                  FROM users u
                  LEFT JOIN tenants t ON t.id = u.tenant_id
-                 WHERE u.email = $1 LIMIT 1`,
-                [normalizedEmail]
+                 WHERE (u.email_enc = $2 OR u.email = $1) LIMIT 1`,
+                [normalizedEmail, encryptEmail(normalizedEmail)]
             );
             const user = platformRows[0];
 
             if (!user) {
                 return { error: 'Invalid email or password' };
             }
+            user.email = user.email == null ? user.email : decryptFieldTolerant(user.email);
 
             if (user.role !== 'PLATFORM_ADMIN') {
                 return { error: 'Invalid email or password' };
@@ -183,22 +185,23 @@ async function loginActionV2WithBypass(formData: FormData) {
             const { rows: userRows } = await pool.query(
                 `SELECT
                     id,
-                    email,
+                    COALESCE(email_enc, email) AS "email",
                     password_hash as "passwordHash",
                     role,
                     first_name as "firstName",
                     last_name as "lastName",
                     is_active as "isActive",
                     mfa_enabled as "mfaEnabled"
-                 FROM users 
-                 WHERE email = $1 AND tenant_id = $2 LIMIT 1`,
-                [email, tenantRecord.tenantId]
+                 FROM users
+                 WHERE (email_enc = $3 OR email = $1) AND tenant_id = $2 LIMIT 1`,
+                [email, tenantRecord.tenantId, encryptEmail(email)]
             );
             const user = userRows[0];
 
             if (!user) {
                 return { error: 'Invalid email or password' };
             }
+            user.email = user.email == null ? user.email : decryptFieldTolerant(user.email);
 
             if (!user.isActive) {
                 return { error: 'Your account has been deactivated. Contact your school admin.' };

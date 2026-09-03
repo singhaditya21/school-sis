@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { pool } from '@/lib/db';
+import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 
@@ -58,7 +59,7 @@ export async function getStaffList(departmentFilter?: string): Promise<StaffList
             sp.employee_id AS "employeeId",
             u.first_name AS "firstName",
             u.last_name AS "lastName",
-            u.email,
+            COALESCE(u.email_enc, u.email) AS "email",
             u.phone,
             sd.name AS "departmentName",
             d.name AS "designationName",
@@ -88,7 +89,7 @@ export async function getStaffList(departmentFilter?: string): Promise<StaffList
 
     query += ` ORDER BY u.first_name ASC`;
     const { rows } = await pool.query(query, params);
-    return rows;
+    return rows.map((r) => ({ ...r, email: r.email == null ? null : decryptFieldTolerant(r.email) }));
 }
 
 // ─── Staff Detail ────────────────────────────────────────────
@@ -137,7 +138,7 @@ export async function getStaffById(staffId: string): Promise<StaffDetail | null>
             sp.employee_id AS "employeeId",
             u.first_name AS "firstName",
             u.last_name AS "lastName",
-            u.email,
+            COALESCE(u.email_enc, u.email) AS "email",
             u.phone,
             u.avatar_url AS "avatarUrl",
             sd.name AS "departmentName",
@@ -170,7 +171,8 @@ export async function getStaffById(staffId: string): Promise<StaffDetail | null>
         WHERE sp.id = $1 AND sp.tenant_id = $2
     `;
     const { rows } = await pool.query(query, [staffId, tenantId]);
-    return rows[0] || null;
+    const staff = rows[0];
+    return staff ? { ...staff, email: staff.email == null ? null : decryptFieldTolerant(staff.email) } : null;
 }
 
 // ─── HR Stats ────────────────────────────────────────────────
@@ -261,9 +263,9 @@ export async function createStaff(formData: FormData): Promise<CreateStaffResult
     try {
         await client.query('BEGIN');
         await client.query(`
-            INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, role, phone)
+            INSERT INTO users (id, tenant_id, email_enc, password_hash, first_name, last_name, role, phone)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        `, [userId, tenantId, email, '$temp$', firstName, lastName, 'TEACHER', phone]);
+        `, [userId, tenantId, encryptEmail(email), '$temp$', firstName, lastName, 'TEACHER', phone]);
 
         await client.query(`
             INSERT INTO staff_profiles (

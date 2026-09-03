@@ -1,6 +1,7 @@
 import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import type { QueryResult } from 'pg';
 import { shouldRequireMfaEnrollment } from './identity';
+import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
 
 type SSOCallbackResult =
     | {
@@ -197,8 +198,8 @@ async function findExistingIdentityUser(
         return { ok: false, error: 'Enterprise SSO tenant mapping is invalid.' };
     }
 
-    const values: string[] = [email];
-    const tenantFilter = tenantId ? 'AND u.tenant_id = $2' : '';
+    const values: string[] = [email, encryptEmail(email)];
+    const tenantFilter = tenantId ? 'AND u.tenant_id = $3' : '';
     if (tenantId) values.push(tenantId);
 
     const result = await runWithRlsBypass<QueryResult<IdentityUserRow>>(
@@ -209,7 +210,7 @@ async function findExistingIdentityUser(
             u.tenant_id AS "tenantId",
             t.code AS "tenantCode",
             t.domain AS "tenantDomain",
-            u.email,
+            COALESCE(u.email_enc, u.email) AS "email",
             u.role,
             u.first_name AS "firstName",
             u.last_name AS "lastName",
@@ -223,7 +224,7 @@ async function findExistingIdentityUser(
          FROM users u
          JOIN tenants t ON t.id = u.tenant_id
          LEFT JOIN companies c ON c.id = t.company_id
-         WHERE lower(u.email) = lower($1)
+         WHERE (u.email_enc = $2 OR lower(u.email) = lower($1))
          ${tenantFilter}
          LIMIT 2`,
         values,
@@ -239,6 +240,7 @@ async function findExistingIdentityUser(
     }
 
     const user = rows[0];
+    user.email = user.email == null ? user.email : decryptFieldTolerant(user.email);
     if (!user.isActive || !user.tenantIsActive || (user.companyId && !user.companyIsActive)) {
         return { ok: false, error: 'This SSO account or tenant is inactive.' };
     }

@@ -64,5 +64,10 @@ export const EXPECTED_DATABASE_MIGRATIONS = [
     "tag": "0012_encrypt_contact_small_batch",
     "createdAt": "1788631800000",
     "hash": "94c50f18c8957d3546099ff102f5b1bf25851f8721659ef3564724beae566bd5"
+  },
+  {
+    "tag": "0013_encrypt_users_email",
+    "createdAt": "1788632400000",
+    "hash": "c12dac4a0422423005f8caa792278380be28c72ca78204e55f939a23c154871e"
   }
 ] as const;

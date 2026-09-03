@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
 import { z } from 'zod';
 import { pool } from '@/lib/db';
+import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
 import { recordIntegrationAudit, runWithIntegrationTenant } from '@/lib/integrations/api-platform';
 import {
     authenticateScimRequest,
@@ -66,7 +67,8 @@ export async function GET(request: Request) {
 
     if (filteredEmail) {
         values.push(filteredEmail);
-        filterClause = `AND lower(email) = lower($${values.length})`;
+        values.push(encryptEmail(filteredEmail));
+        filterClause = `AND (email_enc = $${values.length} OR lower(email) = lower($${values.length - 1}))`;
     }
 
     const totalResult = await pool.query<{ total: string }>(
@@ -81,7 +83,7 @@ export async function GET(request: Request) {
     const rowsResult = await pool.query<ScimUserRow>(
         `SELECT
             id,
-            email,
+            COALESCE(email_enc, email) AS "email",
             first_name AS "firstName",
             last_name AS "lastName",
             role,
@@ -91,7 +93,7 @@ export async function GET(request: Request) {
          FROM users
          WHERE tenant_id = $1
          ${filterClause}
-         ORDER BY email ASC
+         ORDER BY id ASC
          LIMIT $${values.length - 1}
          OFFSET $${values.length}`,
         values,
@@ -102,7 +104,7 @@ export async function GET(request: Request) {
         totalResults: Number(totalResult.rows[0]?.total || 0),
         startIndex,
         itemsPerPage: rowsResult.rows.length,
-        Resources: rowsResult.rows.map((row) => toScimUser(row, request)),
+        Resources: rowsResult.rows.map((row) => toScimUser({ ...row, email: row.email == null ? row.email : decryptFieldTolerant(row.email) }, request)),
     };
 
     await recordIntegrationAudit({
@@ -152,8 +154,8 @@ export async function POST(request: Request) {
     const { firstName, lastName } = scimNameFromPayload(payload);
 
     const duplicate = await pool.query(
-        `SELECT id FROM users WHERE tenant_id = $1 AND lower(email) = lower($2) LIMIT 1`,
-        [auth.tenantId, email],
+        `SELECT id FROM users WHERE tenant_id = $1 AND (email_enc = $3 OR lower(email) = lower($2)) LIMIT 1`,
+        [auth.tenantId, email, encryptEmail(email)],
     );
     if (duplicate.rows.length > 0) {
         return scimError('A user with this email already exists in this tenant.', 409, 'uniqueness');
@@ -166,7 +168,7 @@ export async function POST(request: Request) {
     const created = await pool.query<ScimUserRow>(
         `INSERT INTO users (
             tenant_id,
-            email,
+            email_enc,
             password_hash,
             first_name,
             last_name,
@@ -176,17 +178,18 @@ export async function POST(request: Request) {
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING
             id,
-            email,
+            COALESCE(email_enc, email) AS "email",
             first_name AS "firstName",
             last_name AS "lastName",
             role,
             is_active AS "isActive",
             created_at AS "createdAt",
             updated_at AS "updatedAt"`,
-        [auth.tenantId, email, passwordHash, firstName, lastName, roleResult.role, active],
+        [auth.tenantId, encryptEmail(email), passwordHash, firstName, lastName, roleResult.role, active],
     );
 
-    const body = toScimUser(created.rows[0], request);
+    const createdRow = created.rows[0];
+    const body = toScimUser({ ...createdRow, email: createdRow.email == null ? createdRow.email : decryptFieldTolerant(createdRow.email) }, request);
     const location = (body.meta as { location: string }).location;
     await recordIntegrationAudit({
         tenantId: auth.tenantId,

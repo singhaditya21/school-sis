@@ -130,8 +130,7 @@ export default async function AuditPage({
               OR al.entity_type ILIKE $${i}
               OR al.ip_address ILIKE $${i}
               OR al.entity_id::text ILIKE $${i}
-              OR (u.first_name || ' ' || u.last_name) ILIKE $${i}
-              OR u.email ILIKE $${i})`,
+              OR (u.first_name || ' ' || u.last_name) ILIKE $${i})`,
         );
     }
 

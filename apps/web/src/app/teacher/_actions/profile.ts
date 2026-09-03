@@ -1,6 +1,7 @@
 'use server';
 
 import { pool } from '@/lib/db';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import { requireAuth } from '@/lib/auth/middleware';
 
 /**
@@ -42,7 +43,7 @@ export async function getMyProfile(): Promise<TeacherProfile | null> {
             u.id AS "userId",
             u.first_name AS "firstName",
             u.last_name AS "lastName",
-            u.email,
+            COALESCE(u.email_enc, u.email) AS "email",
             u.phone,
             u.role,
             u.is_active AS "isActive",
@@ -65,5 +66,6 @@ export async function getMyProfile(): Promise<TeacherProfile | null> {
         [tenantId, userId]
     );
 
-    return rows[0] ?? null;
+    const row = rows[0];
+    return row ? { ...row, email: row.email == null ? row.email : decryptFieldTolerant(row.email) } : null;
 }

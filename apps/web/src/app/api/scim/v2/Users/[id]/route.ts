@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { pool } from '@/lib/db';
+import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
 import { recordIntegrationAudit, runWithIntegrationTenant } from '@/lib/integrations/api-platform';
 import {
     authenticateScimRequest,
@@ -150,7 +151,7 @@ async function updateScimUser(
         assignments.push(`${column} = $${values.length}`);
     }
 
-    if (updates.email !== undefined) setColumn('email', updates.email);
+    if (updates.email !== undefined) setColumn('email_enc', encryptEmail(updates.email));
     if (updates.firstName !== undefined) setColumn('first_name', updates.firstName);
     if (updates.lastName !== undefined) setColumn('last_name', updates.lastName);
     if (updates.role !== undefined) setColumn('role', updates.role);
@@ -168,7 +169,7 @@ async function updateScimUser(
          WHERE tenant_id = $${tenantParam} AND id = $${idParam}
          RETURNING
             id,
-            email,
+            COALESCE(email_enc, email) AS "email",
             first_name AS "firstName",
             last_name AS "lastName",
             role,
@@ -178,7 +179,8 @@ async function updateScimUser(
         values,
     );
 
-    return rows[0] || null;
+    const updatedRow = rows[0];
+    return updatedRow ? { ...updatedRow, email: updatedRow.email == null ? updatedRow.email : decryptFieldTolerant(updatedRow.email) } : null;
 }
 
 export async function GET(request: Request, { params }: RouteContext) {
@@ -241,8 +243,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
     if (updateResult.updates.email) {
         const duplicate = await pool.query(
-            `SELECT id FROM users WHERE tenant_id = $1 AND lower(email) = lower($2) AND id <> $3 LIMIT 1`,
-            [auth.tenantId, updateResult.updates.email, id],
+            `SELECT id FROM users WHERE tenant_id = $1 AND (email_enc = $4 OR lower(email) = lower($2)) AND id <> $3 LIMIT 1`,
+            [auth.tenantId, updateResult.updates.email, id, encryptEmail(updateResult.updates.email)],
         );
         if (duplicate.rows.length > 0) {
             return scimError('A user with this email already exists in this tenant.', 409, 'uniqueness');

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import {
     authenticateIntegrationRequest,
     ensureIntegrationConnection,
@@ -197,7 +198,7 @@ export async function getScimUserById(tenantId: string, id: string): Promise<Sci
     const { rows } = await pool.query<ScimUserRow>(
         `SELECT
             id,
-            email,
+            COALESCE(email_enc, email) AS "email",
             first_name AS "firstName",
             last_name AS "lastName",
             role,
@@ -210,5 +211,6 @@ export async function getScimUserById(tenantId: string, id: string): Promise<Sci
         [tenantId, id],
     );
 
-    return rows[0] || null;
+    const user = rows[0];
+    return user ? { ...user, email: user.email == null ? user.email : decryptFieldTolerant(user.email) } : null;
 }

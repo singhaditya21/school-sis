@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { unstable_cache, revalidateTag } from 'next/cache';
 import { hash } from 'bcryptjs';
 import crypto from 'crypto';
+import { encryptEmail } from '@/lib/encryption';
 import {
     requireApprovedWorkflowApprovalOrRequest,
     toWorkflowApprovalSummary,
@@ -561,14 +562,14 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
                     : `${standardData.employee_id || 'staff_' + Math.random().toString(36).substring(2, 11)}@imported.invalid`;
                 const email = importedEmail;
                 const userInsertQuery = `
-                    INSERT INTO users (tenant_id, email, password_hash, role, first_name, last_name)
+                    INSERT INTO users (tenant_id, email_enc, password_hash, role, first_name, last_name)
                     VALUES ($1, $2, $3, 'TEACHER', $4, $5)
                     RETURNING id
                 `;
                 const passwordHash = await hash(crypto.randomBytes(18).toString('base64url'), 12);
                 const firstName = customData.first_name || 'Staff';
                 const lastName = customData.last_name || 'Member';
-                const { rows: userRows } = await pool.query(userInsertQuery, [tenantId, email, passwordHash, firstName, lastName]);
+                const { rows: userRows } = await pool.query(userInsertQuery, [tenantId, encryptEmail(email), passwordHash, firstName, lastName]);
                 standardData.user_id = userRows[0].id;
             }
 

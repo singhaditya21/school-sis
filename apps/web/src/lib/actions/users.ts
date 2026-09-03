@@ -4,6 +4,7 @@ import { randomBytes } from 'crypto';
 import { hash } from 'bcryptjs';
 import { pool, runWithTenantContext } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
+import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
 
 export interface AdminUser {
     id: string;
@@ -45,13 +46,13 @@ type UserRow = {
 };
 
 const SELECT_COLS =
-    'id, tenant_id, email, first_name, last_name, role, is_active, created_at, last_login_at';
+    'id, tenant_id, COALESCE(email_enc, email) AS email, first_name, last_name, role, is_active, created_at, last_login_at';
 
 function mapRow(r: UserRow): AdminUser {
     return {
         id: r.id,
         tenantId: r.tenant_id,
-        email: r.email,
+        email: r.email == null ? r.email : decryptFieldTolerant(r.email),
         firstName: r.first_name,
         lastName: r.last_name,
         role: r.role,
@@ -99,13 +100,13 @@ export async function createUser(input: {
     try {
         const passwordHash = await hash(input.password, 12);
         const row = await runWithTenantContext(auth.tenantId, async () => {
-            const existing = await pool.query('SELECT 1 FROM users WHERE tenant_id = $1 AND email = $2', [auth.tenantId, email]);
+            const existing = await pool.query('SELECT 1 FROM users WHERE tenant_id = $1 AND (email_enc = $3 OR email = $2)', [auth.tenantId, email, encryptEmail(email)]);
             if (existing.rowCount) throw new Error('A user with that email already exists.');
             const res = await pool.query<UserRow>(
-                `INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role)
+                `INSERT INTO users (tenant_id, email_enc, password_hash, first_name, last_name, role)
                  VALUES ($1, $2, $3, $4, $5, $6)
                  RETURNING ${SELECT_COLS}`,
-                [auth.tenantId, email, passwordHash, input.firstName ?? '', input.lastName ?? '', input.role],
+                [auth.tenantId, encryptEmail(email), passwordHash, input.firstName ?? '', input.lastName ?? '', input.role],
             );
             return res.rows[0];
         });

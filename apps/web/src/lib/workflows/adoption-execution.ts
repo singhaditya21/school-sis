@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import type { PoolClient } from 'pg';
 import { pool, runWithTenantContext } from '@/lib/db';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import {
     AUTHORIZATION_ROLE_VALUES,
     assertApprovalMatchesAction,
@@ -585,7 +586,7 @@ async function fetchUserSnapshot(
         `SELECT
             id,
             tenant_id AS "tenantId",
-            email,
+            COALESCE(email_enc, email) AS "email",
             first_name AS "firstName",
             last_name AS "lastName",
             role,
@@ -598,6 +599,7 @@ async function fetchUserSnapshot(
     );
     const user = rows[0] as UserSnapshot | undefined;
     if (!user) throw new WorkflowAdoptionExecutionError('User not found.', 404);
+    if (user.email != null) user.email = decryptFieldTolerant(user.email);
     if (!isAuthorizationRole(user.role)) {
         throw new WorkflowAdoptionExecutionError(`Unsupported current role: ${user.role}`, 409);
     }

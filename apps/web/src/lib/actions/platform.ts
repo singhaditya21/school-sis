@@ -2,6 +2,7 @@
 
 import { requireRole } from '@/lib/auth/middleware';
 import { pool, } from '@/lib/db';
+import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
 import { UserRole } from '@/lib/rbac/permissions';
 import { hash } from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
@@ -96,7 +97,7 @@ export async function getAllPlatformTenants(): Promise<PlatformTenant[]> {
             c.subscription_tier AS "subscriptionTier",
             CASE WHEN t.is_active THEN 'ACTIVE' ELSE 'SUSPENDED' END AS status,
             COALESCE(
-                (SELECT u.email FROM users u WHERE u.tenant_id = t.id AND u.role = 'SUPER_ADMIN' LIMIT 1),
+                (SELECT COALESCE(u.email_enc, u.email) FROM users u WHERE u.tenant_id = t.id AND u.role = 'SUPER_ADMIN' LIMIT 1),
                 'no-admin@unknown'
             ) AS "adminEmail",
             COALESCE(
@@ -129,7 +130,7 @@ export async function getAllPlatformTenants(): Promise<PlatformTenant[]> {
         code: row.code,
         subscriptionTier: row.subscriptionTier || 'CORE',
         status: row.status,
-        adminEmail: row.adminEmail,
+        adminEmail: decryptFieldTolerant(row.adminEmail),
         activeStudents: Number(row.activeStudents),
         revenue: Number(row.revenue),
     }));
@@ -163,8 +164,8 @@ export async function createTenantAction(formData: FormData) {
 
         // Check for duplicate admin email
         const { rows: existingUser } = await pool.query(
-            `SELECT id FROM users WHERE email = $1 LIMIT 1`,
-            [adminEmail]
+            `SELECT id FROM users WHERE (email_enc = $2 OR email = $1) LIMIT 1`,
+            [adminEmail, encryptEmail(adminEmail)]
         );
         if (existingUser.length > 0) {
             return { error: 'A user with this email address already exists.' };
@@ -194,9 +195,9 @@ export async function createTenantAction(formData: FormData) {
         const temporaryPassword = crypto.randomBytes(18).toString('base64url');
         const defaultPassword = await hash(temporaryPassword, 12);
         await pool.query(
-            `INSERT INTO users (tenant_id, email, first_name, last_name, role, password_hash) 
+            `INSERT INTO users (tenant_id, email_enc, first_name, last_name, role, password_hash)
              VALUES ($1, $2, $3, $4, $5, $6)`,
-            [newTenant.id, adminEmail, adminFirstName, adminLastName, 'SUPER_ADMIN', defaultPassword]
+            [newTenant.id, encryptEmail(adminEmail), adminFirstName, adminLastName, 'SUPER_ADMIN', defaultPassword]
         );
 
         revalidatePath('/platform/tenants');
@@ -310,7 +311,7 @@ export async function returnToHQAction() {
             u.tenant_id AS "tenantId",
             t.code AS "tenantCode",
             t.domain AS "tenantDomain",
-            u.email,
+            COALESCE(u.email_enc, u.email) AS "email",
             u.first_name AS "firstName",
             u.last_name AS "lastName",
             u.mfa_enabled AS "mfaEnabled"
@@ -325,6 +326,7 @@ export async function returnToHQAction() {
         session.destroy();
         return { error: 'Original platform session can no longer be restored.' };
     }
+    founder.email = founder.email == null ? founder.email : decryptFieldTolerant(founder.email);
     
     establishSession(session, {
         userId: founder.id,

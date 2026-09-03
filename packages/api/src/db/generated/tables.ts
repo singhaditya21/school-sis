@@ -6826,7 +6826,7 @@ export const universityPrograms = {
 export interface UsersRow {
     id: string;
     tenantId: string;
-    email: string;
+    email: string | null;
     passwordHash: string;
     firstName: string;
     lastName: string;
@@ -6843,11 +6843,12 @@ export interface UsersRow {
     fcmToken: string | null;
     ownerId: string | null;
     groupId: string | null;
+    emailEnc: string | null;
 }
 export interface UsersInsert {
     id?: string;
     tenantId: string;
-    email: string;
+    email?: string | null;
     passwordHash: string;
     firstName: string;
     lastName: string;
@@ -6864,6 +6865,7 @@ export interface UsersInsert {
     fcmToken?: string | null;
     ownerId?: string | null;
     groupId?: string | null;
+    emailEnc?: string | null;
 }
 export const users = {
     $name: "users" as const,
@@ -6886,6 +6888,7 @@ export const users = {
     fcmToken: column("users", "fcm_token"),
     ownerId: column("users", "owner_id"),
     groupId: column("users", "group_id"),
+    emailEnc: column("users", "email_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── vehicle_maintenance_logs ────────────────────

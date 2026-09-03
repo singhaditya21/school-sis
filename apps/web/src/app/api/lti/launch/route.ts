@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { pool, runWithTenantContext } from '@/lib/db';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import { getSession } from '@/lib/auth/session';
 import { establishSession } from '@/lib/auth/identity';
 import {
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
             const result = await pool.query<LocalLtiUser>(
                 `SELECT
                     u.id::text AS id,
-                    u.email,
+                    COALESCE(u.email_enc, u.email) AS "email",
                     u.role::text AS role,
                     u.first_name AS "firstName",
                     u.last_name AS "lastName",
@@ -105,6 +106,7 @@ export async function POST(request: Request) {
             if (!user || !user.tenantIsActive || (user.companyId && !user.companyIsActive)) {
                 throw new Error('LTI subject is not linked to an active local user.');
             }
+            if (user.email != null) user.email = decryptFieldTolerant(user.email);
             if (user.role !== expectedLocalRole) {
                 throw new Error('LTI role does not match the linked local user role.');
             }
