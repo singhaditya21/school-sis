@@ -315,6 +315,12 @@ export const API_ACCESS_POLICIES = [
         expectedGuardSnippets: ['x-hub-signature-256'],
     },
     {
+        prefix: '/api/webhooks/sms',
+        boundary: 'provider-webhook',
+        description: 'SMS (Twilio / MSG91) delivery-status webhook.',
+        expectedGuardSnippets: ['verifyTwilioSignature'],
+    },
+    {
         prefix: '/api/workflow-approvals',
         boundary: 'session',
         description: 'Workflow approval APIs with downstream authorization.',
