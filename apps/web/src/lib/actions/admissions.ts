@@ -2,6 +2,7 @@
 
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { encryptDeterministic } from '@/lib/encryption';
 import { randomUUID } from 'crypto';
 import { redirect } from 'next/navigation';
 
@@ -272,7 +273,7 @@ export async function convertLeadToStudent(
     const parentLastName = lastParts.join(' ') || lead.parentName;
 
     await pool.query(`
-        INSERT INTO guardians (id, tenant_id, student_id, first_name, last_name, relation, phone, email, is_primary)
+        INSERT INTO guardians (id, tenant_id, student_id, first_name, last_name, relation, phone_enc, email_enc, is_primary)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `, [
         randomUUID(),
@@ -281,8 +282,8 @@ export async function convertLeadToStudent(
         parentFirstName,
         parentLastName,
         'PARENT',
-        lead.parentPhone,
-        lead.parentEmail,
+        encryptDeterministic(lead.parentPhone),
+        encryptDeterministic(lead.parentEmail),
         true
     ]);
 

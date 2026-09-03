@@ -21,6 +21,7 @@
 import { revalidatePath } from 'next/cache';
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import {
     enqueueNotification,
     providerForChannel,
@@ -397,8 +398,8 @@ export async function listGuardianRecipients(gradeId?: string): Promise<Recipien
     const { rows } = await pool.query(
         `SELECT g.id,
                 g.first_name || ' ' || g.last_name AS label,
-                g.email,
-                g.phone,
+                COALESCE(g.email_enc, g.email) AS email,
+                COALESCE(g.phone_enc, g.phone) AS phone,
                 s.first_name || ' ' || s.last_name AS "studentName",
                 s.grade_id AS "gradeId",
                 gr.name  AS "gradeName",
@@ -410,7 +411,7 @@ export async function listGuardianRecipients(gradeId?: string): Promise<Recipien
           WHERE g.tenant_id = $1
             AND s.status = 'ACTIVE'
             AND g.is_primary = true
-            AND (g.email IS NOT NULL OR g.phone IS NOT NULL)${gradeClause}
+            AND (COALESCE(g.email_enc, g.email) IS NOT NULL OR COALESCE(g.phone_enc, g.phone) IS NOT NULL)${gradeClause}
           ORDER BY gr.display_order NULLS LAST, sec.name, s.first_name
           LIMIT 500`,
         params,
@@ -423,8 +424,8 @@ export async function listGuardianRecipients(gradeId?: string): Promise<Recipien
             .filter(Boolean)
             .join(' · '),
         gradeId: row.gradeId ?? null,
-        email: row.email,
-        phone: row.phone,
+        email: row.email == null ? null : decryptFieldTolerant(row.email),
+        phone: row.phone == null ? null : decryptFieldTolerant(row.phone),
     }));
 }
 

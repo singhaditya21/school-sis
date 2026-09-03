@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 import { getSmsProvider } from '@/lib/providers/sms';
 import { getEmailProvider } from '@/lib/providers/email';
 import { pusher } from '@/lib/pusher';
+import { decryptFieldTolerant } from '@/lib/encryption';
 
 export interface ClassAttendanceSummary {
     gradeName: string;
@@ -255,7 +256,9 @@ export async function notifyAbsentParents(date?: string): Promise<{ sent: number
             `, [row.studentId]);
 
             const { rows: guardianRows } = await pool.query(`
-                SELECT first_name AS "firstName", phone, email
+                SELECT first_name AS "firstName",
+                       COALESCE(phone_enc, phone) AS "phone",
+                       COALESCE(email_enc, email) AS "email"
                 FROM guardians
                 WHERE student_id = $1 AND is_primary = true
             `, [row.studentId]);
@@ -266,7 +269,12 @@ export async function notifyAbsentParents(date?: string): Promise<{ sent: number
             }
 
             const student = studentRows[0];
-            const guardian = guardianRows[0];
+            const rawGuardian = guardianRows[0];
+            const guardian = {
+                ...rawGuardian,
+                phone: rawGuardian.phone == null ? null : decryptFieldTolerant(rawGuardian.phone),
+                email: rawGuardian.email == null ? null : decryptFieldTolerant(rawGuardian.email),
+            };
 
             const studentName = `${student.firstName} ${student.lastName}`;
             const dateFormatted = new Date(targetDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });

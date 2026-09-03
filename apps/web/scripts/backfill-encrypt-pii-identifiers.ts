@@ -34,6 +34,9 @@ const TARGETS = [
     { table: 'staff_profiles', plain: 'aadhaar_number', enc: 'aadhaar_number_enc', encrypt: encryptIdNumber },
     { table: 'visitors', plain: 'phone', enc: 'phone_enc', encrypt: encryptDeterministic },
     { table: 'visitors', plain: 'email', enc: 'email_enc', encrypt: encryptDeterministic },
+    { table: 'guardians', plain: 'phone', enc: 'phone_enc', encrypt: encryptDeterministic },
+    { table: 'guardians', plain: 'email', enc: 'email_enc', encrypt: encryptDeterministic },
+    { table: 'guardians', plain: 'alternate_phone', enc: 'alternate_phone_enc', encrypt: encryptDeterministic },
 ] as const;
 
 const BATCH = 500;

@@ -86,8 +86,11 @@ export async function anonymizeStudentRecord(input: {
                  first_name = $3,
                  last_name = $3,
                  email = NULL,
+                 email_enc = NULL,
                  phone = NULL,
+                 phone_enc = NULL,
                  alternate_phone = NULL,
+                 alternate_phone_enc = NULL,
                  address = NULL,
                  occupation = NULL,
                  annual_income = NULL

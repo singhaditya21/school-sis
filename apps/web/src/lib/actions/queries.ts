@@ -7,6 +7,7 @@
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { logAudit } from '@/lib/audit';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import { maskDeniedFields } from '@/lib/auth/field-masking';
 
 function isValidUUID(uuid: string): boolean {
@@ -64,8 +65,8 @@ export async function getStudentDetail(studentId: string) {
             first_name AS "firstName",
             last_name AS "lastName",
             relation,
-            phone,
-            email,
+            COALESCE(phone_enc, phone) AS "phone",
+            COALESCE(email_enc, email) AS "email",
             occupation,
             is_primary AS "isPrimary"
         FROM guardians
@@ -79,7 +80,12 @@ export async function getStudentDetail(studentId: string) {
     // existed but was enforced nowhere; this is the enforcement point.
     const role = session.role ?? '';
     const maskedStudent = maskDeniedFields(role, 'students', student);
-    const maskedGuardians = guardians.map((guardian) =>
+    const decodedGuardians = guardians.map((guardian) => ({
+        ...guardian,
+        phone: guardian.phone == null ? null : decryptFieldTolerant(guardian.phone),
+        email: guardian.email == null ? null : decryptFieldTolerant(guardian.email),
+    }));
+    const maskedGuardians = decodedGuardians.map((guardian) =>
         maskDeniedFields(role, 'guardians', guardian),
     );
 

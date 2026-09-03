@@ -2703,6 +2703,9 @@ export interface GuardiansRow {
     updatedAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    emailEnc: string | null;
+    phoneEnc: string | null;
+    alternatePhoneEnc: string | null;
 }
 export interface GuardiansInsert {
     id?: string;
@@ -2724,6 +2727,9 @@ export interface GuardiansInsert {
     updatedAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    emailEnc?: string | null;
+    phoneEnc?: string | null;
+    alternatePhoneEnc?: string | null;
 }
 export const guardians = {
     $name: "guardians" as const,
@@ -2746,6 +2752,9 @@ export const guardians = {
     updatedAt: column("guardians", "updated_at"),
     ownerId: column("guardians", "owner_id"),
     groupId: column("guardians", "group_id"),
+    emailEnc: column("guardians", "email_enc"),
+    phoneEnc: column("guardians", "phone_enc"),
+    alternatePhoneEnc: column("guardians", "alternate_phone_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── hardware_tokens ─────────────────────────────
