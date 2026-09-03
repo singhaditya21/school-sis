@@ -6974,7 +6974,7 @@ export interface VisitorsRow {
     id: string;
     tenantId: string;
     name: string;
-    phone: string;
+    phone: string | null;
     email: string | null;
     company: string | null;
     purpose: VisitPurpose;
@@ -6994,12 +6994,14 @@ export interface VisitorsRow {
     createdAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    phoneEnc: string | null;
+    emailEnc: string | null;
 }
 export interface VisitorsInsert {
     id?: string;
     tenantId: string;
     name: string;
-    phone: string;
+    phone?: string | null;
     email?: string | null;
     company?: string | null;
     purpose: VisitPurpose;
@@ -7019,6 +7021,8 @@ export interface VisitorsInsert {
     createdAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    phoneEnc?: string | null;
+    emailEnc?: string | null;
 }
 export const visitors = {
     $name: "visitors" as const,
@@ -7045,6 +7049,8 @@ export const visitors = {
     createdAt: column("visitors", "created_at"),
     ownerId: column("visitors", "owner_id"),
     groupId: column("visitors", "group_id"),
+    phoneEnc: column("visitors", "phone_enc"),
+    emailEnc: column("visitors", "email_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── webhook_deliveries ──────────────────────────

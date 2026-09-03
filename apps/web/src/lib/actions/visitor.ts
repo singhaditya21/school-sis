@@ -3,6 +3,16 @@
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { revalidatePath } from 'next/cache';
+import { encryptDeterministic, decryptFieldTolerant } from '@/lib/encryption';
+
+/** Decrypt the contact columns read as COALESCE(*_enc, plaintext). */
+function decodeVisitor<T extends { phone: string; email?: string | null }>(rows: T[]): T[] {
+    return rows.map((row) => ({
+        ...row,
+        phone: decryptFieldTolerant(row.phone),
+        ...('email' in row ? { email: row.email == null ? null : decryptFieldTolerant(row.email) } : {}),
+    }));
+}
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -92,7 +102,10 @@ const NEXT_PASS = `(${PASS_PREFIX} || lpad((
 ), 3, '0'))`;
 
 const VISITOR_COLUMNS = `
-    id, name, phone, email, company, purpose,
+    id, name,
+    COALESCE(phone_enc, phone) AS "phone",
+    COALESCE(email_enc, email) AS "email",
+    company, purpose,
     purpose_details AS "purposeDetails",
     host_name AS "hostName", host_department AS "hostDepartment",
     id_proof AS "idProof", id_number AS "idNumber",
@@ -143,7 +156,7 @@ export async function getTodayRegister(): Promise<VisitorRow[]> {
         [tenantId],
     );
 
-    return rows;
+    return decodeVisitor(rows);
 }
 
 /** Pre-approved visitors who have not arrived yet. */
@@ -152,7 +165,7 @@ export async function getExpectedVisitors(): Promise<ExpectedVisitorRow[]> {
 
     const { rows } = await pool.query<ExpectedVisitorRow>(
         `
-        SELECT id, name, phone, company, purpose,
+        SELECT id, name, COALESCE(phone_enc, phone) AS "phone", company, purpose,
                purpose_details AS "purposeDetails",
                host_name AS "hostName", host_department AS "hostDepartment",
                to_char(pre_approved_date AT TIME ZONE 'Asia/Kolkata', 'DD Mon, HH12:MI AM') AS "preApprovedLabel"
@@ -164,7 +177,7 @@ export async function getExpectedVisitors(): Promise<ExpectedVisitorRow[]> {
         [tenantId],
     );
 
-    return rows;
+    return decodeVisitor(rows);
 }
 
 /** Live counts for the gate desk — all four come from the visitors table. */
@@ -267,7 +280,7 @@ export async function getVisitors(filters?: { status?: string; purpose?: string 
     query += ` ORDER BY check_in_time DESC LIMIT 500`;
 
     const { rows } = await pool.query<VisitorRow>(query, params);
-    return rows;
+    return decodeVisitor(rows);
 }
 
 // ─── Write: check in ─────────────────────────────────────────
@@ -310,12 +323,12 @@ export async function checkInVisitor(data: {
     const { rows } = await pool.query<{ id: string; name: string; visitorPass: string | null }>(
         `
         INSERT INTO visitors (
-            tenant_id, name, phone, email, company, purpose, purpose_details,
+            tenant_id, name, phone_enc, email_enc, company, purpose, purpose_details,
             host_name, host_department, id_proof, id_number, vehicle_number,
             status, visitor_pass, check_in_time
         )
         VALUES (
-            $1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), $6::visit_purpose, NULLIF($7, ''),
+            $1, $2, $3, $4, NULLIF($5, ''), $6::visit_purpose, NULLIF($7, ''),
             $8, $9, $10, $11, NULLIF($12, ''),
             'CHECKED_IN', ${NEXT_PASS}, now()
         )
@@ -324,8 +337,8 @@ export async function checkInVisitor(data: {
         [
             tenantId,
             name,
-            phone,
-            clean(data.email, 255),
+            encryptDeterministic(phone),
+            clean(data.email, 255) ? encryptDeterministic(clean(data.email, 255)) : null,
             clean(data.company, 255),
             purpose,
             clean(data.purposeDetails, 2000),
@@ -455,12 +468,12 @@ export async function preApproveVisitor(data: {
     const { rows } = await pool.query<{ id: string; name: string }>(
         `
         INSERT INTO visitors (
-            tenant_id, name, phone, email, company, purpose, purpose_details,
+            tenant_id, name, phone_enc, email_enc, company, purpose, purpose_details,
             host_name, host_department, id_proof, id_number, status,
             pre_approved_by, pre_approved_date
         )
         VALUES (
-            $1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), $6::visit_purpose, NULLIF($7, ''),
+            $1, $2, $3, $4, NULLIF($5, ''), $6::visit_purpose, NULLIF($7, ''),
             $8, $9, $10, $11, 'PRE_APPROVED', $12, now()
         )
         RETURNING id, name
@@ -468,8 +481,8 @@ export async function preApproveVisitor(data: {
         [
             tenantId,
             name,
-            phone,
-            clean(data.email, 255),
+            encryptDeterministic(phone),
+            clean(data.email, 255) ? encryptDeterministic(clean(data.email, 255)) : null,
             clean(data.company, 255),
             purpose,
             clean(data.purposeDetails, 2000),

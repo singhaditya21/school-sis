@@ -49,5 +49,10 @@ export const EXPECTED_DATABASE_MIGRATIONS = [
     "tag": "0009_encrypt_pii_identifiers",
     "createdAt": "1788630000000",
     "hash": "7607e93463099824c4a4ef0b4ffa66916c2836e231b9dcb357da9747156c2179"
+  },
+  {
+    "tag": "0010_encrypt_visitor_contact",
+    "createdAt": "1788630600000",
+    "hash": "6bf76b7b093014d1eccbc690ee31101a0ea521fceaf5fbf8b2ef6bef6d636a63"
   }
 ] as const;
