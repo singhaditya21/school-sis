@@ -32,14 +32,6 @@ function hasSecret(name: string, minLength = 32) {
   return Boolean(value && value.length >= minLength);
 }
 
-function requireOneOf(names: string[], minLength = 32): EnvIssue | null {
-  if (names.some((name) => hasSecret(name, minLength))) return null;
-  return {
-    name: names.join(" or "),
-    message: `One of ${names.join(", ")} must be set and at least ${minLength} characters.`,
-  };
-}
-
 function requireSecret(name: string, minLength = 32): EnvIssue | null {
   return hasSecret(name, minLength)
     ? null
@@ -51,6 +43,36 @@ function requireSecret(name: string, minLength = 32): EnvIssue | null {
 
 function requireValue(name: string): EnvIssue | null {
   return process.env[name] ? null : { name, message: `${name} must be set.` };
+}
+
+function validatePiiEncryptionCredential(): EnvIssue[] {
+  const issues: EnvIssue[] = [];
+  const current = process.env.PII_ENCRYPTION_KEY;
+  const previous = process.env.PII_ENCRYPTION_PREVIOUS_KEY;
+  const currentIssue = requireSecret("PII_ENCRYPTION_KEY");
+  if (currentIssue) issues.push(currentIssue);
+
+  if (previous && previous.length < 32) {
+    issues.push({
+      name: "PII_ENCRYPTION_PREVIOUS_KEY",
+      message:
+        "PII_ENCRYPTION_PREVIOUS_KEY must be at least 32 characters when configured.",
+    });
+  }
+  if (current && previous && current === previous) {
+    issues.push({
+      name: "PII_ENCRYPTION_PREVIOUS_KEY",
+      message:
+        "PII_ENCRYPTION_PREVIOUS_KEY must differ from PII_ENCRYPTION_KEY.",
+    });
+  }
+  if (process.env.NODE_ENV === "production" && process.env.ENCRYPTION_KEY) {
+    issues.push({
+      name: "ENCRYPTION_KEY",
+      message: "ENCRYPTION_KEY is retired and must not be configured in production.",
+    });
+  }
+  return issues;
 }
 
 function validateTenantContextSigningCredential(): EnvIssue[] {
@@ -167,8 +189,8 @@ export function validateSecurityEnvironment() {
       ? [requireValue("PLATFORM_DATABASE_URL")]
       : []),
     requireSecret("SESSION_SECRET"),
-    requireOneOf(["PII_ENCRYPTION_KEY", "ENCRYPTION_KEY"]),
   ].filter(Boolean) as EnvIssue[];
+  issues.push(...validatePiiEncryptionCredential());
   issues.push(...validateRateLimitConfiguration());
   issues.push(...validateTenantContextSigningCredential());
 

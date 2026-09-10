@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { pool } from '@/lib/db';
-import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
+import { encryptEmail, encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 import { recordIntegrationAudit, runWithIntegrationTenant } from '@/lib/integrations/api-platform';
 import {
     authenticateScimRequest,
@@ -243,8 +243,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
     if (updateResult.updates.email) {
         const duplicate = await pool.query(
-            `SELECT id FROM users WHERE tenant_id = $1 AND (email_enc = $4 OR lower(email) = lower($2)) AND id <> $3 LIMIT 1`,
-            [auth.tenantId, updateResult.updates.email, id, encryptEmail(updateResult.updates.email)],
+            `SELECT id FROM users WHERE tenant_id = $1 AND (email_enc = ANY($4::text[]) OR lower(email) = lower($2)) AND id <> $3 LIMIT 1`,
+            [auth.tenantId, updateResult.updates.email, id, encryptEmailCandidates(updateResult.updates.email)],
         );
         if (duplicate.rows.length > 0) {
             return scimError('A user with this email already exists in this tenant.', 409, 'uniqueness');

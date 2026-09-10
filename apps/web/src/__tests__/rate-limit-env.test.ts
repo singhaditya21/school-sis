@@ -7,6 +7,7 @@ describe("production rate-limit environment contract", () => {
     "PLATFORM_DATABASE_URL",
     "SESSION_SECRET",
     "PII_ENCRYPTION_KEY",
+    "PII_ENCRYPTION_PREVIOUS_KEY",
     "ENCRYPTION_KEY",
     "TENANT_CONTEXT_SIGNING_KEY_ID",
     "TENANT_CONTEXT_SIGNING_SECRET",
@@ -28,6 +29,7 @@ describe("production rate-limit environment contract", () => {
       "postgresql://postgres:password@localhost:5432/school_sis";
     process.env.SESSION_SECRET = "s".repeat(32);
     process.env.PII_ENCRYPTION_KEY = "e".repeat(32);
+    delete process.env.PII_ENCRYPTION_PREVIOUS_KEY;
     process.env.TENANT_CONTEXT_SIGNING_KEY_ID = "test-v1";
     process.env.TENANT_CONTEXT_AUDIENCE = "test:local:database";
     process.env.TENANT_CONTEXT_SIGNING_SECRET =
@@ -70,6 +72,18 @@ describe("production rate-limit environment contract", () => {
     expect(() => validateSecurityEnvironment()).toThrow(
       "Production requires explicit RATE_LIMIT_BACKEND=redis or RATE_LIMIT_BACKEND=postgres",
     );
+  });
+
+  it("requires the dedicated PII key and validates rotation key separation", () => {
+    process.env.RATE_LIMIT_BACKEND = "postgres";
+    delete process.env.PII_ENCRYPTION_KEY;
+    process.env.ENCRYPTION_KEY = "l".repeat(32);
+    expect(() => validateSecurityEnvironment()).toThrow("PII_ENCRYPTION_KEY");
+
+    process.env.PII_ENCRYPTION_KEY = "e".repeat(32);
+    delete process.env.ENCRYPTION_KEY;
+    process.env.PII_ENCRYPTION_PREVIOUS_KEY = process.env.PII_ENCRYPTION_KEY;
+    expect(() => validateSecurityEnvironment()).toThrow("must differ");
   });
 
   it("accepts Redis only with complete Upstash credentials", () => {

@@ -12,6 +12,7 @@ import {
   type AppliedMigration,
   type MigrationHealth,
 } from "@/lib/observability/migration-health";
+import { getPiiEncryptionKeyStatus } from "@/lib/encryption";
 
 export type ComponentStatus = "healthy" | "degraded" | "unhealthy";
 
@@ -104,6 +105,37 @@ export type IntegrationConfigurationHealth = {
   enforced: boolean;
   mockConnectionCount: number | null;
 };
+
+export type PiiEncryptionHealth = {
+  status: ComponentStatus;
+  currentKeyId: string | null;
+  previousKeyCount: number;
+  rotationActive: boolean;
+  legacyFallbackInUse: boolean;
+};
+
+export function getPiiEncryptionHealth(): PiiEncryptionHealth {
+  try {
+    const keyStatus = getPiiEncryptionKeyStatus();
+    const legacyFallbackRejected =
+      process.env.NODE_ENV === "production" && keyStatus.legacyFallbackInUse;
+    return {
+      status: legacyFallbackRejected ? "unhealthy" : "healthy",
+      currentKeyId: keyStatus.currentKeyId,
+      previousKeyCount: keyStatus.previousKeyIds.length,
+      rotationActive: keyStatus.rotationActive,
+      legacyFallbackInUse: keyStatus.legacyFallbackInUse,
+    };
+  } catch {
+    return {
+      status: "unhealthy",
+      currentKeyId: null,
+      previousKeyCount: 0,
+      rotationActive: false,
+      legacyFallbackInUse: false,
+    };
+  }
+}
 
 /**
  * Audits persisted integration configuration across every tenant. This belongs

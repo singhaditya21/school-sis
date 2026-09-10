@@ -6,7 +6,8 @@ describe('PII encryption utilities', () => {
         const ciphertext = encrypt(plaintext);
 
         expect(ciphertext).not.toContain(plaintext);
-        expect(ciphertext.split(':')).toHaveLength(3);
+        expect(ciphertext.startsWith('rnd.v2:')).toBe(true);
+        expect(ciphertext.split(':')).toHaveLength(5);
         expect(decrypt(ciphertext)).toBe(plaintext);
     });
 

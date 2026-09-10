@@ -4,7 +4,7 @@ import { randomBytes } from 'crypto';
 import { hash } from 'bcryptjs';
 import { pool, runWithTenantContext } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
-import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
+import { encryptEmail, encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 
 export interface AdminUser {
     id: string;
@@ -100,7 +100,7 @@ export async function createUser(input: {
     try {
         const passwordHash = await hash(input.password, 12);
         const row = await runWithTenantContext(auth.tenantId, async () => {
-            const existing = await pool.query('SELECT 1 FROM users WHERE tenant_id = $1 AND (email_enc = $3 OR email = $2)', [auth.tenantId, email, encryptEmail(email)]);
+            const existing = await pool.query('SELECT 1 FROM users WHERE tenant_id = $1 AND (email_enc = ANY($3::text[]) OR email = $2)', [auth.tenantId, email, encryptEmailCandidates(email)]);
             if (existing.rowCount) throw new Error('A user with that email already exists.');
             const res = await pool.query<UserRow>(
                 `INSERT INTO users (tenant_id, email_enc, password_hash, first_name, last_name, role)

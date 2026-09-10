@@ -337,8 +337,8 @@ export async function checkInVisitor(data: {
         [
             tenantId,
             name,
-            encryptDeterministic(phone),
-            clean(data.email, 255) ? encryptDeterministic(clean(data.email, 255)) : null,
+            encryptDeterministic(phone, 'visitors.phone'),
+            clean(data.email, 255) ? encryptDeterministic(clean(data.email, 255), 'visitors.email') : null,
             clean(data.company, 255),
             purpose,
             clean(data.purposeDetails, 2000),
@@ -481,8 +481,8 @@ export async function preApproveVisitor(data: {
         [
             tenantId,
             name,
-            encryptDeterministic(phone),
-            clean(data.email, 255) ? encryptDeterministic(clean(data.email, 255)) : null,
+            encryptDeterministic(phone, 'visitors.phone'),
+            clean(data.email, 255) ? encryptDeterministic(clean(data.email, 255), 'visitors.email') : null,
             clean(data.company, 255),
             purpose,
             clean(data.purposeDetails, 2000),

@@ -1,6 +1,7 @@
 const mockGetDatabaseHealth = jest.fn();
 const mockGetIntegrationConfigurationHealth = jest.fn();
 const mockGetMigrationHealth = jest.fn();
+const mockGetPiiEncryptionHealth = jest.fn();
 const mockGetPlatformDatabaseHealth = jest.fn();
 const mockGetRateLimitHealth = jest.fn();
 const mockGetTenantContextHealth = jest.fn();
@@ -13,6 +14,7 @@ jest.mock("@/lib/observability/snapshot", () => ({
   getDatabaseHealth: mockGetDatabaseHealth,
   getIntegrationConfigurationHealth: mockGetIntegrationConfigurationHealth,
   getMigrationHealth: mockGetMigrationHealth,
+  getPiiEncryptionHealth: mockGetPiiEncryptionHealth,
   getPlatformDatabaseHealth: mockGetPlatformDatabaseHealth,
   getTenantContextHealth: mockGetTenantContextHealth,
 }));
@@ -41,6 +43,13 @@ describe("readiness integration-configuration gate", () => {
       status: "healthy",
       role: "school_sis_platform",
       bypassVerified: true,
+    });
+    mockGetPiiEncryptionHealth.mockReturnValue({
+      status: "healthy",
+      currentKeyId: "0123456789abcdef",
+      previousKeyCount: 0,
+      rotationActive: false,
+      legacyFallbackInUse: false,
     });
     mockGetRateLimitHealth.mockResolvedValue({ status: "healthy" });
     mockGetTenantContextHealth.mockResolvedValue({ status: "healthy" });
@@ -83,5 +92,27 @@ describe("readiness integration-configuration gate", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ status: "ready" });
+  });
+
+  it("returns 503 when the PII keyring is unhealthy", async () => {
+    mockGetIntegrationConfigurationHealth.mockResolvedValue({
+      status: "healthy",
+      enforced: true,
+      mockConnectionCount: 0,
+    });
+    mockGetPiiEncryptionHealth.mockReturnValue({
+      status: "unhealthy",
+      currentKeyId: null,
+      previousKeyCount: 0,
+      rotationActive: false,
+      legacyFallbackInUse: false,
+    });
+
+    const response = await GET(new Request("https://example.test/api/ready"));
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "not_ready",
+      piiEncryption: { status: "unhealthy" },
+    });
   });
 });

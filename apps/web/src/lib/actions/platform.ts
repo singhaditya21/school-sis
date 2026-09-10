@@ -2,7 +2,7 @@
 
 import { requireRole } from '@/lib/auth/middleware';
 import { pool, } from '@/lib/db';
-import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
+import { encryptEmail, encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 import { UserRole } from '@/lib/rbac/permissions';
 import { hash } from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
@@ -164,8 +164,8 @@ export async function createTenantAction(formData: FormData) {
 
         // Check for duplicate admin email
         const { rows: existingUser } = await pool.query(
-            `SELECT id FROM users WHERE (email_enc = $2 OR email = $1) LIMIT 1`,
-            [adminEmail, encryptEmail(adminEmail)]
+            `SELECT id FROM users WHERE (email_enc = ANY($2::text[]) OR email = $1) LIMIT 1`,
+            [adminEmail, encryptEmailCandidates(adminEmail)]
         );
         if (existingUser.length > 0) {
             return { error: 'A user with this email address already exists.' };

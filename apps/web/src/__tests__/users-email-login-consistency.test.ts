@@ -35,6 +35,6 @@ describe('users.email login lookup consistency', () => {
     // encryptEmail lowercases+trims; encryptDeterministic does not. They must differ for
     // a non-normalised input, which is why the login path must use encryptEmail.
     expect(encryptEmail('Mixed@Case.com')).not.toBe(encryptDeterministic('Mixed@Case.com'));
-    expect(encryptEmail('Mixed@Case.com')).toBe(encryptDeterministic('mixed@case.com'));
+    expect(encryptEmail('Mixed@Case.com')).not.toBe(encryptDeterministic('mixed@case.com'));
   });
 });

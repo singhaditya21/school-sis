@@ -173,25 +173,6 @@ function requireSecret(
   validateSecretValue(issues, variable, env[variable], minLength);
 }
 
-function requireOneSecret(
-  env: NodeJS.ProcessEnv,
-  issues: DeploymentContractIssue[],
-  variables: string[],
-): void {
-  const configured = variables.find((variable) =>
-    Boolean(env[variable]?.trim()),
-  );
-  if (!configured) {
-    addIssue(
-      issues,
-      variables.join(" or "),
-      `one of ${variables.join(", ")} must be configured with at least ${SECRET_MIN_LENGTH} characters.`,
-    );
-    return;
-  }
-  validateSecretValue(issues, configured, env[configured]);
-}
-
 function parseDatabaseUrl(
   issues: DeploymentContractIssue[],
   variable: string,
@@ -792,7 +773,28 @@ export function validateDeploymentContract(
   }
 
   requireSecret(env, issues, "SESSION_SECRET");
-  requireOneSecret(env, issues, ["PII_ENCRYPTION_KEY", "ENCRYPTION_KEY"]);
+  requireSecret(env, issues, "PII_ENCRYPTION_KEY");
+  if (env.ENCRYPTION_KEY?.trim()) {
+    addIssue(
+      issues,
+      "ENCRYPTION_KEY",
+      "is a retired legacy fallback and must not be present in preview or production.",
+    );
+  }
+  if (env.PII_ENCRYPTION_PREVIOUS_KEY?.trim()) {
+    validateSecretValue(
+      issues,
+      "PII_ENCRYPTION_PREVIOUS_KEY",
+      env.PII_ENCRYPTION_PREVIOUS_KEY,
+    );
+    if (env.PII_ENCRYPTION_PREVIOUS_KEY === env.PII_ENCRYPTION_KEY) {
+      addIssue(
+        issues,
+        "PII_ENCRYPTION_PREVIOUS_KEY",
+        "must differ from PII_ENCRYPTION_KEY.",
+      );
+    }
+  }
   requireSecret(env, issues, "METRICS_TOKEN");
   requireSecret(env, issues, "JOB_DISPATCH_SECRET");
   const tenantContextAudience = requireValue(

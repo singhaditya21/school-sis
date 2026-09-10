@@ -38,7 +38,7 @@ export async function registerAlumni(data: {
     const { rows } = await pool.query(
         `INSERT INTO alumni_profiles (tenant_id, name, email_enc, phone_enc, batch, current_company, designation, location, linkedin)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, tenant_id AS "tenantId", name, COALESCE(email_enc, email) AS email, COALESCE(phone_enc, phone) AS phone, batch, current_company AS "currentCompany", designation, location, linkedin AS "linkedIn", is_verified AS "isVerified", created_at AS "createdAt"`,
-        [tenantId, data.name, encryptEmail(data.email), data.phone ? encryptDeterministic(data.phone) : null, data.batch, data.currentCompany || null, data.designation || null, data.location || null, data.linkedIn || null]
+        [tenantId, data.name, encryptEmail(data.email), data.phone ? encryptDeterministic(data.phone, 'alumni-profiles.phone') : null, data.batch, data.currentCompany || null, data.designation || null, data.location || null, data.linkedIn || null]
     );
     return { success: true, alumni: decodeAlumnus(rows[0]) };
 }

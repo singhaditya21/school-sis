@@ -1,7 +1,7 @@
 import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import type { QueryResult } from 'pg';
 import { shouldRequireMfaEnrollment } from './identity';
-import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
+import { encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 
 type SSOCallbackResult =
     | {
@@ -198,7 +198,7 @@ async function findExistingIdentityUser(
         return { ok: false, error: 'Enterprise SSO tenant mapping is invalid.' };
     }
 
-    const values: string[] = [email, encryptEmail(email)];
+    const values: Array<string | string[]> = [email, encryptEmailCandidates(email)];
     const tenantFilter = tenantId ? 'AND u.tenant_id = $3' : '';
     if (tenantId) values.push(tenantId);
 
@@ -224,7 +224,7 @@ async function findExistingIdentityUser(
          FROM users u
          JOIN tenants t ON t.id = u.tenant_id
          LEFT JOIN companies c ON c.id = t.company_id
-         WHERE (u.email_enc = $2 OR lower(u.email) = lower($1))
+         WHERE (u.email_enc = ANY($2::text[]) OR lower(u.email) = lower($1))
          ${tenantFilter}
          LIMIT 2`,
         values,

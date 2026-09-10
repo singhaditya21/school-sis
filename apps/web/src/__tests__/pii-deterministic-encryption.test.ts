@@ -4,6 +4,7 @@ import {
   encryptDeterministic,
   decryptDeterministic,
   encryptEmail,
+  encryptEmailCandidates,
   encryptPhone,
   encryptIdNumber,
   decryptField,
@@ -19,8 +20,8 @@ describe('deterministic PII encryption', () => {
   it('round-trips and never leaks the plaintext', () => {
     const ct = encryptDeterministic('9876543210');
     expect(ct).not.toContain('9876543210');
-    expect(ct.startsWith('det.v1:')).toBe(true);
-    expect(ct.split(':')).toHaveLength(4);
+    expect(ct.startsWith('det.v2:')).toBe(true);
+    expect(ct.split(':')).toHaveLength(6);
     expect(decryptDeterministic(ct)).toBe('9876543210');
     expect(decrypt(ct)).toBe('9876543210'); // decrypt() dispatches on the prefix
   });
@@ -47,6 +48,36 @@ describe('deterministic PII encryption', () => {
     expect(() => decryptDeterministic('not-deterministic')).toThrow();
   });
 
+  it('decrypts and finds both previous-key v2 and legacy v1 lookup values during rotation', () => {
+    const originalCurrent = process.env.PII_ENCRYPTION_KEY;
+    const originalPrevious = process.env.PII_ENCRYPTION_PREVIOUS_KEY;
+    const previous = 'previous-pii-key-material-32-characters-long';
+    const current = 'current-pii-key-material-32-characters-long-x';
+
+    try {
+      process.env.PII_ENCRYPTION_KEY = previous;
+      delete process.env.PII_ENCRYPTION_PREVIOUS_KEY;
+      const previousV2 = encryptEmail('rotate@example.edu');
+      const previousV1 = encryptEmailCandidates('rotate@example.edu').find((value) => value.startsWith('det.v1:'));
+      expect(previousV1).toBeDefined();
+
+      process.env.PII_ENCRYPTION_KEY = current;
+      process.env.PII_ENCRYPTION_PREVIOUS_KEY = previous;
+      const candidates = encryptEmailCandidates('rotate@example.edu');
+
+      expect(candidates).toContain(previousV2);
+      expect(candidates).toContain(previousV1);
+      expect(decryptDeterministic(previousV2)).toBe('rotate@example.edu');
+      expect(decryptDeterministic(previousV1!)).toBe('rotate@example.edu');
+      expect(encryptEmail('rotate@example.edu')).not.toBe(previousV2);
+    } finally {
+      if (originalCurrent === undefined) delete process.env.PII_ENCRYPTION_KEY;
+      else process.env.PII_ENCRYPTION_KEY = originalCurrent;
+      if (originalPrevious === undefined) delete process.env.PII_ENCRYPTION_PREVIOUS_KEY;
+      else process.env.PII_ENCRYPTION_PREVIOUS_KEY = originalPrevious;
+    }
+  });
+
   it('preserves the empty-value contract', () => {
     expect(encryptDeterministic('')).toBe('');
     expect(encryptEmail('')).toBe('');
@@ -67,7 +98,7 @@ describe('field helpers normalise before encrypting', () => {
   });
 });
 
-describe('legacy random-IV encrypt is untouched', () => {
+describe('random-IV encryption', () => {
   it('stays non-deterministic (a fresh IV per call)', () => {
     expect(encrypt('same')).not.toBe(encrypt('same'));
     expect(decrypt(encrypt('same'))).toBe('same');

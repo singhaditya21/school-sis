@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
 import { z } from 'zod';
 import { pool } from '@/lib/db';
-import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
+import { encryptEmail, encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 import { recordIntegrationAudit, runWithIntegrationTenant } from '@/lib/integrations/api-platform';
 import {
     authenticateScimRequest,
@@ -67,8 +67,8 @@ export async function GET(request: Request) {
 
     if (filteredEmail) {
         values.push(filteredEmail);
-        values.push(encryptEmail(filteredEmail));
-        filterClause = `AND (email_enc = $${values.length} OR lower(email) = lower($${values.length - 1}))`;
+        values.push(encryptEmailCandidates(filteredEmail));
+        filterClause = `AND (email_enc = ANY($${values.length}::text[]) OR lower(email) = lower($${values.length - 1}))`;
     }
 
     const totalResult = await pool.query<{ total: string }>(
@@ -154,8 +154,8 @@ export async function POST(request: Request) {
     const { firstName, lastName } = scimNameFromPayload(payload);
 
     const duplicate = await pool.query(
-        `SELECT id FROM users WHERE tenant_id = $1 AND (email_enc = $3 OR lower(email) = lower($2)) LIMIT 1`,
-        [auth.tenantId, email, encryptEmail(email)],
+        `SELECT id FROM users WHERE tenant_id = $1 AND (email_enc = ANY($3::text[]) OR lower(email) = lower($2)) LIMIT 1`,
+        [auth.tenantId, email, encryptEmailCandidates(email)],
     );
     if (duplicate.rows.length > 0) {
         return scimError('A user with this email already exists in this tenant.', 409, 'uniqueness');

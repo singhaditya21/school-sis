@@ -4,6 +4,7 @@ import {
   getDatabaseHealth,
   getIntegrationConfigurationHealth,
   getMigrationHealth,
+  getPiiEncryptionHealth,
   getPlatformDatabaseHealth,
   getTenantContextHealth,
 } from "@/lib/observability/snapshot";
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
     database,
     integrationConfiguration,
     migrations,
+    piiEncryption,
     platformDatabase,
     rateLimit,
     tenantContext,
@@ -30,6 +32,7 @@ export async function GET(request: Request) {
     getDatabaseHealth(),
     getIntegrationConfigurationHealth(),
     getMigrationHealth(),
+    getPiiEncryptionHealth(),
     getPlatformDatabaseHealth(),
     getRateLimitHealth(),
     getTenantContextHealth(),
@@ -41,6 +44,7 @@ export async function GET(request: Request) {
       (integrationConfiguration.enforced === true &&
         integrationConfiguration.mockConnectionCount === 0)) &&
     migrations.status === "healthy" &&
+    piiEncryption.status === "healthy" &&
     platformDatabase.status === "healthy" &&
     rateLimit.status === "healthy" &&
     tenantContext.status === "healthy";
@@ -55,6 +59,7 @@ export async function GET(request: Request) {
       database,
       integrationConfiguration,
       migrations,
+      piiEncryption,
       platformDatabase,
       rateLimit,
       tenantContext,

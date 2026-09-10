@@ -282,8 +282,8 @@ export async function convertLeadToStudent(
         parentFirstName,
         parentLastName,
         'PARENT',
-        encryptDeterministic(lead.parentPhone),
-        encryptDeterministic(lead.parentEmail),
+        encryptDeterministic(lead.parentPhone, 'guardians.phone'),
+        encryptDeterministic(lead.parentEmail, 'guardians.email'),
         true
     ]);
 

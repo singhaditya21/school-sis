@@ -619,6 +619,55 @@ jobs:
           set -euo pipefail
           pnpm exec vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
+      - name: Resolve versioned PII encryption keyring
+        env:
+          PII_ENCRYPTION_CURRENT_VERSION: ${{ vars.PII_ENCRYPTION_CURRENT_VERSION }}
+          PII_ENCRYPTION_KEY_V1: ${{ secrets.PII_ENCRYPTION_KEY_V1 }}
+          PII_ENCRYPTION_KEY_V2: ${{ secrets.PII_ENCRYPTION_KEY_V2 }}
+          PII_ENCRYPTION_ROTATION_MODE: ${{ vars.PII_ENCRYPTION_ROTATION_MODE }}
+        run: |
+          set -euo pipefail
+          case "${PII_ENCRYPTION_CURRENT_VERSION:-v1}" in
+            v1)
+              current="$PII_ENCRYPTION_KEY_V1"
+              previous="$PII_ENCRYPTION_KEY_V2"
+              ;;
+            v2)
+              current="$PII_ENCRYPTION_KEY_V2"
+              previous="$PII_ENCRYPTION_KEY_V1"
+              ;;
+            *)
+              echo "PII_ENCRYPTION_CURRENT_VERSION must be v1 or v2." >&2
+              exit 1
+              ;;
+          esac
+          if [ "${#current}" -lt 32 ]; then
+            echo "The selected current PII encryption key is missing or too short." >&2
+            exit 1
+          fi
+          if [ -n "$previous" ] && [ "${#previous}" -lt 32 ]; then
+            echo "The alternate PII encryption key is too short." >&2
+            exit 1
+          fi
+          if [ -n "$previous" ] && [ "$current" = "$previous" ]; then
+            echo "The current and previous PII encryption keys must differ." >&2
+            exit 1
+          fi
+          case "${PII_ENCRYPTION_ROTATION_MODE:-off}" in
+            off|execute|audit) ;;
+            *)
+              echo "PII_ENCRYPTION_ROTATION_MODE must be off, execute, or audit." >&2
+              exit 1
+              ;;
+          esac
+          echo "::add-mask::$current"
+          echo "PII_ENCRYPTION_KEY=$current" >> "$GITHUB_ENV"
+          if [ -n "$previous" ]; then
+            echo "::add-mask::$previous"
+            echo "PII_ENCRYPTION_PREVIOUS_KEY=$previous" >> "$GITHUB_ENV"
+          fi
+          echo "PII_ENCRYPTION_ROTATION_MODE=${PII_ENCRYPTION_ROTATION_MODE:-off}" >> "$GITHUB_ENV"
+
       - name: Verify pooled Vercel runtime binding and credential separation
         env:
           NEON_DIRECT_URL: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
@@ -844,6 +893,8 @@ jobs:
             ...databaseValues.flatMap((value) => [value, decodeURIComponent(new URL(value).password)]),
             process.env.TENANT_CONTEXT_SIGNING_SECRET,
             process.env.TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET,
+            process.env.PII_ENCRYPTION_KEY,
+            process.env.PII_ENCRYPTION_PREVIOUS_KEY,
           ].filter((value) => typeof value === 'string' && value.length >= 12);
           const pending = [outputCandidates[0]];
           while (pending.length > 0) {
@@ -988,6 +1039,17 @@ jobs:
             --sha "$TARGET_SHA" \
             --ref main
           pnpm db:migrate:deploy -- --target production
+          case "$PII_ENCRYPTION_ROTATION_MODE" in
+            execute)
+              pnpm --filter @school-sis/web exec tsx scripts/backfill-encrypt-pii-identifiers.ts
+              pnpm --filter @school-sis/web db:pii:rotate -- --execute --batch-size=250
+              pnpm --filter @school-sis/web db:pii:rotate -- --assert-current
+              ;;
+            audit)
+              pnpm --filter @school-sis/web db:pii:rotate -- --assert-current
+              ;;
+            off) ;;
+          esac
 
       - name: Deploy prebuilt production candidate without assigning domains
         id: candidate
@@ -1000,6 +1062,10 @@ jobs:
         run: |
           set -euo pipefail
           deployment_json="$RUNNER_TEMP/vercel-production-candidate.json"
+          pii_environment=(--env PII_ENCRYPTION_KEY)
+          if [ -n "${PII_ENCRYPTION_PREVIOUS_KEY:-}" ]; then
+            pii_environment+=(--env PII_ENCRYPTION_PREVIOUS_KEY)
+          fi
           pnpm exec vercel deploy \
             --prebuilt \
             --archive=tgz \
@@ -1020,6 +1086,7 @@ jobs:
             --env TENANT_CONTEXT_AUDIENCE \
             --env TENANT_CONTEXT_SIGNING_KEY_ID \
             --env TENANT_CONTEXT_SIGNING_SECRET \
+            "${pii_environment[@]}" \
             --env "GIT_COMMIT_SHA=$TARGET_SHA" \
             >"$deployment_json"
           candidate_url="$(jq -er '(.deployment // .).url | select(type == "string" and length > 0)' "$deployment_json")"

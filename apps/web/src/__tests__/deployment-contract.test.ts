@@ -186,6 +186,29 @@ describe("deployment environment contract", () => {
     );
   });
 
+  it("requires a dedicated PII key and rejects unsafe rotation configuration", () => {
+    const legacyOnly = validEnvironment();
+    legacyOnly.ENCRYPTION_KEY = legacyOnly.PII_ENCRYPTION_KEY;
+    delete legacyOnly.PII_ENCRYPTION_KEY;
+    expect(issueVariables(legacyOnly)).toEqual(
+      expect.arrayContaining(["PII_ENCRYPTION_KEY", "ENCRYPTION_KEY"]),
+    );
+
+    const reusedPrevious = validEnvironment();
+    reusedPrevious.PII_ENCRYPTION_PREVIOUS_KEY =
+      reusedPrevious.PII_ENCRYPTION_KEY;
+    expect(issueVariables(reusedPrevious)).toContain(
+      "PII_ENCRYPTION_PREVIOUS_KEY",
+    );
+
+    const validRotation = validEnvironment();
+    validRotation.PII_ENCRYPTION_PREVIOUS_KEY =
+      "previous-pii-2kLm4P6vR9xT1cF3hJ5sD0aB7eG8uY";
+    expect(issueVariables(validRotation)).not.toContain(
+      "PII_ENCRYPTION_PREVIOUS_KEY",
+    );
+  });
+
   it("rejects incomplete, reused, malformed, and contradictory previous keys", () => {
     const incomplete = validEnvironment();
     incomplete.TENANT_CONTEXT_PREVIOUS_KEY_ID = "production-v0";

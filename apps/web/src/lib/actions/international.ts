@@ -61,7 +61,7 @@ export async function createHostFamilyAction(data: { familyName: string; address
     await pool.query(`
         INSERT INTO host_families (tenant_id, family_name, address, phone_enc, background_checked)
         VALUES ($1, $2, $3, $4, $5)
-    `, [session.tenantId, data.familyName, data.address, encryptDeterministic(data.phone), data.backgroundChecked ? new Date(data.backgroundChecked) : null]);
+    `, [session.tenantId, data.familyName, data.address, encryptDeterministic(data.phone, 'host-families.phone'), data.backgroundChecked ? new Date(data.backgroundChecked) : null]);
 
     revalidatePath('/international');
     return { success: true };

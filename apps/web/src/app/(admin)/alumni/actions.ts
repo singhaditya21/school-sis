@@ -10,7 +10,7 @@ import { revalidatePath } from 'next/cache';
 
 import { requireAuth } from '@/lib/auth/middleware';
 import { pool } from '@/lib/db';
-import { encryptEmail, encryptDeterministic, decryptFieldTolerant } from '@/lib/encryption';
+import { encryptEmail, encryptEmailCandidates, encryptDeterministic, decryptFieldTolerant } from '@/lib/encryption';
 
 import { ALUMNI_EVENT_STATUSES, ALUMNI_EVENT_TYPES } from './constants';
 
@@ -114,8 +114,8 @@ export async function addAlumniProfile(input: {
     }
 
     const { rows: duplicate } = await pool.query(
-        `SELECT id FROM alumni_profiles WHERE tenant_id = $1 AND (email_enc = $2 OR lower(email) = lower($3))`,
-        [tenantId, encryptEmail(email), email],
+        `SELECT id FROM alumni_profiles WHERE tenant_id = $1 AND (email_enc = ANY($2::text[]) OR lower(email) = lower($3))`,
+        [tenantId, encryptEmailCandidates(email), email],
     );
     if (duplicate.length) {
         return { success: false, error: 'An alumnus with that email is already on the register.' };
@@ -130,7 +130,7 @@ export async function addAlumniProfile(input: {
             tenantId,
             name,
             encryptEmail(email),
-            input.phone?.trim() ? encryptDeterministic(input.phone.trim()) : null,
+            input.phone?.trim() ? encryptDeterministic(input.phone.trim(), 'alumni-profiles.phone') : null,
             batch,
             graduationYear,
             input.currentCompany?.trim() || null,

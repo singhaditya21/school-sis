@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { generateSSOAuthorizationUrl, handleSSOCallback } from '@/lib/auth/enterprise';
 import { verifyMFACode } from '@/lib/auth/mfa';
 import { establishSession, shouldRequireMfaEnrollment } from '@/lib/auth/identity';
-import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
+import { encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 
 /**
  * Login action — production-ready authentication.
@@ -98,8 +98,8 @@ async function loginActionV2WithBypass(formData: FormData) {
                     u.mfa_enabled as "mfaEnabled"
                  FROM users u
                  LEFT JOIN tenants t ON t.id = u.tenant_id
-                 WHERE (u.email_enc = $2 OR u.email = $1) LIMIT 1`,
-                [normalizedEmail, encryptEmail(normalizedEmail)]
+                 WHERE (u.email_enc = ANY($2::text[]) OR u.email = $1) LIMIT 1`,
+                [normalizedEmail, encryptEmailCandidates(normalizedEmail)]
             );
             const user = platformRows[0];
 
@@ -193,8 +193,8 @@ async function loginActionV2WithBypass(formData: FormData) {
                     is_active as "isActive",
                     mfa_enabled as "mfaEnabled"
                  FROM users
-                 WHERE (email_enc = $3 OR email = $1) AND tenant_id = $2 LIMIT 1`,
-                [email, tenantRecord.tenantId, encryptEmail(email)]
+                 WHERE (email_enc = ANY($3::text[]) OR email = $1) AND tenant_id = $2 LIMIT 1`,
+                [email, tenantRecord.tenantId, encryptEmailCandidates(email)]
             );
             const user = userRows[0];
 

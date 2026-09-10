@@ -343,6 +343,21 @@ describe("production release failure-path gates", () => {
     }
   });
 
+  it("resolves protected PII key slots and rotates Neon only when explicitly enabled", () => {
+    expect(workflow).toContain("Resolve versioned PII encryption keyring");
+    expect(workflow).toContain("secrets.PII_ENCRYPTION_KEY_V1");
+    expect(workflow).toContain("secrets.PII_ENCRYPTION_KEY_V2");
+    expect(workflow).toContain('PII_ENCRYPTION_CURRENT_VERSION must be v1 or v2.');
+    expect(workflow).toContain('PII_ENCRYPTION_ROTATION_MODE must be off, execute, or audit.');
+    expect(workflow).toContain("scripts/backfill-encrypt-pii-identifiers.ts");
+    expect(workflow).toContain("db:pii:rotate -- --execute --batch-size=250");
+    expect(workflow).toContain("db:pii:rotate -- --assert-current");
+    expect(workflow).toContain("--env PII_ENCRYPTION_KEY");
+    expect(workflow).toContain("--env PII_ENCRYPTION_PREVIOUS_KEY");
+    expect(workflow).toContain("process.env.PII_ENCRYPTION_KEY");
+    expect(workflow).toContain("process.env.PII_ENCRYPTION_PREVIOUS_KEY");
+  });
+
   it("captures output from commands expected to fail in an -e safe way", () => {
     // GitHub runs every `run:` as `bash -e {0}`. A bare `out="$(cmd)"` where cmd
     // exits non-zero kills the shell BEFORE the next line, so a step that means

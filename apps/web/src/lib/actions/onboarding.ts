@@ -2,7 +2,7 @@
 
 import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { hash } from 'bcryptjs';
-import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
+import { encryptEmail, encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 import { cookies } from 'next/headers';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, SessionData } from '@/lib/auth/session';
@@ -85,7 +85,7 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
         const domainUrl = `${domain}.scholarmind.app`;
 
         // Ensure email isn't already used
-        const { rows: existingUser } = await pool.query('SELECT id FROM users WHERE (email_enc = $2 OR lower(email) = lower($1)) LIMIT 1', [email, encryptEmail(email)]);
+        const { rows: existingUser } = await pool.query('SELECT id FROM users WHERE (email_enc = ANY($2::text[]) OR lower(email) = lower($1)) LIMIT 1', [email, encryptEmailCandidates(email)]);
         if (existingUser.length > 0) {
             return { error: 'An administrator with this email already exists.' };
         }
