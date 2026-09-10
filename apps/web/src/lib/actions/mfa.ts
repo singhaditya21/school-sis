@@ -47,7 +47,7 @@ async function currentSession() {
  * Start enrolment for the signed-in administrator.
  *
  * Deliberately callable while `mfaVerified` is false — that is the entire state
- * this flow exists to resolve. The middleware allows the enrolment route for a
+ * this flow exists to resolve. The proxy allows the enrolment route for a
  * session in exactly that position; every other route stays gated.
  */
 export async function beginMfaEnrollment(): Promise<BeginMfaEnrollmentResult> {
@@ -82,7 +82,7 @@ export async function beginMfaEnrollment(): Promise<BeginMfaEnrollmentResult> {
  * Verify the administrator's first code and activate MFA.
  *
  * On success the session is marked verified, which is what releases the
- * middleware gate — without it a freshly-created administrator is redirected to
+ * proxy gate — without it a freshly-created administrator is redirected to
  * /login?mfa=required forever, which is precisely how onboarding used to dead-end.
  */
 export async function completeMfaEnrollment(

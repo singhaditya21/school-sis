@@ -129,7 +129,7 @@ async function loginActionV2WithBypass(formData: FormData) {
             // An MFA-required role that has not yet enrolled is deliberately NOT
             // rejected here. It receives a restricted session — establishSession
             // leaves mfaVerified false — and is routed to /mfa/setup below, the one
-            // route the middleware permits in that state, so it can enrol and then
+            // route the proxy permits in that state, so it can enrol and then
             // use the account. Rejecting it (the old behaviour) bricked every admin
             // not born through /setup's own auto-login: enrolment needs a session,
             // and login refused to grant one, so the account could never be used.
@@ -224,7 +224,7 @@ async function loginActionV2WithBypass(formData: FormData) {
             // An MFA-required role that has not yet enrolled is deliberately NOT
             // rejected here. It receives a restricted session — establishSession
             // leaves mfaVerified false — and is routed to /mfa/setup below, the one
-            // route the middleware permits in that state, so it can enrol and then
+            // route the proxy permits in that state, so it can enrol and then
             // use the account. Rejecting it (the old behaviour) bricked every admin
             // not born through /setup's own auto-login: enrolment needs a session,
             // and login refused to grant one, so the account could never be used.

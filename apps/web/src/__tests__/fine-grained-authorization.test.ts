@@ -209,5 +209,7 @@ describe('Fine-grained authorization architecture', () => {
             .filter((permission) => !hasFineGrainedPermission('SCHOOL_ADMIN', permission));
 
         expect(missingForSchoolAdmin).toEqual([]);
+        expect(hasFineGrainedPermission('SCHOOL_ADMIN', 'diary:read')).toBe(true);
+        expect(hasFineGrainedPermission('SCHOOL_ADMIN', 'diary:write')).toBe(true);
     });
 });

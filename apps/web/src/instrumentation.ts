@@ -25,8 +25,11 @@ export async function register() {
   if (process.env.NEXT_PUBLIC_API_MOCKING === 'enabled') {
     if (process.env.NEXT_RUNTIME === 'nodejs') {
       const { server } = await import('./mocks/node');
+      const { logger } = await import('./lib/observability/logger');
       server.listen({ onUnhandledRequest: 'bypass' });
-      console.log('MSW Node Server listening for E2E mocks');
+      logger.info('mock.server_started', 'MSW Node Server is listening for E2E mocks', {
+        source: 'instrumentation',
+      });
     }
   }
 }

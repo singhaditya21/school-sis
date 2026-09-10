@@ -100,6 +100,7 @@ const CORE_SCHOOL_ADMIN_PERMISSIONS = grants([
     'communication:*',
     'messages:*',
     'messaging:*',
+    'diary:*',
     'homework:*',
     'lessonplan:*',
     'quiz:*',

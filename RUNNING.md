@@ -8,7 +8,7 @@ Production and preview deployments are a separate, GitHub-Actions-owned path to 
 here deploys anything.
 
 ## Prerequisites
-- **Node 24.x** and **pnpm 9.15.9** (`corepack enable`)
+- **Node 24.x** and **pnpm 9.15.9** (`corepack enable && corepack prepare pnpm@9.15.9 --activate`). The root `preinstall`/`preflight` guard rejects other toolchains before they can mutate the lockfile.
 - **PostgreSQL 16** client + server — macOS: `brew install postgresql@16`
 - **pgvector** (for AI/search embedding columns) — one-time:
   ```

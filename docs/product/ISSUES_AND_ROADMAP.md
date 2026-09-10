@@ -62,12 +62,22 @@ Debt reduction and scale-readiness; parallelizable with pilot operations.
 
 | Issue                                                        | Title                                                                                       | Status         | Areas                                      |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------ |
-| [#30](https://github.com/singhaditya21/school-sis/issues/30) | Reduce static risk debt (console.\*, any, raw SQL, alerts) with downward-only CI thresholds | 🟡 In progress | `hygiene`, `observability`, `devex`        |
+| [#30](https://github.com/singhaditya21/school-sis/issues/30) | Reduce static risk debt (console.\*, any, raw SQL, alerts) with downward-only CI thresholds | 🟢 Done        | `hygiene`, `observability`, `devex`        |
 | [#31](https://github.com/singhaditya21/school-sis/issues/31) | Harden website lead capture: production API env, anti-bot controls, consent, CRM routing    | 🟡 In progress | `website`, `integrations`, `observability` |
-| [#32](https://github.com/singhaditya21/school-sis/issues/32) | Enforce pnpm toolchain via Corepack and a preflight guard; document in dev guide            | 🟡 In progress | `devex`, `infra`, `hygiene`                |
-| [#33](https://github.com/singhaditya21/school-sis/issues/33) | Migrate middleware to proxy convention and revisit static cache headers for Next.js 16      | 🔴 Open        | `infra`, `devex`                           |
+| [#32](https://github.com/singhaditya21/school-sis/issues/32) | Enforce pnpm toolchain via Corepack and a preflight guard; document in dev guide            | 🟢 Done        | `devex`, `infra`, `hygiene`                |
+| [#33](https://github.com/singhaditya21/school-sis/issues/33) | Migrate middleware to proxy convention and revisit static cache headers for Next.js 16      | 🟢 Done        | `infra`, `devex`                           |
 | [#34](https://github.com/singhaditya21/school-sis/issues/34) | Complete side-service test tooling and CI for Python/Go/Rust services                       | 🟢 Done | `testing`, `services`, `devex`             |
-| [#37](https://github.com/singhaditya21/school-sis/issues/37) | Stabilize the full Playwright E2E suite and restore reliable scheduled coverage             | 🔴 Open        | `testing`, `quality`, `ci`                 |
+| [#37](https://github.com/singhaditya21/school-sis/issues/37) | Stabilize the full Playwright E2E suite and restore reliable scheduled coverage             | 🟢 Done        | `testing`, `quality`, `ci`                 |
+
+---
+
+## Phase 2 release progress (2026-09-10)
+
+- **#30 — debt ratchet complete**: CI now prevents regressions across explicit `any`, `console.log/debug`, browser dialogs, and direct PostgreSQL query calls. Console/debug and native-dialog debt are zero; typed and raw-SQL baselines can only move downward.
+- **#31 — durable lead intake live-ready**: website submissions are server-proxied through a shared secret, bot- and rate-limited, consent-versioned, encrypted at rest, visible in HQ, and durably queued in Neon. The external CRM webhook URL and signing secret remain an operator-supplied integration before external delivery can be marked done.
+- **#32 — deterministic toolchain complete**: Node 24 and pnpm 9.15.9 are pinned, validated before install/build, and documented for local and CI use.
+- **#33 — Next.js 16 migration complete**: request security moved from deprecated middleware to `proxy.ts`; cache behavior is explicit and production builds pass on Next.js 16.3.4.
+- **#37 — maintained E2E complete**: pull requests and the nightly schedule execute the same 19-test suite, including signed-in staff/parent navigation and encrypted lead persistence against a fresh migrated database.
 
 ---
 
@@ -144,8 +154,8 @@ Adapted from the audit's closure plan and updated after completion of the priori
 
 ### Subsequent quality and scale work
 
-1. Restore reliable full-suite Playwright coverage — issue #37.
-2. Static risk-debt reduction — issue #30; lead-capture hardening — issue #31; toolchain pinning — issue #32; Next.js proxy migration — issue #33; side-service test tooling — issue #34; repository hygiene — issue #27.
+1. Configure and prove external CRM delivery for the durable lead queue — issue #31.
+2. Continue lowering the enforced type and direct-SQL debt baselines as normal maintenance.
 
 ---
 
@@ -162,7 +172,7 @@ Adapted from the audit's closure plan and updated after completion of the priori
 | Integrations                                               | Runtime mocks are removed; pilot requires configured provider credentials, delivery evidence (#25), and integration-specific UAT.     |
 | Mobile app                                                 | Not production-ready until real auth + secure payments (#21).                                                                         |
 | Operator/SRE console                                       | Internal-only until incident/runbook/UAT evidence.                                                                                    |
-| Marketing website                                          | Launch-ready after lead-capture ops evidence (#31).                                                                                   |
+| Marketing website                                          | Durable lead intake is launch-ready; external CRM delivery still needs provider configuration and evidence (#31).                    |
 
 ---
 

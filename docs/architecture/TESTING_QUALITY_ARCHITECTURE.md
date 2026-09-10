@@ -15,7 +15,7 @@ School SIS uses a layered quality model that keeps fast checks cheap while reser
 ## Quality Gates
 
 - Every pull request runs infrastructure validation, SQL migration validation, TypeScript, build, lint, architecture contract checks, and unit tests.
-- **Only the E2E smoke suite gates pull requests.** The full Playwright suite is manual — `workflow_dispatch` with `suite=full`, across 8 shards — and is not a merge requirement until the suite is stabilised (issue #37). The nightly cron also runs smoke, not full. Treat a green PR as "smoke passed", not "end-to-end verified".
+- **The maintained Playwright suite gates pull requests and runs nightly.** It uses the current school-code/MFA contract and includes the authenticated staff/parent navigation sweep. Historical generated specs that target retired login flows are explicitly excluded and are not counted as coverage; see `apps/web/e2e/README.md`.
 - Unit tests assert architecture and policy far more than behaviour, and almost none render a page or execute its SQL. A green pipeline is not evidence that a screen loads; verify data-facing changes against a real database or by loading the page.
 - Playwright runs use generated `.env.test` files and generated Postgres databases. These files are runtime artifacts and must not be committed.
 - E2E database names are sanitized before use as SQL identifiers.

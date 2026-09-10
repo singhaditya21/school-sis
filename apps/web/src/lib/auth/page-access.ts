@@ -162,7 +162,7 @@ export const PAGE_ACCESS_POLICIES = [
         // Two-factor enrolment. Deliberately `authenticated` rather than
         // role-scoped: the administrator reaching it has a valid session but has
         // not yet cleared the MFA gate, and restricting by role here would lock
-        // out the very accounts that must enrol. The middleware exempts only this
+        // out the very accounts that must enrol. The proxy exempts only this
         // prefix from the MFA redirect, so it is reachable in that one state and
         // nothing else is.
         name: 'mfa-enrollment',

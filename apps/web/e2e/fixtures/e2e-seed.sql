@@ -213,10 +213,11 @@ VALUES
 -- three non-MFA roles exist purely so the route smoke layer can sign in.
 -- The hash is of SEED_USER_PASSWORD as set in .github/workflows/e2e.yml
 -- ("e2e-seed-password-32-characters"); it is a test credential, not a secret.
-DELETE FROM users WHERE email IN ('smoke.finance@greenwood.edu','smoke.registrar@greenwood.edu','smoke.counsellor@greenwood.edu');
+DELETE FROM users WHERE email IN ('smoke.finance@greenwood.edu','smoke.registrar@greenwood.edu','smoke.counsellor@greenwood.edu','smoke.admin@greenwood.edu');
 INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role, is_active)
 VALUES
   ('0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'smoke.finance@greenwood.edu',    '$2a$12$rtRIcbN90xzIGNYbZ/balew0SMhGjd38LHz8rS9D5jEx4QEvSpLEO', 'Smoke', 'Finance',    'FINANCE_LEAD',              true),
   ('0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'smoke.registrar@greenwood.edu',  '$2a$12$rtRIcbN90xzIGNYbZ/balew0SMhGjd38LHz8rS9D5jEx4QEvSpLEO', 'Smoke', 'Registrar',  'REGISTRAR',                 true),
-  ('0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'smoke.counsellor@greenwood.edu', '$2a$12$rtRIcbN90xzIGNYbZ/balew0SMhGjd38LHz8rS9D5jEx4QEvSpLEO', 'Smoke', 'Counsellor', 'STUDENT_SUCCESS_COUNSELOR', true)
+  ('0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'smoke.counsellor@greenwood.edu', '$2a$12$rtRIcbN90xzIGNYbZ/balew0SMhGjd38LHz8rS9D5jEx4QEvSpLEO', 'Smoke', 'Counsellor', 'STUDENT_SUCCESS_COUNSELOR', true),
+  ('0c413c23-6f0f-40ab-bd41-73e6e996ff35', 'smoke.admin@greenwood.edu',      '$2a$12$rtRIcbN90xzIGNYbZ/balew0SMhGjd38LHz8rS9D5jEx4QEvSpLEO', 'Smoke', 'Admin',      'SCHOOL_ADMIN',              true)
 ;

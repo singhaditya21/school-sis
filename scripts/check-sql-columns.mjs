@@ -36,7 +36,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { buildMigrationSchema } from './lib/migration-schema.mjs';
@@ -77,19 +77,20 @@ function splitTopLevel(body) {
 // ─── Column references in application SQL ───────────────────────────────────
 
 function listSourceFiles() {
-    return execFileSync('git', ['ls-files', '-z'], {
+    return [...new Set(execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {
         cwd: REPO_ROOT,
         encoding: 'utf8',
         maxBuffer: 64 * 1024 * 1024,
     })
         .split('\0')
         .filter(Boolean)
+        .filter((file) => existsSync(join(REPO_ROOT, file)))
         .filter(
             (file) =>
                 SOURCE_ROOTS.some((root) => file.startsWith(root)) &&
                 SOURCE_EXTENSIONS.some((ext) => file.endsWith(ext)) &&
                 !file.includes('/node_modules/'),
-        );
+        ))];
 }
 
 function lineOf(text, index) {

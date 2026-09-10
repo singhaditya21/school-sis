@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page, type Response } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Page, type Response } from '@playwright/test';
 import { hash } from 'bcryptjs';
 import { authenticator } from 'otplib';
 import { Client } from 'pg';
@@ -42,8 +42,9 @@ const SCHOOL_CODE = 'GREENWOOD';
  * Rather than script enrolment or bake a secret into every login, the layer
  * creates three least-privilege staff accounts whose roles are NOT in
  * MFA_REQUIRED_ROLES and whose grants in policy.ts cover exactly the routes each
- * group visits. Splitting by role is a feature, not a workaround: it means a
- * permission regression on any of these routes fails the gate.
+ * content group visits. The navigation sweep uses a fourth SCHOOL_ADMIN account
+ * and completes the production MFA enrolment flow before exercising the full
+ * administrator surface.
  */
 interface SmokeUser {
     email: string;
@@ -76,6 +77,14 @@ const WELFARE_USER: SmokeUser = {
     firstName: 'Smoke',
     lastName: 'Counsellor',
     covers: '/attendance',
+};
+
+const ADMIN_USER: SmokeUser = {
+    email: 'smoke.admin@greenwood.edu',
+    role: 'SCHOOL_ADMIN',
+    firstName: 'Smoke',
+    lastName: 'Admin',
+    covers: 'the complete school administrator navigation surface',
 };
 
 /** Seeded guardian of the first seeded student, Aarav Sharma (scripts/seed.ts). */
@@ -135,7 +144,7 @@ function provisionSmokeUsers(): Promise<void> {
 }
 
 /**
- * Create the three staff accounts, as the database owner so RLS does not hide
+ * Create the four staff accounts, as the database owner so RLS does not hide
  * the tenant lookup. Idempotent — a retry re-creates the same row.
  */
 async function provisionSmokeUsersOnce(): Promise<void> {
@@ -158,7 +167,7 @@ async function provisionSmokeUsersOnce(): Promise<void> {
 
         const passwordHash = await hash(seedPassword(), 10);
 
-        for (const user of [FINANCE_USER, REGISTRY_USER, WELFARE_USER]) {
+        for (const user of [FINANCE_USER, REGISTRY_USER, WELFARE_USER, ADMIN_USER]) {
             // Delete-then-insert rather than ON CONFLICT: the unique index is on
             // the expression (tenant_id, lower(email::text)), which is awkward to
             // name as a conflict target and would break if it were ever renamed.
@@ -199,6 +208,22 @@ async function signIn(page: Page, email: string, landingPath: string, covers?: s
                 );
             }),
     ]);
+}
+
+async function signInAndEnrollAdmin(page: Page): Promise<void> {
+    await signIn(page, ADMIN_USER.email, '/mfa/setup', ADMIN_USER.covers);
+    await check(page.locator('[data-testid="mfa-qr"]')).toBeVisible();
+
+    const secret = (await page.locator('[data-testid="mfa-secret"]').innerText()).trim();
+    check(secret, 'administrator MFA enrolment must expose a valid TOTP secret').toMatch(
+        /^[A-Z2-7]{16,}$/,
+    );
+
+    await page.locator('[data-testid="mfa-codes-saved"]').check();
+    await page.fill('[data-testid="mfa-code-input"]', authenticator.generate(secret));
+    await page.locator('[data-testid="mfa-activate"]').click();
+    await page.waitForURL('**/pricing', { timeout: 30_000 });
+    await visit(page, '/dashboard');
 }
 
 /**
@@ -738,26 +763,31 @@ export function registerRouteSmokeTests(): void {
         console.log(`sweeping ${routes.length} route(s): ${routes.join(', ')}`);
         const broken: string[] = [];
         for (const route of routes) {
+            const routePage = await page.context().newPage();
             try {
-                await visit(page, route);
+                await visit(routePage, route);
             } catch (error) {
                 broken.push(`  ${route} — ${(error as Error).message.split('\n')[0]}`);
+            } finally {
+                await routePage.close();
             }
         }
         return broken;
     }
 
     test.describe('Route smoke — staff navigation sweep', () => {
+        let context: BrowserContext;
         let page: Page;
 
         test.beforeAll(async ({ browser }: { browser: Browser }) => {
             await provisionSmokeUsers();
-            page = await browser.newPage();
-            await signIn(page, FINANCE_USER.email, '/dashboard', 'the staff navigation sweep');
+            context = await browser.newContext();
+            page = await context.newPage();
+            await signInAndEnrollAdmin(page);
         });
 
         test.afterAll(async () => {
-            await page?.close();
+            await context?.close();
         });
 
         test('every link the staff sidebar offers renders', async () => {
@@ -782,15 +812,17 @@ export function registerRouteSmokeTests(): void {
     });
 
     test.describe('Route smoke — parent navigation sweep', () => {
+        let context: BrowserContext;
         let page: Page;
 
         test.beforeAll(async ({ browser }: { browser: Browser }) => {
-            page = await browser.newPage();
+            context = await browser.newContext();
+            page = await context.newPage();
             await signIn(page, PARENT_EMAIL, '/overview', 'the parent navigation sweep');
         });
 
         test.afterAll(async () => {
-            await page?.close();
+            await context?.close();
         });
 
         test('every link the parent navigation offers renders', async () => {

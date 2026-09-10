@@ -43,6 +43,7 @@ const TARGETS: RotationTarget[] = [
     deterministicTarget('health_records', 'emergency_phone_enc', 'health-records.emergency-phone'),
     deterministicTarget('health_records', 'doctor_phone_enc', 'health-records.doctor-phone'),
     deterministicTarget('users', 'email_enc', 'email', encryptEmail),
+    deterministicTarget('marketing_leads', 'contact_email_enc', 'email', encryptEmail),
     {
         table: 'users',
         column: 'mfa_secret',

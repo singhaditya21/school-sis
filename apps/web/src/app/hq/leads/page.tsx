@@ -2,6 +2,7 @@ import React from 'react';
 import { requireRole } from '@/lib/auth/middleware';
 import { UserRole } from '@/lib/rbac/permissions';
 import { pool } from '@/lib/db';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import LeadsClient, { type Lead, type StatusAggregate } from './client-page';
 
 export const metadata = {
@@ -24,7 +25,7 @@ export default async function LeadsPage() {
         `SELECT
             id,
             contact_name  AS "contactName",
-            contact_email AS "contactEmail",
+            COALESCE(contact_email_enc, contact_email) AS "contactEmail",
             school_name   AS "schoolName",
             student_capacity AS "studentCapacity",
             pain_points   AS "painPoints",
@@ -38,7 +39,10 @@ export default async function LeadsPage() {
     return (
         <LeadsClient
             statusData={statusRows as StatusAggregate[]}
-            leads={leadRows as Lead[]}
+            leads={(leadRows as Lead[]).map((lead) => ({
+                ...lead,
+                contactEmail: decryptFieldTolerant(lead.contactEmail),
+            }))}
         />
     );
 }

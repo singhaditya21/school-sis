@@ -7,7 +7,7 @@
  * Security design:
  * - The TOTP secret is encrypted with AES-256-GCM before it is stored in the DB
  * - Backup codes are bcrypt-hashed before storage; each is single-use
- * - MFA is enforced at middleware level for SUPER_ADMIN, GROUP_EXECUTIVE,
+ * - MFA is enforced at the proxy level for SUPER_ADMIN, GROUP_EXECUTIVE,
  *   FINANCE_LEAD, and REGISTRAR roles (see middleware.ts enforcement)
  *
  * Dependencies (add to apps/web/package.json):
@@ -149,7 +149,7 @@ export async function verifyMFACode(
         .first();
 
     if (!user?.mfaEnabled || !user.mfaSecret) {
-        // MFA not configured — pass through (enforcement happens at middleware level)
+        // MFA not configured — pass through (enforcement happens at the proxy level)
         return { success: true };
     }
 
@@ -230,7 +230,7 @@ export async function disableMFA(
 
 /**
  * Returns true if the given role requires MFA to be active.
- * Used in middleware.ts to block access until MFA is enrolled.
+ * Used in proxy.ts to block access until MFA is enrolled.
  */
 export function isMFARequired(role: string): boolean {
     return MFA_REQUIRED_ROLES.has(role);

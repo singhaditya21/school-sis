@@ -100,7 +100,7 @@ function tenantHostMatchesSession(hostHint: string, session: SessionData): boole
     return allowed.some((value) => value === hostHint);
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
     const nonce = createCspNonce();
     const contentSecurityPolicy = createContentSecurityPolicy(nonce, {

@@ -6,20 +6,40 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Trash2, ArrowRight } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function AutomationList({ initialWorkflows }: { initialWorkflows: Workflow[] }) {
   const [workflows, setWorkflows] = useState(initialWorkflows);
+  const [pendingDelete, setPendingDelete] = useState<Workflow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const handleToggle = async (id: string, current: boolean) => {
     await toggleWorkflow(id, !current);
     setWorkflows(workflows.map(w => w.id === id ? { ...w, isActive: !current } : w));
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this workflow?")) return;
-    await deleteWorkflow(id);
-    setWorkflows(workflows.filter(w => w.id !== id));
+  const handleDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await deleteWorkflow(pendingDelete.id);
+      setWorkflows(workflows.filter(w => w.id !== pendingDelete.id));
+      setPendingDelete(null);
+      toast.success('Workflow deleted.');
+    } catch {
+      toast.error('Could not delete the workflow.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (workflows.length === 0) {
@@ -49,7 +69,7 @@ export function AutomationList({ initialWorkflows }: { initialWorkflows: Workflo
                 checked={workflow.isActive} 
                 onCheckedChange={() => handleToggle(workflow.id, workflow.isActive)}
               />
-              <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(workflow.id)}>
+              <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setPendingDelete(workflow)} aria-label={`Delete ${workflow.name}`}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
@@ -68,6 +88,24 @@ export function AutomationList({ initialWorkflows }: { initialWorkflows: Workflo
           </CardContent>
         </Card>
       ))}
+      <Dialog open={pendingDelete !== null} onOpenChange={(open) => { if (!open && !deleting) setPendingDelete(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete workflow?</DialogTitle>
+            <DialogDescription>
+              {pendingDelete ? `${pendingDelete.name} will be permanently removed.` : 'This workflow will be permanently removed.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={deleting} onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button type="button" variant="destructive" disabled={deleting} onClick={handleDelete}>
+              {deleting ? 'Deleting…' : 'Delete workflow'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

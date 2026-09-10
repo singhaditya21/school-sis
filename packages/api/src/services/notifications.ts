@@ -51,7 +51,11 @@ export class NotificationService {
       };
 
       const response = await getFirebaseMessaging().send(message);
-      console.log('Successfully sent Firebase Push Notification:', response);
+      console.info(JSON.stringify({
+        level: 'INFO',
+        event: 'notification.firebase.sent',
+        messageId: response,
+      }));
       return { success: true, messageId: response };
     } catch (error) {
       console.error('Error sending Firebase Push Notification:', error);

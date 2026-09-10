@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { Client } from 'pg';
 import { registerRouteSmokeTests } from './route-smoke';
 
 /**
@@ -129,6 +130,67 @@ test.describe('ScholarMind — Smoke Tests', () => {
         expect(url.pathname).toBe('/invoices');
         await expect(page.getByRole('heading', { name: 'Invoices', level: 1 })).toBeVisible();
         await expect(page.locator('[data-testid="filter-pending"]')).toBeVisible();
+    });
+
+    test('lead capture persists consent and queues CRM routing', async ({ request }) => {
+        const token = process.env.LEAD_CAPTURE_PROXY_SECRET;
+        const connectionString = process.env.DIRECT_URL;
+        expect(token).toBeTruthy();
+        expect(connectionString).toBeTruthy();
+
+        const contactName = `Playwright Lead ${Date.now()}`;
+        const response = await request.post('/api/leads', {
+            headers: {
+                'x-lead-capture-token': token!,
+                'x-forwarded-for': '198.51.100.42',
+                'x-lead-referrer': 'https://example.test/campaign',
+            },
+            multipart: {
+                contactName,
+                contactEmail: 'playwright.lead@example.test',
+                schoolName: 'Playwright Academy',
+                studentCapacity: '1500',
+                painPoints: 'Admissions and finance workflows',
+                privacyConsent: 'on',
+                companyWebsite: '',
+                startedAt: String(Date.now() - 2_000),
+                sourceUrl: 'https://example.test/book-demo?utm_source=e2e',
+                utmSource: 'e2e',
+                utmMedium: 'playwright',
+                utmCampaign: 'phase-2',
+            },
+        });
+
+        expect(response.status()).toBe(200);
+        await expect(response.json()).resolves.toEqual({ success: true });
+
+        const client = new Client({ connectionString });
+        await client.connect();
+        try {
+            const { rows } = await client.query(
+                `SELECT lead.contact_email AS "contactEmail",
+                        lead.contact_email_enc AS "contactEmailEnc",
+                        lead.consent_version AS "consentVersion",
+                        lead.crm_status AS "crmStatus",
+                        job.task_name AS "taskName",
+                        job.status AS "jobStatus"
+                   FROM marketing_leads lead
+                   JOIN background_jobs job ON job.payload->>'leadId' = lead.id::text
+                  WHERE lead.contact_name = $1`,
+                [contactName],
+            );
+            expect(rows).toHaveLength(1);
+            expect(rows[0]).toMatchObject({
+                contactEmail: null,
+                consentVersion: 'privacy-2026-09-10',
+                crmStatus: 'QUEUED',
+                taskName: 'route-marketing-lead',
+                jobStatus: 'QUEUED',
+            });
+            expect(rows[0].contactEmailEnc).toEqual(expect.any(String));
+        } finally {
+            await client.end();
+        }
     });
 });
 

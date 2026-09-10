@@ -44,13 +44,27 @@ const CONSTRAINT_KEYWORDS = new Set([
  * @returns {Map<string, Set<string>>} unqualified table name → lowercased column names.
  */
 export function buildMigrationSchema() {
-    const files = execFileSync('git', ['ls-files', 'apps/web/drizzle/*.sql'], {
-        cwd: REPO_ROOT,
-        encoding: 'utf8',
-    })
-        .split('\n')
-        .filter(Boolean)
-        .sort();
+    const files = [
+        ...new Set(
+            execFileSync(
+                'git',
+                [
+                    'ls-files',
+                    '--cached',
+                    '--others',
+                    '--exclude-standard',
+                    '--',
+                    'apps/web/drizzle/*.sql',
+                ],
+                {
+                    cwd: REPO_ROOT,
+                    encoding: 'utf8',
+                },
+            )
+                .split('\n')
+                .filter(Boolean),
+        ),
+    ].sort();
 
     const tables = new Map();
 

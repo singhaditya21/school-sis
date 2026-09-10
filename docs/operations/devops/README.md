@@ -339,6 +339,11 @@ TENANT_BASE_HOSTS=school-sis-web.vercel.app
 INTEGRATIONS_MODE=live
 JOB_QUEUE_MODE=database
 JOB_DISPATCH_SECRET=at_least_32_random_characters
+LEAD_CAPTURE_PROXY_SECRET=same_random_value_as_the_marketing_website
+LEAD_CAPTURE_HASH_KEY=independent_32_byte_random_hex_value
+# Required only when routing queued leads to an external CRM:
+LEAD_CRM_WEBHOOK_URL=https://crm.example.com/webhooks/scholarmind-leads
+LEAD_CRM_WEBHOOK_SECRET=independent_32_byte_random_value
 METRICS_TOKEN=same_value_as_GitHub_secret
 RATE_LIMIT_BACKEND=postgres
 CSP_ENFORCE=true
@@ -354,6 +359,14 @@ keys are verification-only migration inputs and never enter Vercel. The
 migration, tenant-runtime, and platform-runtime URLs must have nonempty,
 pairwise-distinct decoded passwords in addition to distinct role names.
 Environment changes require a new deployment.
+
+The separate `school-sis-website` Vercel project requires
+`LEAD_CAPTURE_API_URL=https://school-sis-web.vercel.app` and the same
+`LEAD_CAPTURE_PROXY_SECRET` as `school-sis-web`. Never expose that secret as a
+`NEXT_PUBLIC_*` variable. Without the optional CRM variables, accepted leads
+remain encrypted and visible in the HQ lead workspace while the durable
+`lead.crm.route` job retries; configure both CRM variables before claiming
+external CRM delivery.
 
 ## Neon production configuration
 

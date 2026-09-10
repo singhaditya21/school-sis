@@ -45,7 +45,7 @@ describe('MFA enrolment login path', () => {
         });
 
         // Logged in, but not through the MFA gate — exactly the state the
-        // middleware confines to /mfa/setup, and the state login now routes there.
+        // The proxy confines access to /mfa/setup, and the state login now routes there.
         expect(session.isLoggedIn).toBe(true);
         expect(session.mfaRequired).toBe(true);
         expect(session.mfaVerified).toBe(false);

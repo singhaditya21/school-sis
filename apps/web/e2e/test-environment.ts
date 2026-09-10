@@ -210,8 +210,8 @@ export function ensurePlaywrightTestEnvironment(options: {
     `DEPLOYMENT_PLATFORM_ROLE="${TEST_APPLICATION_ROLES[1].name}"`,
     'SESSION_SECRET="test-session-secret-32-characters"',
     'NEXTAUTH_SECRET="test-nextauth-secret-32-characters"',
-    'ENCRYPTION_KEY="test-encryption-key-32-characters"',
     'PII_ENCRYPTION_KEY="test-pii-encryption-key-32-characters"',
+    'LEAD_CAPTURE_PROXY_SECRET="test-lead-capture-proxy-secret-32-characters"',
     `TENANT_CONTEXT_AUDIENCE="${TENANT_CONTEXT_AUDIENCE}"`,
     `TENANT_CONTEXT_SIGNING_KEY_ID="${TENANT_CONTEXT_SIGNING_KEY_ID}"`,
     `TENANT_CONTEXT_SIGNING_SECRET="${TENANT_CONTEXT_SIGNING_SECRET}"`,
@@ -232,6 +232,8 @@ export function ensurePlaywrightTestEnvironment(options: {
   process.env.TENANT_CONTEXT_AUDIENCE = TENANT_CONTEXT_AUDIENCE;
   process.env.TENANT_CONTEXT_SIGNING_KEY_ID = TENANT_CONTEXT_SIGNING_KEY_ID;
   process.env.TENANT_CONTEXT_SIGNING_SECRET = TENANT_CONTEXT_SIGNING_SECRET;
+  process.env.LEAD_CAPTURE_PROXY_SECRET =
+    "test-lead-capture-proxy-secret-32-characters";
   process.env.SEED_USER_PASSWORD ||= FALLBACK_SEED_USER_PASSWORD;
 
   return {

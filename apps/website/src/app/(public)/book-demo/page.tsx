@@ -1,24 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle, Building } from 'lucide-react';
 import Link from 'next/link';
 
 export default function BookDemoPage() {
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [errMsg, setErrMsg] = useState('');
+    const [startedAt] = useState(() => String(Date.now()));
+    const [attribution, setAttribution] = useState({
+        sourceUrl: '',
+        utmSource: '',
+        utmMedium: '',
+        utmCampaign: '',
+    });
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        setAttribution({
+            sourceUrl: window.location.href,
+            utmSource: params.get('utm_source') || '',
+            utmMedium: params.get('utm_medium') || '',
+            utmCampaign: params.get('utm_campaign') || '',
+        });
+    }, []);
 
     async function handleSubmit(formData: FormData) {
         setStatus('loading');
         setErrMsg('');
 
-        // Point to the Core Web App API endpoint (using env var locally vs production)
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-        
         try {
-            const res = await fetch(`${API_URL}/api/leads`, {
+            const res = await fetch('/api/leads', {
                 method: 'POST',
-                body: formData
+                body: formData,
+                cache: 'no-store',
             });
 
             const data = await res.json();
@@ -86,6 +101,15 @@ export default function BookDemoPage() {
 
                     <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-8 md:p-10">
                         <form action={handleSubmit} className="space-y-6">
+                            <input type="hidden" name="startedAt" value={startedAt} />
+                            <input type="hidden" name="sourceUrl" value={attribution.sourceUrl} />
+                            <input type="hidden" name="utmSource" value={attribution.utmSource} />
+                            <input type="hidden" name="utmMedium" value={attribution.utmMedium} />
+                            <input type="hidden" name="utmCampaign" value={attribution.utmCampaign} />
+                            <div className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
+                                <label htmlFor="companyWebsite">Company website</label>
+                                <input id="companyWebsite" type="text" name="companyWebsite" tabIndex={-1} autoComplete="off" />
+                            </div>
                             <div className="grid grid-cols-2 gap-6">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 mb-2">Full Name</label>
@@ -101,6 +125,14 @@ export default function BookDemoPage() {
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Institution Name</label>
                                 <input type="text" name="schoolName" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition" placeholder="Franklin High Network" />
                             </div>
+
+                            <label className="flex items-start gap-3 text-sm text-slate-600">
+                                <input type="checkbox" name="privacyConsent" value="true" required className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                                <span>
+                                    I agree that Scholar Mind may use these details to respond to this request under its{' '}
+                                    <Link href="/privacy" className="font-semibold text-indigo-600 hover:text-indigo-700">Privacy Notice</Link>.
+                                </span>
+                            </label>
 
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Total Student Capacity</label>

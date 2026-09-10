@@ -6,15 +6,6 @@ on:
   pull_request:
     branches: ["main"]
   workflow_dispatch:
-    inputs:
-      suite:
-        description: "E2E suite to run"
-        required: true
-        default: smoke
-        type: choice
-        options:
-          - smoke
-          - full
   schedule:
     - cron: "0 2 * * *"
 
@@ -118,12 +109,10 @@ jobs:
         run: pnpm --filter @school-sis/web run db:test:rls
 
   smoke:
-    name: Playwright Smoke
+    name: Playwright Maintained E2E
     needs: build
-    # Runs on push, PR, the nightly schedule, and workflow_dispatch(smoke).
-    # The nightly cron uses the smoke suite (which is stable) so scheduled runs
-    # do not fail-email; the exhaustive suite is opt-in via the `full` job below.
-    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'smoke'
+    # The same production-authenticated suite gates pull requests and runs nightly.
+    # It includes the behavioural navigation sweep registered by smoke.spec.ts.
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -169,98 +158,19 @@ jobs:
       - name: Install Playwright Browsers
         run: pnpm --filter @school-sis/web exec playwright install --with-deps chromium
 
-      - name: Run Playwright Smoke Tests
+      - name: Run Maintained Playwright Suite
         timeout-minutes: 15
         env:
           DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis
           SEED_USER_PASSWORD: e2e-seed-password-32-characters
           TEST_DATABASE_SUFFIX: smoke
           PLAYWRIGHT_GLOBAL_TIMEOUT_MS: "900000"
-        run: pnpm --filter @school-sis/web run test:e2e:smoke
+        run: pnpm --filter @school-sis/web run test:e2e
 
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: playwright-report-smoke
-          path: apps/web/playwright-report/
-          retention-days: 14
-
-  full:
-    name: Playwright Tests (Shard ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
-    needs: build
-    # Manual-only until the suite is stabilised (it currently exceeds the shard
-    # time budget on CI's single worker). Run via the "Run workflow" button with
-    # suite=full. Tracked as a stabilisation issue.
-    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'full'
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    # Run Postgres as a service container for the tests
-    services:
-      postgres:
-        image: pgvector/pgvector:pg18@sha256:2ba9ca5f2e7daa0f0e7723cba1ee9167bab54efd3640516a44ac1a928dd67e7a
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: school_sis
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    strategy:
-      fail-fast: false
-      matrix:
-        # 8 shards keeps per-shard runtime under the 50-minute step budget on
-        # CI's single Playwright worker (4 shards previously timed out).
-        shardIndex: [1, 2, 3, 4, 5, 6, 7, 8]
-        shardTotal: [8]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Restore Next.js build
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: ./apps/web/.next
-          key: ${{ runner.os }}-nextjs-${{ github.sha }}
-
-      - name: Install Playwright Browsers
-        run: pnpm --filter @school-sis/web exec playwright install --with-deps chromium
-
-      - name: Run Playwright Tests
-        timeout-minutes: 50
-        env:
-          # Point the tests to the local Postgres service container
-          DATABASE_URL: postgresql://postgres:password@localhost:5432/school_sis
-          SEED_USER_PASSWORD: e2e-seed-password-32-characters
-          TEST_DATABASE_SUFFIX: shard_${{ matrix.shardIndex }}
-          PLAYWRIGHT_GLOBAL_TIMEOUT_MS: "3000000"
-        run: pnpm --filter @school-sis/web run test:e2e --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
-
-      - name: Upload Playwright report
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: playwright-report-shard-${{ matrix.shardIndex }}
+          name: playwright-report-maintained
           path: apps/web/playwright-report/
           retention-days: 14

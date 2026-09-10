@@ -46,6 +46,7 @@ const TARGETS = [
     // users.email is the LOGIN identifier — encryptEmail (normalising) so every login
     // lookup's encryptEmail(input) matches the stored value. Highest-risk; verify sign-in.
     { table: 'users', plain: 'email', enc: 'email_enc', encrypt: encryptEmail },
+    { table: 'marketing_leads', plain: 'contact_email', enc: 'contact_email_enc', encrypt: encryptEmail },
 ] as const;
 
 const BATCH = 500;

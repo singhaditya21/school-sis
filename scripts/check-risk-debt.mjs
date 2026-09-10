@@ -58,12 +58,18 @@ const METRICS = [
     key: 'consoleLog',
     label: 'console.log/console.debug calls',
     patterns: [/\bconsole\s*\.\s*(?:log|debug)\s*\(/g],
+    excludedFiles: ['apps/web/src/lib/observability/logger.ts'],
   },
   {
     key: 'browserAlert',
     label: 'Browser alert()/confirm()/prompt() calls',
     // word-boundary so `.alert(` methods and identifiers like `setAlert(` don't match
     patterns: [/(?<![\w$.])(?:alert|confirm|prompt)\s*\(/g],
+  },
+  {
+    key: 'rawSqlQuery',
+    label: 'Direct pg query calls',
+    patterns: [/\b(?:pool|client|tx)\s*\.\s*query(?:\s*<[^>\n]+>)?\s*\(/g],
   },
 ];
 
@@ -114,6 +120,7 @@ function computeCounts() {
   for (const file of listSourceFiles()) {
     const content = readFileSync(join(REPO_ROOT, file), 'utf8');
     for (const metric of METRICS) {
+      if (metric.excludedFiles?.includes(file)) continue;
       counts[metric.key] += countOccurrences(content, metric.patterns);
     }
   }

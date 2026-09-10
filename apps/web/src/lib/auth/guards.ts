@@ -30,7 +30,7 @@
  *
  *    Redirect-on-failure is correct here: the caller is a browser and the user
  *    should land on /login. Note that page ACCESS is separately declared in
- *    lib/auth/page-access.ts and enforced by middleware + a CI gate; requireAuth
+ *    lib/auth/page-access.ts and enforced by the request proxy + a CI gate; requireAuth
  *    in the page body is the second line of defence that also gives you tenantId.
  *
  * 2. SERVER ACTION  (lib/actions/*.ts, 'use server')
