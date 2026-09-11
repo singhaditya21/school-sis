@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { CheckCircle, Building } from 'lucide-react';
 import Link from 'next/link';
 
@@ -8,26 +8,16 @@ export default function BookDemoPage() {
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [errMsg, setErrMsg] = useState('');
     const [startedAt] = useState(() => String(Date.now()));
-    const [attribution, setAttribution] = useState({
-        sourceUrl: '',
-        utmSource: '',
-        utmMedium: '',
-        utmCampaign: '',
-    });
-
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        setAttribution({
-            sourceUrl: window.location.href,
-            utmSource: params.get('utm_source') || '',
-            utmMedium: params.get('utm_medium') || '',
-            utmCampaign: params.get('utm_campaign') || '',
-        });
-    }, []);
 
     async function handleSubmit(formData: FormData) {
         setStatus('loading');
         setErrMsg('');
+
+        const params = new URLSearchParams(window.location.search);
+        formData.set('sourceUrl', window.location.href);
+        formData.set('utmSource', params.get('utm_source') || '');
+        formData.set('utmMedium', params.get('utm_medium') || '');
+        formData.set('utmCampaign', params.get('utm_campaign') || '');
 
         try {
             const res = await fetch('/api/leads', {
@@ -102,10 +92,6 @@ export default function BookDemoPage() {
                     <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-8 md:p-10">
                         <form action={handleSubmit} className="space-y-6">
                             <input type="hidden" name="startedAt" value={startedAt} />
-                            <input type="hidden" name="sourceUrl" value={attribution.sourceUrl} />
-                            <input type="hidden" name="utmSource" value={attribution.utmSource} />
-                            <input type="hidden" name="utmMedium" value={attribution.utmMedium} />
-                            <input type="hidden" name="utmCampaign" value={attribution.utmCampaign} />
                             <div className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
                                 <label htmlFor="companyWebsite">Company website</label>
                                 <input id="companyWebsite" type="text" name="companyWebsite" tabIndex={-1} autoComplete="off" />

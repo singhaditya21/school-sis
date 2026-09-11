@@ -74,5 +74,10 @@ export const EXPECTED_DATABASE_MIGRATIONS = [
     "tag": "0014_harden_marketing_lead_intake",
     "createdAt": "1789041600000",
     "hash": "93c7564a6047ffa7c4b526f53c478497546ca047a990b476352b05d504dfa057"
+  },
+  {
+    "tag": "0015_secure_phase4_passport_data",
+    "createdAt": "1789045200000",
+    "hash": "5526bfb78d8c4a33dcf848b9ff317bf362251794dc13d90387477d126563b202"
   }
 ] as const;

@@ -1,65 +1,179 @@
-'use server';
+"use server";
 
-import { sql, identifier } from '@school-sis/api/src/data';
-import { coachingBatches } from '@school-sis/api/src/db/generated/tables';
-import { z } from 'zod';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { sql } from "@/lib/db";
+import { requireRole } from "@/lib/auth/guards";
+import { UserRole } from "@/lib/rbac/permissions";
+import { logger } from "@/lib/observability/logger";
 
-/**
- * The migrated `coaching_batches` table is intentionally minimal:
- *   (id, tenant_id, name, target_exam, start_date, end_date, is_active, created_at)
- * so this action only accepts/stores those fields. The old form also collected
- * `courseId`, `capacity`, and `facultyId`, but there are no columns for them (and no
- * related table), so they are not persisted — adding them back would require a schema
- * migration first. `end_date` is NOT NULL; the form does not yet collect it, so it
- * defaults to one year after the start date when omitted.
- */
+const COACHING_ADMIN_ROLES = [
+  UserRole.PLATFORM_ADMIN,
+  UserRole.SUPER_ADMIN,
+  UserRole.SCHOOL_ADMIN,
+  UserRole.PRINCIPAL,
+  UserRole.REGISTRAR,
+] as const;
+
 const createBatchSchema = z.object({
-  tenantId: z.string().uuid(),
-  name: z.string().min(3, "Batch name must be at least 3 characters long"),
-  examTarget: z.enum(['JEE', 'NEET', 'UPSC', 'CAT', 'CLAT', 'GMAT', 'GRE', 'OTHER']),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD format"),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD format").optional().nullable(),
+  name: z
+    .string()
+    .trim()
+    .min(3, "Batch name must be at least 3 characters long.")
+    .max(255),
+  examTarget: z.enum([
+    "JEE",
+    "NEET",
+    "UPSC",
+    "CAT",
+    "CLAT",
+    "GMAT",
+    "GRE",
+    "OTHER",
+  ]),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Start date must be valid."),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "End date must be valid."),
 });
 
-/** One year after a YYYY-MM-DD date, as YYYY-MM-DD. */
-function oneYearAfter(date: string): string {
-  const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCFullYear(d.getUTCFullYear() + 1);
-  return d.toISOString().split('T')[0];
-}
+const scheduleTestSchema = z.object({
+  batchId: z.string().uuid("Select a valid batch."),
+  testName: z
+    .string()
+    .trim()
+    .min(3, "Test name must be at least 3 characters long.")
+    .max(255),
+  totalMarks: z.coerce.number().int().min(1).max(10_000),
+  scheduledAt: z.string().datetime({ offset: true }),
+});
 
-export async function createCoachingBatch(formData: FormData) {
-  try {
-    const rawData = {
-      tenantId: formData.get('tenantId')?.toString(),
-      name: formData.get('name')?.toString(),
-      examTarget: formData.get('examTarget')?.toString(),
-      startDate: formData.get('startDate')?.toString(),
-      endDate: formData.get('endDate')?.toString() || null,
+export type CreateCoachingBatchResult = {
+  success: boolean;
+  error?: string;
+  data?: { id: string; name: string };
+};
+
+export async function createCoachingBatch(
+  formData: FormData,
+): Promise<CreateCoachingBatchResult> {
+  const { tenantId, userId } = await requireRole(...COACHING_ADMIN_ROLES);
+  const parsed = createBatchSchema.safeParse({
+    name: formData.get("name"),
+    examTarget: formData.get("examTarget"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+  });
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message || "Invalid batch details.",
     };
+  }
+  if (parsed.data.endDate < parsed.data.startDate) {
+    return {
+      success: false,
+      error: "End date must be on or after the start date.",
+    };
+  }
 
-    const validatedData = createBatchSchema.parse(rawData);
-    const endDate = validatedData.endDate ?? oneYearAfter(validatedData.startDate);
-
-    // tenant_id is set explicitly (and validated as a UUID); the routing pool's RLS
-    // still enforces that it matches the request's signed tenant context. is_active
-    // defaults to true in the schema, so a new batch is active on creation.
-    const [newBatch] = await sql`
-      INSERT INTO ${identifier(coachingBatches.$name)}
-        (tenant_id, name, target_exam, start_date, end_date)
-      VALUES (${validatedData.tenantId}, ${validatedData.name}, ${validatedData.examTarget}, ${validatedData.startDate}, ${endDate})
-      RETURNING *
+  try {
+    const rows = await sql<{ id: string; name: string }>`
+      INSERT INTO coaching_batches (tenant_id, name, target_exam, start_date, end_date)
+      VALUES (
+        ${tenantId},
+        ${parsed.data.name},
+        ${parsed.data.examTarget},
+        ${parsed.data.startDate},
+        ${parsed.data.endDate}
+      )
+      RETURNING id, name
     `;
 
-    revalidatePath('/coaching');
-
-    return { success: true, data: newBatch };
+    revalidatePath("/coaching");
+    revalidatePath("/coaching/tests");
+    return { success: true, data: rows[0] };
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { success: false, errors: error.flatten().fieldErrors };
-    }
-    console.error("Coaching Batch Error:", error);
-    return { success: false, message: 'Failed to create coaching batch.' };
+    logger.error(
+      "coaching.batch_create_failed",
+      "Failed to create coaching batch",
+      {
+        tenantId,
+        actorUserId: userId,
+        source: "coaching",
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      },
+    );
+    return {
+      success: false,
+      error: "The batch could not be created. Please try again.",
+    };
+  }
+}
+
+export async function scheduleCoachingTest(
+  formData: FormData,
+): Promise<CreateCoachingBatchResult> {
+  const { tenantId, userId } = await requireRole(...COACHING_ADMIN_ROLES);
+  const scheduledValue = String(formData.get("scheduledAt") || "");
+  const scheduledDate = new Date(scheduledValue);
+  const parsed = scheduleTestSchema.safeParse({
+    batchId: formData.get("batchId"),
+    testName: formData.get("testName"),
+    totalMarks: formData.get("totalMarks"),
+    scheduledAt:
+      scheduledValue && !Number.isNaN(scheduledDate.getTime())
+        ? scheduledDate.toISOString()
+        : "",
+  });
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message || "Invalid test details.",
+    };
+  }
+
+  try {
+    const rows = await sql<{ id: string; name: string }>`
+      INSERT INTO test_series (tenant_id, batch_id, test_name, total_marks, scheduled_at)
+      SELECT
+        ${tenantId},
+        cb.id,
+        ${parsed.data.testName},
+        ${parsed.data.totalMarks},
+        ${parsed.data.scheduledAt}
+      FROM coaching_batches cb
+      WHERE cb.id = ${parsed.data.batchId}
+        AND cb.tenant_id = ${tenantId}
+        AND cb.is_active = true
+      RETURNING id, test_name AS name
+    `;
+    if (!rows[0])
+      return { success: false, error: "The selected batch is unavailable." };
+
+    revalidatePath("/coaching");
+    revalidatePath("/coaching/tests");
+    return { success: true, data: rows[0] };
+  } catch (error) {
+    logger.error(
+      "coaching.test_schedule_failed",
+      "Failed to schedule coaching test",
+      {
+        tenantId,
+        actorUserId: userId,
+        source: "coaching",
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      },
+    );
+    return {
+      success: false,
+      error: "The test could not be scheduled. Please try again.",
+    };
   }
 }

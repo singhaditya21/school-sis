@@ -3940,22 +3940,48 @@ export const liveGpsPings = {
 export interface MarketingLeadsRow {
     id: string;
     contactName: string;
-    contactEmail: string;
+    contactEmail: string | null;
     schoolName: string;
     studentCapacity: number;
     painPoints: string | null;
     status: string;
     createdAt: Date;
+    contactEmailEnc: string | null;
+    consentedAt: Date | null;
+    consentVersion: string | null;
+    consentIpHash: string | null;
+    sourceUrl: string | null;
+    referrer: string | null;
+    userAgent: string | null;
+    utmSource: string | null;
+    utmMedium: string | null;
+    utmCampaign: string | null;
+    crmStatus: string;
+    crmLastAttemptAt: Date | null;
+    crmError: string | null;
 }
 export interface MarketingLeadsInsert {
     id?: string;
     contactName: string;
-    contactEmail: string;
+    contactEmail?: string | null;
     schoolName: string;
     studentCapacity: number;
     painPoints?: string | null;
     status?: string;
     createdAt?: Date;
+    contactEmailEnc?: string | null;
+    consentedAt?: Date | null;
+    consentVersion?: string | null;
+    consentIpHash?: string | null;
+    sourceUrl?: string | null;
+    referrer?: string | null;
+    userAgent?: string | null;
+    utmSource?: string | null;
+    utmMedium?: string | null;
+    utmCampaign?: string | null;
+    crmStatus?: string;
+    crmLastAttemptAt?: Date | null;
+    crmError?: string | null;
 }
 export const marketingLeads = {
     $name: "marketing_leads" as const,
@@ -3967,6 +3993,19 @@ export const marketingLeads = {
     painPoints: column("marketing_leads", "pain_points"),
     status: column("marketing_leads", "status"),
     createdAt: column("marketing_leads", "created_at"),
+    contactEmailEnc: column("marketing_leads", "contact_email_enc"),
+    consentedAt: column("marketing_leads", "consented_at"),
+    consentVersion: column("marketing_leads", "consent_version"),
+    consentIpHash: column("marketing_leads", "consent_ip_hash"),
+    sourceUrl: column("marketing_leads", "source_url"),
+    referrer: column("marketing_leads", "referrer"),
+    userAgent: column("marketing_leads", "user_agent"),
+    utmSource: column("marketing_leads", "utm_source"),
+    utmMedium: column("marketing_leads", "utm_medium"),
+    utmCampaign: column("marketing_leads", "utm_campaign"),
+    crmStatus: column("marketing_leads", "crm_status"),
+    crmLastAttemptAt: column("marketing_leads", "crm_last_attempt_at"),
+    crmError: column("marketing_leads", "crm_error"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── medication_schedules ────────────────────────
@@ -6265,12 +6304,13 @@ export interface StudentVisasRow {
     studentId: string;
     visaType: string;
     countryOfOrigin: string;
-    passportNumber: string;
+    passportNumber: string | null;
     issueDate: Date;
     expirationDate: Date;
     createdAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    passportNumberEnc: string | null;
 }
 export interface StudentVisasInsert {
     id?: string;
@@ -6278,12 +6318,13 @@ export interface StudentVisasInsert {
     studentId: string;
     visaType: string;
     countryOfOrigin: string;
-    passportNumber: string;
+    passportNumber?: string | null;
     issueDate: Date;
     expirationDate: Date;
     createdAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    passportNumberEnc?: string | null;
 }
 export const studentVisas = {
     $name: "student_visas" as const,
@@ -6298,6 +6339,7 @@ export const studentVisas = {
     createdAt: column("student_visas", "created_at"),
     ownerId: column("student_visas", "owner_id"),
     groupId: column("student_visas", "group_id"),
+    passportNumberEnc: column("student_visas", "passport_number_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── students ────────────────────────────────────
