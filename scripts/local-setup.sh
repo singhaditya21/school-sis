@@ -9,6 +9,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+LOCAL_DATABASE_NAME="${LOCAL_DB_NAME:-school_sis}"
+if ! [[ "$LOCAL_DATABASE_NAME" =~ ^[a-zA-Z_][a-zA-Z0-9_]{0,62}$ ]]; then
+  echo "ERROR: LOCAL_DB_NAME must be a safe PostgreSQL identifier." >&2
+  exit 1
+fi
+LOCAL_DATABASE_URL="postgresql://postgres@localhost:${LOCAL_DB_PORT:-5433}/${LOCAL_DATABASE_NAME}?sslmode=disable"
+
 if [ ! -f apps/web/.env.local ]; then
   echo "▶ creating apps/web/.env.local from the example"
   cp apps/web/.env.example apps/web/.env.local
@@ -16,10 +23,15 @@ if [ ! -f apps/web/.env.local ]; then
 fi
 
 echo "▶ 1/4  Postgres (+ pgvector)"
-./scripts/local-db.sh up
+LOCAL_DB_NAME="$LOCAL_DATABASE_NAME" ./scripts/local-db.sh up
 
 # Load local env so the migration runner + seed target the local cluster.
 set -a; . apps/web/.env.local; set +a
+# A named local database is an explicit isolation boundary. Override any URLs
+# loaded from .env.local so setup cannot silently migrate or seed another target.
+export DATABASE_URL="$LOCAL_DATABASE_URL"
+export PLATFORM_DATABASE_URL="$LOCAL_DATABASE_URL"
+export DIRECT_URL="$LOCAL_DATABASE_URL"
 
 # Build the local schema from the SAME raw-SQL migration chain the release applies to
 # production (no Drizzle), so local and prod never drift. `--target ci` is idempotent
@@ -27,7 +39,7 @@ set -a; . apps/web/.env.local; set +a
 # row-level-security policies, so there is no separate RLS step. It grants privileges
 # to the tenant/platform runtime roles, which must exist first.
 echo "▶ 2/4  schema + row-level security  (production migration chain)"
-psql "$(./scripts/local-db.sh url)" -v ON_ERROR_STOP=1 -q <<'SQL'
+psql "$LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -q <<'SQL'
 DO $$ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'school_sis_runtime') THEN
     CREATE ROLE school_sis_runtime LOGIN PASSWORD 'local-tenant-runtime';
@@ -60,7 +72,7 @@ else
   echo "  reusing the signing key already in .env.local"
 fi
 # Postgres HMACs with the raw bytes of the secret STRING, so store convert_to(...,'utf8').
-psql "$(./scripts/local-db.sh url)" -v ON_ERROR_STOP=1 -c \
+psql "$LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -c \
   "INSERT INTO app_private.tenant_context_signing_keys (key_id, audience, secret)
    VALUES ('local-dev', 'school-sis:local', convert_to('${LOCAL_SECRET}', 'utf8'))
    ON CONFLICT (key_id) DO UPDATE SET audience = EXCLUDED.audience, secret = EXCLUDED.secret;" >/dev/null
@@ -70,6 +82,7 @@ echo "▶ 4/4  seed"
 ( cd apps/web && pnpm exec tsx scripts/seed.ts )
 
 echo ""
-echo "✔ Local stack ready.  Start the app:   pnpm dev"
+echo "✔ Local stack ready.  Start the app with the database URL overrides shown below:"
+echo "  DATABASE_URL='$LOCAL_DATABASE_URL' PLATFORM_DATABASE_URL='$LOCAL_DATABASE_URL' DIRECT_URL='$LOCAL_DATABASE_URL' pnpm dev"
 echo "  App:   http://localhost:3000"
-echo "  DB:    $(./scripts/local-db.sh url)"
+echo "  DB:    $LOCAL_DATABASE_URL"
