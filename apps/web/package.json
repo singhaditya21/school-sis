@@ -59,7 +59,7 @@
     "@stripe/stripe-js": "^9.8.0",
     "@tremor/react": "^3.18.7",
     "@upstash/redis": "^1.37.0",
-    "ai": "^7.0.4",
+    "ai": "^7.0.83",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
