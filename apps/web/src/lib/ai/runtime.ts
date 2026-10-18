@@ -19,10 +19,11 @@ import { z } from 'zod';
 import { checkAiBudget, estimateUsdCost, type AiBudgetState } from './budget';
 import { executeAiTool } from './executor';
 import { toModelToolName } from './model-names';
-import { resolveAiProvider, type AiProviderConfig } from './provider';
+import { resolveAiProviderChain, type AiProviderConfig } from './provider';
 import { describeToolsForModel, type AiToolRegistry } from './registry';
 import { recordAiTurn, type AiTurnOutcome } from './telemetry';
 import type { AiTool, AiToolContext, AiToolRun } from './types';
+import { logger } from '@/lib/observability/logger';
 
 export function createAiModel(config: AiProviderConfig) {
     const provider = createOpenAI({ apiKey: config.apiKey, baseURL: config.baseURL });
@@ -35,6 +36,11 @@ export interface AiTurnResult {
     /** Always safe to display. Either the grounded answer or a plain refusal. */
     message: string;
     toolRuns: AiToolRun[];
+    /**
+     * Which provider produced the answer and how many providers failed before it.
+     * Absent when no provider ran (no provider configured, no tools, over budget).
+     */
+    provider?: { source: AiProviderConfig['source']; fallbacks: number };
     usage: {
         tokensUsed: number;
         latencyMs: number;
@@ -126,8 +132,8 @@ export async function runAssistantTurn(
         };
     }
 
-    const provider = resolveAiProvider();
-    if (!provider.configured) {
+    const providerChain = resolveAiProviderChain();
+    if (!providerChain.configured) {
         await recordAiTurn({
             tenantId: context.tenantId,
             requestId: context.requestId,
@@ -143,7 +149,7 @@ export async function runAssistantTurn(
         return {
             ok: false,
             outcome: 'unavailable_no_provider',
-            message: provider.reason,
+            message: providerChain.reason,
             toolRuns: [],
             usage: budgetUsage(budget, 0, Date.now() - started),
         };
@@ -173,20 +179,46 @@ export async function runAssistantTurn(
 
     let text = '';
     let tokensUsed = 0;
+    let answeredBy: AiProviderConfig['source'] | null = null;
+    let fallbacks = 0;
 
-    try {
-        const result = await generateText({
-            model: createAiModel(provider.config),
-            system: systemPrompt(availableTools),
-            prompt: question,
-            tools: modelTools,
-            stopWhen: stepCountIs(4),
-        });
-        text = result.text.trim();
-        tokensUsed =
-            result.usage?.totalTokens ??
-            (result.usage?.inputTokens ?? 0) + (result.usage?.outputTokens ?? 0);
-    } catch {
+    // Try each configured provider in order. A provider that fails BEFORE running
+    // any tool falls back to the next (transient outage/rate-limit). A provider
+    // that fails AFTER a tool has run does NOT fall back — its tool may have been a
+    // read or an approval request, and re-running on the next provider would
+    // duplicate that side effect. There, the turn ends as a provider error.
+    for (const config of providerChain.chain) {
+        const runsBeforeAttempt = toolRuns.length;
+        try {
+            const result = await generateText({
+                model: createAiModel(config),
+                system: systemPrompt(availableTools),
+                prompt: question,
+                tools: modelTools,
+                stopWhen: stepCountIs(4),
+            });
+            text = result.text.trim();
+            tokensUsed =
+                result.usage?.totalTokens ??
+                (result.usage?.inputTokens ?? 0) + (result.usage?.outputTokens ?? 0);
+            answeredBy = config.source;
+            break;
+        } catch {
+            if (toolRuns.length > runsBeforeAttempt) {
+                // Side effects already happened on this provider; do not retry.
+                break;
+            }
+            fallbacks += 1;
+            logger.warn('ai.provider_fallback', 'AI model provider failed; trying the next provider', {
+                tenantId: context.tenantId,
+                requestId: context.requestId,
+                source: 'ai',
+                metadata: { failedProvider: config.source, attempt: fallbacks },
+            });
+        }
+    }
+
+    if (answeredBy === null) {
         const latencyMs = Date.now() - started;
         await recordAiTurn({
             tenantId: context.tenantId,
@@ -210,6 +242,7 @@ export async function runAssistantTurn(
         };
     }
 
+    const provider = { source: answeredBy, fallbacks };
     const latencyMs = Date.now() - started;
     const grounded = toolRuns.some((run) => run.status === 'read' || run.status === 'approval_requested');
 
@@ -238,6 +271,7 @@ export async function runAssistantTurn(
             outcome: 'refused_no_grounding',
             message,
             toolRuns,
+            provider,
             usage: budgetUsage(budget, tokensUsed, latencyMs),
         };
     }
@@ -260,6 +294,7 @@ export async function runAssistantTurn(
         outcome: 'answered',
         message: text,
         toolRuns,
+        provider,
         usage: budgetUsage(budget, tokensUsed, latencyMs),
     };
 }
