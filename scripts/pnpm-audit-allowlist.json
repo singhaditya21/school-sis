@@ -4,14 +4,14 @@
       "module": "image-size",
       "severity": "high",
       "pathPrefix": "apps/mobile >",
-      "expires": "2026-09-15",
+      "expires": "2026-12-31",
       "reason": "No patched release exists; exposure is confined to React Native Metro build tooling and is absent from the Vercel web runtime."
     },
     "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq": {
       "module": "image-size",
       "severity": "high",
       "pathPrefix": "apps/mobile >",
-      "expires": "2026-09-15",
+      "expires": "2026-12-31",
       "reason": "No patched release exists; exposure is confined to React Native Metro build tooling and is absent from the Vercel web runtime."
     }
   }

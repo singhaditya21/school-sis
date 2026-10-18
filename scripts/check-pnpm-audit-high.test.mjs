@@ -7,7 +7,7 @@ const URLS = [
   "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr",
   "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq",
 ];
-const BEFORE_EXPIRATION = new Date("2026-09-15T12:00:00.000Z");
+const BEFORE_EXPIRATION = new Date("2026-12-31T12:00:00.000Z");
 
 function allowlist() {
   return {
@@ -18,7 +18,7 @@ function allowlist() {
           module: "image-size",
           severity: "high",
           pathPrefix: "apps/mobile >",
-          expires: "2026-09-15",
+          expires: "2026-12-31",
           reason: "Scoped Metro build-time exposure.",
         },
       ]),
@@ -349,7 +349,7 @@ test("blocks an allowed advisory immediately after its UTC expiration day", () =
   const result = evaluateAuditReport(
     report([advisory(1)]),
     allowlist(),
-    new Date("2026-09-16T00:00:00.000Z"),
+    new Date("2027-01-01T00:00:00.000Z"),
   );
   assert.deepEqual(result.allowedAdvisories, []);
   assert.equal(result.blockingAdvisories.length, 1);
