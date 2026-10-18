@@ -9,7 +9,7 @@ export async function getHostels() {
     const { tenantId } = await requireAuth('hostel:read');
 
     const result = await pool.query(
-        'SELECT id, tenant_id AS "tenantId", name, is_active AS "isActive", total_beds AS "totalBeds", occupied_beds AS "occupiedBeds", created_at AS "createdAt", updated_at AS "updatedAt" FROM hostels WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC',
+        'SELECT id, tenant_id AS "tenantId", name, type, address, phone, total_rooms AS "totalRooms", is_active AS "isActive", total_beds AS "totalBeds", occupied_beds AS "occupiedBeds", created_at AS "createdAt", updated_at AS "updatedAt" FROM hostels WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC',
         [tenantId]
     );
     
@@ -45,7 +45,7 @@ export async function getHostelStats() {
 export async function getRooms(hostelId?: string) {
     const { tenantId } = await requireAuth('hostel:read');
 
-    let query = 'SELECT id, tenant_id AS "tenantId", hostel_id AS "hostelId", floor, room_number AS "roomNumber", total_beds AS "totalBeds", occupied_beds AS "occupiedBeds", status, created_at AS "createdAt", updated_at AS "updatedAt" FROM hostel_rooms WHERE tenant_id = $1';
+    let query = 'SELECT id, tenant_id AS "tenantId", hostel_id AS "hostelId", floor, room_number AS "roomNumber", type, total_beds AS "totalBeds", occupied_beds AS "occupiedBeds", status, created_at AS "createdAt" FROM hostel_rooms WHERE tenant_id = $1';
     const params: unknown[] = [tenantId];
 
     if (hostelId) {

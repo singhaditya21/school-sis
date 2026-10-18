@@ -1,6 +1,6 @@
 'use server';
 
-import { pool } from '@/lib/db';
+import { pool, sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
 export interface DashboardStats {
@@ -16,6 +16,7 @@ export interface DashboardStats {
     overdueAmount: number;
     defaulterCount: number;
     overdueInvoiceCount: number;
+    consentBlocked: number;
 }
 
 export interface TenantInfo {
@@ -37,6 +38,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         feeAggregatesRes,
         leadCountRes,
         overdueDataRes,
+        consentBlockedRows,
     ] = await Promise.all([
         pool.query(`SELECT count(*) FROM students WHERE tenant_id = $1 AND status = 'ACTIVE'`, [tenantId]),
         pool.query(`SELECT count(*) FROM users WHERE tenant_id = $1 AND role = 'TEACHER' AND is_active = true`, [tenantId]),
@@ -68,7 +70,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
               AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
               AND due_date < CURRENT_DATE
               AND total_amount > paid_amount
-        `, [tenantId])
+        `, [tenantId]),
+        sql<{ blocked_count: string }>`
+            SELECT (
+                (SELECT count(*) FROM consents WHERE tenant_id = ${tenantId} AND is_opted_in = false) +
+                (SELECT count(*) FROM consent_responses WHERE tenant_id = ${tenantId} AND response = 'DECLINED')
+            ) AS blocked_count
+        `.rows(),
     ]);
 
     const expected = Number(feeAggregatesRes.rows[0]?.expected || 0);
@@ -92,6 +100,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         overdueAmount: overdue,
         defaulterCount: Number(overdueDataRes.rows[0]?.defaulter_count || 0),
         overdueInvoiceCount: Number(overdueDataRes.rows[0]?.overdue_count || 0),
+        consentBlocked: parseInt(consentBlockedRows[0]?.blocked_count || '0', 10),
     };
 }
 

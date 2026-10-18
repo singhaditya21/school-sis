@@ -1,34 +1,76 @@
 'use server';
 
 // Hostel Management Service — Production (Real DB)
+import { randomUUID } from 'crypto';
 import { pool } from '@/lib/db';
 import { tenantScope, eq } from '../../data';
 import { requireAuth } from '@/lib/auth/middleware';
-import { hostels, hostelRooms, hostelAllocations, hostelFees } from '../../db/generated/tables';
+import {
+    hostels,
+    hostelRooms,
+    hostelAllocations,
+    hostelFees,
+    students,
+    users,
+    notificationOutbox,
+} from '../../db/generated/tables';
 import type { Hostel, HostelRoom } from './types';
 
 export async function getHostels(tenantId: string): Promise<Hostel[]> {
-    const rows = await tenantScope(tenantId)
-        .from(hostels)
-        .select<{ id: string; name: string; type: string; totalRooms: number; totalBeds: number; occupiedBeds: number }>({
-            id: hostels.id,
-            name: hostels.name,
-            type: hostels.type,
-            totalRooms: hostels.totalRooms,
-            totalBeds: hostels.totalBeds,
-            occupiedBeds: hostels.occupiedBeds,
-        })
-        .rows();
+    const scope = tenantScope(tenantId);
+    const [rows, roomRows] = await Promise.all([
+        scope
+            .from(hostels)
+            .leftJoin(users, eq(users.id, hostels.wardenId))
+            .select<{
+                id: string;
+                name: string;
+                type: string;
+                totalRooms: number;
+                totalBeds: number;
+                occupiedBeds: number;
+                wardenFirstName: string | null;
+                wardenLastName: string | null;
+            }>({
+                id: hostels.id,
+                name: hostels.name,
+                type: hostels.type,
+                totalRooms: hostels.totalRooms,
+                totalBeds: hostels.totalBeds,
+                occupiedBeds: hostels.occupiedBeds,
+                wardenFirstName: users.firstName,
+                wardenLastName: users.lastName,
+            })
+            .rows(),
+        scope
+            .from(hostelRooms)
+            .select<{ hostelId: string; occupiedBeds: number }>({
+                hostelId: hostelRooms.hostelId,
+                occupiedBeds: hostelRooms.occupiedBeds,
+            })
+            .rows(),
+    ]);
+
+    const occupiedRoomsByHostel = new Map<string, number>();
+    for (const room of roomRows) {
+        if ((room.occupiedBeds ?? 0) > 0) {
+            occupiedRoomsByHostel.set(
+                room.hostelId,
+                (occupiedRoomsByHostel.get(room.hostelId) ?? 0) + 1,
+            );
+        }
+    }
+
     return rows.map(r => ({
         id: r.id,
         name: r.name,
-        type: r.type,
-        warden: '', // Placeholder or fetch if needed
+        type: r.type.toLowerCase() as Hostel['type'],
+        warden: r.wardenFirstName ? `${r.wardenFirstName} ${r.wardenLastName ?? ''}`.trim() : '',
         totalRooms: r.totalRooms,
-        occupiedRooms: 0,
+        occupiedRooms: occupiedRoomsByHostel.get(r.id) ?? 0,
         capacity: r.totalBeds,
         currentOccupancy: r.occupiedBeds,
-    })) as Hostel[];
+    }));
 }
 
 export async function getRooms(tenantId: string, hostelId: string): Promise<HostelRoom[]> {
@@ -202,9 +244,31 @@ export async function getHostelFees(
 }
 
 export async function sendPaymentReminder(tenantId: string, feeId: string) {
-    const fee = await tenantScope(tenantId)
+    const scope = tenantScope(tenantId);
+    const fee = await scope
         .from(hostelFees)
-        .select<{ id: string }>({ id: hostelFees.id })
+        .innerJoin(students, eq(students.id, hostelFees.studentId))
+        .select<{
+            id: string;
+            studentId: string;
+            feeType: string;
+            amount: string;
+            dueDate: Date;
+            status: string;
+            firstName: string;
+            lastName: string;
+            admissionNumber: string;
+        }>({
+            id: hostelFees.id,
+            studentId: hostelFees.studentId,
+            feeType: hostelFees.feeType,
+            amount: hostelFees.amount,
+            dueDate: hostelFees.dueDate,
+            status: hostelFees.status,
+            firstName: students.firstName,
+            lastName: students.lastName,
+            admissionNumber: students.admissionNumber,
+        })
         .where(eq(hostelFees.id, feeId))
         .first();
 
@@ -212,8 +276,41 @@ export async function sendPaymentReminder(tenantId: string, feeId: string) {
         throw new Error('Fee record not found');
     }
 
+    const studentName = `${fee.firstName} ${fee.lastName}`.trim();
+    const dueStr = fee.dueDate instanceof Date ? fee.dueDate.toISOString().split('T')[0] : String(fee.dueDate);
+    const idempotencyKey = `hostel-fee-reminder:${fee.id}:${new Date().toISOString().slice(0, 10)}`;
+
+    const existing = await scope
+        .from(notificationOutbox)
+        .select<{ id: string }>({ id: notificationOutbox.id })
+        .where(eq(notificationOutbox.idempotencyKey, idempotencyKey))
+        .first();
+
+    const notificationId = existing?.id ?? randomUUID();
+
+    if (!existing) {
+        await scope.insert(notificationOutbox, {
+            id: notificationId,
+            channel: 'IN_APP',
+            status: 'QUEUED',
+            provider: 'database',
+            recipient: fee.admissionNumber || fee.studentId,
+            subject: `Hostel ${fee.feeType} Fee Reminder`,
+            body: `Reminder: Hostel ${fee.feeType} fee of ₹${Number(fee.amount || 0).toLocaleString('en-IN')} for ${studentName} is due on ${dueStr}.`,
+            payload: {
+                feeId: fee.id,
+                studentId: fee.studentId,
+                feeType: fee.feeType,
+                amount: Number(fee.amount || 0),
+                dueDate: dueStr,
+            },
+            idempotencyKey,
+        });
+    }
+
     return {
-        success: false,
-        message: 'Hostel payment reminders are unavailable until a live notification workflow is configured.',
+        success: true,
+        notificationId,
+        message: `Payment reminder queued for ${studentName}.`,
     };
 }

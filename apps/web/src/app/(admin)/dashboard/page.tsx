@@ -37,7 +37,7 @@ export default async function DashboardPage() {
                 overdueAmount: stats.overdueAmount,
                 dueSoon: stats.feesPending,
                 collectionRate: stats.collectionRate,
-                consentBlocked: 0, // TODO: implement consent tracking
+                consentBlocked: stats.consentBlocked,
             };
         } catch (error) {
             console.error('[Dashboard] Stats error:', error);

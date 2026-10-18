@@ -10,90 +10,76 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Settings, Check, Star } from 'lucide-react';
-
-interface GradeThreshold {
-    id: string;
-    minPercentage: number;
-    maxPercentage: number;
-    grade: string;
-    gradePoint: number | null;
-    remark: string;
-    displayOrder: number;
-}
-
-interface GradingScheme {
-    id: string;
-    name: string;
-    type: 'PERCENTAGE' | 'GPA' | 'CGPA' | 'LETTER';
-    description: string;
-    isDefault: boolean;
-    isActive: boolean;
-    thresholds: GradeThreshold[];
-}
+import { Plus, Settings, Star } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+    getGradingSchemes,
+    createGradingScheme,
+    type GradingSchemeDTO as GradingScheme,
+    type GradingSchemeType,
+} from '@/lib/actions/grading';
 
 export default function GradingSettingsPage() {
     const [schemes, setSchemes] = useState<GradingScheme[]>([]);
     const [selectedScheme, setSelectedScheme] = useState<GradingScheme | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [, setIsLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [newSchemeName, setNewSchemeName] = useState('');
+    const [newSchemeType, setNewSchemeType] = useState<GradingSchemeType>('GPA');
+    const [newSchemeDescription, setNewSchemeDescription] = useState('');
     const [testPercentage, setTestPercentage] = useState('');
     const [testResult, setTestResult] = useState<{ grade: string, gradePoint: number | null } | null>(null);
 
     useEffect(() => {
-        fetchSchemes();
+        void fetchSchemes();
     }, []);
 
     const fetchSchemes = async () => {
         setIsLoading(true);
         try {
-            // TODO: Replace with actual API call
-            // const response = await fetch('/api/v1/grading-schemes');
-            // const data = await response.json();
-
-            // Demo CBSE scheme
-            setSchemes([
-                {
-                    id: '1',
-                    name: 'CBSE 9-Point Scale',
-                    type: 'GPA',
-                    description: 'Standard CBSE grading scheme for Classes 9-12',
-                    isDefault: true,
-                    isActive: true,
-                    thresholds: [
-                        { id: 't1', minPercentage: 91, maxPercentage: 100, grade: 'A1', gradePoint: 10.0, remark: 'Outstanding', displayOrder: 1 },
-                        { id: 't2', minPercentage: 81, maxPercentage: 90, grade: 'A2', gradePoint: 9.0, remark: 'Excellent', displayOrder: 2 },
-                        { id: 't3', minPercentage: 71, maxPercentage: 80, grade: 'B1', gradePoint: 8.0, remark: 'Very Good', displayOrder: 3 },
-                        { id: 't4', minPercentage: 61, maxPercentage: 70, grade: 'B2', gradePoint: 7.0, remark: 'Good', displayOrder: 4 },
-                        { id: 't5', minPercentage: 51, maxPercentage: 60, grade: 'C1', gradePoint: 6.0, remark: 'Above Average', displayOrder: 5 },
-                        { id: 't6', minPercentage: 41, maxPercentage: 50, grade: 'C2', gradePoint: 5.0, remark: 'Average', displayOrder: 6 },
-                        { id: 't7', minPercentage: 33, maxPercentage: 40, grade: 'D', gradePoint: 4.0, remark: 'Below Average', displayOrder: 7 },
-                        { id: 't8', minPercentage: 0, maxPercentage: 32, grade: 'E', gradePoint: 0.0, remark: 'Needs Improvement', displayOrder: 8 },
-                    ]
-                },
-                {
-                    id: '2',
-                    name: 'ICSE Percentage',
-                    type: 'PERCENTAGE',
-                    description: 'ICSE Board percentage-based grading',
-                    isDefault: false,
-                    isActive: true,
-                    thresholds: [
-                        { id: 't9', minPercentage: 90, maxPercentage: 100, grade: 'A+', gradePoint: null, remark: 'Distinction', displayOrder: 1 },
-                        { id: 't10', minPercentage: 75, maxPercentage: 89, grade: 'A', gradePoint: null, remark: 'First Class', displayOrder: 2 },
-                        { id: 't11', minPercentage: 60, maxPercentage: 74, grade: 'B', gradePoint: null, remark: 'Second Class', displayOrder: 3 },
-                        { id: 't12', minPercentage: 45, maxPercentage: 59, grade: 'C', gradePoint: null, remark: 'Pass', displayOrder: 4 },
-                        { id: 't13', minPercentage: 0, maxPercentage: 44, grade: 'F', gradePoint: null, remark: 'Fail', displayOrder: 5 },
-                    ]
-                }
-            ]);
-
-            // Set first scheme as selected
-            setSelectedScheme(schemes[0] || null);
+            const response = await getGradingSchemes();
+            const loadedSchemes = response.data ?? [];
+            setSchemes(loadedSchemes);
+            setSelectedScheme(loadedSchemes[0] || null);
+            if (!response.success && response.error) {
+                toast.error(response.error);
+            }
         } catch (error) {
-            console.error('Failed to fetch grading schemes:', error);
+            toast.error(error instanceof Error ? error.message : 'Failed to fetch grading schemes');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleCreateScheme = async () => {
+        if (!newSchemeName.trim()) {
+            toast.error('Please enter a scheme name.');
+            return;
+        }
+        setIsSaving(true);
+        try {
+            const result = await createGradingScheme({
+                name: newSchemeName,
+                type: newSchemeType,
+                description: newSchemeDescription,
+            });
+            if (result.success && result.data) {
+                const updated = [result.data, ...schemes];
+                setSchemes(updated);
+                setSelectedScheme(result.data);
+                setNewSchemeName('');
+                setNewSchemeType('GPA');
+                setNewSchemeDescription('');
+                setIsDialogOpen(false);
+                toast.success('Grading scheme created.');
+            } else {
+                toast.error(result.error ?? 'Failed to create grading scheme.');
+            }
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Failed to create grading scheme');
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -112,42 +98,46 @@ export default function GradingSettingsPage() {
         }
     };
 
-    const getTypeLabel = (type: string) => {
-        switch (type) {
-            case 'GPA': return 'Grade Point Average';
-            case 'CGPA': return 'Cumulative GPA';
-            case 'PERCENTAGE': return 'Percentage Based';
-            case 'LETTER': return 'Letter Grades';
-            default: return type;
-        }
-    };
-
     return (
         <div className="container mx-auto p-6 space-y-6">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Grading Settings</h1>
                     <p className="text-muted-foreground">
-                        Reference grading schemes used for exams and report cards
+                        Configure grading schemes used for exams and report cards
                     </p>
                 </div>
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Create Scheme
+                        </Button>
+                    </DialogTrigger>
                     <DialogContent className="max-w-2xl">
                         <DialogHeader>
                             <DialogTitle>Create Grading Scheme</DialogTitle>
                             <DialogDescription>
-                                Define a new grading scheme with grade thresholds
+                                Define a new grading scheme with default grade thresholds
                             </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <Label>Scheme Name</Label>
-                                    <Input placeholder="e.g., State Board Grading" />
+                                    <Label htmlFor="scheme-name">Scheme Name</Label>
+                                    <Input
+                                        id="scheme-name"
+                                        placeholder="e.g., State Board Grading"
+                                        value={newSchemeName}
+                                        onChange={(e) => setNewSchemeName(e.target.value)}
+                                    />
                                 </div>
                                 <div>
                                     <Label>Type</Label>
-                                    <Select>
+                                    <Select
+                                        value={newSchemeType}
+                                        onValueChange={(value) => setNewSchemeType(value as GradingSchemeType)}
+                                    >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select type" />
                                         </SelectTrigger>
@@ -161,24 +151,25 @@ export default function GradingSettingsPage() {
                                 </div>
                             </div>
                             <div>
-                                <Label>Description</Label>
-                                <Input placeholder="Brief description of this grading scheme" />
+                                <Label htmlFor="scheme-description">Description</Label>
+                                <Input
+                                    id="scheme-description"
+                                    placeholder="Brief description of this grading scheme"
+                                    value={newSchemeDescription}
+                                    onChange={(e) => setNewSchemeDescription(e.target.value)}
+                                />
                             </div>
                             <div className="flex justify-end gap-2">
-                                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                                <Button>Create Scheme</Button>
+                                <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
+                                    Cancel
+                                </Button>
+                                <Button onClick={handleCreateScheme} disabled={isSaving}>
+                                    {isSaving ? 'Creating...' : 'Create Scheme'}
+                                </Button>
                             </div>
                         </div>
                     </DialogContent>
                 </Dialog>
-            </div>
-
-            <div className="p-4 border rounded-lg bg-muted/40">
-                <p className="text-sm text-muted-foreground">
-                    These are the standard board schemes shipped with the product. Custom grading
-                    schemes are not configurable in this release, so the schemes below are shown for
-                    reference and cannot be created or edited yet.
-                </p>
             </div>
 
             <div className="grid gap-6 md:grid-cols-3">

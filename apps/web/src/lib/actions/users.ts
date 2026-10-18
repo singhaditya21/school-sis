@@ -2,7 +2,7 @@
 
 import { randomBytes } from 'crypto';
 import { hash } from 'bcryptjs';
-import { pool, runWithTenantContext } from '@/lib/db';
+import { pool, sql, runWithTenantContext } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 import { encryptEmail, encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 
@@ -113,6 +113,54 @@ export async function createUser(input: {
         return { success: true, data: mapRow(row) };
     } catch (e) {
         return { success: false, error: e instanceof Error ? e.message : 'Failed to create user' };
+    }
+}
+
+/** Update a user's profile and role in the caller's tenant. */
+export async function updateUser(input: {
+    userId: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+}): Promise<Result<AdminUser>> {
+    const auth = await requireUserAdmin();
+    if (!auth.ok) return { success: false, error: auth.error };
+
+    const email = input.email?.trim().toLowerCase();
+    if (!email) return { success: false, error: 'Email is required.' };
+    if (!input.firstName?.trim()) return { success: false, error: 'First name is required.' };
+
+    try {
+        const row = await runWithTenantContext(auth.tenantId, async () => {
+            const dupRows = await sql<{ exists: number }>`
+                SELECT 1 AS exists
+                FROM users
+                WHERE tenant_id = ${auth.tenantId}
+                  AND id <> ${input.userId}
+                  AND (email_enc = ANY(${encryptEmailCandidates(email)}::text[]) OR email = ${email})
+                LIMIT 1
+            `.rows();
+            if (dupRows.length > 0) {
+                throw new Error('A user with that email already exists.');
+            }
+
+            const updatedRows = await sql<UserRow>`
+                UPDATE users
+                SET email_enc = ${encryptEmail(email)},
+                    first_name = ${input.firstName.trim()},
+                    last_name = ${(input.lastName ?? '').trim()},
+                    role = ${input.role}::user_role,
+                    updated_at = NOW()
+                WHERE id = ${input.userId} AND tenant_id = ${auth.tenantId}
+                RETURNING id, tenant_id, COALESCE(email_enc, email) AS email, first_name, last_name, role, is_active, created_at, last_login_at
+            `.rows();
+            if (!updatedRows[0]) throw new Error('User not found.');
+            return updatedRows[0];
+        });
+        return { success: true, data: mapRow(row) };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : 'Failed to update user' };
     }
 }
 

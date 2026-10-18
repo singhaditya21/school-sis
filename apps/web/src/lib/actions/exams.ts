@@ -1,7 +1,8 @@
 'use server';
 
-import { pool } from '@/lib/db';
+import { pool, sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { logAudit } from '@/lib/audit';
 import { randomUUID, createHash } from 'crypto';
 import { redirect } from 'next/navigation';
 
@@ -573,23 +574,31 @@ export async function getPendingVerifications() {
 export async function getVerificationStats() {
     const { tenantId } = await requireAuth('exams:read');
     
-    const pendingRes = await pool.query(`
-        SELECT COUNT(*) as count 
-        FROM student_results sr
-        LEFT JOIN exam_result_hashes erh ON sr.id = erh.result_id
-        WHERE sr.tenant_id = $1 AND erh.id IS NULL
-    `, [tenantId]);
-    
-    const verifiedRes = await pool.query(`
-        SELECT COUNT(*) as count 
-        FROM exam_result_hashes
-        WHERE tenant_id = $1
-    `, [tenantId]);
+    const [pendingRes, verifiedRes, rejectedRows] = await Promise.all([
+        pool.query(`
+            SELECT COUNT(*) as count 
+            FROM student_results sr
+            LEFT JOIN exam_result_hashes erh ON sr.id = erh.result_id
+            WHERE sr.tenant_id = $1 AND erh.id IS NULL
+        `, [tenantId]),
+        pool.query(`
+            SELECT COUNT(*) as count 
+            FROM exam_result_hashes
+            WHERE tenant_id = $1
+        `, [tenantId]),
+        sql<{ count: string }>`
+            SELECT COUNT(*) as count
+            FROM audit_logs
+            WHERE tenant_id = ${tenantId}
+              AND action = 'DELETE'
+              AND entity_type = 'student_result_rejection'
+        `.rows(),
+    ]);
     
     return {
         pending: parseInt(pendingRes.rows[0].count, 10),
         verified: parseInt(verifiedRes.rows[0].count, 10),
-        rejected: 0 // Mocked since we don't track rejections formally yet
+        rejected: parseInt(rejectedRows[0]?.count || '0', 10),
     };
 }
 
@@ -624,12 +633,19 @@ export async function verifyExamResults(resultIds: string[]) {
 }
 
 export async function rejectExamResults(resultIds: string[]) {
-    const { tenantId } = await requireAuth('exams:write');
-    // For now we just delete rejected results to force re-entry
+    const { tenantId, userId } = await requireAuth('exams:write');
     for (const resultId of resultIds) {
         await pool.query(`
             DELETE FROM student_results WHERE id = $1 AND tenant_id = $2
         `, [resultId, tenantId]);
+        await logAudit({
+            tenantId,
+            userId,
+            action: 'DELETE',
+            entityType: 'student_result_rejection',
+            entityId: resultId,
+            description: 'Rejected exam result during verification for re-entry',
+        });
     }
     return { success: true };
 }

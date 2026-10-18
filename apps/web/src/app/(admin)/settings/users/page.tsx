@@ -12,13 +12,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { ROLES, ROLE_LABELS, ROLE_COLORS } from '@/lib/constants';
-import { listUsers, createUser, setUserActive, resetUserPassword, type AdminUser } from '@/lib/actions/users';
+import { listUsers, createUser, updateUser, setUserActive, resetUserPassword, type AdminUser } from '@/lib/actions/users';
 
 export default function UserManagementPage() {
     const [users, setUsers] = useState<AdminUser[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+    const [editingUser, setEditingUser] = useState<{
+        id: string;
+        email: string;
+        firstName: string;
+        lastName: string;
+        role: string;
+    } | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [roleFilter, setRoleFilter] = useState<string>('all');
     const [newUser, setNewUser] = useState({ email: '', firstName: '', lastName: '', role: 'TEACHER', password: '' });
@@ -73,6 +81,44 @@ export default function UserManagementPage() {
             }
         } catch (e) {
             toast.error(e instanceof Error ? e.message : 'Failed to create user');
+        }
+        setSaving(false);
+    };
+
+    const handleOpenEdit = (user: AdminUser) => {
+        setEditingUser({
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role,
+        });
+        setIsEditDialogOpen(true);
+    };
+
+    const handleEditUser = async () => {
+        if (!editingUser) return;
+        setSaving(true);
+        try {
+            const response = await updateUser({
+                userId: editingUser.id,
+                email: editingUser.email,
+                firstName: editingUser.firstName,
+                lastName: editingUser.lastName,
+                role: editingUser.role,
+            });
+
+            if (response.success && response.data) {
+                const updated = response.data;
+                setUsers(users.map(u => (u.id === updated.id ? updated : u)));
+                setIsEditDialogOpen(false);
+                setEditingUser(null);
+                toast.success('User updated.');
+            } else {
+                toast.error(response.error || 'Failed to update user');
+            }
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Failed to update user');
         }
         setSaving(false);
     };
@@ -285,7 +331,11 @@ export default function UserManagementPage() {
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">
-                                                <Button variant="outline" size="sm">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleOpenEdit(user)}
+                                                >
                                                     Edit
                                                 </Button>
                                                 <Button
@@ -311,6 +361,78 @@ export default function UserManagementPage() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Edit User Dialog */}
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle>Edit User</DialogTitle>
+                        <DialogDescription>
+                            Update user profile and role assignment.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {editingUser && (
+                        <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="editFirstName">First Name</Label>
+                                    <Input
+                                        id="editFirstName"
+                                        value={editingUser.firstName}
+                                        onChange={(e) => setEditingUser({ ...editingUser, firstName: e.target.value })}
+                                        placeholder="First name"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="editLastName">Last Name</Label>
+                                    <Input
+                                        id="editLastName"
+                                        value={editingUser.lastName}
+                                        onChange={(e) => setEditingUser({ ...editingUser, lastName: e.target.value })}
+                                        placeholder="Last name"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="editEmail">Email</Label>
+                                <Input
+                                    id="editEmail"
+                                    type="email"
+                                    value={editingUser.email}
+                                    onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                                    placeholder="name@yourschool.edu"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="editRole">Role</Label>
+                                <Select
+                                    value={editingUser.role}
+                                    onValueChange={(value) => setEditingUser({ ...editingUser, role: value })}
+                                >
+                                    <SelectTrigger id="editRole">
+                                        <SelectValue placeholder="Select role" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Object.entries(ROLES).map(([key, value]) => (
+                                            <SelectItem key={key} value={value}>
+                                                {ROLE_LABELS[value] || value}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleEditUser} disabled={saving}>
+                            {saving ? 'Saving...' : 'Save Changes'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
