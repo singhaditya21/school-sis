@@ -39,7 +39,33 @@ function validateISBN(isbn: string): boolean {
  * Fetch students for library auto-complete/select dropdown.
  * Checks permissions using 'library:read'.
  */
-export async function getLibraryStudents(): Promise<any[]> {
+export interface LibraryStudentRow {
+    id: string;
+    userId: string | null;
+    admissionNo: string | null;
+    name: string;
+    class: string | null;
+}
+
+export interface LibraryHistoryRow {
+    id: string;
+    bookId: string;
+    bookTitle: string | null;
+    studentId: string | null;
+    studentName: string | null;
+    studentLastName: string | null;
+    studentClass: string | null;
+    userName: string | null;
+    userLastName: string | null;
+    issueDate: string | null;
+    dueDate: string | null;
+    returnDate: string | null;
+    status: string;
+    fineAmount: string | number | null;
+    finePaid: boolean;
+}
+
+export async function getLibraryStudents(): Promise<LibraryStudentRow[]> {
     const { tenantId } = await requireAuth('library:read');
     const { rows } = await pool.query(`
         SELECT s.id,
@@ -61,7 +87,7 @@ export async function getLibraryStudents(): Promise<any[]> {
  * Fetch all library borrowing history for the current tenant.
  * Checks permissions using 'library:read'.
  */
-export async function getLibraryHistory(): Promise<any[]> {
+export async function getLibraryHistory(): Promise<LibraryHistoryRow[]> {
     const { tenantId } = await requireAuth('library:read');
     const { rows } = await pool.query(`
         SELECT

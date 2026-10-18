@@ -3,7 +3,19 @@
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
-export async function getDiaryEntries(): Promise<any[]> {
+export interface DiaryEntryRow {
+    id: string;
+    title: string;
+    content: string | null;
+    date: Date | string;
+    class: string | null;
+    section: string | null;
+    subject: string | null;
+    teacherName: string | null;
+    type: string | null;
+}
+
+export async function getDiaryEntries(): Promise<DiaryEntryRow[]> {
     const { tenantId } = await requireAuth('diary:read');
     const { rows } = await pool.query(`
         SELECT d.id, d.title, d.content, d.date, g.name AS class, sec.name AS section,

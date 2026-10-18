@@ -11,18 +11,34 @@ const BEFORE_EXPIRATION = new Date("2026-12-31T12:00:00.000Z");
 
 function allowlist() {
   return {
-    exceptions: Object.fromEntries(
-      URLS.map((url) => [
-        url,
-        {
-          module: "image-size",
-          severity: "high",
-          pathPrefix: "apps/mobile >",
-          expires: "2026-12-31",
-          reason: "Scoped Metro build-time exposure.",
-        },
-      ]),
-    ),
+    exceptions: {
+      ...Object.fromEntries(
+        URLS.map((url) => [
+          url,
+          {
+            module: "image-size",
+            severity: "high",
+            pathPrefix: "apps/mobile >",
+            expires: "2026-12-31",
+            reason: "Scoped Metro build-time exposure.",
+          },
+        ]),
+      ),
+      "https://github.com/advisories/GHSA-86w9-cpqp-85rv": {
+        module: "node-forge",
+        severity: "high",
+        pathPrefix: "apps/mobile >",
+        expires: "2026-12-31",
+        reason: "Scoped Expo CLI build-time exposure.",
+      },
+      "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm": {
+        module: "braces",
+        severity: "high",
+        pathPrefix: "* >",
+        expires: "2026-12-31",
+        reason: "Scoped build/test globbing exposure.",
+      },
+    },
   };
 }
 

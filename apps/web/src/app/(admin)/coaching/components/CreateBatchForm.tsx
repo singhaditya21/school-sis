@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createCoachingBatch } from "@/actions/coaching";
+import { createCoachingBatch } from "@/lib/actions/coaching";
 
 export default function CreateBatchForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);

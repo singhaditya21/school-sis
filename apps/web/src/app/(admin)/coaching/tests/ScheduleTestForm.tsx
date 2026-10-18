@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { scheduleCoachingTest } from "@/actions/coaching";
+import { scheduleCoachingTest } from "@/lib/actions/coaching";
 
 type BatchOption = { id: string; name: string };
 

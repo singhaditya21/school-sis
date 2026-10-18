@@ -4,15 +4,21 @@ import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { revalidatePath } from 'next/cache';
 
+export interface WorkflowCondition {
+    field: string;
+    operator: string;
+    value: string;
+}
+
 export interface Workflow {
     id: string;
     tenantId: string;
     name: string;
     objectName: string;
     triggerEvent: string;
-    conditions: any;
+    conditions: WorkflowCondition[];
     actionType: string;
-    actionPayload: any;
+    actionPayload: Record<string, unknown>;
     isActive: boolean;
     createdAt: string;
 }

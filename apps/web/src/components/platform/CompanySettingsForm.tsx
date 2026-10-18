@@ -5,10 +5,19 @@ import { updateCompanySettingsAction } from '@/lib/actions/platform';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
+export interface CompanySettingsInput {
+    id: string;
+    subscriptionTier?: string | null;
+    isActive: boolean;
+    themeColor?: string | null;
+    domainMask?: string | null;
+    activeModules?: string[] | null;
+}
+
 export default function CompanySettingsForm({
     company,
 }: {
-    company: any;
+    company: CompanySettingsInput;
 }) {
     const router = useRouter();
     const [loading, setLoading] = useState(false);

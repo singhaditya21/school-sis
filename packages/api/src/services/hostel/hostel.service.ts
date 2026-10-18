@@ -129,10 +129,24 @@ export async function getHostelOverview(tenantId: string) {
     };
 }
 
+export interface HostelFeeRow {
+    id: string;
+    studentId: string | null;
+    studentName: string;
+    class: string | null;
+    hostelName: string | null;
+    roomNumber: string | null;
+    feeType: string;
+    amount: number;
+    dueDate: string | null;
+    status: string;
+    paidDate: string | null;
+}
+
 export async function getHostelFees(
     tenantIdOrStatus?: string,
     filtersOrFeeType?: { status?: string; feeType?: string } | string
-): Promise<any[]> {
+): Promise<HostelFeeRow[]> {
     let tenantId: string;
     let status: string | undefined;
     let feeType: string | undefined;

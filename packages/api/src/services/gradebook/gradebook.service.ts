@@ -2,7 +2,30 @@
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
-export async function getGradebookData(classId?: string): Promise<{ classes: any[], exams: any[], students: any[] }> {
+export interface GradebookClassRow {
+    id: string;
+    name: string;
+}
+
+export interface GradebookExamRow {
+    id: string;
+    name: string;
+    type: string | null;
+}
+
+export interface GradebookStudentRow {
+    id: string;
+    name: string;
+    rollNo: string | null;
+    class: string | null;
+    section: string | null;
+}
+
+export async function getGradebookData(classId?: string): Promise<{
+    classes: GradebookClassRow[];
+    exams: GradebookExamRow[];
+    students: GradebookStudentRow[];
+}> {
     const { tenantId } = await requireAuth('gradebook:read');
 
     const { rows: classes } = await pool.query(
@@ -15,7 +38,7 @@ export async function getGradebookData(classId?: string): Promise<{ classes: any
         [tenantId]
     );
 
-    let students: unknown[] = [];
+    let students: GradebookStudentRow[] = [];
     if (classId) {
         const { rows } = await pool.query(
             `SELECT s.id, s.first_name || ' ' || s.last_name AS name, s.roll_number AS "rollNo",

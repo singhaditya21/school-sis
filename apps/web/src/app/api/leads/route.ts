@@ -3,9 +3,8 @@ import { NextResponse } from 'next/server';
 import { captureLeadAction } from '@/lib/actions/marketing';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
 import { parseLeadIntake } from '@/lib/marketing/lead-intake';
-import { logger } from '@/lib/observability/logger';
-import { screenLeadSubmission, LEAD_HONEYPOT_FIELD, LEAD_TIMESTAMP_FIELD } from '@/lib/marketing/lead-screening';
 import { verifyTurnstileToken } from '@/lib/marketing/turnstile';
+import { logger } from '@/lib/observability/logger';
 
 function clientIpFrom(request: Request): string {
     return (request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown')
@@ -51,19 +50,6 @@ export async function POST(request: Request) {
         });
         if (ipLimitError) {
             return json({ error: ipLimitError }, 429);
-        }
-
-        // Vendor-free bot screening (optional secondary honeypot/timestamp fields).
-        const screen = screenLeadSubmission({
-            honeypot: formData.get(LEAD_HONEYPOT_FIELD),
-            loadedAt: formData.get(LEAD_TIMESTAMP_FIELD),
-        });
-        if (screen.botLike) {
-            logger.warn('lead_capture.bot_dropped', 'Lead submission dropped by bot screening', {
-                source: 'api',
-                metadata: { signal: screen.signal, ip: clientIpFrom(request) },
-            });
-            return json({ success: true }, 202);
         }
 
         // CAPTCHA (Cloudflare Turnstile). Skipped until keys are set; once configured,

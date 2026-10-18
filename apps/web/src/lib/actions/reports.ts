@@ -11,7 +11,7 @@ export async function getReportSources() {
     return objects;
 }
 
-export async function runDynamicReport(apiName: string): Promise<{ success: boolean; data?: any[]; error?: string; columns?: string[] }> {
+export async function runDynamicReport(apiName: string): Promise<{ success: boolean; data?: Record<string, unknown>[]; error?: string; columns?: string[] }> {
     try {
         const { tenantId } = await requireAuth();
 

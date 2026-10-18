@@ -34,8 +34,8 @@ export default function GenericListClient({
 }: {
     objectName: string,
     fields: MetadataField[],
-    records: any[],
-    layout?: any
+    records: Record<string, unknown>[],
+    layout?: { columns?: string[] }
 }) {
     // Prefer the configured LIST layout, but never show a column the caller is
     // not allowed to read: `fields` has already been filtered by role.
@@ -79,14 +79,14 @@ export default function GenericListClient({
                                     </td>
                                 </tr>
                             ) : records.map(record => (
-                                <tr key={record.id} className="bg-card border-b hover:bg-muted">
+                                <tr key={String(record.id)} className="bg-card border-b hover:bg-muted">
                                     {displayColumns.map((col: string) => (
                                         <td key={col} className="px-6 py-4">
                                             {renderCell(fields.find(f => f.apiName === col), record[col])}
                                         </td>
                                     ))}
                                     <td className="px-6 py-4 text-right">
-                                        <Link href={`/app/${objectName}/${record.id}`} className="font-medium text-primary hover:underline">
+                                        <Link href={`/app/${objectName}/${String(record.id)}`} className="font-medium text-primary hover:underline">
                                             Edit
                                         </Link>
                                     </td>

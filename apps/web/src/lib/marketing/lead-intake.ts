@@ -1,3 +1,9 @@
+import {
+    LEAD_HONEYPOT_FIELD,
+    LEAD_TIMESTAMP_FIELD,
+    screenLeadSubmission,
+} from '@/lib/marketing/lead-screening';
+
 export const LEAD_CONSENT_VERSION = 'privacy-2026-09-10';
 
 const ALLOWED_STUDENT_CAPACITIES = new Set([500, 1500, 5000, 10000]);
@@ -39,7 +45,14 @@ function optionalUrl(rawValue: string): string | null {
 }
 
 export function parseLeadIntake(formData: FormData, now = Date.now()): LeadIntakeParseResult {
-    if (value(formData, 'companyWebsite', 1_000)) {
+    const secondaryScreen = screenLeadSubmission(
+        {
+            honeypot: formData.get(LEAD_HONEYPOT_FIELD),
+            loadedAt: formData.get(LEAD_TIMESTAMP_FIELD),
+        },
+        now,
+    );
+    if (secondaryScreen.botLike || value(formData, 'companyWebsite', 1_000)) {
         return { success: false, error: 'Submission accepted.', bot: true };
     }
 

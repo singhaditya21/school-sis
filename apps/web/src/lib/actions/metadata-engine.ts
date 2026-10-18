@@ -81,7 +81,7 @@ export interface MetadataLayout {
     id: string;
     objectId: string;
     layoutType: 'FORM' | 'LIST';
-    schema: any;
+    schema: Record<string, unknown>;
     isDefault: boolean;
 }
 
@@ -321,7 +321,7 @@ async function queryEavRecords(
  * table (standard columns + `custom_data` JSONB); tenant-defined objects read
  * from `metadata_records`/`metadata_values`.
  */
-export async function queryRecords(apiName: string, filters: Record<string, any> = {}, limit = 50, offset = 0) {
+export async function queryRecords(apiName: string, filters: Record<string, unknown> = {}, limit = 50, offset = 0) {
     const { tenantId, session } = await requireAuth();
     const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
 
@@ -470,7 +470,7 @@ async function upsertEavRecord(
 /**
  * Inserts or Updates a record, mapping fields to columns and packing unknown fields into JSONB custom_data
  */
-export async function upsertRecord(apiName: string, data: Record<string, any>, id?: string): Promise<UpsertRecordResult> {
+export async function upsertRecord(apiName: string, data: Record<string, unknown>, id?: string): Promise<UpsertRecordResult> {
     try {
         const { tenantId, session } = await requireAuth();
         const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
@@ -503,8 +503,8 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
         const customFields = fields.filter(f => f.isCustom);
         
         // Separate data into standard columns and custom_data
-        const standardData: Record<string, any> = {};
-        const customData: Record<string, any> = {};
+        const standardData: Record<string, unknown> = {};
+        const customData: Record<string, unknown> = {};
 
         for (const [key, value] of Object.entries(data)) {
             if (PROTECTED_DATA_FIELDS.has(key)) {
@@ -586,7 +586,7 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
                 if (!standardData.paid_amount) {
                     standardData.paid_amount = '0.00';
                 }
-                if (!standardData.student_id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(standardData.student_id)) {
+                if (!standardData.student_id || typeof standardData.student_id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(standardData.student_id)) {
                     const { rows: studentRows } = await pool.query('SELECT id FROM students WHERE tenant_id = $1 LIMIT 1', [tenantId]);
                     if (studentRows.length > 0) standardData.student_id = studentRows[0].id;
                 } else {
@@ -609,7 +609,7 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
             }
         }
 
-        if (standardData.gender) {
+        if (typeof standardData.gender === 'string' && standardData.gender) {
             standardData.gender = standardData.gender.toUpperCase();
         }
 
@@ -688,14 +688,15 @@ export async function upsertRecord(apiName: string, data: Record<string, any>, i
 
             redirect(`/app/${apiName}`);
         }
-    } catch (e: any) {
-        if (e.digest?.startsWith('NEXT_REDIRECT') || e.message === 'NEXT_REDIRECT') {
+    } catch (e: unknown) {
+        const redirectErr = e as { digest?: string; message?: string };
+        if (redirectErr?.digest?.startsWith('NEXT_REDIRECT') || redirectErr?.message === 'NEXT_REDIRECT') {
             throw e;
         }
         console.error("UPSERT RECORD ERROR FOR OBJECT:", apiName, e);
         // Flat result: the generic form is a client component and cannot read a
         // thrown server-action error in production (Next redacts the message).
-        return { success: false, error: e?.message || 'Failed to save record.' };
+        return { success: false, error: redirectErr?.message || 'Failed to save record.' };
     }
 }
 
@@ -721,8 +722,12 @@ export async function getAllMetadataObjects() {
     return rows;
 }
 
+type MetadataDbClient = {
+    query: (text: string, values?: unknown[]) => Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+};
+
 async function snapshotMetadataSchema(
-    client: any,
+    client: MetadataDbClient,
     params: {
         tenantId: string | null;
         objectId: string;
@@ -783,7 +788,7 @@ async function snapshotMetadataSchema(
 }
 
 async function ensureTenantOwnedMetadataObject(
-    client: any,
+    client: MetadataDbClient,
     objectId: string,
     tenantId: string,
     userId: string,
@@ -897,7 +902,7 @@ async function ensureTenantOwnedMetadataObject(
  */
 export async function createCustomField(
     objectId: string,
-    fieldData: any,
+    fieldData: Record<string, unknown>,
     approvalOptions: { approvalRequestId?: string; reason?: string } = {},
 ) {
     const { tenantId, userId, session } = await requireAuth('metadata:publish');

@@ -121,6 +121,31 @@ test("accepts an exact protected-main merge authored by the current solo admin w
   );
 });
 
+test("accepts a direct protected-main commit authored by the current solo admin when no PR exists", async () => {
+  const result = await verifyProductionReleaseProvenance(OPTIONS, {
+    fetchImpl: async (url) => {
+      const path = new URL(url).pathname;
+      if (path.endsWith("/branches/main")) {
+        return response(200, {
+          name: "main",
+          protected: true,
+          commit: { sha: TARGET_SHA, author: { login: OWNER } },
+        });
+      }
+      if (path.endsWith(`/commits/${TARGET_SHA}/pulls`)) {
+        return response(200, []);
+      }
+      return validRoute(url);
+    },
+  });
+
+  assert.deepEqual(result, {
+    pullRequestNumber: 0,
+    pullRequestHeadSha: TARGET_SHA,
+    soloReleaseOwner: OWNER,
+  });
+});
+
 test("rejects an unprotected or stale main branch before evaluating pull requests", async () => {
   await assert.rejects(
     verifyProductionReleaseProvenance(OPTIONS, {

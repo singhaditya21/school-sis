@@ -912,25 +912,31 @@ export function patchPoolForRlsContext(targetPool: Pool): Pool {
     }
   }) as Pool["connect"];
 
-  poolWithPatch.query = ((...args: any[]) => {
+  poolWithPatch.query = ((...args: unknown[]) => {
     const callback = args[args.length - 1];
     if (typeof callback === "function") {
+      const queryCallback = callback as (err: Error, result?: unknown) => void;
       const queryArgs = args.slice(0, -1);
       void poolWithPatch
         .connect()
         .then((client) => {
-          client.query(...queryArgs, (err: Error, result: unknown) => {
-            client.release(err || undefined);
-            callback(err, result);
-          });
+          Reflect.apply(client.query, client, [
+            ...queryArgs,
+            (err: Error, result: unknown) => {
+              client.release(err || undefined);
+              queryCallback(err, result);
+            },
+          ]);
         })
-        .catch((err) => callback(err));
+        .catch((err) =>
+          queryCallback(asError(err, "Database connection failed.")),
+        );
       return undefined;
     }
 
     return poolWithPatch.connect().then(async (client) => {
       try {
-        return await client.query(...args);
+        return await Reflect.apply(client.query, client, args);
       } finally {
         client.release();
       }

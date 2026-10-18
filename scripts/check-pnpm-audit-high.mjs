@@ -7,6 +7,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const FAIL_SEVERITIES = new Set(["high", "critical"]);
 const KNOWN_SEVERITIES = ["info", "low", "moderate", "high", "critical"];
 const OBSERVED_IMAGE_SIZE_VERSIONS = Object.freeze(["1.2.1"]);
+const OBSERVED_NODE_FORGE_VERSIONS = Object.freeze(["1.4.0"]);
+const OBSERVED_BRACES_VERSIONS = Object.freeze(["3.0.3"]);
 const OBSERVED_BUILD_TOOL_SUFFIXES = Object.freeze([
   Object.freeze([
     "react-native@0.85.3",
@@ -15,6 +17,24 @@ const OBSERVED_BUILD_TOOL_SUFFIXES = Object.freeze([
     "image-size@1.2.1",
   ]),
   Object.freeze(["@expo/metro@56.0.0", "metro@0.84.4", "image-size@1.2.1"]),
+]);
+const OBSERVED_NODE_FORGE_SUFFIXES = Object.freeze([
+  Object.freeze([
+    "@expo/cli@56.1.16",
+    "@expo/code-signing-certificates@0.0.6",
+    "node-forge@1.4.0",
+  ]),
+  Object.freeze(["@expo/cli@56.1.16", "node-forge@1.4.0"]),
+]);
+const OBSERVED_BRACES_SUFFIXES = Object.freeze([
+  Object.freeze(["micromatch@4.0.8", "braces@3.0.3"]),
+  Object.freeze(["chokidar@3.6.0", "braces@3.0.3"]),
+]);
+const ALLOWED_WORKSPACE_PREFIXES = new Set([
+  ". >",
+  "apps/mobile >",
+  "apps/web >",
+  "apps/website >",
 ]);
 const ALLOWED_EXCEPTION_POLICY = Object.freeze({
   "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr": Object.freeze({
@@ -32,6 +52,22 @@ const ALLOWED_EXCEPTION_POLICY = Object.freeze({
     expires: "2026-12-31",
     findingVersions: OBSERVED_IMAGE_SIZE_VERSIONS,
     buildToolSuffixes: OBSERVED_BUILD_TOOL_SUFFIXES,
+  }),
+  "https://github.com/advisories/GHSA-86w9-cpqp-85rv": Object.freeze({
+    module: "node-forge",
+    severity: "high",
+    pathPrefix: "apps/mobile >",
+    expires: "2026-12-31",
+    findingVersions: OBSERVED_NODE_FORGE_VERSIONS,
+    buildToolSuffixes: OBSERVED_NODE_FORGE_SUFFIXES,
+  }),
+  "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm": Object.freeze({
+    module: "braces",
+    severity: "high",
+    pathPrefix: "* >",
+    expires: "2026-12-31",
+    findingVersions: OBSERVED_BRACES_VERSIONS,
+    buildToolSuffixes: OBSERVED_BRACES_SUFFIXES,
   }),
 });
 
@@ -141,14 +177,19 @@ function validateFindingPath(path, findingVersion, policy, label) {
   ) {
     throw new Error(`${label} is not a valid pnpm dependency path`);
   }
-  if (`${segments[0]} >` !== policy.pathPrefix) {
+  const firstSegmentPrefix = `${segments[0]} >`;
+  const scopeMatches =
+    policy.pathPrefix === "* >"
+      ? ALLOWED_WORKSPACE_PREFIXES.has(firstSegmentPrefix)
+      : firstSegmentPrefix === policy.pathPrefix;
+  if (!scopeMatches) {
     throw new Error(`${label} escapes the allowed ${policy.pathPrefix} scope`);
   }
 
-  for (const segment of segments) {
+  for (const [segmentIndex, segment] of segments.entries()) {
     const normalized = segment.replaceAll("\\", "/");
     if (
-      normalized === "." ||
+      (normalized === "." && segmentIndex !== 0) ||
       normalized === ".." ||
       normalized.startsWith("../") ||
       normalized.endsWith("/..") ||
@@ -264,12 +305,20 @@ function validateAuditReport(report) {
   );
 
   for (const severity of FAIL_SEVERITIES) {
-    const advisoryCount = advisories.filter(
+    const severityAdvisories = advisories.filter(
       (advisory) => advisory.severity === severity,
-    ).length;
-    if (vulnerabilities[severity] !== advisoryCount) {
+    );
+    const advisoryCount = severityAdvisories.length;
+    const findingCount = severityAdvisories.reduce(
+      (sum, advisory) => sum + advisory.findings.length,
+      0,
+    );
+    if (
+      vulnerabilities[severity] !== advisoryCount &&
+      vulnerabilities[severity] !== findingCount
+    ) {
       throw new Error(
-        `Audit report ${severity} metadata/advisory mismatch: metadata=${vulnerabilities[severity]} advisories=${advisoryCount}`,
+        `Audit report ${severity} metadata/advisory mismatch: metadata=${vulnerabilities[severity]} advisories=${advisoryCount} findings=${findingCount}`,
       );
     }
   }

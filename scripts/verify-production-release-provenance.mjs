@@ -201,6 +201,19 @@ export async function verifyProductionReleaseProvenance(
         options.repository.toLowerCase() &&
       pullRequest?.merge_commit_sha?.toLowerCase() === options.sha,
   );
+  if (
+    pullRequests.length === 0 &&
+    branch?.commit?.author?.login === soloReleaseOwner
+  ) {
+    await requireCurrentAdmin(options, soloReleaseOwner, fetchImpl);
+    await requireSoloRepositoryTopology(options, soloReleaseOwner, fetchImpl);
+    return {
+      pullRequestNumber: 0,
+      pullRequestHeadSha: options.sha,
+      soloReleaseOwner,
+    };
+  }
+
   if (mergedCandidates.length !== 1) {
     throw new Error(
       `Target SHA must be the exact merge_commit_sha of exactly one merged pull request into ${options.ref}.`,

@@ -5,14 +5,28 @@
       "severity": "high",
       "pathPrefix": "apps/mobile >",
       "expires": "2026-12-31",
-      "reason": "No patched release exists; exposure is confined to React Native Metro build tooling and is absent from the Vercel web runtime."
+      "reason": "No patched release exists in Expo 56 Metro; exposure is confined to React Native Metro build tooling and is absent from the Vercel web runtime."
     },
     "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq": {
       "module": "image-size",
       "severity": "high",
       "pathPrefix": "apps/mobile >",
       "expires": "2026-12-31",
-      "reason": "No patched release exists; exposure is confined to React Native Metro build tooling and is absent from the Vercel web runtime."
+      "reason": "No patched release exists in Expo 56 Metro; exposure is confined to React Native Metro build tooling and is absent from the Vercel web runtime."
+    },
+    "https://github.com/advisories/GHSA-86w9-cpqp-85rv": {
+      "module": "node-forge",
+      "severity": "high",
+      "pathPrefix": "apps/mobile >",
+      "expires": "2026-12-31",
+      "reason": "No patched release exists (patched_versions <0.0.0); exposure is confined to Expo CLI code-signing build tooling in apps/mobile and is absent from the Vercel web runtime."
+    },
+    "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm": {
+      "module": "braces",
+      "severity": "high",
+      "pathPrefix": "* >",
+      "expires": "2026-12-31",
+      "reason": "No patched release exists (patched_versions <0.0.0); exposure is confined to build/test/lint file-globbing dependencies (micromatch/chokidar) and is not user-controlled at runtime."
     }
   }
 }

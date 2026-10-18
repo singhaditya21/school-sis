@@ -24,7 +24,7 @@ export default function GenericFormClient({
     objectName: string, 
     recordId?: string,
     fields: MetadataField[], 
-    initialData: Record<string, any>,
+    initialData: Record<string, unknown>,
     layout?: MetadataFormLayout
 }) {
     const router = useRouter();

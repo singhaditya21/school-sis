@@ -3,6 +3,13 @@
 import { sql } from "@/lib/db";
 import { requireRole } from "@/lib/auth/guards";
 import { UserRole } from "@/lib/rbac/permissions";
+import {
+  createCoachingBatch as createCoachingBatchAction,
+  scheduleCoachingTest as scheduleCoachingTestAction,
+  type CreateCoachingBatchResult,
+} from "@/actions/coaching";
+
+export type { CreateCoachingBatchResult };
 
 const COACHING_ROLES = [
   UserRole.PLATFORM_ADMIN,
@@ -114,3 +121,16 @@ export async function getTestSeriesAction() {
   `;
   return rows;
 }
+
+export async function createCoachingBatch(
+  formData: FormData,
+): Promise<CreateCoachingBatchResult> {
+  return createCoachingBatchAction(formData);
+}
+
+export async function scheduleCoachingTest(
+  formData: FormData,
+): Promise<CreateCoachingBatchResult> {
+  return scheduleCoachingTestAction(formData);
+}
+

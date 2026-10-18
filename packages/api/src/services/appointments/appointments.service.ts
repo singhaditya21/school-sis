@@ -3,7 +3,19 @@
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
-export async function getAppointments(): Promise<any[]> {
+export interface AppointmentRow {
+    id: string;
+    title: string;
+    description: string | null;
+    date: Date | string;
+    time: string;
+    duration: number | string | null;
+    with: string | null;
+    status: string;
+    type: string | null;
+}
+
+export async function getAppointments(): Promise<AppointmentRow[]> {
     const { tenantId } = await requireAuth('appointments:read');
     const { rows } = await pool.query(`
         SELECT a.id, a.title, a.description, a.date, a.time, a.duration,

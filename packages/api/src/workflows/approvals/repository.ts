@@ -23,8 +23,54 @@ import type {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const INTERNAL_PAYLOAD_HASH_KEY = '__approvalPayloadHash';
 
+interface WorkflowApprovalRequestRow {
+    id: string;
+    tenant_id: string;
+    policy_id: string;
+    title: string;
+    description: string;
+    priority: string;
+    status: string;
+    resource_type: string;
+    resource_id: string | null;
+    payload: Record<string, unknown> | null;
+    requested_by_user_id: string | null;
+    requested_by_role: string;
+    required_approver_roles: string[] | null;
+    min_approvals: number | string;
+    allow_requester_approval: boolean;
+    escalation_level: number | string | null;
+    due_at: Date | string;
+    expires_at: Date | string;
+    completed_at: Date | string | null;
+    created_at: Date | string;
+    updated_at: Date | string;
+}
+
+interface WorkflowApprovalReviewRow {
+    id: string;
+    reviewer_user_id: string | null;
+    reviewer_role: string;
+    decision: string;
+    reason: string | null;
+    delegated_from_user_id: string | null;
+    created_at: Date | string;
+}
+
+interface WorkflowApprovalEventRow {
+    id: string;
+    event_type: WorkflowApprovalRequest['events'][number]['eventType'];
+    from_status: WorkflowApprovalStatus | null;
+    to_status: WorkflowApprovalStatus;
+    actor_user_id: string | null;
+    actor_role: AuthorizationRole | null;
+    reason: string | null;
+    metadata: Record<string, unknown> | null;
+    created_at: Date | string;
+}
+
 type Queryable = {
-    query: (sql: string, params?: readonly unknown[]) => Promise<{ rows: any[] }>;
+    query: (sql: string, params?: readonly unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
 };
 
 export class WorkflowApprovalError extends Error {
@@ -412,7 +458,7 @@ async function fetchWorkflowApprovalByIdempotency(
         [tenantId, idempotencyKey],
     );
     if (rows.length === 0) return null;
-    return fetchWorkflowApprovalById(tenantId, rows[0].id, queryable);
+    return fetchWorkflowApprovalById(tenantId, String(rows[0].id), queryable);
 }
 
 async function fetchWorkflowApprovalById(
@@ -448,7 +494,11 @@ async function fetchWorkflowApprovalById(
         ),
     ]);
 
-    return mapWorkflowApprovalRow(rows[0], reviews, events);
+    return mapWorkflowApprovalRow(
+        rows[0] as unknown as WorkflowApprovalRequestRow,
+        reviews as unknown as readonly WorkflowApprovalReviewRow[],
+        events as unknown as readonly WorkflowApprovalEventRow[],
+    );
 }
 
 async function insertWorkflowApprovalEvent(
@@ -479,9 +529,9 @@ async function insertWorkflowApprovalEvent(
 }
 
 function mapWorkflowApprovalRow(
-    row: any,
-    reviews: readonly any[],
-    events: readonly any[],
+    row: WorkflowApprovalRequestRow,
+    reviews: readonly WorkflowApprovalReviewRow[],
+    events: readonly WorkflowApprovalEventRow[],
 ): WorkflowApprovalRequest {
     const workflowPolicy = assertWorkflowPolicy(row.policy_id);
 

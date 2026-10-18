@@ -92,7 +92,16 @@ export async function getTimetableGrid(tenantId: string, sectionId: string) {
         .rows();
 }
 
-export async function createTimetableEntry(tenantId: string, data: any) {
+export interface CreateTimetableEntryInput {
+    teacherId?: string | null;
+    roomNumber?: string | null;
+    sectionId: string;
+    periodId: string;
+    dayOfWeek: string;
+    subjectId: string;
+}
+
+export async function createTimetableEntry(tenantId: string, data: CreateTimetableEntryInput) {
     const { teacherId, roomNumber, sectionId, periodId, dayOfWeek, subjectId } = data;
     const scope = tenantScope(tenantId);
 
@@ -181,12 +190,22 @@ export async function getSubstitutions(tenantId: string) {
     `);
 }
 
-export async function createSubstitutionRequest(tenantId: string, data: any) {
+export interface CreateSubstitutionRequestInput {
+    teacherId: string;
+    substituteId?: string | null;
+    sectionId?: string | null;
+    period: number | string;
+    date: string;
+    reason?: string | null;
+    status?: string;
+}
+
+export async function createSubstitutionRequest(tenantId: string, data: CreateSubstitutionRequestInput) {
     // tenant_id is set explicitly; the routing pool's RLS still enforces the tenant.
     const [request] = await sql`
         INSERT INTO ${identifier(substitutionRequests.$name)}
             (tenant_id, teacher_id, substitute_id, section_id, period, date, reason, status)
-        VALUES (${tenantId}, ${data.teacherId}, ${data.substituteId}, ${data.sectionId}, ${Number(data.period)}, ${data.date}, ${data.reason}, ${data.status || 'pending'})
+        VALUES (${tenantId}, ${data.teacherId}, ${data.substituteId ?? null}, ${data.sectionId ?? null}, ${Number(data.period)}, ${data.date}, ${data.reason ?? null}, ${data.status || 'pending'})
         RETURNING *
     `;
 
