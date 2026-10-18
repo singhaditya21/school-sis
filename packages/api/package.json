@@ -5,10 +5,10 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "peerDependencies": {
-    "pg": "^8.22.0"
+    "pg": "^8.23.1"
   },
   "devDependencies": {
-    "pg": "^8.22.0"
+    "pg": "^8.23.1"
   },
   "dependencies": {
     "zod": "^3.25.76",
