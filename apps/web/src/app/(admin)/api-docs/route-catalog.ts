@@ -248,6 +248,13 @@ export const API_ROUTES: readonly ApiRouteDoc[] = [
         summary: 'WhatsApp (Meta Cloud) delivery-status webhook. GET is the subscription handshake; POST ingests message status receipts.',
         auth: 'webhook-signature',
     },
+    {
+        path: '/api/webhooks/sms',
+        methods: ['POST'],
+        group: 'Webhooks',
+        summary: 'SMS delivery-status webhook. Twilio (X-Twilio-Signature) or MSG91 (shared secret), selected by SMS_PROVIDER; ingests delivery receipts.',
+        auth: 'webhook-signature',
+    },
 
     // ---- Reporting & analytics ------------------------------------------------
     {
