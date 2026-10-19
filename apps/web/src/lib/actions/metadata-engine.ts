@@ -97,7 +97,7 @@ async function fetchObjectMetadata(apiName: string, tenantId: string) {
     assertSafeMetadataIdentifier(apiName, 'object API name');
 
     // Get Object
-    const objQuery = `
+    const objRows = await sql<MetadataObject>`
         SELECT id,
                tenant_id as "tenantId",
                name,
@@ -108,16 +108,15 @@ async function fetchObjectMetadata(apiName: string, tenantId: string) {
                version,
                published_version as "publishedVersion"
         FROM metadata_objects
-        WHERE api_name = $1
+        WHERE api_name = ${apiName}
           AND status = 'PUBLISHED'
           AND (
-            tenant_id = $2
+            tenant_id = ${tenantId}
             OR (tenant_id IS NULL AND COALESCE(is_custom, false) = false)
           )
-        ORDER BY CASE WHEN tenant_id = $2 THEN 0 ELSE 1 END, created_at DESC
+        ORDER BY CASE WHEN tenant_id = ${tenantId} THEN 0 ELSE 1 END, created_at DESC
         LIMIT 1
     `;
-    const { rows: objRows } = await pool.query(objQuery, [apiName, tenantId]);
     if (objRows.length === 0) throw new Error(`Object ${apiName} not found`);
     const objectDef: MetadataObject = objRows[0];
 
@@ -128,7 +127,7 @@ async function fetchObjectMetadata(apiName: string, tenantId: string) {
     // `metadata_fields` and `field_permissions` have no tenant_id of their own;
     // both are reached through `object_id`, and `objectDef` above was already
     // resolved under the tenant visibility rule, so the parent scoping holds.
-    const fieldsQuery = `
+    const fields = await sql<MetadataField>`
         SELECT f.id,
                f.object_id as "objectId",
                f.label,
@@ -153,24 +152,20 @@ async function fetchObjectMetadata(apiName: string, tenantId: string) {
                ) as permissions
         FROM metadata_fields f
         LEFT JOIN field_permissions fp ON fp.field_id = f.id
-        WHERE f.object_id = $1
+        WHERE f.object_id = ${objectDef.id}
           AND f.status = 'ACTIVE'
         GROUP BY f.id, f.object_id, f.label, f.api_name, f.data_type, f.is_custom,
                  f.is_required, f.default_value, f.picklist_options, f.validation_rules,
                  f.status, f.version, f.created_at
         ORDER BY f.created_at ASC, f.api_name ASC
     `;
-    const { rows: fieldRows } = await pool.query(fieldsQuery, [objectDef.id]);
-    const fields: MetadataField[] = fieldRows;
 
     // Get Layouts
-    const layoutQuery = `
+    const layouts = await sql<MetadataLayout>`
         SELECT id, object_id as "objectId", layout_type as "layoutType", schema, is_default as "isDefault"
         FROM metadata_layouts
-        WHERE object_id = $1 AND is_default = true
+        WHERE object_id = ${objectDef.id} AND is_default = true
     `;
-    const { rows: layoutRows } = await pool.query(layoutQuery, [objectDef.id]);
-    const layouts: MetadataLayout[] = layoutRows;
 
     return { objectDef, fields, layouts };
 }

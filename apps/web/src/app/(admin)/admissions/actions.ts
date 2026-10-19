@@ -12,7 +12,7 @@ import { randomUUID } from 'crypto';
 import { revalidatePath } from 'next/cache';
 
 import { requireAuth } from '@/lib/auth/middleware';
-import { pool } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { notificationProviderForChannel } from '@/lib/integrations/runtime-mode';
 import { convertLeadToStudent, triggerStageNotification } from '@/lib/actions/admissions';
 
@@ -62,13 +62,12 @@ export async function moveLeadStage(
         return { success: false, error: 'Invalid pipeline stage.' };
     }
 
-    const { rows } = await pool.query(
-        `UPDATE admission_leads
-         SET stage = $1, updated_at = NOW()
-         WHERE id = $2 AND tenant_id = $3
-         RETURNING id`,
-        [newStage, leadId, tenantId],
-    );
+    const rows = await sql<{ id: string }>`
+        UPDATE admission_leads
+        SET stage = ${newStage}, updated_at = NOW()
+        WHERE id = ${leadId} AND tenant_id = ${tenantId}
+        RETURNING id
+    `;
     if (!rows.length) return { success: false, error: 'Lead not found.' };
 
     const result: StageMoveResult = { success: true, stage: newStage };
@@ -114,12 +113,11 @@ export async function notifyParentOfStage(
     const { tenantId } = await requireAuth('admissions:write');
     if (!isUuid(leadId)) return { success: false, error: 'Invalid lead reference.' };
 
-    const { rows } = await pool.query(
-        `SELECT stage, parent_email AS "parentEmail"
-         FROM admission_leads
-         WHERE id = $1 AND tenant_id = $2`,
-        [leadId, tenantId],
-    );
+    const rows = await sql<{ stage: string; parentEmail: string | null }>`
+        SELECT stage, parent_email AS "parentEmail"
+        FROM admission_leads
+        WHERE id = ${leadId} AND tenant_id = ${tenantId}
+    `;
     if (!rows.length) return { success: false, error: 'Lead not found.' };
 
     const stage: string = rows[0].stage;
@@ -158,17 +156,16 @@ export interface LeadOwnerOption {
 export async function listLeadOwners(): Promise<LeadOwnerOption[]> {
     const { tenantId } = await requireAuth('admissions:read');
 
-    const { rows } = await pool.query(
-        `SELECT id, first_name AS "firstName", last_name AS "lastName", role
-         FROM users
-         WHERE tenant_id = $1
-           AND is_active = true
-           AND role::text = ANY($2::text[])
-         ORDER BY first_name ASC, last_name ASC`,
-        [tenantId, LEAD_OWNER_ROLES],
-    );
+    const rows = await sql<{ id: string; firstName: string; lastName: string; role: string }>`
+        SELECT id, first_name AS "firstName", last_name AS "lastName", role
+        FROM users
+        WHERE tenant_id = ${tenantId}
+          AND is_active = true
+          AND role::text = ANY(${LEAD_OWNER_ROLES}::text[])
+        ORDER BY first_name ASC, last_name ASC
+    `;
 
-    return rows.map((r: { id: string; firstName: string; lastName: string; role: string }) => ({
+    return rows.map((r) => ({
         id: r.id,
         name: `${r.firstName} ${r.lastName}`.trim(),
         role: r.role,
@@ -179,11 +176,10 @@ export async function getLeadAssignedTo(leadId: string): Promise<string | null> 
     const { tenantId } = await requireAuth('admissions:read');
     if (!isUuid(leadId)) return null;
 
-    const { rows } = await pool.query(
-        `SELECT assigned_to AS "assignedTo" FROM admission_leads WHERE id = $1 AND tenant_id = $2`,
-        [leadId, tenantId],
-    );
-    return rows.length ? (rows[0].assignedTo as string | null) : null;
+    const rows = await sql<{ assignedTo: string | null }>`
+        SELECT assigned_to AS "assignedTo" FROM admission_leads WHERE id = ${leadId} AND tenant_id = ${tenantId}
+    `;
+    return rows.length ? rows[0].assignedTo : null;
 }
 
 export async function assignLead(
@@ -198,20 +194,18 @@ export async function assignLead(
     }
 
     if (ownerId) {
-        const { rows: owner } = await pool.query(
-            `SELECT id FROM users WHERE id = $1 AND tenant_id = $2 AND is_active = true`,
-            [ownerId, tenantId],
-        );
+        const owner = await sql<{ id: string }>`
+            SELECT id FROM users WHERE id = ${ownerId} AND tenant_id = ${tenantId} AND is_active = true
+        `;
         if (!owner.length) return { success: false, error: 'That user is not available in this school.' };
     }
 
-    const { rows } = await pool.query(
-        `UPDATE admission_leads
-         SET assigned_to = $1, updated_at = NOW()
-         WHERE id = $2 AND tenant_id = $3
-         RETURNING id`,
-        [ownerId, leadId, tenantId],
-    );
+    const rows = await sql<{ id: string }>`
+        UPDATE admission_leads
+        SET assigned_to = ${ownerId}, updated_at = NOW()
+        WHERE id = ${leadId} AND tenant_id = ${tenantId}
+        RETURNING id
+    `;
     if (!rows.length) return { success: false, error: 'Lead not found.' };
 
     revalidatePath(`/admissions/${leadId}`);
@@ -230,26 +224,26 @@ export interface GradeWithSections {
 export async function listGradeSections(): Promise<GradeWithSections[]> {
     const { tenantId } = await requireAuth('admissions:read');
 
-    const { rows } = await pool.query(
-        `SELECT g.id AS "gradeId",
-                g.name AS "gradeName",
-                g.display_order AS "displayOrder",
-                s.id AS "sectionId",
-                s.name AS "sectionName"
-         FROM grades g
-         LEFT JOIN sections s ON s.grade_id = g.id AND s.tenant_id = g.tenant_id
-         WHERE g.tenant_id = $1
-         ORDER BY g.display_order ASC, s.name ASC`,
-        [tenantId],
-    );
-
-    const grades = new Map<string, GradeWithSections>();
-    for (const row of rows as {
+    const rows = await sql<{
         gradeId: string;
         gradeName: string;
+        displayOrder: number;
         sectionId: string | null;
         sectionName: string | null;
-    }[]) {
+    }>`
+        SELECT g.id AS "gradeId",
+               g.name AS "gradeName",
+               g.display_order AS "displayOrder",
+               s.id AS "sectionId",
+               s.name AS "sectionName"
+        FROM grades g
+        LEFT JOIN sections s ON s.grade_id = g.id AND s.tenant_id = g.tenant_id
+        WHERE g.tenant_id = ${tenantId}
+        ORDER BY g.display_order ASC, s.name ASC
+    `;
+
+    const grades = new Map<string, GradeWithSections>();
+    for (const row of rows) {
         let grade = grades.get(row.gradeId);
         if (!grade) {
             grade = { id: row.gradeId, name: row.gradeName, sections: [] };
@@ -273,13 +267,12 @@ export async function enrolLead(
         return { success: false, error: 'Invalid grade or section selection.' };
     }
 
-    const { rows: placement } = await pool.query(
-        `SELECT s.id
-         FROM sections s
-         INNER JOIN grades g ON s.grade_id = g.id AND g.tenant_id = s.tenant_id
-         WHERE s.id = $1 AND g.id = $2 AND s.tenant_id = $3`,
-        [sectionId, gradeId, tenantId],
-    );
+    const placement = await sql<{ id: string }>`
+        SELECT s.id
+        FROM sections s
+        INNER JOIN grades g ON s.grade_id = g.id AND g.tenant_id = s.tenant_id
+        WHERE s.id = ${sectionId} AND g.id = ${gradeId} AND s.tenant_id = ${tenantId}
+    `;
     if (!placement.length) {
         return { success: false, error: 'That section does not belong to the selected grade.' };
     }
@@ -329,14 +322,13 @@ async function findApplication(
     leadId: string,
     tenantId: string,
 ): Promise<{ id: string; applicationNumber: string } | null> {
-    const { rows } = await pool.query(
-        `SELECT id, application_number AS "applicationNumber"
-         FROM admission_applications
-         WHERE lead_id = $1 AND tenant_id = $2
-         ORDER BY created_at ASC
-         LIMIT 1`,
-        [leadId, tenantId],
-    );
+    const rows = await sql<{ id: string; applicationNumber: string }>`
+        SELECT id, application_number AS "applicationNumber"
+        FROM admission_applications
+        WHERE lead_id = ${leadId} AND tenant_id = ${tenantId}
+        ORDER BY created_at ASC
+        LIMIT 1
+    `;
     return rows.length ? { id: rows[0].id, applicationNumber: rows[0].applicationNumber } : null;
 }
 
@@ -354,11 +346,10 @@ async function ensureApplication(
 
     const id = randomUUID();
     const applicationNumber = `APP-${Date.now().toString(36).toUpperCase()}`;
-    await pool.query(
-        `INSERT INTO admission_applications (id, tenant_id, lead_id, application_number)
-         VALUES ($1, $2, $3, $4)`,
-        [id, tenantId, leadId, applicationNumber],
-    );
+    await sql`
+        INSERT INTO admission_applications (id, tenant_id, lead_id, application_number)
+        VALUES (${id}, ${tenantId}, ${leadId}, ${applicationNumber})
+    `.execute();
     return { id, applicationNumber };
 }
 
@@ -368,10 +359,9 @@ export async function openApplication(
     const { tenantId } = await requireAuth('admissions:write');
     if (!isUuid(leadId)) return { success: false, error: 'Invalid lead reference.' };
 
-    const { rows } = await pool.query(
-        `SELECT id FROM admission_leads WHERE id = $1 AND tenant_id = $2`,
-        [leadId, tenantId],
-    );
+    const rows = await sql<{ id: string }>`
+        SELECT id FROM admission_leads WHERE id = ${leadId} AND tenant_id = ${tenantId}
+    `;
     if (!rows.length) return { success: false, error: 'Lead not found.' };
 
     const application = await ensureApplication(leadId, tenantId);
@@ -384,16 +374,21 @@ export async function getLeadDocumentPack(leadId: string): Promise<LeadDocumentP
     const { tenantId } = await requireAuth('admissions:read');
     if (!isUuid(leadId)) return null;
 
-    const { rows: leadRows } = await pool.query(
-        `SELECT id,
-                child_first_name AS "childFirstName",
-                child_last_name AS "childLastName",
-                applying_for_grade AS "applyingForGrade",
-                stage
-         FROM admission_leads
-         WHERE id = $1 AND tenant_id = $2`,
-        [leadId, tenantId],
-    );
+    const leadRows = await sql<{
+        id: string;
+        childFirstName: string;
+        childLastName: string;
+        applyingForGrade: string;
+        stage: string;
+    }>`
+        SELECT id,
+               child_first_name AS "childFirstName",
+               child_last_name AS "childLastName",
+               applying_for_grade AS "applyingForGrade",
+               stage
+        FROM admission_leads
+        WHERE id = ${leadId} AND tenant_id = ${tenantId}
+    `;
     if (!leadRows.length) return null;
     const lead = leadRows[0];
 
@@ -401,22 +396,7 @@ export async function getLeadDocumentPack(leadId: string): Promise<LeadDocumentP
 
     let documents: AdmissionDocumentRow[] = [];
     if (application) {
-        const { rows } = await pool.query(
-            `SELECT d.id,
-                    d.document_type AS "documentType",
-                    d.file_name AS "fileName",
-                    d.file_url AS "fileUrl",
-                    d.is_verified AS "verifiedAt",
-                    d.created_at AS "createdAt",
-                    u.first_name AS "verifiedByFirstName",
-                    u.last_name AS "verifiedByLastName"
-             FROM admission_documents d
-             LEFT JOIN users u ON d.verified_by = u.id
-             WHERE d.application_id = $1 AND d.tenant_id = $2
-             ORDER BY d.created_at ASC`,
-            [application.id, tenantId],
-        );
-        documents = (rows as {
+        const rows = await sql<{
             id: string;
             documentType: string;
             fileName: string;
@@ -425,7 +405,21 @@ export async function getLeadDocumentPack(leadId: string): Promise<LeadDocumentP
             createdAt: Date;
             verifiedByFirstName: string | null;
             verifiedByLastName: string | null;
-        }[]).map((r) => ({
+        }>`
+            SELECT d.id,
+                   d.document_type AS "documentType",
+                   d.file_name AS "fileName",
+                   d.file_url AS "fileUrl",
+                   d.is_verified AS "verifiedAt",
+                   d.created_at AS "createdAt",
+                   u.first_name AS "verifiedByFirstName",
+                   u.last_name AS "verifiedByLastName"
+            FROM admission_documents d
+            LEFT JOIN users u ON d.verified_by = u.id
+            WHERE d.application_id = ${application.id} AND d.tenant_id = ${tenantId}
+            ORDER BY d.created_at ASC
+        `;
+        documents = rows.map((r) => ({
             id: r.id,
             documentType: r.documentType,
             fileName: r.fileName,
@@ -493,35 +487,31 @@ export async function recordAdmissionDocument(
         return { success: false, error: 'Enter a full http(s) link to the stored file.' };
     }
 
-    const { rows: leadRows } = await pool.query(
-        `SELECT id FROM admission_leads WHERE id = $1 AND tenant_id = $2`,
-        [leadId, tenantId],
-    );
+    const leadRows = await sql<{ id: string }>`
+        SELECT id FROM admission_leads WHERE id = ${leadId} AND tenant_id = ${tenantId}
+    `;
     if (!leadRows.length) return { success: false, error: 'Lead not found.' };
 
     const application = await ensureApplication(leadId, tenantId);
 
     // One live record per document type — re-recording replaces the link and
     // clears any previous verification, because it is a different file.
-    const { rows: existing } = await pool.query(
-        `SELECT id FROM admission_documents
-         WHERE application_id = $1 AND tenant_id = $2 AND document_type = $3`,
-        [application.id, tenantId, type],
-    );
+    const existing = await sql<{ id: string }>`
+        SELECT id FROM admission_documents
+        WHERE application_id = ${application.id} AND tenant_id = ${tenantId} AND document_type = ${type}
+    `;
 
     if (existing.length) {
-        await pool.query(
-            `UPDATE admission_documents
-             SET file_name = $1, file_url = $2, is_verified = NULL, verified_by = NULL
-             WHERE id = $3 AND tenant_id = $4`,
-            [name, url, existing[0].id, tenantId],
-        );
+        await sql`
+            UPDATE admission_documents
+            SET file_name = ${name}, file_url = ${url}, is_verified = NULL, verified_by = NULL
+            WHERE id = ${existing[0].id} AND tenant_id = ${tenantId}
+        `.execute();
     } else {
-        await pool.query(
-            `INSERT INTO admission_documents (id, tenant_id, application_id, document_type, file_name, file_url)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [randomUUID(), tenantId, application.id, type, name, url],
-        );
+        await sql`
+            INSERT INTO admission_documents (id, tenant_id, application_id, document_type, file_name, file_url)
+            VALUES (${randomUUID()}, ${tenantId}, ${application.id}, ${type}, ${name}, ${url})
+        `.execute();
     }
 
     revalidatePath(`/admissions/${leadId}/documents`);
@@ -540,17 +530,16 @@ export async function setAdmissionDocumentVerified(
         return { success: false, error: 'Invalid document reference.' };
     }
 
-    const { rows } = await pool.query(
-        `UPDATE admission_documents d
-         SET is_verified = $1, verified_by = $2
-         FROM admission_applications a
-         WHERE d.id = $3
-           AND d.tenant_id = $4
-           AND d.application_id = a.id
-           AND a.lead_id = $5
-         RETURNING d.id`,
-        [verified ? new Date() : null, verified ? userId : null, documentId, tenantId, leadId],
-    );
+    const rows = await sql<{ id: string }>`
+        UPDATE admission_documents d
+        SET is_verified = ${verified ? new Date() : null}, verified_by = ${verified ? userId : null}
+        FROM admission_applications a
+        WHERE d.id = ${documentId}
+          AND d.tenant_id = ${tenantId}
+          AND d.application_id = a.id
+          AND a.lead_id = ${leadId}
+        RETURNING d.id
+    `;
     if (!rows.length) return { success: false, error: 'Document not found.' };
 
     revalidatePath(`/admissions/${leadId}/documents`);
@@ -568,16 +557,15 @@ export async function removeAdmissionDocument(
         return { success: false, error: 'Invalid document reference.' };
     }
 
-    const { rows } = await pool.query(
-        `DELETE FROM admission_documents d
-         USING admission_applications a
-         WHERE d.id = $1
-           AND d.tenant_id = $2
-           AND d.application_id = a.id
-           AND a.lead_id = $3
-         RETURNING d.id`,
-        [documentId, tenantId, leadId],
-    );
+    const rows = await sql<{ id: string }>`
+        DELETE FROM admission_documents d
+        USING admission_applications a
+        WHERE d.id = ${documentId}
+          AND d.tenant_id = ${tenantId}
+          AND d.application_id = a.id
+          AND a.lead_id = ${leadId}
+        RETURNING d.id
+    `;
     if (!rows.length) return { success: false, error: 'Document not found.' };
 
     revalidatePath(`/admissions/${leadId}/documents`);

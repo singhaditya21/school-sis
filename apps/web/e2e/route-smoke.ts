@@ -402,6 +402,8 @@ export function registerRouteSmokeTests(): void {
             await check(page.getByText(/\d+(\.\d+)?% collection rate/)).toBeVisible();
             await check(page.getByText('Overdue Balance')).toBeVisible();
             await check(page.getByText('Students With Dues')).toBeVisible();
+            await check(page.locator('[data-testid="toggle-customize-dashboard"]')).toBeVisible();
+            await check(page.locator('[data-testid="executive-dashboard-grid"]')).toBeVisible();
         });
     });
 
@@ -808,6 +810,19 @@ export function registerRouteSmokeTests(): void {
                 broken,
                 `${broken.length} of ${routes.length} staff nav routes failed:\n${broken.join('\n')}`,
             ).toEqual([]);
+        });
+
+        test('LCNC builders (Workflow Canvas, Data Studio, and BI Report Schedule) render interactive surfaces', async () => {
+            await visit(page, '/settings/automation/new');
+            await check(page.locator('[data-testid="workflow-visual-canvas"]')).toBeVisible();
+            await check(page.locator('[data-testid="workflow-target-object-trigger"]')).toBeVisible();
+
+            await visit(page, '/data');
+            await check(page.getByRole('heading', { name: /No-Code Metadata Engine/i })).toBeVisible();
+
+            await visit(page, '/reports');
+            await check(page.locator('[data-testid="save-schedule-report-panel"]')).toBeVisible();
+            await check(page.locator('[data-testid="save-custom-report-btn"]')).toBeVisible();
         });
     });
 

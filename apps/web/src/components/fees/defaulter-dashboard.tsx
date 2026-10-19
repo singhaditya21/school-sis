@@ -37,33 +37,33 @@ function SummaryCards({ stats }: { stats: DefaulterStats }) {
             label: 'Total Overdue',
             value: formatCurrency(stats.totalOverdueAmount),
             icon: IndianRupee,
-            color: 'text-red-600 dark:text-red-400',
-            bg: 'bg-red-50 dark:bg-red-950/30',
-            border: 'border-red-200 dark:border-red-900/50',
+            color: 'text-destructive',
+            bg: 'bg-destructive-subtle/40',
+            border: 'border-destructive/30',
         },
         {
             label: 'Defaulters',
             value: stats.defaulterCount.toString(),
             icon: Users,
-            color: 'text-orange-600 dark:text-orange-400',
-            bg: 'bg-orange-50 dark:bg-orange-950/30',
-            border: 'border-orange-200 dark:border-orange-900/50',
+            color: 'text-warning',
+            bg: 'bg-warning-subtle/40',
+            border: 'border-warning/30',
         },
         {
             label: 'Avg Days Overdue',
             value: `${stats.averageDaysOverdue} days`,
             icon: Clock,
-            color: 'text-amber-600 dark:text-amber-400',
-            bg: 'bg-amber-50 dark:bg-amber-950/30',
-            border: 'border-amber-200 dark:border-amber-900/50',
+            color: 'text-warning',
+            bg: 'bg-warning-subtle/40',
+            border: 'border-warning/30',
         },
         {
             label: 'Highest Single Due',
             value: formatCurrency(stats.highestOverdue),
             icon: TrendingUp,
-            color: 'text-rose-600 dark:text-rose-400',
-            bg: 'bg-rose-50 dark:bg-rose-950/30',
-            border: 'border-rose-200 dark:border-rose-900/50',
+            color: 'text-destructive',
+            bg: 'bg-destructive-subtle/40',
+            border: 'border-destructive/30',
         },
     ];
 
@@ -95,15 +95,15 @@ function AgeingAnalysis({ buckets }: { buckets: AgeingBucket[] }) {
     const totalAmount = buckets.reduce((sum, b) => sum + b.amount, 0);
 
     const ageingColors = [
-        { bar: 'bg-yellow-400', text: 'text-yellow-700 dark:text-yellow-300' },
-        { bar: 'bg-orange-400', text: 'text-orange-700 dark:text-orange-300' },
-        { bar: 'bg-red-400', text: 'text-red-700 dark:text-red-300' },
-        { bar: 'bg-rose-600', text: 'text-rose-700 dark:text-rose-300' },
+        { bar: 'bg-warning/70', text: 'text-warning' },
+        { bar: 'bg-warning', text: 'text-warning' },
+        { bar: 'bg-destructive/80', text: 'text-destructive' },
+        { bar: 'bg-destructive', text: 'text-destructive' },
     ];
 
     return (
-        <div className="rounded-xl border border-border dark:border-gray-800 bg-card p-6">
-            <h3 className="text-lg font-semibold text-foreground dark:text-white mb-4">
+        <div className="rounded-xl border border-border bg-card p-6">
+            <h3 className="text-lg font-semibold text-foreground mb-4">
                 Ageing Analysis
             </h3>
             <div className="space-y-4">
@@ -119,12 +119,12 @@ function AgeingAnalysis({ buckets }: { buckets: AgeingBucket[] }) {
                                     <Badge variant="outline" className="text-xs">
                                         {bucket.count} invoice{bucket.count !== 1 ? 's' : ''}
                                     </Badge>
-                                    <span className="font-semibold text-foreground dark:text-white w-28 text-right">
+                                    <span className="font-semibold text-foreground w-28 text-right">
                                         {formatCurrency(bucket.amount)}
                                     </span>
                                 </div>
                             </div>
-                            <div className="h-3 bg-muted dark:bg-gray-800 rounded-full overflow-hidden">
+                            <div className="h-3 bg-muted rounded-full overflow-hidden">
                                 <div
                                     className={`h-full ${ageingColors[idx].bar} rounded-full transition-all duration-500`}
                                     style={{ width: `${Math.max(percentage, 2)}%` }}
@@ -161,8 +161,8 @@ function DefaulterTable({
 }) {
     if (defaulters.length === 0) {
         return (
-            <div className="rounded-xl border border-green-200 dark:border-green-900/50 bg-green-50 dark:bg-green-950/30 p-8 text-center">
-                <div className="text-green-600 dark:text-green-400 text-lg font-medium">
+            <div className="rounded-xl border border-success/30 bg-success-subtle/40 p-8 text-center">
+                <div className="text-success text-lg font-medium">
                     🎉 No defaulters! All fees are up to date.
                 </div>
             </div>
@@ -170,9 +170,9 @@ function DefaulterTable({
     }
 
     return (
-        <div className="rounded-xl border border-border dark:border-gray-800 bg-card overflow-hidden">
-            <div className="p-4 border-b border-border dark:border-gray-800 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-foreground dark:text-white">
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="p-4 border-b border-border flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-foreground">
                     Defaulter List
                     <Badge variant="outline" className="ml-2 text-xs">
                         {defaulters.length} student{defaulters.length !== 1 ? 's' : ''}
@@ -183,8 +183,8 @@ function DefaulterTable({
                     <button
                         onClick={() => onSortChange('amount')}
                         className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${sortBy === 'amount'
-                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
-                                : 'hover:bg-muted dark:hover:bg-gray-800 text-muted-foreground'
+                                ? 'bg-info-subtle text-info font-medium'
+                                : 'hover:bg-muted text-muted-foreground'
                             }`}
                     >
                         <ArrowUpDown className="w-3 h-3 inline mr-1" />
@@ -193,8 +193,8 @@ function DefaulterTable({
                     <button
                         onClick={() => onSortChange('days')}
                         className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${sortBy === 'days'
-                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
-                                : 'hover:bg-muted dark:hover:bg-gray-800 text-muted-foreground'
+                                ? 'bg-info-subtle text-info font-medium'
+                                : 'hover:bg-muted text-muted-foreground'
                             }`}
                     >
                         <ArrowUpDown className="w-3 h-3 inline mr-1" />
@@ -206,7 +206,7 @@ function DefaulterTable({
             <div className="overflow-x-auto">
                 <table className="w-full">
                     <thead>
-                        <tr className="bg-muted dark:bg-gray-900/50">
+                        <tr className="bg-muted">
                             <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                 Student
                             </th>
@@ -233,46 +233,46 @@ function DefaulterTable({
                             </th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                    <tbody className="divide-y divide-border">
                         {defaulters.map((d) => {
                             const urgency =
                                 d.daysOverdue > 90
-                                    ? 'bg-rose-50 dark:bg-rose-950/20'
+                                    ? 'bg-destructive-subtle/30'
                                     : d.daysOverdue > 60
-                                        ? 'bg-red-50 dark:bg-red-950/20'
+                                        ? 'bg-destructive-subtle/20'
                                         : d.daysOverdue > 30
-                                            ? 'bg-orange-50 dark:bg-orange-950/20'
+                                            ? 'bg-warning-subtle/20'
                                             : '';
 
                             const urgencyBadge =
                                 d.daysOverdue > 90
-                                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                                    ? 'bg-destructive-subtle text-destructive'
                                     : d.daysOverdue > 60
-                                        ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                                        ? 'bg-destructive-subtle text-destructive'
                                         : d.daysOverdue > 30
-                                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
-                                            : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300';
+                                            ? 'bg-warning-subtle text-warning'
+                                            : 'bg-warning-subtle/60 text-warning';
 
                             return (
                                 <tr
                                     key={d.studentId}
-                                    className={`${urgency} hover:bg-muted dark:hover:bg-gray-900/30 transition-colors`}
+                                    className={`${urgency} hover:bg-muted transition-colors`}
                                 >
                                     <td className="px-4 py-3">
-                                        <div className="font-medium text-foreground dark:text-white text-sm">
+                                        <div className="font-medium text-foreground text-sm">
                                             {d.studentName}
                                         </div>
                                     </td>
                                     <td className="px-4 py-3 text-sm text-muted-foreground">
                                         {d.className}
                                     </td>
-                                    <td className="px-4 py-3 text-right text-sm font-medium text-foreground dark:text-white">
+                                    <td className="px-4 py-3 text-right text-sm font-medium text-foreground">
                                         {formatCurrency(d.totalDue)}
                                     </td>
-                                    <td className="px-4 py-3 text-right text-sm text-green-600 dark:text-green-400">
+                                    <td className="px-4 py-3 text-right text-sm text-success">
                                         {formatCurrency(d.totalPaid)}
                                     </td>
-                                    <td className="px-4 py-3 text-right text-sm font-semibold text-red-600 dark:text-red-400">
+                                    <td className="px-4 py-3 text-right text-sm font-semibold text-destructive">
                                         {formatCurrency(d.balance)}
                                     </td>
                                     <td className="px-4 py-3 text-center">
@@ -287,7 +287,7 @@ function DefaulterTable({
                                         <div className="flex items-center justify-end gap-1">
                                             <Link
                                                 href={studentInvoicesHref(d.studentName)}
-                                                className="p-1.5 rounded-lg hover:bg-muted dark:hover:bg-gray-800 text-muted-foreground hover:text-primary transition-colors inline-flex"
+                                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors inline-flex"
                                                 title={`View all invoices for ${d.studentName}`}
                                                 aria-label={`View all invoices for ${d.studentName}`}
                                             >
@@ -305,7 +305,7 @@ function DefaulterTable({
                                             {payableInvoiceIds[d.studentId] ? (
                                                 <Link
                                                     href={`/invoices/${payableInvoiceIds[d.studentId]}`}
-                                                    className="p-1.5 rounded-lg hover:bg-muted dark:hover:bg-gray-800 text-muted-foreground hover:text-green-600 transition-colors inline-flex"
+                                                    className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-success transition-colors inline-flex"
                                                     title={`Record a payment against ${d.studentName}'s oldest overdue invoice`}
                                                     aria-label={`Record a payment for ${d.studentName}`}
                                                 >
@@ -314,7 +314,7 @@ function DefaulterTable({
                                             ) : (
                                                 <Link
                                                     href={studentInvoicesHref(d.studentName)}
-                                                    className="p-1.5 rounded-lg hover:bg-muted dark:hover:bg-gray-800 text-muted-foreground hover:text-green-600 transition-colors inline-flex"
+                                                    className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-success transition-colors inline-flex"
                                                     title={`Pick an invoice for ${d.studentName} to record a payment`}
                                                     aria-label={`Record a payment for ${d.studentName}`}
                                                 >
@@ -366,8 +366,8 @@ export default function DefaulterDashboard({
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-xl font-bold text-foreground dark:text-white flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5 text-red-500" />
+                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                        <AlertTriangle className="w-5 h-5 text-destructive" />
                         Fee Defaulter Dashboard
                     </h2>
                     <p className="text-sm text-muted-foreground mt-1">

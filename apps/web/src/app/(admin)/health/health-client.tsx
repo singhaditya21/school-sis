@@ -51,10 +51,10 @@ type FormState = typeof EMPTY_FORM;
 
 function typeColor(t: string): string {
     const m: Record<string, string> = {
-        INJURY: 'bg-red-100 text-red-700',
-        ILLNESS: 'bg-orange-100 text-orange-700',
-        ALLERGY: 'bg-yellow-100 text-yellow-700',
-        EMERGENCY: 'bg-red-200 text-red-800',
+        INJURY: 'bg-destructive-subtle text-destructive',
+        ILLNESS: 'bg-warning-subtle text-warning',
+        ALLERGY: 'bg-warning-subtle/80 text-warning',
+        EMERGENCY: 'bg-destructive-subtle text-destructive',
         OTHER: 'bg-muted text-foreground',
     };
     return m[t] || 'bg-muted text-foreground';
@@ -124,7 +124,7 @@ export default function HealthClient({
                     canWrite ? (
                         <Button
                             onClick={() => setView('log')}
-                            className="bg-red-600 hover:bg-red-700 text-white shadow-sm transition-all flex items-center gap-2"
+                            className="bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-sm transition-all flex items-center gap-2"
                             data-testid="open-incident-form"
                         >
                             <span>+</span> Log New Incident
@@ -152,22 +152,22 @@ export default function HealthClient({
                                 <div className="text-3xl font-bold text-foreground" data-testid="kpi-total-incidents">{stats.totalIncidents.toLocaleString()}</div>
                             </CardContent>
                         </Card>
-                        <Card className="shadow-sm border-red-200 bg-red-50/40 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-16 h-16 bg-red-100 rounded-bl-full -mr-8 -mt-8"></div>
+                        <Card className="shadow-sm border-destructive/30 bg-destructive-subtle/40 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-16 h-16 bg-destructive-subtle rounded-bl-full -mr-8 -mt-8"></div>
                             <CardContent className="pt-6 relative z-10">
-                                <div className="text-sm font-semibold text-red-600 mb-1 flex items-center gap-2">
+                                <div className="text-sm font-semibold text-destructive mb-1 flex items-center gap-2">
                                     <span className="relative flex h-2 w-2">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive/70 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive"></span>
                                     </span>
                                     Today&apos;s Incidents
                                 </div>
-                                <div className="text-3xl font-bold text-red-700" data-testid="kpi-today-incidents">{stats.todayIncidents}</div>
+                                <div className="text-3xl font-bold text-destructive" data-testid="kpi-today-incidents">{stats.todayIncidents}</div>
                             </CardContent>
                         </Card>
-                        <Card className="shadow-sm border-green-100 bg-green-50/40">
+                        <Card className="shadow-sm border-success/30 bg-success-subtle/40">
                             <CardContent className="pt-6">
-                                <div className="text-sm font-medium text-green-600 mb-1">Immunization Records</div>
+                                <div className="text-sm font-medium text-success mb-1">Immunization Records</div>
                                 <div className="text-3xl font-bold text-foreground" data-testid="kpi-immunizations">{stats.totalImmunizations.toLocaleString()}</div>
                             </CardContent>
                         </Card>
@@ -187,7 +187,7 @@ export default function HealthClient({
                                         No health record on file lists an allergy, condition or medication yet.
                                     </p>
                                 ) : (
-                                    <ul className="divide-y divide-gray-100" data-testid="medical-alerts-list">
+                                    <ul className="divide-y divide-border" data-testid="medical-alerts-list">
                                         {medicalAlerts.map((row) => (
                                             <li key={row.studentId} className="py-3" data-testid={`medical-alert-${row.studentId}`}>
                                                 <div className="flex items-baseline justify-between gap-3">
@@ -199,13 +199,13 @@ export default function HealthClient({
                                                         <Badge className="bg-muted text-foreground border-0">{row.bloodGroup}</Badge>
                                                     )}
                                                     {row.allergies.map((a) => (
-                                                        <Badge key={`a-${a}`} className="bg-yellow-100 text-yellow-800 border-0">Allergy: {a}</Badge>
+                                                        <Badge key={`a-${a}`} className="bg-warning-subtle text-warning border-0">Allergy: {a}</Badge>
                                                     ))}
                                                     {row.conditions.map((c) => (
-                                                        <Badge key={`c-${c}`} className="bg-orange-100 text-orange-800 border-0">{c}</Badge>
+                                                        <Badge key={`c-${c}`} className="bg-warning-subtle text-warning border-0">{c}</Badge>
                                                     ))}
                                                     {row.medications.map((m) => (
-                                                        <Badge key={`m-${m}`} className="bg-blue-100 text-blue-800 border-0">Rx: {m}</Badge>
+                                                        <Badge key={`m-${m}`} className="bg-info-subtle text-info border-0">Rx: {m}</Badge>
                                                     ))}
                                                 </div>
                                                 {(row.emergencyContact || row.emergencyPhone) && (
@@ -231,7 +231,7 @@ export default function HealthClient({
                                         No immunisation is recorded as due in this window.
                                     </p>
                                 ) : (
-                                    <ul className="divide-y divide-gray-100" data-testid="immunizations-due-list">
+                                    <ul className="divide-y divide-border" data-testid="immunizations-due-list">
                                         {immunizationsDue.map((row) => (
                                             <li key={row.id} className="py-3 flex items-center justify-between gap-3">
                                                 <div>
@@ -240,7 +240,7 @@ export default function HealthClient({
                                                         {row.vaccineName} · dose {row.doseNumber}
                                                     </div>
                                                 </div>
-                                                <Badge className={row.overdue ? 'bg-red-100 text-red-700 border-0' : 'bg-amber-100 text-amber-800 border-0'}>
+                                                <Badge className={row.overdue ? 'bg-destructive-subtle text-destructive border-0' : 'bg-warning-subtle text-warning border-0'}>
                                                     {row.overdue ? 'Overdue' : 'Due'} {row.nextDueDate}
                                                 </Badge>
                                             </li>
@@ -255,8 +255,8 @@ export default function HealthClient({
                         <div className="p-5 border-b bg-muted/50 flex justify-between items-center">
                             <h3 className="font-semibold text-foreground text-lg">Recent Medical Incidents</h3>
                             <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-red-500 block"></span> Injury
-                                <span className="w-2 h-2 rounded-full bg-orange-500 block ml-2"></span> Illness
+                                <span className="w-2 h-2 rounded-full bg-destructive block"></span> Injury
+                                <span className="w-2 h-2 rounded-full bg-warning block ml-2"></span> Illness
                             </div>
                         </div>
                         <div className="overflow-x-auto">
@@ -270,7 +270,7 @@ export default function HealthClient({
                                         <th className="px-5 py-4 text-center">Parent Informed</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-100">
+                                <tbody className="divide-y divide-border">
                                     {incidents.length === 0 ? (
                                         <tr>
                                             <td colSpan={5} className="px-5 py-12 text-center text-muted-foreground" data-testid="no-incidents">
@@ -298,7 +298,7 @@ export default function HealthClient({
                                                 </td>
                                                 <td className="px-5 py-4 text-center">
                                                     {inc.parentNotified ? (
-                                                        <span className="inline-flex items-center justify-center bg-green-100 text-green-700 w-8 h-8 rounded-full" title="Parent informed">✓</span>
+                                                        <span className="inline-flex items-center justify-center bg-success-subtle text-success w-8 h-8 rounded-full" title="Parent informed">✓</span>
                                                     ) : (
                                                         <span className="inline-flex items-center justify-center bg-muted text-muted-foreground w-8 h-8 rounded-full" title="Not recorded as informed">—</span>
                                                     )}
@@ -313,10 +313,10 @@ export default function HealthClient({
                 </>
             ) : (
                 <div className="max-w-3xl">
-                    <Card className="shadow-lg border-red-100">
-                        <CardHeader className="bg-red-50/50 border-b border-red-100 pb-6">
-                            <CardTitle className="text-red-900">Log Medical Incident</CardTitle>
-                            <CardDescription className="text-red-700/80">Record student injuries, illnesses, or emergencies observed on campus.</CardDescription>
+                    <Card className="shadow-lg border-destructive/30">
+                        <CardHeader className="bg-destructive-subtle/40 border-b border-destructive/20 pb-6">
+                            <CardTitle className="text-destructive">Log Medical Incident</CardTitle>
+                            <CardDescription className="text-destructive/80">Record student injuries, illnesses, or emergencies observed on campus.</CardDescription>
                         </CardHeader>
                         <CardContent className="pt-6">
                             <div className="space-y-6">
@@ -327,7 +327,7 @@ export default function HealthClient({
                                             id="incident-student"
                                             value={form.studentId}
                                             onChange={(e) => set('studentId', e.target.value)}
-                                            className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
+                                            className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                                             data-testid="incident-student"
                                         >
                                             <option value="">
@@ -350,7 +350,7 @@ export default function HealthClient({
                                             type="datetime-local"
                                             value={form.incidentDate}
                                             onChange={(e) => set('incidentDate', e.target.value)}
-                                            className="focus:ring-red-500 focus:border-red-500"
+                                            className="focus:ring-ring focus:border-primary"
                                             data-testid="incident-when"
                                         />
                                         <p className="text-xs text-muted-foreground">Leave blank to record the incident as happening now.</p>
@@ -363,7 +363,7 @@ export default function HealthClient({
                                         {INCIDENT_CATEGORIES.map((cat) => (
                                             <label
                                                 key={cat}
-                                                className={`border rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-muted ${form.type === cat ? 'border-red-500 ring-2 ring-red-200 bg-red-50' : 'border-border'}`}
+                                                className={`border rounded-lg p-3 flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-muted ${form.type === cat ? 'border-destructive ring-2 ring-destructive/20 bg-destructive-subtle/40' : 'border-border'}`}
                                             >
                                                 <input
                                                     type="radio"
@@ -374,7 +374,7 @@ export default function HealthClient({
                                                     onChange={() => set('type', cat)}
                                                     data-testid={`incident-type-${cat}`}
                                                 />
-                                                <span className={`text-sm font-bold ${form.type === cat ? 'text-red-700' : 'text-muted-foreground'}`}>{cat}</span>
+                                                <span className={`text-sm font-bold ${form.type === cat ? 'text-destructive' : 'text-muted-foreground'}`}>{cat}</span>
                                             </label>
                                         ))}
                                     </div>
@@ -387,7 +387,7 @@ export default function HealthClient({
                                         value={form.description}
                                         onChange={(e) => set('description', e.target.value)}
                                         placeholder="What happened? Where did it happen? What were the symptoms?"
-                                        className="h-24 resize-none focus:ring-red-500 focus:border-red-500"
+                                        className="h-24 resize-none focus:ring-ring focus:border-primary"
                                         data-testid="incident-description"
                                     />
                                 </div>
@@ -399,21 +399,21 @@ export default function HealthClient({
                                         value={form.actionTaken}
                                         onChange={(e) => set('actionTaken', e.target.value)}
                                         placeholder="First aid applied, medications given, rest periods, etc."
-                                        className="h-24 resize-none focus:ring-red-500 focus:border-red-500"
+                                        className="h-24 resize-none focus:ring-ring focus:border-primary"
                                         data-testid="incident-action"
                                     />
                                 </div>
 
-                                <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg flex items-start gap-3 mt-6">
+                                <div className="bg-warning-subtle/40 border border-warning/30 p-4 rounded-lg flex items-start gap-3 mt-6">
                                     <input
                                         type="checkbox"
                                         id="notifyParent"
                                         checked={form.parentNotified}
                                         onChange={(e) => set('parentNotified', e.target.checked)}
-                                        className="mt-1 w-4 h-4 text-orange-600 border-border rounded focus:ring-orange-500"
+                                        className="mt-1 w-4 h-4 text-warning border-border rounded focus:ring-ring"
                                         data-testid="incident-parent-notified"
                                     />
-                                    <label htmlFor="notifyParent" className="text-sm text-orange-900">
+                                    <label htmlFor="notifyParent" className="text-sm text-foreground">
                                         <span className="font-bold block">Parents have been informed</span>
                                         Records that the emergency contact was told, and when. This release does not dispatch
                                         an SMS or app alert from here — make the call, then tick the box.
@@ -459,7 +459,7 @@ export default function HealthClient({
                                         type="button"
                                         onClick={handleSubmit}
                                         disabled={isPending || !form.studentId || !form.description.trim()}
-                                        className="bg-red-600 hover:bg-red-700 text-white transition-colors"
+                                        className="bg-destructive hover:bg-destructive/90 text-destructive-foreground transition-colors"
                                         data-testid="incident-submit"
                                     >
                                         {isPending ? 'Saving…' : 'Save Medical Log'}
