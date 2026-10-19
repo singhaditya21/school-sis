@@ -1,6 +1,6 @@
 'use server';
 
-import { pool } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 import { calculateOverdueFine } from '@/app/(admin)/library/fine-policy';
@@ -9,8 +9,12 @@ import { calculateOverdueFine } from '@/app/(admin)/library/fine-policy';
 
 export async function getBooks(categoryFilter?: string) {
     const { tenantId } = await requireAuth('library:read');
+    const categoryClause =
+        categoryFilter && categoryFilter !== 'ALL'
+            ? sql`AND category = ${categoryFilter}`
+            : sql``;
 
-    let query = `
+    return sql`
         SELECT 
             id,
             title,
@@ -24,93 +28,10 @@ export async function getBooks(categoryFilter?: string) {
             total_copies AS "totalCopies",
             available_copies AS "availableCopies"
         FROM books
-        WHERE tenant_id = $1 AND is_active = true
+        WHERE tenant_id = ${tenantId} AND is_active = true
+          ${categoryClause}
+        ORDER BY title ASC
     `;
-    const params: string[] = [tenantId];
-
-    if (categoryFilter && categoryFilter !== 'ALL') {
-        params.push(categoryFilter);
-        query += ` AND category = $2`;
-    }
-
-    query += ` ORDER BY title ASC`;
-
-    const { rows } = await pool.query(query, params);
-    return rows;
-}
-
-export async function addBook(formData: FormData) {
-    const { tenantId } = await requireAuth('library:write');
-
-    const title = formData.get('title') as string;
-    const author = formData.get('author') as string;
-    const isbn = formData.get('isbn') as string || null;
-    const publisher = formData.get('publisher') as string || null;
-    const edition = formData.get('edition') as string || null;
-    const year = formData.get('year') ? parseInt(formData.get('year') as string) : null;
-    const category = formData.get('category') as string || 'TEXTBOOK';
-    const location = formData.get('location') as string || null;
-    const totalCopies = parseInt(formData.get('totalCopies') as string || '1');
-
-    if (!title || !author) {
-        return { success: false, error: 'Title and Author are required' };
-    }
-
-    await pool.query(
-        `INSERT INTO books (
-            id, tenant_id, title, author, isbn, publisher, edition, year, category, location, total_copies, available_copies
-        ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
-        )`,
-        [randomUUID(), tenantId, title, author, isbn, publisher, edition, year, category, location, totalCopies, totalCopies]
-    );
-
-    return { success: true };
-}
-
-// ─── Library Stats ───────────────────────────────────────────
-
-export async function getLibraryStats() {
-    const { tenantId } = await requireAuth('library:read');
-
-    const bookCountRes = await pool.query(`
-        SELECT 
-            COUNT(*)::int AS count, 
-            SUM(total_copies)::text AS "totalCopies", 
-            SUM(available_copies)::text AS "availableCopies" 
-        FROM books 
-        WHERE tenant_id = $1 AND is_active = true
-    `, [tenantId]);
-    const bookCount = bookCountRes.rows[0];
-
-    const today = new Date().toISOString().split('T')[0];
-    
-    const overdueRes = await pool.query(`
-        SELECT COUNT(*)::int AS count 
-        FROM book_issues 
-        WHERE tenant_id = $1 AND status = 'ISSUED' AND due_date < $2
-    `, [tenantId, today]);
-    
-    const issuedTodayRes = await pool.query(`
-        SELECT COUNT(*)::int AS count 
-        FROM book_issues 
-        WHERE tenant_id = $1 AND issue_date = $2
-    `, [tenantId, today]);
-
-    const finesRes = await pool.query(`
-        SELECT COALESCE(SUM(fine_amount::numeric), 0)::text AS total 
-        FROM book_issues 
-        WHERE tenant_id = $1 AND is_fine_paid = false AND fine_amount != '0'
-    `, [tenantId]);
-
-    return {
-        totalBooks: bookCount.count,
-        totalCopies: Number(bookCount.totalCopies || 0),
-        availableCopies: Number(bookCount.availableCopies || 0),
-        overdueBooks: overdueRes.rows[0].count,
-        issuedToday: issuedTodayRes.rows[0].count,
-        totalFinesPending: Number(finesRes.rows[0]?.total || 0),
-    };
 }
 
 // ─── Issue / Return ──────────────────────────────────────────
@@ -124,40 +45,40 @@ export async function issueBook(data: {
 }) {
     const { tenantId, userId } = await requireAuth('library:write');
 
-    // Check availability
-    const bookRes = await pool.query(
-        `SELECT available_copies AS "availableCopies" FROM books WHERE id = $1 AND tenant_id = $2`,
-        [data.bookId, tenantId]
-    );
-    const book = bookRes.rows[0];
+    const book = await sql<{ availableCopies: number }>`
+        SELECT available_copies AS "availableCopies"
+        FROM books
+        WHERE id = ${data.bookId} AND tenant_id = ${tenantId}
+    `.maybeOne();
 
     if (!book || book.availableCopies <= 0) {
         return { success: false, error: 'No copies available' };
     }
 
-    // Create issue record
-    await pool.query(
-        `INSERT INTO book_issues (
-            id, tenant_id, book_id, issued_to_user_id, issued_to_student_id, issue_date, due_date, issued_by, remarks
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [
-            randomUUID(),
-            tenantId,
-            data.bookId,
-            data.issuedToUserId,
-            data.issuedToStudentId || null,
-            new Date().toISOString().split('T')[0],
-            data.dueDate,
-            userId,
-            data.remarks || null
-        ]
-    );
+    const issueId = randomUUID();
+    const issueDate = new Date().toISOString().split('T')[0];
 
-    // Decrement available copies
-    await pool.query(
-        `UPDATE books SET available_copies = available_copies - 1 WHERE id = $1`,
-        [data.bookId]
-    );
+    await sql`
+        INSERT INTO book_issues (
+            id, tenant_id, book_id, issued_to_user_id, issued_to_student_id, issue_date, due_date, issued_by, remarks
+        ) VALUES (
+            ${issueId},
+            ${tenantId},
+            ${data.bookId},
+            ${data.issuedToUserId},
+            ${data.issuedToStudentId || null},
+            ${issueDate},
+            ${data.dueDate},
+            ${userId},
+            ${data.remarks || null}
+        )
+    `.execute();
+
+    await sql`
+        UPDATE books
+        SET available_copies = available_copies - 1
+        WHERE id = ${data.bookId}
+    `.execute();
 
     return { success: true };
 }
@@ -165,11 +86,16 @@ export async function issueBook(data: {
 export async function returnBook(issueId: string, fineAmount?: number) {
     const { tenantId, userId } = await requireAuth('library:write');
 
-    const issueRes = await pool.query(
-        `SELECT book_id AS "bookId", status, due_date AS "dueDate", issued_to_student_id AS "studentId" FROM book_issues WHERE id = $1 AND tenant_id = $2`,
-        [issueId, tenantId]
-    );
-    const issue = issueRes.rows[0];
+    const issue = await sql<{
+        bookId: string;
+        status: string;
+        dueDate: Date | string;
+        studentId: string | null;
+    }>`
+        SELECT book_id AS "bookId", status, due_date AS "dueDate", issued_to_student_id AS "studentId"
+        FROM book_issues
+        WHERE id = ${issueId} AND tenant_id = ${tenantId}
+    `.maybeOne();
 
     if (!issue || issue.status !== 'ISSUED') {
         return { success: false, error: 'Invalid issue or already returned' };
@@ -182,69 +108,34 @@ export async function returnBook(issueId: string, fineAmount?: number) {
     // published overdue rate — the same constant the issue screen quotes to staff.
     const finalFine = fineAmount || calculateOverdueFine(issue.dueDate, today);
 
-    // Mark as returned
-    await pool.query(
-        `UPDATE book_issues 
-         SET status = 'RETURNED', 
-             return_date = $1, 
-             returned_to = $2, 
-             fine_amount = $3 
-         WHERE id = $4`,
-        [
-            todayStr,
-            userId,
-            String(finalFine),
-            issueId
-        ]
-    );
+    await sql`
+        UPDATE book_issues 
+        SET status = 'RETURNED', 
+            return_date = ${todayStr}, 
+            returned_to = ${userId}, 
+            fine_amount = ${String(finalFine)} 
+        WHERE id = ${issueId}
+    `.execute();
 
-    // Increment available copies
-    await pool.query(
-        `UPDATE books SET available_copies = available_copies + 1 WHERE id = $1`,
-        [issue.bookId]
-    );
+    await sql`
+        UPDATE books
+        SET available_copies = available_copies + 1
+        WHERE id = ${issue.bookId}
+    `.execute();
 
-    // If there is a fine, insert it as an invoice for the student's outstanding fees
     if (finalFine > 0 && issue.studentId) {
-        // Fetch fee plan ID
-        const fpRes = await pool.query(
-            `SELECT id FROM fee_plans WHERE tenant_id = $1 LIMIT 1`,
-            [tenantId]
-        );
-        const feePlanId = fpRes.rows[0]?.id;
-        if (feePlanId) {
+        const feePlan = await sql<{ id: string }>`
+            SELECT id FROM fee_plans WHERE tenant_id = ${tenantId} LIMIT 1
+        `.maybeOne();
+
+        if (feePlan?.id) {
             const invoiceNo = `INV-LI-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 100)}`;
-            await pool.query(
-                `INSERT INTO invoices (tenant_id, student_id, fee_plan_id, invoice_number, total_amount, paid_amount, due_date, status, description)
-                 VALUES ($1, $2, $3, $4, $5, '0', $6, 'PENDING', $7)`,
-                [tenantId, issue.studentId, feePlanId, invoiceNo, String(finalFine), todayStr, 'Library Fine - Overdue Book']
-            );
+            await sql`
+                INSERT INTO invoices (tenant_id, student_id, fee_plan_id, invoice_number, total_amount, paid_amount, due_date, status, description)
+                VALUES (${tenantId}, ${issue.studentId}, ${feePlan.id}, ${invoiceNo}, ${String(finalFine)}, '0', ${todayStr}, 'PENDING', ${'Library Fine - Overdue Book'})
+            `.execute();
         }
     }
 
     return { success: true };
-}
-
-export async function getOverdueList() {
-    const { tenantId } = await requireAuth('library:read');
-    const today = new Date().toISOString().split('T')[0];
-
-    const { rows } = await pool.query(`
-        SELECT 
-            bi.id,
-            b.title AS "bookTitle",
-            b.author AS "bookAuthor",
-            u.first_name AS "borrowerFirstName",
-            u.last_name AS "borrowerLastName",
-            bi.issue_date AS "issueDate",
-            bi.due_date AS "dueDate",
-            bi.fine_amount AS "fineAmount"
-        FROM book_issues bi
-        INNER JOIN books b ON bi.book_id = b.id
-        INNER JOIN users u ON bi.issued_to_user_id = u.id
-        WHERE bi.tenant_id = $1 AND bi.status = 'ISSUED' AND bi.due_date < $2
-        ORDER BY bi.due_date ASC
-    `, [tenantId, today]);
-
-    return rows;
 }

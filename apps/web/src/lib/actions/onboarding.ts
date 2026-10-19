@@ -1,6 +1,6 @@
 'use server';
 
-import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
+import { pool, sql, sqlFor, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { hash } from 'bcryptjs';
 import { encryptEmail, encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 import { cookies } from 'next/headers';
@@ -85,12 +85,16 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
         const domainUrl = `${domain}.scholarmind.app`;
 
         // Ensure email isn't already used
-        const { rows: existingUser } = await pool.query('SELECT id FROM users WHERE (email_enc = ANY($2::text[]) OR lower(email) = lower($1)) LIMIT 1', [email, encryptEmailCandidates(email)]);
+        const existingUser = await sql<{ id: string }>`
+            SELECT id FROM users WHERE (email_enc = ANY(${encryptEmailCandidates(email)}::text[]) OR lower(email) = lower(${email})) LIMIT 1
+        `;
         if (existingUser.length > 0) {
             return { error: 'An administrator with this email already exists.' };
         }
 
-        const { rows: existingDomain } = await pool.query('SELECT id FROM tenants WHERE code = $1 OR domain = $2 LIMIT 1', [domain, domainUrl]);
+        const existingDomain = await sql<{ id: string }>`
+            SELECT id FROM tenants WHERE code = ${domain} OR domain = ${domainUrl} LIMIT 1
+        `;
         if (existingDomain.length > 0) {
             return { error: 'This workspace subdomain is already taken. Please choose another.' };
         }
@@ -109,38 +113,36 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
         // (tenants.company_id -> companies.id). Creating only the tenant left no
         // company for checkout to bill against.
         const client = await pool.connect();
+        const q = sqlFor(client);
         let tenant: { id: string };
         let adminUser: { id: string; role: string; email: string; firstName: string; lastName: string };
         try {
-            await client.query('BEGIN');
+            await q`BEGIN`;
 
-            const { rows: companyRows } = await client.query(
-                `INSERT INTO companies (name, billing_status)
-                 VALUES ($1, $2)
-                 RETURNING id`,
-                [schoolName, 'INCOMPLETE']
-            );
+            const companyRows = await q<{ id: string }>`
+                INSERT INTO companies (name, billing_status)
+                VALUES (${schoolName}, ${'INCOMPLETE'})
+                RETURNING id
+            `;
 
-            const { rows: tenantRows } = await client.query(
-                `INSERT INTO tenants (company_id, name, code, domain, email, is_active)
-                 VALUES ($1, $2, $3, $4, $5, $6)
-                 RETURNING id`,
-                [companyRows[0].id, schoolName, domain, domainUrl, email, false]
-            );
+            const tenantRows = await q<{ id: string }>`
+                INSERT INTO tenants (company_id, name, code, domain, email, is_active)
+                VALUES (${companyRows[0].id}, ${schoolName}, ${domain}, ${domainUrl}, ${email}, ${false})
+                RETURNING id
+            `;
             tenant = tenantRows[0];
 
-            const { rows: adminUserRows } = await client.query(
-                `INSERT INTO users (tenant_id, email_enc, password_hash, first_name, last_name, role, is_active)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)
-                 RETURNING id, COALESCE(email_enc, email) AS email, first_name AS "firstName", last_name AS "lastName", role`,
-                [tenant.id, encryptEmail(email), passwordHash, firstName, lastName, 'SCHOOL_ADMIN', true]
-            );
+            const adminUserRows = await q<{ id: string; role: string; email: string; firstName: string; lastName: string }>`
+                INSERT INTO users (tenant_id, email_enc, password_hash, first_name, last_name, role, is_active)
+                VALUES (${tenant.id}, ${encryptEmail(email)}, ${passwordHash}, ${firstName}, ${lastName}, ${'SCHOOL_ADMIN'}, ${true})
+                RETURNING id, COALESCE(email_enc, email) AS email, first_name AS "firstName", last_name AS "lastName", role
+            `;
             adminUser = adminUserRows[0];
             adminUser.email = adminUser.email == null ? adminUser.email : decryptFieldTolerant(adminUser.email);
 
-            await client.query('COMMIT');
+            await q`COMMIT`;
         } catch (transactionError) {
-            await client.query('ROLLBACK').catch(() => {});
+            await q`ROLLBACK`.execute().catch(() => {});
             throw transactionError;
         } finally {
             client.release();

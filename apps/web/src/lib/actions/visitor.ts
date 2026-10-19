@@ -1,6 +1,6 @@
 'use server';
 
-import { pool } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { revalidatePath } from 'next/cache';
 import { encryptDeterministic, decryptFieldTolerant } from '@/lib/encryption';
@@ -85,23 +85,24 @@ export type CheckOutResult = {
 // ─── SQL fragments ───────────────────────────────────────────
 
 /** Start of the current day in the school's local (IST) calendar, as a timestamptz. */
-const DAY_START = `(date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata')`;
+const DAY_START = sql`(date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata')`;
 
 /** Today's gate-pass prefix, e.g. VP-260826- */
-const PASS_PREFIX = `('VP-' || to_char(now() AT TIME ZONE 'Asia/Kolkata', 'YYMMDD') || '-')`;
+const PASS_PREFIX = sql`('VP-' || to_char(now() AT TIME ZONE 'Asia/Kolkata', 'YYMMDD') || '-')`;
 
 /**
  * Next gate pass for a tenant: sequential within the day, derived from the
  * passes already issued today so both check-in paths stay in step.
- * `$1` must be the tenant id.
  */
-const NEXT_PASS = `(${PASS_PREFIX} || lpad((
-    SELECT (count(*) + 1)::text
-    FROM visitors seq
-    WHERE seq.tenant_id = $1 AND seq.visitor_pass LIKE ${PASS_PREFIX} || '%'
-), 3, '0'))`;
+function nextPassFragment(tenantId: string) {
+    return sql`(${PASS_PREFIX} || lpad((
+        SELECT (count(*) + 1)::text
+        FROM visitors seq
+        WHERE seq.tenant_id = ${tenantId} AND seq.visitor_pass LIKE ${PASS_PREFIX} || '%'
+    ), 3, '0'))`;
+}
 
-const VISITOR_COLUMNS = `
+const VISITOR_COLUMNS = sql`
     id, name,
     COALESCE(phone_enc, phone) AS "phone",
     COALESCE(email_enc, email) AS "email",
@@ -144,17 +145,14 @@ function clean(value: string | undefined | null, max: number): string {
 export async function getTodayRegister(): Promise<VisitorRow[]> {
     const { tenantId } = await requireAuth('visitor:read');
 
-    const { rows } = await pool.query<VisitorRow>(
-        `
+    const rows = await sql<VisitorRow>`
         SELECT ${VISITOR_COLUMNS}
         FROM visitors
-        WHERE tenant_id = $1
+        WHERE tenant_id = ${tenantId}
           AND status <> 'PRE_APPROVED'
           AND (status = 'CHECKED_IN' OR check_in_time >= ${DAY_START})
         ORDER BY (status = 'CHECKED_IN') DESC, check_in_time DESC
-        `,
-        [tenantId],
-    );
+    `;
 
     return decodeVisitor(rows);
 }
@@ -163,19 +161,16 @@ export async function getTodayRegister(): Promise<VisitorRow[]> {
 export async function getExpectedVisitors(): Promise<ExpectedVisitorRow[]> {
     const { tenantId } = await requireAuth('visitor:read');
 
-    const { rows } = await pool.query<ExpectedVisitorRow>(
-        `
+    const rows = await sql<ExpectedVisitorRow>`
         SELECT id, name, COALESCE(phone_enc, phone) AS "phone", company, purpose,
                purpose_details AS "purposeDetails",
                host_name AS "hostName", host_department AS "hostDepartment",
                to_char(pre_approved_date AT TIME ZONE 'Asia/Kolkata', 'DD Mon, HH12:MI AM') AS "preApprovedLabel"
         FROM visitors
-        WHERE tenant_id = $1 AND status = 'PRE_APPROVED'
+        WHERE tenant_id = ${tenantId} AND status = 'PRE_APPROVED'
         ORDER BY pre_approved_date DESC NULLS LAST
         LIMIT 50
-        `,
-        [tenantId],
-    );
+    `;
 
     return decodeVisitor(rows);
 }
@@ -184,8 +179,7 @@ export async function getExpectedVisitors(): Promise<ExpectedVisitorRow[]> {
 export async function getVisitorStats(): Promise<VisitorStats> {
     const { tenantId } = await requireAuth('visitor:read');
 
-    const { rows } = await pool.query<VisitorStats>(
-        `
+    const row = await sql<VisitorStats>`
         SELECT
             count(*) FILTER (
                 WHERE status <> 'PRE_APPROVED' AND check_in_time >= ${DAY_START}
@@ -196,12 +190,10 @@ export async function getVisitorStats(): Promise<VisitorStats> {
             )::int AS "checkedOutToday",
             count(*) FILTER (WHERE status = 'PRE_APPROVED')::int AS "expected"
         FROM visitors
-        WHERE tenant_id = $1
-        `,
-        [tenantId],
-    );
+        WHERE tenant_id = ${tenantId}
+    `.maybeOne();
 
-    return rows[0] ?? { todayTotal: 0, currentlyIn: 0, checkedOutToday: 0, expected: 0 };
+    return row ?? { todayTotal: 0, currentlyIn: 0, checkedOutToday: 0, expected: 0 };
 }
 
 /**
@@ -212,75 +204,43 @@ export async function getVisitorStats(): Promise<VisitorStats> {
 export async function getGateSuggestions(): Promise<GateSuggestions> {
     const { tenantId } = await requireAuth('visitor:read');
 
-    const [hostResult, deptResult] = await Promise.all([
-        pool.query<{ label: string }>(
-            `
+    const [hostRows, deptRows] = await Promise.all([
+        sql<{ label: string }>`
             SELECT label FROM (
                 SELECT DISTINCT u.first_name || ' ' || u.last_name AS label
                 FROM users u
-                WHERE u.tenant_id = $1
+                WHERE u.tenant_id = ${tenantId}
                   AND u.is_active
                   AND u.role NOT IN ('PARENT', 'STUDENT')
                 UNION
                 SELECT DISTINCT v.host_name AS label
                 FROM visitors v
-                WHERE v.tenant_id = $1
+                WHERE v.tenant_id = ${tenantId}
             ) hosts
             WHERE label IS NOT NULL AND btrim(label) <> ''
             ORDER BY label
             LIMIT 100
-            `,
-            [tenantId],
-        ),
-        pool.query<{ label: string }>(
-            `
+        `,
+        sql<{ label: string }>`
             SELECT label FROM (
                 SELECT DISTINCT d.name AS label
                 FROM staff_departments d
-                WHERE d.tenant_id = $1 AND d.is_active
+                WHERE d.tenant_id = ${tenantId} AND d.is_active
                 UNION
                 SELECT DISTINCT v.host_department AS label
                 FROM visitors v
-                WHERE v.tenant_id = $1
+                WHERE v.tenant_id = ${tenantId}
             ) departments
             WHERE label IS NOT NULL AND btrim(label) <> ''
             ORDER BY label
             LIMIT 100
-            `,
-            [tenantId],
-        ),
+        `,
     ]);
 
     return {
-        hosts: hostResult.rows.map((r) => r.label),
-        departments: deptResult.rows.map((r) => r.label),
+        hosts: hostRows.map((r) => r.label),
+        departments: deptRows.map((r) => r.label),
     };
-}
-
-/** Kept for callers that need the unfiltered history rather than today's register. */
-export async function getVisitors(filters?: { status?: string; purpose?: string }): Promise<VisitorRow[]> {
-    const { tenantId } = await requireAuth('visitor:read');
-
-    let query = `
-        SELECT ${VISITOR_COLUMNS}
-        FROM visitors
-        WHERE tenant_id = $1
-    `;
-    const params: string[] = [tenantId];
-
-    if (filters?.status) {
-        params.push(filters.status);
-        query += ` AND status = $${params.length}::visitor_status`;
-    }
-    if (filters?.purpose) {
-        params.push(filters.purpose);
-        query += ` AND purpose = $${params.length}::visit_purpose`;
-    }
-
-    query += ` ORDER BY check_in_time DESC LIMIT 500`;
-
-    const { rows } = await pool.query<VisitorRow>(query, params);
-    return decodeVisitor(rows);
 }
 
 // ─── Write: check in ─────────────────────────────────────────
@@ -320,37 +280,28 @@ export async function checkInVisitor(data: {
     if (!idProof) return { success: false, error: 'Select the ID proof shown at the gate.' };
     if (!idNumber) return { success: false, error: 'Enter the ID number.' };
 
-    const { rows } = await pool.query<{ id: string; name: string; visitorPass: string | null }>(
-        `
+    const phoneEnc = encryptDeterministic(phone, 'visitors.phone');
+    const cleanedEmail = clean(data.email, 255);
+    const emailEnc = cleanedEmail ? encryptDeterministic(cleanedEmail, 'visitors.email') : null;
+    const company = clean(data.company, 255);
+    const purposeDetails = clean(data.purposeDetails, 2000);
+    const vehicleNumber = clean(data.vehicleNumber, 20).toUpperCase();
+    const nextPass = nextPassFragment(tenantId);
+
+    const created = await sql<{ id: string; name: string; visitorPass: string | null }>`
         INSERT INTO visitors (
             tenant_id, name, phone_enc, email_enc, company, purpose, purpose_details,
             host_name, host_department, id_proof, id_number, vehicle_number,
             status, visitor_pass, check_in_time
         )
         VALUES (
-            $1, $2, $3, $4, NULLIF($5, ''), $6::visit_purpose, NULLIF($7, ''),
-            $8, $9, $10, $11, NULLIF($12, ''),
-            'CHECKED_IN', ${NEXT_PASS}, now()
+            ${tenantId}, ${name}, ${phoneEnc}, ${emailEnc}, NULLIF(${company}, ''), ${purpose}::visit_purpose, NULLIF(${purposeDetails}, ''),
+            ${hostName}, ${hostDepartment}, ${idProof}, ${idNumber}, NULLIF(${vehicleNumber}, ''),
+            'CHECKED_IN', ${nextPass}, now()
         )
         RETURNING id, name, visitor_pass AS "visitorPass"
-        `,
-        [
-            tenantId,
-            name,
-            encryptDeterministic(phone, 'visitors.phone'),
-            clean(data.email, 255) ? encryptDeterministic(clean(data.email, 255), 'visitors.email') : null,
-            clean(data.company, 255),
-            purpose,
-            clean(data.purposeDetails, 2000),
-            hostName,
-            hostDepartment,
-            idProof,
-            idNumber,
-            clean(data.vehicleNumber, 20).toUpperCase(),
-        ],
-    );
+    `.maybeOne();
 
-    const created = rows[0];
     if (!created) return { success: false, error: 'Could not record the check-in. Try again.' };
 
     revalidatePath('/visitors');
@@ -371,20 +322,17 @@ export async function checkInExpectedVisitor(visitorId: string): Promise<CheckIn
         return { success: false, error: 'That visitor record could not be found.' };
     }
 
-    const { rows } = await pool.query<{ id: string; name: string; visitorPass: string | null }>(
-        `
+    const nextPass = nextPassFragment(tenantId);
+    const arrived = await sql<{ id: string; name: string; visitorPass: string | null }>`
         UPDATE visitors
         SET status = 'CHECKED_IN',
             check_in_time = now(),
             check_out_time = NULL,
-            visitor_pass = COALESCE(visitor_pass, ${NEXT_PASS})
-        WHERE tenant_id = $1 AND id = $2 AND status = 'PRE_APPROVED'
+            visitor_pass = COALESCE(visitor_pass, ${nextPass})
+        WHERE tenant_id = ${tenantId} AND id = ${visitorId} AND status = 'PRE_APPROVED'
         RETURNING id, name, visitor_pass AS "visitorPass"
-        `,
-        [tenantId, visitorId],
-    );
+    `.maybeOne();
 
-    const arrived = rows[0];
     if (!arrived) {
         return { success: false, error: 'That visitor is no longer awaiting arrival.' };
     }
@@ -408,18 +356,14 @@ export async function checkOutVisitor(visitorId: string): Promise<CheckOutResult
         return { success: false, error: 'That visitor record could not be found.' };
     }
 
-    const { rows } = await pool.query<{ name: string; minutesInside: number }>(
-        `
+    const released = await sql<{ name: string; minutesInside: number }>`
         UPDATE visitors
         SET status = 'CHECKED_OUT', check_out_time = now()
-        WHERE tenant_id = $1 AND id = $2 AND status = 'CHECKED_IN'
+        WHERE tenant_id = ${tenantId} AND id = ${visitorId} AND status = 'CHECKED_IN'
         RETURNING name,
                   (extract(epoch FROM (now() - check_in_time)) / 60)::int AS "minutesInside"
-        `,
-        [tenantId, visitorId],
-    );
+    `.maybeOne();
 
-    const released = rows[0];
     if (!released) {
         return { success: false, error: 'That visitor is not checked in right now.' };
     }
@@ -431,73 +375,4 @@ export async function checkOutVisitor(visitorId: string): Promise<CheckOutResult
         visitorName: released.name,
         minutesInside: released.minutesInside,
     };
-}
-
-// ─── Write: pre-approve ──────────────────────────────────────
-
-export async function preApproveVisitor(data: {
-    name: string;
-    phone: string;
-    email?: string;
-    company?: string;
-    purpose: string;
-    purposeDetails?: string;
-    hostName: string;
-    hostDepartment: string;
-    idProof: string;
-    idNumber: string;
-}): Promise<CheckInResult> {
-    const { tenantId, userId } = await requireAuth('visitor:write');
-
-    const name = clean(data.name, 200);
-    const phone = clean(data.phone, 20);
-    const hostName = clean(data.hostName, 200);
-    const hostDepartment = clean(data.hostDepartment, 100);
-    const purpose = clean(data.purpose, 32).toUpperCase();
-
-    if (!name) return { success: false, error: 'Visitor name is required.' };
-    if (phone.replace(/\D/g, '').length < 6) {
-        return { success: false, error: 'Enter a valid phone number.' };
-    }
-    if (!VISIT_PURPOSES.includes(purpose as (typeof VISIT_PURPOSES)[number])) {
-        return { success: false, error: 'Select the purpose of the visit.' };
-    }
-    if (!hostName) return { success: false, error: 'Enter who the visitor is here to meet.' };
-    if (!hostDepartment) return { success: false, error: 'Enter the department being visited.' };
-
-    const { rows } = await pool.query<{ id: string; name: string }>(
-        `
-        INSERT INTO visitors (
-            tenant_id, name, phone_enc, email_enc, company, purpose, purpose_details,
-            host_name, host_department, id_proof, id_number, status,
-            pre_approved_by, pre_approved_date
-        )
-        VALUES (
-            $1, $2, $3, $4, NULLIF($5, ''), $6::visit_purpose, NULLIF($7, ''),
-            $8, $9, $10, $11, 'PRE_APPROVED', $12, now()
-        )
-        RETURNING id, name
-        `,
-        [
-            tenantId,
-            name,
-            encryptDeterministic(phone, 'visitors.phone'),
-            clean(data.email, 255) ? encryptDeterministic(clean(data.email, 255), 'visitors.email') : null,
-            clean(data.company, 255),
-            purpose,
-            clean(data.purposeDetails, 2000),
-            hostName,
-            hostDepartment,
-            clean(data.idProof, 100),
-            clean(data.idNumber, 100),
-            userId,
-        ],
-    );
-
-    const created = rows[0];
-    if (!created) return { success: false, error: 'Could not save the pre-approval. Try again.' };
-
-    revalidatePath('/visitors');
-
-    return { success: true, visitorId: created.id, visitorName: created.name };
 }

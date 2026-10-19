@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { evaluateAccess, isAuthorizationRole, type AuthorizationRole } from '../../authorization';
-import { pool, runWithTenantContext } from '../../db';
+import { pool, runWithTenantContext, sql, sqlFor } from '../../db';
 import {
     countApprovals,
     countRejections,
@@ -69,9 +69,7 @@ interface WorkflowApprovalEventRow {
     created_at: Date | string;
 }
 
-type Queryable = {
-    query: (sql: string, params?: readonly unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
-};
+type SqlTag = typeof sql;
 
 export class WorkflowApprovalError extends Error {
     constructor(message: string, public readonly status = 400) {
@@ -142,67 +140,61 @@ export async function createPersistedWorkflowApprovalRequest(
         });
 
         const client = await pool.connect();
+        const q = sqlFor(client);
         try {
-            await client.query('BEGIN');
+            await q`BEGIN`;
 
-            const duplicate = await fetchWorkflowApprovalByIdempotency(input.tenantId, idempotencyKey, client);
+            const duplicate = await fetchWorkflowApprovalByIdempotency(input.tenantId, idempotencyKey, q);
             if (duplicate) {
-                await client.query('COMMIT');
+                await q`COMMIT`;
                 return duplicate;
             }
 
-            const { rows } = await client.query(
-                `INSERT INTO workflow_approval_requests (
+            const rows = await q<{ id: string }>`
+                INSERT INTO workflow_approval_requests (
                     tenant_id, policy_id, title, description, status, priority,
                     resource_type, resource_id, action_permission, audit_action, payload,
                     required_approver_roles, min_approvals, approvals_received, rejections_received,
                     allow_requester_approval, requested_by_user_id, requested_by_role, idempotency_key,
                     escalation_level, due_at, expires_at, created_at, updated_at
-                 )
-                 VALUES (
-                    $1, $2, $3, $4, $5, $6,
-                    $7, $8, $9, $10, $11::jsonb,
-                    $12::text[], $13, $14, $15,
-                    $16, $17, $18, $19,
-                    $20, $21, $22, $23, $24
-                 )
-                 RETURNING *`,
-                [
-                    request.tenantId,
-                    request.policyId,
-                    request.title,
-                    request.description,
-                    request.status,
-                    request.priority,
-                    request.resource.type,
-                    request.resource.id ?? null,
-                    request.policy.permission,
-                    request.policy.auditAction,
-                    JSON.stringify(request.payload),
-                    [...request.requiredApproverRoles],
-                    request.minApprovals,
-                    0,
-                    0,
-                    request.allowRequesterApproval,
-                    nullableUuid(request.requestedByUserId),
-                    request.requestedByRole,
-                    idempotencyKey,
-                    request.escalationLevel,
-                    new Date(request.dueAt),
-                    new Date(request.expiresAt),
-                    new Date(request.createdAt),
-                    new Date(request.updatedAt),
-                ],
-            );
+                )
+                VALUES (
+                    ${request.tenantId},
+                    ${request.policyId},
+                    ${request.title},
+                    ${request.description},
+                    ${request.status},
+                    ${request.priority},
+                    ${request.resource.type},
+                    ${request.resource.id ?? null},
+                    ${request.policy.permission},
+                    ${request.policy.auditAction},
+                    ${JSON.stringify(request.payload)}::jsonb,
+                    ${[...request.requiredApproverRoles]}::text[],
+                    ${request.minApprovals},
+                    ${0},
+                    ${0},
+                    ${request.allowRequesterApproval},
+                    ${nullableUuid(request.requestedByUserId)},
+                    ${request.requestedByRole},
+                    ${idempotencyKey},
+                    ${request.escalationLevel},
+                    ${new Date(request.dueAt)},
+                    ${new Date(request.expiresAt)},
+                    ${new Date(request.createdAt)},
+                    ${new Date(request.updatedAt)}
+                )
+                RETURNING *
+            `;
 
             for (const event of request.events) {
-                await insertWorkflowApprovalEvent(client, request.tenantId, rows[0].id, event);
+                await insertWorkflowApprovalEvent(q, request.tenantId, rows[0].id, event);
             }
 
-            await client.query('COMMIT');
+            await q`COMMIT`;
             return (await fetchWorkflowApprovalRequestById(input.tenantId, rows[0].id))!;
         } catch (error: unknown) {
-            await client.query('ROLLBACK');
+            await q`ROLLBACK`;
             if ((error as { code?: unknown })?.code === '23505') {
                 const duplicate = await fetchWorkflowApprovalByIdempotency(input.tenantId, idempotencyKey);
                 if (duplicate) return duplicate;
@@ -225,41 +217,27 @@ export async function listWorkflowApprovalRequests(
     input: WorkflowApprovalListInput,
 ): Promise<readonly WorkflowApprovalRequest[]> {
     return runWithTenantContext(input.tenantId, async () => {
-        const values: unknown[] = [input.tenantId];
-        const clauses = ['tenant_id = $1'];
+        const statusFilter = input.status ? sql`AND status = ${input.status}` : sql``;
+        const policyFilter = input.policyId ? sql`AND policy_id = ${input.policyId}` : sql``;
+        const resourceTypeFilter = input.resourceType ? sql`AND resource_type = ${input.resourceType}` : sql``;
+        const resourceIdFilter = input.resourceId ? sql`AND resource_id = ${input.resourceId}` : sql``;
+        const viewerFilter = input.viewer
+            ? sql`AND (requested_by_user_id = ${nullableUuid(input.viewer.userId)} OR ${input.viewer.role} = ANY(required_approver_roles))`
+            : sql``;
+        const limit = normalizeLimit(input.limit);
 
-        if (input.status) {
-            values.push(input.status);
-            clauses.push(`status = $${values.length}`);
-        }
-        if (input.policyId) {
-            values.push(input.policyId);
-            clauses.push(`policy_id = $${values.length}`);
-        }
-        if (input.resourceType) {
-            values.push(input.resourceType);
-            clauses.push(`resource_type = $${values.length}`);
-        }
-        if (input.resourceId) {
-            values.push(input.resourceId);
-            clauses.push(`resource_id = $${values.length}`);
-        }
-        if (input.viewer) {
-            values.push(nullableUuid(input.viewer.userId), input.viewer.role);
-            clauses.push(
-                `(requested_by_user_id = $${values.length - 1} OR $${values.length} = ANY(required_approver_roles))`,
-            );
-        }
-
-        values.push(normalizeLimit(input.limit));
-        const { rows } = await pool.query(
-            `SELECT *
-             FROM workflow_approval_requests
-             WHERE ${clauses.join(' AND ')}
-             ORDER BY created_at DESC
-             LIMIT $${values.length}`,
-            values,
-        );
+        const rows = await sql<{ id: string }>`
+            SELECT *
+            FROM workflow_approval_requests
+            WHERE tenant_id = ${input.tenantId}
+              ${statusFilter}
+              ${policyFilter}
+              ${resourceTypeFilter}
+              ${resourceIdFilter}
+              ${viewerFilter}
+            ORDER BY created_at DESC
+            LIMIT ${limit}
+        `;
 
         const requests: WorkflowApprovalRequest[] = [];
         for (const row of rows) {
@@ -275,9 +253,10 @@ export async function reviewPersistedWorkflowApprovalRequest(
 ): Promise<WorkflowApprovalRequest> {
     return runWithTenantContext(input.tenantId, async () => {
         const client = await pool.connect();
+        const q = sqlFor(client);
         try {
-            await client.query('BEGIN');
-            const existing = await fetchWorkflowApprovalById(input.tenantId, input.approvalRequestId, client, true);
+            await q`BEGIN`;
+            const existing = await fetchWorkflowApprovalById(input.tenantId, input.approvalRequestId, q, true);
             if (!existing) {
                 throw new WorkflowApprovalError('Approval request not found.', 404);
             }
@@ -291,48 +270,39 @@ export async function reviewPersistedWorkflowApprovalRequest(
             const newReview = reviewed.reviews[reviewed.reviews.length - 1];
             const newEvent = reviewed.events[reviewed.events.length - 1];
 
-            await client.query(
-                `INSERT INTO workflow_approval_reviews (
+            await q`
+                INSERT INTO workflow_approval_reviews (
                     tenant_id, approval_request_id, reviewer_user_id, reviewer_role,
                     decision, reason, delegated_from_user_id, metadata, created_at
-                 )
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, '{}'::jsonb, $8)`,
-                [
-                    reviewed.tenantId,
-                    reviewed.id,
-                    nullableUuid(newReview.actorUserId),
-                    newReview.actorRole,
-                    newReview.decision,
-                    newReview.reason ?? null,
-                    nullableUuid(newReview.delegatedFromUserId),
-                    new Date(newReview.createdAt),
-                ],
-            );
+                )
+                VALUES (
+                    ${reviewed.tenantId},
+                    ${reviewed.id},
+                    ${nullableUuid(newReview.actorUserId)},
+                    ${newReview.actorRole},
+                    ${newReview.decision},
+                    ${newReview.reason ?? null},
+                    ${nullableUuid(newReview.delegatedFromUserId)},
+                    '{}'::jsonb,
+                    ${new Date(newReview.createdAt)}
+                )
+            `;
 
-            await client.query(
-                `UPDATE workflow_approval_requests
-                 SET status = $1,
-                     approvals_received = $2,
-                     rejections_received = $3,
-                     completed_at = $4,
-                     updated_at = $5
-                 WHERE tenant_id = $6 AND id = $7`,
-                [
-                    reviewed.status,
-                    countApprovals(reviewed.reviews),
-                    countRejections(reviewed.reviews),
-                    reviewed.completedAt ? new Date(reviewed.completedAt) : null,
-                    new Date(reviewed.updatedAt),
-                    reviewed.tenantId,
-                    reviewed.id,
-                ],
-            );
+            await q`
+                UPDATE workflow_approval_requests
+                SET status = ${reviewed.status},
+                    approvals_received = ${countApprovals(reviewed.reviews)},
+                    rejections_received = ${countRejections(reviewed.reviews)},
+                    completed_at = ${reviewed.completedAt ? new Date(reviewed.completedAt) : null},
+                    updated_at = ${new Date(reviewed.updatedAt)}
+                WHERE tenant_id = ${reviewed.tenantId} AND id = ${reviewed.id}
+            `;
 
-            await insertWorkflowApprovalEvent(client, reviewed.tenantId, reviewed.id, newEvent);
-            await client.query('COMMIT');
+            await insertWorkflowApprovalEvent(q, reviewed.tenantId, reviewed.id, newEvent);
+            await q`COMMIT`;
             return (await fetchWorkflowApprovalRequestById(input.tenantId, input.approvalRequestId))!;
         } catch (error) {
-            await client.query('ROLLBACK');
+            await q`ROLLBACK`;
             throw error;
         } finally {
             client.release();
@@ -448,84 +418,76 @@ function assertRequiredReason(policyId: string, reason: string | undefined): voi
 async function fetchWorkflowApprovalByIdempotency(
     tenantId: string,
     idempotencyKey: string,
-    queryable: Queryable = pool,
+    q: SqlTag = sql,
 ): Promise<WorkflowApprovalRequest | null> {
-    const { rows } = await queryable.query(
-        `SELECT *
-         FROM workflow_approval_requests
-         WHERE tenant_id = $1 AND idempotency_key = $2
-         LIMIT 1`,
-        [tenantId, idempotencyKey],
-    );
+    const rows = await q<{ id: string }>`
+        SELECT *
+        FROM workflow_approval_requests
+        WHERE tenant_id = ${tenantId} AND idempotency_key = ${idempotencyKey}
+        LIMIT 1
+    `;
     if (rows.length === 0) return null;
-    return fetchWorkflowApprovalById(tenantId, String(rows[0].id), queryable);
+    return fetchWorkflowApprovalById(tenantId, String(rows[0].id), q);
 }
 
 async function fetchWorkflowApprovalById(
     tenantId: string,
     approvalRequestId: string,
-    queryable: Queryable = pool,
+    q: SqlTag = sql,
     forUpdate = false,
 ): Promise<WorkflowApprovalRequest | null> {
-    const { rows } = await queryable.query(
-        `SELECT *
-         FROM workflow_approval_requests
-         WHERE tenant_id = $1 AND id = $2
-         LIMIT 1
-         ${forUpdate ? 'FOR UPDATE' : ''}`,
-        [tenantId, approvalRequestId],
-    );
+    const lockClause = forUpdate ? sql`FOR UPDATE` : sql``;
+    const rows = await q<WorkflowApprovalRequestRow>`
+        SELECT *
+        FROM workflow_approval_requests
+        WHERE tenant_id = ${tenantId} AND id = ${approvalRequestId}
+        LIMIT 1
+        ${lockClause}
+    `;
     if (rows.length === 0) return null;
 
-    const [{ rows: reviews }, { rows: events }] = await Promise.all([
-        queryable.query(
-            `SELECT *
-             FROM workflow_approval_reviews
-             WHERE tenant_id = $1 AND approval_request_id = $2
-             ORDER BY created_at ASC`,
-            [tenantId, approvalRequestId],
-        ),
-        queryable.query(
-            `SELECT *
-             FROM workflow_approval_events
-             WHERE tenant_id = $1 AND approval_request_id = $2
-             ORDER BY created_at ASC`,
-            [tenantId, approvalRequestId],
-        ),
+    const [reviews, events] = await Promise.all([
+        q<WorkflowApprovalReviewRow>`
+            SELECT *
+            FROM workflow_approval_reviews
+            WHERE tenant_id = ${tenantId} AND approval_request_id = ${approvalRequestId}
+            ORDER BY created_at ASC
+        `.rows(),
+        q<WorkflowApprovalEventRow>`
+            SELECT *
+            FROM workflow_approval_events
+            WHERE tenant_id = ${tenantId} AND approval_request_id = ${approvalRequestId}
+            ORDER BY created_at ASC
+        `.rows(),
     ]);
 
-    return mapWorkflowApprovalRow(
-        rows[0] as unknown as WorkflowApprovalRequestRow,
-        reviews as unknown as readonly WorkflowApprovalReviewRow[],
-        events as unknown as readonly WorkflowApprovalEventRow[],
-    );
+    return mapWorkflowApprovalRow(rows[0], reviews, events);
 }
 
 async function insertWorkflowApprovalEvent(
-    queryable: Queryable,
+    q: SqlTag,
     tenantId: string,
     approvalRequestId: string,
     event: WorkflowApprovalRequest['events'][number],
 ): Promise<void> {
-    await queryable.query(
-        `INSERT INTO workflow_approval_events (
+    await q`
+        INSERT INTO workflow_approval_events (
             tenant_id, approval_request_id, event_type, from_status, to_status,
             actor_user_id, actor_role, reason, metadata, created_at
-         )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)`,
-        [
-            tenantId,
-            approvalRequestId,
-            event.eventType,
-            event.fromStatus ?? null,
-            event.toStatus,
-            nullableUuid(event.actorUserId),
-            event.actorRole ?? null,
-            event.reason ?? null,
-            JSON.stringify(event.metadata ?? {}),
-            new Date(event.createdAt),
-        ],
-    );
+        )
+        VALUES (
+            ${tenantId},
+            ${approvalRequestId},
+            ${event.eventType},
+            ${event.fromStatus ?? null},
+            ${event.toStatus},
+            ${nullableUuid(event.actorUserId)},
+            ${event.actorRole ?? null},
+            ${event.reason ?? null},
+            ${JSON.stringify(event.metadata ?? {})}::jsonb,
+            ${new Date(event.createdAt)}
+        )
+    `;
 }
 
 function mapWorkflowApprovalRow(

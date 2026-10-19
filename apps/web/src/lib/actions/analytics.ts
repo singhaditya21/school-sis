@@ -1,6 +1,6 @@
 'use server';
 
-import { pool } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 
 async function tid() {
@@ -15,15 +15,20 @@ export type AnalyticsSummary = {
 
 export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
     const tenantId = await tid();
-    const { rows } = await pool.query(`
+    const s = await sql<{
+        students: string | number | null;
+        collected: string | number | null;
+        pending: string | number | null;
+        attendance: string | number | null;
+        exam_avg: string | number | null;
+    }>`
         SELECT
-            (SELECT COUNT(*) FROM students WHERE tenant_id=$1 AND status='ACTIVE') AS students,
-            (SELECT COALESCE(SUM(amount),0) FROM payments WHERE tenant_id=$1 AND status='COMPLETED') AS collected,
-            (SELECT COALESCE(SUM(total_amount - paid_amount),0) FROM invoices WHERE tenant_id=$1 AND status IN('PENDING','OVERDUE')) AS pending,
-            (SELECT ROUND(COUNT(*) FILTER(WHERE status='PRESENT')::numeric / NULLIF(COUNT(*),0) * 100, 1) FROM attendance_records WHERE tenant_id=$1 AND date >= CURRENT_DATE - 30) AS attendance,
-            (SELECT ROUND(AVG(marks_obtained::numeric / NULLIF(es.max_marks,0) * 100), 1) FROM student_results er JOIN exam_schedules es ON es.id=er.exam_schedule_id JOIN exams e ON e.id=es.exam_id WHERE e.tenant_id=$1) AS exam_avg
-    `, [tenantId]);
-    const s = rows[0];
+            (SELECT COUNT(*) FROM students WHERE tenant_id=${tenantId} AND status='ACTIVE') AS students,
+            (SELECT COALESCE(SUM(amount),0) FROM payments WHERE tenant_id=${tenantId} AND status='COMPLETED') AS collected,
+            (SELECT COALESCE(SUM(total_amount - paid_amount),0) FROM invoices WHERE tenant_id=${tenantId} AND status IN('PENDING','OVERDUE')) AS pending,
+            (SELECT ROUND(COUNT(*) FILTER(WHERE status='PRESENT')::numeric / NULLIF(COUNT(*),0) * 100, 1) FROM attendance_records WHERE tenant_id=${tenantId} AND date >= CURRENT_DATE - 30) AS attendance,
+            (SELECT ROUND(AVG(marks_obtained::numeric / NULLIF(es.max_marks,0) * 100), 1) FROM student_results er JOIN exam_schedules es ON es.id=er.exam_schedule_id JOIN exams e ON e.id=es.exam_id WHERE e.tenant_id=${tenantId}) AS exam_avg
+    `.maybeOne();
     return {
         totalStudents: Number(s?.students || 0),
         totalFeeCollected: Number(s?.collected || 0),
@@ -36,22 +41,27 @@ export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
 
 export async function getFeeCollectionData() {
     const tenantId = await tid();
-    const { rows } = await pool.query(`
+    const rows = await sql<{
+        month: string;
+        collected: string | number | null;
+        target: string | number | null;
+        pending: string | number | null;
+    }>`
         WITH monthly_payments AS (
             SELECT DATE_TRUNC('month', paid_at) AS month_date,
                    SUM(amount) AS collected
             FROM payments
-            WHERE tenant_id = $1 AND status = 'COMPLETED' AND paid_at >= NOW() - INTERVAL '12 months'
+            WHERE tenant_id = ${tenantId} AND status = 'COMPLETED' AND paid_at >= NOW() - INTERVAL '12 months'
             GROUP BY DATE_TRUNC('month', paid_at)
         )
         SELECT TO_CHAR(month_date, 'Mon') AS month,
                collected,
-               (SELECT COALESCE(SUM(i.total_amount),0) FROM invoices i WHERE i.tenant_id = $1 AND DATE_TRUNC('month', i.due_date) = month_date) AS target,
-               (SELECT COALESCE(SUM(i.total_amount - i.paid_amount),0) FROM invoices i WHERE i.tenant_id = $1 AND DATE_TRUNC('month', i.due_date) = month_date AND i.status IN('PENDING','OVERDUE')) AS pending
+               (SELECT COALESCE(SUM(i.total_amount),0) FROM invoices i WHERE i.tenant_id = ${tenantId} AND DATE_TRUNC('month', i.due_date) = month_date) AS target,
+               (SELECT COALESCE(SUM(i.total_amount - i.paid_amount),0) FROM invoices i WHERE i.tenant_id = ${tenantId} AND DATE_TRUNC('month', i.due_date) = month_date AND i.status IN('PENDING','OVERDUE')) AS pending
         FROM monthly_payments
         ORDER BY month_date
-    `, [tenantId]);
-    return rows.map((r: { month: string; collected: string | number | null; target: string | number | null; pending: string | number | null }) => ({
+    `;
+    return rows.map((r) => ({
         month: r.month, collected: Number(r.collected || 0),
         target: Number(r.target || 0), pending: Number(r.pending || 0),
     }));
@@ -59,7 +69,7 @@ export async function getFeeCollectionData() {
 
 export async function getClassWiseSummary() {
     const tenantId = await tid();
-    const { rows } = await pool.query(`
+    const rows = await sql<{ label: string | null; value: string | number | null }>`
         SELECT g.name AS label,
                ROUND(AVG(er.marks_obtained::numeric / NULLIF(es.max_marks,0) * 100),0) AS value
         FROM student_results er
@@ -68,15 +78,15 @@ export async function getClassWiseSummary() {
         JOIN students s ON s.id = er.student_id
         LEFT JOIN sections sec ON sec.id = s.section_id
         LEFT JOIN grades g ON g.id = sec.grade_id
-        WHERE e.tenant_id=$1
+        WHERE e.tenant_id=${tenantId}
         GROUP BY g.name, g.display_order ORDER BY g.display_order
-    `, [tenantId]);
-    return rows.map((r: { label: string | null; value: string | number | null }) => ({ label: r.label || 'N/A', value: Number(r.value || 0) }));
+    `;
+    return rows.map((r) => ({ label: r.label || 'N/A', value: Number(r.value || 0) }));
 }
 
 export async function getTopPerformers() {
     const tenantId = await tid();
-    const { rows } = await pool.query(`
+    const rows = await sql<{ name: string; class: string | null; percentage: string | number | null }>`
         SELECT s.first_name || ' ' || s.last_name AS name,
                g.name AS class,
                ROUND(AVG(er.marks_obtained::numeric / NULLIF(es.max_marks,0) * 100),1) AS percentage
@@ -86,35 +96,40 @@ export async function getTopPerformers() {
         JOIN exams e ON e.id = es.exam_id
         LEFT JOIN sections sec ON sec.id = s.section_id
         LEFT JOIN grades g ON g.id = sec.grade_id
-        WHERE e.tenant_id=$1
+        WHERE e.tenant_id=${tenantId}
         GROUP BY s.id, s.first_name, s.last_name, g.name
         ORDER BY percentage DESC LIMIT 10
-    `, [tenantId]);
-    return rows.map((r: { name: string; class: string | null; percentage: string | number | null }) => ({ name: r.name, class: r.class || 'N/A', percentage: Number(r.percentage || 0) }));
+    `;
+    return rows.map((r) => ({ name: r.name, class: r.class || 'N/A', percentage: Number(r.percentage || 0) }));
 }
 
 export async function getDailyAttendance() {
     const tenantId = await tid();
-    const { rows } = await pool.query(`
+    const rows = await sql<{ date: string; value: string | number | null }>`
         SELECT TO_CHAR(date, 'DD Mon') AS date,
                ROUND(COUNT(*) FILTER(WHERE status='PRESENT')::numeric / NULLIF(COUNT(*),0) * 100, 0) AS value
-        FROM attendance_records WHERE tenant_id=$1 AND date >= CURRENT_DATE - 30
+        FROM attendance_records WHERE tenant_id=${tenantId} AND date >= CURRENT_DATE - 30
         GROUP BY date ORDER BY date
-    `, [tenantId]);
-    return rows.map((r: { date: string; value: string | number | null }) => ({ date: r.date, value: Number(r.value || 0) }));
+    `;
+    return rows.map((r) => ({ date: r.date, value: Number(r.value || 0) }));
 }
 
 export async function getWeeklyAttendance(weeks: number = 12) {
     const tenantId = await tid();
-    const { rows } = await pool.query(`
+    const rows = await sql<{
+        week_start: Date | string | null;
+        present: string | number | null;
+        absent: string | number | null;
+        percentage: string | number | null;
+    }>`
         SELECT DATE_TRUNC('week', date) AS week_start,
                COUNT(*) FILTER(WHERE status='PRESENT') AS present,
                COUNT(*) FILTER(WHERE status='ABSENT') AS absent,
                ROUND(COUNT(*) FILTER(WHERE status='PRESENT')::numeric / NULLIF(COUNT(*),0) * 100, 1) AS percentage
-        FROM attendance_records WHERE tenant_id=$1 AND date >= CURRENT_DATE - ($2::int * 7)
+        FROM attendance_records WHERE tenant_id=${tenantId} AND date >= CURRENT_DATE - (${weeks}::int * 7)
         GROUP BY DATE_TRUNC('week', date) ORDER BY week_start
-    `, [tenantId, weeks]);
-    return rows.map((r: { week_start: Date | string | null; present: string | number | null; absent: string | number | null; percentage: string | number | null }) => ({
+    `;
+    return rows.map((r) => ({
         date: String(r.week_start), present: Number(r.present || 0),
         absent: Number(r.absent || 0), percentage: Number(r.percentage || 0),
     }));
@@ -122,22 +137,27 @@ export async function getWeeklyAttendance(weeks: number = 12) {
 
 export async function getSubjectPerformance() {
     const tenantId = await tid();
-    const { rows } = await pool.query(`
+    const rows = await sql<{ label: string; value: string | number | null }>`
         SELECT sub.name AS label,
                ROUND(AVG(er.marks_obtained::numeric / NULLIF(es.max_marks,0) * 100),0) AS value
         FROM student_results er
         JOIN exam_schedules es ON es.id = er.exam_schedule_id
         JOIN subjects sub ON sub.id = es.subject_id
         JOIN exams e ON e.id = es.exam_id
-        WHERE e.tenant_id=$1
+        WHERE e.tenant_id=${tenantId}
         GROUP BY sub.name ORDER BY value DESC
-    `, [tenantId]);
-    return rows.map((r: { label: string; value: string | number | null }) => ({ label: r.label, value: Number(r.value || 0) }));
+    `;
+    return rows.map((r) => ({ label: r.label, value: Number(r.value || 0) }));
 }
 
 export async function getExamClassPerformance() {
     const tenantId = await tid();
-    const { rows } = await pool.query(`
+    const rows = await sql<{
+        class: string | null;
+        section: string | null;
+        averagePercent: string | number | null;
+        passPercent: string | number | null;
+    }>`
         SELECT g.name AS class, sec.name AS section,
                ROUND(AVG(er.marks_obtained::numeric / NULLIF(es.max_marks,0) * 100),1) AS "averagePercent",
                ROUND(COUNT(*) FILTER(WHERE er.marks_obtained::numeric / NULLIF(es.max_marks,0) * 100 >= 40)::numeric / NULLIF(COUNT(*),0) * 100, 1) AS "passPercent"
@@ -147,11 +167,11 @@ export async function getExamClassPerformance() {
         JOIN exams e ON e.id = es.exam_id
         LEFT JOIN sections sec ON sec.id = s.section_id
         LEFT JOIN grades g ON g.id = sec.grade_id
-        WHERE e.tenant_id=$1
+        WHERE e.tenant_id=${tenantId}
         GROUP BY g.name, sec.name, g.display_order
         ORDER BY g.display_order, sec.name
-    `, [tenantId]);
-    return rows.map((r: { class: string | null; section: string | null; averagePercent: string | number | null; passPercent: string | number | null }) => ({
+    `;
+    return rows.map((r) => ({
         class: r.class || 'N/A', section: r.section || 'N/A',
         averagePercent: Number(r.averagePercent || 0), passPercent: Number(r.passPercent || 0),
     }));
@@ -159,7 +179,12 @@ export async function getExamClassPerformance() {
 
 export async function getClassWiseAttendance() {
     const tenantId = await tid();
-    const { rows } = await pool.query(`
+    const rows = await sql<{
+        class: string | null;
+        percentage: string | number | null;
+        present: string | number | null;
+        total: string | number | null;
+    }>`
         SELECT g.name AS class,
                ROUND(COUNT(*) FILTER(WHERE ar.status='PRESENT')::numeric / NULLIF(COUNT(*),0) * 100, 1) AS percentage,
                COUNT(*) FILTER(WHERE ar.status='PRESENT') AS present,
@@ -168,10 +193,10 @@ export async function getClassWiseAttendance() {
         JOIN students s ON s.id = ar.student_id
         LEFT JOIN sections sec ON sec.id = s.section_id
         LEFT JOIN grades g ON g.id = sec.grade_id
-        WHERE ar.tenant_id=$1 AND ar.date >= CURRENT_DATE - 30
+        WHERE ar.tenant_id=${tenantId} AND ar.date >= CURRENT_DATE - 30
         GROUP BY g.name, g.display_order ORDER BY g.display_order
-    `, [tenantId]);
-    return rows.map((r: { class: string | null; percentage: string | number | null; present: string | number | null; total: string | number | null }) => ({
+    `;
+    return rows.map((r) => ({
         class: r.class || 'N/A', percentage: Number(r.percentage || 0),
         present: Number(r.present || 0), total: Number(r.total || 0),
     }));
@@ -179,7 +204,12 @@ export async function getClassWiseAttendance() {
 
 export async function getClassWiseFees() {
     const tenantId = await tid();
-    const { rows } = await pool.query(`
+    const rows = await sql<{
+        class: string | null;
+        students: string | number | null;
+        collected: string | number | null;
+        pending: string | number | null;
+    }>`
         SELECT g.name AS class,
                COUNT(DISTINCT s.id) AS students,
                COALESCE(SUM(i.paid_amount), 0) AS collected,
@@ -188,10 +218,10 @@ export async function getClassWiseFees() {
         JOIN students s ON s.id = i.student_id
         LEFT JOIN sections sec ON sec.id = s.section_id
         LEFT JOIN grades g ON g.id = sec.grade_id
-        WHERE i.tenant_id=$1
+        WHERE i.tenant_id=${tenantId}
         GROUP BY g.name, g.display_order ORDER BY g.display_order
-    `, [tenantId]);
-    return rows.map((r: { class: string | null; students: string | number | null; collected: string | number | null; pending: string | number | null }) => ({
+    `;
+    return rows.map((r) => ({
         class: r.class || 'N/A', students: Number(r.students || 0),
         collected: Number(r.collected || 0), pending: Number(r.pending || 0),
     }));

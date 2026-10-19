@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { pool } from '@/lib/db';
+import { pool, sql, sqlFor } from '@/lib/db';
 import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
@@ -53,7 +53,18 @@ export interface StaffListItem {
 export async function getStaffList(departmentFilter?: string): Promise<StaffListItem[]> {
     const { tenantId } = await requireAuth('hr:read');
 
-    let query = `
+    let deptClause = sql``;
+    if (departmentFilter && departmentFilter !== 'ALL') {
+        const deptRows = await sql<{ id: string }>`
+            SELECT id FROM staff_departments WHERE tenant_id = ${tenantId} AND name = ${departmentFilter}
+        `;
+        const dept = deptRows[0];
+        if (dept) {
+            deptClause = sql`AND sp.department_id = ${dept.id}`;
+        }
+    }
+
+    const rows = await sql<StaffListItem>`
         SELECT 
             sp.id,
             sp.employee_id AS "employeeId",
@@ -72,24 +83,10 @@ export async function getStaffList(departmentFilter?: string): Promise<StaffList
         INNER JOIN users u ON sp.user_id = u.id
         LEFT JOIN staff_departments sd ON sp.department_id = sd.id
         LEFT JOIN designations d ON sp.designation_id = d.id
-        WHERE sp.tenant_id = $1
+        WHERE sp.tenant_id = ${tenantId} ${deptClause}
+        ORDER BY u.first_name ASC
     `;
-    const params: unknown[] = [tenantId];
-    let paramIndex = 2;
-
-    if (departmentFilter && departmentFilter !== 'ALL') {
-        const deptQuery = `SELECT id FROM staff_departments WHERE tenant_id = $1 AND name = $2`;
-        const { rows: deptRows } = await pool.query(deptQuery, [tenantId, departmentFilter]);
-        const dept = deptRows[0];
-        if (dept) {
-            query += ` AND sp.department_id = $${paramIndex++}`;
-            params.push(dept.id);
-        }
-    }
-
-    query += ` ORDER BY u.first_name ASC`;
-    const { rows } = await pool.query(query, params);
-    return rows.map((r) => ({ ...r, email: r.email == null ? null : decryptFieldTolerant(r.email) }));
+    return rows.map((r) => ({ ...r, email: r.email == null ? '' : decryptFieldTolerant(r.email) }));
 }
 
 // ─── Staff Detail ────────────────────────────────────────────
@@ -132,7 +129,7 @@ export async function getStaffById(staffId: string): Promise<StaffDetail | null>
 
     if (!isUuid(staffId)) return null;
 
-    const query = `
+    const rows = await sql<StaffDetail>`
         SELECT 
             sp.id,
             sp.employee_id AS "employeeId",
@@ -168,11 +165,10 @@ export async function getStaffById(staffId: string): Promise<StaffDetail | null>
         INNER JOIN users u ON sp.user_id = u.id
         LEFT JOIN staff_departments sd ON sp.department_id = sd.id
         LEFT JOIN designations d ON sp.designation_id = d.id
-        WHERE sp.id = $1 AND sp.tenant_id = $2
+        WHERE sp.id = ${staffId} AND sp.tenant_id = ${tenantId}
     `;
-    const { rows } = await pool.query(query, [staffId, tenantId]);
     const staff = rows[0];
-    return staff ? { ...staff, email: staff.email == null ? null : decryptFieldTolerant(staff.email) } : null;
+    return staff ? { ...staff, email: staff.email == null ? '' : decryptFieldTolerant(staff.email) } : null;
 }
 
 // ─── HR Stats ────────────────────────────────────────────────
@@ -193,23 +189,23 @@ export interface HRStats {
 export async function getHRStats(): Promise<HRStats> {
     const { tenantId } = await requireAuth('hr:read');
 
-    const { rows: totalCount } = await pool.query(`SELECT COUNT(*) AS count FROM staff_profiles WHERE tenant_id = $1`, [tenantId]);
-    const { rows: activeCount } = await pool.query(`SELECT COUNT(*) AS count FROM staff_profiles WHERE tenant_id = $1 AND status = 'ACTIVE'`, [tenantId]);
-    const { rows: pendingLeaves } = await pool.query(`SELECT COUNT(*) AS count FROM leave_requests WHERE tenant_id = $1 AND status = 'PENDING'`, [tenantId]);
+    const totalCount = await sql<{ count: string }>`SELECT COUNT(*) AS count FROM staff_profiles WHERE tenant_id = ${tenantId}`;
+    const activeCount = await sql<{ count: string }>`SELECT COUNT(*) AS count FROM staff_profiles WHERE tenant_id = ${tenantId} AND status = 'ACTIVE'`;
+    const pendingLeaves = await sql<{ count: string }>`SELECT COUNT(*) AS count FROM leave_requests WHERE tenant_id = ${tenantId} AND status = 'PENDING'`;
 
-    const { rows: payrollResult } = await pool.query(`
+    const payrollResult = await sql<{ total: string }>`
         SELECT COALESCE(SUM(salary_net::numeric), 0) AS total
         FROM staff_profiles
-        WHERE tenant_id = $1 AND status = 'ACTIVE'
-    `, [tenantId]);
+        WHERE tenant_id = ${tenantId} AND status = 'ACTIVE'
+    `;
 
-    const { rows: deptBreakdown } = await pool.query(`
+    const deptBreakdown = await sql<{ departmentName: string | null; count: string }>`
         SELECT sd.name AS "departmentName", COUNT(*) AS count
         FROM staff_profiles sp
         LEFT JOIN staff_departments sd ON sp.department_id = sd.id
-        WHERE sp.tenant_id = $1
+        WHERE sp.tenant_id = ${tenantId}
         GROUP BY sd.name
-    `, [tenantId]);
+    `;
 
     return {
         totalStaff: Number(totalCount[0].count),
@@ -260,22 +256,23 @@ export async function createStaff(formData: FormData): Promise<CreateStaffResult
     const userId = randomUUID();
     const staffId = randomUUID();
     const client = await pool.connect();
+    const q = sqlFor(client);
     try {
-        await client.query('BEGIN');
-        await client.query(`
+        await q`BEGIN`;
+        await q`
             INSERT INTO users (id, tenant_id, email_enc, password_hash, first_name, last_name, role, phone)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        `, [userId, tenantId, encryptEmail(email), '$temp$', firstName, lastName, 'TEACHER', phone]);
+            VALUES (${userId}, ${tenantId}, ${encryptEmail(email)}, ${'$temp$'}, ${firstName}, ${lastName}, ${'TEACHER'}, ${phone})
+        `;
 
-        await client.query(`
+        await q`
             INSERT INTO staff_profiles (
                 id, tenant_id, user_id, employee_id, department_id, designation_id,
                 employment_type, joining_date, salary_basic
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        `, [staffId, tenantId, userId, employeeId, departmentId, designationId, employmentType, joiningDate, salaryBasic]);
-        await client.query('COMMIT');
+            ) VALUES (${staffId}, ${tenantId}, ${userId}, ${employeeId}, ${departmentId}, ${designationId}, ${employmentType}, ${joiningDate}, ${salaryBasic})
+        `;
+        await q`COMMIT`;
     } catch (err: unknown) {
-        await client.query('ROLLBACK');
+        await q`ROLLBACK`;
         return { success: false, error: describeDbError(err, 'Could not create the staff record.') };
     } finally {
         client.release();
@@ -331,11 +328,11 @@ export async function applyLeave(data: {
     }
 
     try {
-        await pool.query(`
+        await sql`
             INSERT INTO leave_requests (
                 id, tenant_id, staff_id, leave_type, from_date, to_date, total_days, reason
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        `, [randomUUID(), tenantId, data.staffId, data.leaveType, data.fromDate, data.toDate, String(data.totalDays), data.reason.trim()]);
+            ) VALUES (${randomUUID()}, ${tenantId}, ${data.staffId}, ${data.leaveType}, ${data.fromDate}, ${data.toDate}, ${String(data.totalDays)}, ${data.reason.trim()})
+        `;
     } catch (err: unknown) {
         return { success: false, error: describeDbError(err, 'Could not record the leave request.') };
     }
@@ -354,12 +351,11 @@ export async function approveLeave(leaveId: string): Promise<HRActionResult> {
 
     let rowCount = 0;
     try {
-        const result = await pool.query(`
+        rowCount = await sql`
             UPDATE leave_requests
-            SET status = 'APPROVED', approved_by = $3, approved_at = NOW(), rejection_reason = NULL, updated_at = NOW()
-            WHERE id = $1 AND tenant_id = $2 AND status = 'PENDING'
-        `, [leaveId, tenantId, userId]);
-        rowCount = result.rowCount ?? 0;
+            SET status = 'APPROVED', approved_by = ${userId}, approved_at = NOW(), rejection_reason = NULL, updated_at = NOW()
+            WHERE id = ${leaveId} AND tenant_id = ${tenantId} AND status = 'PENDING'
+        `.execute();
     } catch (err: unknown) {
         return { success: false, error: describeDbError(err, 'Could not approve the leave request.') };
     }
@@ -385,12 +381,11 @@ export async function rejectLeave(leaveId: string, reason: string): Promise<HRAc
 
     let rowCount = 0;
     try {
-        const result = await pool.query(`
+        rowCount = await sql`
             UPDATE leave_requests
-            SET status = 'REJECTED', approved_by = $3, approved_at = NOW(), rejection_reason = $4, updated_at = NOW()
-            WHERE id = $1 AND tenant_id = $2 AND status = 'PENDING'
-        `, [leaveId, tenantId, userId, reason.trim()]);
-        rowCount = result.rowCount ?? 0;
+            SET status = 'REJECTED', approved_by = ${userId}, approved_at = NOW(), rejection_reason = ${reason.trim()}, updated_at = NOW()
+            WHERE id = ${leaveId} AND tenant_id = ${tenantId} AND status = 'PENDING'
+        `.execute();
     } catch (err: unknown) {
         return { success: false, error: describeDbError(err, 'Could not reject the leave request.') };
     }
@@ -404,10 +399,6 @@ export async function rejectLeave(leaveId: string, reason: string): Promise<HRAc
     return { success: true };
 }
 
-export async function getPendingLeaves(): Promise<LeaveRequestItem[]> {
-    return getLeaveRequests({ status: 'PENDING' });
-}
-
 /**
  * Leave requests for the tenant, optionally narrowed to a status and/or a single
  * staff member. Status is checked against the leave_status enum before use.
@@ -419,26 +410,19 @@ export async function getLeaveRequests(options?: {
 }): Promise<LeaveRequestItem[]> {
     const { tenantId } = await requireAuth('hr:read');
 
-    const params: unknown[] = [tenantId];
-    let where = `lr.tenant_id = $1`;
-
     const status = options?.status;
-    if (status && status !== 'ALL') {
-        if (!LEAVE_STATUSES.includes(status)) return [];
-        params.push(status);
-        where += ` AND lr.status = $${params.length}`;
+    if (status && status !== 'ALL' && !LEAVE_STATUSES.includes(status)) {
+        return [];
+    }
+    if (options?.staffId && !isUuid(options.staffId)) {
+        return [];
     }
 
-    if (options?.staffId) {
-        if (!isUuid(options.staffId)) return [];
-        params.push(options.staffId);
-        where += ` AND lr.staff_id = $${params.length}`;
-    }
-
+    const statusFilter = status && status !== 'ALL' ? sql`AND lr.status = ${status}` : sql``;
+    const staffFilter = options?.staffId ? sql`AND lr.staff_id = ${options.staffId}` : sql``;
     const limit = Math.min(Math.max(options?.limit ?? 200, 1), 500);
-    params.push(limit);
 
-    const { rows } = await pool.query(`
+    return sql<LeaveRequestItem>`
         SELECT
             lr.id,
             lr.staff_id AS "staffId",
@@ -462,12 +446,10 @@ export async function getLeaveRequests(options?: {
         INNER JOIN users u ON sp.user_id = u.id
         LEFT JOIN staff_departments sd ON sp.department_id = sd.id
         LEFT JOIN users approver ON lr.approved_by = approver.id
-        WHERE ${where}
+        WHERE lr.tenant_id = ${tenantId} ${statusFilter} ${staffFilter}
         ORDER BY CASE WHEN lr.status = 'PENDING' THEN 0 ELSE 1 END, lr.created_at DESC
-        LIMIT $${params.length}
-    `, params);
-
-    return rows;
+        LIMIT ${limit}
+    `;
 }
 
 export interface LeaveStats {
@@ -482,7 +464,14 @@ export interface LeaveStats {
 export async function getLeaveStats(): Promise<LeaveStats> {
     const { tenantId } = await requireAuth('hr:read');
 
-    const { rows } = await pool.query(`
+    const rows = await sql<{
+        pending: string;
+        approved: string;
+        rejected: string;
+        cancelled: string;
+        onLeaveToday: string;
+        pendingDays: string;
+    }>`
         SELECT
             COUNT(*) FILTER (WHERE status = 'PENDING') AS pending,
             COUNT(*) FILTER (WHERE status = 'APPROVED') AS approved,
@@ -494,8 +483,8 @@ export async function getLeaveStats(): Promise<LeaveStats> {
             ) AS "onLeaveToday",
             COALESCE(SUM(total_days::numeric) FILTER (WHERE status = 'PENDING'), 0) AS "pendingDays"
         FROM leave_requests
-        WHERE tenant_id = $1
-    `, [tenantId]);
+        WHERE tenant_id = ${tenantId}
+    `;
 
     const r = rows[0];
     return {
@@ -521,20 +510,27 @@ export async function getLeaveBalance(staffId: string): Promise<LeaveBalanceRow[
 
     if (!isUuid(staffId)) return [];
 
-    const { rows: policies } = await pool.query(`
+    const policies = await sql<{
+        leaveType: string;
+        name: string;
+        maxDaysPerYear: number;
+    }>`
         SELECT leave_type AS "leaveType", name, max_days_per_year AS "maxDaysPerYear"
         FROM leave_policies
-        WHERE tenant_id = $1 AND is_active = true
+        WHERE tenant_id = ${tenantId} AND is_active = true
         ORDER BY name ASC
-    `, [tenantId]);
+    `;
 
     const yearStart = `${new Date().getFullYear()}-01-01`;
-    const { rows: approved } = await pool.query(`
+    const approved = await sql<{
+        leaveType: string;
+        totalDays: string;
+    }>`
         SELECT leave_type AS "leaveType", SUM(total_days::numeric) AS "totalDays"
         FROM leave_requests
-        WHERE staff_id = $1 AND tenant_id = $2 AND status = 'APPROVED' AND from_date >= $3
+        WHERE staff_id = ${staffId} AND tenant_id = ${tenantId} AND status = 'APPROVED' AND from_date >= ${yearStart}
         GROUP BY leave_type
-    `, [staffId, tenantId, yearStart]);
+    `;
 
     const used = new Map<string, number>(approved.map(a => [a.leaveType as string, Number(a.totalDays)]));
 
@@ -558,14 +554,12 @@ export interface DepartmentOption {
 export async function getDepartments(): Promise<DepartmentOption[]> {
     const { tenantId } = await requireAuth('hr:read');
 
-    const { rows } = await pool.query(`
+    return sql<DepartmentOption>`
         SELECT id, name, code
         FROM staff_departments
-        WHERE tenant_id = $1 AND is_active = true
+        WHERE tenant_id = ${tenantId} AND is_active = true
         ORDER BY name ASC
-    `, [tenantId]);
-
-    return rows;
+    `;
 }
 
 export interface DesignationOption {
@@ -577,12 +571,10 @@ export interface DesignationOption {
 export async function getDesignations(): Promise<DesignationOption[]> {
     const { tenantId } = await requireAuth('hr:read');
 
-    const { rows } = await pool.query(`
+    return sql<DesignationOption>`
         SELECT id, name, grade
         FROM designations
-        WHERE tenant_id = $1
+        WHERE tenant_id = ${tenantId}
         ORDER BY display_order ASC
-    `, [tenantId]);
-
-    return rows;
+    `;
 }

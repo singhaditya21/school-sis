@@ -21,7 +21,7 @@
  * already-erased record changes nothing new.
  */
 
-import { withTenant } from '@/lib/db';
+import { sqlFor, withTenant } from '@/lib/db';
 
 const REDACTED = '[erased]';
 
@@ -41,15 +41,15 @@ export async function anonymizeStudentRecord(input: {
     const { tenantId, studentId, actorUserId, reason } = input;
 
     return withTenant(tenantId, async (client) => {
-        const { rows: existing } = await client.query<{
+        const q = sqlFor(client);
+        const existing = await q<{
             admissionNumber: string;
             alreadyErased: boolean;
-        }>(
-            `SELECT admission_number AS "admissionNumber",
-                    COALESCE((custom_data->>'erased')::boolean, false) AS "alreadyErased"
-             FROM students WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
-            [studentId, tenantId],
-        );
+        }>`
+            SELECT admission_number AS "admissionNumber",
+                   COALESCE((custom_data->>'erased')::boolean, false) AS "alreadyErased"
+            FROM students WHERE id = ${studentId} AND tenant_id = ${tenantId} FOR UPDATE
+        `;
         if (existing.length === 0) {
             throw new Error('Student not found in this tenant.');
         }
@@ -58,59 +58,57 @@ export async function anonymizeStudentRecord(input: {
         // Strip every identifying field. NOT NULL columns get a redaction
         // placeholder; the rest are nulled. date_of_birth is NOT NULL, so it
         // becomes a fixed sentinel rather than a real date.
-        await client.query(
-            `UPDATE students SET
-                 first_name = $3,
-                 last_name = $3,
-                 date_of_birth = DATE '1970-01-01',
-                 blood_group = NULL,
-                 aadhaar_number = NULL,
-                 aadhaar_number_enc = NULL,
-                 apaar_id = NULL,
-                 apaar_id_enc = NULL,
-                 address = NULL,
-                 city = NULL,
-                 state = NULL,
-                 pincode = NULL,
-                 photo_url = NULL,
-                 medical_notes = NULL,
-                 custom_data = COALESCE(custom_data, '{}'::jsonb)
-                     || jsonb_build_object('erased', true),
-                 updated_at = NOW()
-             WHERE id = $1 AND tenant_id = $2`,
-            [studentId, tenantId, REDACTED],
-        );
+        await q`
+            UPDATE students SET
+                first_name = ${REDACTED},
+                last_name = ${REDACTED},
+                date_of_birth = DATE '1970-01-01',
+                blood_group = NULL,
+                aadhaar_number = NULL,
+                aadhaar_number_enc = NULL,
+                apaar_id = NULL,
+                apaar_id_enc = NULL,
+                address = NULL,
+                city = NULL,
+                state = NULL,
+                pincode = NULL,
+                photo_url = NULL,
+                medical_notes = NULL,
+                custom_data = COALESCE(custom_data, '{}'::jsonb)
+                    || jsonb_build_object('erased', true),
+                updated_at = NOW()
+            WHERE id = ${studentId} AND tenant_id = ${tenantId}
+        `;
 
-        const { rowCount: guardiansErased } = await client.query(
-            `UPDATE guardians SET
-                 first_name = $3,
-                 last_name = $3,
-                 email = NULL,
-                 email_enc = NULL,
-                 phone = NULL,
-                 phone_enc = NULL,
-                 alternate_phone = NULL,
-                 alternate_phone_enc = NULL,
-                 address = NULL,
-                 occupation = NULL,
-                 annual_income = NULL
-             WHERE student_id = $1 AND tenant_id = $2`,
-            [studentId, tenantId, REDACTED],
-        );
+        const guardiansErased = await q`
+            UPDATE guardians SET
+                first_name = ${REDACTED},
+                last_name = ${REDACTED},
+                email = NULL,
+                email_enc = NULL,
+                phone = NULL,
+                phone_enc = NULL,
+                alternate_phone = NULL,
+                alternate_phone_enc = NULL,
+                address = NULL,
+                occupation = NULL,
+                annual_income = NULL
+            WHERE student_id = ${studentId} AND tenant_id = ${tenantId}
+        `.execute();
 
         // Audit the erasure on the same client — who erased which record, and
         // why — so the record commits with the erasure, never apart from it.
-        await client.query(
-            `INSERT INTO audit_logs (
-                 tenant_id, user_id, action, entity_type, entity_id, description
-             ) VALUES ($1, $2, 'DELETE', 'student', $3, $4)`,
-            [
-                tenantId,
-                actorUserId,
-                studentId,
-                `Erased personal data for student ${admissionNumber}: ${reason}`,
-            ],
-        );
+        await q`
+            INSERT INTO audit_logs (
+                tenant_id, user_id, action, entity_type, entity_id, description
+            ) VALUES (
+                ${tenantId},
+                ${actorUserId},
+                'DELETE', 'student',
+                ${studentId},
+                ${`Erased personal data for student ${admissionNumber}: ${reason}`}
+            )
+        `;
 
         return {
             erased: true,

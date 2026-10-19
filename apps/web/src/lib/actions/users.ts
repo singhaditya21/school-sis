@@ -2,7 +2,7 @@
 
 import { randomBytes } from 'crypto';
 import { hash } from 'bcryptjs';
-import { pool, sql, runWithTenantContext } from '@/lib/db';
+import { sql, runWithTenantContext } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 import { encryptEmail, encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 
@@ -45,9 +45,6 @@ type UserRow = {
     last_login_at: Date | null;
 };
 
-const SELECT_COLS =
-    'id, tenant_id, COALESCE(email_enc, email) AS email, first_name, last_name, role, is_active, created_at, last_login_at';
-
 function mapRow(r: UserRow): AdminUser {
     return {
         id: r.id,
@@ -68,11 +65,13 @@ export async function listUsers(): Promise<Result<AdminUser[]>> {
     if (!auth.ok) return { success: false, error: auth.error };
     try {
         const rows = await runWithTenantContext(auth.tenantId, async () => {
-            const res = await pool.query<UserRow>(
-                `SELECT ${SELECT_COLS} FROM users WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 500`,
-                [auth.tenantId],
-            );
-            return res.rows;
+            return sql<UserRow>`
+                SELECT id, tenant_id, COALESCE(email_enc, email) AS email, first_name, last_name, role, is_active, created_at, last_login_at
+                FROM users
+                WHERE tenant_id = ${auth.tenantId}
+                ORDER BY created_at DESC
+                LIMIT 500
+            `;
         });
         return { success: true, data: rows.map(mapRow) };
     } catch (e) {
@@ -100,15 +99,16 @@ export async function createUser(input: {
     try {
         const passwordHash = await hash(input.password, 12);
         const row = await runWithTenantContext(auth.tenantId, async () => {
-            const existing = await pool.query('SELECT 1 FROM users WHERE tenant_id = $1 AND (email_enc = ANY($3::text[]) OR email = $2)', [auth.tenantId, email, encryptEmailCandidates(email)]);
-            if (existing.rowCount) throw new Error('A user with that email already exists.');
-            const res = await pool.query<UserRow>(
-                `INSERT INTO users (tenant_id, email_enc, password_hash, first_name, last_name, role)
-                 VALUES ($1, $2, $3, $4, $5, $6)
-                 RETURNING ${SELECT_COLS}`,
-                [auth.tenantId, encryptEmail(email), passwordHash, input.firstName ?? '', input.lastName ?? '', input.role],
-            );
-            return res.rows[0];
+            const existingCount = await sql`
+                SELECT 1 FROM users WHERE tenant_id = ${auth.tenantId} AND (email_enc = ANY(${encryptEmailCandidates(email)}::text[]) OR email = ${email})
+            `.execute();
+            if (existingCount) throw new Error('A user with that email already exists.');
+            const rows = await sql<UserRow>`
+                INSERT INTO users (tenant_id, email_enc, password_hash, first_name, last_name, role)
+                VALUES (${auth.tenantId}, ${encryptEmail(email)}, ${passwordHash}, ${input.firstName ?? ''}, ${input.lastName ?? ''}, ${input.role})
+                RETURNING id, tenant_id, COALESCE(email_enc, email) AS email, first_name, last_name, role, is_active, created_at, last_login_at
+            `;
+            return rows[0];
         });
         return { success: true, data: mapRow(row) };
     } catch (e) {
@@ -170,13 +170,13 @@ export async function setUserActive(userId: string, active: boolean): Promise<Re
     if (!auth.ok) return { success: false, error: auth.error };
     try {
         const row = await runWithTenantContext(auth.tenantId, async () => {
-            const res = await pool.query<UserRow>(
-                `UPDATE users SET is_active = $1, updated_at = NOW()
-                 WHERE id = $2 AND tenant_id = $3 RETURNING ${SELECT_COLS}`,
-                [active, userId, auth.tenantId],
-            );
-            if (!res.rows[0]) throw new Error('User not found.');
-            return res.rows[0];
+            const rows = await sql<UserRow>`
+                UPDATE users SET is_active = ${active}, updated_at = NOW()
+                WHERE id = ${userId} AND tenant_id = ${auth.tenantId}
+                RETURNING id, tenant_id, COALESCE(email_enc, email) AS email, first_name, last_name, role, is_active, created_at, last_login_at
+            `;
+            if (!rows[0]) throw new Error('User not found.');
+            return rows[0];
         });
         return { success: true, data: mapRow(row) };
     } catch (e) {
@@ -192,11 +192,10 @@ export async function resetUserPassword(userId: string): Promise<Result<{ tempor
         const temporaryPassword = randomBytes(9).toString('base64url');
         const passwordHash = await hash(temporaryPassword, 12);
         const updated = await runWithTenantContext(auth.tenantId, async () => {
-            const res = await pool.query(
-                `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3`,
-                [passwordHash, userId, auth.tenantId],
-            );
-            return (res.rowCount ?? 0) > 0;
+            const rowCount = await sql`
+                UPDATE users SET password_hash = ${passwordHash}, updated_at = NOW() WHERE id = ${userId} AND tenant_id = ${auth.tenantId}
+            `.execute();
+            return rowCount > 0;
         });
         if (!updated) return { success: false, error: 'User not found.' };
         return { success: true, data: { temporaryPassword } };

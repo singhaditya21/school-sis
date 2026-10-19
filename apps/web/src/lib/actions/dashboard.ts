@@ -1,6 +1,6 @@
 'use server';
 
-import { pool, sql } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 
 export interface DashboardStats {
@@ -30,92 +30,92 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
     // Run all aggregate queries in parallel
     const [
-        studentCountRes,
-        teacherCountRes,
-        gradeCountRes,
-        sectionCountRes,
-        todayAttendanceRes,
-        feeAggregatesRes,
-        leadCountRes,
-        overdueDataRes,
-        consentBlockedRows,
+        studentCountRow,
+        teacherCountRow,
+        gradeCountRow,
+        sectionCountRow,
+        todayAttendanceRow,
+        feeAggregatesRow,
+        leadCountRow,
+        overdueDataRow,
+        consentBlockedRow,
     ] = await Promise.all([
-        pool.query(`SELECT count(*) FROM students WHERE tenant_id = $1 AND status = 'ACTIVE'`, [tenantId]),
-        pool.query(`SELECT count(*) FROM users WHERE tenant_id = $1 AND role = 'TEACHER' AND is_active = true`, [tenantId]),
-        pool.query(`SELECT count(*) FROM grades WHERE tenant_id = $1`, [tenantId]),
-        pool.query(`SELECT count(*) FROM sections WHERE tenant_id = $1`, [tenantId]),
-        pool.query(`SELECT count(*) FROM attendance_records WHERE tenant_id = $1 AND status = 'PRESENT' AND date >= CURRENT_DATE`, [tenantId]),
+        sql<{ count: string }>`SELECT count(*) FROM students WHERE tenant_id = ${tenantId} AND status = 'ACTIVE'`.one(),
+        sql<{ count: string }>`SELECT count(*) FROM users WHERE tenant_id = ${tenantId} AND role = 'TEACHER' AND is_active = true`.one(),
+        sql<{ count: string }>`SELECT count(*) FROM grades WHERE tenant_id = ${tenantId}`.one(),
+        sql<{ count: string }>`SELECT count(*) FROM sections WHERE tenant_id = ${tenantId}`.one(),
+        sql<{ count: string }>`SELECT count(*) FROM attendance_records WHERE tenant_id = ${tenantId} AND status = 'PRESENT' AND date >= CURRENT_DATE`.one(),
         // Collected and expected come from invoices — SUM(paid_amount) and
         // SUM(total_amount) — matching getExecutiveFinancialMetrics, so the
         // dashboard cannot contradict /executive or /fees.
-        pool.query(`
+        sql<{ expected: string; collected: string }>`
             SELECT COALESCE(SUM(total_amount), 0) AS expected,
                    COALESCE(SUM(paid_amount), 0)  AS collected
             FROM invoices
-            WHERE tenant_id = $1 AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
-        `, [tenantId]),
-        pool.query(`SELECT count(*) FROM admission_leads WHERE tenant_id = $1 AND stage = 'NEW'`, [tenantId]),
+            WHERE tenant_id = ${tenantId} AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
+        `.one(),
+        sql<{ count: string }>`SELECT count(*) FROM admission_leads WHERE tenant_id = ${tenantId} AND stage = 'NEW'`.one(),
         // Nothing ever stamps the OVERDUE invoice status; filtering on it
         // matched zero rows, so the dashboard showed ₹0 overdue and a 100%
         // collection rate while /fees showed the real defaulters one click
         // away. Derive overdue the way every other fee readout does: past
         // due, and still owing.
-        pool.query(`
+        sql<{ overdue_amount: string; overdue_count: string; defaulter_count: string }>`
             SELECT
                 COALESCE(SUM(total_amount - paid_amount), 0) as overdue_amount,
                 count(*) as overdue_count,
                 count(DISTINCT student_id) as defaulter_count
             FROM invoices
-            WHERE tenant_id = $1
+            WHERE tenant_id = ${tenantId}
               AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
               AND due_date < CURRENT_DATE
               AND total_amount > paid_amount
-        `, [tenantId]),
+        `.one(),
         sql<{ blocked_count: string }>`
             SELECT (
                 (SELECT count(*) FROM consents WHERE tenant_id = ${tenantId} AND is_opted_in = false) +
                 (SELECT count(*) FROM consent_responses WHERE tenant_id = ${tenantId} AND response = 'DECLINED')
             ) AS blocked_count
-        `.rows(),
+        `.one(),
     ]);
 
-    const expected = Number(feeAggregatesRes.rows[0]?.expected || 0);
-    const collected = Number(feeAggregatesRes.rows[0]?.collected || 0);
-    const overdue = Number(overdueDataRes.rows[0]?.overdue_amount || 0);
+    const expected = Number(feeAggregatesRow?.expected || 0);
+    const collected = Number(feeAggregatesRow?.collected || 0);
+    const overdue = Number(overdueDataRow?.overdue_amount || 0);
     // Rate against everything billed, not just collected + overdue — the old
     // denominator omitted not-yet-due invoices and pinned the rate to 100%
     // the moment overdue read zero.
     const collectionRate = expected > 0 ? Math.round((collected / expected) * 100) : 0;
 
     return {
-        totalStudents: parseInt(studentCountRes.rows[0]?.count || '0', 10),
-        totalTeachers: parseInt(teacherCountRes.rows[0]?.count || '0', 10),
-        totalGrades: parseInt(gradeCountRes.rows[0]?.count || '0', 10),
-        totalClasses: parseInt(sectionCountRes.rows[0]?.count || '0', 10),
-        attendanceToday: parseInt(todayAttendanceRes.rows[0]?.count || '0', 10),
+        totalStudents: parseInt(studentCountRow?.count || '0', 10),
+        totalTeachers: parseInt(teacherCountRow?.count || '0', 10),
+        totalGrades: parseInt(gradeCountRow?.count || '0', 10),
+        totalClasses: parseInt(sectionCountRow?.count || '0', 10),
+        attendanceToday: parseInt(todayAttendanceRow?.count || '0', 10),
         feeCollected: collected,
         feesPending: overdue,
-        admissionLeads: parseInt(leadCountRes.rows[0]?.count || '0', 10),
+        admissionLeads: parseInt(leadCountRow?.count || '0', 10),
         collectionRate,
         overdueAmount: overdue,
-        defaulterCount: Number(overdueDataRes.rows[0]?.defaulter_count || 0),
-        overdueInvoiceCount: Number(overdueDataRes.rows[0]?.overdue_count || 0),
-        consentBlocked: parseInt(consentBlockedRows[0]?.blocked_count || '0', 10),
+        defaulterCount: Number(overdueDataRow?.defaulter_count || 0),
+        overdueInvoiceCount: Number(overdueDataRow?.overdue_count || 0),
+        consentBlocked: parseInt(consentBlockedRow?.blocked_count || '0', 10),
     };
 }
 
 export async function getTenantInfo(): Promise<TenantInfo> {
     const { tenantId } = await requireAuth();
 
-    const [tenantRes, yearRes] = await Promise.all([
-        pool.query(`SELECT name, code FROM tenants WHERE id = $1 LIMIT 1`, [tenantId]),
-        pool.query(`SELECT id FROM academic_years WHERE tenant_id = $1 LIMIT 1`, [tenantId])
+    const [tenant, yearRow] = await Promise.all([
+        sql<{ name: string; code: string }>`SELECT name, code FROM tenants WHERE id = ${tenantId} LIMIT 1`.maybeOne(),
+        sql<{ id: string }>`SELECT id FROM academic_years WHERE tenant_id = ${tenantId} LIMIT 1`.maybeOne(),
     ]);
 
-    const tenant = tenantRes.rows[0] || { name: 'Unknown School', code: '???' };
-    const hasAcademicYear = yearRes.rows.length > 0;
+    const resolvedTenant = tenant || { name: 'Unknown School', code: '???' };
+    const hasAcademicYear = Boolean(yearRow);
 
-    return { ...tenant, hasAcademicYear };
+    return { ...resolvedTenant, hasAcademicYear };
 }
 
 export interface ActivityLogItem {
@@ -131,7 +131,16 @@ export async function getRecentActivity(limit_num: number = 10): Promise<Activit
     const { tenantId } = await requireAuth();
 
     try {
-        const { rows } = await pool.query(`
+        const rows = await sql<{
+            id: string;
+            action: string;
+            entityType: string | null;
+            description: string | null;
+            timestamp: Date | string | null;
+            userName: string | null;
+            userLastName: string | null;
+            userRole: string | null;
+        }>`
             SELECT 
                 a.id, 
                 a.action, 
@@ -143,10 +152,10 @@ export async function getRecentActivity(limit_num: number = 10): Promise<Activit
                 u.role as "userRole"
             FROM audit_logs a
             LEFT JOIN users u ON a.user_id = u.id
-            WHERE a.tenant_id = $1
+            WHERE a.tenant_id = ${tenantId}
             ORDER BY a.created_at DESC
-            LIMIT $2
-        `, [tenantId, limit_num]);
+            LIMIT ${limit_num}
+        `;
 
         return rows.map((log) => {
             let uiType = 'login';

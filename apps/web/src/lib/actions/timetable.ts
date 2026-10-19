@@ -1,6 +1,6 @@
 'use server';
 
-import { pool } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 
@@ -42,11 +42,17 @@ export interface TimetableSection {
 export async function getPeriods(): Promise<PeriodItem[]> {
     const { tenantId } = await requireAuth('timetable:read');
 
-    const { rows } = await pool.query(
-        `SELECT id, name, start_time AS "startTime", end_time AS "endTime", display_order AS "displayOrder", is_break AS "isBreak" 
-         FROM periods WHERE tenant_id = $1 ORDER BY display_order ASC`,
-        [tenantId]
-    );
+    const rows = await sql<{
+        id: string;
+        name: string;
+        startTime: string;
+        endTime: string;
+        displayOrder: number;
+        isBreak: number | boolean;
+    }>`
+        SELECT id, name, start_time AS "startTime", end_time AS "endTime", display_order AS "displayOrder", is_break AS "isBreak" 
+        FROM periods WHERE tenant_id = ${tenantId} ORDER BY display_order ASC
+    `;
 
     return rows.map(r => ({
         ...r,
@@ -61,8 +67,16 @@ export async function getTimetableForSection(sectionId: string): Promise<Timetab
     const allPeriods = await getPeriods();
 
     // Get all entries for this section
-    const { rows: entries } = await pool.query(
-        `SELECT 
+    const entries = await sql<{
+        periodId: string;
+        dayOfWeek: string;
+        subjectName: string;
+        subjectCode: string;
+        teacherFirstName: string;
+        teacherLastName: string;
+        roomNumber: string | null;
+    }>`
+        SELECT 
             te.period_id AS "periodId", 
             te.day_of_week AS "dayOfWeek", 
             s.name AS "subjectName", 
@@ -70,12 +84,11 @@ export async function getTimetableForSection(sectionId: string): Promise<Timetab
             u.first_name AS "teacherFirstName", 
             u.last_name AS "teacherLastName", 
             te.room_number AS "roomNumber"
-         FROM timetable_entries te
-         INNER JOIN subjects s ON te.subject_id = s.id
-         INNER JOIN users u ON te.teacher_id = u.id
-         WHERE te.section_id = $1 AND te.tenant_id = $2`,
-        [sectionId, tenantId]
-    );
+        FROM timetable_entries te
+        INNER JOIN subjects s ON te.subject_id = s.id
+        INNER JOIN users u ON te.teacher_id = u.id
+        WHERE te.section_id = ${sectionId} AND te.tenant_id = ${tenantId}
+    `;
 
     // Build timetable grid
     const entryMap = new Map<string, TimetableCell>();
@@ -105,41 +118,35 @@ export async function getTimetableForSection(sectionId: string): Promise<Timetab
 export async function getSectionsForTimetable(): Promise<TimetableSection[]> {
     const { tenantId } = await requireAuth('timetable:read');
 
-    const { rows } = await pool.query(
-        `SELECT s.id, s.name AS "sectionName", g.name AS "gradeName", g.display_order AS "gradeOrder"
-         FROM sections s
-         INNER JOIN grades g ON s.grade_id = g.id
-         WHERE s.tenant_id = $1
-         ORDER BY g.display_order ASC, s.name ASC`,
-        [tenantId]
-    );
-    return rows;
+    return sql<TimetableSection>`
+        SELECT s.id, s.name AS "sectionName", g.name AS "gradeName", g.display_order AS "gradeOrder"
+        FROM sections s
+        INNER JOIN grades g ON s.grade_id = g.id
+        WHERE s.tenant_id = ${tenantId}
+        ORDER BY g.display_order ASC, s.name ASC
+    `;
 }
 
 export async function getTeachersForTimetable() {
     const { tenantId } = await requireAuth('timetable:read');
     
-    const { rows } = await pool.query(
-        `SELECT id, first_name AS "firstName", last_name AS "lastName"
-         FROM users
-         WHERE tenant_id = $1 AND role = 'TEACHER' AND is_active = true
-         ORDER BY first_name ASC`,
-        [tenantId]
-    );
-    return rows;
+    return sql<{ id: string; firstName: string; lastName: string }>`
+        SELECT id, first_name AS "firstName", last_name AS "lastName"
+        FROM users
+        WHERE tenant_id = ${tenantId} AND role = 'TEACHER' AND is_active = true
+        ORDER BY first_name ASC
+    `;
 }
 
 export async function getSubjectsForTimetable() {
     const { tenantId } = await requireAuth('timetable:read');
     
-    const { rows } = await pool.query(
-        `SELECT id, name, code
-         FROM subjects
-         WHERE tenant_id = $1
-         ORDER BY name ASC`,
-        [tenantId]
-    );
-    return rows;
+    return sql<{ id: string; name: string; code: string }>`
+        SELECT id, name, code
+        FROM subjects
+        WHERE tenant_id = ${tenantId}
+        ORDER BY name ASC
+    `;
 }
 
 // ─── Conflict Detection ─────────────────────────────────────
@@ -162,23 +169,22 @@ export async function checkConflicts(data: {
 }): Promise<TimetableConflict[]> {
     const { tenantId } = await requireAuth('timetable:read');
     const conflicts: TimetableConflict[] = [];
+    const excludeFilter = data.excludeEntryId ? sql`AND te.id != ${data.excludeEntryId}` : sql``;
 
     // Check teacher double-booking
-    const teacherParams: string[] = [tenantId, data.periodId, data.dayOfWeek, data.teacherId, data.sectionId];
-    let teacherQuery = `
+    const teacherEntries = await sql<{
+        id: string;
+        sectionId: string;
+        sectionName: string;
+        gradeName: string;
+    }>`
         SELECT te.id, te.section_id AS "sectionId", s.name AS "sectionName", g.name AS "gradeName"
         FROM timetable_entries te
         INNER JOIN sections s ON te.section_id = s.id
         INNER JOIN grades g ON s.grade_id = g.id
-        WHERE te.tenant_id = $1 AND te.period_id = $2 AND te.day_of_week = $3 
-          AND te.teacher_id = $4 AND te.section_id != $5
+        WHERE te.tenant_id = ${tenantId} AND te.period_id = ${data.periodId} AND te.day_of_week = ${data.dayOfWeek} 
+          AND te.teacher_id = ${data.teacherId} AND te.section_id != ${data.sectionId} ${excludeFilter}
     `;
-    if (data.excludeEntryId) {
-        teacherParams.push(data.excludeEntryId);
-        teacherQuery += ` AND te.id != $6`;
-    }
-
-    const { rows: teacherEntries } = await pool.query(teacherQuery, teacherParams);
 
     for (const entry of teacherEntries) {
         conflicts.push({
@@ -192,21 +198,18 @@ export async function checkConflicts(data: {
 
     // Check room double-booking
     if (data.roomNumber) {
-        const roomParams: string[] = [tenantId, data.periodId, data.dayOfWeek, data.roomNumber, data.sectionId];
-        let roomQuery = `
+        const roomEntries = await sql<{
+            id: string;
+            sectionName: string;
+            gradeName: string;
+        }>`
             SELECT te.id, s.name AS "sectionName", g.name AS "gradeName"
             FROM timetable_entries te
             INNER JOIN sections s ON te.section_id = s.id
             INNER JOIN grades g ON s.grade_id = g.id
-            WHERE te.tenant_id = $1 AND te.period_id = $2 AND te.day_of_week = $3 
-              AND te.room_number = $4 AND te.section_id != $5
+            WHERE te.tenant_id = ${tenantId} AND te.period_id = ${data.periodId} AND te.day_of_week = ${data.dayOfWeek} 
+              AND te.room_number = ${data.roomNumber} AND te.section_id != ${data.sectionId} ${excludeFilter}
         `;
-        if (data.excludeEntryId) {
-            roomParams.push(data.excludeEntryId);
-            roomQuery += ` AND te.id != $6`;
-        }
-
-        const { rows: roomEntries } = await pool.query(roomQuery, roomParams);
 
         for (const entry of roomEntries) {
             conflicts.push({
@@ -247,11 +250,10 @@ export async function createTimetableEntry(data: {
         return { success: false, conflicts };
     }
 
-    await pool.query(
-        `INSERT INTO timetable_entries (id, tenant_id, section_id, period_id, day_of_week, subject_id, teacher_id, room_number)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [randomUUID(), tenantId, data.sectionId, data.periodId, data.dayOfWeek, data.subjectId, data.teacherId, data.roomNumber || null]
-    );
+    await sql`
+        INSERT INTO timetable_entries (id, tenant_id, section_id, period_id, day_of_week, subject_id, teacher_id, room_number)
+        VALUES (${randomUUID()}, ${tenantId}, ${data.sectionId}, ${data.periodId}, ${data.dayOfWeek}, ${data.subjectId}, ${data.teacherId}, ${data.roomNumber || null})
+    `;
 
     return { success: true, conflicts: [] };
 }
@@ -288,21 +290,11 @@ export async function bulkCreateEntries(entries: {
     }
 
     // Insert valid entries
-    if (validEntries.length > 0) {
-        const values: (string | null)[] = [];
-        const placeholders: string[] = [];
-        let index = 1;
-        for (const e of validEntries) {
-            placeholders.push(`($${index}, $${index+1}, $${index+2}, $${index+3}, $${index+4}, $${index+5}, $${index+6}, $${index+7})`);
-            values.push(randomUUID(), tenantId, e.sectionId, e.periodId, e.dayOfWeek, e.subjectId, e.teacherId, e.roomNumber || null);
-            index += 8;
-        }
-
-        await pool.query(
-            `INSERT INTO timetable_entries (id, tenant_id, section_id, period_id, day_of_week, subject_id, teacher_id, room_number)
-             VALUES ${placeholders.join(', ')}`,
-            values
-        );
+    for (const e of validEntries) {
+        await sql`
+            INSERT INTO timetable_entries (id, tenant_id, section_id, period_id, day_of_week, subject_id, teacher_id, room_number)
+            VALUES (${randomUUID()}, ${tenantId}, ${e.sectionId}, ${e.periodId}, ${e.dayOfWeek}, ${e.subjectId}, ${e.teacherId}, ${e.roomNumber || null})
+        `;
     }
 
     return {
@@ -311,101 +303,4 @@ export async function bulkCreateEntries(entries: {
         skipped: entries.length - validEntries.length,
         conflicts: allConflicts,
     };
-}
-
-// ─── Substitution Management ─────────────────────────────────
-
-export async function getSubstitutionSuggestions(data: {
-    periodId: string;
-    dayOfWeek: string;
-    subjectId: string;
-}) {
-    const { tenantId } = await requireAuth('timetable:read');
-
-    // Find all teachers who teach this subject and are NOT busy during this period+day
-    const { rows: busyTeachers } = await pool.query(
-        `SELECT teacher_id AS "teacherId" FROM timetable_entries 
-         WHERE tenant_id = $1 AND period_id = $2 AND day_of_week = $3`,
-        [tenantId, data.periodId, data.dayOfWeek]
-    );
-
-    const busyIds = new Set(busyTeachers.map(t => t.teacherId));
-
-    const { rows: allTeachers } = await pool.query(
-        `SELECT id, first_name AS "firstName", last_name AS "lastName"
-         FROM users
-         WHERE tenant_id = $1 AND role = 'TEACHER' AND is_active = true`,
-        [tenantId]
-    );
-
-    return allTeachers
-        .filter(t => !busyIds.has(t.id))
-        .map(t => ({
-            teacherId: t.id,
-            teacherName: `${t.firstName} ${t.lastName}`,
-            isFree: true,
-        }));
-}
-
-export async function createSubstitutionRequest(data: {
-    date: string;
-    absentTeacherName: string;
-    subject: string;
-    period: number;
-    substituteTeacherName?: string;
-}) {
-    const { tenantId } = await requireAuth('timetable:read');
-
-    // Resolve teacher ID from name
-    const teacherRes = await pool.query(
-        `SELECT id FROM users WHERE tenant_id = $1 AND role = 'TEACHER' AND (first_name || ' ' || last_name) = $2 LIMIT 1`,
-        [tenantId, data.absentTeacherName]
-    );
-    const teacherId = teacherRes.rows[0]?.id;
-    if (!teacherId) {
-        throw new Error('Teacher not found');
-    }
-
-    // Resolve a default section for the request
-    const sectionRes = await pool.query(
-        `SELECT id FROM sections WHERE tenant_id = $1 LIMIT 1`,
-        [tenantId]
-    );
-    const sectionId = sectionRes.rows[0]?.id;
-
-    // Resolve substitute
-    let substituteId = null;
-    if (data.substituteTeacherName) {
-        const subRes = await pool.query(
-            `SELECT id FROM users WHERE tenant_id = $1 AND role = 'TEACHER' AND (first_name || ' ' || last_name) = $2 LIMIT 1`,
-            [tenantId, data.substituteTeacherName]
-        );
-        substituteId = subRes.rows[0]?.id;
-    }
-    if (!substituteId) {
-        const substituteRes = await pool.query(
-            `SELECT id FROM users WHERE tenant_id = $1 AND role = 'TEACHER' AND id != $2 LIMIT 1`,
-            [tenantId, teacherId]
-        );
-        substituteId = substituteRes.rows[0]?.id;
-    }
-
-    await pool.query(
-        `INSERT INTO substitution_requests (tenant_id, teacher_id, substitute_id, section_id, period, date, reason, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')`,
-        [tenantId, teacherId, substituteId, sectionId, data.period, data.date, data.subject]
-    );
-
-    return { success: true };
-}
-
-export async function approveSubstitutionRequest(id: string) {
-    const { tenantId } = await requireAuth('timetable:write');
-    await pool.query(
-        `UPDATE substitution_requests
-         SET status = 'approved'
-         WHERE id = $1 AND tenant_id = $2`,
-        [id, tenantId]
-    );
-    return { success: true };
 }

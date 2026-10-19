@@ -1,15 +1,13 @@
 'use server';
 
-import crypto from 'crypto';
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/session';
 import { clearRateLimit, consumeLoginRateLimit } from '@/lib/auth/rate-limit';
-import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
+import { sql, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { compare } from 'bcryptjs';
 import { z } from 'zod';
-import { generateSSOAuthorizationUrl, handleSSOCallback } from '@/lib/auth/enterprise';
 import { verifyMFACode } from '@/lib/auth/mfa';
-import { establishSession, shouldRequireMfaEnrollment } from '@/lib/auth/identity';
+import { establishSession } from '@/lib/auth/identity';
 import { encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 
 /**
@@ -84,8 +82,19 @@ async function loginActionV2WithBypass(formData: FormData) {
         if (isPlatformAdmin) {
             const normalizedEmail = email?.trim().toLowerCase() || '';
 
-            const { rows: platformRows } = await pool.query(
-                `SELECT
+            const platformRows = await sql<{
+                id: string;
+                tenantId: string;
+                tenantCode: string | null;
+                tenantDomain: string | null;
+                email: string;
+                passwordHash: string;
+                role: string;
+                firstName: string | null;
+                lastName: string | null;
+                mfaEnabled: boolean | null;
+            }>`
+                SELECT
                     u.id,
                     u.tenant_id as "tenantId",
                     t.code as "tenantCode",
@@ -96,11 +105,10 @@ async function loginActionV2WithBypass(formData: FormData) {
                     u.first_name as "firstName",
                     u.last_name as "lastName",
                     u.mfa_enabled as "mfaEnabled"
-                 FROM users u
-                 LEFT JOIN tenants t ON t.id = u.tenant_id
-                 WHERE (u.email_enc = ANY($2::text[]) OR u.email = $1) LIMIT 1`,
-                [normalizedEmail, encryptEmailCandidates(normalizedEmail)]
-            );
+                FROM users u
+                LEFT JOIN tenants t ON t.id = u.tenant_id
+                WHERE (u.email_enc = ANY(${encryptEmailCandidates(normalizedEmail)}::text[]) OR u.email = ${normalizedEmail}) LIMIT 1
+            `;
             const user = platformRows[0];
 
             if (!user) {
@@ -162,15 +170,23 @@ async function loginActionV2WithBypass(formData: FormData) {
             }
 
             // Look up tenant by school code and join company for features
-            const { rows: tenantRows } = await pool.query(
-                `SELECT 
+            const tenantRows = await sql<{
+                tenantId: string;
+                tenantCode: string | null;
+                tenantDomain: string | null;
+                tenantIsActive: boolean;
+                companyId: string | null;
+                companyIsActive: boolean | null;
+                subscriptionTier: 'CORE' | 'AI_PRO' | 'ENTERPRISE' | null;
+                activeModules: string[] | null;
+            }>`
+                SELECT 
                     t.id as "tenantId", t.code as "tenantCode", t.domain as "tenantDomain", t.is_active as "tenantIsActive",
                     c.id as "companyId", c.is_active as "companyIsActive", c.subscription_tier as "subscriptionTier", c.active_modules as "activeModules"
-                 FROM tenants t
-                 LEFT JOIN companies c ON t.company_id = c.id
-                 WHERE t.code = $1 LIMIT 1`,
-                [schoolCode.toUpperCase()]
-            );
+                FROM tenants t
+                LEFT JOIN companies c ON t.company_id = c.id
+                WHERE t.code = ${schoolCode.toUpperCase()} LIMIT 1
+            `;
             const tenantRecord = tenantRows[0];
 
             if (!tenantRecord) {
@@ -182,8 +198,17 @@ async function loginActionV2WithBypass(formData: FormData) {
             }
 
             // Find user within this tenant
-            const { rows: userRows } = await pool.query(
-                `SELECT
+            const userRows = await sql<{
+                id: string;
+                email: string;
+                passwordHash: string;
+                role: string;
+                firstName: string | null;
+                lastName: string | null;
+                isActive: boolean;
+                mfaEnabled: boolean | null;
+            }>`
+                SELECT
                     id,
                     COALESCE(email_enc, email) AS "email",
                     password_hash as "passwordHash",
@@ -192,10 +217,9 @@ async function loginActionV2WithBypass(formData: FormData) {
                     last_name as "lastName",
                     is_active as "isActive",
                     mfa_enabled as "mfaEnabled"
-                 FROM users
-                 WHERE (email_enc = ANY($3::text[]) OR email = $1) AND tenant_id = $2 LIMIT 1`,
-                [email, tenantRecord.tenantId, encryptEmailCandidates(email)]
-            );
+                FROM users
+                WHERE (email_enc = ANY(${encryptEmailCandidates(email)}::text[]) OR email = ${email}) AND tenant_id = ${tenantRecord.tenantId} LIMIT 1
+            `;
             const user = userRows[0];
 
             if (!user) {
@@ -242,7 +266,7 @@ async function loginActionV2WithBypass(formData: FormData) {
                 provider: 'password',
                 displayName: displayNameFor(user),
                 companyId: tenantRecord.companyId || undefined,
-                subscriptionTier: tenantRecord.subscriptionTier,
+                subscriptionTier: tenantRecord.subscriptionTier || undefined,
                 activeModules: tenantRecord.activeModules || [],
                 mfaEnabled: Boolean(user.mfaEnabled),
                 mfaVerified: Boolean(user.mfaEnabled),
@@ -251,10 +275,9 @@ async function loginActionV2WithBypass(formData: FormData) {
             await session.save();
 
             // Update last login
-            await pool.query(
-                `UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1`,
-                [user.id]
-            );
+            await sql`
+                UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ${user.id}
+            `;
 
             // Route based on role — but an unenrolled MFA-required account goes to
             // enrolment first, whatever its role would otherwise land on.
@@ -284,80 +307,4 @@ export async function logoutAction() {
     const session = await getSession();
     session.destroy();
     redirect('/login');
-}
-
-function ssoStateExpiresAt(): string {
-    return new Date(Date.now() + 10 * 60 * 1000).toISOString();
-}
-
-export async function initiateSSOLogin(provider: string, redirectUri: string) {
-    let url = '';
-    try {
-        const session = await getSession();
-        const state = crypto.randomBytes(24).toString('base64url');
-        session.ssoState = {
-            value: state,
-            provider,
-            redirectUri,
-            expiresAt: ssoStateExpiresAt(),
-        };
-        await session.save();
-
-        url = await generateSSOAuthorizationUrl(provider, redirectUri, state);
-    } catch (error) {
-        console.error('[SSO] Error initiating login:', error);
-        return { error: 'Failed to initiate SSO login' };
-    }
-    
-    if (url) {
-        redirect(url);
-    }
-}
-
-export async function processSSOCallback(code: string, provider: string, state?: string) {
-    let redirectPath = '';
-    try {
-        const session = await getSession();
-        const expectedState = session.ssoState;
-        if (!expectedState || expectedState.provider !== provider || expectedState.value !== state) {
-            return { error: 'Invalid SSO login state. Please start sign-in again.' };
-        }
-        if (Date.parse(expectedState.expiresAt) <= Date.now()) {
-            session.ssoState = undefined;
-            await session.save();
-            return { error: 'SSO login expired. Please start sign-in again.' };
-        }
-
-        const ssoResult = await handleSSOCallback(code, provider, expectedState.redirectUri);
-        if (ssoResult.success === false) {
-            return { error: ssoResult.error || 'SSO Login failed' };
-        }
-        
-        establishSession(session, {
-            userId: ssoResult.userId,
-            tenantId: ssoResult.tenantId,
-            tenantCode: ssoResult.tenantCode,
-            tenantDomain: ssoResult.tenantDomain,
-            role: ssoResult.role,
-            email: ssoResult.email,
-            provider: 'sso',
-            displayName: ssoResult.displayName,
-            companyId: ssoResult.companyId,
-            subscriptionTier: ssoResult.subscriptionTier,
-            activeModules: ssoResult.activeModules,
-            mfaEnabled: ssoResult.mfaEnabled,
-            mfaVerified: ssoResult.mfaVerified,
-        });
-        session.ssoState = undefined;
-        await session.save();
-        
-        redirectPath = '/dashboard';
-    } catch (error) {
-        console.error('[SSO] Error processing callback:', error);
-        return { error: 'Failed to process SSO callback' };
-    }
-
-    if (redirectPath) {
-        redirect(redirectPath);
-    }
 }

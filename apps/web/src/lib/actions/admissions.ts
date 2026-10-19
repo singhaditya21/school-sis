@@ -1,6 +1,6 @@
 'use server';
 
-import { pool } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { encryptDeterministic } from '@/lib/encryption';
 import { randomUUID } from 'crypto';
@@ -29,44 +29,13 @@ export async function getAdmissionLeads(options?: {
 }): Promise<{ leads: AdmissionLeadItem[]; total: number }> {
     const { tenantId } = await requireAuth('admissions:read');
     const limit = options?.limit || 50;
+    const stageFilter = options?.stage ? sql`AND l.stage = ${options.stage}` : sql``;
 
-    const conditions: string[] = ['l.tenant_id = $1'];
-    const params: string[] = [tenantId];
-
-    if (options?.stage) {
-        params.push(options.stage);
-        conditions.push(`l.stage = $${params.length}`);
-    }
-
-    const { rows: countResult } = await pool.query(`
+    const countResult = await sql<{ count: string }>`
         SELECT COUNT(*) AS count
         FROM admission_leads l
-        WHERE ${conditions.join(' AND ')}
-    `, params);
-
-    const { rows } = await pool.query(`
-        SELECT 
-            l.id, 
-            l.child_first_name AS "childFirstName", 
-            l.child_last_name AS "childLastName", 
-            l.child_dob AS "childDob", 
-            l.applying_for_grade AS "applyingForGrade", 
-            l.parent_name AS "parentName", 
-            l.parent_email AS "parentEmail", 
-            l.parent_phone AS "parentPhone", 
-            l.source, 
-            l.stage, 
-            l.notes, 
-            l.previous_school AS "previousSchool", 
-            u.first_name AS "assignedFirstName", 
-            u.last_name AS "assignedLastName", 
-            l.created_at AS "createdAt"
-        FROM admission_leads l
-        LEFT JOIN users u ON l.assigned_to = u.id
-        WHERE ${conditions.join(' AND ')}
-        ORDER BY l.created_at DESC
-        LIMIT $${params.length + 1}
-    `, [...params, limit]);
+        WHERE l.tenant_id = ${tenantId} ${stageFilter}
+    `;
 
     type LeadRow = {
         id: string;
@@ -85,6 +54,31 @@ export async function getAdmissionLeads(options?: {
         assignedLastName: string | null;
         createdAt: Date;
     };
+
+    const rows = await sql<LeadRow>`
+        SELECT 
+            l.id, 
+            l.child_first_name AS "childFirstName", 
+            l.child_last_name AS "childLastName", 
+            l.child_dob AS "childDob", 
+            l.applying_for_grade AS "applyingForGrade", 
+            l.parent_name AS "parentName", 
+            l.parent_email AS "parentEmail", 
+            l.parent_phone AS "parentPhone", 
+            l.source, 
+            l.stage, 
+            l.notes, 
+            l.previous_school AS "previousSchool", 
+            u.first_name AS "assignedFirstName", 
+            u.last_name AS "assignedLastName", 
+            l.created_at AS "createdAt"
+        FROM admission_leads l
+        LEFT JOIN users u ON l.assigned_to = u.id
+        WHERE l.tenant_id = ${tenantId} ${stageFilter}
+        ORDER BY l.created_at DESC
+        LIMIT ${limit}
+    `;
+
     return {
         leads: rows.map((r: LeadRow) => ({
             id: r.id,
@@ -112,12 +106,12 @@ export async function getAdmissionPipelineCounts() {
     const stages = ['NEW', 'CONTACTED', 'FORM_SUBMITTED', 'DOCUMENTS_PENDING', 'INTERVIEW_SCHEDULED', 'INTERVIEW_DONE', 'OFFERED', 'ACCEPTED', 'ENROLLED', 'REJECTED', 'WITHDRAWN'] as const;
 
     const result: Record<string, number> = {};
-    const { rows } = await pool.query(`
+    const rows = await sql<{ stage: string; count: string }>`
         SELECT stage, COUNT(*) AS count
         FROM admission_leads
-        WHERE tenant_id = $1
+        WHERE tenant_id = ${tenantId}
         GROUP BY stage
-    `, [tenantId]);
+    `;
 
     for (const stage of stages) {
         result[stage] = 0;
@@ -147,49 +141,34 @@ export async function createLead(formData: FormData): Promise<void> {
         throw new Error('Missing required fields');
     }
 
-    await pool.query(`
+    await sql`
         INSERT INTO admission_leads (id, tenant_id, child_first_name, child_last_name, child_dob, applying_for_grade, parent_name, parent_email, parent_phone, source, stage, notes, previous_school)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-    `, [
-        randomUUID(),
-        tenantId,
-        childFirstName,
-        childLastName,
-        childDob || null,
-        applyingForGrade,
-        parentName,
-        parentEmail,
-        parentPhone,
-        source,
-        'NEW',
-        notes || null,
-        previousSchool || null,
-    ]);
+        VALUES (${randomUUID()}, ${tenantId}, ${childFirstName}, ${childLastName}, ${childDob || null}, ${applyingForGrade}, ${parentName}, ${parentEmail}, ${parentPhone}, ${source}, ${'NEW'}, ${notes || null}, ${previousSchool || null})
+    `;
 
     redirect('/admissions');
-}
-
-export async function updateLeadStage(leadId: string, newStage: string) {
-    const { tenantId } = await requireAuth('admissions:write');
-
-    const validStages = ['NEW', 'CONTACTED', 'FORM_SUBMITTED', 'DOCUMENTS_PENDING', 'INTERVIEW_SCHEDULED', 'INTERVIEW_DONE', 'OFFERED', 'ACCEPTED', 'ENROLLED', 'REJECTED', 'WITHDRAWN'];
-    if (!validStages.includes(newStage)) {
-        return { success: false, error: 'Invalid pipeline stage' };
-    }
-
-    await pool.query(`
-        UPDATE admission_leads
-        SET stage = $1, updated_at = NOW()
-        WHERE id = $2 AND tenant_id = $3
-    `, [newStage, leadId, tenantId]);
-
-    return { success: true };
 }
 
 export async function getLeadById(leadId: string): Promise<AdmissionLeadItem | null> {
     const { tenantId } = await requireAuth('admissions:read');
 
-    const { rows } = await pool.query(`
+    const rows = await sql<{
+        id: string;
+        childFirstName: string;
+        childLastName: string;
+        childDob: string | null;
+        applyingForGrade: string;
+        parentName: string;
+        parentEmail: string;
+        parentPhone: string;
+        source: string;
+        stage: string;
+        notes: string | null;
+        previousSchool: string | null;
+        assignedFirstName: string | null;
+        assignedLastName: string | null;
+        createdAt: Date;
+    }>`
         SELECT 
             l.id, 
             l.child_first_name AS "childFirstName", 
@@ -208,8 +187,8 @@ export async function getLeadById(leadId: string): Promise<AdmissionLeadItem | n
             l.created_at AS "createdAt"
         FROM admission_leads l
         LEFT JOIN users u ON l.assigned_to = u.id
-        WHERE l.id = $1 AND l.tenant_id = $2
-    `, [leadId, tenantId]);
+        WHERE l.id = ${leadId} AND l.tenant_id = ${tenantId}
+    `;
 
     if (!rows.length) return null;
     const row = rows[0];
@@ -239,11 +218,20 @@ export async function convertLeadToStudent(
 ): Promise<{ success: boolean; studentId?: string; error?: string }> {
     const { tenantId } = await requireAuth('admissions:write');
 
-    const { rows: leadRows } = await pool.query(`
+    const leadRows = await sql<{
+        id: string;
+        childFirstName: string;
+        childLastName: string;
+        childDob: string | null;
+        stage: string;
+        parentName: string;
+        parentPhone: string;
+        parentEmail: string;
+    }>`
         SELECT id, child_first_name AS "childFirstName", child_last_name AS "childLastName", child_dob AS "childDob", stage, parent_name AS "parentName", parent_phone AS "parentPhone", parent_email AS "parentEmail"
         FROM admission_leads
-        WHERE id = $1 AND tenant_id = $2
-    `, [leadId, tenantId]);
+        WHERE id = ${leadId} AND tenant_id = ${tenantId}
+    `;
 
     if (!leadRows.length) return { success: false, error: 'Lead not found' };
     const lead = leadRows[0];
@@ -251,47 +239,26 @@ export async function convertLeadToStudent(
 
     const admissionNumber = `ADM-${Date.now().toString(36).toUpperCase()}`;
     const studentId = randomUUID();
+    const today = new Date().toISOString().split('T')[0];
 
-    await pool.query(`
+    await sql`
         INSERT INTO students (id, tenant_id, admission_number, first_name, last_name, date_of_birth, gender, grade_id, section_id, status, admission_date)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-    `, [
-        studentId,
-        tenantId,
-        admissionNumber,
-        lead.childFirstName,
-        lead.childLastName,
-        lead.childDob || new Date().toISOString().split('T')[0],
-        'OTHER',
-        gradeId,
-        sectionId,
-        'ACTIVE',
-        new Date().toISOString().split("T")[0]
-    ]);
+        VALUES (${studentId}, ${tenantId}, ${admissionNumber}, ${lead.childFirstName}, ${lead.childLastName}, ${lead.childDob || today}, ${'OTHER'}, ${gradeId}, ${sectionId}, ${'ACTIVE'}, ${today})
+    `;
 
     const [parentFirstName, ...lastParts] = lead.parentName.split(' ');
     const parentLastName = lastParts.join(' ') || lead.parentName;
 
-    await pool.query(`
+    await sql`
         INSERT INTO guardians (id, tenant_id, student_id, first_name, last_name, relation, phone_enc, email_enc, is_primary)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `, [
-        randomUUID(),
-        tenantId,
-        studentId,
-        parentFirstName,
-        parentLastName,
-        'PARENT',
-        encryptDeterministic(lead.parentPhone, 'guardians.phone'),
-        encryptDeterministic(lead.parentEmail, 'guardians.email'),
-        true
-    ]);
+        VALUES (${randomUUID()}, ${tenantId}, ${studentId}, ${parentFirstName}, ${parentLastName}, ${'PARENT'}, ${encryptDeterministic(lead.parentPhone, 'guardians.phone')}, ${encryptDeterministic(lead.parentEmail, 'guardians.email')}, ${true})
+    `;
 
-    await pool.query(`
+    await sql`
         UPDATE admission_leads
         SET stage = 'ENROLLED', updated_at = NOW()
-        WHERE id = $1
-    `, [leadId]);
+        WHERE id = ${leadId}
+    `;
 
     return { success: true, studentId };
 }
@@ -321,18 +288,18 @@ export async function getAdmissionsAnalytics(): Promise<AdmissionsAnalytics> {
     const denominator = totalLeads - withdrawn;
     const conversionRate = denominator > 0 ? Math.round((enrolled / denominator) * 100) : 0;
 
-    const { rows: sourceRows } = await pool.query(`
+    const sourceRows = await sql<{ source: string; count: string }>`
         SELECT source, COUNT(*) AS count
         FROM admission_leads
-        WHERE tenant_id = $1
+        WHERE tenant_id = ${tenantId}
         GROUP BY source
-    `, [tenantId]);
+    `;
 
-    const { rows: avgRow } = await pool.query(`
+    const avgRow = await sql<{ avgDays: number }>`
         SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (updated_at - created_at))) / 86400, 0)::integer AS "avgDays"
         FROM admission_leads
-        WHERE tenant_id = $1 AND stage = 'ENROLLED'
-    `, [tenantId]);
+        WHERE tenant_id = ${tenantId} AND stage = 'ENROLLED'
+    `;
 
     return {
         totalLeads,
@@ -352,11 +319,21 @@ export async function scoreLead(leadId: string): Promise<{
 }> {
     const { tenantId } = await requireAuth('admissions:read');
 
-    const { rows: leadRows } = await pool.query(`
+    const leadRows = await sql<{
+        source: string;
+        stage: string;
+        childFirstName: string | null;
+        childLastName: string | null;
+        childDob: string | null;
+        parentEmail: string | null;
+        parentPhone: string | null;
+        previousSchool: string | null;
+        createdAt: Date;
+    }>`
         SELECT source, stage, child_first_name AS "childFirstName", child_last_name AS "childLastName", child_dob AS "childDob", parent_email AS "parentEmail", parent_phone AS "parentPhone", previous_school AS "previousSchool", created_at AS "createdAt"
         FROM admission_leads
-        WHERE id = $1 AND tenant_id = $2
-    `, [leadId, tenantId]);
+        WHERE id = ${leadId} AND tenant_id = ${tenantId}
+    `;
 
     if (!leadRows.length) return { score: 0, breakdown: [] };
     const lead = leadRows[0];
@@ -391,52 +368,19 @@ export async function scoreLead(leadId: string): Promise<{
     return { score: total, breakdown };
 }
 
-const REQUIRED_DOCUMENTS = [
-    'Birth Certificate',
-    'Previous School TC',
-    'Report Card (Last Year)',
-    'Medical Certificate',
-    'Passport Size Photos',
-    'Address Proof',
-    'Parent ID Proof',
-];
-
-export async function getDocumentChecklist(applicationId: string) {
-    const { tenantId } = await requireAuth('admissions:read');
-
-    const { rows: uploaded } = await pool.query(`
-        SELECT document_type AS "documentType", file_name AS "fileName", file_url AS "fileUrl", is_verified AS "isVerified"
-        FROM admission_documents
-        WHERE application_id = $1 AND tenant_id = $2
-    `, [applicationId, tenantId]);
-
-    type UploadedAdmissionDocument = {
-        documentType: string;
-        fileName: string | null;
-        fileUrl: string | null;
-        isVerified: boolean;
-    };
-    const uploadedMap = new Map<string, UploadedAdmissionDocument>(
-        uploaded.map((d: UploadedAdmissionDocument) => [d.documentType, d])
-    );
-
-    return REQUIRED_DOCUMENTS.map(docType => ({
-        documentType: docType,
-        isUploaded: uploadedMap.has(docType),
-        isVerified: uploadedMap.get(docType)?.isVerified ? true : false,
-        fileName: uploadedMap.get(docType)?.fileName || null,
-        fileUrl: uploadedMap.get(docType)?.fileUrl || null,
-    }));
-}
-
 export async function triggerStageNotification(leadId: string, newStage: string) {
     const { tenantId } = await requireAuth('admissions:write');
 
-    const { rows: leadRows } = await pool.query(`
+    const leadRows = await sql<{
+        parentName: string;
+        childFirstName: string;
+        applyingForGrade: string;
+        parentEmail: string | null;
+    }>`
         SELECT parent_name AS "parentName", child_first_name AS "childFirstName", applying_for_grade AS "applyingForGrade", parent_email AS "parentEmail"
         FROM admission_leads
-        WHERE id = $1 AND tenant_id = $2
-    `, [leadId, tenantId]);
+        WHERE id = ${leadId} AND tenant_id = ${tenantId}
+    `;
 
     if (!leadRows.length) return { success: false, error: 'Lead not found' };
     const lead = leadRows[0];
@@ -480,39 +424,4 @@ export async function triggerStageNotification(leadId: string, newStage: string)
     }
 
     return { success: true, sent: true };
-}
-
-export async function getWaitlist(grade?: string) {
-    const { tenantId } = await requireAuth('admissions:read');
-
-    let query = `
-        SELECT id, child_first_name || ' ' || child_last_name AS "childName", applying_for_grade AS grade, parent_name AS "parentName", parent_phone AS "parentPhone", created_at AS "createdAt"
-        FROM admission_leads
-        WHERE tenant_id = $1 AND stage = 'OFFERED'
-    `;
-    const params: string[] = [tenantId];
-
-    if (grade) {
-        params.push(grade);
-        query += ` AND applying_for_grade = $2`;
-    }
-
-    query += ` ORDER BY created_at ASC`;
-    const { rows } = await pool.query(query, params);
-    
-    return rows;
-}
-
-export async function offerFromWaitlist(leadId: string) {
-    const { tenantId } = await requireAuth('admissions:write');
-
-    await pool.query(`
-        UPDATE admission_leads
-        SET stage = 'OFFERED', updated_at = NOW()
-        WHERE id = $1 AND tenant_id = $2
-    `, [leadId, tenantId]);
-
-    await triggerStageNotification(leadId, 'OFFERED');
-
-    return { success: true };
 }

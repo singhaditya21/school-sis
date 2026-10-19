@@ -189,9 +189,9 @@ describe('production integration safety', () => {
 
   it('does not fabricate integration or payment success in remaining runtime actions', () => {
     const registry = fs.readFileSync(path.join(process.cwd(), 'src/app/api/integrations/registry/route.ts'), 'utf8');
-    const digilocker = fs.readFileSync(path.join(process.cwd(), 'src/lib/actions/digilocker.ts'), 'utf8');
+    const digilocker = fs.readFileSync(path.join(process.cwd(), 'src/app/(admin)/digilocker/actions.ts'), 'utf8');
     const checkout = fs.readFileSync(path.join(process.cwd(), 'src/app/(parent)/my-fees/pay/page.tsx'), 'utf8');
-    const messaging = fs.readFileSync(path.join(process.cwd(), 'src/lib/actions/messaging.ts'), 'utf8');
+    const messaging = fs.readFileSync(path.join(process.cwd(), 'src/app/(admin)/messages/actions.ts'), 'utf8');
     const attendance = fs.readFileSync(path.join(process.cwd(), 'src/lib/actions/attendance.ts'), 'utf8');
     const admissions = fs.readFileSync(path.join(process.cwd(), 'src/lib/actions/admissions.ts'), 'utf8');
     const marketplace = fs.readFileSync(path.join(process.cwd(), 'src/app/(dashboard)/appexchange/page.tsx'), 'utf8');

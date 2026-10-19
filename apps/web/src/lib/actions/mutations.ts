@@ -5,7 +5,7 @@
  * All mutations are tenant-scoped and audit-logged.
  */
 
-import { pool } from '@/lib/db';
+import { pool, sql, sqlFor } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { randomUUID } from 'crypto';
 import { recordManualPayment } from '@/lib/payments/ledger';
@@ -23,16 +23,15 @@ async function assertGradeAndSectionBelongToTenant(tenantId: string, gradeId: st
     assertUuid(gradeId, 'grade');
     assertUuid(sectionId, 'section');
 
-    const { rowCount } = await pool.query(
-        `SELECT 1
-         FROM sections sec
-         JOIN grades g ON g.id = sec.grade_id AND g.tenant_id = sec.tenant_id
-         WHERE sec.id = $1
-           AND sec.tenant_id = $2
-           AND g.id = $3
-         LIMIT 1`,
-        [sectionId, tenantId, gradeId],
-    );
+    const rowCount = await sql`
+        SELECT 1
+        FROM sections sec
+        JOIN grades g ON g.id = sec.grade_id AND g.tenant_id = sec.tenant_id
+        WHERE sec.id = ${sectionId}
+          AND sec.tenant_id = ${tenantId}
+          AND g.id = ${gradeId}
+        LIMIT 1
+    `.execute();
 
     if (rowCount === 0) {
         throw new Error('Grade or section not found for tenant');
@@ -42,10 +41,9 @@ async function assertGradeAndSectionBelongToTenant(tenantId: string, gradeId: st
 async function assertSectionBelongsToTenant(tenantId: string, sectionId: string) {
     assertUuid(sectionId, 'section');
 
-    const { rowCount } = await pool.query(
-        `SELECT 1 FROM sections WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
-        [sectionId, tenantId],
-    );
+    const rowCount = await sql`
+        SELECT 1 FROM sections WHERE id = ${sectionId} AND tenant_id = ${tenantId} LIMIT 1
+    `.execute();
 
     if (rowCount === 0) {
         throw new Error('Section not found for tenant');
@@ -57,61 +55,28 @@ async function assertStudentsBelongToSection(tenantId: string, sectionId: string
     uniqueStudentIds.forEach((studentId) => assertUuid(studentId, 'student'));
     if (uniqueStudentIds.length === 0) return;
 
-    const { rows } = await pool.query(
-        `SELECT id
-         FROM students
-         WHERE tenant_id = $1
-           AND section_id = $2
-           AND id = ANY($3::uuid[])`,
-        [tenantId, sectionId, uniqueStudentIds],
-    );
+    const rows = await sql<{ id: string }>`
+        SELECT id
+        FROM students
+        WHERE tenant_id = ${tenantId}
+          AND section_id = ${sectionId}
+          AND id = ANY(${uniqueStudentIds}::uuid[])
+    `;
 
     if (rows.length !== uniqueStudentIds.length) {
         throw new Error('One or more students do not belong to this tenant section');
     }
 }
 
-async function assertStudentsBelongToTenant(tenantId: string, studentIds: string[]) {
-    const uniqueStudentIds = Array.from(new Set(studentIds));
-    uniqueStudentIds.forEach((studentId) => assertUuid(studentId, 'student'));
-    if (uniqueStudentIds.length === 0) return;
-
-    const { rows } = await pool.query(
-        `SELECT id
-         FROM students
-         WHERE tenant_id = $1
-           AND id = ANY($2::uuid[])`,
-        [tenantId, uniqueStudentIds],
-    );
-
-    if (rows.length !== uniqueStudentIds.length) {
-        throw new Error('One or more students do not belong to this tenant');
-    }
-}
-
 async function assertAcademicYearBelongsToTenant(tenantId: string, academicYearId: string) {
     assertUuid(academicYearId, 'academic year');
 
-    const { rowCount } = await pool.query(
-        `SELECT 1 FROM academic_years WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
-        [academicYearId, tenantId],
-    );
+    const rowCount = await sql`
+        SELECT 1 FROM academic_years WHERE id = ${academicYearId} AND tenant_id = ${tenantId} LIMIT 1
+    `.execute();
 
     if (rowCount === 0) {
         throw new Error('Academic year not found for tenant');
-    }
-}
-
-async function assertExamBelongsToTenant(tenantId: string, examId: string) {
-    assertUuid(examId, 'exam');
-
-    const { rowCount } = await pool.query(
-        `SELECT 1 FROM exams WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
-        [examId, tenantId],
-    );
-
-    if (rowCount === 0) {
-        throw new Error('Exam not found for tenant');
     }
 }
 
@@ -124,48 +89,46 @@ export async function createStudent(formData: FormData) {
     const sectionId = formData.get('sectionId') as string;
     await assertGradeAndSectionBelongToTenant(tenantId, gradeId, sectionId);
 
-    const insertRes = await pool.query(
-        `INSERT INTO students (
+    const insertRows = await sql<{ id: string }>`
+        INSERT INTO students (
             id, tenant_id, admission_number, first_name, last_name, date_of_birth, gender, blood_group, grade_id, section_id, roll_number, admission_date, address, city, state, pincode, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-        RETURNING id`,
-        [
-            randomUUID(),
-            tenantId,
-            admissionNumber,
-            formData.get('firstName') as string,
-            formData.get('lastName') as string,
-            formData.get('dateOfBirth') as string,
-            formData.get('gender') as string,
-            (formData.get('bloodGroup') as string) || null,
-            gradeId,
-            sectionId,
-            formData.get('rollNumber') ? parseInt(formData.get('rollNumber') as string) : null,
-            (formData.get('admissionDate') as string) || new Date().toISOString().split('T')[0],
-            (formData.get('address') as string) || null,
-            (formData.get('city') as string) || null,
-            (formData.get('state') as string) || null,
-            (formData.get('pincode') as string) || null,
-            'ACTIVE'
-        ]
-    );
-    const student = insertRes.rows[0];
+        ) VALUES (
+            ${randomUUID()},
+            ${tenantId},
+            ${admissionNumber},
+            ${formData.get('firstName') as string},
+            ${formData.get('lastName') as string},
+            ${formData.get('dateOfBirth') as string},
+            ${formData.get('gender') as string},
+            ${(formData.get('bloodGroup') as string) || null},
+            ${gradeId},
+            ${sectionId},
+            ${formData.get('rollNumber') ? parseInt(formData.get('rollNumber') as string) : null},
+            ${(formData.get('admissionDate') as string) || new Date().toISOString().split('T')[0]},
+            ${(formData.get('address') as string) || null},
+            ${(formData.get('city') as string) || null},
+            ${(formData.get('state') as string) || null},
+            ${(formData.get('pincode') as string) || null},
+            ${'ACTIVE'}
+        )
+        RETURNING id
+    `;
+    const student = insertRows[0];
 
     // Audit log
-    await pool.query(
-        `INSERT INTO audit_logs (
+    await sql`
+        INSERT INTO audit_logs (
             id, tenant_id, user_id, action, entity_type, entity_id, after_state
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-            randomUUID(),
-            tenantId,
-            userId,
-            'CREATE',
-            'students',
-            student.id,
-            JSON.stringify({ firstName: formData.get('firstName'), lastName: formData.get('lastName') })
-        ]
-    );
+        ) VALUES (
+            ${randomUUID()},
+            ${tenantId},
+            ${userId},
+            ${'CREATE'},
+            ${'students'},
+            ${student.id},
+            ${JSON.stringify({ firstName: formData.get('firstName'), lastName: formData.get('lastName') })}
+        )
+    `;
 
     return { success: true, studentId: student.id };
 }
@@ -196,22 +159,19 @@ export async function saveAttendance(formData: FormData) {
 
     // Upsert attendance records
     for (const entry of entries) {
-        const existingRes = await pool.query(
-            `SELECT id FROM attendance_records WHERE student_id = $1 AND date = $2 AND tenant_id = $3`,
-            [entry.studentId, date, tenantId]
-        );
+        const existingRows = await sql<{ id: string }>`
+            SELECT id FROM attendance_records WHERE student_id = ${entry.studentId} AND date = ${date} AND tenant_id = ${tenantId}
+        `;
 
-        if (existingRes.rows.length > 0) {
-            await pool.query(
-                `UPDATE attendance_records SET status = $1, marked_by = $2 WHERE id = $3 AND tenant_id = $4`,
-                [entry.status, userId, existingRes.rows[0].id, tenantId]
-            );
+        if (existingRows.length > 0) {
+            await sql`
+                UPDATE attendance_records SET status = ${entry.status}, marked_by = ${userId} WHERE id = ${existingRows[0].id} AND tenant_id = ${tenantId}
+            `;
         } else {
-            await pool.query(
-                `INSERT INTO attendance_records (id, tenant_id, student_id, section_id, date, status, marked_by)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-                [randomUUID(), tenantId, entry.studentId, sectionId, date, entry.status, userId]
-            );
+            await sql`
+                INSERT INTO attendance_records (id, tenant_id, student_id, section_id, date, status, marked_by)
+                VALUES (${randomUUID()}, ${tenantId}, ${entry.studentId}, ${sectionId}, ${date}, ${entry.status}, ${userId})
+            `;
         }
     }
 
@@ -307,11 +267,10 @@ export async function recordPayment(formData: FormData): Promise<RecordPaymentRe
     // The money is already committed. An audit-trail failure must not fail the
     // request — payment_audit_logs holds the authoritative in-transaction record.
     try {
-        await pool.query(
-            `INSERT INTO audit_logs (id, tenant_id, user_id, action, entity_type, entity_id, after_state)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [randomUUID(), tenantId, userId, 'PAYMENT', 'payments', payment.paymentId, JSON.stringify({ amount, method, invoiceId })],
-        );
+        await sql`
+            INSERT INTO audit_logs (id, tenant_id, user_id, action, entity_type, entity_id, after_state)
+            VALUES (${randomUUID()}, ${tenantId}, ${userId}, ${'PAYMENT'}, ${'payments'}, ${payment.paymentId}, ${JSON.stringify({ amount, method, invoiceId })})
+        `;
     } catch {
         // Intentionally swallowed; see comment above.
     }
@@ -427,33 +386,32 @@ export async function createFeePlan(
     }
 
     const client = await pool.connect();
+    const q = sqlFor(client);
     try {
-        await client.query('BEGIN');
+        await q`BEGIN`;
 
-        const planRes = await client.query(
-            `INSERT INTO fee_plans (id, tenant_id, name, academic_year_id, description)
-             VALUES ($1, $2, $3, $4, $5)
-             RETURNING id`,
-            [randomUUID(), tenantId, name, academicYearId, description || null],
-        );
-        const feePlanId: string = planRes.rows[0].id;
+        const planRows = await q<{ id: string }>`
+            INSERT INTO fee_plans (id, tenant_id, name, academic_year_id, description)
+            VALUES (${randomUUID()}, ${tenantId}, ${name}, ${academicYearId}, ${description || null})
+            RETURNING id
+        `;
+        const feePlanId: string = planRows[0].id;
 
         for (const component of components) {
-            await client.query(
-                `INSERT INTO fee_components (id, fee_plan_id, name, amount, frequency, is_optional)
-                 VALUES ($1, $2, $3, $4, $5::fee_frequency, $6)`,
-                [randomUUID(), feePlanId, component.name, component.amount, component.frequency, component.isOptional],
-            );
+            await q`
+                INSERT INTO fee_components (id, fee_plan_id, name, amount, frequency, is_optional)
+                VALUES (${randomUUID()}, ${feePlanId}, ${component.name}, ${component.amount}, ${component.frequency}::fee_frequency, ${component.isOptional})
+            `;
         }
 
-        await client.query('COMMIT');
+        await q`COMMIT`;
 
         revalidatePath('/fees');
         revalidatePath('/fees/plans');
 
         return { success: true, feePlanId };
     } catch (error) {
-        await client.query('ROLLBACK').catch(() => undefined);
+        await q`ROLLBACK`.execute().catch(() => undefined);
         return {
             success: false,
             error: error instanceof Error ? error.message : 'Could not create the fee plan.',
@@ -469,23 +427,22 @@ export async function createExam(formData: FormData) {
     const academicYearId = formData.get('academicYearId') as string;
     await assertAcademicYearBelongsToTenant(tenantId, academicYearId);
 
-    const examRes = await pool.query(
-        `INSERT INTO exams (id, tenant_id, name, type, academic_year_id, start_date, end_date, description)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING id`,
-        [
-            randomUUID(),
-            tenantId,
-            formData.get('name') as string,
-            formData.get('type') as string,
-            academicYearId,
-            formData.get('startDate') as string,
-            formData.get('endDate') as string,
-            (formData.get('description') as string) || null
-        ]
-    );
+    const examRows = await sql<{ id: string }>`
+        INSERT INTO exams (id, tenant_id, name, type, academic_year_id, start_date, end_date, description)
+        VALUES (
+            ${randomUUID()},
+            ${tenantId},
+            ${formData.get('name') as string},
+            ${formData.get('type') as string},
+            ${academicYearId},
+            ${formData.get('startDate') as string},
+            ${formData.get('endDate') as string},
+            ${(formData.get('description') as string) || null}
+        )
+        RETURNING id
+    `;
 
-    return { success: true, examId: examRes.rows[0].id };
+    return { success: true, examId: examRows[0].id };
 }
 
 // ─── Mark Class Attendance (for attendance-form.tsx) ──────
@@ -500,84 +457,21 @@ export async function markClassAttendance(
     await assertStudentsBelongToSection(tenantId, sectionId, attendanceData.map((entry) => entry.studentId));
 
     for (const entry of attendanceData) {
-        const existingRes = await pool.query(
-            `SELECT id FROM attendance_records WHERE student_id = $1 AND date = $2 AND tenant_id = $3`,
-            [entry.studentId, dateStr, tenantId]
-        );
+        const existingRows = await sql<{ id: string }>`
+            SELECT id FROM attendance_records WHERE student_id = ${entry.studentId} AND date = ${dateStr} AND tenant_id = ${tenantId}
+        `;
 
-        if (existingRes.rows.length > 0) {
-            await pool.query(
-                `UPDATE attendance_records SET status = $1, marked_by = $2 WHERE id = $3 AND tenant_id = $4`,
-                [entry.status, userId, existingRes.rows[0].id, tenantId]
-            );
+        if (existingRows.length > 0) {
+            await sql`
+                UPDATE attendance_records SET status = ${entry.status}, marked_by = ${userId} WHERE id = ${existingRows[0].id} AND tenant_id = ${tenantId}
+            `;
         } else {
-            await pool.query(
-                `INSERT INTO attendance_records (id, tenant_id, student_id, section_id, date, status, marked_by)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-                [randomUUID(), tenantId, entry.studentId, sectionId, dateStr, entry.status, userId]
-            );
+            await sql`
+                INSERT INTO attendance_records (id, tenant_id, student_id, section_id, date, status, marked_by)
+                VALUES (${randomUUID()}, ${tenantId}, ${entry.studentId}, ${sectionId}, ${dateStr}, ${entry.status}, ${userId})
+            `;
         }
     }
-
-    return { success: true as const, error: undefined as string | undefined };
-}
-
-// ─── Enter Exam Marks (for marks-entry-form.tsx) ──────────
-export async function enterMarks(
-    examId: string,
-    marksData: { studentId: string; subjectId: string; marksObtained: number; isAbsent: boolean }[]
-) {
-    const { tenantId } = await requireAuth('exams:write');
-    await assertExamBelongsToTenant(tenantId, examId);
-    await assertStudentsBelongToTenant(tenantId, marksData.map((entry) => entry.studentId));
-
-    // Look up exam schedules for this exam
-    for (const entry of marksData) {
-        assertUuid(entry.subjectId, 'subject');
-
-        // Find schedule for this subject
-        const scheduleRes = await pool.query(
-            `SELECT es.id
-             FROM exam_schedules es
-             INNER JOIN exams e ON e.id = es.exam_id
-             WHERE es.exam_id = $1
-               AND es.subject_id = $2
-               AND e.tenant_id = $3`,
-            [examId, entry.subjectId, tenantId]
-        );
-        const schedule = scheduleRes.rows[0];
-
-        if (!schedule) continue;
-
-        // Upsert result
-        const existingRes = await pool.query(
-            `SELECT id FROM student_results WHERE exam_schedule_id = $1 AND student_id = $2 AND tenant_id = $3`,
-            [schedule.id, entry.studentId, tenantId]
-        );
-
-        if (existingRes.rows.length > 0) {
-            await pool.query(
-                `UPDATE student_results SET marks_obtained = $1, is_absent = $2 WHERE id = $3 AND tenant_id = $4`,
-                [String(entry.marksObtained), entry.isAbsent, existingRes.rows[0].id, tenantId]
-            );
-        } else {
-            await pool.query(
-                `INSERT INTO student_results (id, tenant_id, exam_schedule_id, student_id, marks_obtained, is_absent)
-                 VALUES ($1, $2, $3, $4, $5, $6)`,
-                [randomUUID(), tenantId, schedule.id, entry.studentId, String(entry.marksObtained), entry.isAbsent]
-            );
-        }
-    }
-
-    await pool.query(
-        `UPDATE exams
-         SET status = 'RESULT_REVIEW',
-             updated_at = NOW()
-         WHERE id = $1
-           AND tenant_id = $2
-           AND status IN ('DRAFT', 'SCHEDULED', 'MARKS_ENTRY', 'RESULT_REVIEW')`,
-        [examId, tenantId],
-    );
 
     return { success: true as const, error: undefined as string | undefined };
 }

@@ -1,7 +1,7 @@
 'use server';
 
 import { createHmac } from 'node:crypto';
-import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
+import { sql, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { encryptEmail } from '@/lib/encryption';
 import type { LeadIntake } from '@/lib/marketing/lead-intake';
 import { logger } from '@/lib/observability/logger';
@@ -22,15 +22,33 @@ function hashClientIp(clientIp: string): string {
 
 export async function captureLeadAction(input: LeadIntake, context: LeadRequestContext) {
     try {
-        const result = await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.PUBLIC_LEAD_CAPTURE, async () => {
-            return pool.query<{ leadId: string; jobId: string }>(
-                `WITH inserted AS (
+        const rows = await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.PUBLIC_LEAD_CAPTURE, async () => {
+            return sql<{ leadId: string; jobId: string }>`
+                WITH inserted AS (
                     INSERT INTO marketing_leads (
                         contact_name, contact_email, contact_email_enc, school_name,
                         student_capacity, pain_points, status, consented_at,
                         consent_version, consent_ip_hash, source_url, referrer,
                         user_agent, utm_source, utm_medium, utm_campaign, crm_status
-                    ) VALUES ($1, NULL, $2, $3, $4, $5, 'NEW', NOW(), $6, $7, $8, $9, $10, $11, $12, $13, 'QUEUED')
+                    ) VALUES (
+                        ${input.contactName},
+                        NULL,
+                        ${encryptEmail(input.contactEmail)},
+                        ${input.schoolName},
+                        ${input.studentCapacity},
+                        ${input.painPoints},
+                        'NEW',
+                        NOW(),
+                        ${input.consentVersion},
+                        ${hashClientIp(context.clientIp)},
+                        ${input.sourceUrl},
+                        ${context.referrer?.slice(0, 2_000) || null},
+                        ${context.userAgent?.slice(0, 1_000) || null},
+                        ${input.utmSource},
+                        ${input.utmMedium},
+                        ${input.utmCampaign},
+                        'QUEUED'
+                    )
                     RETURNING id
                 ), queued AS (
                     INSERT INTO background_jobs (
@@ -44,26 +62,11 @@ export async function captureLeadAction(input: LeadIntake, context: LeadRequestC
                     RETURNING id
                 )
                 SELECT inserted.id AS "leadId", queued.id AS "jobId"
-                FROM inserted CROSS JOIN queued`,
-                [
-                    input.contactName,
-                    encryptEmail(input.contactEmail),
-                    input.schoolName,
-                    input.studentCapacity,
-                    input.painPoints,
-                    input.consentVersion,
-                    hashClientIp(context.clientIp),
-                    input.sourceUrl,
-                    context.referrer?.slice(0, 2_000) || null,
-                    context.userAgent?.slice(0, 1_000) || null,
-                    input.utmSource,
-                    input.utmMedium,
-                    input.utmCampaign,
-                ],
-            );
+                FROM inserted CROSS JOIN queued
+            `;
         });
 
-        const lead = result.rows[0];
+        const lead = rows[0];
         if (!lead) throw new Error('Lead transaction returned no record.');
         logger.info('lead_capture.accepted', 'Lead captured and queued for CRM routing', {
             source: 'lead-capture',

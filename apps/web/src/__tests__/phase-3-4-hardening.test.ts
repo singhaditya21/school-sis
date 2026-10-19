@@ -5,7 +5,7 @@ const readSource = (path: string) =>
   readFileSync(resolve(process.cwd(), path), "utf8");
 
 describe("Phase 3 and Phase 4 hardening", () => {
-  const coachingWriteActions = readSource("src/actions/coaching.ts");
+  const coachingWriteActions = readSource("src/lib/actions/coaching.ts");
   const coachingReadActions = readSource("src/lib/actions/coaching.ts");
   const coachingDashboard = readSource("src/app/(admin)/coaching/page.tsx");
   const higherEducationActions = readSource("src/lib/actions/higher_ed.ts");
