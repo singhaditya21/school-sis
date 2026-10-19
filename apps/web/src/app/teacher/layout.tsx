@@ -18,17 +18,17 @@ export default async function TeacherLayout({
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
+        <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent">
             {/* Sidebar */}
             <aside data-testid="sidebar" className="fixed left-0 top-0 h-full w-64 bg-card border-r border-border z-40 hidden lg:block">
                 <div className="p-4 border-b border-border">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
+                        <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-xl flex items-center justify-center">
                             <span className="text-white text-xl">👨‍🏫</span>
                         </div>
                         <div>
                             <h1 className="font-bold text-foreground">Teacher Portal</h1>
-                            <p className="text-xs text-muted-foreground">School SIS</p>
+                            <p className="text-xs text-muted-foreground">ScholarMind</p>
                         </div>
                     </div>
                 </div>
@@ -45,8 +45,8 @@ export default async function TeacherLayout({
 
                 <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-muted">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
-                            <span className="text-emerald-600 font-semibold">
+                        <div className="w-10 h-10 bg-accent rounded-full flex items-center justify-center">
+                            <span className="text-accent-foreground font-semibold">
                                 {session.email?.charAt(0).toUpperCase() || 'T'}
                             </span>
                         </div>
@@ -63,7 +63,7 @@ export default async function TeacherLayout({
                 <div className="px-4 py-3">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
+                            <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-lg flex items-center justify-center">
                                 <span className="text-white text-lg">👨‍🏫</span>
                             </div>
                             <h1 className="text-lg font-bold text-foreground">Teacher Portal</h1>
@@ -102,7 +102,7 @@ function NavLink({
     return (
         <Link
             href={href}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-foreground hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
         >
             <span className="text-xl">{icon}</span>
             <span className="font-medium">{label}</span>
@@ -120,7 +120,7 @@ function MobileNavItem({
     label: string;
 }) {
     return (
-        <Link href={href} className="flex flex-col items-center gap-0.5 text-muted-foreground hover:text-emerald-600 transition-colors px-2">
+        <Link href={href} className="flex flex-col items-center gap-0.5 text-muted-foreground hover:text-primary transition-colors px-2">
             <span className="text-xl">{icon}</span>
             <span className="text-[10px] font-medium">{label}</span>
         </Link>

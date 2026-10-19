@@ -47,9 +47,9 @@ export default function ExamAnalyticsPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Avg of subject averages</div><div className="text-2xl font-bold text-blue-600">{avgScore}%</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Subjects Tracked</div><div className="text-2xl font-bold text-green-600">{subjectData.length}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Class Sections</div><div className="text-2xl font-bold text-purple-600">{classData.length}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Avg of subject averages</div><div className="text-2xl font-bold text-primary">{avgScore}%</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Subjects Tracked</div><div className="text-2xl font-bold text-success">{subjectData.length}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Class Sections</div><div className="text-2xl font-bold text-info">{classData.length}</div></CardContent></Card>
                             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -62,9 +62,9 @@ export default function ExamAnalyticsPage() {
                                     <div key={idx}>
                                         <div className="flex items-center justify-between mb-1">
                                             <span className="text-sm font-medium">{subject.label}</span>
-                                            <span className={`text-sm font-bold ${subject.value >= 80 ? 'text-green-600' : subject.value >= 60 ? 'text-blue-600' : 'text-orange-600'}`}>{subject.value}%</span>
+                                            <span className={`text-sm font-bold ${subject.value >= 80 ? 'text-success' : subject.value >= 60 ? 'text-info' : 'text-warning'}`}>{subject.value}%</span>
                                         </div>
-                                        <div className="bg-gray-200 rounded-full h-3"><div className={`h-3 rounded-full transition-all ${subject.value >= 80 ? 'bg-green-500' : subject.value >= 60 ? 'bg-blue-500' : 'bg-orange-500'}`} style={{ width: `${subject.value}%` }} /></div>
+                                        <div className="bg-muted rounded-full h-3"><div className={`h-3 rounded-full transition-all ${subject.value >= 80 ? 'bg-success' : subject.value >= 60 ? 'bg-info' : 'bg-warning'}`} style={{ width: `${subject.value}%` }} /></div>
                                     </div>
                                 ))}
                             </div>
@@ -80,10 +80,10 @@ export default function ExamAnalyticsPage() {
                                 {topPerformers.map((student, idx) => (
                                     <div key={idx} className="flex items-center justify-between p-2 bg-muted rounded-lg">
                                         <div className="flex items-center gap-3">
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${idx === 0 ? 'bg-yellow-400' : idx === 1 ? 'bg-gray-300' : idx === 2 ? 'bg-amber-400' : 'bg-gray-200'}`}>{idx + 1}</div>
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${idx < 3 ? 'bg-warning-subtle text-warning-subtle-foreground' : 'bg-secondary text-secondary-foreground'}`}>{idx + 1}</div>
                                             <div><p className="font-medium text-sm">{student.name}</p><p className="text-xs text-muted-foreground">Class {student.class}</p></div>
                                         </div>
-                                        <Badge className="bg-green-100 text-green-700">{student.percentage}%</Badge>
+                                        <Badge className="bg-success-subtle text-success-subtle-foreground">{student.percentage}%</Badge>
                                     </div>
                                 ))}
                             </div>
@@ -111,9 +111,9 @@ export default function ExamAnalyticsPage() {
                                     <tr key={idx} className="hover:bg-muted">
                                         <td className="px-4 py-3 font-medium">{row.class}</td>
                                         <td className="px-4 py-3"><Badge variant="outline">{row.section}</Badge></td>
-                                        <td className="px-4 py-3 text-right"><span className={`font-semibold ${row.averagePercent >= 80 ? 'text-green-600' : row.averagePercent >= 60 ? 'text-blue-600' : 'text-orange-600'}`}>{row.averagePercent}%</span></td>
+                                        <td className="px-4 py-3 text-right"><span className={`font-semibold ${row.averagePercent >= 80 ? 'text-success' : row.averagePercent >= 60 ? 'text-info' : 'text-warning'}`}>{row.averagePercent}%</span></td>
                                         <td className="px-4 py-3 text-right">{row.passPercent}%</td>
-                                        <td className="px-4 py-3"><div className="w-32 bg-gray-200 rounded-full h-2"><div className={`h-2 rounded-full ${row.averagePercent >= 80 ? 'bg-green-500' : row.averagePercent >= 60 ? 'bg-blue-500' : 'bg-orange-500'}`} style={{ width: `${row.averagePercent}%` }} /></div></td>
+                                        <td className="px-4 py-3"><div className="w-32 bg-muted rounded-full h-2"><div className={`h-2 rounded-full ${row.averagePercent >= 80 ? 'bg-success' : row.averagePercent >= 60 ? 'bg-info' : 'bg-warning'}`} style={{ width: `${row.averagePercent}%` }} /></div></td>
                                     </tr>
                                 ))}
                             </tbody>

@@ -164,7 +164,7 @@ export default function PolicyClient({
                     <button
                         type="submit"
                         disabled={isPending}
-                        className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                        className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground font-medium py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
                     >
                         <Plus className="w-4 h-4" /> Create group
                     </button>
@@ -404,14 +404,14 @@ export default function PolicyClient({
                                 type="checkbox"
                                 checked={policyForm.isHardBlock}
                                 onChange={(e) => setPolicyForm({ ...policyForm, isHardBlock: e.target.checked })}
-                                className="rounded border-slate-800 bg-slate-900 text-indigo-500 focus:ring-indigo-500"
+                                className="rounded border-slate-800 bg-slate-900 text-primary focus:ring-ring"
                             />
                             Hard block (prevent campus overrides)
                         </label>
                         <button
                             type="submit"
                             disabled={isPending}
-                            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                            className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground font-medium py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
                         >
                             <Plus className="w-4 h-4" /> Deploy policy
                         </button>

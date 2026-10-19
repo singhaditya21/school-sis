@@ -46,10 +46,10 @@ export default async function QuizPage({
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total Quizzes</div><div className="text-2xl font-bold text-blue-600">{stats.total}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Published</div><div className="text-2xl font-bold text-green-600">{stats.published}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Draft</div><div className="text-2xl font-bold text-muted-foreground dark:text-gray-300">{stats.draft}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Closed</div><div className="text-2xl font-bold text-red-600">{stats.closed}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total Quizzes</div><div className="text-2xl font-bold text-primary">{stats.total}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Published</div><div className="text-2xl font-bold text-success">{stats.published}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Draft</div><div className="text-2xl font-bold text-muted-foreground">{stats.draft}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Closed</div><div className="text-2xl font-bold text-destructive">{stats.closed}</div></CardContent></Card>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -61,8 +61,8 @@ export default async function QuizPage({
                             href={f.value ? `/quiz?status=${f.value}` : '/quiz'}
                             className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
                                 active
-                                    ? 'bg-primary text-primary-foreground border-blue-600'
-                                    : 'bg-card border-border dark:border-gray-700 hover:bg-muted dark:hover:bg-gray-800'
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-card border-border hover:bg-muted'
                             }`}
                         >
                             {f.label}

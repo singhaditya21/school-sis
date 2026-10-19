@@ -54,20 +54,20 @@ export default async function StudentDirectoryPage() {
           <h1 className="text-2xl font-bold text-foreground">Student Directory</h1>
           <p className="text-muted-foreground text-sm mt-1">Manage enrollments, view profiles, and update records.</p>
         </div>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors">
+        <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg font-medium flex items-center transition-colors">
           <Plus className="w-5 h-5 mr-2" />
           Add Student
         </button>
       </div>
 
       {/* Table Toolbar */}
-      <div className="bg-white p-4 rounded-t-xl border border-border flex justify-between items-center">
+      <div className="bg-card p-4 rounded-t-xl border border-border flex justify-between items-center">
         <div className="relative w-96">
           <Search className="w-5 h-5 absolute left-3 top-2.5 text-muted-foreground" />
           <input 
             type="text" 
             placeholder="Search students by name or admission number..." 
-            className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
           />
         </div>
         <button className="flex items-center text-muted-foreground border border-border px-4 py-2 rounded-lg hover:bg-muted transition-colors">
@@ -77,7 +77,7 @@ export default async function StudentDirectoryPage() {
       </div>
 
       {/* Data Table */}
-      <div className="bg-white border border-border rounded-b-xl overflow-hidden -mt-6">
+      <div className="bg-card border border-border rounded-b-xl overflow-hidden -mt-6">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-muted border-b border-border text-sm font-semibold text-muted-foreground">
@@ -88,12 +88,12 @@ export default async function StudentDirectoryPage() {
               <th className="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-border">
             {students.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
                   <div className="flex flex-col items-center">
-                    <UsersIcon className="w-12 h-12 text-gray-300 mb-3" />
+                    <UsersIcon className="w-12 h-12 text-muted-foreground/40 mb-3" />
                     <p className="text-lg font-medium text-foreground">No students found</p>
                     <p className="text-sm mt-1">Get started by adding a new student to the directory.</p>
                   </div>

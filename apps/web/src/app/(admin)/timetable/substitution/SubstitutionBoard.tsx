@@ -227,19 +227,19 @@ export default function SubstitutionBoard({
                 <Card>
                     <CardContent className="pt-4" data-testid="kpi-today">
                         <div className="text-sm text-muted-foreground">Requests on this date</div>
-                        <div className="text-2xl font-bold text-blue-600">{requestsOnDate.length}</div>
+                        <div className="text-2xl font-bold text-primary">{requestsOnDate.length}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4" data-testid="kpi-pending">
                         <div className="text-sm text-muted-foreground">Pending approval (all dates)</div>
-                        <div className="text-2xl font-bold text-yellow-600">{pendingCount}</div>
+                        <div className="text-2xl font-bold text-warning">{pendingCount}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4" data-testid="kpi-absent">
                         <div className="text-sm text-muted-foreground">Teachers on approved leave</div>
-                        <div className="text-2xl font-bold text-red-600">{absentTeachers.length}</div>
+                        <div className="text-2xl font-bold text-destructive">{absentTeachers.length}</div>
                     </CardContent>
                 </Card>
                 <Card>

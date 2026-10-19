@@ -26,7 +26,7 @@ export default async function ParentLayout({
                             <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-lg flex items-center justify-center">
                                 <span className="text-white text-lg">🎓</span>
                             </div>
-                            <div className="text-lg font-bold text-foreground">School SIS</div>
+                            <div className="text-lg font-bold text-foreground">ScholarMind</div>
                         </div>
                         <div className="text-sm text-foreground">{session.email}</div>
                     </div>

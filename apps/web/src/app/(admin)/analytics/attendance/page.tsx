@@ -46,10 +46,10 @@ export default function AttendanceAnalyticsPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Avg of weekly rates</div><div className="text-2xl font-bold text-green-600">{avgAttendance}%</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Classes with records (30d)</div><div className="text-2xl font-bold text-blue-600">{classAttendance.length}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Weeks Tracked</div><div className="text-2xl font-bold text-purple-600">{weeklyData.length}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Days with records (30d)</div><div className="text-2xl font-bold text-orange-600">{dailyData.length}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Avg of weekly rates</div><div className="text-2xl font-bold text-success">{avgAttendance}%</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Classes with records (30d)</div><div className="text-2xl font-bold text-primary">{classAttendance.length}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Weeks Tracked</div><div className="text-2xl font-bold text-info">{weeklyData.length}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Days with records (30d)</div><div className="text-2xl font-bold text-warning">{dailyData.length}</div></CardContent></Card>
             </div>
 
             <Card>

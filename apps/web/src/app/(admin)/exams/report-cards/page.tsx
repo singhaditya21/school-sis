@@ -73,7 +73,7 @@ export default async function ReportCardsPage({
                                     <p className="font-medium text-foreground">
                                         {exam.name}
                                         {active && (
-                                            <span className="ml-2 text-xs font-semibold text-blue-600">
+                                            <span className="ml-2 text-xs font-semibold text-primary">
                                                 selected
                                             </span>
                                         )}

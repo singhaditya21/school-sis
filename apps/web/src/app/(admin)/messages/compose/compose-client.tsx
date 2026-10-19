@@ -198,7 +198,7 @@ export default function ComposeClient({
                                 {templates.length === 0 && (
                                     <p className="mt-1 text-xs text-muted-foreground">
                                         No active templates.{' '}
-                                        <Link href="/messages/templates/new" className="text-blue-600 underline">
+                                        <Link href="/messages/templates/new" className="text-primary underline">
                                             Create one
                                         </Link>
                                         .
@@ -208,7 +208,7 @@ export default function ComposeClient({
                         </div>
 
                         {!channelUsable && (
-                            <p className="rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800">
+                            <p className="rounded-md border border-destructive/30 bg-destructive-subtle p-3 text-sm text-destructive">
                                 {selectedProvider?.reason ??
                                     `No ${CHANNEL_LABEL[channel]} provider is configured for this deployment.`}{' '}
                                 Queueing is disabled for this channel — the outbox would refuse every

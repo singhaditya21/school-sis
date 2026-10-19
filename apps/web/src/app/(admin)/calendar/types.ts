@@ -42,21 +42,21 @@ export const EVENT_TYPE_ICON: Record<EventType, string> = {
 
 /** Tailwind classes per event type: [chip, left border]. */
 export const EVENT_TYPE_STYLE: Record<EventType, { chip: string; border: string; dot: string }> = {
-    HOLIDAY: { chip: 'bg-rose-100 text-rose-800', border: 'border-rose-400', dot: 'bg-rose-500' },
-    EXAM: { chip: 'bg-purple-100 text-purple-800', border: 'border-purple-400', dot: 'bg-purple-500' },
-    PTM: { chip: 'bg-blue-100 text-blue-800', border: 'border-blue-400', dot: 'bg-blue-500' },
+    HOLIDAY: { chip: 'bg-destructive-subtle text-destructive-subtle-foreground', border: 'border-destructive', dot: 'bg-destructive' },
+    EXAM: { chip: 'bg-warning-subtle text-warning-subtle-foreground', border: 'border-warning', dot: 'bg-warning' },
+    PTM: { chip: 'bg-info-subtle text-info-subtle-foreground', border: 'border-info', dot: 'bg-info' },
     SPORTS_DAY: {
-        chip: 'bg-emerald-100 text-emerald-800',
-        border: 'border-emerald-400',
-        dot: 'bg-emerald-500',
+        chip: 'bg-success-subtle text-success-subtle-foreground',
+        border: 'border-success',
+        dot: 'bg-success',
     },
-    CULTURAL: { chip: 'bg-pink-100 text-pink-800', border: 'border-pink-400', dot: 'bg-pink-500' },
+    CULTURAL: { chip: 'bg-accent text-accent-foreground', border: 'border-primary', dot: 'bg-primary' },
     ACADEMIC: {
-        chip: 'bg-indigo-100 text-indigo-800',
-        border: 'border-indigo-400',
-        dot: 'bg-indigo-500',
+        chip: 'bg-accent text-accent-foreground',
+        border: 'border-primary',
+        dot: 'bg-primary',
     },
-    OTHER: { chip: 'bg-muted text-foreground', border: 'border-slate-400', dot: 'bg-slate-500' },
+    OTHER: { chip: 'bg-muted text-foreground', border: 'border-border', dot: 'bg-muted-foreground' },
 };
 
 export type CalendarEvent = {

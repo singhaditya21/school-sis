@@ -23,10 +23,10 @@ export default async function TransportVehiclesPage() {
     const unassigned = vehicles.filter((v) => v.routeCount === 0).length;
 
     const cards = [
-        { label: 'Vehicles', value: String(vehicles.length), className: 'text-blue-600' },
-        { label: 'Total Seats', value: String(totalSeats), className: 'text-green-600' },
-        { label: 'Riders Today', value: String(riders), className: 'text-purple-600' },
-        { label: 'Without a Route', value: String(unassigned), className: 'text-orange-600' },
+        { label: 'Vehicles', value: String(vehicles.length), className: 'text-primary' },
+        { label: 'Total Seats', value: String(totalSeats), className: 'text-success' },
+        { label: 'Riders Today', value: String(riders), className: 'text-info' },
+        { label: 'Without a Route', value: String(unassigned), className: 'text-warning' },
     ];
 
     return (

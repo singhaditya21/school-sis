@@ -31,7 +31,7 @@ export default async function TallyIntegrationPage() {
                     <Card className="border border-border shadow-sm rounded-xl">
                         <CardHeader className="bg-muted border-b border-border pb-4">
                             <CardTitle className="text-lg flex items-center gap-2">
-                                <ArrowRightLeft className="w-5 h-5 text-blue-600" /> Sync Vouchers
+                                <ArrowRightLeft className="w-5 h-5 text-primary" /> Sync Vouchers
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-6">
@@ -46,7 +46,7 @@ export default async function TallyIntegrationPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
-                            <div className="divide-y divide-slate-100">
+                            <div className="divide-y divide-border">
                                 <div className="p-4 flex items-center justify-between text-sm">
                                     <div>
                                         <p className="font-semibold text-foreground">Yesterday's Collections</p>
@@ -78,13 +78,13 @@ export default async function TallyIntegrationPage() {
                                     Map ScholarMind payment methods to your exact Tally Ledger names.
                                 </CardDescription>
                             </div>
-                            <button className="text-sm font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-md transition-colors">
+                            <button className="text-sm font-semibold text-primary hover:text-primary/80 bg-accent px-3 py-1.5 rounded-md transition-colors">
                                 Edit Mappings
                             </button>
                         </CardHeader>
                         <CardContent className="p-6">
                             <div className="space-y-6">
-                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800 flex gap-3">
+                                <div className="bg-warning-subtle border border-warning/30 rounded-lg p-4 text-sm text-warning flex gap-3">
                                     <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                     </svg>

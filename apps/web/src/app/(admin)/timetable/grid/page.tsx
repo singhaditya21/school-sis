@@ -86,12 +86,12 @@ export default async function TimetableGridPage({
                                 href={`/timetable/grid?section=${option.id}`}
                                 className={
                                     isActive
-                                        ? 'px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white'
+                                        ? 'px-3 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground'
                                         : 'px-3 py-2 rounded-lg text-sm font-medium bg-muted text-foreground hover:bg-muted'
                                 }
                             >
                                 {option.gradeName}-{option.sectionName}
-                                <span className={isActive ? 'ml-2 text-indigo-100' : 'ml-2 text-muted-foreground'}>
+                                <span className={isActive ? 'ml-2 text-primary-foreground/80' : 'ml-2 text-muted-foreground'}>
                                     {option.entryCount}
                                 </span>
                             </Link>

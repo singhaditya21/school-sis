@@ -48,10 +48,10 @@ export default function FeeAnalyticsPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Collected (last 12 months)</div><div className="text-2xl font-bold text-green-600">{formatCurrency(totalCollected)}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Invoiced (same months)</div><div className="text-2xl font-bold text-blue-600">{formatCurrency(totalTarget)}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Still outstanding</div><div className="text-2xl font-bold text-orange-600">{formatCurrency(totalPending)}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Collection Rate</div><div className="text-2xl font-bold text-purple-600">{collectionRate}%</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Collected (last 12 months)</div><div className="text-2xl font-bold text-success">{formatCurrency(totalCollected)}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Invoiced (same months)</div><div className="text-2xl font-bold text-info">{formatCurrency(totalTarget)}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Still outstanding</div><div className="text-2xl font-bold text-warning">{formatCurrency(totalPending)}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Collection Rate</div><div className="text-2xl font-bold text-primary">{collectionRate}%</div></CardContent></Card>
             </div>
 
             <Card>

@@ -35,7 +35,7 @@ export default async function InternationalDashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <Card className="border border-blue-200 bg-blue-50/50 shadow-sm">
+        <Card className="border border-primary/20 bg-accent/50 shadow-sm">
           <CardHeader>
             <CardTitle className="text-xl">🛂 Visa Compliance</CardTitle>
             <CardDescription>
@@ -43,7 +43,7 @@ export default async function InternationalDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-primary">
               {visas.length} Visa Records
             </div>
           </CardContent>
@@ -56,7 +56,7 @@ export default async function InternationalDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-600">
+            <div className="text-2xl font-bold text-success">
               {families.length} Registered
             </div>
           </CardContent>
@@ -69,7 +69,7 @@ export default async function InternationalDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">
+            <div className="text-2xl font-bold text-info">
               {placements.length} Placements
             </div>
           </CardContent>

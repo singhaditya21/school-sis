@@ -65,7 +65,7 @@ export default function PaymentCheckoutPage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <p className="text-muted-foreground">
-                        School SIS does not collect card numbers, CVVs, UPI IDs, or bank credentials.
+                        ScholarMind does not collect card numbers, CVVs, UPI IDs, or bank credentials.
                         Your outstanding amount and permitted payment methods will be confirmed on the
                         configured payment provider&apos;s hosted checkout.
                     </p>
@@ -112,7 +112,7 @@ export default function PaymentCheckoutPage() {
                     </div>
 
                     {invoice && !payable && (
-                        <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                        <p className="rounded-lg border border-success/30 bg-success-subtle p-3 text-sm text-success-subtle-foreground">
                             Nothing is outstanding on this invoice.
                         </p>
                     )}

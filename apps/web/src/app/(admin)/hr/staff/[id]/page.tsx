@@ -140,7 +140,7 @@ export default async function StaffDetailPage({ params }: PageProps) {
                         ))}
                         <div className="flex justify-between border-t pt-3 text-base font-bold">
                             <span>Net</span>
-                            <span className="text-indigo-600">{rupees(staff.salaryNet)}</span>
+                            <span className="text-primary">{rupees(staff.salaryNet)}</span>
                         </div>
                     </CardContent>
                 </Card>

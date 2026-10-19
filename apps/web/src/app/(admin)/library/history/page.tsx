@@ -67,12 +67,12 @@ export default async function LibraryHistoryPage({ searchParams }: PageProps) {
     const filtersActive = filter !== 'ALL' || !!searchQuery || !!from || !!to;
 
     const statCards: { label: string; value: string; className: string; href?: string }[] = [
-        { label: 'Total', value: String(summary.total), className: 'text-blue-600', href: buildHref(current, { filter: 'ALL' }) },
-        { label: 'Issued', value: String(summary.issued), className: 'text-purple-600', href: buildHref(current, { filter: 'ISSUED' }) },
-        { label: 'Overdue', value: String(summary.overdue), className: 'text-red-600', href: buildHref(current, { filter: 'OVERDUE' }) },
-        { label: 'Returned', value: String(summary.returned), className: 'text-green-600', href: buildHref(current, { filter: 'RETURNED' }) },
-        { label: 'Total Fines', value: `₹${summary.totalFines}`, className: 'text-orange-600' },
-        { label: 'Unpaid Fines', value: `₹${summary.unpaidFines}`, className: 'text-red-600' },
+        { label: 'Total', value: String(summary.total), className: 'text-primary', href: buildHref(current, { filter: 'ALL' }) },
+        { label: 'Issued', value: String(summary.issued), className: 'text-info', href: buildHref(current, { filter: 'ISSUED' }) },
+        { label: 'Overdue', value: String(summary.overdue), className: 'text-destructive', href: buildHref(current, { filter: 'OVERDUE' }) },
+        { label: 'Returned', value: String(summary.returned), className: 'text-success', href: buildHref(current, { filter: 'RETURNED' }) },
+        { label: 'Total Fines', value: `₹${summary.totalFines}`, className: 'text-warning' },
+        { label: 'Unpaid Fines', value: `₹${summary.unpaidFines}`, className: 'text-destructive' },
     ];
 
     return (

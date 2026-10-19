@@ -171,9 +171,9 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total</div><div className="text-2xl font-bold text-foreground">{stats.total}</div></CardContent></Card>
                 <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Draft</div><div className="text-2xl font-bold text-muted-foreground">{stats.draft}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Awaiting review</div><div className="text-2xl font-bold text-blue-600">{stats.submitted}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Approved</div><div className="text-2xl font-bold text-green-600">{stats.approved}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Taught</div><div className="text-2xl font-bold text-purple-600">{stats.completed}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Awaiting review</div><div className="text-2xl font-bold text-primary">{stats.submitted}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Approved</div><div className="text-2xl font-bold text-success">{stats.approved}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Taught</div><div className="text-2xl font-bold text-info">{stats.completed}</div></CardContent></Card>
             </div>
 
             <Card>
@@ -253,7 +253,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                                 <th className="px-4 py-3 text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-border">
                             {plans.length === 0 ? (
                                 <tr>
                                     <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
@@ -306,7 +306,7 @@ export default function LessonPlansClient({ plans, stats, options, filters }: Pr
                                                     key={action.to}
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="text-blue-600 hover:text-primary hover:bg-accent"
+                                                    className="text-primary hover:text-primary hover:bg-accent"
                                                     disabled={busyId === plan.id}
                                                     onClick={() => handleTransition(plan, action.to)}
                                                 >

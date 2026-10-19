@@ -10,7 +10,7 @@ import CopilotConsole from './copilot-console';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-    title: 'Assistant | School SIS',
+    title: 'Assistant | ScholarMind',
     description:
         'Ask about your own school through a fixed set of permission-checked operations, and route any change through a human approval.',
 };

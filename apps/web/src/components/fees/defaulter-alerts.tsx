@@ -124,13 +124,13 @@ export default function DefaulterAlerts({ stats, defaulters }: DefaulterAlertsPr
                         <div className="text-2xl font-bold mt-1 text-amber-700">{stats.warning}</div>
                     </CardContent>
                 </Card>
-                <Card className="border-indigo-200 bg-indigo-50">
+                <Card className="border-primary/30 bg-accent">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-2">
-                            <IndianRupee className="h-5 w-5 text-indigo-500" />
-                            <span className="text-sm text-indigo-600">Total Overdue</span>
+                            <IndianRupee className="h-5 w-5 text-primary" />
+                            <span className="text-sm text-accent-foreground">Total Overdue</span>
                         </div>
-                        <div className="text-2xl font-bold mt-1 text-indigo-700">₹{(stats.totalAmount / 100000).toFixed(1)}L</div>
+                        <div className="text-2xl font-bold mt-1 text-accent-foreground">₹{(stats.totalAmount / 100000).toFixed(1)}L</div>
                     </CardContent>
                 </Card>
             </div>

@@ -23,7 +23,7 @@ export default function CompanySettingsForm({
     const [loading, setLoading] = useState(false);
     const [tier, setTier] = useState(company.subscriptionTier || 'CORE');
     const [isActive, setIsActive] = useState(company.isActive);
-    const [themeColor, setThemeColor] = useState(company.themeColor || '#4F46E5');
+    const [themeColor, setThemeColor] = useState(company.themeColor || '#0e8074');
     const [domainMask, setDomainMask] = useState(company.domainMask || '');
     
     // Default active modules logic
@@ -85,7 +85,7 @@ export default function CompanySettingsForm({
                     <span className="text-sm font-semibold text-muted-foreground">Master Lock</span>
                     <button 
                         onClick={() => setIsActive(!isActive)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isActive ? 'bg-success' : 'bg-muted-foreground/30'}`}
                     >
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform ${isActive ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
@@ -102,7 +102,7 @@ export default function CompanySettingsForm({
                                 onClick={() => setTier(t)}
                                 className={`px-6 py-3 rounded-xl font-bold text-sm border-2 transition-all ${
                                     tier === t 
-                                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm' 
+                                    ? 'border-primary bg-accent text-accent-foreground shadow-sm' 
                                     : 'border-border hover:border-border text-muted-foreground'
                                 }`}
                             >
@@ -124,16 +124,16 @@ export default function CompanySettingsForm({
                                     onClick={() => toggleModule(module.id)}
                                     className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
                                         active 
-                                        ? 'border-emerald-500 bg-emerald-50' 
+                                        ? 'border-success bg-success-subtle' 
                                         : 'border-border bg-card hover:border-border'
                                     }`}
                                 >
                                     <div className={`w-5 h-5 rounded-md flex items-center justify-center border ${
-                                        active ? 'bg-emerald-500 border-emerald-600 text-white' : 'bg-card border-border'
+                                        active ? 'bg-success border-success text-success-foreground' : 'bg-card border-border'
                                     }`}>
                                         {active && <span className="text-xs">✓</span>}
                                     </div>
-                                    <span className={`text-sm font-bold ${active ? 'text-emerald-900' : 'text-muted-foreground'}`}>
+                                    <span className={`text-sm font-bold ${active ? 'text-success-subtle-foreground' : 'text-muted-foreground'}`}>
                                         {module.label}
                                     </span>
                                 </button>
@@ -152,7 +152,7 @@ export default function CompanySettingsForm({
                                 value={domainMask}
                                 onChange={e => setDomainMask(e.target.value)}
                                 placeholder="portal.clientdomain.com"
-                                className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring"
                             />
                             <p className="text-xs text-muted-foreground mt-2">Requires CNAME redirect to edge.scholarmind.app</p>
                         </div>
@@ -180,7 +180,7 @@ export default function CompanySettingsForm({
                     <button 
                         onClick={handleSave}
                         disabled={loading}
-                        className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition"
+                        className="px-8 py-3 bg-primary text-primary-foreground font-bold rounded-xl shadow-lg hover:bg-primary/90 transition"
                     >
                         {loading ? 'Committing via Edge...' : 'Save Configuration'}
                     </button>

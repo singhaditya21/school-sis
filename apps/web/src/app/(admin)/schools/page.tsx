@@ -73,16 +73,16 @@ export default async function SchoolsPage() {
                 <CardContent>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                         <div>
-                            <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                            <div className="text-3xl font-bold text-primary">
                                 {counts.activeStudents}
                             </div>
-                            <div className="text-sm text-muted-foreground dark:text-muted-foreground">Active students</div>
+                            <div className="text-sm text-muted-foreground">Active students</div>
                         </div>
                         <div>
-                            <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                            <div className="text-3xl font-bold text-info">
                                 {counts.staffAccounts}
                             </div>
-                            <div className="text-sm text-muted-foreground dark:text-muted-foreground">Staff logins</div>
+                            <div className="text-sm text-muted-foreground">Staff logins</div>
                         </div>
                         <div>
                             <div className="text-3xl font-bold">{counts.grades}</div>

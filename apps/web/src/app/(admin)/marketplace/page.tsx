@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
 export const metadata = {
-    title: 'Modules & Entitlements | School SIS',
+    title: 'Modules & Entitlements | ScholarMind',
 };
 
 export default async function MarketplacePage() {

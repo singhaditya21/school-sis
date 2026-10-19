@@ -93,22 +93,22 @@ export default async function IDCardsPage({ searchParams }: PageProps) {
                 <Card>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Not printed</div>
-                        <div className="text-2xl font-bold text-amber-600">{stats.pending}</div>
+                        <div className="text-2xl font-bold text-warning">{stats.pending}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Printed</div>
-                        <div className="text-2xl font-bold text-blue-600">{stats.printed}</div>
+                        <div className="text-2xl font-bold text-primary">{stats.printed}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Handed over</div>
-                        <div className="text-2xl font-bold text-green-600">{stats.issued}</div>
+                        <div className="text-2xl font-bold text-success">{stats.issued}</div>
                     </CardContent>
                 </Card>
-                <Card className={stats.withoutCard > 0 ? 'border-2 border-amber-200' : undefined}>
+                <Card className={stats.withoutCard > 0 ? 'border-2 border-warning/40' : undefined}>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Without any card</div>
                         <div className="text-2xl font-bold">{stats.withoutCard}</div>

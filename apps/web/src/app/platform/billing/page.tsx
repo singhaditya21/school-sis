@@ -15,29 +15,29 @@ export default async function StripeBillingPage() {
 
             {/* Revenue Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-2xl border border-border shadow-sm relative overflow-hidden">
-                    <div className="absolute right-0 top-0 w-24 h-24 bg-indigo-50 rounded-bl-[100px] z-0"></div>
+                <div className="bg-card p-6 rounded-2xl border border-border shadow-sm relative overflow-hidden">
+                    <div className="absolute right-0 top-0 w-24 h-24 bg-accent rounded-bl-[100px] z-0"></div>
                     <div className="relative z-10">
                         <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Platform MRR (Est)</p>
                         <span className="text-4xl font-bold text-foreground">${totalMRR.toLocaleString()}</span>
                     </div>
                 </div>
-                <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-200 shadow-sm">
-                    <p className="text-sm font-semibold text-emerald-600 uppercase tracking-wider mb-2">Paid This Month</p>
-                    <span className="text-4xl font-bold text-emerald-700">{invoices.filter(i => i.status === 'PAID').length}</span>
-                    <span className="text-lg text-emerald-600 ml-2">invoices</span>
+                <div className="bg-success-subtle p-6 rounded-2xl border border-success/30 shadow-sm">
+                    <p className="text-sm font-semibold text-success uppercase tracking-wider mb-2">Paid This Month</p>
+                    <span className="text-4xl font-bold text-success-subtle-foreground">{invoices.filter(i => i.status === 'PAID').length}</span>
+                    <span className="text-lg text-success ml-2">invoices</span>
                 </div>
-                <div className="bg-rose-50 p-6 rounded-2xl border border-rose-200 shadow-sm">
-                    <p className="text-sm font-semibold text-rose-500 uppercase tracking-wider mb-2">Past Due</p>
-                    <span className="text-4xl font-bold text-rose-700">{pastDue.length}</span>
-                    <span className="text-lg text-rose-500 ml-2">outstanding</span>
+                <div className="bg-destructive-subtle p-6 rounded-2xl border border-destructive/30 shadow-sm">
+                    <p className="text-sm font-semibold text-destructive uppercase tracking-wider mb-2">Past Due</p>
+                    <span className="text-4xl font-bold text-destructive-subtle-foreground">{pastDue.length}</span>
+                    <span className="text-lg text-destructive ml-2">outstanding</span>
                 </div>
             </div>
 
             {/* Invoice Table */}
             <div>
                 <h2 className="text-2xl font-bold text-foreground mb-5">Recent Invoices</h2>
-                <div className="bg-white border border-border rounded-2xl shadow-sm overflow-hidden">
+                <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-muted border-b border-border">
@@ -49,15 +49,15 @@ export default async function StripeBillingPage() {
                                 <th className="p-5 text-sm font-semibold text-muted-foreground uppercase text-center">Status</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-border">
                             {invoices.map(inv => (
                                 <tr key={inv.id} className="hover:bg-muted transition-colors">
-                                    <td className="p-5 font-mono text-sm text-indigo-600 font-medium">{inv.id}</td>
+                                    <td className="p-5 font-mono text-sm text-primary font-medium">{inv.id}</td>
                                     <td className="p-5 font-medium text-foreground">{inv.school}</td>
                                     <td className="p-5">
                                         <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-                                            inv.tier === 'ENTERPRISE' ? 'bg-purple-100 text-purple-700' :
-                                            inv.tier === 'AI_PRO' ? 'bg-indigo-100 text-indigo-700' :
+                                            inv.tier === 'ENTERPRISE' ? 'bg-info-subtle text-info-subtle-foreground' :
+                                            inv.tier === 'AI_PRO' ? 'bg-accent text-accent-foreground' :
                                             'bg-muted text-foreground'
                                         }`}>{inv.tier}</span>
                                     </td>
@@ -65,7 +65,7 @@ export default async function StripeBillingPage() {
                                     <td className="p-5 text-muted-foreground">{inv.date}</td>
                                     <td className="p-5 text-center">
                                         <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-                                            inv.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                                            inv.status === 'PAID' ? 'bg-success-subtle text-success-subtle-foreground' : 'bg-destructive-subtle text-destructive-subtle-foreground'
                                         }`}>{inv.status}</span>
                                     </td>
                                 </tr>

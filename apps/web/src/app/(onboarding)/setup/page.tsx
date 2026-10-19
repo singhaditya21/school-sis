@@ -43,8 +43,8 @@ export default function SetupWorkspacePage() {
         <div className="min-h-screen bg-muted flex flex-col justify-center py-12 sm:px-6 lg:px-8">
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="flex justify-center">
-                    <div className="h-12 w-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg transform -rotate-6">
-                        <Building2 className="h-8 w-8 text-white transform rotate-6" />
+                    <div className="h-12 w-12 bg-primary rounded-xl flex items-center justify-center shadow-lg transform -rotate-6">
+                        <Building2 className="h-8 w-8 text-primary-foreground transform rotate-6" />
                     </div>
                 </div>
                 <h2 className="mt-6 text-center text-3xl font-extrabold text-foreground tracking-tight">
@@ -56,7 +56,7 @@ export default function SetupWorkspacePage() {
             </div>
 
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-xl">
-                <Card className="border-0 shadow-2xl shadow-blue-900/5 ring-1 ring-slate-200">
+                <Card className="border-0 shadow-2xl ring-1 ring-border">
                     <CardHeader className="pb-4">
                         <CardTitle className="text-xl">Workspace Details</CardTitle>
                         <CardDescription>We'll provision an isolated database for your data.</CardDescription>
@@ -65,7 +65,7 @@ export default function SetupWorkspacePage() {
                         <form onSubmit={handleSubmit} className="space-y-6">
                             
                             {error && (
-                                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 flex items-start">
+                                <div className="p-3 bg-destructive-subtle border border-destructive/30 rounded-lg text-sm text-destructive-subtle-foreground flex items-start">
                                     <span className="mr-2">⚠️</span> {error}
                                 </div>
                             )}
@@ -141,7 +141,7 @@ export default function SetupWorkspacePage() {
                             <Button 
                                 type="submit" 
                                 disabled={loading}
-                                className="w-full flex justify-center py-6 border border-transparent rounded-xl shadow-sm text-md font-semibold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all"
+                                className="w-full flex justify-center py-6 border border-transparent rounded-xl shadow-sm text-md font-semibold text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring transition-all"
                             >
                                 {loading ? (
                                     <span className="flex items-center gap-2">

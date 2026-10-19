@@ -26,12 +26,12 @@ export default async function LibraryPage({ searchParams }: PageProps) {
     ]);
 
     const cards = [
-        { label: 'Total Titles', value: String(stats.totalTitles), className: 'text-blue-600' },
-        { label: 'Total Copies', value: String(stats.totalCopies), className: 'text-green-600' },
-        { label: 'Available', value: String(stats.availableCopies), className: 'text-emerald-600' },
-        { label: 'Issued Today', value: String(stats.issuedToday), className: 'text-purple-600' },
-        { label: 'Overdue', value: String(stats.overdueBooks), className: 'text-red-600' },
-        { label: 'Fines Pending', value: `₹${stats.finesPending}`, className: 'text-orange-600' },
+        { label: 'Total Titles', value: String(stats.totalTitles), className: 'text-primary' },
+        { label: 'Total Copies', value: String(stats.totalCopies), className: 'text-success' },
+        { label: 'Available', value: String(stats.availableCopies), className: 'text-success' },
+        { label: 'Issued Today', value: String(stats.issuedToday), className: 'text-info' },
+        { label: 'Overdue', value: String(stats.overdueBooks), className: 'text-destructive' },
+        { label: 'Fines Pending', value: `₹${stats.finesPending}`, className: 'text-warning' },
     ];
 
     return (

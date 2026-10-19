@@ -125,7 +125,7 @@ export default async function MessagesPage() {
                                                 dispatched · {batch.outboxFailed} failed
                                             </div>
                                             {batch.failureCount > 0 && (
-                                                <div className="text-xs text-rose-600">
+                                                <div className="text-xs text-destructive">
                                                     {batch.failureCount} recipient(s) never reached the
                                                     outbox
                                                 </div>
@@ -137,7 +137,7 @@ export default async function MessagesPage() {
                                     <tr>
                                         <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
                                             No messages composed yet.{' '}
-                                            <Link href="/messages/compose" className="text-blue-600 underline">
+                                            <Link href="/messages/compose" className="text-primary underline">
                                                 Compose the first one
                                             </Link>
                                             .

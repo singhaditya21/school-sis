@@ -211,7 +211,7 @@ export default function InvoiceGenerationForm({
                         </div>
                         <div>
                             <p className="text-muted-foreground">Estimated Total</p>
-                            <p className="font-bold text-lg text-blue-600 dark:text-blue-400">
+                            <p className="font-bold text-lg text-primary">
                                 {formatCurrency(preview.estimatedTotal)}
                             </p>
                         </div>

@@ -99,13 +99,13 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                 <Card>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Students</div>
-                        <div className="text-2xl font-bold text-blue-600">{students.length}</div>
+                        <div className="text-2xl font-bold text-primary">{students.length}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">APAAR recorded</div>
-                        <div className="text-2xl font-bold text-purple-600">{linkedCount}</div>
+                        <div className="text-2xl font-bold text-info">{linkedCount}</div>
                     </CardContent>
                 </Card>
                 <Card>

@@ -93,7 +93,7 @@ export default async function HQDashboardPage() {
                 </div>
                 <Link
                     href="/hq/treasury"
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
                     Open cross-campus finance
                 </Link>
@@ -186,9 +186,9 @@ export default async function HQDashboardPage() {
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                                            t.tier === 'ENTERPRISE' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
-                                            t.tier === 'AI_PRO' ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' :
-                                            'bg-slate-500/10 text-muted-foreground border-slate-500/20'
+                                            t.tier === 'ENTERPRISE' ? 'bg-info-subtle text-info-subtle-foreground border-info/30' :
+                                            t.tier === 'AI_PRO' ? 'bg-accent text-accent-foreground border-primary/30' :
+                                            'bg-muted text-muted-foreground border-border'
                                         }`}>
                                             {t.tier}
                                         </span>

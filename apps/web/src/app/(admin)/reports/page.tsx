@@ -12,8 +12,8 @@ import type { ReportDatasetOption, ReportWorkspace } from './bi-types';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-    title: 'Reporting Engine | School SIS',
-    description: 'Governed report builder over the School SIS BI catalog',
+    title: 'Reporting Engine | ScholarMind',
+    description: 'Governed report builder over the ScholarMind BI catalog',
 };
 
 export default async function ReportsPage() {

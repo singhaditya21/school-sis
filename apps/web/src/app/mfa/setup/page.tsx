@@ -155,7 +155,7 @@ export default function MfaSetupPage() {
                                     type="submit"
                                     disabled={submitting || !codesAcknowledged}
                                     data-testid="mfa-activate"
-                                    className="mt-4 h-12 w-full rounded-xl bg-blue-600 font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                                    className="mt-4 h-12 w-full rounded-xl bg-primary font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     {submitting ? 'Verifying…' : 'Activate two-factor authentication'}
                                 </button>

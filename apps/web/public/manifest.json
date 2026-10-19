@@ -1,11 +1,11 @@
 {
-  "name": "School SIS",
-  "short_name": "SchoolSIS",
-  "description": "Comprehensive School Management System",
+  "name": "ScholarMind",
+  "short_name": "ScholarMind",
+  "description": "Multi-tenant school management platform",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#4F46E5",
+  "theme_color": "#0e8074",
   "icons": [
     {
       "src": "/icon-192.png",

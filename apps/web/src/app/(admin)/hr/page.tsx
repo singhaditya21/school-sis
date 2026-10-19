@@ -82,14 +82,14 @@ export default async function HROverviewPage({ searchParams }: PageProps) {
                 <Card>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Total staff</div>
-                        <div className="text-2xl font-bold text-blue-600">{stats.totalStaff}</div>
+                        <div className="text-2xl font-bold text-primary">{stats.totalStaff}</div>
                         <div className="mt-1 text-xs text-muted-foreground">All employment records</div>
                     </CardContent>
                 </Card>
-                <Card className="border-2 border-green-200">
+                <Card className="border-2 border-success/30">
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Active</div>
-                        <div className="text-2xl font-bold text-green-600">{stats.activeStaff}</div>
+                        <div className="text-2xl font-bold text-success">{stats.activeStaff}</div>
                         <div className="mt-1 text-xs text-muted-foreground">
                             {stats.totalStaff > 0 ? `${activeShare}% of headcount` : 'No staff yet'}
                         </div>
@@ -98,7 +98,7 @@ export default async function HROverviewPage({ searchParams }: PageProps) {
                 <Card>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Pending leave</div>
-                        <div className="text-2xl font-bold text-amber-600">{stats.pendingLeaves}</div>
+                        <div className="text-2xl font-bold text-warning">{stats.pendingLeaves}</div>
                         <div className="mt-1 text-xs text-muted-foreground">
                             {stats.pendingLeaves > 0 ? (
                                 <Link href="/hr/leave?status=PENDING" className="text-primary hover:underline">
@@ -113,7 +113,7 @@ export default async function HROverviewPage({ searchParams }: PageProps) {
                 <Card>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Monthly payroll</div>
-                        <div className="text-2xl font-bold text-indigo-600">
+                        <div className="text-2xl font-bold text-primary">
                             {formatCurrency(stats.monthlyPayroll)}
                         </div>
                         <div className="mt-1 text-xs text-muted-foreground">Net pay, active staff</div>

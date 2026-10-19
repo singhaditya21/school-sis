@@ -94,10 +94,10 @@ export default async function QuizResultsPage({ params }: { params: Promise<{ id
                 <>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                         <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Attempts</div><div className="text-2xl font-bold">{attempts.length}</div></CardContent></Card>
-                        <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Average</div><div className="text-2xl font-bold text-blue-600">{average}%</div></CardContent></Card>
+                        <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Average</div><div className="text-2xl font-bold text-primary">{average}%</div></CardContent></Card>
                         <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Median</div><div className="text-2xl font-bold">{median(percentages)}%</div></CardContent></Card>
-                        <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Highest</div><div className="text-2xl font-bold text-green-600">{highest}%</div></CardContent></Card>
-                        <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Lowest</div><div className="text-2xl font-bold text-red-600">{lowest}%</div></CardContent></Card>
+                        <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Highest</div><div className="text-2xl font-bold text-success">{highest}%</div></CardContent></Card>
+                        <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Lowest</div><div className="text-2xl font-bold text-destructive">{lowest}%</div></CardContent></Card>
                     </div>
 
                     {inProgress > 0 && (

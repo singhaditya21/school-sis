@@ -222,19 +222,19 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                 <Card>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Due in next 7 days</div>
-                        <div className="text-2xl font-bold text-blue-600">{stats.dueThisWeek}</div>
+                        <div className="text-2xl font-bold text-info">{stats.dueThisWeek}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Submissions received</div>
-                        <div className="text-2xl font-bold text-green-600">{stats.totalSubmissions}</div>
+                        <div className="text-2xl font-bold text-success">{stats.totalSubmissions}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Awaiting marks</div>
-                        <div className="text-2xl font-bold text-orange-600">{stats.pendingGrading}</div>
+                        <div className="text-2xl font-bold text-warning">{stats.pendingGrading}</div>
                     </CardContent>
                 </Card>
             </div>
@@ -298,7 +298,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                 <th className="px-6 py-3 text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-border">
                             {assignments.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
@@ -325,8 +325,8 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                                 variant="secondary"
                                                 className={
                                                     isOverdue(a.dueDate)
-                                                        ? 'bg-orange-100 text-orange-700 hover:bg-orange-100'
-                                                        : 'bg-green-100 text-green-700 hover:bg-green-100'
+                                                        ? 'bg-warning-subtle text-warning-subtle-foreground hover:bg-warning-subtle'
+                                                        : 'bg-success-subtle text-success-subtle-foreground hover:bg-success-subtle'
                                                 }
                                             >
                                                 {isOverdue(a.dueDate) ? 'Past due' : 'Open'}
@@ -347,7 +347,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="text-blue-600 hover:text-primary hover:bg-accent"
+                                                className="text-primary hover:text-primary hover:bg-accent"
                                                 onClick={() => loadTracking(a)}
                                             >
                                                 Submissions
@@ -355,7 +355,7 @@ export default function HomeworkDashboardClient({ assignments, stats, options, f
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                className="text-destructive hover:text-destructive hover:bg-destructive-subtle"
                                                 disabled={gradingId === a.id}
                                                 onClick={() => handleDelete(a)}
                                             >

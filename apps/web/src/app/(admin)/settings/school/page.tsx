@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
 export const metadata = {
-    title: 'School Settings | School SIS',
+    title: 'School Settings | ScholarMind',
 };
 
 type HQPolicy = {

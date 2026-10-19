@@ -112,7 +112,7 @@ export default async function ExamDetailPage({
                 </div>
                 <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Marks entered</p>
-                    <p className="text-2xl font-bold text-blue-600">
+                    <p className="text-2xl font-bold text-primary">
                         {entered}
                         <span className="text-base font-medium text-muted-foreground"> / {expected}</span>
                     </p>

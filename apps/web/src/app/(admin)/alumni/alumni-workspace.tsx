@@ -216,7 +216,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                         onClick={() => setTab(t)}
                         className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
                             tab === t
-                                ? 'border-blue-600 text-blue-600'
+                                ? 'border-primary text-primary'
                                 : 'border-transparent text-muted-foreground hover:text-foreground'
                         }`}
                     >
@@ -311,7 +311,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                             <td className="px-4 py-3 text-sm">{a.location || '—'}</td>
                                             <td className="px-4 py-3 text-center">
                                                 {a.isVerified ? (
-                                                    <Badge className="bg-emerald-100 text-emerald-700">Verified</Badge>
+                                                    <Badge className="bg-success-subtle text-success-subtle-foreground">Verified</Badge>
                                                 ) : (
                                                     <Badge variant="outline">Pending</Badge>
                                                 )}
@@ -321,7 +321,7 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                                     type="button"
                                                     onClick={() => handleVerify(a)}
                                                     disabled={isPending}
-                                                    className="px-3 py-1 text-xs border border-blue-200 text-blue-600 rounded hover:bg-accent disabled:opacity-50"
+                                                    className="px-3 py-1 text-xs border border-primary/30 text-primary rounded hover:bg-accent disabled:opacity-50"
                                                 >
                                                     {a.isVerified ? 'Unverify' : 'Verify'}
                                                 </button>

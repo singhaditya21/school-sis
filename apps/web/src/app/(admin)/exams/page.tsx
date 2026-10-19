@@ -68,7 +68,7 @@ export default async function ExamsPage() {
                 </div>
                 <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Papers scheduled</p>
-                    <p className="text-2xl font-bold text-blue-600">{totalSchedules}</p>
+                    <p className="text-2xl font-bold text-primary">{totalSchedules}</p>
                 </div>
                 <div className="bg-card rounded-xl shadow-sm border p-4">
                     <p className="text-sm text-muted-foreground">Marks entered</p>

@@ -18,8 +18,8 @@ export default async function LtiLaunchPage() {
 
     return (
         <main className="min-h-screen bg-muted px-6 py-16">
-            <section className="mx-auto max-w-2xl rounded-2xl border border-border bg-white p-8 shadow-sm">
-                <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
+            <section className="mx-auto max-w-2xl rounded-2xl border border-border bg-card p-8 shadow-sm">
+                <p className="text-sm font-semibold uppercase tracking-wide text-primary">
                     Verified LTI 1.3 launch
                 </p>
                 <h1 className="mt-3 text-3xl font-bold text-foreground">
@@ -43,9 +43,9 @@ export default async function LtiLaunchPage() {
                 </dl>
                 <Link
                     href={workspaceHref}
-                    className="mt-8 inline-flex rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+                    className="mt-8 inline-flex rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground hover:bg-primary/90"
                 >
-                    Continue to School SIS
+                    Continue to ScholarMind
                 </Link>
             </section>
         </main>

@@ -54,10 +54,10 @@ function UpgradeContent() {
                             <li>✓ Chatbot Guardrails</li>
                         </ul>
                     </div>
-                    <div className="p-6 bg-blue-50 rounded-2xl border border-blue-200 ring-2 ring-blue-500 ring-offset-2">
-                        <h3 className="font-semibold text-blue-900 mb-2">Enterprise Tier</h3>
-                        <p className="text-sm text-blue-600 mb-4">$30 / student / year</p>
-                        <ul className="text-sm space-y-2 text-blue-800">
+                    <div className="p-6 bg-accent rounded-2xl border border-primary/30 ring-2 ring-ring ring-offset-2">
+                        <h3 className="font-semibold text-accent-foreground mb-2">Enterprise Tier</h3>
+                        <p className="text-sm text-primary mb-4">$30 / student / year</p>
+                        <ul className="text-sm space-y-2 text-accent-foreground">
                             <li>✓ Multi-Campus Super Admin</li>
                             <li>✓ Higher Ed & Coaching Branches</li>
                             <li>✓ International Placements</li>
@@ -66,10 +66,10 @@ function UpgradeContent() {
                 </div>
 
                 <div className="flex justify-center gap-4">
-                    <button className="px-8 py-4 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200">
+                    <button className="px-8 py-4 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors shadow-lg">
                         Contact Sales to Upgrade
                     </button>
-                    <button onClick={() => window.history.back()} className="px-8 py-4 bg-white text-foreground rounded-xl font-medium hover:bg-muted transition-colors border border-border">
+                    <button onClick={() => window.history.back()} className="px-8 py-4 bg-card text-foreground rounded-xl font-medium hover:bg-muted transition-colors border border-border">
                         Go Back
                     </button>
                 </div>

@@ -140,15 +140,15 @@ export default function HealthClient({
             {view === 'dashboard' ? (
                 <>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <Card className="shadow-sm border-blue-100 bg-blue-50/40">
+                        <Card className="shadow-sm border-info/30 bg-info-subtle/40">
                             <CardContent className="pt-6">
-                                <div className="text-sm font-medium text-blue-600 mb-1">Active Medical Files</div>
+                                <div className="text-sm font-medium text-info mb-1">Active Medical Files</div>
                                 <div className="text-3xl font-bold text-foreground" data-testid="kpi-medical-files">{stats.studentsWithRecords.toLocaleString()}</div>
                             </CardContent>
                         </Card>
-                        <Card className="shadow-sm border-orange-100 bg-orange-50/40">
+                        <Card className="shadow-sm border-warning/30 bg-warning-subtle/40">
                             <CardContent className="pt-6">
-                                <div className="text-sm font-medium text-orange-600 mb-1">Incidents Recorded</div>
+                                <div className="text-sm font-medium text-warning-subtle-foreground mb-1">Incidents Recorded</div>
                                 <div className="text-3xl font-bold text-foreground" data-testid="kpi-total-incidents">{stats.totalIncidents.toLocaleString()}</div>
                             </CardContent>
                         </Card>

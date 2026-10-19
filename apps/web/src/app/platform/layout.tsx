@@ -19,10 +19,10 @@ export default async function PlatformLayout({ children }: { children: ReactNode
     return (
         <div className="min-h-screen bg-muted flex">
             {/* Sidebar */}
-            <aside className="w-72 bg-slate-900 text-white min-h-screen border-r border-slate-800 shadow-xl flex flex-col">
-                <div className="p-8 border-b border-slate-800">
+            <aside className="w-72 bg-card text-foreground min-h-screen border-r border-border shadow-xl flex flex-col">
+                <div className="p-8 border-b border-border">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center text-xl shadow-lg shadow-indigo-500/30">
+                        <div className="w-10 h-10 bg-primary text-primary-foreground rounded-xl flex items-center justify-center text-xl shadow-lg">
                             🌍
                         </div>
                         <div>
@@ -33,16 +33,16 @@ export default async function PlatformLayout({ children }: { children: ReactNode
                 </div>
 
                 <nav className="p-6 flex-1 space-y-2">
-                    <Link href="/platform" className="flex items-center gap-4 px-4 py-3 rounded-xl bg-indigo-500/10 text-indigo-400 font-medium border border-indigo-500/20">
+                    <Link href="/platform" className="flex items-center gap-4 px-4 py-3 rounded-xl bg-accent text-accent-foreground font-medium border border-primary/20">
                         <span className="text-xl">📊</span> Global Dashboard
                     </Link>
-                    <Link href="/platform/tenants" className="flex items-center gap-4 px-4 py-3 rounded-xl text-muted-foreground hover:bg-slate-800/50 hover:text-white transition-colors">
+                    <Link href="/platform/tenants" className="flex items-center gap-4 px-4 py-3 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                         <span className="text-xl">🏫</span> Tenant Schools
                     </Link>
-                    <Link href="/platform/billing" className="flex items-center gap-4 px-4 py-3 rounded-xl text-muted-foreground hover:bg-slate-800/50 hover:text-white transition-colors">
+                    <Link href="/platform/billing" className="flex items-center gap-4 px-4 py-3 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                         <span className="text-xl">💳</span> Stripe Billing
                     </Link>
-                    <Link href="/platform/analytics" className="flex items-center gap-4 px-4 py-3 rounded-xl text-muted-foreground hover:bg-slate-800/50 hover:text-white transition-colors">
+                    <Link href="/platform/analytics" className="flex items-center gap-4 px-4 py-3 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                         <span className="text-xl">🤖</span> AI Analytics
                     </Link>
                 </nav>
@@ -50,12 +50,12 @@ export default async function PlatformLayout({ children }: { children: ReactNode
 
             {/* Main Layout Area */}
             <main className="flex-1 overflow-x-hidden">
-                <header className="bg-white border-b border-border h-20 px-10 flex items-center justify-between sticky top-0 z-10">
+                <header className="bg-card border-b border-border h-20 px-10 flex items-center justify-between sticky top-0 z-10">
                     <div className="flex items-center gap-4">
                         <input 
                             type="text" 
                             placeholder="Find a school tenant (e.g., DPSN)..."
-                            className="w-96 px-5 py-2.5 bg-muted border-none rounded-full text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                            className="w-96 px-5 py-2.5 bg-muted border-none rounded-full text-sm outline-none focus:ring-2 focus:ring-ring transition"
                         />
                     </div>
                     <div className="flex items-center gap-6">
@@ -66,7 +66,7 @@ export default async function PlatformLayout({ children }: { children: ReactNode
                         <form action={logoutAction}>
                             <button
                                 type="submit"
-                                className="p-2.5 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-xl transition"
+                                className="p-2.5 text-muted-foreground hover:text-destructive hover:bg-destructive-subtle rounded-xl transition"
                             >
                                 Log Out
                             </button>

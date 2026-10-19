@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
 export const metadata = {
-  title: 'Workflow Automation | School SIS',
+  title: 'Workflow Automation | ScholarMind',
 };
 
 export default async function AutomationPage() {

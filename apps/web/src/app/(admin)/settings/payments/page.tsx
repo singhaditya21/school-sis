@@ -30,13 +30,13 @@ export default async function PaymentsSettingsPage() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         {state === 'READY' ? (
-                            <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                            <CheckCircle2 className="h-5 w-5 text-success" />
                         ) : state === 'ONBOARDING_INCOMPLETE' ? (
-                            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                            <AlertTriangle className="h-5 w-5 text-warning" />
                         ) : state === 'STATUS_UNAVAILABLE' ? (
                             <HelpCircle className="h-5 w-5 text-muted-foreground" />
                         ) : (
-                            <CreditCard className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                            <CreditCard className="h-5 w-5 text-primary" />
                         )}
                         Stripe Connect
                         <StateBadge state={state} />

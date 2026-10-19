@@ -43,10 +43,10 @@ export default async function InventoryPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total Assets</div><div className="text-2xl font-bold text-blue-600" data-testid="kpi-total-assets">{stats.totalAssets}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Asset Value</div><div className="text-2xl font-bold text-green-600" data-testid="kpi-asset-value">{formatCurrency(stats.totalAssetValue)}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Low Stock Items</div><div className="text-2xl font-bold text-orange-600" data-testid="kpi-low-stock">{stats.lowStockItems}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Active Alerts</div><div className="text-2xl font-bold text-red-600" data-testid="kpi-active-alerts">{stats.activeAlerts}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total Assets</div><div className="text-2xl font-bold text-primary" data-testid="kpi-total-assets">{stats.totalAssets}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Asset Value</div><div className="text-2xl font-bold text-success" data-testid="kpi-asset-value">{formatCurrency(stats.totalAssetValue)}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Low Stock Items</div><div className="text-2xl font-bold text-warning" data-testid="kpi-low-stock">{stats.lowStockItems}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Active Alerts</div><div className="text-2xl font-bold text-destructive" data-testid="kpi-active-alerts">{stats.activeAlerts}</div></CardContent></Card>
             </div>
 
             {canWrite && <AddItemForms />}

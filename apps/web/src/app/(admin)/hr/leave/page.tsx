@@ -59,10 +59,10 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
             </div>
 
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                <Card className={stats.pending > 0 ? 'border-2 border-amber-200' : undefined}>
+                <Card className={stats.pending > 0 ? 'border-2 border-warning/40' : undefined}>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Awaiting decision</div>
-                        <div className="text-2xl font-bold text-amber-600">{stats.pending}</div>
+                        <div className="text-2xl font-bold text-warning">{stats.pending}</div>
                         <div className="mt-1 text-xs text-muted-foreground">
                             {stats.pendingDays} {stats.pendingDays === 1 ? 'day' : 'days'} requested
                         </div>
@@ -71,14 +71,14 @@ export default async function LeaveRequestsPage({ searchParams }: PageProps) {
                 <Card>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">On leave today</div>
-                        <div className="text-2xl font-bold text-blue-600">{stats.onLeaveToday}</div>
+                        <div className="text-2xl font-bold text-primary">{stats.onLeaveToday}</div>
                         <div className="mt-1 text-xs text-muted-foreground">Approved and in date range</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Approved</div>
-                        <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
+                        <div className="text-2xl font-bold text-success">{stats.approved}</div>
                         <div className="mt-1 text-xs text-muted-foreground">All time</div>
                     </CardContent>
                 </Card>

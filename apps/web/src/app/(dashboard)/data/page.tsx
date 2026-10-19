@@ -90,16 +90,16 @@ export default async function MetadataEnginePage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Database className="w-6 h-6 text-indigo-600" />
+            <Database className="w-6 h-6 text-primary" />
             No-Code Metadata Engine
           </h1>
           <p className="text-muted-foreground text-sm mt-1">Build and manage infinite custom data structures.</p>
         </div>
         <div className="flex gap-3">
-          <button className="text-muted-foreground hover:text-foreground bg-white border border-border px-4 py-2 rounded-lg font-medium transition-colors shadow-sm">
+          <button className="text-muted-foreground hover:text-foreground bg-card border border-border px-4 py-2 rounded-lg font-medium transition-colors shadow-sm">
             Create Object
           </button>
-          <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors shadow-sm">
+          <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg font-medium flex items-center transition-colors shadow-sm">
             <Save className="w-4 h-4 mr-2" />
             Deploy API
           </button>
@@ -107,7 +107,7 @@ export default async function MetadataEnginePage() {
       </div>
 
       {/* Airtable-like Container */}
-      <div className="bg-white rounded-xl border border-border shadow-sm flex flex-col flex-1 overflow-hidden">
+      <div className="bg-card rounded-xl border border-border shadow-sm flex flex-col flex-1 overflow-hidden">
         
         {/* Object Tabs */}
         <div className="flex border-b border-border bg-muted overflow-x-auto">
@@ -118,7 +118,7 @@ export default async function MetadataEnginePage() {
               <button 
                 key={obj.id}
                 className={`px-6 py-3 text-sm font-medium border-r border-border ${
-                  i === 0 ? 'bg-white text-indigo-600 border-b-2 border-b-indigo-600' : 'text-muted-foreground hover:bg-muted'
+                  i === 0 ? 'bg-card text-primary border-b-2 border-b-primary' : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
                 {obj.label}
@@ -138,17 +138,17 @@ export default async function MetadataEnginePage() {
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded hover:bg-muted transition-colors">
             <Columns className="w-4 h-4" /> Fields
           </button>
-          <div className="h-4 w-px bg-slate-300 mx-2"></div>
+          <div className="h-4 w-px bg-border mx-2"></div>
           <span className="text-muted-foreground">{records.length} records</span>
         </div>
 
         {/* Grid Area */}
-        <div className="flex-1 overflow-auto bg-white">
+        <div className="flex-1 overflow-auto bg-card">
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead className="sticky top-0 bg-muted z-10 shadow-[0_1px_0_0_#e2e8f0]">
               <tr>
                 <th className="w-12 border-r border-border px-4 py-2">
-                  <input type="checkbox" className="rounded border-border text-indigo-600 focus:ring-indigo-500" />
+                  <input type="checkbox" className="rounded border-border text-primary focus:ring-ring" />
                 </th>
                 {fields.map(f => (
                   <th key={f.id} className="border-r border-border px-4 py-2 text-xs font-semibold text-muted-foreground tracking-wide uppercase group cursor-pointer hover:bg-muted">
@@ -159,7 +159,7 @@ export default async function MetadataEnginePage() {
                   </th>
                 ))}
                 <th className="px-4 py-2 min-w-[200px]">
-                  <button className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1 text-xs font-semibold uppercase">
+                  <button className="text-primary hover:underline flex items-center gap-1 text-xs font-semibold uppercase">
                     <Plus className="w-4 h-4" /> Add Field
                   </button>
                 </th>
@@ -175,7 +175,7 @@ export default async function MetadataEnginePage() {
               ) : (
                 records.map((rec, idx) => (
                   <tr key={rec.id} className="border-b border-border hover:bg-muted/50 group">
-                    <td className="border-r border-border px-4 py-2 text-center text-slate-300 group-hover:text-muted-foreground">
+                    <td className="border-r border-border px-4 py-2 text-center text-muted-foreground/50 group-hover:text-muted-foreground">
                       {idx + 1}
                     </td>
                     {fields.map(f => (
@@ -183,7 +183,7 @@ export default async function MetadataEnginePage() {
                         <input 
                           type="text" 
                           defaultValue={rec[f.name] || ''} 
-                          className="w-full h-full min-h-[38px] px-4 py-2 bg-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                          className="w-full h-full min-h-[38px] px-4 py-2 bg-transparent focus:bg-card focus:ring-2 focus:ring-ring outline-none transition-all"
                           placeholder="Empty"
                         />
                       </td>
@@ -194,7 +194,7 @@ export default async function MetadataEnginePage() {
               )}
               {/* Ghost Row for adding new records */}
               <tr className="border-b border-border">
-                <td className="border-r border-border px-4 py-2 text-center text-slate-300 font-bold">+</td>
+                <td className="border-r border-border px-4 py-2 text-center text-muted-foreground/50 font-bold">+</td>
                 <td colSpan={fields.length + 1} className="px-4 py-2 text-muted-foreground cursor-pointer hover:bg-muted transition-colors">
                   Add new record...
                 </td>

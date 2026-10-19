@@ -91,7 +91,7 @@ export default function BroadcastsClient({ broadcasts }: { broadcasts: Broadcast
                 <button
                     type="button"
                     onClick={() => setComposerOpen((open) => !open)}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                 >
                     {composerOpen ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                     {composerOpen ? 'Close composer' : 'New broadcast'}
@@ -110,7 +110,7 @@ export default function BroadcastsClient({ broadcasts }: { broadcasts: Broadcast
                                 value={form.title}
                                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                                 placeholder="e.g. Scheduled maintenance on Sunday"
-                                className="w-full bg-slate-900 border border-slate-800 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                                className="w-full bg-slate-900 border border-slate-800 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
                             />
                         </div>
                         <div>
@@ -118,7 +118,7 @@ export default function BroadcastsClient({ broadcasts }: { broadcasts: Broadcast
                             <select
                                 value={form.type}
                                 onChange={(e) => setForm({ ...form, type: e.target.value })}
-                                className="w-full bg-slate-900 border border-slate-800 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                                className="w-full bg-slate-900 border border-slate-800 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
                             >
                                 {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                             </select>
@@ -133,7 +133,7 @@ export default function BroadcastsClient({ broadcasts }: { broadcasts: Broadcast
                             value={form.message}
                             onChange={(e) => setForm({ ...form, message: e.target.value })}
                             placeholder="What campuses need to know."
-                            className="w-full bg-slate-900 border border-slate-800 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
                         />
                     </div>
 
@@ -150,7 +150,7 @@ export default function BroadcastsClient({ broadcasts }: { broadcasts: Broadcast
                                             onClick={() => toggleTier(tier)}
                                             className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
                                                 selected
-                                                    ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300'
+                                                    ? 'border-primary bg-accent text-accent-foreground'
                                                     : 'border-slate-800 bg-slate-900 text-muted-foreground hover:text-slate-200'
                                             }`}
                                         >
@@ -169,7 +169,7 @@ export default function BroadcastsClient({ broadcasts }: { broadcasts: Broadcast
                                 type="date"
                                 value={form.expiresAt}
                                 onChange={(e) => setForm({ ...form, expiresAt: e.target.value })}
-                                className="w-full bg-slate-900 border border-slate-800 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                                className="w-full bg-slate-900 border border-slate-800 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
                             />
                             <p className="text-xs text-muted-foreground mt-2">
                                 Expiry is recorded for reference. Archiving a broadcast is what actually stops it being shown.
@@ -180,7 +180,7 @@ export default function BroadcastsClient({ broadcasts }: { broadcasts: Broadcast
                     <button
                         type="submit"
                         disabled={isPending}
-                        className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                        className="bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                     >
                         {isPending ? 'Publishing…' : 'Publish broadcast'}
                     </button>

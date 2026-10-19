@@ -10,12 +10,12 @@ export default async function AlumniPage() {
     const registrations = events.reduce((sum, e) => sum + e.registeredCount, 0);
 
     const stats = [
-        { label: 'Total Alumni', value: alumni.length, className: 'text-blue-600' },
-        { label: 'Verified', value: verified, className: 'text-green-600' },
-        { label: 'Pending', value: alumni.length - verified, className: 'text-orange-600' },
-        { label: 'Batches', value: batches, className: 'text-purple-600' },
-        { label: 'Upcoming Events', value: upcoming, className: 'text-indigo-600' },
-        { label: 'Registrations', value: registrations, className: 'text-teal-600' },
+        { label: 'Total Alumni', value: alumni.length, className: 'text-primary' },
+        { label: 'Verified', value: verified, className: 'text-success' },
+        { label: 'Pending', value: alumni.length - verified, className: 'text-warning' },
+        { label: 'Batches', value: batches, className: 'text-info' },
+        { label: 'Upcoming Events', value: upcoming, className: 'text-primary' },
+        { label: 'Registrations', value: registrations, className: 'text-success' },
     ];
 
     return <AlumniWorkspace alumni={alumni} events={events} stats={stats} />;

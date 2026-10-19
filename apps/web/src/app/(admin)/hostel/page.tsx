@@ -77,11 +77,11 @@ export default async function HostelPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total Hostels</div><div className="text-2xl font-bold text-blue-600" data-testid="kpi-total-hostels">{stats.totalHostels}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total Beds</div><div className="text-2xl font-bold text-purple-600" data-testid="kpi-total-beds">{stats.totalBeds}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Occupied</div><div className="text-2xl font-bold text-orange-600" data-testid="kpi-occupied-beds">{stats.occupiedBeds}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Available</div><div className="text-2xl font-bold text-green-600" data-testid="kpi-available-beds">{stats.availableBeds}</div></CardContent></Card>
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Occupancy</div><div className="text-2xl font-bold text-indigo-600" data-testid="kpi-occupancy-rate">{stats.occupancyRate}%</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total Hostels</div><div className="text-2xl font-bold text-primary" data-testid="kpi-total-hostels">{stats.totalHostels}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total Beds</div><div className="text-2xl font-bold text-info" data-testid="kpi-total-beds">{stats.totalBeds}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Occupied</div><div className="text-2xl font-bold text-warning" data-testid="kpi-occupied-beds">{stats.occupiedBeds}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Available</div><div className="text-2xl font-bold text-success" data-testid="kpi-available-beds">{stats.availableBeds}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Occupancy</div><div className="text-2xl font-bold text-primary" data-testid="kpi-occupancy-rate">{stats.occupancyRate}%</div></CardContent></Card>
             </div>
 
             {hostelList.length === 0 ? (

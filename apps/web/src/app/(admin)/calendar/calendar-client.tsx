@@ -402,14 +402,14 @@ export default function CalendarClient({
                                 <div
                                     key={cell.iso}
                                     className={`min-h-28 border-b border-r p-1.5 ${
-                                        isToday ? 'bg-blue-50/60' : ''
+                                        isToday ? 'bg-accent/60' : ''
                                     }`}
                                 >
                                     <div className="flex items-center justify-between">
                                         <span
                                             className={`text-xs font-medium ${
                                                 isToday
-                                                    ? 'rounded-full bg-blue-600 px-1.5 py-0.5 text-white'
+                                                    ? 'rounded-full bg-primary px-1.5 py-0.5 text-primary-foreground'
                                                     : 'text-muted-foreground'
                                             }`}
                                         >

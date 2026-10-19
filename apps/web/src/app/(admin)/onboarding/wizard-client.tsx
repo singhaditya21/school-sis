@@ -67,16 +67,16 @@ export default function OnboardingWizardClient() {
     };
 
     return (
-        <Card className="shadow-lg border-0 ring-1 ring-slate-200 dark:ring-slate-800">
+        <Card className="shadow-lg border-0 ring-1 ring-border">
             {/* Stepper Header */}
-            <div className="flex border-b border-border dark:border-slate-800">
-                <div className={`flex-1 p-4 text-center border-r border-border dark:border-slate-800 transition-colors ${step === 1 ? 'bg-blue-50/50 dark:bg-blue-900/20 text-blue-600' : 'text-muted-foreground'}`}>
+            <div className="flex border-b border-border">
+                <div className={`flex-1 p-4 text-center border-r border-border transition-colors ${step === 1 ? 'bg-accent/50 text-primary' : 'text-muted-foreground'}`}>
                     <div className="flex items-center justify-center gap-2">
                         <Calendar className="w-5 h-5" />
                         <span className="font-medium text-sm">1. Academic Year</span>
                     </div>
                 </div>
-                <div className={`flex-1 p-4 text-center transition-colors ${step === 2 ? 'bg-blue-50/50 dark:bg-blue-900/20 text-blue-600' : 'text-muted-foreground'}`}>
+                <div className={`flex-1 p-4 text-center transition-colors ${step === 2 ? 'bg-accent/50 text-primary' : 'text-muted-foreground'}`}>
                     <div className="flex items-center justify-center gap-2">
                         <School className="w-5 h-5" />
                         <span className="font-medium text-sm">2. Grades & Classes</span>
@@ -86,7 +86,7 @@ export default function OnboardingWizardClient() {
 
             <CardContent className="p-8">
                 {error && (
-                    <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 flex items-start">
+                    <div className="mb-6 p-3 bg-destructive-subtle border border-destructive/30 rounded-lg text-sm text-destructive flex items-start">
                         <span className="mr-2">⚠️</span> {error}
                     </div>
                 )}

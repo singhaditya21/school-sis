@@ -37,7 +37,7 @@ export default async function AdminLayout({
     return (
         <div className="min-h-screen bg-muted">
             {isImpersonating && (
-                <div className="bg-rose-600 text-white px-4 py-2 flex items-center justify-between sticky top-0 z-[60]">
+                <div className="bg-destructive text-destructive-foreground px-4 py-2 flex items-center justify-between sticky top-0 z-[60]">
                     <div className="flex items-center gap-2">
                         <span className="animate-pulse">🔴</span>
                         <span className="text-sm font-bold tracking-wider">IMPERSONATION ACTIVE</span>
@@ -47,7 +47,7 @@ export default async function AdminLayout({
                         'use server';
                         await returnToHQAction();
                     }}>
-                        <button type="submit" className="text-xs bg-card text-rose-600 font-bold px-3 py-1 rounded-md hover:bg-rose-50 transition shadow-sm">
+                        <button type="submit" className="text-xs bg-card text-destructive font-bold px-3 py-1 rounded-md hover:bg-destructive-subtle transition shadow-sm">
                             Return to HQ
                         </button>
                     </form>
@@ -66,7 +66,7 @@ export default async function AdminLayout({
                             </div>
                             <div>
                                 <div className="text-xl font-bold text-foreground">
-                                    School SIS
+                                    ScholarMind
                                 </div>
                                 <p className="text-sm text-muted-foreground">
                                     Administration Portal

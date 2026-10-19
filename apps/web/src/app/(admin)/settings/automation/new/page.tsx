@@ -2,7 +2,7 @@ import { WorkflowBuilder } from "@/components/automation/workflow-builder";
 import { AutomationRunnerNotice } from "../runner-notice";
 
 export const metadata = {
-  title: 'Create Workflow | School SIS',
+  title: 'Create Workflow | ScholarMind',
 };
 
 export default function NewWorkflowPage() {

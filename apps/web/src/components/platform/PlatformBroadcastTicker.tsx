@@ -31,14 +31,14 @@ export default function PlatformBroadcastTicker() {
     if (!activeBcast) return null;
 
     return (
-        <div className="bg-indigo-600 text-white px-4 py-3 flex items-start sm:items-center justify-between shadow-md relative z-50">
+        <div className="bg-primary text-primary-foreground px-4 py-3 flex items-start sm:items-center justify-between shadow-md relative z-50">
             <div className="flex items-start sm:items-center gap-3">
                 <div className="mt-0.5 sm:mt-0 p-1 bg-card/20 rounded-md">
-                    <Megaphone size={16} className="text-white" />
+                    <Megaphone size={16} className="text-primary-foreground" />
                 </div>
                 <div>
                     <span className="font-bold mr-2">{activeBcast.title}:</span>
-                    <span className="text-sm text-indigo-100">{activeBcast.message}</span>
+                    <span className="text-sm text-primary-foreground/90">{activeBcast.message}</span>
                 </div>
             </div>
             <button 

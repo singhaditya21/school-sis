@@ -88,23 +88,23 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Link href="?filter=critical" data-testid="filter-critical">
-                    <Card className="cursor-pointer border-2 border-red-200 hover:bg-red-50 transition-colors">
-                        <CardContent className="pt-4"><div className="text-sm text-muted-foreground">Critical</div><div className="text-3xl font-bold text-red-600" data-testid="kpi-critical-count">{criticalCount}</div></CardContent>
+                    <Card className="cursor-pointer border-2 border-destructive/30 hover:bg-destructive-subtle transition-colors">
+                        <CardContent className="pt-4"><div className="text-sm text-muted-foreground">Critical</div><div className="text-3xl font-bold text-destructive" data-testid="kpi-critical-count">{criticalCount}</div></CardContent>
                     </Card>
                 </Link>
                 <Link href="?filter=warning" data-testid="filter-warning">
-                    <Card className="cursor-pointer border-2 border-orange-200 hover:bg-orange-50 transition-colors">
-                        <CardContent className="pt-4"><div className="text-sm text-muted-foreground">Warning</div><div className="text-3xl font-bold text-orange-600" data-testid="kpi-warning-count">{warningCount}</div></CardContent>
+                    <Card className="cursor-pointer border-2 border-warning/30 hover:bg-warning-subtle transition-colors">
+                        <CardContent className="pt-4"><div className="text-sm text-muted-foreground">Warning</div><div className="text-3xl font-bold text-warning" data-testid="kpi-warning-count">{warningCount}</div></CardContent>
                     </Card>
                 </Link>
                 <Link href="?filter=info" data-testid="filter-info">
-                    <Card className="cursor-pointer border-2 border-blue-200 hover:bg-accent transition-colors">
-                        <CardContent className="pt-4"><div className="text-sm text-muted-foreground">Info</div><div className="text-3xl font-bold text-blue-600" data-testid="kpi-info-count">{infoCount}</div></CardContent>
+                    <Card className="cursor-pointer border-2 border-info/30 hover:bg-accent transition-colors">
+                        <CardContent className="pt-4"><div className="text-sm text-muted-foreground">Info</div><div className="text-3xl font-bold text-info" data-testid="kpi-info-count">{infoCount}</div></CardContent>
                     </Card>
                 </Link>
                 <Link href="?filter=ALL" data-testid="filter-all">
                     <Card className="cursor-pointer hover:bg-muted transition-colors">
-                        <CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total</div><div className="text-3xl font-bold text-purple-600" data-testid="kpi-total-alerts">{alerts.length}</div></CardContent>
+                        <CardContent className="pt-4"><div className="text-sm text-muted-foreground">Total</div><div className="text-3xl font-bold text-primary" data-testid="kpi-total-alerts">{alerts.length}</div></CardContent>
                     </Card>
                 </Link>
             </div>
@@ -117,7 +117,7 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
                             {filteredAlerts.map(alert => {
                                 const severityStyle = SEVERITY_CONFIG[alert.severity];
                                 return (
-                                    <div key={alert.id} data-testid="alert-item" className={`p-4 rounded-lg border-l-4 ${alert.severity === 'critical' ? 'bg-red-50 border-red-500' : alert.severity === 'warning' ? 'bg-orange-50 border-orange-500' : 'bg-blue-50 border-blue-500'}`}>
+                                    <div key={alert.id} data-testid="alert-item" className={`p-4 rounded-lg border-l-4 ${alert.severity === 'critical' ? 'bg-destructive-subtle border-destructive' : alert.severity === 'warning' ? 'bg-warning-subtle border-warning' : 'bg-info-subtle border-info'}`}>
                                         <div className="flex items-center gap-3">
                                             <Badge className={severityStyle.color} data-testid={`alert-severity-${alert.id}`}>{severityStyle.icon} {alert.severity.toUpperCase()}</Badge>
                                             <Badge variant="outline">{TYPE_LABELS[alert.type] || alert.type}</Badge>
@@ -155,9 +155,9 @@ export default async function InventoryAlertsPage({ searchParams }: PageProps) {
                                     return (
                                         <tr key={item.id} className="hover:bg-muted" data-testid={`reorder-row-${item.id}`}>
                                             <td className="px-4 py-3 font-medium" data-testid={`reorder-item-name-${item.id}`}>{item.name}</td>
-                                            <td className="px-4 py-3 text-right text-red-600 font-semibold" data-testid={`reorder-current-stock-${item.id}`}>{item.currentStock} {item.unit}</td>
+                                            <td className="px-4 py-3 text-right text-destructive font-semibold" data-testid={`reorder-current-stock-${item.id}`}>{item.currentStock} {item.unit}</td>
                                             <td className="px-4 py-3 text-right text-muted-foreground" data-testid={`reorder-level-${item.id}`}>{item.reorderLevel} {item.unit}</td>
-                                            <td className="px-4 py-3 text-right font-semibold text-blue-600" data-testid={`reorder-suggested-qty-${item.id}`}>{suggestedQty} {item.unit}</td>
+                                            <td className="px-4 py-3 text-right font-semibold text-primary" data-testid={`reorder-suggested-qty-${item.id}`}>{suggestedQty} {item.unit}</td>
                                         </tr>
                                     );
                                 })

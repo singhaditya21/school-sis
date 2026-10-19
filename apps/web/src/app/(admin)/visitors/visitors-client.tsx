@@ -420,7 +420,7 @@ export default function VisitorsClient({
                                             type="button"
                                             onClick={() => handleArrival(v)}
                                             disabled={isPending && busyId === v.id}
-                                            className="h-12 px-6 text-base font-semibold bg-indigo-600 hover:bg-indigo-700 text-white"
+                                            className="h-12 px-6 text-base font-semibold bg-primary hover:bg-primary/90 text-primary-foreground"
                                         >
                                             {isPending && busyId === v.id ? 'Saving…' : 'Arrived'}
                                         </Button>
