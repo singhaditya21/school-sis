@@ -2,13 +2,66 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { MetadataField, updateRecordFieldValue } from '@/lib/actions/metadata-engine';
+import {
+    MetadataField,
+    bulkImportRecords,
+    deleteRecord,
+    updateRecordFieldValue,
+} from '@/lib/actions/metadata-engine';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate } from '@/lib/format';
-import { GripVertical, Kanban, Plus, Table as TableIcon } from 'lucide-react';
+import {
+    Download,
+    GripVertical,
+    Kanban,
+    Plus,
+    Table as TableIcon,
+    Trash2,
+    Upload,
+} from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+
+function parseCsvToRecords(csvText: string): Record<string, unknown>[] {
+    const lines = csvText
+        .split(/\r?\n/)
+        .map(l => l.trim())
+        .filter(Boolean);
+    if (lines.length < 2) return [];
+    const splitCsvLine = (line: string): string[] => {
+        const out: string[] = [];
+        let cur = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') {
+                if (inQuotes && line[i + 1] === '"') {
+                    cur += '"';
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (ch === ',' && !inQuotes) {
+                out.push(cur.trim());
+                cur = '';
+            } else {
+                cur += ch;
+            }
+        }
+        out.push(cur.trim());
+        return out;
+    };
+    const headers = splitCsvLine(lines[0]);
+    return lines.slice(1).map(line => {
+        const cells = splitCsvLine(line);
+        const row: Record<string, unknown> = {};
+        headers.forEach((h, idx) => {
+            if (h) row[h] = cells[idx] ?? '';
+        });
+        return row;
+    });
+}
 
 /**
  * Renders a value using the field's declared data type, so a metadata-defined
@@ -155,6 +208,76 @@ export default function GenericListClient({
         });
     };
 
+    const [showImportPanel, setShowImportPanel] = useState(false);
+    const [csvInputText, setCsvInputText] = useState('');
+    const [importingCsv, setImportingCsv] = useState(false);
+
+    const handleExportCsv = () => {
+        const exportCols = displayColumns.length > 0 ? displayColumns : fields.map(f => f.apiName);
+        const escapeCell = (val: unknown): string => {
+            const raw = val == null ? '' : String(val);
+            if (/[",\r\n]/.test(raw)) {
+                return `"${raw.replace(/"/g, '""')}"`;
+            }
+            return raw;
+        };
+        const headerLine = exportCols.map(escapeCell).join(',');
+        const bodyLines = localRecords.map(rec =>
+            exportCols.map(col => escapeCell(rec[col])).join(','),
+        );
+        const csvContent = [headerLine, ...bodyLines].join('\n');
+        if (typeof window !== 'undefined') {
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = `${objectName}_export_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            URL.revokeObjectURL(url);
+        }
+        toast.success(`Exported ${localRecords.length} record(s) to CSV.`);
+    };
+
+    const handleImportCsv = async () => {
+        const parsedRows = parseCsvToRecords(csvInputText);
+        if (parsedRows.length === 0) {
+            toast.error('Provide a CSV header row and at least one data row.');
+            return;
+        }
+        setImportingCsv(true);
+        try {
+            const res = await bulkImportRecords(objectName, parsedRows);
+            if (res.importedCount > 0) {
+                toast.success(`Imported ${res.importedCount} record(s) into ${objectName}.`);
+                setCsvInputText('');
+                setShowImportPanel(false);
+                router.refresh();
+            }
+            if (res.errors.length > 0) {
+                toast.error(res.errors.slice(0, 3).join(' | '));
+            }
+        } finally {
+            setImportingCsv(false);
+        }
+    };
+
+    const handleDeleteRecord = (recordId: string) => {
+        const previous = localRecords;
+        setLocalRecords(prev => prev.filter(r => String(r.id) !== recordId));
+        startTransition(async () => {
+            const res = await deleteRecord(objectName, recordId);
+            if (res.success) {
+                toast.success('Record deleted and deletion workflows evaluated.');
+                router.refresh();
+            } else {
+                setLocalRecords(previous);
+                toast.error(res.error || 'Failed to delete record.');
+            }
+        });
+    };
+
     return (
         <Card>
             <CardContent className="p-0">
@@ -205,12 +328,73 @@ export default function GenericListClient({
                         )}
                     </div>
 
-                    <Link href={`/app/${objectName}/new`}>
-                        <Button>
-                            <Plus className="w-4 h-4 mr-2" /> New Record
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleExportCsv}
+                            data-testid="export-object-csv"
+                        >
+                            <Download className="w-3.5 h-3.5 mr-1.5" /> Export CSV
                         </Button>
-                    </Link>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowImportPanel(v => !v)}
+                            data-testid="import-object-csv"
+                        >
+                            <Upload className="w-3.5 h-3.5 mr-1.5" /> Import CSV
+                        </Button>
+                        <Link href={`/app/${objectName}/new`}>
+                            <Button size="sm">
+                                <Plus className="w-4 h-4 mr-1.5" /> New Record
+                            </Button>
+                        </Link>
+                    </div>
                 </div>
+
+                {showImportPanel && (
+                    <div className="p-4 border-b border-border bg-muted/40 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-foreground">
+                                    Bulk CSV Import ({objectName})
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                    Expected headers:{' '}
+                                    <code className="font-mono text-primary">
+                                        {fields
+                                            .filter(f => f.validationRules?.fieldSubType !== 'FORMULA')
+                                            .map(f => f.apiName)
+                                            .join(', ')}
+                                    </code>
+                                </p>
+                            </div>
+                            <Button
+                                type="button"
+                                size="sm"
+                                onClick={handleImportCsv}
+                                disabled={importingCsv}
+                                data-testid="run-csv-bulk-import"
+                            >
+                                {importingCsv ? 'Importing…' : 'Run Bulk Import'}
+                            </Button>
+                        </div>
+                        <textarea
+                            rows={4}
+                            value={csvInputText}
+                            onChange={e => setCsvInputText(e.target.value)}
+                            placeholder={`${fields
+                                .filter(f => f.validationRules?.fieldSubType !== 'FORMULA')
+                                .slice(0, 3)
+                                .map(f => f.apiName)
+                                .join(',')}\nSample Value 1,Sample Value 2,Sample Value 3`}
+                            className="w-full rounded-md border border-border bg-card p-2.5 font-mono text-xs text-foreground"
+                        />
+                    </div>
+                )}
 
                 {viewMode === 'TABLE' ? (
                     <div className="overflow-x-auto">
@@ -253,12 +437,25 @@ export default function GenericListClient({
                                                 </td>
                                             ))}
                                             <td className="px-6 py-4 text-right">
-                                                <Link
-                                                    href={`/app/${objectName}/${String(record.id)}`}
-                                                    className="font-medium text-primary hover:underline"
-                                                >
-                                                    Edit
-                                                </Link>
+                                                <div className="inline-flex items-center gap-3">
+                                                    <Link
+                                                        href={`/app/${objectName}/${String(record.id)}`}
+                                                        className="font-medium text-primary hover:underline"
+                                                    >
+                                                        Edit
+                                                    </Link>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleDeleteRecord(String(record.id))
+                                                        }
+                                                        data-testid={`delete-record-${String(record.id)}`}
+                                                        title="Delete record"
+                                                        className="text-muted-foreground hover:text-destructive transition-colors"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))

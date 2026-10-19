@@ -147,6 +147,33 @@ describe('LCNC & Drag-and-Drop Platform Builders', () => {
         expect(dataStudio).toContain('handleColumnDrop');
         expect(dataStudio).toContain('handleInlineCellCommit');
         expect(dataStudio).toContain('saveObjectLayout');
+        expect(dataStudio).toContain('studio-export-csv');
+        expect(dataStudio).toContain('handleStudioDeleteRecord');
+    });
+
+    it('supports Track 2 record deletion lifecycle (object.record.deleted), CSV bulk import/export, and saved/scheduled BI reports', () => {
+        const metadataEngine = readWebSource('src/lib/actions/metadata-engine.ts');
+        expect(metadataEngine).toContain('export async function deleteRecord');
+        expect(metadataEngine).toContain("'object.record.deleted'");
+        expect(metadataEngine).toContain("'METADATA_RECORD_DELETED'");
+        expect(metadataEngine).toContain('export async function bulkImportRecords');
+        expect(metadataEngine).toContain("'METADATA_BULK_IMPORT'");
+
+        const genericList = readWebSource('src/app/(admin)/app/[object]/generic-list.tsx');
+        expect(genericList).toContain('export-object-csv');
+        expect(genericList).toContain('import-object-csv');
+        expect(genericList).toContain('run-csv-bulk-import');
+        expect(genericList).toContain('handleDeleteRecord');
+
+        const biActions = readWebSource('src/app/(admin)/reports/bi-actions.ts');
+        expect(biActions).toContain('export async function saveCustomReportDefinition');
+        expect(biActions).toContain('export async function getSavedBiReports');
+        expect(biActions).toContain("'BI_REPORT_SAVED'");
+        expect(biActions).toContain("'BI_SCHEDULED_REPORT'");
+
+        const reportBuilder = readWebSource('src/app/(admin)/reports/report-builder.tsx');
+        expect(reportBuilder).toContain('save-schedule-report-panel');
+        expect(reportBuilder).toContain('save-custom-report-btn');
     });
 });
 

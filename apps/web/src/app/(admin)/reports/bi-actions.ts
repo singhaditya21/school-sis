@@ -1,6 +1,6 @@
 'use server';
 
-import { pool } from '@/lib/db';
+import { pool, sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import {
     assertBiExportAllowed,
@@ -295,3 +295,174 @@ function describeError(error: unknown, fallback: string): string {
     }
     return fallback;
 }
+
+export interface SavedBiReportDefinition {
+    id: string;
+    name: string;
+    datasetId: string;
+    metricIds: string[];
+    dimensionIds: string[];
+    scheduleFrequency: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
+    recipientEmail?: string;
+    createdAt: string;
+}
+
+export async function saveCustomReportDefinition(input: {
+    name: string;
+    datasetId: string;
+    metricIds: string[];
+    dimensionIds: string[];
+    scheduleFrequency?: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
+    recipientEmail?: string;
+}): Promise<{ success: boolean; error?: string; report?: SavedBiReportDefinition }> {
+    try {
+        const { tenantId, userId, session } = await requireAuth('reports:read');
+        const trimmedName = String(input.name || '').trim();
+        if (!trimmedName) {
+            return { success: false, error: 'Report name is required.' };
+        }
+        if (!input.datasetId || !Array.isArray(input.metricIds) || input.metricIds.length === 0) {
+            return { success: false, error: 'Select a dataset and at least one metric before saving.' };
+        }
+
+        const scheduleFrequency = input.scheduleFrequency || 'NONE';
+        const recipientEmail = String(input.recipientEmail || session.email || 'admin@scholarmind.local').trim();
+
+        const reportPayload = {
+            name: trimmedName,
+            datasetId: input.datasetId,
+            metricIds: input.metricIds,
+            dimensionIds: input.dimensionIds || [],
+            scheduleFrequency,
+            recipientEmail,
+            savedBy: userId,
+            savedAt: new Date().toISOString(),
+        };
+
+        const inserted = await sql<{ id: string; created_at: Date | string }>`
+            INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, after_state)
+            VALUES (
+                ${tenantId},
+                ${userId},
+                'BI_REPORT_SAVED',
+                'bi_report',
+                ${JSON.stringify(reportPayload)}::jsonb
+            )
+            RETURNING id, created_at
+        `;
+
+        if (scheduleFrequency !== 'NONE') {
+            await sql`
+                INSERT INTO background_jobs (
+                    tenant_id, scope, queue, task_name, status, priority, payload,
+                    scheduled_for, available_at, max_attempts
+                )
+                VALUES (
+                    ${tenantId},
+                    'TENANT',
+                    'default',
+                    'BI_SCHEDULED_REPORT',
+                    'QUEUED',
+                    0,
+                    ${JSON.stringify({
+                        reportId: inserted[0]?.id,
+                        ...reportPayload,
+                    })}::jsonb,
+                    NOW(),
+                    NOW(),
+                    3
+                )
+            `.execute();
+
+            await sql`
+                INSERT INTO notification_outbox (
+                    tenant_id, channel, status, provider, recipient, subject, body,
+                    template_id, payload, scheduled_for, next_attempt_at, max_attempts
+                )
+                VALUES (
+                    ${tenantId},
+                    'EMAIL',
+                    'QUEUED',
+                    'resend',
+                    ${recipientEmail},
+                    ${`[ScholarMind BI] Scheduled Report: ${trimmedName} (${scheduleFrequency})`},
+                    ${`Scheduled BI report "${trimmedName}" (${input.datasetId}) configured for ${scheduleFrequency} delivery.`},
+                    'bi_scheduled_report',
+                    ${JSON.stringify({
+                        reportName: trimmedName,
+                        datasetId: input.datasetId,
+                        scheduleFrequency,
+                    })}::jsonb,
+                    NOW(),
+                    NOW(),
+                    3
+                )
+            `.execute();
+        }
+
+        return {
+            success: true,
+            report: {
+                id: String(inserted[0]?.id || ''),
+                name: trimmedName,
+                datasetId: input.datasetId,
+                metricIds: input.metricIds,
+                dimensionIds: input.dimensionIds || [],
+                scheduleFrequency,
+                recipientEmail,
+                createdAt:
+                    inserted[0]?.created_at instanceof Date
+                        ? inserted[0].created_at.toISOString()
+                        : String(inserted[0]?.created_at || new Date().toISOString()),
+            },
+        };
+    } catch (error) {
+        return {
+            success: false,
+            error: describeError(error, 'Failed to save custom report definition.'),
+        };
+    }
+}
+
+export async function getSavedBiReports(): Promise<SavedBiReportDefinition[]> {
+    try {
+        const { tenantId } = await requireAuth('reports:read');
+        const rows = await sql<{
+            id: string;
+            after_state: Record<string, unknown> | null;
+            created_at: Date | string;
+        }>`
+            SELECT id, after_state, created_at
+            FROM audit_logs
+            WHERE tenant_id = ${tenantId}
+              AND action = 'BI_REPORT_SAVED'
+            ORDER BY created_at DESC
+            LIMIT 20
+        `;
+
+        return rows.map(row => {
+            const state = (row.after_state && typeof row.after_state === 'object'
+                ? row.after_state
+                : {}) as Record<string, unknown>;
+            const freq = String(state.scheduleFrequency || 'NONE').toUpperCase();
+            return {
+                id: row.id,
+                name: String(state.name || 'Saved Report'),
+                datasetId: String(state.datasetId || ''),
+                metricIds: Array.isArray(state.metricIds) ? state.metricIds.map(String) : [],
+                dimensionIds: Array.isArray(state.dimensionIds) ? state.dimensionIds.map(String) : [],
+                scheduleFrequency: (['NONE', 'DAILY', 'WEEKLY', 'MONTHLY'].includes(freq)
+                    ? freq
+                    : 'NONE') as 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY',
+                recipientEmail: state.recipientEmail ? String(state.recipientEmail) : undefined,
+                createdAt:
+                    row.created_at instanceof Date
+                        ? row.created_at.toISOString()
+                        : String(row.created_at),
+            };
+        });
+    } catch {
+        return [];
+    }
+}
+

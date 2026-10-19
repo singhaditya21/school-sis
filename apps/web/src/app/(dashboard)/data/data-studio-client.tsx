@@ -6,14 +6,17 @@ import { useRouter } from 'next/navigation';
 import {
     Database,
     Columns,
+    Download,
     Filter,
     GripHorizontal,
     Plus,
     Save,
+    Trash2,
     ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
+    deleteRecord,
     saveObjectLayout,
     updateRecordFieldValue,
 } from '@/lib/actions/metadata-engine';
@@ -126,6 +129,50 @@ export default function DataStudioClient({
         });
     };
 
+    const handleStudioExportCsv = () => {
+        if (!activeObject) return;
+        const escapeCell = (val: unknown): string => {
+            const raw = val == null ? '' : String(val);
+            if (/[",\r\n]/.test(raw)) {
+                return `"${raw.replace(/"/g, '""')}"`;
+            }
+            return raw;
+        };
+        const headerLine = fields.map(f => escapeCell(f.name)).join(',');
+        const bodyLines = visibleRecords.map(rec =>
+            fields.map(f => escapeCell(rec[f.name])).join(','),
+        );
+        const csvContent = [headerLine, ...bodyLines].join('\n');
+        if (typeof window !== 'undefined') {
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = `${activeObject.name}_studio_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            URL.revokeObjectURL(url);
+        }
+        toast.success(`Exported ${visibleRecords.length} record(s) from Data Studio.`);
+    };
+
+    const handleStudioDeleteRecord = (recordId: string) => {
+        if (!activeObject) return;
+        const previous = records;
+        setRecords(prev => prev.filter(r => String(r.id) !== recordId));
+        startTransition(async () => {
+            const res = await deleteRecord(activeObject.name, recordId);
+            if (res.success) {
+                toast.success('Record deleted.');
+                router.refresh();
+            } else {
+                setRecords(previous);
+                toast.error(res.error || 'Failed to delete record.');
+            }
+        });
+    };
+
     return (
         <div className="flex flex-col h-[calc(100vh-8rem)]">
             {/* Header & Actions */}
@@ -204,12 +251,22 @@ export default function DataStudioClient({
                             <Filter className="w-4 h-4" /> Filter
                         </button>
                         {activeObject && (
-                            <Link
-                                href={`/settings/objects/${activeObject.id}`}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded hover:bg-muted transition-colors"
-                            >
-                                <Columns className="w-4 h-4" /> Fields &amp; Layout Builder
-                            </Link>
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={handleStudioExportCsv}
+                                    data-testid="studio-export-csv"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded hover:bg-muted transition-colors"
+                                >
+                                    <Download className="w-4 h-4" /> Export CSV
+                                </button>
+                                <Link
+                                    href={`/settings/objects/${activeObject.id}`}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded hover:bg-muted transition-colors"
+                                >
+                                    <Columns className="w-4 h-4" /> Fields &amp; Layout Builder
+                                </Link>
+                            </>
                         )}
                         <div className="h-4 w-px bg-border mx-2"></div>
                         <span className="text-muted-foreground">
@@ -317,7 +374,19 @@ export default function DataStudioClient({
                                                 />
                                             </td>
                                         ))}
-                                        <td></td>
+                                        <td className="px-4 py-2 text-right">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleStudioDeleteRecord(String(rec.id))
+                                                }
+                                                data-testid={`studio-delete-${String(rec.id)}`}
+                                                title="Delete record"
+                                                className="text-muted-foreground hover:text-destructive transition-colors"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))
                             )}

@@ -1654,6 +1654,225 @@ export async function updateRecordFieldValue(
     }
 }
 
+/**
+ * Deletes a metadata record (EAV or TABLE), writes an audit log entry, and fires
+ * active `object.record.deleted` workflows for the object.
+ */
+export async function deleteRecord(
+    apiName: string,
+    recordId: string,
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        if (!UUID_RE.test(recordId)) {
+            return { success: false, error: 'Invalid record ID.' };
+        }
+        const { tenantId, session } = await requireAuth();
+        const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
+
+        const writableFields = fields.filter(f =>
+            canWriteMetadataField(
+                session.role,
+                f as unknown as RuntimeMetadataFieldWithPermissions,
+            ),
+        );
+        if (writableFields.length === 0) {
+            return { success: false, error: 'You do not have permission to delete records on this object.' };
+        }
+
+        const matchedRows = await queryRecords(apiName, { id: recordId }, 1, 0);
+        const priorRecord = matchedRows[0] || { id: recordId };
+
+        if (resolveMetadataStorageMode(objectDef) === 'EAV') {
+            await sql`
+                DELETE FROM metadata_values
+                WHERE record_id = ${recordId}
+                  AND record_id IN (
+                      SELECT id FROM metadata_records
+                      WHERE id = ${recordId}
+                        AND object_id = ${objectDef.id}
+                        AND tenant_id = ${tenantId}
+                  )
+            `.execute();
+
+            await sql`
+                DELETE FROM metadata_records
+                WHERE id = ${recordId}
+                  AND object_id = ${objectDef.id}
+                  AND tenant_id = ${tenantId}
+            `.execute();
+        } else {
+            const tableIdent = identifier(objectDef.tableName);
+            await sql`
+                DELETE FROM ${tableIdent}
+                WHERE id = ${recordId}
+                  AND tenant_id = ${tenantId}
+            `.execute();
+        }
+
+        await sql`
+            INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, before_state)
+            VALUES (
+                ${tenantId},
+                'METADATA_RECORD_DELETED',
+                ${apiName},
+                ${recordId},
+                ${JSON.stringify(priorRecord)}::jsonb
+            )
+        `.execute();
+
+        await executeMatchingWorkflows(
+            tenantId,
+            apiName,
+            'object.record.deleted',
+            priorRecord,
+            recordId,
+        );
+
+        revalidateTag('metadata', 'max');
+        return { success: true };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to delete record.',
+        };
+    }
+}
+
+/**
+ * Bulk-imports validated CSV rows into a metadata object (EAV or TABLE),
+ * firing `object.record.upserted` workflows for each created record.
+ */
+export async function bulkImportRecords(
+    apiName: string,
+    rawRows: Record<string, unknown>[],
+): Promise<{ success: boolean; importedCount: number; errors: string[] }> {
+    try {
+        if (!Array.isArray(rawRows) || rawRows.length === 0) {
+            return { success: false, importedCount: 0, errors: ['No rows provided for import.'] };
+        }
+        if (rawRows.length > 500) {
+            return { success: false, importedCount: 0, errors: ['Bulk import supports at most 500 rows per batch.'] };
+        }
+
+        const { tenantId, session } = await requireAuth();
+        const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
+        const writableFields = fields.filter(
+            f =>
+                canWriteMetadataField(
+                    session.role,
+                    f as unknown as RuntimeMetadataFieldWithPermissions,
+                ) && f.validationRules?.fieldSubType !== 'FORMULA',
+        );
+
+        if (writableFields.length === 0) {
+            return {
+                success: false,
+                importedCount: 0,
+                errors: ['You do not have write permission on any fields of this object.'],
+            };
+        }
+
+        const fieldByNormalizedKey = new Map<string, MetadataField>();
+        for (const field of writableFields) {
+            fieldByNormalizedKey.set(field.apiName.toLowerCase(), field);
+            fieldByNormalizedKey.set(field.label.trim().toLowerCase(), field);
+        }
+
+        let importedCount = 0;
+        const errors: string[] = [];
+
+        for (let idx = 0; idx < rawRows.length; idx++) {
+            const rawRow = rawRows[idx];
+            if (!rawRow || typeof rawRow !== 'object') continue;
+
+            const mappedPayload: Record<string, unknown> = {};
+            for (const [header, cellVal] of Object.entries(rawRow)) {
+                const matched = fieldByNormalizedKey.get(header.trim().toLowerCase());
+                if (!matched) continue;
+                if (cellVal !== undefined && cellVal !== '') {
+                    mappedPayload[matched.apiName] = cellVal;
+                }
+            }
+
+            const validated = validateMetadataRecordPayload(writableFields, mappedPayload, {
+                requireAll: true,
+            });
+            if (validated.ok === false) {
+                errors.push(`Row ${idx + 1}: ${validated.errors.join('; ')}`);
+                continue;
+            }
+
+            if (resolveMetadataStorageMode(objectDef) === 'EAV') {
+                const createdId = await upsertEavRecord(
+                    objectDef,
+                    writableFields,
+                    tenantId,
+                    validated.data,
+                );
+                importedCount++;
+                await executeMatchingWorkflows(
+                    tenantId,
+                    apiName,
+                    'object.record.upserted',
+                    validated.data,
+                    createdId,
+                );
+            } else {
+                const customPayload: Record<string, unknown> = {};
+                for (const field of writableFields) {
+                    if (field.isCustom && validated.data[field.apiName] !== undefined) {
+                        customPayload[field.apiName] = validated.data[field.apiName];
+                    }
+                }
+                const createdId = await upsertEavRecord(
+                    { ...objectDef, tableName: 'metadata_records' },
+                    writableFields,
+                    tenantId,
+                    { ...validated.data, ...customPayload },
+                );
+                importedCount++;
+                await executeMatchingWorkflows(
+                    tenantId,
+                    apiName,
+                    'object.record.upserted',
+                    validated.data,
+                    createdId,
+                );
+            }
+        }
+
+        if (importedCount > 0) {
+            await sql`
+                INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)
+                VALUES (
+                    ${tenantId},
+                    'METADATA_BULK_IMPORT',
+                    ${apiName},
+                    ${objectDef.id},
+                    ${JSON.stringify({
+                        importedCount,
+                        errorCount: errors.length,
+                        importedAt: new Date().toISOString(),
+                    })}::jsonb
+                )
+            `.execute();
+            revalidateTag('metadata', 'max');
+        }
+
+        return {
+            success: importedCount > 0 && errors.length === 0,
+            importedCount,
+            errors,
+        };
+    } catch (error) {
+        return {
+            success: false,
+            importedCount: 0,
+            errors: [error instanceof Error ? error.message : 'Bulk import failed.'],
+        };
+    }
+}
+
 export interface WorkflowExecutionResult {
     workflowId: string;
     workflowName: string;

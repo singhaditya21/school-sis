@@ -6,6 +6,7 @@ import {
 } from '@school-sis/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ReportBuilder from './report-builder';
+import { getSavedBiReports } from './bi-actions';
 import { getBiDatasetDateLabel, isExecutableBiDataset, UNSUPPORTED_BI_DATASETS } from './bi-query-plan';
 import type { ReportDatasetOption, ReportWorkspace } from './bi-types';
 
@@ -17,7 +18,10 @@ export const metadata = {
 };
 
 export default async function ReportsPage() {
-    const { tenantId, userId, session } = await requireAuth('reports:read');
+    const [{ tenantId, userId, session }, savedReports] = await Promise.all([
+        requireAuth('reports:read'),
+        getSavedBiReports().catch(() => []),
+    ]);
 
     const snapshot = buildBiCatalogSnapshot(
         { role: session.role, tenantId, userId },
@@ -104,8 +108,9 @@ export default async function ReportsPage() {
                     </CardContent>
                 </Card>
             ) : (
-                <ReportBuilder workspace={workspace} />
+                <ReportBuilder workspace={workspace} initialSavedReports={savedReports} />
             )}
         </div>
     );
 }
+

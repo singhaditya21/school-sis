@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { AlertTriangle, Database, Download, Loader2, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, BookmarkPlus, CalendarClock, Database, Download, Loader2, ShieldCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,12 +14,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { formatCurrency } from '@/lib/utils';
-import { exportBiReport, runBiReport } from './bi-actions';
+import {
+    exportBiReport,
+    runBiReport,
+    saveCustomReportDefinition,
+    type SavedBiReportDefinition,
+} from './bi-actions';
 import type { BiReportColumn, BiReportRow, ReportWorkspace } from './bi-types';
 
 const LIMIT_OPTIONS = [100, 500, 1000, 5000];
 
-export default function ReportBuilder({ workspace }: { workspace: ReportWorkspace }) {
+export default function ReportBuilder({
+    workspace,
+    initialSavedReports = [],
+}: {
+    workspace: ReportWorkspace;
+    initialSavedReports?: SavedBiReportDefinition[];
+}) {
     const runnable = useMemo(() => workspace.datasets.filter((dataset) => dataset.executable), [workspace.datasets]);
     const blocked = useMemo(() => workspace.datasets.filter((dataset) => !dataset.executable), [workspace.datasets]);
 
@@ -44,6 +55,56 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
     const [exporting, setExporting] = useState(false);
     const [pendingApprovalId, setPendingApprovalId] = useState<string | null>(null);
     const [approvalNotice, setApprovalNotice] = useState<string | null>(null);
+
+    const [savedReports, setSavedReports] = useState<SavedBiReportDefinition[]>(initialSavedReports);
+    const [reportName, setReportName] = useState('');
+    const [scheduleFrequency, setScheduleFrequency] = useState<'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'>('NONE');
+    const [recipientEmail, setRecipientEmail] = useState('');
+    const [savingReport, setSavingReport] = useState(false);
+
+    async function handleSaveReport() {
+        if (!dataset || metricIds.length === 0) {
+            toast.error('Select a dataset and at least one metric before saving.');
+            return;
+        }
+        if (!reportName.trim()) {
+            toast.error('Enter a report name to save or schedule.');
+            return;
+        }
+        setSavingReport(true);
+        try {
+            const res = await saveCustomReportDefinition({
+                name: reportName.trim(),
+                datasetId,
+                metricIds,
+                dimensionIds,
+                scheduleFrequency,
+                recipientEmail: recipientEmail.trim() || undefined,
+            });
+            if (!res.success || !res.report) {
+                toast.error(res.error || 'Could not save report.');
+                return;
+            }
+            setSavedReports(prev => [res.report!, ...prev]);
+            setReportName('');
+            toast.success(
+                scheduleFrequency === 'NONE'
+                    ? `Saved report "${res.report.name}".`
+                    : `Saved "${res.report.name}" and scheduled ${scheduleFrequency.toLowerCase()} delivery.`,
+            );
+        } finally {
+            setSavingReport(false);
+        }
+    }
+
+    function handleLoadSavedReport(saved: SavedBiReportDefinition) {
+        setDatasetId(saved.datasetId);
+        setMetricIds(saved.metricIds);
+        setDimensionIds(saved.dimensionIds);
+        setScheduleFrequency(saved.scheduleFrequency);
+        if (saved.recipientEmail) setRecipientEmail(saved.recipientEmail);
+        toast.success(`Loaded saved report "${saved.name}".`);
+    }
 
     function selectDataset(nextId: string) {
         setDatasetId(nextId);
@@ -497,7 +558,7 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
                                     </div>
                                 )}
                                 {approvalNotice && (
-                                    <div className="flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+                                    <div className="flex items-start gap-2 rounded-md bg-warning-subtle border border-warning/30 p-3 text-xs text-warning">
                                         <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                                         <span>
                                             {approvalNotice}{' '}
@@ -537,6 +598,104 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
                     </CardContent>
                 </Card>
             )}
+
+            <Card data-testid="save-schedule-report-panel">
+                <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                        <BookmarkPlus className="h-4 w-4 text-primary" /> Save &amp; Schedule Custom Report
+                    </CardTitle>
+                    <CardDescription>
+                        Save your selected dataset, metrics, and dimensions for one-click reload or schedule automated email delivery.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-4 items-end">
+                        <div className="space-y-1 md:col-span-1">
+                            <Label htmlFor="saved-report-name" className="text-xs">
+                                Report Name
+                            </Label>
+                            <Input
+                                id="saved-report-name"
+                                placeholder="e.g. Monthly Fee Collection Summary"
+                                value={reportName}
+                                onChange={e => setReportName(e.target.value)}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs">Schedule Delivery</Label>
+                            <Select
+                                value={scheduleFrequency}
+                                onValueChange={v =>
+                                    setScheduleFrequency(v as 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY')
+                                }
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="NONE">Save Only (No Schedule)</SelectItem>
+                                    <SelectItem value="DAILY">Daily Email Digest</SelectItem>
+                                    <SelectItem value="WEEKLY">Weekly Email Digest</SelectItem>
+                                    <SelectItem value="MONTHLY">Monthly Board Pack</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1">
+                            <Label htmlFor="saved-report-email" className="text-xs">
+                                Recipient Email (Optional)
+                            </Label>
+                            <Input
+                                id="saved-report-email"
+                                type="email"
+                                placeholder="principal@school.edu"
+                                value={recipientEmail}
+                                onChange={e => setRecipientEmail(e.target.value)}
+                            />
+                        </div>
+                        <Button
+                            type="button"
+                            onClick={handleSaveReport}
+                            disabled={savingReport || metricIds.length === 0}
+                            data-testid="save-custom-report-btn"
+                        >
+                            {savingReport ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <CalendarClock className="mr-2 h-4 w-4" />
+                            )}
+                            {scheduleFrequency === 'NONE' ? 'Save Report' : 'Save & Schedule'}
+                        </Button>
+                    </div>
+
+                    {savedReports.length > 0 && (
+                        <div className="pt-3 border-t border-border space-y-2">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                Saved Reports ({savedReports.length})
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {savedReports.map(saved => (
+                                    <button
+                                        key={saved.id}
+                                        type="button"
+                                        onClick={() => handleLoadSavedReport(saved)}
+                                        className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:border-primary transition-colors"
+                                    >
+                                        <span>{saved.name}</span>
+                                        <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] font-mono text-primary">
+                                            {saved.datasetId}
+                                        </span>
+                                        {saved.scheduleFrequency !== 'NONE' && (
+                                            <span className="rounded bg-info-subtle px-1.5 py-0.5 text-[10px] font-semibold text-info">
+                                                {saved.scheduleFrequency}
+                                            </span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
 
             {(blocked.length > 0 || workspace.governanceSignals.length > 0 || workspace.dashboards.length > 0) && (
                 <Card>
