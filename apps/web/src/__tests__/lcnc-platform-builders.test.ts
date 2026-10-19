@@ -6,14 +6,26 @@ function readWebSource(relativePath: string): string {
 }
 
 describe('LCNC & Drag-and-Drop Platform Builders', () => {
-    it('exposes saveObjectLayout, updateFieldPermissions, updateRecordFieldValue, and live workflow evaluation in metadata-engine.ts', () => {
+    it('exposes saveObjectLayout, updateFieldPermissions, updateRecordFieldValue, and live workflow action runners in metadata-engine.ts', () => {
         const source = readWebSource('src/lib/actions/metadata-engine.ts');
         expect(source).toContain('export async function saveObjectLayout');
         expect(source).toContain('export async function updateFieldPermissions');
         expect(source).toContain('export async function updateRecordFieldValue');
+        expect(source).toContain('export async function runSingleWorkflowAction');
         expect(source).toContain('async function executeMatchingWorkflows');
+        expect(source).toContain("runner: 'FIELD_UPDATE'");
+        expect(source).toContain("runner: 'CREATE_TASK'");
+        expect(source).toContain("runner: 'SEND_EMAIL'");
+        expect(source).toContain("runner: 'WEBHOOK'");
+        expect(source).toContain('INSERT INTO notification_outbox');
+        expect(source).toContain('INSERT INTO appointments');
+        expect(source).toContain('INSERT INTO background_jobs');
         expect(source).toContain("INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)");
         expect(source).toContain("'WORKFLOW_EXECUTED'");
+
+        const automationActions = readWebSource('src/lib/actions/automation.ts');
+        expect(automationActions).toContain('export async function getWorkflowExecutions');
+        expect(automationActions).toContain('export async function triggerWorkflowTestRun');
     });
 
     it('provides a Drag-and-Drop Form and List Layout Designer for metadata objects', () => {

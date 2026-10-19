@@ -66,10 +66,18 @@ const PALETTE_BLOCKS = [
     {
         id: 'act-update',
         kind: 'ACTION' as const,
-        label: 'Action: Audit / Tag Record',
+        label: 'Action: Update Field',
         actionType: 'UPDATE_FIELD',
         defaultPayload: '{"field": "status", "value": "REVIEWED"}',
-        description: 'Apply automated field update',
+        description: 'Apply automated field update on the record',
+    },
+    {
+        id: 'act-task',
+        kind: 'ACTION' as const,
+        label: 'Action: Create Follow-Up Task',
+        actionType: 'CREATE_TASK',
+        defaultPayload: '{"title": "Follow up on record", "due_days": 1, "type": "FOLLOW_UP"}',
+        description: 'Schedule a staff task and queue background job',
     },
 ];
 
@@ -423,8 +431,9 @@ export function WorkflowBuilder() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="SEND_EMAIL">Send Email</SelectItem>
-                                        <SelectItem value="WEBHOOK">Trigger Webhook</SelectItem>
-                                        <SelectItem value="UPDATE_FIELD">Update Field</SelectItem>
+                                        <SelectItem value="WEBHOOK">Trigger Signed Webhook</SelectItem>
+                                        <SelectItem value="UPDATE_FIELD">Update Record Field</SelectItem>
+                                        <SelectItem value="CREATE_TASK">Create Follow-Up Task</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>

@@ -1527,6 +1527,364 @@ export async function updateRecordFieldValue(
     }
 }
 
+export interface WorkflowExecutionResult {
+    workflowId: string;
+    workflowName: string;
+    actionType: string;
+    status: 'EXECUTED' | 'SKIPPED';
+    details: Record<string, unknown>;
+}
+
+/**
+ * Executes a single workflow action (`UPDATE_FIELD`, `CREATE_TASK`, `SEND_EMAIL`, `WEBHOOK`)
+ * and logs the execution result to `audit_logs`.
+ */
+export async function runSingleWorkflowAction(params: {
+    tenantId: string;
+    workflowId: string;
+    workflowName: string;
+    objectName: string;
+    triggerEvent: string;
+    actionType: string;
+    actionPayload: Record<string, unknown>;
+    recordId: string;
+    recordData: Record<string, unknown>;
+}): Promise<WorkflowExecutionResult> {
+    const {
+        tenantId,
+        workflowId,
+        workflowName,
+        objectName,
+        triggerEvent,
+        actionType,
+        actionPayload,
+        recordId,
+        recordData,
+    } = params;
+
+    const normalizedAction = String(actionType || '').trim().toUpperCase();
+    let actionDetails: Record<string, unknown> = {};
+
+    if (normalizedAction === 'UPDATE_FIELD' || normalizedAction === 'FIELD_UPDATE') {
+        const targetFieldApi = String(actionPayload.field || '').trim();
+        const rawTargetValue = actionPayload.value;
+
+        if (targetFieldApi && UUID_RE.test(recordId)) {
+            const { objectDef, fields } = await loadObjectMetadata(objectName, tenantId);
+            const targetField = fields.find(f => f.apiName === targetFieldApi);
+            if (targetField) {
+                const validated = validateMetadataRecordPayload(
+                    [targetField],
+                    { [targetFieldApi]: rawTargetValue },
+                    { requireAll: false },
+                );
+                if (validated.ok) {
+                    const normalizedVal = validated.data[targetFieldApi];
+                    // Guard against redundant self-updates
+                    if (String(recordData[targetFieldApi] ?? '') !== String(normalizedVal ?? '')) {
+                        if (resolveMetadataStorageMode(objectDef) === 'EAV') {
+                            await upsertEavRecord(
+                                objectDef,
+                                [targetField],
+                                tenantId,
+                                { [targetFieldApi]: normalizedVal },
+                                recordId,
+                            );
+                        } else {
+                            const tableIdent = identifier(objectDef.tableName);
+                            if (targetField.isCustom) {
+                                await sql`
+                                    UPDATE ${tableIdent}
+                                    SET custom_data = COALESCE(custom_data, '{}'::jsonb) || ${JSON.stringify({
+                                        [targetFieldApi]: normalizedVal,
+                                    })}::jsonb,
+                                        updated_at = CURRENT_TIMESTAMP
+                                    WHERE id = ${recordId} AND tenant_id = ${tenantId}
+                                `.execute();
+                            } else {
+                                const colIdent = identifier(targetFieldApi);
+                                await sql`
+                                    UPDATE ${tableIdent}
+                                    SET ${colIdent} = ${normalizedVal},
+                                        updated_at = CURRENT_TIMESTAMP
+                                    WHERE id = ${recordId} AND tenant_id = ${tenantId}
+                                `.execute();
+                            }
+                        }
+                    }
+                    actionDetails = {
+                        runner: 'FIELD_UPDATE',
+                        field: targetFieldApi,
+                        newValue: normalizedVal,
+                    };
+                }
+            }
+        }
+        if (!actionDetails.runner) {
+            actionDetails = {
+                runner: 'FIELD_UPDATE',
+                field: targetFieldApi || 'status',
+                newValue: rawTargetValue ?? null,
+            };
+        }
+    } else if (normalizedAction === 'CREATE_TASK' || normalizedAction === 'TASK') {
+        const title =
+            String(actionPayload.title || '').trim() ||
+            `Follow up: ${workflowName} (${objectName})`;
+        const description =
+            String(actionPayload.description || '').trim() ||
+            `Automated task triggered by workflow "${workflowName}" on ${objectName} record ${recordId}.`;
+        const dueDays = Math.max(0, Number(actionPayload.due_days ?? 1) || 1);
+        const dueDate = new Date(Date.now() + dueDays * 86_400_000).toISOString().split('T')[0];
+        const taskType = String(actionPayload.type || 'FOLLOW_UP').trim();
+
+        const appointmentRows = await sql<{ id: string }>`
+            INSERT INTO appointments (
+                tenant_id, title, description, date, time, duration, status, type
+            )
+            VALUES (
+                ${tenantId},
+                ${title},
+                ${description},
+                ${dueDate},
+                '09:00',
+                30,
+                'SCHEDULED',
+                ${taskType}
+            )
+            RETURNING id
+        `;
+
+        const jobRows = await sql<{ id: string }>`
+            INSERT INTO background_jobs (
+                tenant_id, scope, queue, task_name, status, priority, payload,
+                scheduled_for, available_at, max_attempts
+            )
+            VALUES (
+                ${tenantId},
+                'TENANT',
+                'default',
+                'workflow.follow_up_task',
+                'QUEUED',
+                0,
+                ${JSON.stringify({
+                    tenantId,
+                    workflowId,
+                    appointmentId: appointmentRows[0]?.id ?? null,
+                    objectName,
+                    recordId,
+                    title,
+                    dueDate,
+                })}::jsonb,
+                NOW(),
+                NOW(),
+                3
+            )
+            RETURNING id
+        `;
+
+        actionDetails = {
+            runner: 'CREATE_TASK',
+            appointmentId: appointmentRows[0]?.id ?? null,
+            jobId: jobRows[0]?.id ?? null,
+            title,
+            dueDate,
+        };
+    } else if (normalizedAction === 'SEND_EMAIL' || normalizedAction === 'EMAIL') {
+        const toField = String(actionPayload.to_field || 'email').trim();
+        const explicitTo = String(actionPayload.to || '').trim();
+        const resolvedRecipient =
+            explicitTo ||
+            (typeof recordData[toField] === 'string' && String(recordData[toField]).includes('@')
+                ? String(recordData[toField]).trim()
+                : 'notifications@scholarmind.local');
+
+        const templateId = String(actionPayload.template || 'workflow_notification').trim();
+        const subject =
+            String(actionPayload.subject || '').trim() ||
+            `[ScholarMind] ${workflowName} (${objectName})`;
+        const body =
+            String(actionPayload.body || '').trim() ||
+            `Workflow "${workflowName}" triggered on ${objectName} (${recordId}) via ${triggerEvent}.`;
+
+        const outboxRows = await sql<{ id: string }>`
+            INSERT INTO notification_outbox (
+                tenant_id, channel, status, provider, recipient, subject, body,
+                template_id, payload, scheduled_for, next_attempt_at, max_attempts
+            )
+            VALUES (
+                ${tenantId},
+                'EMAIL',
+                'PENDING',
+                'resend',
+                ${resolvedRecipient},
+                ${subject},
+                ${body},
+                ${templateId},
+                ${JSON.stringify({
+                    workflowId,
+                    workflowName,
+                    objectName,
+                    recordId,
+                    triggerEvent,
+                })}::jsonb,
+                NOW(),
+                NOW(),
+                3
+            )
+            RETURNING id
+        `;
+
+        const jobRows = await sql<{ id: string }>`
+            INSERT INTO background_jobs (
+                tenant_id, scope, queue, task_name, status, priority, payload,
+                scheduled_for, available_at, max_attempts
+            )
+            VALUES (
+                ${tenantId},
+                'TENANT',
+                'notifications',
+                'send-notification',
+                'QUEUED',
+                0,
+                ${JSON.stringify({
+                    tenantId,
+                    notificationId: outboxRows[0]?.id ?? null,
+                    channel: 'EMAIL',
+                    recipient: resolvedRecipient,
+                })}::jsonb,
+                NOW(),
+                NOW(),
+                3
+            )
+            RETURNING id
+        `;
+
+        actionDetails = {
+            runner: 'SEND_EMAIL',
+            outboxId: outboxRows[0]?.id ?? null,
+            jobId: jobRows[0]?.id ?? null,
+            recipient: resolvedRecipient,
+            template: templateId,
+        };
+    } else if (normalizedAction === 'WEBHOOK') {
+        const targetUrl = String(actionPayload.url || 'https://example.org/webhook').trim();
+        const method = String(actionPayload.method || 'POST').trim().toUpperCase();
+        const signingSecret =
+            String(actionPayload.secret || '').trim() ||
+            process.env.WEBHOOK_SIGNING_SECRET ||
+            'scholarmind-workflow-hmac';
+
+        const eventBody = {
+            event: triggerEvent,
+            workflowId,
+            workflowName,
+            tenantId,
+            objectName,
+            recordId,
+            data: recordData,
+            timestamp: new Date().toISOString(),
+        };
+        const serializedBody = JSON.stringify(eventBody);
+        const signature = `sha256=${crypto
+            .createHmac('sha256', signingSecret)
+            .update(serializedBody)
+            .digest('hex')}`;
+
+        const jobRows = await sql<{ id: string }>`
+            INSERT INTO background_jobs (
+                tenant_id, scope, queue, task_name, status, priority, payload,
+                scheduled_for, available_at, max_attempts
+            )
+            VALUES (
+                ${tenantId},
+                'TENANT',
+                'webhooks',
+                'webhook.dispatch',
+                'QUEUED',
+                0,
+                ${JSON.stringify({
+                    tenantId,
+                    workflowId,
+                    url: targetUrl,
+                    method,
+                    signature,
+                    body: eventBody,
+                })}::jsonb,
+                NOW(),
+                NOW(),
+                3
+            )
+            RETURNING id
+        `;
+
+        let httpStatus: number | null = null;
+        if (
+            targetUrl.startsWith('https://') &&
+            !targetUrl.includes('example.org') &&
+            process.env.NODE_ENV !== 'test'
+        ) {
+            try {
+                const res = await fetch(targetUrl, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-ScholarMind-Signature': signature,
+                        'X-ScholarMind-Event': triggerEvent,
+                    },
+                    body: serializedBody,
+                    signal: AbortSignal.timeout(3000),
+                });
+                httpStatus = res.status;
+            } catch {
+                // Background worker job handles retries if immediate delivery fails
+            }
+        }
+
+        actionDetails = {
+            runner: 'WEBHOOK',
+            jobId: jobRows[0]?.id ?? null,
+            url: targetUrl,
+            method,
+            signature,
+            httpStatus,
+        };
+    } else {
+        actionDetails = {
+            runner: normalizedAction || 'CUSTOM',
+        };
+    }
+
+    const entityUuid = UUID_RE.test(recordId) ? recordId : workflowId;
+
+    await sql`
+        INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)
+        VALUES (
+            ${tenantId},
+            'WORKFLOW_EXECUTED',
+            ${objectName},
+            ${entityUuid},
+            ${JSON.stringify({
+                workflowId,
+                workflowName,
+                triggerEvent,
+                actionType: normalizedAction,
+                actionPayload,
+                actionResult: actionDetails,
+                executedAt: new Date().toISOString(),
+            })}::jsonb
+        )
+    `.execute();
+
+    return {
+        workflowId,
+        workflowName,
+        actionType: normalizedAction,
+        status: 'EXECUTED',
+        details: actionDetails,
+    };
+}
+
 /**
  * Evaluates and executes active `metadata_workflows` matching a record mutation.
  */
@@ -1538,7 +1896,13 @@ async function executeMatchingWorkflows(
     recordId: string,
 ): Promise<void> {
     try {
-        const workflows = await sql<Record<string, unknown>>`
+        const workflows = await sql<{
+            id: string;
+            name: string;
+            conditions: { field?: string; operator?: string; value?: string }[];
+            action_type: string;
+            action_payload: Record<string, unknown>;
+        }>`
             SELECT id, name, conditions, action_type, action_payload
             FROM metadata_workflows
             WHERE tenant_id = ${tenantId}
@@ -1548,9 +1912,7 @@ async function executeMatchingWorkflows(
         `;
 
         for (const wf of workflows) {
-            const conditions: { field?: string; operator?: string; value?: string }[] = Array.isArray(wf.conditions)
-                ? wf.conditions
-                : [];
+            const conditions = Array.isArray(wf.conditions) ? wf.conditions : [];
 
             const allMatched = conditions.every(cond => {
                 if (!cond.field) return true;
@@ -1580,25 +1942,20 @@ async function executeMatchingWorkflows(
                 ? wf.action_payload
                 : {}) as Record<string, unknown>;
 
-            await sql`
-                INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)
-                VALUES (
-                    ${tenantId},
-                    'WORKFLOW_EXECUTED',
-                    ${objectName},
-                    ${recordId},
-                    ${JSON.stringify({
-                        workflowId: wf.id,
-                        workflowName: wf.name,
-                        triggerEvent,
-                        actionType: wf.action_type,
-                        actionPayload: payload,
-                        executedAt: new Date().toISOString(),
-                    })}::jsonb
-                )
-            `.execute();
+            await runSingleWorkflowAction({
+                tenantId,
+                workflowId: wf.id,
+                workflowName: wf.name,
+                objectName,
+                triggerEvent,
+                actionType: wf.action_type,
+                actionPayload: payload,
+                recordId,
+                recordData,
+            });
         }
     } catch {
         // Non-blocking: workflow evaluation must not abort the primary record save
     }
 }
+

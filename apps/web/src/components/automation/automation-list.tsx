@@ -1,7 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Workflow, toggleWorkflow, deleteWorkflow } from '@/lib/actions/automation';
+import {
+  Workflow,
+  toggleWorkflow,
+  deleteWorkflow,
+  triggerWorkflowTestRun,
+} from '@/lib/actions/automation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -14,17 +19,36 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Trash2, ArrowRight } from 'lucide-react';
+import { Trash2, ArrowRight, Play } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function AutomationList({ initialWorkflows }: { initialWorkflows: Workflow[] }) {
   const [workflows, setWorkflows] = useState(initialWorkflows);
   const [pendingDelete, setPendingDelete] = useState<Workflow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [runningId, setRunningId] = useState<string | null>(null);
 
   const handleToggle = async (id: string, current: boolean) => {
     await toggleWorkflow(id, !current);
     setWorkflows(workflows.map(w => w.id === id ? { ...w, isActive: !current } : w));
+  };
+
+  const handleTestRun = async (workflow: Workflow) => {
+    setRunningId(workflow.id);
+    try {
+      const res = await triggerWorkflowTestRun(workflow.id);
+      if (res.success && res.result) {
+        toast.success(
+          `Executed "${workflow.name}" (${res.result.actionType}) — logged to tenant audit trail.`,
+        );
+      } else {
+        toast.error(res.error || 'Workflow test run failed.');
+      }
+    } catch {
+      toast.error('Workflow test run failed.');
+    } finally {
+      setRunningId(null);
+    }
   };
 
   const handleDelete = async () => {
@@ -64,7 +88,19 @@ export function AutomationList({ initialWorkflows }: { initialWorkflows: Workflo
                 <span className="text-xs font-medium">{workflow.triggerEvent}</span>
               </CardDescription>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                disabled={runningId === workflow.id}
+                onClick={() => handleTestRun(workflow)}
+                data-testid={`test-run-workflow-${workflow.id}`}
+              >
+                <Play className="h-3.5 w-3.5 text-primary" />
+                {runningId === workflow.id ? 'Running…' : 'Test Run'}
+              </Button>
               <Switch 
                 checked={workflow.isActive} 
                 onCheckedChange={() => handleToggle(workflow.id, workflow.isActive)}
