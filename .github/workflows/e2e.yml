@@ -109,7 +109,7 @@ jobs:
         run: pnpm --filter @school-sis/web run db:test:rls
 
   smoke:
-    name: Playwright Maintained E2E
+    name: Playwright Smoke
     needs: build
     # The same production-authenticated suite gates pull requests and runs nightly.
     # It includes the behavioural navigation sweep registered by smoke.spec.ts.
