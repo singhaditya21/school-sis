@@ -812,7 +812,7 @@ export function registerRouteSmokeTests(): void {
             ).toEqual([]);
         });
 
-        test('LCNC builders (Workflow Canvas, Data Studio, and BI Report Schedule) render interactive surfaces', async () => {
+        test('LCNC builders (Workflow Canvas, Data Studio, BI Report Schedule, and Integrations Console) render interactive surfaces', async () => {
             await visit(page, '/settings/automation/new');
             await check(page.locator('[data-testid="workflow-visual-canvas"]')).toBeVisible();
             await check(page.locator('[data-testid="workflow-target-object-trigger"]')).toBeVisible();
@@ -823,6 +823,9 @@ export function registerRouteSmokeTests(): void {
             await visit(page, '/reports');
             await check(page.locator('[data-testid="save-schedule-report-panel"]')).toBeVisible();
             await check(page.locator('[data-testid="save-custom-report-btn"]')).toBeVisible();
+
+            await visit(page, '/settings/integrations');
+            await check(page.locator('[data-testid="integrations-console"]')).toBeVisible();
         });
     });
 

@@ -313,6 +313,14 @@ export const API_ROUTES: readonly ApiRouteDoc[] = [
 
     // ---- Metadata platform ----------------------------------------------------
     {
+        path: '/api/data',
+        methods: ['GET'],
+        group: 'Metadata',
+        summary: 'List all published metadata-defined objects visible to the session tenant.',
+        auth: 'session-permission',
+        permission: 'metadata:read',
+    },
+    {
         path: '/api/data/[object_name]',
         methods: ['GET', 'POST'],
         group: 'Metadata',

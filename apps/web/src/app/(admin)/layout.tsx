@@ -153,6 +153,7 @@ export default async function AdminLayout({
                             <p className="px-4 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Settings</p>
                             <NavLink href="/settings/objects" icon="⚙️">Object Manager</NavLink>
                             <NavLink href="/automation" icon="⚡">Automations</NavLink>
+                            <NavLink href="/settings/integrations" icon="🔌">Integrations & Outbox</NavLink>
                             <NavLink href="/marketplace" icon="🧩">Marketplace</NavLink>
                         </div>
 

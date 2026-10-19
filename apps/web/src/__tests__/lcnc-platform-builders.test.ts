@@ -175,5 +175,30 @@ describe('LCNC & Drag-and-Drop Platform Builders', () => {
         expect(reportBuilder).toContain('save-schedule-report-panel');
         expect(reportBuilder).toContain('save-custom-report-btn');
     });
+
+    it('provides /settings/integrations console for provider readiness and notification_outbox inspection', () => {
+        const actions = readWebSource('src/app/(admin)/settings/integrations/actions.ts');
+        expect(actions).toContain('export async function getIntegrationsConsoleData');
+        expect(actions).toContain('export async function sendTestChannelNotification');
+        expect(actions).toContain('export async function retryOutboxNotification');
+
+        const client = readWebSource('src/app/(admin)/settings/integrations/integrations-client.tsx');
+        expect(client).toContain('integrations-console');
+        expect(client).toContain('outbox-table');
+    });
+
+    it('exposes /api/data object discovery and mobile MetadataExplorerScreen for custom objects', () => {
+        const apiDataList = readWebSource('src/app/api/data/route.ts');
+        expect(apiDataList).toContain('FROM metadata_objects');
+        expect(apiDataList).toContain('logAudit');
+
+        const mobileExplorer = readFileSync(
+            resolve(process.cwd(), '../mobile/screens/MetadataExplorerScreen.tsx'),
+            'utf8',
+        );
+        expect(mobileExplorer).toContain('/api/data');
+        expect(mobileExplorer).toContain('Dynamic Object Explorer');
+    });
 });
+
 

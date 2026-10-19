@@ -100,8 +100,10 @@ export async function GET(
       auth.context.role,
     );
 
+    const clientFields = readableFields.map(({ permissions: _permissions, ...rest }) => rest);
+
     if (readableFields.length === 0) {
-      return NextResponse.json({ data: [] });
+      return NextResponse.json({ data: [], fields: [] });
     }
 
     // 2. Fetch all records and their EAV values for this object
@@ -151,7 +153,7 @@ export async function GET(
       },
     });
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ data, fields: clientFields });
   } catch (error) {
     console.error('Dynamic Data GET Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
