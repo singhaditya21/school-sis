@@ -245,11 +245,61 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
 
                     {dataset && (
                         <div className="grid gap-6 md:grid-cols-2">
-                            <div>
-                                <h3 className="text-sm font-semibold mb-2">Metrics</h3>
+                            <div
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    const droppedMetric = e.dataTransfer.getData('application/x-bi-metric');
+                                    if (droppedMetric && !metricIds.includes(droppedMetric)) {
+                                        setMetricIds([...metricIds, droppedMetric]);
+                                    }
+                                }}
+                                className="rounded-xl border border-border p-4 bg-muted/20"
+                            >
+                                <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold">Metrics (Click or Drag to Select)</h3>
+                                    <span className="text-xs text-muted-foreground">{metricIds.length} active</span>
+                                </div>
+                                {metricIds.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mb-3 p-2 rounded-lg border border-dashed border-primary/40 bg-accent/30">
+                                        {metricIds.map((mId, idx) => {
+                                            const m = dataset.metrics.find((item) => item.id === mId);
+                                            return (
+                                                <span
+                                                    key={mId}
+                                                    draggable
+                                                    onDragStart={(e) =>
+                                                        e.dataTransfer.setData('text/plain', String(idx))
+                                                    }
+                                                    onDragOver={(e) => e.preventDefault()}
+                                                    onDrop={(e) => {
+                                                        e.stopPropagation();
+                                                        const fromIdx = Number(e.dataTransfer.getData('text/plain'));
+                                                        if (!Number.isNaN(fromIdx) && fromIdx !== idx) {
+                                                            const next = [...metricIds];
+                                                            const [moved] = next.splice(fromIdx, 1);
+                                                            next.splice(idx, 0, moved);
+                                                            setMetricIds(next);
+                                                        }
+                                                    }}
+                                                    className="inline-flex items-center gap-1 rounded-md bg-card border border-border px-2 py-1 text-xs font-medium text-foreground cursor-grab active:cursor-grabbing"
+                                                >
+                                                    {m?.label ?? mId}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                                 <div className="space-y-2">
                                     {dataset.metrics.map((metric) => (
-                                        <label key={metric.id} className="flex items-start gap-3 text-sm">
+                                        <label
+                                            key={metric.id}
+                                            draggable
+                                            onDragStart={(e) =>
+                                                e.dataTransfer.setData('application/x-bi-metric', metric.id)
+                                            }
+                                            className="flex items-start gap-3 text-sm rounded-md p-1.5 hover:bg-muted cursor-grab active:cursor-grabbing"
+                                        >
                                             <Checkbox
                                                 className="mt-0.5"
                                                 checked={metricIds.includes(metric.id)}
@@ -263,11 +313,61 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
                                     ))}
                                 </div>
                             </div>
-                            <div>
-                                <h3 className="text-sm font-semibold mb-2">Group by</h3>
+                            <div
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    const droppedDim = e.dataTransfer.getData('application/x-bi-dimension');
+                                    if (droppedDim && !dimensionIds.includes(droppedDim)) {
+                                        setDimensionIds([...dimensionIds, droppedDim]);
+                                    }
+                                }}
+                                className="rounded-xl border border-border p-4 bg-muted/20"
+                            >
+                                <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold">Group by (Click or Drag to Order)</h3>
+                                    <span className="text-xs text-muted-foreground">{dimensionIds.length} active</span>
+                                </div>
+                                {dimensionIds.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mb-3 p-2 rounded-lg border border-dashed border-primary/40 bg-accent/30">
+                                        {dimensionIds.map((dId, idx) => {
+                                            const d = dataset.dimensions.find((item) => item.id === dId);
+                                            return (
+                                                <span
+                                                    key={dId}
+                                                    draggable
+                                                    onDragStart={(e) =>
+                                                        e.dataTransfer.setData('text/plain', String(idx))
+                                                    }
+                                                    onDragOver={(e) => e.preventDefault()}
+                                                    onDrop={(e) => {
+                                                        e.stopPropagation();
+                                                        const fromIdx = Number(e.dataTransfer.getData('text/plain'));
+                                                        if (!Number.isNaN(fromIdx) && fromIdx !== idx) {
+                                                            const next = [...dimensionIds];
+                                                            const [moved] = next.splice(fromIdx, 1);
+                                                            next.splice(idx, 0, moved);
+                                                            setDimensionIds(next);
+                                                        }
+                                                    }}
+                                                    className="inline-flex items-center gap-1 rounded-md bg-card border border-border px-2 py-1 text-xs font-medium text-foreground cursor-grab active:cursor-grabbing"
+                                                >
+                                                    {d?.label ?? dId}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                                 <div className="space-y-2">
                                     {dataset.dimensions.map((dimension) => (
-                                        <label key={dimension.id} className="flex items-center gap-3 text-sm">
+                                        <label
+                                            key={dimension.id}
+                                            draggable
+                                            onDragStart={(e) =>
+                                                e.dataTransfer.setData('application/x-bi-dimension', dimension.id)
+                                            }
+                                            className="flex items-center gap-3 text-sm rounded-md p-1.5 hover:bg-muted cursor-grab active:cursor-grabbing"
+                                        >
                                             <Checkbox
                                                 checked={dimensionIds.includes(dimension.id)}
                                                 onCheckedChange={() => toggle(dimensionIds, dimension.id, setDimensionIds)}
@@ -324,7 +424,7 @@ export default function ReportBuilder({ workspace }: { workspace: ReportWorkspac
             </Card>
 
             {error && (
-                <div className="p-4 rounded-md bg-red-50 text-red-700 border border-red-200 text-sm">{error}</div>
+                <div className="p-4 rounded-md bg-destructive-subtle text-destructive border border-destructive/30 text-sm">{error}</div>
             )}
 
             {hasRun && !error && (

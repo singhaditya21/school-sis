@@ -1,6 +1,6 @@
 'use server';
 
-import { pool, runWithTenantContext } from '@/lib/db';
+import { pool, runWithTenantContext, sql, sqlFor, identifier } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { redirect } from 'next/navigation';
 import { unstable_cache, revalidateTag } from 'next/cache';
@@ -495,7 +495,8 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
             if (validated.ok === false) {
                 return { success: false, error: validated.errors.join(' ') };
             }
-            await upsertEavRecord(objectDef, fields, tenantId, validated.data, id);
+            const savedId = await upsertEavRecord(objectDef, fields, tenantId, validated.data, id);
+            await executeMatchingWorkflows(tenantId, apiName, 'object.record.upserted', validated.data, savedId);
             redirect(`/app/${apiName}`);
         }
 
@@ -656,7 +657,14 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
                 WHERE id = $1 AND tenant_id = $2
                 RETURNING id
             `;
-             const { rows } = await pool.query(query, values);
+            const { rows } = await pool.query(query, values);
+            await executeMatchingWorkflows(
+                tenantId,
+                apiName,
+                'object.record.upserted',
+                { ...standardData, ...customData },
+                String(rows[0]?.id ?? id),
+            );
             
             redirect(`/app/${apiName}`);
         } else {
@@ -685,6 +693,13 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
             `;
             const { rows } = await pool.query(query, values);
             const recordId = rows[0].id;
+            await executeMatchingWorkflows(
+                tenantId,
+                apiName,
+                'object.record.upserted',
+                { ...standardData, ...customData },
+                String(recordId),
+            );
 
             redirect(`/app/${apiName}`);
         }
@@ -1030,44 +1045,89 @@ export async function createCustomField(
 export async function getObjectMetadataById(objectId: string) {
     const { tenantId } = await requireAuth();
 
-    const { rows: objRows } = await pool.query(`
+    type RawObjectRow = {
+        id: string;
+        tenant_id: string | null;
+        name: string;
+        api_name: string;
+        table_name: string;
+        description: string | null;
+        is_custom: boolean;
+        status: string;
+        version: number;
+    };
+
+    const objRows = await sql<RawObjectRow>`
         SELECT * FROM metadata_objects 
-        WHERE id = $1
+        WHERE id = ${objectId}
           AND status <> 'ARCHIVED'
           AND (
-            tenant_id = $2
+            tenant_id = ${tenantId}
             OR (tenant_id IS NULL AND COALESCE(is_custom, false) = false)
           )
-    `, [objectId, tenantId]);
+    `;
 
     if (objRows.length === 0) throw new Error("Object not found");
 
     let objectDef = objRows[0];
     if (objectDef.tenant_id === null) {
-        const { rows: tenantObjectRows } = await pool.query(
-            `SELECT *
-             FROM metadata_objects
-             WHERE tenant_id = $1
-               AND api_name = $2
-               AND status <> 'ARCHIVED'
-             ORDER BY created_at DESC
-             LIMIT 1`,
-            [tenantId, objectDef.api_name],
-        );
+        const tenantObjectRows = await sql<RawObjectRow>`
+            SELECT *
+            FROM metadata_objects
+            WHERE tenant_id = ${tenantId}
+              AND api_name = ${objectDef.api_name}
+              AND status <> 'ARCHIVED'
+            ORDER BY created_at DESC
+            LIMIT 1
+        `;
         if (tenantObjectRows.length > 0) objectDef = tenantObjectRows[0];
     }
 
-    const { rows: fieldRows } = await pool.query(`
-        SELECT * FROM metadata_fields 
-        WHERE object_id = $1
-          AND status <> 'ARCHIVED'
-        ORDER BY is_custom ASC, label ASC
-    `, [objectDef.id]);
+    const fieldRows = await sql<{
+        id: string;
+        object_id: string;
+        label: string;
+        api_name: string;
+        data_type: MetadataDataType;
+        is_custom: boolean;
+        is_required: boolean;
+        default_value: string | null;
+        picklist_options: string[];
+        validation_rules: MetadataValidationRules;
+        status: string;
+        version: number;
+        permissions: MetadataFieldPermission[];
+    }>`
+        SELECT f.*,
+               COALESCE(
+                 jsonb_agg(
+                   jsonb_build_object(
+                     'role', fp.role,
+                     'canRead', COALESCE(fp.can_read, true),
+                     'canWrite', COALESCE(fp.can_write, false)
+                   )
+                 ) FILTER (WHERE fp.id IS NOT NULL),
+                 '[]'::jsonb
+               ) as permissions
+        FROM metadata_fields f
+        LEFT JOIN field_permissions fp ON fp.field_id = f.id
+        WHERE f.object_id = ${objectDef.id}
+          AND f.status <> 'ARCHIVED'
+        GROUP BY f.id
+        ORDER BY f.is_custom ASC, f.label ASC
+    `;
+
+    const layoutRows = await sql<MetadataLayout>`
+        SELECT id, object_id as "objectId", layout_type as "layoutType", schema, is_default as "isDefault"
+        FROM metadata_layouts
+        WHERE object_id = ${objectDef.id} AND is_default = true
+    `;
 
     return {
         objectDef,
         fields: fieldRows.map(row => ({
             id: row.id,
+            objectId: row.object_id,
             label: row.label,
             apiName: row.api_name,
             dataType: row.data_type,
@@ -1078,7 +1138,9 @@ export async function getObjectMetadataById(objectId: string) {
             validationRules: row.validation_rules || {},
             status: row.status,
             version: row.version || 1,
-        } as MetadataField))
+            permissions: Array.isArray(row.permissions) ? row.permissions : [],
+        } as MetadataField)),
+        layouts: layoutRows as MetadataLayout[],
     };
 }
 
@@ -1282,5 +1344,261 @@ export async function createCustomObject(
         };
     } finally {
         client.release();
+    }
+}
+
+/**
+ * Persists a FORM or LIST layout schema for an object (created via the Drag-and-Drop Layout Builder).
+ */
+export async function saveObjectLayout(
+    objectId: string,
+    layoutType: 'FORM' | 'LIST',
+    schema: Record<string, unknown>,
+): Promise<{ success: boolean; objectId?: string; error?: string }> {
+    try {
+        const { tenantId, userId } = await requireAuth('metadata:publish');
+        if (layoutType !== 'FORM' && layoutType !== 'LIST') {
+            return { success: false, error: 'Invalid layout type.' };
+        }
+
+        const client = await pool.connect();
+        const q = sqlFor(client);
+        try {
+            await q`BEGIN`.execute();
+            const targetObject = await ensureTenantOwnedMetadataObject(client, objectId, tenantId, userId);
+
+            await q`
+                DELETE FROM metadata_layouts WHERE object_id = ${targetObject.id} AND layout_type = ${layoutType}
+            `.execute();
+
+            await q`
+                INSERT INTO metadata_layouts (object_id, layout_type, schema, is_default, created_at)
+                VALUES (${targetObject.id}, ${layoutType}, ${JSON.stringify(schema)}::jsonb, true, NOW())
+            `.execute();
+
+            await q`COMMIT`.execute();
+            revalidateTag('metadata', 'max');
+            return { success: true, objectId: targetObject.id };
+        } catch (err) {
+            await q`ROLLBACK`.execute();
+            throw err;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to save layout.',
+        };
+    }
+}
+
+/**
+ * Updates role-based Field-Level Security (FLS) grants in `field_permissions`.
+ */
+export async function updateFieldPermissions(
+    objectId: string,
+    fieldApiName: string,
+    grants: { role: string; canRead: boolean; canWrite: boolean }[],
+): Promise<{ success: boolean; objectId?: string; error?: string }> {
+    try {
+        const { tenantId, userId } = await requireAuth('metadata:publish');
+        assertSafeMetadataIdentifier(fieldApiName, 'field API name');
+
+        const client = await pool.connect();
+        const q = sqlFor(client);
+        try {
+            await q`BEGIN`.execute();
+            const targetObject = await ensureTenantOwnedMetadataObject(client, objectId, tenantId, userId);
+
+            const fieldRows = await q<{ id: string }>`
+                SELECT id FROM metadata_fields
+                WHERE object_id = ${targetObject.id}
+                  AND api_name = ${fieldApiName}
+                  AND status <> 'ARCHIVED'
+                LIMIT 1
+            `;
+            if (fieldRows.length === 0) {
+                await q`ROLLBACK`.execute();
+                return { success: false, error: `Field "${fieldApiName}" not found on object.` };
+            }
+            const fieldId = fieldRows[0].id;
+
+            for (const grant of grants) {
+                const role = String(grant.role || '').trim().toUpperCase();
+                if (!role) continue;
+                const canWrite = Boolean(grant.canWrite);
+                const canRead = canWrite ? true : Boolean(grant.canRead);
+
+                await q`
+                    INSERT INTO field_permissions (field_id, role, can_read, can_write)
+                    VALUES (${fieldId}, ${role}, ${canRead}, ${canWrite})
+                    ON CONFLICT (field_id, role)
+                    DO UPDATE SET can_read = EXCLUDED.can_read, can_write = EXCLUDED.can_write
+                `.execute();
+            }
+
+            await q`COMMIT`.execute();
+            revalidateTag('metadata', 'max');
+            return { success: true, objectId: targetObject.id };
+        } catch (err) {
+            await q`ROLLBACK`.execute();
+            throw err;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to update field permissions.',
+        };
+    }
+}
+
+/**
+ * Updates a single field on a record (used by Drag-and-Drop Kanban boards and inline grid editing)
+ * without triggering a full-page redirect.
+ */
+export async function updateRecordFieldValue(
+    apiName: string,
+    recordId: string,
+    fieldApiName: string,
+    value: unknown,
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { tenantId, session } = await requireAuth();
+        const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
+
+        const targetField = fields.find(f => f.apiName === fieldApiName);
+        if (!targetField) {
+            return { success: false, error: `Unknown field: ${fieldApiName}` };
+        }
+
+        const canWrite = canWriteMetadataField(
+            session.role,
+            targetField as unknown as RuntimeMetadataFieldWithPermissions,
+        );
+        if (!canWrite) {
+            return { success: false, error: `You do not have permission to edit ${targetField.label}.` };
+        }
+
+        const validated = validateMetadataRecordPayload([targetField], { [fieldApiName]: value }, { requireAll: false });
+        if (validated.ok === false) {
+            return { success: false, error: validated.errors.join(' ') };
+        }
+        const normalizedVal = validated.data[fieldApiName];
+
+        if (resolveMetadataStorageMode(objectDef) === 'EAV') {
+            await upsertEavRecord(objectDef, [targetField], tenantId, { [fieldApiName]: normalizedVal }, recordId);
+        } else {
+            const tableIdent = identifier(objectDef.tableName);
+            if (targetField.isCustom) {
+                await sql`
+                    UPDATE ${tableIdent}
+                    SET custom_data = COALESCE(custom_data, '{}'::jsonb) || ${JSON.stringify({ [fieldApiName]: normalizedVal })}::jsonb,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ${recordId} AND tenant_id = ${tenantId}
+                `.execute();
+            } else {
+                const colIdent = identifier(fieldApiName);
+                await sql`
+                    UPDATE ${tableIdent}
+                    SET ${colIdent} = ${normalizedVal},
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ${recordId} AND tenant_id = ${tenantId}
+                `.execute();
+            }
+        }
+
+        await executeMatchingWorkflows(
+            tenantId,
+            apiName,
+            'object.record.upserted',
+            { [fieldApiName]: normalizedVal },
+            recordId,
+        );
+
+        return { success: true };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to update record field.',
+        };
+    }
+}
+
+/**
+ * Evaluates and executes active `metadata_workflows` matching a record mutation.
+ */
+async function executeMatchingWorkflows(
+    tenantId: string,
+    objectName: string,
+    triggerEvent: string,
+    recordData: Record<string, unknown>,
+    recordId: string,
+): Promise<void> {
+    try {
+        const workflows = await sql<Record<string, unknown>>`
+            SELECT id, name, conditions, action_type, action_payload
+            FROM metadata_workflows
+            WHERE tenant_id = ${tenantId}
+              AND LOWER(object_name) = LOWER(${objectName})
+              AND trigger_event = ${triggerEvent}
+              AND is_active = true
+        `;
+
+        for (const wf of workflows) {
+            const conditions: { field?: string; operator?: string; value?: string }[] = Array.isArray(wf.conditions)
+                ? wf.conditions
+                : [];
+
+            const allMatched = conditions.every(cond => {
+                if (!cond.field) return true;
+                const actualRaw = recordData[cond.field];
+                const actualStr = actualRaw === null || actualRaw === undefined ? '' : String(actualRaw);
+                const expectedStr = String(cond.value ?? '');
+
+                switch (cond.operator) {
+                    case 'equals':
+                        return actualStr.toLowerCase() === expectedStr.toLowerCase();
+                    case 'not_equals':
+                        return actualStr.toLowerCase() !== expectedStr.toLowerCase();
+                    case 'contains':
+                        return actualStr.toLowerCase().includes(expectedStr.toLowerCase());
+                    case 'greater_than':
+                        return Number(actualRaw) > Number(expectedStr);
+                    case 'less_than':
+                        return Number(actualRaw) < Number(expectedStr);
+                    default:
+                        return actualStr === expectedStr;
+                }
+            });
+
+            if (!allMatched) continue;
+
+            const payload = (wf.action_payload && typeof wf.action_payload === 'object'
+                ? wf.action_payload
+                : {}) as Record<string, unknown>;
+
+            await sql`
+                INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)
+                VALUES (
+                    ${tenantId},
+                    'WORKFLOW_EXECUTED',
+                    ${objectName},
+                    ${recordId},
+                    ${JSON.stringify({
+                        workflowId: wf.id,
+                        workflowName: wf.name,
+                        triggerEvent,
+                        actionType: wf.action_type,
+                        actionPayload: payload,
+                        executedAt: new Date().toISOString(),
+                    })}::jsonb
+                )
+            `.execute();
+        }
+    } catch {
+        // Non-blocking: workflow evaluation must not abort the primary record save
     }
 }

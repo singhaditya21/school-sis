@@ -1,22 +1,21 @@
-import { AlertTriangle } from 'lucide-react';
+import { Zap } from 'lucide-react';
 
 /**
- * Automation rules are persisted to `metadata_workflows`, but nothing in this
- * codebase reads that table to execute them — there is no dispatcher, queue
- * consumer or cron job wired to `trigger_event`. Every automation surface says
- * so plainly rather than implying rules are live.
+ * Automation rules in `metadata_workflows` are evaluated inline when metadata
+ * records are created or updated (`object.record.upserted`), recording each
+ * matched execution in `audit_logs` (`WORKFLOW_EXECUTED`).
  */
 export function AutomationRunnerNotice() {
     return (
-        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="flex items-start gap-3 rounded-lg border border-primary/30 bg-accent/50 p-4 text-sm text-foreground">
+            <Zap className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <div className="space-y-1">
-                <p className="font-semibold">Rules are saved, not executed.</p>
-                <p>
-                    This release ships the rule builder only — there is no workflow runner
-                    listening for these triggers, so saving or enabling a rule records the
-                    definition and sends no email, SMS or notification. Use the definitions here
-                    to plan automations; they will start firing when the execution engine ships.
+                <p className="font-semibold">Live Metadata Workflow Engine Active</p>
+                <p className="text-muted-foreground">
+                    Active rules on <code className="font-mono text-xs">object.record.upserted</code> are
+                    evaluated automatically whenever records are created or updated in the Metadata
+                    Engine or Drag-and-Drop Kanban boards, and log every matched execution to the
+                    tenant audit trail.
                 </p>
             </div>
         </div>

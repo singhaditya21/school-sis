@@ -116,14 +116,14 @@ export default function GenericFormClient({
                             return (
                                 <div key={field.apiName} className="space-y-2">
                                     <Label className="flex gap-1" htmlFor={field.apiName}>
-                                        {field.label} {field.isRequired && <span className="text-red-500">*</span>}
-                                        {field.isCustom && <span className="text-xs text-blue-500 ml-2">(Custom)</span>}
+                                        {field.label} {field.isRequired && <span className="text-destructive">*</span>}
+                                        {field.isCustom && <span className="text-xs text-primary ml-2">(Custom)</span>}
                                     </Label>
                                     
                                     {field.dataType === 'PICKLIST' ? (
                                         <select 
                                             id={field.apiName}
-                                            className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                             defaultValue={initialValue}
                                             {...register(field.apiName, { required: field.isRequired })}
                                         >
@@ -135,7 +135,7 @@ export default function GenericFormClient({
                                     ) : field.dataType === 'BOOLEAN' ? (
                                         <select
                                             id={field.apiName}
-                                            className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                             defaultValue={initialValue}
                                             {...register(field.apiName, { required: field.isRequired })}
                                         >
@@ -153,7 +153,7 @@ export default function GenericFormClient({
                                         />
                                     )}
                                     {errors[field.apiName] && (
-                                        <p className="text-xs text-red-500">This field is required</p>
+                                        <p className="text-xs text-destructive">This field is required</p>
                                     )}
                                 </div>
                             );

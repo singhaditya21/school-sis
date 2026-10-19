@@ -2,8 +2,9 @@ import { getSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import { getObjectMetadataById } from '@/lib/actions/metadata-engine';
 import FieldManagerClient from './field-manager';
+import ObjectLayoutBuilderClient from './layout-builder';
 import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ExternalLink } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -29,7 +30,7 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
 
     if (!metadata) {
         return (
-            <div className="p-8 text-center border rounded-lg border-red-200 bg-red-50 text-red-600">
+            <div className="p-8 text-center border rounded-lg border-destructive/30 bg-destructive-subtle text-destructive">
                 <h2 className="text-xl font-bold mb-2">Error Loading Object</h2>
                 <p>{loadError}</p>
                 <Link href="/settings/objects" className="mt-4 inline-flex items-center text-sm underline">
@@ -39,29 +40,43 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
         );
     }
 
-    const { objectDef, fields } = metadata;
+    const { objectDef, fields, layouts } = metadata;
 
     return (
         <div className="space-y-6">
-            <div>
-                <Link href="/settings/objects" className="text-primary hover:underline flex items-center text-sm mb-4">
-                    <ChevronLeft className="w-4 h-4 mr-1" /> Back to Objects
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div>
+                    <Link href="/settings/objects" className="text-primary hover:underline flex items-center text-sm mb-4">
+                        <ChevronLeft className="w-4 h-4 mr-1" /> Back to Objects
+                    </Link>
+                    <h1 className="text-2xl font-bold text-foreground capitalize flex items-center gap-3">
+                        {objectDef.name} Object
+                        {objectDef.is_custom ? (
+                            <span className="px-2 py-1 bg-info-subtle text-info text-xs font-medium rounded uppercase tracking-wide">Custom</span>
+                        ) : (
+                            <span className="px-2 py-1 bg-accent text-primary text-xs font-medium rounded uppercase tracking-wide">Standard</span>
+                        )}
+                    </h1>
+                    <p className="text-muted-foreground mt-1">
+                        Manage custom fields, configure role-based Field-Level Security (FLS), and design drag-and-drop Form and List layouts for {objectDef.name}.
+                    </p>
+                </div>
+                <Link
+                    href={`/app/${objectDef.api_name}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                >
+                    Open Runtime App <ExternalLink className="w-4 h-4 text-primary" />
                 </Link>
-                <h1 className="text-2xl font-bold text-foreground dark:text-white capitalize flex items-center gap-3">
-                    {objectDef.name} Object
-                    {objectDef.is_custom ? (
-                        <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded uppercase tracking-wide">Custom</span>
-                    ) : (
-                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded uppercase tracking-wide">Standard</span>
-                    )}
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                    Review the registered fields for the {objectDef.name} entity and add custom
-                    ones. Page layouts are not editable in this release.
-                </p>
             </div>
 
             <FieldManagerClient objectId={resolvedParams.id} initialFields={fields} />
+
+            <ObjectLayoutBuilderClient
+                objectId={resolvedParams.id}
+                objectName={objectDef.name}
+                fields={fields}
+                initialLayouts={layouts ?? []}
+            />
         </div>
     );
 }
