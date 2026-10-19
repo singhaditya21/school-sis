@@ -14,8 +14,36 @@ import { toast } from 'sonner';
  * Renders a value using the field's declared data type, so a metadata-defined
  * module formats money, dates and booleans the same way a hand-built one does.
  */
-function renderCell(field: MetadataField | undefined, value: unknown): string {
+function renderCell(field: MetadataField | undefined, value: unknown): React.ReactNode {
     if (value == null || value === '') return '-';
+
+    if (
+        field?.validationRules?.fieldSubType === 'LOOKUP' &&
+        field?.validationRules?.lookupTargetObject
+    ) {
+        const targetObj = field.validationRules.lookupTargetObject;
+        const valStr = String(value);
+        return (
+            <Link
+                href={`/app/${targetObj}/${valStr}`}
+                className="inline-flex items-center gap-1 rounded bg-accent px-2 py-0.5 font-mono text-xs font-medium text-primary hover:underline"
+            >
+                {targetObj}:{valStr.slice(0, 8)}
+            </Link>
+        );
+    }
+
+    if (field?.validationRules?.fieldSubType === 'FORMULA') {
+        return (
+            <span className="inline-flex items-center gap-1.5 font-mono text-foreground">
+                <span className="rounded bg-info-subtle px-1 py-0.5 text-[10px] font-semibold text-info">
+                    f(x)
+                </span>
+                {String(value)}
+            </span>
+        );
+    }
+
     switch (field?.dataType) {
         case 'CURRENCY':
             return formatCurrency(value as string | number);

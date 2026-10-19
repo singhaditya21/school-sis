@@ -28,9 +28,11 @@ const CONFIGURABLE_ROLES = [
 export default function FieldManagerClient({
     objectId,
     initialFields,
+    availableObjects = [],
 }: {
     objectId: string;
     initialFields: MetadataField[];
+    availableObjects?: { api_name: string; name: string }[];
 }) {
     const router = useRouter();
     const [fields, setFields] = useState<MetadataField[]>(initialFields);
@@ -43,6 +45,10 @@ export default function FieldManagerClient({
     const [newType, setNewType] = useState('TEXT');
     const [newRequired, setNewRequired] = useState(false);
     const [newOptions, setNewOptions] = useState('');
+    const [newLookupTarget, setNewLookupTarget] = useState(
+        availableObjects[0]?.api_name || 'student',
+    );
+    const [newFormulaExpr, setNewFormulaExpr] = useState('');
     const [approvalReason, setApprovalReason] = useState('Adding custom field via Object Manager');
 
     // Field-Level Security (FLS) Dialog State
@@ -103,15 +109,17 @@ export default function FieldManagerClient({
     const handleCreateField = async () => {
         setIsSaving(true);
         try {
-            const fieldData = {
+            const fieldData: Record<string, unknown> = {
                 label: newLabel,
                 apiName: newApiName,
                 dataType: newType,
-                isRequired: newRequired,
+                isRequired: newType === 'FORMULA' ? false : newRequired,
                 picklistOptions:
                     newType === 'PICKLIST'
                         ? newOptions.split(',').map(s => s.trim())
                         : null,
+                lookupTargetObject: newType === 'LOOKUP' ? newLookupTarget : undefined,
+                formulaExpression: newType === 'FORMULA' ? newFormulaExpr : undefined,
             };
             const created = await createCustomField(objectId, fieldData, {
                 reason: approvalReason,
@@ -148,6 +156,7 @@ export default function FieldManagerClient({
             setNewApiName('');
             setNewType('TEXT');
             setNewOptions('');
+            setNewFormulaExpr('');
             setApprovalReason('Adding custom field via Object Manager');
             if (created.object_id && created.object_id !== objectId) {
                 router.replace(`/settings/objects/${created.object_id}`);
@@ -161,14 +170,23 @@ export default function FieldManagerClient({
         }
     };
 
+    const lookupTargetChoices =
+        availableObjects.length > 0
+            ? availableObjects
+            : [
+                  { api_name: 'student', name: 'Student' },
+                  { api_name: 'staff', name: 'Staff' },
+                  { api_name: 'invoice', name: 'Invoice' },
+              ];
+
     return (
         <>
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
-                        <CardTitle>Fields &amp; Field-Level Security</CardTitle>
+                        <CardTitle>Fields, Lookups, Formulas &amp; FLS</CardTitle>
                         <p className="text-sm text-muted-foreground mt-1">
-                            Custom fields are stored in the record&apos;s JSON/EAV payload and enforce per-role Field-Level Security (FLS).
+                            Custom fields, relational lookups (`LOOKUP`), and calculated formulas (`FORMULA`) enforce per-role Field-Level Security (FLS).
                         </p>
                     </div>
                     <Dialog open={isAdding} onOpenChange={setIsAdding}>
@@ -202,7 +220,7 @@ export default function FieldManagerClient({
                                                 );
                                             }
                                         }}
-                                        placeholder="e.g. Blood Group"
+                                        placeholder="e.g. Sponsor Student or Balance Due"
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -210,7 +228,7 @@ export default function FieldManagerClient({
                                     <Input
                                         value={newApiName}
                                         onChange={e => setNewApiName(e.target.value)}
-                                        placeholder="e.g. blood_group"
+                                        placeholder="e.g. sponsor_student_id"
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -226,6 +244,8 @@ export default function FieldManagerClient({
                                             <SelectItem value="DATE">Date</SelectItem>
                                             <SelectItem value="BOOLEAN">Checkbox (Boolean)</SelectItem>
                                             <SelectItem value="PICKLIST">Picklist (Dropdown)</SelectItem>
+                                            <SelectItem value="LOOKUP">Relational Lookup (Parent Object)</SelectItem>
+                                            <SelectItem value="FORMULA">Calculated Formula (f(x))</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -241,14 +261,58 @@ export default function FieldManagerClient({
                                     </div>
                                 )}
 
-                                <div className="flex items-center space-x-2 pt-2">
-                                    <Switch
-                                        checked={newRequired}
-                                        onCheckedChange={setNewRequired}
-                                        id="required"
-                                    />
-                                    <Label htmlFor="required">Required Field</Label>
-                                </div>
+                                {newType === 'LOOKUP' && (
+                                    <div className="space-y-2">
+                                        <Label>Target Parent Object</Label>
+                                        <Select
+                                            value={newLookupTarget}
+                                            onValueChange={setNewLookupTarget}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {lookupTargetChoices.map(obj => (
+                                                    <SelectItem
+                                                        key={obj.api_name}
+                                                        value={obj.api_name}
+                                                    >
+                                                        {obj.name} ({obj.api_name})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-muted-foreground">
+                                            Links each record to a parent {newLookupTarget} record with a searchable picker and related list.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {newType === 'FORMULA' && (
+                                    <div className="space-y-2">
+                                        <Label>Formula Expression</Label>
+                                        <Input
+                                            value={newFormulaExpr}
+                                            onChange={e => setNewFormulaExpr(e.target.value)}
+                                            placeholder="e.g. amount - paid_amount or CONCAT(first_name, ' ', last_name)"
+                                            className="font-mono text-xs"
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Supports arithmetic (`+`, `-`, `*`, `/`), `CONCAT(a, b)`, and `DAYS_BETWEEN(date_field, TODAY())`.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {newType !== 'FORMULA' && (
+                                    <div className="flex items-center space-x-2 pt-2">
+                                        <Switch
+                                            checked={newRequired}
+                                            onCheckedChange={setNewRequired}
+                                            id="required"
+                                        />
+                                        <Label htmlFor="required">Required Field</Label>
+                                    </div>
+                                )}
 
                                 <div className="space-y-2">
                                     <Label>Approval Reason</Label>
@@ -266,7 +330,8 @@ export default function FieldManagerClient({
                                         isSaving ||
                                         !newLabel.trim() ||
                                         !newApiName.trim() ||
-                                        !approvalReason.trim()
+                                        !approvalReason.trim() ||
+                                        (newType === 'FORMULA' && !newFormulaExpr.trim())
                                     }
                                 >
                                     {isSaving ? 'Submitting…' : 'Create Field'}
@@ -321,13 +386,25 @@ export default function FieldManagerClient({
                                                         {f.picklistOptions.join(', ')}
                                                     </span>
                                                 )}
+                                            {f.validationRules?.fieldSubType === 'LOOKUP' &&
+                                                f.validationRules?.lookupTargetObject && (
+                                                    <span className="block text-xs font-mono text-primary mt-0.5">
+                                                        Lookup → {f.validationRules.lookupTargetObject}
+                                                    </span>
+                                                )}
+                                            {f.validationRules?.fieldSubType === 'FORMULA' &&
+                                                f.validationRules?.formulaExpression && (
+                                                    <span className="block text-xs font-mono text-info mt-0.5">
+                                                        f(x) = {f.validationRules.formulaExpression}
+                                                    </span>
+                                                )}
                                         </td>
                                         <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                                             {f.apiName}
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className="px-2 py-1 bg-muted text-foreground text-xs rounded border border-border">
-                                                {f.dataType}
+                                                {f.validationRules?.fieldSubType || f.dataType}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-muted-foreground text-xs">

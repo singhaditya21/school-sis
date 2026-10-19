@@ -6,6 +6,9 @@ export type MetadataValidationRules = {
     min?: number;
     max?: number;
     pattern?: string;
+    fieldSubType?: 'LOOKUP' | 'FORMULA';
+    lookupTargetObject?: string;
+    formulaExpression?: string;
 };
 
 export type RuntimeMetadataField = {
@@ -132,6 +135,24 @@ export function normalizeValidationRules(value: unknown): MetadataValidationRule
         rules.pattern = pattern;
     }
 
+    if (input.fieldSubType === 'LOOKUP' || input.fieldSubType === 'FORMULA') {
+        rules.fieldSubType = input.fieldSubType;
+    }
+
+    if (input.lookupTargetObject != null && String(input.lookupTargetObject).trim() !== '') {
+        const target = String(input.lookupTargetObject).trim().toLowerCase();
+        assertSafeMetadataIdentifier(target, 'lookup target object');
+        rules.lookupTargetObject = target;
+        rules.fieldSubType = 'LOOKUP';
+    }
+
+    if (input.formulaExpression != null && String(input.formulaExpression).trim() !== '') {
+        const expr = String(input.formulaExpression).trim();
+        if (expr.length > 500) throw new Error('Formula expression must be 500 characters or fewer.');
+        rules.formulaExpression = expr;
+        rules.fieldSubType = 'FORMULA';
+    }
+
     if (rules.minLength != null && rules.maxLength != null && rules.minLength > rules.maxLength) {
         throw new Error('Minimum length cannot be greater than maximum length.');
     }
@@ -145,11 +166,46 @@ export function normalizeValidationRules(value: unknown): MetadataValidationRule
 export function normalizeMetadataFieldInput(input: Record<string, unknown>) {
     const label = String(input.label || '').trim();
     const apiName = String(input.apiName || '').trim();
-    const dataType = String(input.dataType || '').trim().toUpperCase() as MetadataDataType;
+    const rawType = String(input.dataType || '').trim().toUpperCase();
 
     if (!label || label.length > 255) throw new Error('Field label is required and must be 255 characters or fewer.');
     assertSafeMetadataIdentifier(apiName, 'field API name');
-    if (!METADATA_DATA_TYPES.has(dataType)) throw new Error('Unsupported field data type.');
+
+    const validationRules = normalizeValidationRules(input.validationRules);
+    let dataType: MetadataDataType;
+
+    if (rawType === 'LOOKUP' || validationRules.fieldSubType === 'LOOKUP') {
+        const target = String(
+            input.lookupTargetObject ?? validationRules.lookupTargetObject ?? '',
+        )
+            .trim()
+            .toLowerCase();
+        if (!target) {
+            throw new Error('Lookup fields require a target object API name.');
+        }
+        assertSafeMetadataIdentifier(target, 'lookup target object');
+        validationRules.fieldSubType = 'LOOKUP';
+        validationRules.lookupTargetObject = target;
+        dataType = 'TEXT';
+    } else if (rawType === 'FORMULA' || validationRules.fieldSubType === 'FORMULA') {
+        const expr = String(
+            input.formulaExpression ?? validationRules.formulaExpression ?? '',
+        ).trim();
+        if (!expr) {
+            throw new Error('Formula fields require a formula expression.');
+        }
+        if (expr.length > 500) {
+            throw new Error('Formula expression must be 500 characters or fewer.');
+        }
+        validationRules.fieldSubType = 'FORMULA';
+        validationRules.formulaExpression = expr;
+        dataType = /^CONCAT\s*\(/i.test(expr) ? 'TEXT' : 'NUMBER';
+    } else {
+        if (!METADATA_DATA_TYPES.has(rawType as MetadataDataType)) {
+            throw new Error('Unsupported field data type.');
+        }
+        dataType = rawType as MetadataDataType;
+    }
 
     const picklistOptions = dataType === 'PICKLIST'
         ? normalizePicklistOptions(input.picklistOptions)
@@ -163,10 +219,147 @@ export function normalizeMetadataFieldInput(input: Record<string, unknown>) {
         label,
         apiName,
         dataType,
-        isRequired: Boolean(input.isRequired),
+        isRequired: validationRules.fieldSubType === 'FORMULA' ? false : Boolean(input.isRequired),
         picklistOptions,
-        validationRules: normalizeValidationRules(input.validationRules),
+        validationRules,
     };
+}
+
+/**
+ * Safe, dependency-free expression evaluator for `FORMULA` metadata fields.
+ * Supports:
+ *   1. `CONCAT(field_a, ' ', field_b)`
+ *   2. `DAYS_BETWEEN(date_field, TODAY())`
+ *   3. Arithmetic expressions (`+`, `-`, `*`, `/`, parentheses) referencing record fields
+ *      e.g. `amount - paid_amount` or `{total_fee} * 0.18`
+ */
+export function evaluateMetadataFormula(
+    expression: string,
+    record: Record<string, unknown>,
+): string | number | null {
+    const raw = String(expression || '').trim();
+    if (!raw) return null;
+
+    // 1. CONCAT(...)
+    const concatMatch = raw.match(/^CONCAT\s*\(([\s\S]*)\)$/i);
+    if (concatMatch) {
+        const inner = concatMatch[1];
+        const parts: string[] = [];
+        let current = '';
+        let inQuote: "'" | '"' | null = null;
+        for (let i = 0; i < inner.length; i++) {
+            const ch = inner[i];
+            if ((ch === "'" || ch === '"') && (i === 0 || inner[i - 1] !== '\\')) {
+                if (inQuote === ch) {
+                    inQuote = null;
+                } else if (!inQuote) {
+                    inQuote = ch;
+                }
+                current += ch;
+            } else if (ch === ',' && !inQuote) {
+                parts.push(current.trim());
+                current = '';
+            } else {
+                current += ch;
+            }
+        }
+        if (current.trim()) parts.push(current.trim());
+
+        return parts
+            .map(token => {
+                if (
+                    (token.startsWith("'") && token.endsWith("'")) ||
+                    (token.startsWith('"') && token.endsWith('"'))
+                ) {
+                    return token.slice(1, -1);
+                }
+                const fieldKey = token.replace(/^\{|\}$/g, '').trim();
+                const val = record[fieldKey];
+                return val == null ? '' : String(val);
+            })
+            .join('');
+    }
+
+    // 2. DAYS_BETWEEN(start, end)
+    const daysMatch = raw.match(/^DAYS_BETWEEN\s*\(\s*([^,]+?)\s*,\s*([^)]+?)\s*\)$/i);
+    if (daysMatch) {
+        const resolveDate = (token: string): number | null => {
+            const cleaned = token.replace(/^\{|\}$/g, '').trim();
+            if (/^TODAY\s*\(\s*\)$/i.test(cleaned)) {
+                return Date.now();
+            }
+            const val = record[cleaned] ?? cleaned.replace(/^['"]|['"]$/g, '');
+            if (!val) return null;
+            const parsed = new Date(String(val)).getTime();
+            return Number.isFinite(parsed) ? parsed : null;
+        };
+        const d1 = resolveDate(daysMatch[1]);
+        const d2 = resolveDate(daysMatch[2]);
+        if (d1 == null || d2 == null) return null;
+        return Math.round((d2 - d1) / 86_400_000);
+    }
+
+    // 3. Safe recursive-descent arithmetic evaluator
+    const substituted = raw.replace(/\{?([a-z][a-z0-9_]*)\}?/gi, (match, ident: string) => {
+        if (ident.toUpperCase() === 'TODAY') return '0';
+        const val = record[ident] ?? record[ident.toLowerCase()];
+        const num = Number(val);
+        return Number.isFinite(num) ? String(num) : '0';
+    });
+
+    if (!/^[0-9+\-*/().\s]+$/.test(substituted)) {
+        return null;
+    }
+
+    try {
+        const tokens = substituted.match(/\d+(?:\.\d+)?|[+\-*/()]/g) || [];
+        let pos = 0;
+
+        const parseExpression = (): number => {
+            let left = parseTerm();
+            while (pos < tokens.length && (tokens[pos] === '+' || tokens[pos] === '-')) {
+                const op = tokens[pos++];
+                const right = parseTerm();
+                left = op === '+' ? left + right : left - right;
+            }
+            return left;
+        };
+
+        const parseTerm = (): number => {
+            let left = parseFactor();
+            while (pos < tokens.length && (tokens[pos] === '*' || tokens[pos] === '/')) {
+                const op = tokens[pos++];
+                const right = parseFactor();
+                left = op === '*' ? left * right : right === 0 ? 0 : left / right;
+            }
+            return left;
+        };
+
+        const parseFactor = (): number => {
+            if (tokens[pos] === '-') {
+                pos++;
+                return -parseFactor();
+            }
+            if (tokens[pos] === '+') {
+                pos++;
+                return parseFactor();
+            }
+            if (tokens[pos] === '(') {
+                pos++;
+                const val = parseExpression();
+                if (tokens[pos] === ')') pos++;
+                return val;
+            }
+            const num = Number(tokens[pos++] ?? '0');
+            return Number.isFinite(num) ? num : 0;
+        };
+
+        const result = parseExpression();
+        if (!Number.isFinite(result)) return null;
+        return Math.round(result * 100) / 100;
+    } catch {
+        return null;
+    }
 }
 
 export function eavValueColumnForType(dataType: MetadataDataType): 'value_string' | 'value_number' | 'value_boolean' | 'value_date' {
@@ -243,6 +436,7 @@ export function validateMetadataRecordPayload(
 
     if (options.requireAll ?? true) {
         for (const field of fields) {
+            if (field.validationRules?.fieldSubType === 'FORMULA') continue;
             if (!field.isRequired) continue;
             if (isEmpty(payload[field.apiName])) errors.push(`${field.label} is required.`);
         }
@@ -252,6 +446,9 @@ export function validateMetadataRecordPayload(
         const field = fieldByApiName.get(key);
         if (!field) {
             errors.push(`Unknown field: ${key}`);
+            continue;
+        }
+        if (field.validationRules?.fieldSubType === 'FORMULA') {
             continue;
         }
 

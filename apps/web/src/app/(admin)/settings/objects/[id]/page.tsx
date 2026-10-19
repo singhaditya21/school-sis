@@ -1,6 +1,6 @@
 import { getSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
-import { getObjectMetadataById } from '@/lib/actions/metadata-engine';
+import { getAllMetadataObjects, getObjectMetadataById } from '@/lib/actions/metadata-engine';
 import FieldManagerClient from './field-manager';
 import ObjectLayoutBuilderClient from './layout-builder';
 import Link from 'next/link';
@@ -20,10 +20,19 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
     }
 
     let metadata: ObjectMetadata | null = null;
+    let availableObjects: { api_name: string; name: string }[] = [];
     let loadError: string | null = null;
 
     try {
-        metadata = await getObjectMetadataById(resolvedParams.id);
+        const [loadedMeta, allObjs] = await Promise.all([
+            getObjectMetadataById(resolvedParams.id),
+            getAllMetadataObjects(),
+        ]);
+        metadata = loadedMeta;
+        availableObjects = allObjs.map(o => ({
+            api_name: String(o.api_name),
+            name: String(o.name),
+        }));
     } catch (e: unknown) {
         loadError = (e as Error).message || 'Unknown error';
     }
@@ -58,7 +67,7 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
                         )}
                     </h1>
                     <p className="text-muted-foreground mt-1">
-                        Manage custom fields, configure role-based Field-Level Security (FLS), and design drag-and-drop Form and List layouts for {objectDef.name}.
+                        Manage custom fields, relational lookups, calculated formulas, role-based Field-Level Security (FLS), and drag-and-drop layouts for {objectDef.name}.
                     </p>
                 </div>
                 <Link
@@ -69,7 +78,11 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
                 </Link>
             </div>
 
-            <FieldManagerClient objectId={resolvedParams.id} initialFields={fields} />
+            <FieldManagerClient
+                objectId={resolvedParams.id}
+                initialFields={fields}
+                availableObjects={availableObjects}
+            />
 
             <ObjectLayoutBuilderClient
                 objectId={resolvedParams.id}

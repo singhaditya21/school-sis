@@ -81,11 +81,34 @@ const PALETTE_BLOCKS = [
     },
 ];
 
-export function WorkflowBuilder() {
+const DEFAULT_WORKFLOW_OBJECTS = [
+    { api_name: 'student', label: 'Student' },
+    { api_name: 'invoice', label: 'Invoice' },
+    { api_name: 'employee', label: 'Employee' },
+    { api_name: 'lost_and_found_item', label: 'Lost & Found Item' },
+];
+
+export function WorkflowBuilder({
+    availableObjects,
+}: {
+    availableObjects?: Array<{ api_name: string; label: string }>;
+} = {}) {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [name, setName] = useState('');
-    const [objectName, setObjectName] = useState('student');
+    const mergedObjects = (() => {
+        const map = new Map<string, string>();
+        for (const item of DEFAULT_WORKFLOW_OBJECTS) {
+            map.set(item.api_name, item.label);
+        }
+        for (const item of availableObjects ?? []) {
+            if (item.api_name) {
+                map.set(item.api_name, item.label || item.api_name);
+            }
+        }
+        return Array.from(map.entries()).map(([api_name, label]) => ({ api_name, label }));
+    })();
+    const [objectName, setObjectName] = useState(mergedObjects[0]?.api_name || 'student');
     const [triggerEvent, setTriggerEvent] = useState('object.record.upserted');
 
     const [conditions, setConditions] = useState<
@@ -273,16 +296,15 @@ export function WorkflowBuilder() {
                             <div className="space-y-1.5">
                                 <Label className="text-xs">Target Object</Label>
                                 <Select value={objectName} onValueChange={setObjectName}>
-                                    <SelectTrigger>
+                                    <SelectTrigger data-testid="workflow-target-object-trigger">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="student">Student</SelectItem>
-                                        <SelectItem value="invoice">Invoice</SelectItem>
-                                        <SelectItem value="employee">Employee</SelectItem>
-                                        <SelectItem value="lost_and_found_item">
-                                            Lost &amp; Found Item
-                                        </SelectItem>
+                                        {mergedObjects.map(obj => (
+                                            <SelectItem key={obj.api_name} value={obj.api_name}>
+                                                {obj.label} ({obj.api_name})
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>

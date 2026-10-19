@@ -1,14 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useForm } from 'react-hook-form';
-import { MetadataField, upsertRecord } from '@/lib/actions/metadata-engine';
+import {
+    MetadataField,
+    getLookupOptions,
+    upsertRecord,
+} from '@/lib/actions/metadata-engine';
+import { evaluateMetadataFormula } from '@/lib/metadata/platform';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
+import { Calculator, ExternalLink, Link2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 /** Shape of the FORM layout schema stored in metadata_layouts. */
@@ -29,21 +35,58 @@ export default function GenericFormClient({
 }) {
     const router = useRouter();
     const [isSaving, setIsSaving] = useState(false);
-    const { register, handleSubmit, formState: { errors } } = useForm({
+    const [lookupOptionsByTarget, setLookupOptionsByTarget] = useState<
+        Record<string, { id: string; label: string }[]>
+    >({});
+    const [lookupSearch, setLookupSearch] = useState<Record<string, string>>({});
+
+    const { register, handleSubmit, watch, formState: { errors } } = useForm({
         defaultValues: initialData
     });
+
+    const watchedValues = watch();
+
+    useEffect(() => {
+        const lookupTargets = Array.from(
+            new Set(
+                fields
+                    .filter(
+                        f =>
+                            f.validationRules?.fieldSubType === 'LOOKUP' &&
+                            Boolean(f.validationRules?.lookupTargetObject),
+                    )
+                    .map(f => String(f.validationRules!.lookupTargetObject)),
+            ),
+        );
+        if (lookupTargets.length === 0) return;
+
+        let cancelled = false;
+        Promise.all(
+            lookupTargets.map(async target => {
+                const opts = await getLookupOptions(target);
+                return [target, opts] as const;
+            }),
+        ).then(entries => {
+            if (cancelled) return;
+            const next: Record<string, { id: string; label: string }[]> = {};
+            for (const [target, opts] of entries) {
+                next[target] = opts;
+            }
+            setLookupOptionsByTarget(next);
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [fields]);
 
     const onSubmit = async (data: Record<string, unknown>) => {
         setIsSaving(true);
         try {
-            // Success redirects and never returns. A flat `{ success: false }`
-            // carries the real validation or permission message.
-            // Only send fields this role may write; read-only fields are rendered
-            // disabled and must not appear in the payload at all, or the server's
-            // field-permission check rejects the whole write.
             const writable: Record<string, unknown> = {};
             for (const field of fields) {
                 if (field.canWrite === false) continue;
+                if (field.validationRules?.fieldSubType === 'FORMULA') continue;
                 if (Object.prototype.hasOwnProperty.call(data, field.apiName)) {
                     writable[field.apiName] = data[field.apiName];
                 }
@@ -54,7 +97,6 @@ export default function GenericFormClient({
                 setIsSaving(false);
             }
         } catch (error) {
-            // Check if the error is actually a redirect signal caught by client
             const errorMsg = error instanceof Error ? error.message : String(error);
             if (errorMsg.includes('NEXT_REDIRECT') || errorMsg.includes('redirect')) {
                 return;
@@ -64,8 +106,6 @@ export default function GenericFormClient({
         }
     };
 
-    // Order the inputs the way the FORM layout declares, so a metadata-defined
-    // module has a deliberate field order instead of insertion order.
     const layoutOrder: string[] = Array.isArray(layout?.sections)
         ? layout.sections.flatMap(section => section.fields ?? [])
         : [];
@@ -89,13 +129,35 @@ export default function GenericFormClient({
                         {orderedFields.map(field => {
                             if (field.apiName === 'id' || field.apiName === 'tenant_id') return null;
 
-                            // Prefill explicitly rather than relying on the form
-                            // library's defaultValues: the record comes from the
-                            // metadata engine as strings/booleans, and every input
-                            // here is uncontrolled.
                             const raw = initialData[field.apiName];
                             const initialValue = raw === null || raw === undefined ? '' : String(raw);
-                            
+                            const subType = field.validationRules?.fieldSubType;
+
+                            if (subType === 'FORMULA' && field.validationRules?.formulaExpression) {
+                                const computed = evaluateMetadataFormula(
+                                    field.validationRules.formulaExpression,
+                                    { ...initialData, ...watchedValues },
+                                );
+                                return (
+                                    <div key={field.apiName} className="space-y-2">
+                                        <Label className="flex items-center gap-1.5" htmlFor={field.apiName}>
+                                            <Calculator className="w-3.5 h-3.5 text-info" />
+                                            {field.label}
+                                            <span className="ml-1 text-xs font-mono text-info">
+                                                (Formula: {field.validationRules.formulaExpression})
+                                            </span>
+                                        </Label>
+                                        <Input
+                                            id={field.apiName}
+                                            disabled
+                                            readOnly
+                                            value={computed === null ? '—' : String(computed)}
+                                            className="bg-muted/60 font-mono"
+                                        />
+                                    </div>
+                                );
+                            }
+
                             if (field.canWrite === false) {
                                 return (
                                     <div key={field.apiName} className="space-y-2">
@@ -109,6 +171,70 @@ export default function GenericFormClient({
                                             readOnly
                                             defaultValue={initialValue}
                                         />
+                                    </div>
+                                );
+                            }
+
+                            if (subType === 'LOOKUP' && field.validationRules?.lookupTargetObject) {
+                                const targetObj = field.validationRules.lookupTargetObject;
+                                const allOpts = lookupOptionsByTarget[targetObj] ?? [];
+                                const search = (lookupSearch[field.apiName] || '').toLowerCase();
+                                const filteredOpts = search
+                                    ? allOpts.filter(o => o.label.toLowerCase().includes(search))
+                                    : allOpts;
+                                const currentLookupId = String(
+                                    watchedValues[field.apiName] ?? initialValue ?? '',
+                                );
+
+                                return (
+                                    <div key={field.apiName} className="space-y-2">
+                                        <Label className="flex items-center gap-1.5" htmlFor={field.apiName}>
+                                            <Link2 className="w-3.5 h-3.5 text-primary" />
+                                            {field.label}{' '}
+                                            {field.isRequired && <span className="text-destructive">*</span>}
+                                            <span className="text-xs font-mono text-primary ml-1">
+                                                (Lookup → {targetObj})
+                                            </span>
+                                        </Label>
+                                        <div className="space-y-1.5">
+                                            <Input
+                                                type="text"
+                                                placeholder={`Filter ${targetObj} records…`}
+                                                value={lookupSearch[field.apiName] || ''}
+                                                onChange={e =>
+                                                    setLookupSearch(prev => ({
+                                                        ...prev,
+                                                        [field.apiName]: e.target.value,
+                                                    }))
+                                                }
+                                                className="h-8 text-xs"
+                                            />
+                                            <select
+                                                id={field.apiName}
+                                                className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                defaultValue={initialValue}
+                                                {...register(field.apiName, { required: field.isRequired })}
+                                            >
+                                                <option value="">Select {targetObj} record…</option>
+                                                {filteredOpts.map(opt => (
+                                                    <option key={opt.id} value={opt.id}>
+                                                        {opt.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {currentLookupId && (
+                                                <Link
+                                                    href={`/app/${targetObj}/${currentLookupId}`}
+                                                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                                >
+                                                    Open linked {targetObj} record{' '}
+                                                    <ExternalLink className="w-3 h-3" />
+                                                </Link>
+                                            )}
+                                        </div>
+                                        {errors[field.apiName] && (
+                                            <p className="text-xs text-destructive">This field is required</p>
+                                        )}
                                     </div>
                                 );
                             }

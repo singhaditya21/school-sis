@@ -14,6 +14,7 @@ import {
 import type { AuthorizationRole } from '@school-sis/api';
 import {
     assertSafeMetadataIdentifier,
+    evaluateMetadataFormula,
     normalizeMetadataFieldInput,
     quoteIdentifier,
     validateMetadataRecordPayload,
@@ -321,6 +322,29 @@ async function queryEavRecords(
  * table (standard columns + `custom_data` JSONB); tenant-defined objects read
  * from `metadata_records`/`metadata_values`.
  */
+function applyFormulaFields(
+    records: Record<string, unknown>[],
+    readableFields: MetadataField[],
+): Record<string, unknown>[] {
+    const formulaFields = readableFields.filter(
+        f =>
+            f.validationRules?.fieldSubType === 'FORMULA' &&
+            Boolean(f.validationRules?.formulaExpression),
+    );
+    if (formulaFields.length === 0) return records;
+
+    return records.map(rec => {
+        const next = { ...rec };
+        for (const f of formulaFields) {
+            const expr = f.validationRules?.formulaExpression;
+            if (expr) {
+                next[f.apiName] = evaluateMetadataFormula(expr, next);
+            }
+        }
+        return next;
+    });
+}
+
 export async function queryRecords(apiName: string, filters: Record<string, unknown> = {}, limit = 50, offset = 0) {
     const { tenantId, session } = await requireAuth();
     const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
@@ -336,7 +360,8 @@ export async function queryRecords(apiName: string, filters: Record<string, unkn
     const safeOffset = clampPageSize(offset, 0, 1_000_000);
 
     if (resolveMetadataStorageMode(objectDef) === 'EAV') {
-        return queryEavRecords(objectDef, readableFields, tenantId, recordId, safeLimit, safeOffset);
+        const eavRecords = await queryEavRecords(objectDef, readableFields, tenantId, recordId, safeLimit, safeOffset);
+        return applyFormulaFields(eavRecords, readableFields);
     }
 
     // Build standard SELECT columns
@@ -365,7 +390,7 @@ export async function queryRecords(apiName: string, filters: Record<string, unkn
     const { rows } = await pool.query(query, params);
 
     // Flatten custom_data into the root object for the UI
-    return rows.map(row => {
+    const projected = rows.map(row => {
         const { custom_data, ...rest } = row;
         const serializedRest: Record<string, unknown> = {};
         for (const [key, val] of Object.entries(rest)) {
@@ -381,6 +406,108 @@ export async function queryRecords(apiName: string, filters: Record<string, unkn
         }
         return serializedRest;
     });
+
+    return applyFormulaFields(projected, readableFields);
+}
+
+/**
+ * Returns selectable `{ id, label }` options for a Relational Lookup (`LOOKUP`) field.
+ */
+export async function getLookupOptions(
+    targetObjectApiName: string,
+): Promise<{ id: string; label: string }[]> {
+    try {
+        const rows = await queryRecords(targetObjectApiName, {}, 100, 0);
+        return rows.map(row => {
+            const id = String(row.id || '');
+            const displayCandidate =
+                row.name ||
+                (row.first_name || row.last_name
+                    ? `${row.first_name || ''} ${row.last_name || ''}`.trim()
+                    : '') ||
+                row.invoice_number ||
+                row.admission_number ||
+                row.employee_id ||
+                row.title ||
+                Object.entries(row).find(
+                    ([k, v]) =>
+                        k !== 'id' &&
+                        k !== 'created_at' &&
+                        k !== 'updated_at' &&
+                        typeof v === 'string' &&
+                        v.trim().length > 0,
+                )?.[1] ||
+                id.slice(0, 8);
+            return {
+                id,
+                label: `${String(displayCandidate)} (${id.slice(0, 8)})`,
+            };
+        });
+    } catch {
+        return [];
+    }
+}
+
+export interface RelatedLookupGroup {
+    objectApiName: string;
+    objectLabel: string;
+    fieldApiName: string;
+    fieldLabel: string;
+    records: Record<string, unknown>[];
+}
+
+/**
+ * Discovers all child records across any object that reference `parentRecordId`
+ * via a Relational Lookup (`LOOKUP`) field targeting `parentObjectApiName`.
+ */
+export async function getRelatedLookupRecords(
+    parentObjectApiName: string,
+    parentRecordId: string,
+): Promise<RelatedLookupGroup[]> {
+    try {
+        const { tenantId } = await requireAuth();
+        if (!UUID_RE.test(parentRecordId)) return [];
+
+        const lookupFields = await sql<{
+            object_api_name: string;
+            object_name: string;
+            field_api_name: string;
+            field_label: string;
+        }>`
+            SELECT o.api_name as object_api_name,
+                   o.name as object_name,
+                   f.api_name as field_api_name,
+                   f.label as field_label
+            FROM metadata_fields f
+            JOIN metadata_objects o ON o.id = f.object_id
+            WHERE f.status = 'ACTIVE'
+              AND o.status = 'PUBLISHED'
+              AND (
+                o.tenant_id = ${tenantId}
+                OR (o.tenant_id IS NULL AND COALESCE(o.is_custom, false) = false)
+              )
+              AND f.validation_rules->>'fieldSubType' = 'LOOKUP'
+              AND LOWER(f.validation_rules->>'lookupTargetObject') = LOWER(${parentObjectApiName})
+        `;
+
+        const groups: RelatedLookupGroup[] = [];
+        for (const item of lookupFields) {
+            const allRecords = await queryRecords(item.object_api_name, {}, 100, 0);
+            const matched = allRecords.filter(
+                rec => String(rec[item.field_api_name] ?? '') === parentRecordId,
+            );
+            groups.push({
+                objectApiName: item.object_api_name,
+                objectLabel: item.object_name,
+                fieldApiName: item.field_api_name,
+                fieldLabel: item.field_label,
+                records: matched,
+            });
+        }
+        return groups;
+    } catch {
+        return [];
+    }
 }
 
 /** Flat result shape, per the server-action convention. Success redirects. */
