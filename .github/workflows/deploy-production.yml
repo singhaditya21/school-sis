@@ -641,6 +641,38 @@ jobs:
               exit 1
               ;;
           esac
+          pulled_keyring="$(node --input-type=module <<'NODE'
+          import { createRequire } from 'node:module';
+          import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+          import { dirname, resolve } from 'node:path';
+          const linkCandidates = ['.vercel/project.json', 'apps/web/.vercel/project.json'].filter(existsSync);
+          if (linkCandidates.length === 1) {
+            const envPath = resolve(dirname(linkCandidates[0]), '.env.production.local');
+            if (existsSync(envPath)) {
+              const require = createRequire(resolve('apps/web/package.json'));
+              const { parse } = require('dotenv');
+              const raw = readFileSync(envPath, 'utf8');
+              const pulled = parse(raw);
+              const cur = (pulled.PII_ENCRYPTION_KEY || pulled.ENCRYPTION_KEY || '').trim();
+              const prev = (pulled.PII_ENCRYPTION_PREVIOUS_KEY || '').trim();
+              if (pulled.ENCRYPTION_KEY !== undefined) {
+                const filtered = raw
+                  .split(/\r?\n/)
+                  .filter((line) => !/^\s*ENCRYPTION_KEY\s*=/.test(line))
+                  .join('\n');
+                writeFileSync(envPath, filtered, { mode: 0o600 });
+              }
+              process.stdout.write(JSON.stringify({ current: cur, previous: prev }));
+              process.exit(0);
+            }
+          }
+          process.stdout.write(JSON.stringify({ current: '', previous: '' }));
+          NODE
+          )"
+          if [ -z "$current" ] && [ -z "$previous" ]; then
+            current="$(printf '%s' "$pulled_keyring" | jq -r '.current')"
+            previous="$(printf '%s' "$pulled_keyring" | jq -r '.previous')"
+          fi
           if [ "${#current}" -lt 32 ]; then
             echo "The selected current PII encryption key is missing or too short." >&2
             exit 1
