@@ -503,6 +503,31 @@ describe('LCNC & Drag-and-Drop Platform Builders', () => {
         expect(recordConsoleUi).toContain('record-duplicate-banner');
         expect(recordConsoleUi).toContain('merge-duplicate-btn');
     });
+
+    it('supports Track C Experience Cloud Portals (Web-to-Object Public Intake Forms & Self-Service Status Tracker)', () => {
+        const metadataEngine = readWebSource('src/lib/actions/metadata-engine.ts');
+        expect(metadataEngine).toContain('export async function savePortalIntakeConfig');
+        expect(metadataEngine).toContain('export async function getPublicPortalIntakeSchema');
+        expect(metadataEngine).toContain('export async function submitPublicPortalIntakeRecord');
+        expect(metadataEngine).toContain('export async function lookupPublicPortalRecordStatus');
+        expect(metadataEngine).toContain("'EXPERIENCE_PORTAL_CONFIGURED'");
+        expect(metadataEngine).toContain("'EXPERIENCE_PORTAL_SUBMISSION'");
+
+        const portalPublisher = readWebSource(
+            'src/app/(admin)/settings/objects/[id]/portal-publisher.tsx',
+        );
+        expect(portalPublisher).toContain('experience-portal-publisher');
+        expect(portalPublisher).toContain('toggle-portal-enabled');
+        expect(portalPublisher).toContain('save-portal-config-btn');
+
+        const portalClient = readWebSource(
+            'src/app/portal/[tenantId]/[object]/portal-intake-client.tsx',
+        );
+        expect(portalClient).toContain('portal-intake-form');
+        expect(portalClient).toContain('portal-submission-confirmation');
+        expect(portalClient).toContain('portal-status-tracker');
+        expect(portalClient).toContain('evaluateMetadataVisibilityRule');
+    });
 });
 
 

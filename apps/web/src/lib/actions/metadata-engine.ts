@@ -1616,13 +1616,27 @@ export async function saveObjectLayout(
             await q`BEGIN`.execute();
             const targetObject = await ensureTenantOwnedMetadataObject(client, objectId, tenantId, userId);
 
+            const existingRows = await q<{ schema: Record<string, unknown> }>`
+                SELECT schema
+                FROM metadata_layouts
+                WHERE object_id = ${targetObject.id}
+                  AND layout_type = ${layoutType}
+                LIMIT 1
+            `;
+            const mergedSchema =
+                layoutType === 'FORM' &&
+                existingRows[0]?.schema?.portalConfig &&
+                !schema.portalConfig
+                    ? { ...schema, portalConfig: existingRows[0].schema.portalConfig }
+                    : schema;
+
             await q`
                 DELETE FROM metadata_layouts WHERE object_id = ${targetObject.id} AND layout_type = ${layoutType}
             `.execute();
 
             await q`
                 INSERT INTO metadata_layouts (object_id, layout_type, schema, is_default, created_at)
-                VALUES (${targetObject.id}, ${layoutType}, ${JSON.stringify(schema)}::jsonb, true, NOW())
+                VALUES (${targetObject.id}, ${layoutType}, ${JSON.stringify(mergedSchema)}::jsonb, true, NOW())
             `.execute();
 
             await q`COMMIT`.execute();
@@ -3072,11 +3086,11 @@ export async function mergeMetadataRecords(
         // Re-point any EAV lookup values referencing the duplicate record to the primary record
         await sql`
             UPDATE metadata_values mv
-            SET value_text = ${primaryRecordId}
+            SET value_string = ${primaryRecordId}
             FROM metadata_records mr
             WHERE mv.record_id = mr.id
               AND mr.tenant_id = ${tenantId}
-              AND mv.value_text = ${duplicateRecordId}
+              AND mv.value_string = ${duplicateRecordId}
         `.execute();
 
         // Delete the duplicate EAV record
@@ -3173,6 +3187,450 @@ export async function logRecordQuickActivity(
         };
     }
 }
+
+// ============================================================================
+// 10. Track C: Experience Cloud Portals (Web-to-Object Intake & Self-Service Status Tracker)
+// ============================================================================
+
+export interface ExperiencePortalConfig {
+    enabled: boolean;
+    portalTitle: string;
+    portalDescription: string;
+    exposedFields: string[];
+    defaultStageField?: string;
+    defaultStageValue?: string;
+    successMessage?: string;
+    enableStatusTracker: boolean;
+}
+
+/**
+ * Persists the Experience Cloud Web-to-Object Public Portal configuration inside the object's
+ * `FORM` layout (`schema.portalConfig`) in `metadata_layouts` and writes `EXPERIENCE_PORTAL_CONFIGURED`
+ * to `audit_logs`.
+ */
+export async function savePortalIntakeConfig(
+    objectId: string,
+    config: ExperiencePortalConfig,
+): Promise<{ success: boolean; objectId?: string; error?: string }> {
+    try {
+        const { tenantId, userId } = await requireAuth('metadata:publish');
+        const client = await pool.connect();
+        const q = sqlFor(client);
+        try {
+            await q`BEGIN`.execute();
+            const targetObject = await ensureTenantOwnedMetadataObject(
+                client,
+                objectId,
+                tenantId,
+                userId,
+            );
+
+            const existingLayouts = await q<{ schema: Record<string, unknown> }>`
+                SELECT schema
+                FROM metadata_layouts
+                WHERE object_id = ${targetObject.id}
+                  AND layout_type = 'FORM'
+                LIMIT 1
+            `;
+            const baseSchema =
+                existingLayouts.length > 0 &&
+                existingLayouts[0].schema &&
+                typeof existingLayouts[0].schema === 'object'
+                    ? { ...existingLayouts[0].schema }
+                    : { sections: [] };
+
+            const sanitizedConfig: ExperiencePortalConfig = {
+                enabled: Boolean(config.enabled),
+                portalTitle: String(config.portalTitle || '').trim().slice(0, 140),
+                portalDescription: String(config.portalDescription || '').trim().slice(0, 500),
+                exposedFields: Array.isArray(config.exposedFields)
+                    ? config.exposedFields
+                          .map(f => String(f || '').trim())
+                          .filter(Boolean)
+                    : [],
+                defaultStageField: config.defaultStageField?.trim() || undefined,
+                defaultStageValue: config.defaultStageValue?.trim() || undefined,
+                successMessage: config.successMessage?.trim().slice(0, 300) || undefined,
+                enableStatusTracker: Boolean(config.enableStatusTracker),
+            };
+
+            const nextSchema = {
+                ...baseSchema,
+                portalConfig: sanitizedConfig,
+            };
+
+            await q`
+                DELETE FROM metadata_layouts
+                WHERE object_id = ${targetObject.id}
+                  AND layout_type = 'FORM'
+            `.execute();
+
+            await q`
+                INSERT INTO metadata_layouts (object_id, layout_type, schema, is_default, created_at)
+                VALUES (${targetObject.id}, 'FORM', ${JSON.stringify(nextSchema)}::jsonb, true, NOW())
+            `.execute();
+
+            await q`
+                INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
+                VALUES (
+                    ${tenantId},
+                    ${userId},
+                    'EXPERIENCE_PORTAL_CONFIGURED',
+                    'metadata_object',
+                    ${targetObject.id},
+                    ${JSON.stringify(sanitizedConfig)}::jsonb
+                )
+            `.execute();
+
+            await q`COMMIT`.execute();
+            revalidateTag('metadata', 'max');
+            return { success: true, objectId: targetObject.id };
+        } catch (err) {
+            await q`ROLLBACK`.execute();
+            throw err;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to save portal configuration.',
+        };
+    }
+}
+
+export interface PublicPortalSchemaResult {
+    enabled: boolean;
+    objectName: string;
+    objectApiName: string;
+    portalConfig: ExperiencePortalConfig;
+    fields: MetadataField[];
+    stageField?: {
+        apiName: string;
+        label: string;
+        options: string[];
+    } | null;
+}
+
+/**
+ * Loads the public-safe Web-to-Object intake schema for `/portal/[tenantId]/[object]`.
+ * Only exposes fields explicitly whitelisted in `portalConfig.exposedFields` when `portalConfig.enabled` is true.
+ */
+export async function getPublicPortalIntakeSchema(
+    tenantId: string,
+    objectApiName: string,
+): Promise<PublicPortalSchemaResult | null> {
+    try {
+        if (!UUID_RE.test(tenantId)) return null;
+        assertSafeMetadataIdentifier(objectApiName, 'object API name');
+
+        const { objectDef, fields, layouts } = await loadObjectMetadata(objectApiName, tenantId);
+        const formLayout = layouts.find(l => l.layoutType === 'FORM');
+        const rawSchema = (formLayout?.schema || {}) as Record<string, unknown>;
+        const rawPortal = (rawSchema.portalConfig || {}) as Partial<ExperiencePortalConfig>;
+
+        if (!rawPortal.enabled) {
+            return null;
+        }
+
+        const writableFields = fields.filter(
+            f => !isVirtualMetadataField(f) && f.validationRules?.fieldSubType !== 'AUTO_NUMBER',
+        );
+        const exposedSet = new Set(
+            Array.isArray(rawPortal.exposedFields) && rawPortal.exposedFields.length > 0
+                ? rawPortal.exposedFields
+                : writableFields.map(f => f.apiName),
+        );
+        const publicFields = writableFields.filter(f => exposedSet.has(f.apiName));
+
+        const stageCandidate =
+            fields.find(
+                f =>
+                    f.apiName === rawPortal.defaultStageField &&
+                    f.dataType === 'PICKLIST' &&
+                    Array.isArray(f.picklistOptions) &&
+                    f.picklistOptions.length > 0,
+            ) ||
+            fields.find(
+                f =>
+                    f.dataType === 'PICKLIST' &&
+                    Array.isArray(f.picklistOptions) &&
+                    f.picklistOptions.length > 0,
+            );
+
+        return {
+            enabled: true,
+            objectName: objectDef.name,
+            objectApiName: objectDef.apiName,
+            portalConfig: {
+                enabled: true,
+                portalTitle: rawPortal.portalTitle || `${objectDef.name} Intake Portal`,
+                portalDescription:
+                    rawPortal.portalDescription ||
+                    `Submit your ${objectDef.name.toLowerCase()} details below.`,
+                exposedFields: publicFields.map(f => f.apiName),
+                defaultStageField: rawPortal.defaultStageField,
+                defaultStageValue: rawPortal.defaultStageValue,
+                successMessage:
+                    rawPortal.successMessage ||
+                    'Your submission has been received! Keep your tracking reference below to check your live application status.',
+                enableStatusTracker: rawPortal.enableStatusTracker ?? true,
+            },
+            fields: publicFields,
+            stageField: stageCandidate
+                ? {
+                      apiName: stageCandidate.apiName,
+                      label: stageCandidate.label,
+                      options: stageCandidate.picklistOptions || [],
+                  }
+                : null,
+        };
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Submits a record from the public Experience Cloud Web-to-Object Intake Portal:
+ *   1. Verifies `portalConfig.enabled === true` on the object.
+ *   2. Restricts submitted payload strictly to `portalConfig.exposedFields` plus optional `defaultStageField`.
+ *   3. Runs full validation (`EMAIL`, `PHONE`, `URL`, Cross-Field Validation Rules, and `AUTO_NUMBER` generation).
+ *   4. Enforces `BLOCK` Duplicate Rules against existing tenant records.
+ *   5. Saves the EAV record, triggers active workflows (`object.record.upserted`), and logs `EXPERIENCE_PORTAL_SUBMISSION`.
+ */
+export async function submitPublicPortalIntakeRecord(
+    tenantId: string,
+    objectApiName: string,
+    rawSubmission: Record<string, unknown>,
+): Promise<{
+    success: boolean;
+    recordId?: string;
+    trackingReference?: string;
+    error?: string;
+}> {
+    try {
+        const portalSchema = await getPublicPortalIntakeSchema(tenantId, objectApiName);
+        if (!portalSchema || !portalSchema.enabled) {
+            return {
+                success: false,
+                error: 'This public intake portal is not currently active.',
+            };
+        }
+
+        const { objectDef, fields } = await loadObjectMetadata(objectApiName, tenantId);
+        if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
+            return {
+                success: false,
+                error: 'Web-to-Object public intake is supported on custom EAV objects.',
+            };
+        }
+
+        const persistedFields = fields.filter(f => !isVirtualMetadataField(f));
+        const exposedSet = new Set(portalSchema.portalConfig.exposedFields);
+
+        const filteredPayload: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(rawSubmission)) {
+            if (exposedSet.has(k)) {
+                filteredPayload[k] = v;
+            }
+        }
+
+        // Apply default stage value if configured on the portal
+        const { defaultStageField, defaultStageValue } = portalSchema.portalConfig;
+        if (defaultStageField && defaultStageValue && !filteredPayload[defaultStageField]) {
+            filteredPayload[defaultStageField] = defaultStageValue;
+        }
+
+        // Validate only exposed + default + auto-number fields
+        const fieldsToValidate = persistedFields.filter(
+            f =>
+                exposedSet.has(f.apiName) ||
+                f.apiName === defaultStageField ||
+                f.validationRules?.fieldSubType === 'AUTO_NUMBER',
+        );
+
+        const validated = validateMetadataRecordPayload(fieldsToValidate, filteredPayload, {
+            requireAll: true,
+        });
+        if (validated.ok === false) {
+            return { success: false, error: validated.errors.join(' ') };
+        }
+
+        // Check blocking duplicate rules
+        const hasBlockingDuplicateRule = fieldsToValidate.some(
+            f => f.validationRules?.duplicateRuleBehavior === 'BLOCK',
+        );
+        if (hasBlockingDuplicateRule) {
+            const existingRecords = await queryEavRecords(
+                objectDef,
+                persistedFields,
+                tenantId,
+                null,
+                250,
+                0,
+            );
+            const dupCheck = detectMetadataDuplicates(
+                fieldsToValidate,
+                validated.data,
+                existingRecords,
+            );
+            if (dupCheck.blocked && dupCheck.matches.length > 0) {
+                const firstBlock =
+                    dupCheck.matches.find(m => m.behavior === 'BLOCK') ?? dupCheck.matches[0];
+                return {
+                    success: false,
+                    error: `A submission with this ${firstBlock.fieldLabel} ("${firstBlock.matchedValue}") is already registered.`,
+                };
+            }
+        }
+
+        const recordId = await upsertEavRecord(
+            objectDef,
+            persistedFields,
+            tenantId,
+            validated.data,
+        );
+
+        await executeMatchingWorkflows(
+            tenantId,
+            objectApiName,
+            'object.record.upserted',
+            validated.data,
+            recordId,
+        );
+
+        const autoNumField = persistedFields.find(
+            f => f.validationRules?.fieldSubType === 'AUTO_NUMBER',
+        );
+        const trackingReference =
+            autoNumField && validated.data[autoNumField.apiName]
+                ? String(validated.data[autoNumField.apiName])
+                : recordId.slice(0, 8).toUpperCase();
+
+        await sql`
+            INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)
+            VALUES (
+                ${tenantId},
+                'EXPERIENCE_PORTAL_SUBMISSION',
+                ${objectApiName},
+                ${recordId},
+                ${JSON.stringify({
+                    trackingReference,
+                    submittedFields: Object.keys(validated.data),
+                    submittedAt: new Date().toISOString(),
+                })}::jsonb
+            )
+        `.execute();
+
+        revalidateTag('metadata', 'max');
+        return {
+            success: true,
+            recordId,
+            trackingReference,
+        };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to submit portal form.',
+        };
+    }
+}
+
+/**
+ * Allows an external applicant/student/parent to check the live Stage Path status of their
+ * submitted record on `/portal/[tenantId]/[object]` by providing their Tracking Reference
+ * (Auto-Number or Record ID prefix) and a matching contact field (Email or Phone).
+ */
+export async function lookupPublicPortalRecordStatus(
+    tenantId: string,
+    objectApiName: string,
+    referenceQuery: string,
+    contactVerifier: string,
+): Promise<{
+    found: boolean;
+    reference?: string;
+    currentStage?: string;
+    stageLabel?: string;
+    stageOptions?: string[];
+    submittedAt?: string;
+    updatedAt?: string;
+    error?: string;
+}> {
+    try {
+        const portalSchema = await getPublicPortalIntakeSchema(tenantId, objectApiName);
+        if (!portalSchema || !portalSchema.enabled || !portalSchema.portalConfig.enableStatusTracker) {
+            return { found: false, error: 'Application status tracking is not enabled for this portal.' };
+        }
+
+        const cleanRef = String(referenceQuery || '').trim().toLowerCase();
+        const cleanVerifier = String(contactVerifier || '').trim().toLowerCase();
+        if (!cleanRef || !cleanVerifier) {
+            return {
+                found: false,
+                error: 'Enter both your Tracking Reference and registered Email or Phone.',
+            };
+        }
+
+        const { objectDef, fields } = await loadObjectMetadata(objectApiName, tenantId);
+        const records = await queryEavRecords(objectDef, fields, tenantId, null, 200, 0);
+
+        const autoNumField = fields.find(f => f.validationRules?.fieldSubType === 'AUTO_NUMBER');
+        const verifierDigits = cleanVerifier.replace(/\D/g, '');
+
+        const matchedRow = records.find(row => {
+            const idStr = String(row.id || '').toLowerCase();
+            const autoVal = autoNumField
+                ? String(row[autoNumField.apiName] || '').trim().toLowerCase()
+                : '';
+            const refMatches =
+                idStr === cleanRef ||
+                idStr.startsWith(cleanRef) ||
+                (autoVal.length > 0 && autoVal === cleanRef);
+            if (!refMatches) return false;
+
+            // Verify that at least one field on the record matches the contact verifier (email, phone, or name)
+            return Object.values(row).some(val => {
+                if (val === null || val === undefined) return false;
+                const strVal = String(val).trim().toLowerCase();
+                if (strVal === cleanVerifier) return true;
+                const valDigits = strVal.replace(/\D/g, '');
+                return verifierDigits.length >= 7 && valDigits === verifierDigits;
+            });
+        });
+
+        if (!matchedRow) {
+            return {
+                found: false,
+                error: 'No matching submission found for that reference and contact detail.',
+            };
+        }
+
+        const stageField = portalSchema.stageField;
+        const currentStage = stageField
+            ? String(matchedRow[stageField.apiName] || 'SUBMITTED')
+            : 'SUBMITTED';
+        const displayRef =
+            autoNumField && matchedRow[autoNumField.apiName]
+                ? String(matchedRow[autoNumField.apiName])
+                : String(matchedRow.id || '').slice(0, 8).toUpperCase();
+
+        return {
+            found: true,
+            reference: displayRef,
+            currentStage,
+            stageLabel: stageField?.label || 'Application Status',
+            stageOptions: stageField?.options || ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED'],
+            submittedAt: matchedRow.created_at ? String(matchedRow.created_at) : undefined,
+            updatedAt: matchedRow.updated_at ? String(matchedRow.updated_at) : undefined,
+        };
+    } catch (error) {
+        return {
+            found: false,
+            error: error instanceof Error ? error.message : 'Unable to look up status.',
+        };
+    }
+}
+
 
 
 

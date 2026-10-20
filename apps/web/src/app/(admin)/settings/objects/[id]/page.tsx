@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getAllMetadataObjects, getObjectMetadataById } from '@/lib/actions/metadata-engine';
 import FieldManagerClient from './field-manager';
 import ObjectLayoutBuilderClient from './layout-builder';
+import ExperiencePortalPublisherClient from './portal-publisher';
 import Link from 'next/link';
 import { ChevronLeft, ExternalLink } from 'lucide-react';
 
@@ -90,6 +91,17 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
                 fields={fields}
                 initialLayouts={layouts ?? []}
             />
+
+            {objectDef.is_custom && (
+                <ExperiencePortalPublisherClient
+                    objectId={resolvedParams.id}
+                    objectName={objectDef.name}
+                    objectApiName={String(objectDef.api_name)}
+                    tenantId={String(objectDef.tenant_id || session.tenantId || '')}
+                    fields={fields}
+                    initialLayouts={layouts ?? []}
+                />
+            )}
         </div>
     );
 }
