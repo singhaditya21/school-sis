@@ -2,6 +2,7 @@ import { getSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
+    findPotentialDuplicateRecords,
     getObjectMetadata,
     getRecordAuditTimeline,
     getRelatedLookupRecords,
@@ -9,6 +10,7 @@ import {
     type RecordAuditTimelineEntry,
     type RelatedLookupGroup,
 } from '@/lib/actions/metadata-engine';
+import type { DuplicateMatchEntry } from '@/lib/metadata/platform';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ExternalLink, Link2 } from 'lucide-react';
 import GenericFormClient from './generic-form';
@@ -43,11 +45,13 @@ export default async function GenericObjectFormPage({ params }: { params: Promis
         let initialData = {};
         let relatedGroups: RelatedLookupGroup[] = [];
         let auditTimeline: RecordAuditTimelineEntry[] = [];
+        let potentialDuplicates: DuplicateMatchEntry[] = [];
         if (resolvedParams.id !== 'new') {
-            const [records, loadedRelated, loadedTimeline] = await Promise.all([
+            const [records, loadedRelated, loadedTimeline, loadedDuplicates] = await Promise.all([
                 queryRecords(resolvedParams.object, { id: resolvedParams.id }, 1, 0),
                 getRelatedLookupRecords(resolvedParams.object, resolvedParams.id),
                 getRecordAuditTimeline(resolvedParams.object, resolvedParams.id),
+                findPotentialDuplicateRecords(resolvedParams.object, resolvedParams.id),
             ]);
             if (records.length > 0) {
                 initialData = records[0];
@@ -56,6 +60,7 @@ export default async function GenericObjectFormPage({ params }: { params: Promis
             }
             relatedGroups = loadedRelated;
             auditTimeline = loadedTimeline;
+            potentialDuplicates = loadedDuplicates;
         }
 
         // Find the FORM layout if it exists
@@ -82,6 +87,7 @@ export default async function GenericObjectFormPage({ params }: { params: Promis
                         recordId={resolvedParams.id}
                         fields={fields}
                         recordData={initialData as Record<string, unknown>}
+                        potentialDuplicates={potentialDuplicates}
                     />
                 )}
 

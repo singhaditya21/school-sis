@@ -21,6 +21,8 @@ export type DynamicVisibilityOperator =
     | 'less_than'
     | 'not_empty';
 
+export type DuplicateRuleBehavior = 'BLOCK' | 'WARN';
+
 export type MetadataValidationRules = {
     minLength?: number;
     maxLength?: number;
@@ -41,6 +43,7 @@ export type MetadataValidationRules = {
     visibilityWhenField?: string;
     visibilityWhenOperator?: DynamicVisibilityOperator;
     visibilityWhenValue?: string;
+    duplicateRuleBehavior?: DuplicateRuleBehavior;
 };
 
 export type RuntimeMetadataField = {
@@ -214,6 +217,14 @@ export function normalizeValidationRules(value: unknown): MetadataValidationRule
         }
         rules.visibilityWhenOperator = visOp;
         rules.visibilityWhenValue = String(input.visibilityWhenValue ?? '').trim();
+    }
+
+    if (input.duplicateRuleBehavior != null && String(input.duplicateRuleBehavior).trim() !== '') {
+        const dupRule = String(input.duplicateRuleBehavior).trim().toUpperCase();
+        if (dupRule !== 'BLOCK' && dupRule !== 'WARN') {
+            throw new Error('Duplicate rule behavior must be BLOCK or WARN.');
+        }
+        rules.duplicateRuleBehavior = dupRule as DuplicateRuleBehavior;
     }
 
     if (input.lookupTargetObject != null && String(input.lookupTargetObject).trim() !== '') {
@@ -790,4 +801,170 @@ export function validateMetadataRecordPayload(
     }
 
     return errors.length > 0 ? { ok: false, errors } : { ok: true, data };
+}
+
+export interface DuplicateMatchEntry {
+    recordId: string;
+    fieldApiName: string;
+    fieldLabel: string;
+    matchedValue: string;
+    behavior: DuplicateRuleBehavior;
+}
+
+/**
+ * Evaluates Salesforce-style Duplicate & Matching Rules across existing records of an object.
+ * Checks fields configured with `validationRules.duplicateRuleBehavior` (`BLOCK` or `WARN`)
+ * and, when `includeContactHeuristics` is true, also flags exact matches on `EMAIL` / `PHONE`
+ * or primary name fields (`student_name`, `candidate_name`, `email`, `phone`) as `WARN`.
+ */
+export function detectMetadataDuplicates(
+    fields: Pick<RuntimeMetadataField, 'apiName' | 'label' | 'validationRules'>[],
+    candidateRecord: Record<string, unknown>,
+    existingRecords: Record<string, unknown>[],
+    options: { excludeRecordId?: string; includeContactHeuristics?: boolean } = {},
+): {
+    blocked: boolean;
+    matches: DuplicateMatchEntry[];
+} {
+    const matches: DuplicateMatchEntry[] = [];
+    const heuristicKeys = new Set([
+        'email',
+        'contact_email',
+        'phone',
+        'contact_phone',
+        'student_name',
+        'candidate_name',
+    ]);
+
+    for (const field of fields) {
+        const explicitRule = field.validationRules?.duplicateRuleBehavior;
+        const subType = field.validationRules?.fieldSubType;
+        const isHeuristic =
+            Boolean(options.includeContactHeuristics) &&
+            (subType === 'EMAIL' || subType === 'PHONE' || heuristicKeys.has(field.apiName));
+
+        const behavior: DuplicateRuleBehavior | undefined =
+            explicitRule || (isHeuristic ? 'WARN' : undefined);
+        if (!behavior) continue;
+
+        const rawCandidate = candidateRecord[field.apiName];
+        if (isEmpty(rawCandidate)) continue;
+
+        const normalizedCandidate =
+            subType === 'PHONE'
+                ? String(rawCandidate).replace(/\D/g, '')
+                : String(rawCandidate).trim().toLowerCase();
+        if (!normalizedCandidate) continue;
+
+        for (const row of existingRecords) {
+            const rowId = String(row.id ?? '');
+            if (!rowId || (options.excludeRecordId && rowId === options.excludeRecordId)) {
+                continue;
+            }
+            const rawExisting = row[field.apiName];
+            if (isEmpty(rawExisting)) continue;
+
+            const normalizedExisting =
+                subType === 'PHONE'
+                    ? String(rawExisting).replace(/\D/g, '')
+                    : String(rawExisting).trim().toLowerCase();
+
+            if (normalizedExisting && normalizedExisting === normalizedCandidate) {
+                matches.push({
+                    recordId: rowId,
+                    fieldApiName: field.apiName,
+                    fieldLabel: field.label,
+                    matchedValue: String(rawCandidate).trim(),
+                    behavior,
+                });
+            }
+        }
+    }
+
+    return {
+        blocked: matches.some((m) => m.behavior === 'BLOCK'),
+        matches,
+    };
+}
+
+export type RecordSlaState = 'COMPLETED' | 'ON_TRACK' | 'AT_RISK' | 'OVERDUE';
+
+export interface RecordSlaStatus {
+    state: RecordSlaState;
+    label: string;
+    elapsedHours: number;
+    remainingHours: number;
+    slaHours: number;
+}
+
+const TERMINAL_STAGE_KEYWORDS = new Set([
+    'ENROLLED',
+    'RESOLVED',
+    'AWARDED',
+    'CLOSED',
+    'COMPLETED',
+    'APPROVED',
+    'DISROLLED',
+    'DROPPED',
+    'REJECTED',
+    'PAID',
+]);
+
+/**
+ * Computes the SLA / Escalation countdown status for a record on the 360° Record Console.
+ */
+export function computeRecordSlaStatus(params: {
+    createdAt?: string | Date | null;
+    currentStage?: string | null;
+    slaHours?: number;
+    now?: Date;
+}): RecordSlaStatus {
+    const slaHours = Math.max(1, params.slaHours ?? 24);
+    const normalizedStage = String(params.currentStage ?? '')
+        .trim()
+        .toUpperCase();
+
+    if (normalizedStage && TERMINAL_STAGE_KEYWORDS.has(normalizedStage)) {
+        return {
+            state: 'COMPLETED',
+            label: `SLA Met · ${normalizedStage}`,
+            elapsedHours: 0,
+            remainingHours: slaHours,
+            slaHours,
+        };
+    }
+
+    const createdDate = params.createdAt ? new Date(params.createdAt) : new Date();
+    const nowDate = params.now ?? new Date();
+    const elapsedMs = Math.max(0, nowDate.getTime() - createdDate.getTime());
+    const elapsedHours = Math.round((elapsedMs / (1000 * 60 * 60)) * 10) / 10;
+    const remainingHours = Math.round((slaHours - elapsedHours) * 10) / 10;
+
+    if (remainingHours < 0) {
+        return {
+            state: 'OVERDUE',
+            label: `Overdue by ${Math.abs(remainingHours)}h (SLA ${slaHours}h)`,
+            elapsedHours,
+            remainingHours,
+            slaHours,
+        };
+    }
+
+    if (remainingHours <= slaHours * 0.25) {
+        return {
+            state: 'AT_RISK',
+            label: `At Risk · ${remainingHours}h left`,
+            elapsedHours,
+            remainingHours,
+            slaHours,
+        };
+    }
+
+    return {
+        state: 'ON_TRACK',
+        label: `On Track · ${remainingHours}h left`,
+        elapsedHours,
+        remainingHours,
+        slaHours,
+    };
 }

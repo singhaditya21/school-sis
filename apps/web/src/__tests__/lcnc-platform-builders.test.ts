@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+    computeRecordSlaStatus,
+    detectMetadataDuplicates,
     evaluateMetadataFormula,
     evaluateMetadataRollupSummary,
     evaluateMetadataVisibilityRule,
@@ -401,6 +403,105 @@ describe('LCNC & Drag-and-Drop Platform Builders', () => {
                 score_obtained: '95',
             },
         });
+    });
+
+    it('supports Track B Education Cloud 360° Record Console (Duplicate & Matching Rules, Clone, Merge, Quick Activities, and SLA Timers)', () => {
+        // 1. Duplicate & Matching Rule normalization and evaluation
+        const uniqueEmailField = normalizeMetadataFieldInput({
+            label: 'Candidate Email',
+            apiName: 'candidate_email',
+            dataType: 'EMAIL',
+            validationRules: { duplicateRuleBehavior: 'BLOCK' },
+        });
+        expect(uniqueEmailField.validationRules.duplicateRuleBehavior).toBe('BLOCK');
+
+        const dupResult = detectMetadataDuplicates(
+            [
+                {
+                    apiName: 'candidate_email',
+                    label: 'Candidate Email',
+                    validationRules: { fieldSubType: 'EMAIL', duplicateRuleBehavior: 'BLOCK' },
+                },
+                {
+                    apiName: 'contact_phone',
+                    label: 'Contact Phone',
+                    validationRules: { fieldSubType: 'PHONE' },
+                },
+            ],
+            {
+                candidate_email: 'AARAV@EXAMPLE.EDU',
+                contact_phone: '+91 (987) 654-3210',
+            },
+            [
+                {
+                    id: '11111111-2222-3333-4444-555555555555',
+                    candidate_email: 'aarav@example.edu',
+                    contact_phone: '919876543210',
+                },
+            ],
+            { includeContactHeuristics: true },
+        );
+        expect(dupResult.blocked).toBe(true);
+        expect(dupResult.matches).toHaveLength(2);
+        expect(dupResult.matches[0]).toMatchObject({
+            recordId: '11111111-2222-3333-4444-555555555555',
+            fieldApiName: 'candidate_email',
+            behavior: 'BLOCK',
+        });
+
+        // 2. SLA / Escalation Countdown calculation
+        const now = new Date('2026-10-20T12:00:00Z');
+        expect(
+            computeRecordSlaStatus({
+                createdAt: '2026-10-20T06:00:00Z',
+                currentStage: 'NEW_INQUIRY',
+                slaHours: 24,
+                now,
+            }).state,
+        ).toBe('ON_TRACK');
+
+        expect(
+            computeRecordSlaStatus({
+                createdAt: '2026-10-19T15:00:00Z',
+                currentStage: 'COUNSELED',
+                slaHours: 24,
+                now,
+            }).state,
+        ).toBe('AT_RISK');
+
+        expect(
+            computeRecordSlaStatus({
+                createdAt: '2026-10-18T12:00:00Z',
+                currentStage: 'DEMO_ATTENDED',
+                slaHours: 24,
+                now,
+            }).state,
+        ).toBe('OVERDUE');
+
+        expect(
+            computeRecordSlaStatus({
+                createdAt: '2026-10-10T12:00:00Z',
+                currentStage: 'ENROLLED',
+                slaHours: 24,
+                now,
+            }).state,
+        ).toBe('COMPLETED');
+
+        // 3. Server action & UI wiring checks
+        const metadataEngine = readWebSource('src/lib/actions/metadata-engine.ts');
+        expect(metadataEngine).toContain('export async function findPotentialDuplicateRecords');
+        expect(metadataEngine).toContain('export async function cloneMetadataRecord');
+        expect(metadataEngine).toContain('export async function mergeMetadataRecords');
+        expect(metadataEngine).toContain('export async function logRecordQuickActivity');
+
+        const recordConsoleUi = readWebSource(
+            'src/app/(admin)/app/[object]/[id]/record-detail-client.tsx',
+        );
+        expect(recordConsoleUi).toContain('record-sla-badge');
+        expect(recordConsoleUi).toContain('record-quick-actions-bar');
+        expect(recordConsoleUi).toContain('clone-record-btn');
+        expect(recordConsoleUi).toContain('record-duplicate-banner');
+        expect(recordConsoleUi).toContain('merge-duplicate-btn');
     });
 });
 

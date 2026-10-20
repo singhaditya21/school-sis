@@ -3,21 +3,28 @@
 /**
  * @module app/(admin)/app/[object]/[id]/record-detail-client
  *
- * Salesforce Lightning Record Page Experience 2.0:
- *   1. Interactive Stage Path Bar (`data-testid="record-stage-path"`) for 1-click stage advancement.
- *   2. Declarative Record Approval Bar (`data-testid="record-approval-bar"`) for Submit / Approve / Reject.
- *   3. Chronological Activity & Field History Timeline (`data-testid="record-audit-timeline"`).
+ * Salesforce Lightning Record Page Experience 2.0 + Education Cloud 360° Console (Track B):
+ *   1. Interactive Stage Path Bar (`data-testid="record-stage-path"`) & SLA Countdown (`data-testid="record-sla-badge"`).
+ *   2. Declarative Record Approval Bar (`data-testid="record-approval-bar"`).
+ *   3. Omni-Channel Quick-Action Bar (`data-testid="record-quick-actions-bar"`) for Log Call / Counseling Note / Task & Clone Record.
+ *   4. Potential Duplicate Detection & 1-Click Merge Banner (`data-testid="record-duplicate-banner"`).
+ *   5. Chronological Activity & Field History Timeline (`data-testid="record-audit-timeline"`).
  */
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
+    AlertTriangle,
     CheckCircle2,
     ChevronRight,
     Clock,
+    Copy,
+    GitMerge,
     History,
+    MessageSquarePlus,
     ShieldCheck,
+    Timer,
     XCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,12 +32,26 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
+    cloneMetadataRecord,
     decideRecordApproval,
+    logRecordQuickActivity,
+    mergeMetadataRecords,
     submitRecordForApproval,
     updateRecordFieldValue,
     type MetadataField,
     type RecordAuditTimelineEntry,
 } from '@/lib/actions/metadata-engine';
+import {
+    computeRecordSlaStatus,
+    type DuplicateMatchEntry,
+} from '@/lib/metadata/platform';
 
 const STAGE_FIELD_PRIORITY = [
     'pipeline_stage',
@@ -47,15 +68,22 @@ export function RecordExperienceHeader({
     recordId,
     fields,
     recordData,
+    potentialDuplicates = [],
 }: {
     objectName: string;
     recordId: string;
     fields: MetadataField[];
     recordData: Record<string, unknown>;
+    potentialDuplicates?: DuplicateMatchEntry[];
 }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [approvalComment, setApprovalComment] = useState('');
+    const [activityType, setActivityType] = useState<
+        'CALL' | 'COUNSELING_NOTE' | 'FOLLOW_UP_TASK' | 'WHATSAPP_SENT'
+    >('COUNSELING_NOTE');
+    const [activitySubject, setActivitySubject] = useState('');
+    const [activityNotes, setActivityNotes] = useState('');
 
     // Resolve primary stage picklist field for the Lightning Path Bar
     const stageField =
@@ -78,6 +106,12 @@ export function RecordExperienceHeader({
     const stageOptions = stageField?.picklistOptions || [];
     const currentStage = stageField ? String(recordData[stageField.apiName] ?? '') : '';
     const currentStageIdx = stageOptions.indexOf(currentStage);
+
+    const slaStatus = computeRecordSlaStatus({
+        createdAt: (recordData.created_at as string | Date | undefined) ?? null,
+        currentStage,
+        slaHours: 24,
+    });
 
     const handleAdvanceStage = (nextStage: string) => {
         if (!stageField || nextStage === currentStage) return;
@@ -128,20 +162,138 @@ export function RecordExperienceHeader({
         });
     };
 
+    const handleLogActivity = () => {
+        if (!activitySubject.trim()) {
+            toast.error('Enter an activity summary first');
+            return;
+        }
+        startTransition(async () => {
+            const res = await logRecordQuickActivity(objectName, recordId, {
+                activityType,
+                subject: activitySubject,
+                notes: activityNotes,
+            });
+            if (!res.success) {
+                toast.error(res.error || 'Failed to log activity');
+                return;
+            }
+            setActivitySubject('');
+            setActivityNotes('');
+            toast.success('Activity added to 360° timeline.');
+            router.refresh();
+        });
+    };
+
+    const handleCloneRecord = () => {
+        startTransition(async () => {
+            const res = await cloneMetadataRecord(objectName, recordId);
+            if (!res.success || !res.clonedRecordId) {
+                toast.error(res.error || 'Failed to clone record');
+                return;
+            }
+            toast.success('Record cloned! Opening cloned record...');
+            router.push(`/app/${objectName}/${res.clonedRecordId}`);
+        });
+    };
+
+    const handleMergeDuplicate = (duplicateRecordId: string) => {
+        startTransition(async () => {
+            const res = await mergeMetadataRecords(objectName, recordId, duplicateRecordId);
+            if (!res.success) {
+                toast.error(res.error || 'Failed to merge duplicate record');
+                return;
+            }
+            toast.success('Duplicate record merged into this record.');
+            router.refresh();
+        });
+    };
+
+    const slaBadgeColor =
+        slaStatus.state === 'OVERDUE'
+            ? 'bg-destructive-subtle text-destructive border-destructive/30'
+            : slaStatus.state === 'AT_RISK'
+              ? 'bg-warning-subtle text-warning border-warning/30'
+              : slaStatus.state === 'COMPLETED'
+                ? 'bg-success-subtle text-success border-success/30'
+                : 'bg-info-subtle text-info border-info/30';
+
     return (
         <div className="space-y-4">
-            {/* 1. Salesforce Lightning Stage Path Bar */}
-            {stageField && stageOptions.length > 0 && (
-                <Card className="border-border shadow-sm" data-testid="record-stage-path">
+            {/* Duplicate Detection & 1-Click Merge Banner */}
+            {potentialDuplicates.length > 0 && (
+                <Card
+                    className="border-warning/40 bg-warning-subtle/40 shadow-sm"
+                    data-testid="record-duplicate-banner"
+                >
                     <CardContent className="p-4 space-y-2.5">
-                        <div className="flex items-center justify-between text-xs">
-                            <span className="font-semibold uppercase tracking-wider text-muted-foreground">
-                                Stage Path · {stageField.label}
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                            <span className="inline-flex items-center gap-1.5 font-semibold text-warning">
+                                <AlertTriangle className="w-4 h-4" />
+                                Potential Duplicate Records Detected ({potentialDuplicates.length})
                             </span>
-                            <span className="font-mono text-primary font-semibold">
-                                Current: {currentStage || 'Unset'}
+                            <span className="text-[11px] text-muted-foreground">
+                                Merge consolidates blank fields &amp; child lookups into this record
                             </span>
                         </div>
+                        <div className="space-y-1.5">
+                            {potentialDuplicates.map((dup, idx) => (
+                                <div
+                                    key={`${dup.recordId}-${dup.fieldApiName}-${idx}`}
+                                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs"
+                                >
+                                    <div>
+                                        <span className="font-mono text-muted-foreground mr-2">
+                                            #{dup.recordId.slice(0, 8)}
+                                        </span>
+                                        <span className="font-medium text-foreground">
+                                            Matched on {dup.fieldLabel}:{' '}
+                                            <span className="font-mono text-primary">
+                                                {dup.matchedValue}
+                                            </span>
+                                        </span>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={isPending}
+                                        onClick={() => handleMergeDuplicate(dup.recordId)}
+                                        data-testid="merge-duplicate-btn"
+                                        className="h-7 text-xs gap-1"
+                                    >
+                                        <GitMerge className="w-3.5 h-3.5" />
+                                        Merge Into This Record
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* 1. Salesforce Lightning Stage Path Bar + SLA Escalation Timer */}
+            <Card className="border-border shadow-sm" data-testid="record-stage-path">
+                <CardContent className="p-4 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <span className="font-semibold uppercase tracking-wider text-muted-foreground">
+                            {stageField ? `Stage Path · ${stageField.label}` : 'Record Lifecycle & SLA'}
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <span
+                                data-testid="record-sla-badge"
+                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${slaBadgeColor}`}
+                            >
+                                <Timer className="w-3 h-3" />
+                                {slaStatus.label}
+                            </span>
+                            {stageField && (
+                                <span className="font-mono text-primary font-semibold">
+                                    Current: {currentStage || 'Unset'}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    {stageField && stageOptions.length > 0 && (
                         <div className="flex flex-wrap items-center gap-1.5">
                             {stageOptions.map((option, idx) => {
                                 const isCurrent = option === currentStage;
@@ -171,11 +323,82 @@ export function RecordExperienceHeader({
                                 );
                             })}
                         </div>
-                    </CardContent>
-                </Card>
-            )}
+                    )}
+                </CardContent>
+            </Card>
 
-            {/* 2. Declarative Record Approval Bar */}
+            {/* 2. Omni-Channel Quick-Action Bar (Log Call / Counseling Note / Task & Clone Record) */}
+            <Card className="border-border shadow-sm" data-testid="record-quick-actions-bar">
+                <CardContent className="p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2 text-xs flex-1">
+                        <MessageSquarePlus className="w-4 h-4 text-primary shrink-0" />
+                        <Select
+                            value={activityType}
+                            onValueChange={val =>
+                                setActivityType(
+                                    val as
+                                        | 'CALL'
+                                        | 'COUNSELING_NOTE'
+                                        | 'FOLLOW_UP_TASK'
+                                        | 'WHATSAPP_SENT',
+                                )
+                            }
+                        >
+                            <SelectTrigger
+                                className="h-8 text-xs w-40"
+                                data-testid="quick-activity-type"
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="COUNSELING_NOTE">Counseling Note</SelectItem>
+                                <SelectItem value="CALL">Log a Call</SelectItem>
+                                <SelectItem value="FOLLOW_UP_TASK">Follow-Up Task</SelectItem>
+                                <SelectItem value="WHATSAPP_SENT">WhatsApp Logged</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Input
+                            value={activitySubject}
+                            onChange={e => setActivitySubject(e.target.value)}
+                            placeholder="Subject (e.g. Discussed scholarship & hostel options)..."
+                            data-testid="quick-activity-subject"
+                            className="h-8 text-xs flex-1 min-w-[180px]"
+                        />
+                        <Input
+                            value={activityNotes}
+                            onChange={e => setActivityNotes(e.target.value)}
+                            placeholder="Optional outcome notes..."
+                            className="h-8 text-xs w-44"
+                        />
+                        <Button
+                            type="button"
+                            size="sm"
+                            disabled={isPending}
+                            onClick={handleLogActivity}
+                            data-testid="log-quick-activity-btn"
+                            className="h-8 text-xs"
+                        >
+                            Log Activity
+                        </Button>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={isPending}
+                            onClick={handleCloneRecord}
+                            data-testid="clone-record-btn"
+                            className="h-8 text-xs gap-1"
+                        >
+                            <Copy className="w-3.5 h-3.5" />
+                            Clone Record
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* 3. Declarative Record Approval Bar */}
             <Card className="border-border shadow-sm" data-testid="record-approval-bar">
                 <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-2 text-xs">

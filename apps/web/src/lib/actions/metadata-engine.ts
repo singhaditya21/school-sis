@@ -29,12 +29,14 @@ import {
 import type { AuthorizationRole } from '@school-sis/api';
 import {
     assertSafeMetadataIdentifier,
+    detectMetadataDuplicates,
     evaluateMetadataFormula,
     evaluateMetadataRollupSummary,
     isVirtualMetadataField,
     normalizeMetadataFieldInput,
     quoteIdentifier,
     validateMetadataRecordPayload,
+    type DuplicateMatchEntry,
     type MetadataDataType,
     type MetadataValidationRules,
 } from '@/lib/metadata/platform';
@@ -711,6 +713,25 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
             const validated = validateMetadataRecordPayload(persistedFields, submitted, { requireAll: !id });
             if (validated.ok === false) {
                 return { success: false, error: validated.errors.join(' ') };
+            }
+            const hasBlockingDuplicateRule = persistedFields.some(
+                f => f.validationRules?.duplicateRuleBehavior === 'BLOCK',
+            );
+            if (hasBlockingDuplicateRule) {
+                const existingRecords = await queryRecords(apiName, {}, 250, 0);
+                const dupCheck = detectMetadataDuplicates(
+                    persistedFields,
+                    validated.data,
+                    existingRecords,
+                    { excludeRecordId: id },
+                );
+                if (dupCheck.blocked && dupCheck.matches.length > 0) {
+                    const firstBlock = dupCheck.matches.find(m => m.behavior === 'BLOCK') ?? dupCheck.matches[0];
+                    return {
+                        success: false,
+                        error: `Duplicate blocked: ${firstBlock.fieldLabel} "${firstBlock.matchedValue}" already exists on record ${firstBlock.recordId.slice(0, 8)}.`,
+                    };
+                }
             }
             const savedId = await upsertEavRecord(objectDef, persistedFields, tenantId, validated.data, id);
             await executeMatchingWorkflows(tenantId, apiName, 'object.record.upserted', validated.data, savedId);
@@ -2541,6 +2562,12 @@ export async function getRecordAuditTimeline(
                 summary = `Submitted for approval${after.comment ? `: "${String(after.comment)}"` : ''}`;
             } else if (row.action === 'RECORD_APPROVAL_DECIDED') {
                 summary = `Approval ${String(after.decision || 'DECIDED')}${after.comment ? `: "${String(after.comment)}"` : ''}`;
+            } else if (row.action === 'METADATA_RECORD_ACTIVITY') {
+                summary = `[${String(after.activityType || 'ACTIVITY')}] ${String(after.subject || 'Activity logged')}${after.notes ? ` — ${String(after.notes)}` : ''}`;
+            } else if (row.action === 'METADATA_RECORD_CLONED') {
+                summary = `Cloned from record ${String(after.sourceRecordId || '').slice(0, 8)}`;
+            } else if (row.action === 'METADATA_RECORD_MERGED') {
+                summary = `Merged duplicate record ${String(after.duplicateRecordId || '').slice(0, 8)} into this record`;
             } else if (row.action === 'CREATE') {
                 summary = `Record created via API / Form`;
             }
@@ -2884,5 +2911,268 @@ export async function installEducationBlueprint(
         };
     }
 }
+
+// ============================================================================
+// 9. Track B: 360° Record Console (Duplicate Detection, Clone, Merge & Quick Activities)
+// ============================================================================
+
+/**
+ * Scans existing records of `apiName` to detect potential duplicate records for a given `recordId`
+ * using both explicit `duplicateRuleBehavior` fields and contact/name heuristics (`EMAIL`, `PHONE`, `student_name`, `candidate_name`).
+ */
+export async function findPotentialDuplicateRecords(
+    apiName: string,
+    recordId: string,
+): Promise<DuplicateMatchEntry[]> {
+    try {
+        if (!UUID_RE.test(recordId)) return [];
+        const { tenantId } = await requireAuth();
+        const { fields } = await loadObjectMetadata(apiName, tenantId);
+        const allRecords = await queryRecords(apiName, {}, 200, 0);
+        const currentRecord = allRecords.find(r => String(r.id) === recordId);
+        if (!currentRecord) return [];
+
+        const result = detectMetadataDuplicates(fields, currentRecord, allRecords, {
+            excludeRecordId: recordId,
+            includeContactHeuristics: true,
+        });
+        return result.matches;
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Clones an existing EAV custom object record into a brand-new record, automatically generating
+ * a fresh `AUTO_NUMBER` sequence if the object has an auto-number field and logging `METADATA_RECORD_CLONED`.
+ */
+export async function cloneMetadataRecord(
+    apiName: string,
+    sourceRecordId: string,
+): Promise<{ success: boolean; clonedRecordId?: string; error?: string }> {
+    try {
+        if (!UUID_RE.test(sourceRecordId)) {
+            return { success: false, error: 'Invalid source record ID.' };
+        }
+        const { tenantId, userId } = await requireAuth();
+        const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
+        if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
+            return { success: false, error: 'Cloning is supported on custom EAV objects.' };
+        }
+
+        const existing = await queryRecords(apiName, { id: sourceRecordId }, 1, 0);
+        if (existing.length === 0) {
+            return { success: false, error: 'Source record not found.' };
+        }
+        const sourceRow = existing[0] as Record<string, unknown>;
+        const writableFields = fields.filter(f => !isVirtualMetadataField(f));
+
+        const clonePayload: Record<string, unknown> = {};
+        for (const field of writableFields) {
+            if (field.validationRules?.fieldSubType === 'AUTO_NUMBER') {
+                // Leave blank so validateMetadataRecordPayload generates a fresh sequence
+                continue;
+            }
+            if (sourceRow[field.apiName] !== undefined && sourceRow[field.apiName] !== null) {
+                clonePayload[field.apiName] = sourceRow[field.apiName];
+            }
+        }
+
+        const validated = validateMetadataRecordPayload(writableFields, clonePayload, {
+            requireAll: false,
+        });
+        if (validated.ok === false) {
+            return { success: false, error: validated.errors.join(' ') };
+        }
+
+        const clonedRecordId = await upsertEavRecord(
+            objectDef,
+            writableFields,
+            tenantId,
+            validated.data,
+        );
+
+        await sql`
+            INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
+            VALUES (
+                ${tenantId},
+                ${userId},
+                'METADATA_RECORD_CLONED',
+                ${apiName},
+                ${clonedRecordId},
+                ${JSON.stringify({
+                    sourceRecordId,
+                    clonedRecordId,
+                    clonedAt: new Date().toISOString(),
+                })}::jsonb
+            )
+        `.execute();
+
+        revalidateTag('metadata', 'max');
+        return { success: true, clonedRecordId };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to clone record.',
+        };
+    }
+}
+
+/**
+ * Merges a duplicate record (`duplicateRecordId`) into the primary record (`primaryRecordId`):
+ *   1. Copies any non-empty field values from `duplicateRecordId` into blank fields on `primaryRecordId`.
+ *   2. Re-links child `LOOKUP` EAV values referencing `duplicateRecordId` to `primaryRecordId`.
+ *   3. Deletes `duplicateRecordId` and logs `METADATA_RECORD_MERGED` on `primaryRecordId`.
+ */
+export async function mergeMetadataRecords(
+    apiName: string,
+    primaryRecordId: string,
+    duplicateRecordId: string,
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        if (!UUID_RE.test(primaryRecordId) || !UUID_RE.test(duplicateRecordId)) {
+            return { success: false, error: 'Invalid record ID.' };
+        }
+        if (primaryRecordId === duplicateRecordId) {
+            return { success: false, error: 'Cannot merge a record with itself.' };
+        }
+        const { tenantId, userId } = await requireAuth();
+        const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
+        if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
+            return { success: false, error: 'Record merging is supported on custom EAV objects.' };
+        }
+
+        const [primaryRows, duplicateRows] = await Promise.all([
+            queryRecords(apiName, { id: primaryRecordId }, 1, 0),
+            queryRecords(apiName, { id: duplicateRecordId }, 1, 0),
+        ]);
+        if (primaryRows.length === 0 || duplicateRows.length === 0) {
+            return { success: false, error: 'Primary or duplicate record not found.' };
+        }
+
+        const primaryData = primaryRows[0] as Record<string, unknown>;
+        const duplicateData = duplicateRows[0] as Record<string, unknown>;
+        const writableFields = fields.filter(f => !isVirtualMetadataField(f));
+
+        const mergedPatch: Record<string, unknown> = {};
+        for (const field of writableFields) {
+            const pVal = primaryData[field.apiName];
+            const dVal = duplicateData[field.apiName];
+            const primaryBlank = pVal === null || pVal === undefined || String(pVal).trim() === '';
+            const duplicateHasVal = dVal !== null && dVal !== undefined && String(dVal).trim() !== '';
+            if (primaryBlank && duplicateHasVal) {
+                mergedPatch[field.apiName] = dVal;
+            }
+        }
+
+        if (Object.keys(mergedPatch).length > 0) {
+            await upsertEavRecord(objectDef, writableFields, tenantId, mergedPatch, primaryRecordId);
+        }
+
+        // Re-point any EAV lookup values referencing the duplicate record to the primary record
+        await sql`
+            UPDATE metadata_values mv
+            SET value_text = ${primaryRecordId}
+            FROM metadata_records mr
+            WHERE mv.record_id = mr.id
+              AND mr.tenant_id = ${tenantId}
+              AND mv.value_text = ${duplicateRecordId}
+        `.execute();
+
+        // Delete the duplicate EAV record
+        await sql`
+            DELETE FROM metadata_values
+            WHERE record_id = ${duplicateRecordId}
+              AND EXISTS (
+                  SELECT 1 FROM metadata_records mr
+                  WHERE mr.id = ${duplicateRecordId}
+                    AND mr.tenant_id = ${tenantId}
+              )
+        `.execute();
+        await sql`
+            DELETE FROM metadata_records
+            WHERE id = ${duplicateRecordId}
+              AND tenant_id = ${tenantId}
+        `.execute();
+
+        await sql`
+            INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
+            VALUES (
+                ${tenantId},
+                ${userId},
+                'METADATA_RECORD_MERGED',
+                ${apiName},
+                ${primaryRecordId},
+                ${JSON.stringify({
+                    primaryRecordId,
+                    duplicateRecordId,
+                    backfilledFields: Object.keys(mergedPatch),
+                    mergedAt: new Date().toISOString(),
+                })}::jsonb
+            )
+        `.execute();
+
+        revalidateTag('metadata', 'max');
+        return { success: true };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to merge records.',
+        };
+    }
+}
+
+/**
+ * Logs a counselor / advisor / faculty quick activity (`CALL`, `COUNSELING_NOTE`,
+ * `FOLLOW_UP_TASK`, or `WHATSAPP_SENT`) directly onto a record's 360° timeline.
+ */
+export async function logRecordQuickActivity(
+    apiName: string,
+    recordId: string,
+    payload: {
+        activityType: 'CALL' | 'COUNSELING_NOTE' | 'FOLLOW_UP_TASK' | 'WHATSAPP_SENT';
+        subject: string;
+        notes?: string;
+        dueDate?: string;
+    },
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        if (!UUID_RE.test(recordId)) {
+            return { success: false, error: 'Invalid record ID.' };
+        }
+        const subject = String(payload.subject || '').trim();
+        if (!subject) {
+            return { success: false, error: 'Activity subject is required.' };
+        }
+        const { tenantId, userId } = await requireAuth();
+
+        await sql`
+            INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
+            VALUES (
+                ${tenantId},
+                ${userId},
+                'METADATA_RECORD_ACTIVITY',
+                ${apiName},
+                ${recordId},
+                ${JSON.stringify({
+                    activityType: payload.activityType,
+                    subject,
+                    notes: payload.notes?.trim() || null,
+                    dueDate: payload.dueDate || null,
+                    loggedAt: new Date().toISOString(),
+                })}::jsonb
+            )
+        `.execute();
+
+        revalidateTag('metadata', 'max');
+        return { success: true };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to log activity.',
+        };
+    }
+}
+
 
 

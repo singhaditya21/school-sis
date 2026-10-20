@@ -62,6 +62,7 @@ export default function FieldManagerClient({
     const [newVisField, setNewVisField] = useState('');
     const [newVisOperator, setNewVisOperator] = useState('equals');
     const [newVisValue, setNewVisValue] = useState('');
+    const [newDuplicateRule, setNewDuplicateRule] = useState('NONE');
     const [approvalReason, setApprovalReason] = useState('Adding custom field via Object Manager');
 
     // Field-Level Security (FLS) Dialog State
@@ -159,6 +160,10 @@ export default function FieldManagerClient({
                         ? newVisOperator
                         : undefined,
                     visibilityWhenValue: newVisField.trim() ? newVisValue : undefined,
+                    duplicateRuleBehavior:
+                        newDuplicateRule === 'BLOCK' || newDuplicateRule === 'WARN'
+                            ? newDuplicateRule
+                            : undefined,
                 },
             };
             const created = await createCustomField(objectId, fieldData, {
@@ -505,6 +510,30 @@ export default function FieldManagerClient({
                                             className="h-8 text-xs"
                                         />
                                     </div>
+                                    <div className="pt-1">
+                                        <Select
+                                            value={newDuplicateRule}
+                                            onValueChange={setNewDuplicateRule}
+                                        >
+                                            <SelectTrigger
+                                                className="h-8 text-xs"
+                                                data-testid="new-field-duplicate-rule"
+                                            >
+                                                <SelectValue placeholder="Duplicate & Matching Rule" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="NONE">
+                                                    Duplicate Rule: Allow Duplicates
+                                                </SelectItem>
+                                                <SelectItem value="BLOCK">
+                                                    Duplicate Rule: Block Exact Duplicates (Unique)
+                                                </SelectItem>
+                                                <SelectItem value="WARN">
+                                                    Duplicate Rule: Warn &amp; Flag for Merge
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-2">
@@ -591,6 +620,11 @@ export default function FieldManagerClient({
                                                         f(x) = {f.validationRules.formulaExpression}
                                                     </span>
                                                 )}
+                                            {f.validationRules?.duplicateRuleBehavior && (
+                                                <span className="inline-block text-[10px] font-mono px-1.5 py-0.5 rounded bg-warning-subtle text-warning border border-warning/30 mt-1">
+                                                    DUP: {f.validationRules.duplicateRuleBehavior}
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                                             {f.apiName}
