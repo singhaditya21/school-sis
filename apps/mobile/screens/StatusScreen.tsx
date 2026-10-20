@@ -11,19 +11,19 @@ import { config } from '../config';
 
 const BLOCKERS = [
   {
-    title: 'No mobile sign-in',
+    title: 'Mobile JSON Sign-In Ready (/api/auth/token)',
     detail:
-      'The web app authenticates with an iron-session cookie set by a server action. There is no JSON or token login endpoint a native client can call, so this app cannot establish a session.',
+      'Mobile clients can now establish a session via POST /api/auth/token with schoolCode, email, and password, and browse published custom objects via /api/data.',
   },
   {
-    title: 'No readable data without a session',
+    title: 'Tenant-scoped RBAC & RLS enforced',
     detail:
-      'Every parent endpoint is gated on a PARENT session and scoped to the guardian record. With no session, all of them correctly return 401.',
+      'Every endpoint is gated on a verified session and scoped to the signed-in tenant and role.',
   },
   {
-    title: 'Payments removed',
+    title: 'Payments gated until Stripe Connect is configured',
     detail:
-      'The previous payment screen could charge a card through Stripe, but nothing in the backend recorded the result against the invoice. It has been removed rather than left in place.',
+      'The previous payment screen could charge a card through Stripe without invoice reconciliation. Online payments remain on the web portal until Stripe Connect and webhook secrets are configured in /settings/payments.',
   },
 ];
 

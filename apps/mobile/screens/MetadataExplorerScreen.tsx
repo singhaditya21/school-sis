@@ -48,6 +48,34 @@ export function MetadataExplorerScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState<boolean>(false);
   const [draftValues, setDraftValues] = useState<Record<string, unknown>>({});
+  const [schoolCode, setSchoolCode] = useState<string>('GWD');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [signedInUser, setSignedInUser] = useState<string | null>(null);
+
+  const handleMobileLogin = async () => {
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      const res = await fetch(`${config.BACKEND_URL}/api/auth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ schoolCode, email, password }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErrorMessage(body.error || 'Sign-in failed.');
+        return;
+      }
+      setSignedInUser(body.displayName || body.email || email);
+      await loadObjects();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Network error during sign-in.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadObjects = useCallback(async () => {
     setLoading(true);
@@ -166,6 +194,46 @@ export function MetadataExplorerScreen() {
         <View style={styles.errorBanner}>
           <Text style={styles.errorTitle}>Connection / Session Notice</Text>
           <Text style={styles.errorBody}>{errorMessage}</Text>
+        </View>
+      )}
+
+      {!signedInUser && objects.length === 0 && (
+        <View style={styles.formCard}>
+          <Text style={styles.formHeading}>Sign In to Tenant Workspace</Text>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>School Code</Text>
+            <TextInput
+              style={styles.input}
+              value={schoolCode}
+              onChangeText={setSchoolCode}
+              placeholder="e.g. GWD"
+              autoCapitalize="characters"
+            />
+          </View>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Email</Text>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="admin@greenwood.edu"
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Password</Text>
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Password"
+              secureTextEntry
+            />
+          </View>
+          <Pressable style={styles.submitBtn} onPress={handleMobileLogin}>
+            <Text style={styles.submitBtnText}>Sign In &amp; Load Objects</Text>
+          </Pressable>
         </View>
       )}
 

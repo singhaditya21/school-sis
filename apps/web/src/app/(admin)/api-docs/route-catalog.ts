@@ -552,9 +552,9 @@ export const API_ROUTES: readonly ApiRouteDoc[] = [
     // ---- Identity & settings --------------------------------------------------
     {
         path: '/api/auth/token',
-        methods: ['GET'],
+        methods: ['GET', 'POST'],
         group: 'Identity',
-        summary: 'Non-sensitive session context for client-side calls.',
+        summary: 'GET returns non-sensitive session context; POST authenticates mobile/API clients and establishes a session.',
         auth: 'session',
     },
     {

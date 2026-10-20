@@ -1,8 +1,8 @@
 # School SIS — Issues & Roadmap
 
-> **Document version**: 2.5.0
-> **Last updated**: 2026-10-18
-> **Source of truth**: [`audits/reports/2026-07-04-full-application-audit.md`](../../audits/reports/2026-07-04-full-application-audit.md), re-verified against the live GitHub issue/PR state and `main` on 2026-10-18.
+> **Document version**: 2.6.0
+> **Last updated**: 2026-10-20
+> **Source of truth**: [`audits/reports/2026-07-04-full-application-audit.md`](../../audits/reports/2026-07-04-full-application-audit.md), re-verified against the live GitHub issue/PR state and `main` on 2026-10-20.
 > **Runtime**: Production runs on Vercel (`sin1`) with Neon Postgres; previews deploy to `iad1` on Neon branches. GitHub Actions owns preview and production release ordering. Local development is local-only — see [RUNNING.md](../../RUNNING.md).
 > **Supersedes**: v1.0.0 (2026-04-26) dependency/security audit — its still-open items are folded into the security, hygiene, and testing issues below.
 
@@ -126,7 +126,20 @@ Three items were closed by deleting the code they described, not by fixing it. V
 | [#29](https://github.com/singhaditya21/school-sis/issues/29) — Strict rate-limit outage behavior         | 🟢 Done   | Atomic shared backends, explicit production backend selection, bounded strict fallback, entrypoint tests, readiness/metrics, Prometheus alerts, Grafana dashboard, and runbook.                                                                                                                                                                               |
 | [#26](https://github.com/singhaditya21/school-sis/issues/26) — Formal RLS/database security              | 🟢 Done   | 144-table matrix; non-superuser Postgres isolation test; transaction-local context; bypass registry; remote `verify-full` TLS default; destructive-migration gates.                                                                                                                                                                                           |
 
-_Minor residual hygiene from #1 (delete dead `app/(platform)/layout.tsx` and the empty `app/api/auth/[...nextauth]` dir) is folded into the repository-hygiene issue._
+## LCNC & Drag-and-Drop Platform + Mobile Completion (2026-10-20)
+
+- **True Drag-and-Drop LCNC Builders (Tracks 1–2)**:
+  - **Form & List Layout Designer** (`/settings/objects/[id]`): HTML5 drag-and-drop canvas persisting custom field order and section layouts to `metadata_layouts`.
+  - **Visual Workflow Automation Canvas** (`/settings/automation/new`): Drag-and-drop node builder with dynamic target object selector (`getAllMetadataObjects`) and live database/outbox/webhook action runners (`FIELD_UPDATE`, `CREATE_TASK`, `SEND_EMAIL`, `WEBHOOK`).
+  - **Drag-and-Drop Executive Dashboard** (`/executive`): Customizable KPI widget ordering and visibility persisted per tenant in `audit_logs` (`EXECUTIVE_DASHBOARD_LAYOUT_SAVED`).
+  - **Custom BI Report Builder & Scheduled Delivery** (`/reports`): Drag-and-drop dimension/metric chip reordering plus saved report definitions (`BI_REPORT_SAVED`) and scheduled email delivery (`BI_SCHEDULED_REPORT`).
+  - **Metadata Engine Capabilities**: Relational `LOOKUP` fields with child related lists, calculated `FORMULA` fields (safe arithmetic, `CONCAT`, `DAYS_BETWEEN`), `object.record.deleted` lifecycle (`deleteRecord`), and CSV bulk import/export (`bulkImportRecords`).
+- **Automated E2E & Code Quality Ratchets (Track 3)**:
+  - Added Playwright E2E smoke assertions (`apps/web/e2e/route-smoke.ts` and `apps/web/e2e/metadata-engine.spec.ts`) covering all LCNC builders.
+  - Lowered the design-system color-literal ratchet (`apps/web/src/__tests__/color-literal-ratchet.test.ts`) from `2,924` → `2,135` and raw `pg` query ratchet (`scripts/risk-debt-baseline.json`) from `708` → `686`.
+- **Integrations Outbox Console & Mobile LCNC Parity (Track 4)**:
+  - Shipped `/settings/integrations` for live channel readiness inspection (`EMAIL`, `SMS`, `WHATSAPP`, `PUSH`, `IN_APP`), test dispatches, and `notification_outbox` retries.
+  - Added `GET /api/data` object discovery, `POST /api/auth/token` mobile sign-in, and `apps/mobile/screens/MetadataExplorerScreen.tsx` for dynamic mobile rendering of custom objects and fields.
 
 ---
 
