@@ -24,17 +24,27 @@ export async function GET() {
         }>`
             SELECT id,
                    name,
-                   api_name AS "apiName",
-                   table_name AS "tableName",
-                   COALESCE(is_custom, false) AS "isCustom",
+                   "apiName",
+                   "tableName",
+                   "isCustom",
                    version
-            FROM metadata_objects
-            WHERE status = 'PUBLISHED'
-              AND (
-                tenant_id = ${tenantId}
-                OR (tenant_id IS NULL AND COALESCE(is_custom, false) = false)
-              )
-            ORDER BY is_custom DESC, name ASC
+            FROM (
+                SELECT DISTINCT ON (api_name)
+                       id,
+                       name,
+                       api_name AS "apiName",
+                       table_name AS "tableName",
+                       COALESCE(is_custom, false) AS "isCustom",
+                       version
+                FROM metadata_objects
+                WHERE status = 'PUBLISHED'
+                  AND (
+                    tenant_id = ${tenantId}
+                    OR (tenant_id IS NULL AND COALESCE(is_custom, false) = false)
+                  )
+                ORDER BY api_name, CASE WHEN tenant_id = ${tenantId} THEN 0 ELSE 1 END, created_at DESC
+            ) resolved_objects
+            ORDER BY "isCustom" DESC, name ASC
         `;
 
         await logAudit({

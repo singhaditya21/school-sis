@@ -597,10 +597,13 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
         const { tenantId, session } = await requireAuth();
         const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
 
+        // Strip virtual FORMULA fields so they are never treated as writable/required inputs
+        const persistedFields = fields.filter(f => f.validationRules?.fieldSubType !== 'FORMULA');
+
         // Field-level write permissions, identical to /api/data/[object_name].
-        const submitted = pickKnownMetadataFields(fields, data);
+        const submitted = pickKnownMetadataFields(persistedFields, data);
         const writeAccess = checkWritableMetadataPayload(
-            fields as RuntimeMetadataFieldWithPermissions[],
+            persistedFields as RuntimeMetadataFieldWithPermissions[],
             session.role,
             submitted,
         );
@@ -613,17 +616,17 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
         }
 
         if (resolveMetadataStorageMode(objectDef) === 'EAV') {
-            const validated = validateMetadataRecordPayload(fields, submitted, { requireAll: !id });
+            const validated = validateMetadataRecordPayload(persistedFields, submitted, { requireAll: !id });
             if (validated.ok === false) {
                 return { success: false, error: validated.errors.join(' ') };
             }
-            const savedId = await upsertEavRecord(objectDef, fields, tenantId, validated.data, id);
+            const savedId = await upsertEavRecord(objectDef, persistedFields, tenantId, validated.data, id);
             await executeMatchingWorkflows(tenantId, apiName, 'object.record.upserted', validated.data, savedId);
             redirect(`/app/${apiName}`);
         }
 
-        const standardFields = fields.filter(f => !f.isCustom);
-        const customFields = fields.filter(f => f.isCustom);
+        const standardFields = persistedFields.filter(f => !f.isCustom);
+        const customFields = persistedFields.filter(f => f.isCustom);
         
         // Separate data into standard columns and custom_data
         const standardData: Record<string, unknown> = {};
@@ -650,24 +653,26 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
                     standardData.gender = 'Other';
                 }
                 if (!standardData.grade_id) {
-                    const { rows: gradeRows } = await pool.query('SELECT id FROM grades WHERE tenant_id = $1 LIMIT 1', [tenantId]);
+                    const gradeRows = await sql<{ id: string }>`
+                        SELECT id FROM grades WHERE tenant_id = ${tenantId} LIMIT 1
+                    `;
                     if (gradeRows.length > 0) standardData.grade_id = gradeRows[0].id;
                 } else {
-                    const { rowCount } = await pool.query(
-                        'SELECT 1 FROM grades WHERE id = $1 AND tenant_id = $2 LIMIT 1',
-                        [standardData.grade_id, tenantId]
-                    );
-                    if (rowCount === 0) throw new Error('Grade not found for tenant');
+                    const gradeCheck = await sql<{ ok: number }>`
+                        SELECT 1 AS ok FROM grades WHERE id = ${String(standardData.grade_id)} AND tenant_id = ${tenantId} LIMIT 1
+                    `;
+                    if (gradeCheck.length === 0) throw new Error('Grade not found for tenant');
                 }
                 if (!standardData.section_id) {
-                    const { rows: sectionRows } = await pool.query('SELECT id FROM sections WHERE tenant_id = $1 LIMIT 1', [tenantId]);
+                    const sectionRows = await sql<{ id: string }>`
+                        SELECT id FROM sections WHERE tenant_id = ${tenantId} LIMIT 1
+                    `;
                     if (sectionRows.length > 0) standardData.section_id = sectionRows[0].id;
                 } else {
-                    const { rowCount } = await pool.query(
-                        'SELECT 1 FROM sections WHERE id = $1 AND tenant_id = $2 LIMIT 1',
-                        [standardData.section_id, tenantId]
-                    );
-                    if (rowCount === 0) throw new Error('Section not found for tenant');
+                    const sectionCheck = await sql<{ ok: number }>`
+                        SELECT 1 AS ok FROM sections WHERE id = ${String(standardData.section_id)} AND tenant_id = ${tenantId} LIMIT 1
+                    `;
+                    if (sectionCheck.length === 0) throw new Error('Section not found for tenant');
                 }
             }
 
@@ -684,15 +689,14 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
                     ? standardData.email
                     : `${standardData.employee_id || 'staff_' + Math.random().toString(36).substring(2, 11)}@imported.invalid`;
                 const email = importedEmail;
-                const userInsertQuery = `
+                const passwordHash = await hash(crypto.randomBytes(18).toString('base64url'), 12);
+                const firstName = String(customData.first_name || 'Staff');
+                const lastName = String(customData.last_name || 'Member');
+                const userRows = await sql<{ id: string }>`
                     INSERT INTO users (tenant_id, email_enc, password_hash, role, first_name, last_name)
-                    VALUES ($1, $2, $3, 'TEACHER', $4, $5)
+                    VALUES (${tenantId}, ${encryptEmail(email)}, ${passwordHash}, 'TEACHER', ${firstName}, ${lastName})
                     RETURNING id
                 `;
-                const passwordHash = await hash(crypto.randomBytes(18).toString('base64url'), 12);
-                const firstName = customData.first_name || 'Staff';
-                const lastName = customData.last_name || 'Member';
-                const { rows: userRows } = await pool.query(userInsertQuery, [tenantId, encryptEmail(email), passwordHash, firstName, lastName]);
                 standardData.user_id = userRows[0].id;
             }
 
@@ -710,24 +714,26 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
                     standardData.paid_amount = '0.00';
                 }
                 if (!standardData.student_id || typeof standardData.student_id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(standardData.student_id)) {
-                    const { rows: studentRows } = await pool.query('SELECT id FROM students WHERE tenant_id = $1 LIMIT 1', [tenantId]);
+                    const studentRows = await sql<{ id: string }>`
+                        SELECT id FROM students WHERE tenant_id = ${tenantId} LIMIT 1
+                    `;
                     if (studentRows.length > 0) standardData.student_id = studentRows[0].id;
                 } else {
-                    const { rowCount } = await pool.query(
-                        'SELECT 1 FROM students WHERE id = $1 AND tenant_id = $2 LIMIT 1',
-                        [standardData.student_id, tenantId]
-                    );
-                    if (rowCount === 0) throw new Error('Student not found for tenant');
+                    const studentCheck = await sql<{ ok: number }>`
+                        SELECT 1 AS ok FROM students WHERE id = ${String(standardData.student_id)} AND tenant_id = ${tenantId} LIMIT 1
+                    `;
+                    if (studentCheck.length === 0) throw new Error('Student not found for tenant');
                 }
                 if (!standardData.fee_plan_id) {
-                    const { rows: feePlanRows } = await pool.query('SELECT id FROM fee_plans WHERE tenant_id = $1 LIMIT 1', [tenantId]);
+                    const feePlanRows = await sql<{ id: string }>`
+                        SELECT id FROM fee_plans WHERE tenant_id = ${tenantId} LIMIT 1
+                    `;
                     if (feePlanRows.length > 0) standardData.fee_plan_id = feePlanRows[0].id;
                 } else {
-                    const { rowCount } = await pool.query(
-                        'SELECT 1 FROM fee_plans WHERE id = $1 AND tenant_id = $2 LIMIT 1',
-                        [standardData.fee_plan_id, tenantId]
-                    );
-                    if (rowCount === 0) throw new Error('Fee plan not found for tenant');
+                    const feePlanCheck = await sql<{ ok: number }>`
+                        SELECT 1 AS ok FROM fee_plans WHERE id = ${String(standardData.fee_plan_id)} AND tenant_id = ${tenantId} LIMIT 1
+                    `;
+                    if (feePlanCheck.length === 0) throw new Error('Fee plan not found for tenant');
                 }
             }
         }
@@ -736,7 +742,7 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
             standardData.gender = standardData.gender.toUpperCase();
         }
 
-        const validated = validateMetadataRecordPayload(fields, { ...standardData, ...customData }, { requireAll: !id });
+        const validated = validateMetadataRecordPayload(persistedFields, { ...standardData, ...customData }, { requireAll: !id });
         if (validated.ok === false) {
             return { success: false, error: validated.errors.join(' ') };
         }
@@ -842,21 +848,20 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
  */
 export async function getAllMetadataObjects() {
     const { tenantId } = await requireAuth();
-    const { rows } = await pool.query(`
+    return sql<Record<string, unknown>>`
         SELECT *
         FROM (
             SELECT DISTINCT ON (api_name) *
             FROM metadata_objects
             WHERE status <> 'ARCHIVED'
               AND (
-                tenant_id = $1
+                tenant_id = ${tenantId}
                 OR (tenant_id IS NULL AND COALESCE(is_custom, false) = false)
               )
-            ORDER BY api_name, CASE WHEN tenant_id = $1 THEN 0 ELSE 1 END, created_at DESC
+            ORDER BY api_name, CASE WHEN tenant_id = ${tenantId} THEN 0 ELSE 1 END, created_at DESC
         ) resolved_objects
         ORDER BY name ASC
-    `, [tenantId]);
-    return rows;
+    `;
 }
 
 type MetadataDbClient = {
@@ -1813,18 +1818,39 @@ export async function bulkImportRecords(
                     createdId,
                 );
             } else {
+                const standardPayload: Record<string, unknown> = {};
                 const customPayload: Record<string, unknown> = {};
                 for (const field of writableFields) {
-                    if (field.isCustom && validated.data[field.apiName] !== undefined) {
+                    if (!Object.prototype.hasOwnProperty.call(validated.data, field.apiName)) continue;
+                    if (field.isCustom) {
                         customPayload[field.apiName] = validated.data[field.apiName];
+                    } else {
+                        standardPayload[field.apiName] = validated.data[field.apiName];
                     }
                 }
-                const createdId = await upsertEavRecord(
-                    { ...objectDef, tableName: 'metadata_records' },
-                    writableFields,
-                    tenantId,
-                    { ...validated.data, ...customPayload },
+                const tableName = quoteIdentifier(objectDef.tableName);
+                const keys = [quoteIdentifier('tenant_id')];
+                const values: unknown[] = [tenantId];
+                const placeholders = ['$1'];
+                let argIndex = 2;
+
+                for (const [key, value] of Object.entries(standardPayload)) {
+                    keys.push(quoteIdentifier(key));
+                    values.push(value);
+                    placeholders.push(`$${argIndex++}`);
+                }
+
+                if (Object.keys(customPayload).length > 0) {
+                    keys.push(quoteIdentifier('custom_data'));
+                    values.push(JSON.stringify(customPayload));
+                    placeholders.push(`$${argIndex++}`);
+                }
+
+                const { rows } = await pool.query<{ id: string }>(
+                    `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING id`,
+                    values,
                 );
+                const createdId = String(rows[0]?.id ?? '');
                 importedCount++;
                 await executeMatchingWorkflows(
                     tenantId,

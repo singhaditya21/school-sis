@@ -38,9 +38,10 @@ export interface IntegrationsConsoleData {
 }
 
 const ALL_CHANNELS: NotificationChannel[] = ['EMAIL', 'SMS', 'WHATSAPP', 'PUSH', 'IN_APP'];
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function getIntegrationsConsoleData(): Promise<IntegrationsConsoleData> {
-    const { tenantId } = await requireAuth();
+    const { tenantId } = await requireAuth('settings:read');
 
     const channels = ALL_CHANNELS.map((ch) => describeChannelReadiness(ch));
 
@@ -113,7 +114,11 @@ export async function sendTestChannelNotification(
     channel: NotificationChannel,
     recipient: string,
 ): Promise<{ success: boolean; status?: string; error?: string }> {
-    const { tenantId, userId } = await requireAuth();
+    const { tenantId, userId } = await requireAuth('settings:write');
+
+    if (!ALL_CHANNELS.includes(channel)) {
+        return { success: false, error: `Unsupported notification channel: ${channel}` };
+    }
 
     const cleanRecipient = recipient.trim();
     if (!cleanRecipient) {
@@ -139,6 +144,22 @@ export async function sendTestChannelNotification(
         });
 
         const delivery = await processNotification(queued.notificationId, tenantId);
+        await sql`
+            INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
+            VALUES (
+                ${tenantId},
+                ${userId},
+                'NOTIFICATION_TEST_DISPATCH',
+                'notification_outbox',
+                ${queued.notificationId},
+                ${JSON.stringify({
+                    channel,
+                    recipient: cleanRecipient,
+                    status: delivery.status,
+                    success: delivery.success,
+                })}::jsonb
+            )
+        `.execute();
         revalidatePath('/settings/integrations');
 
         if (!delivery.success) {
@@ -164,10 +185,28 @@ export async function sendTestChannelNotification(
 export async function retryOutboxNotification(
     notificationId: string,
 ): Promise<{ success: boolean; status?: string; error?: string }> {
-    const { tenantId } = await requireAuth();
+    const { tenantId, userId } = await requireAuth('settings:write');
+
+    if (!UUID_RE.test(notificationId)) {
+        return { success: false, error: 'Invalid notification ID.' };
+    }
 
     try {
         const result = await processNotification(notificationId, tenantId);
+        await sql`
+            INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
+            VALUES (
+                ${tenantId},
+                ${userId},
+                'NOTIFICATION_OUTBOX_RETRY',
+                'notification_outbox',
+                ${notificationId},
+                ${JSON.stringify({
+                    status: result.status,
+                    success: result.success,
+                })}::jsonb
+            )
+        `.execute();
         revalidatePath('/settings/integrations');
         return {
             success: result.success,

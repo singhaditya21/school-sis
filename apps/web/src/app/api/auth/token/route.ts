@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getSession } from '@/lib/auth/session';
 import { clearRateLimit, consumeLoginRateLimit } from '@/lib/auth/rate-limit';
 import { verifyMFACode } from '@/lib/auth/mfa';
-import { establishSession } from '@/lib/auth/identity';
+import { establishSession, shouldRequireMfaEnrollment } from '@/lib/auth/identity';
 import { sql, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 
@@ -149,6 +149,12 @@ export async function POST(req: Request) {
                 }
 
                 await clearRateLimit(email);
+                await sql`
+                    UPDATE users
+                    SET last_login_at = CURRENT_TIMESTAMP
+                    WHERE id = ${user.id} AND tenant_id = ${tenantRecord.tenantId}
+                `.execute();
+
                 const session = await getSession();
                 const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email;
 
@@ -176,6 +182,7 @@ export async function POST(req: Request) {
                     role: session.role,
                     email: session.email,
                     displayName,
+                    mfaSetupRequired: shouldRequireMfaEnrollment(user.role, Boolean(user.mfaEnabled)),
                 });
             },
         );

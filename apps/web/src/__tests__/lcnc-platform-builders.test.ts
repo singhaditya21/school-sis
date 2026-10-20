@@ -176,21 +176,34 @@ describe('LCNC & Drag-and-Drop Platform Builders', () => {
         expect(reportBuilder).toContain('save-custom-report-btn');
     });
 
-    it('provides /settings/integrations console for provider readiness and notification_outbox inspection', () => {
+    it('provides /settings/integrations console with settings:read / settings:write RBAC and audit logging', () => {
         const actions = readWebSource('src/app/(admin)/settings/integrations/actions.ts');
         expect(actions).toContain('export async function getIntegrationsConsoleData');
+        expect(actions).toContain("requireAuth('settings:read')");
         expect(actions).toContain('export async function sendTestChannelNotification');
+        expect(actions).toContain("requireAuth('settings:write')");
+        expect(actions).toContain("'NOTIFICATION_TEST_DISPATCH'");
         expect(actions).toContain('export async function retryOutboxNotification');
+        expect(actions).toContain("'NOTIFICATION_OUTBOX_RETRY'");
 
         const client = readWebSource('src/app/(admin)/settings/integrations/integrations-client.tsx');
         expect(client).toContain('integrations-console');
         expect(client).toContain('outbox-table');
     });
 
-    it('exposes /api/data object discovery and mobile MetadataExplorerScreen for custom objects', () => {
+    it('exposes /api/data object discovery, table-backed + formula evaluation on /api/data/[object_name], and mobile MetadataExplorerScreen', () => {
         const apiDataList = readWebSource('src/app/api/data/route.ts');
+        expect(apiDataList).toContain('SELECT DISTINCT ON (api_name)');
         expect(apiDataList).toContain('FROM metadata_objects');
         expect(apiDataList).toContain('logAudit');
+
+        const apiDataObject = readWebSource('src/app/api/data/[object_name]/route.ts');
+        expect(apiDataObject).toContain('evaluateMetadataFormula');
+        expect(apiDataObject).toContain('identifier(objectDef.tableName)');
+
+        const authTokenRoute = readWebSource('src/app/api/auth/token/route.ts');
+        expect(authTokenRoute).toContain('SET last_login_at = CURRENT_TIMESTAMP');
+        expect(authTokenRoute).toContain('shouldRequireMfaEnrollment');
 
         const mobileExplorer = readFileSync(
             resolve(process.cwd(), '../mobile/screens/MetadataExplorerScreen.tsx'),

@@ -10,7 +10,7 @@ export default async function NewWorkflowPage() {
   const objects = await getAllMetadataObjects().catch(() => []);
   const availableObjects = objects.map(obj => ({
     api_name: String(obj.api_name),
-    label: String(obj.label || obj.plural_label || obj.api_name),
+    label: String(obj.name || obj.label || obj.plural_label || obj.api_name),
   }));
 
   return (
