@@ -30,12 +30,18 @@ import type { AuthorizationRole } from '@school-sis/api';
 import {
     assertSafeMetadataIdentifier,
     evaluateMetadataFormula,
+    evaluateMetadataRollupSummary,
+    isVirtualMetadataField,
     normalizeMetadataFieldInput,
     quoteIdentifier,
     validateMetadataRecordPayload,
     type MetadataDataType,
     type MetadataValidationRules,
 } from '@/lib/metadata/platform';
+import {
+    getEducationBlueprintById,
+    type EducationBlueprintId,
+} from '@/lib/metadata/blueprints';
 import {
     canWriteMetadataField,
     checkWritableMetadataPayload,
@@ -337,22 +343,80 @@ async function queryEavRecords(
 // ============================================================================
 
 /**
- * Evaluates virtual `FORMULA` fields (`validationRules.fieldSubType === 'FORMULA'`)
- * against each record's projected field values using the safe AST evaluator.
+ * Evaluates virtual `ROLLUP_SUMMARY` and `FORMULA` fields against each record's
+ * projected field values. Roll-Up Summaries are evaluated first so formulas can
+ * reference rolled-up values.
  */
-function applyFormulaFields(
+async function applyCalculatedFields(
     records: Record<string, unknown>[],
     readableFields: MetadataField[],
-): Record<string, unknown>[] {
+    tenantId: string,
+): Promise<Record<string, unknown>[]> {
+    if (records.length === 0) return records;
+
+    const rollupFields = readableFields.filter(
+        f =>
+            f.validationRules?.fieldSubType === 'ROLLUP_SUMMARY' &&
+            Boolean(f.validationRules?.rollupChildObject) &&
+            Boolean(f.validationRules?.rollupForeignKeyField),
+    );
     const formulaFields = readableFields.filter(
         f =>
             f.validationRules?.fieldSubType === 'FORMULA' &&
             Boolean(f.validationRules?.formulaExpression),
     );
-    if (formulaFields.length === 0) return records;
+    if (rollupFields.length === 0 && formulaFields.length === 0) return records;
+
+    const childRowsByObject = new Map<string, Record<string, unknown>[]>();
+    for (const rf of rollupFields) {
+        const childObjApi = rf.validationRules!.rollupChildObject!;
+        if (childRowsByObject.has(childObjApi)) continue;
+        try {
+            const { objectDef: childObj, fields: childFields } = await loadObjectMetadata(
+                childObjApi,
+                tenantId,
+            );
+            const activeChildFields = childFields.filter(f => !isVirtualMetadataField(f));
+            if (resolveMetadataStorageMode(childObj) === 'EAV') {
+                const rows = await queryEavRecords(
+                    childObj,
+                    activeChildFields,
+                    tenantId,
+                    null,
+                    500,
+                    0,
+                );
+                childRowsByObject.set(childObjApi, rows);
+            } else {
+                const tableIdent = identifier(childObj.tableName);
+                const rows = await sql<Record<string, unknown>>`
+                    SELECT * FROM ${tableIdent} WHERE tenant_id = ${tenantId} LIMIT 500
+                `;
+                childRowsByObject.set(childObjApi, rows);
+            }
+        } catch {
+            childRowsByObject.set(childObjApi, []);
+        }
+    }
 
     return records.map(rec => {
         const next = { ...rec };
+        const parentId = String(next.id ?? '');
+        for (const rf of rollupFields) {
+            const childObjApi = rf.validationRules!.rollupChildObject!;
+            const fkField = rf.validationRules!.rollupForeignKeyField!;
+            const aggregate = rf.validationRules!.rollupAggregate ?? 'COUNT';
+            const targetField = rf.validationRules!.rollupTargetField;
+            const allChildRows = childRowsByObject.get(childObjApi) ?? [];
+            const matchingChildren = parentId
+                ? allChildRows.filter(row => String(row[fkField] ?? '') === parentId)
+                : [];
+            next[rf.apiName] = evaluateMetadataRollupSummary(
+                aggregate,
+                matchingChildren,
+                targetField,
+            );
+        }
         for (const f of formulaFields) {
             const expr = f.validationRules?.formulaExpression;
             if (expr) {
@@ -366,7 +430,7 @@ function applyFormulaFields(
 /**
  * Queries tenant-scoped records for a metadata object (either EAV or table-backed),
  * enforces Field-Level Security (FLS) read grants for the caller's role, flattens
- * readable `custom_data` JSONB keys, and computes virtual `FORMULA` fields.
+ * readable `custom_data` JSONB keys, and computes virtual `ROLLUP_SUMMARY` and `FORMULA` fields.
  */
 export async function queryRecords(apiName: string, filters: Record<string, unknown> = {}, limit = 50, offset = 0) {
     const { tenantId, session } = await requireAuth();
@@ -384,7 +448,7 @@ export async function queryRecords(apiName: string, filters: Record<string, unkn
 
     if (resolveMetadataStorageMode(objectDef) === 'EAV') {
         const eavRecords = await queryEavRecords(objectDef, readableFields, tenantId, recordId, safeLimit, safeOffset);
-        return applyFormulaFields(eavRecords, readableFields);
+        return applyCalculatedFields(eavRecords, readableFields, tenantId);
     }
 
     // Build standard SELECT columns
@@ -430,7 +494,7 @@ export async function queryRecords(apiName: string, filters: Record<string, unkn
         return serializedRest;
     });
 
-    return applyFormulaFields(projected, readableFields);
+    return applyCalculatedFields(projected, readableFields, tenantId);
 }
 
 /**
@@ -625,8 +689,8 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
         const { tenantId, session } = await requireAuth();
         const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
 
-        // Strip virtual FORMULA fields so they are never treated as writable/required inputs
-        const persistedFields = fields.filter(f => f.validationRules?.fieldSubType !== 'FORMULA');
+        // Strip virtual FORMULA / ROLLUP_SUMMARY fields so they are never treated as writable/required inputs
+        const persistedFields = fields.filter(f => !isVirtualMetadataField(f));
 
         // Field-level write permissions, identical to /api/data/[object_name].
         const submitted = pickKnownMetadataFields(persistedFields, data);
@@ -1802,7 +1866,7 @@ export async function bulkImportRecords(
                 canWriteMetadataField(
                     session.role,
                     f as unknown as RuntimeMetadataFieldWithPermissions,
-                ) && f.validationRules?.fieldSubType !== 'FORMULA',
+                ) && !isVirtualMetadataField(f),
         );
 
         if (writableFields.length === 0) {
@@ -2261,6 +2325,58 @@ export async function runSingleWorkflowAction(params: {
             signature,
             httpStatus,
         };
+    } else if (normalizedAction === 'CREATE_RECORD') {
+        const targetObjectApi = String(actionPayload.target_object || objectName).trim().toLowerCase();
+        const rawFieldMap =
+            actionPayload.field_values && typeof actionPayload.field_values === 'object'
+                ? (actionPayload.field_values as Record<string, unknown>)
+                : {};
+        let createdChildId: string | null = null;
+        if (targetObjectApi) {
+            try {
+                const { objectDef: targetObj, fields: targetFields } = await loadObjectMetadata(
+                    targetObjectApi,
+                    tenantId,
+                );
+                const writableTargetFields = targetFields.filter(f => !isVirtualMetadataField(f));
+                const resolvedPayload: Record<string, unknown> = {};
+                for (const [k, v] of Object.entries(rawFieldMap)) {
+                    if (typeof v === 'string' && v.startsWith('{') && v.endsWith('}')) {
+                        const refKey = v.slice(1, -1).trim();
+                        resolvedPayload[k] = refKey === 'id' ? recordId : recordData[refKey];
+                    } else {
+                        resolvedPayload[k] = v;
+                    }
+                }
+                const validated = validateMetadataRecordPayload(
+                    writableTargetFields,
+                    resolvedPayload,
+                    { requireAll: false },
+                );
+                if (validated.ok && resolveMetadataStorageMode(targetObj) === 'EAV') {
+                    createdChildId = await upsertEavRecord(
+                        targetObj,
+                        writableTargetFields,
+                        tenantId,
+                        validated.data,
+                    );
+                }
+            } catch {
+                // Non-fatal child record creation fallback
+            }
+        }
+        actionDetails = {
+            runner: 'CREATE_RECORD',
+            targetObject: targetObjectApi,
+            createdRecordId: createdChildId,
+        };
+    } else if (normalizedAction === 'SUBMIT_FOR_APPROVAL' || normalizedAction === 'APPROVAL') {
+        actionDetails = {
+            runner: 'SUBMIT_FOR_APPROVAL',
+            objectName,
+            recordId,
+            approvalState: 'SUBMITTED',
+        };
     } else {
         actionDetails = {
             runner: normalizedAction || 'CUSTOM',
@@ -2343,6 +2459,9 @@ async function executeMatchingWorkflows(
                         return Number(actualRaw) > Number(expectedStr);
                     case 'less_than':
                         return Number(actualRaw) < Number(expectedStr);
+                    case 'not_empty':
+                    case 'is_changed':
+                        return actualStr.trim().length > 0;
                     default:
                         return actualStr === expectedStr;
                 }
@@ -2370,4 +2489,400 @@ async function executeMatchingWorkflows(
         // Non-blocking: workflow evaluation must not abort the primary record save
     }
 }
+
+// ============================================================================
+// 8. Education Cloud Blueprints, Record Approvals & Audit History Timeline
+// ============================================================================
+
+export interface RecordAuditTimelineEntry {
+    id: string;
+    action: string;
+    createdAt: string;
+    summary: string;
+    details: Record<string, unknown>;
+}
+
+/**
+ * Returns chronological audit history and workflow/approval events for a single record
+ * on `/app/[object]/[id]` (Salesforce Lightning Activity & Field History Timeline).
+ */
+export async function getRecordAuditTimeline(
+    apiName: string,
+    recordId: string,
+): Promise<RecordAuditTimelineEntry[]> {
+    try {
+        if (!UUID_RE.test(recordId)) return [];
+        const { tenantId } = await requireAuth();
+
+        const rows = await sql<{
+            id: string;
+            action: string;
+            before_state: Record<string, unknown> | null;
+            after_state: Record<string, unknown> | null;
+            created_at: Date | string;
+        }>`
+            SELECT id, action, before_state, after_state, created_at
+            FROM audit_logs
+            WHERE tenant_id = ${tenantId}
+              AND LOWER(entity_type) = LOWER(${apiName})
+              AND entity_id = ${recordId}
+            ORDER BY created_at DESC
+            LIMIT 25
+        `;
+
+        return rows.map(row => {
+            const after = (row.after_state && typeof row.after_state === 'object'
+                ? row.after_state
+                : {}) as Record<string, unknown>;
+            let summary = row.action.replace(/_/g, ' ');
+            if (row.action === 'WORKFLOW_EXECUTED') {
+                summary = `Workflow "${String(after.workflowName || 'Automation')}" executed (${String(after.actionType || '')})`;
+            } else if (row.action === 'RECORD_APPROVAL_REQUESTED') {
+                summary = `Submitted for approval${after.comment ? `: "${String(after.comment)}"` : ''}`;
+            } else if (row.action === 'RECORD_APPROVAL_DECIDED') {
+                summary = `Approval ${String(after.decision || 'DECIDED')}${after.comment ? `: "${String(after.comment)}"` : ''}`;
+            } else if (row.action === 'CREATE') {
+                summary = `Record created via API / Form`;
+            }
+            return {
+                id: row.id,
+                action: row.action,
+                createdAt:
+                    row.created_at instanceof Date
+                        ? row.created_at.toISOString()
+                        : String(row.created_at),
+                summary,
+                details: after,
+            };
+        });
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Submits a metadata record into a declarative Approval Process, updating any stage/approval
+ * field (`approval_status` or `status`) to `SUBMITTED` and writing `RECORD_APPROVAL_REQUESTED`
+ * to `audit_logs`.
+ */
+export async function submitRecordForApproval(
+    apiName: string,
+    recordId: string,
+    comment?: string,
+): Promise<{ success: boolean; status?: string; error?: string }> {
+    try {
+        if (!UUID_RE.test(recordId)) {
+            return { success: false, error: 'Invalid record ID.' };
+        }
+        const { tenantId, userId } = await requireAuth();
+        const { fields } = await loadObjectMetadata(apiName, tenantId);
+        const approvalField = fields.find(
+            f =>
+                f.apiName === 'approval_status' ||
+                (f.dataType === 'PICKLIST' && (f.picklistOptions || []).includes('SUBMITTED')),
+        );
+        if (approvalField) {
+            await updateRecordFieldValue(apiName, recordId, approvalField.apiName, 'SUBMITTED');
+        }
+
+        await sql`
+            INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
+            VALUES (
+                ${tenantId},
+                ${userId},
+                'RECORD_APPROVAL_REQUESTED',
+                ${apiName},
+                ${recordId},
+                ${JSON.stringify({
+                    status: 'SUBMITTED',
+                    comment: comment?.trim() || null,
+                    submittedAt: new Date().toISOString(),
+                })}::jsonb
+            )
+        `.execute();
+        revalidateTag('metadata', 'max');
+        return { success: true, status: 'SUBMITTED' };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to submit record for approval.',
+        };
+    }
+}
+
+/**
+ * Approves or rejects a record in a declarative Approval Process (`APPROVED` / `REJECTED`),
+ * updates the record's approval picklist field if present, and logs `RECORD_APPROVAL_DECIDED`.
+ */
+export async function decideRecordApproval(
+    apiName: string,
+    recordId: string,
+    decision: 'APPROVED' | 'REJECTED',
+    comment?: string,
+): Promise<{ success: boolean; status?: string; error?: string }> {
+    try {
+        if (!UUID_RE.test(recordId)) {
+            return { success: false, error: 'Invalid record ID.' };
+        }
+        if (decision !== 'APPROVED' && decision !== 'REJECTED') {
+            return { success: false, error: 'Invalid approval decision.' };
+        }
+        const { tenantId, userId } = await requireAuth();
+        const { fields } = await loadObjectMetadata(apiName, tenantId);
+        const approvalField = fields.find(
+            f =>
+                f.apiName === 'approval_status' ||
+                (f.dataType === 'PICKLIST' && (f.picklistOptions || []).includes(decision)),
+        );
+        if (approvalField) {
+            await updateRecordFieldValue(apiName, recordId, approvalField.apiName, decision);
+        }
+
+        await sql`
+            INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
+            VALUES (
+                ${tenantId},
+                ${userId},
+                'RECORD_APPROVAL_DECIDED',
+                ${apiName},
+                ${recordId},
+                ${JSON.stringify({
+                    decision,
+                    comment: comment?.trim() || null,
+                    decidedAt: new Date().toISOString(),
+                })}::jsonb
+            )
+        `.execute();
+        revalidateTag('metadata', 'max');
+        return { success: true, status: decision };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to record approval decision.',
+        };
+    }
+}
+
+/**
+ * Installs a 1-click Salesforce Education Cloud Institution Blueprint
+ * (`K12_SCHOOL_CLOUD`, `COLLEGE_HIGHER_ED_CLOUD`, or `COACHING_INSTITUTE_CLOUD`)
+ * idempotently for the current tenant, provisioning objects, fields, FORM/LIST/KANBAN
+ * layouts, schema snapshots, and starter automation workflows.
+ */
+export async function installEducationBlueprint(
+    packId: EducationBlueprintId,
+): Promise<{
+    success: boolean;
+    installedObjects: string[];
+    installedWorkflows: number;
+    error?: string;
+}> {
+    try {
+        const { tenantId, userId } = await requireAuth('metadata:publish');
+        const pack = getEducationBlueprintById(packId);
+        if (!pack) {
+            return {
+                success: false,
+                installedObjects: [],
+                installedWorkflows: 0,
+                error: `Unknown Education Cloud blueprint: ${packId}`,
+            };
+        }
+
+        const client = await pool.connect();
+        const q = sqlFor(client);
+        const installedObjects: string[] = [];
+        let installedWorkflows = 0;
+
+        try {
+            await q`BEGIN`.execute();
+
+            for (const objSpec of pack.objects) {
+                const existingObj = await q<{ id: string }>`
+                    SELECT id
+                    FROM metadata_objects
+                    WHERE tenant_id = ${tenantId}
+                      AND api_name = ${objSpec.apiName}
+                    LIMIT 1
+                `;
+
+                let objectId: string;
+                if (existingObj.length > 0) {
+                    objectId = existingObj[0].id;
+                    await q`
+                        UPDATE metadata_objects
+                        SET name = ${objSpec.name},
+                            description = ${objSpec.description},
+                            status = 'PUBLISHED'
+                        WHERE id = ${objectId}
+                    `.execute();
+                } else {
+                    const insertedObj = await q<{ id: string }>`
+                        INSERT INTO metadata_objects (
+                            tenant_id, name, api_name, table_name, description, is_custom,
+                            status, version, published_version, published_at
+                        )
+                        VALUES (
+                            ${tenantId},
+                            ${objSpec.name},
+                            ${objSpec.apiName},
+                            ${metadataTableNameForNewObject()},
+                            ${objSpec.description},
+                            true,
+                            'PUBLISHED',
+                            1,
+                            1,
+                            NOW()
+                        )
+                        RETURNING id
+                    `;
+                    objectId = insertedObj[0].id;
+                }
+
+                for (const fieldSpec of objSpec.fields) {
+                    const normalized = normalizeMetadataFieldInput({
+                        label: fieldSpec.label,
+                        apiName: fieldSpec.apiName,
+                        dataType: fieldSpec.dataType,
+                        isRequired: fieldSpec.isRequired,
+                        picklistOptions: fieldSpec.picklistOptions,
+                        validationRules: fieldSpec.validationRules,
+                    });
+
+                    const existingField = await q<{ id: string }>`
+                        SELECT id
+                        FROM metadata_fields
+                        WHERE object_id = ${objectId}
+                          AND api_name = ${normalized.apiName}
+                        LIMIT 1
+                    `;
+
+                    if (existingField.length === 0) {
+                        await q`
+                            INSERT INTO metadata_fields (
+                                object_id, label, api_name, data_type, is_custom, is_required,
+                                picklist_options, validation_rules, status, version
+                            )
+                            VALUES (
+                                ${objectId},
+                                ${normalized.label},
+                                ${normalized.apiName},
+                                ${normalized.dataType},
+                                true,
+                                ${normalized.isRequired},
+                                ${JSON.stringify(normalized.picklistOptions)}::jsonb,
+                                ${JSON.stringify(normalized.validationRules)}::jsonb,
+                                'ACTIVE',
+                                1
+                            )
+                        `.execute();
+                    }
+                }
+
+                // Provision FORM and LIST/KANBAN layouts
+                await q`
+                    DELETE FROM metadata_layouts
+                    WHERE object_id = ${objectId}
+                      AND layout_type IN ('FORM', 'LIST')
+                `.execute();
+
+                await q`
+                    INSERT INTO metadata_layouts (object_id, layout_type, schema, is_default, created_at)
+                    VALUES (
+                        ${objectId},
+                        'FORM',
+                        ${JSON.stringify({ sections: objSpec.formSections })}::jsonb,
+                        true,
+                        NOW()
+                    )
+                `.execute();
+
+                await q`
+                    INSERT INTO metadata_layouts (object_id, layout_type, schema, is_default, created_at)
+                    VALUES (
+                        ${objectId},
+                        'LIST',
+                        ${JSON.stringify({
+                            columns: objSpec.fields.map(f => f.apiName),
+                            kanbanGroupByField: objSpec.kanbanGroupByField ?? null,
+                            defaultViewMode: objSpec.defaultViewMode ?? 'TABLE',
+                        })}::jsonb,
+                        true,
+                        NOW()
+                    )
+                `.execute();
+
+                installedObjects.push(objSpec.apiName);
+            }
+
+            for (const wfSpec of pack.workflows) {
+                const existingWf = await q<{ id: string }>`
+                    SELECT id
+                    FROM metadata_workflows
+                    WHERE tenant_id = ${tenantId}
+                      AND name = ${wfSpec.name}
+                      AND object_name = ${wfSpec.objectName}
+                    LIMIT 1
+                `;
+                if (existingWf.length === 0) {
+                    await q`
+                        INSERT INTO metadata_workflows (
+                            tenant_id, name, object_name, trigger_event, conditions,
+                            action_type, action_payload, is_active
+                        )
+                        VALUES (
+                            ${tenantId},
+                            ${wfSpec.name},
+                            ${wfSpec.objectName},
+                            ${wfSpec.triggerEvent},
+                            ${JSON.stringify(wfSpec.conditions)}::jsonb,
+                            ${wfSpec.actionType},
+                            ${JSON.stringify(wfSpec.actionPayload)}::jsonb,
+                            true
+                        )
+                    `.execute();
+                    installedWorkflows++;
+                }
+            }
+
+            await q`
+                INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, after_state)
+                VALUES (
+                    ${tenantId},
+                    ${userId},
+                    'EDUCATION_BLUEPRINT_INSTALLED',
+                    'metadata_blueprint',
+                    ${JSON.stringify({
+                        packId: pack.id,
+                        title: pack.title,
+                        installedObjects,
+                        installedWorkflows,
+                        installedAt: new Date().toISOString(),
+                    })}::jsonb
+                )
+            `.execute();
+
+            await q`COMMIT`.execute();
+            revalidateTag('metadata', 'max');
+            return {
+                success: true,
+                installedObjects,
+                installedWorkflows,
+            };
+        } catch (err) {
+            await q`ROLLBACK`.execute();
+            throw err;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return {
+            success: false,
+            installedObjects: [],
+            installedWorkflows: 0,
+            error: error instanceof Error ? error.message : 'Failed to install Education Cloud blueprint.',
+        };
+    }
+}
+
 

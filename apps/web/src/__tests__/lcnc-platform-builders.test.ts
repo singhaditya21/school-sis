@@ -2,9 +2,14 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
     evaluateMetadataFormula,
+    evaluateMetadataRollupSummary,
     normalizeMetadataFieldInput,
     validateMetadataRecordPayload,
 } from '@/lib/metadata/platform';
+import {
+    EDUCATION_BLUEPRINT_PACKS,
+    getEducationBlueprintById,
+} from '@/lib/metadata/blueprints';
 
 function readWebSource(relativePath: string): string {
     return readFileSync(resolve(process.cwd(), relativePath), 'utf8');
@@ -211,6 +216,68 @@ describe('LCNC & Drag-and-Drop Platform Builders', () => {
         );
         expect(mobileExplorer).toContain('/api/data');
         expect(mobileExplorer).toContain('Dynamic Object Explorer');
+    });
+
+    it('provides Salesforce Education Cloud Institution Blueprints (K-12, College/University, Coaching Institute) and Roll-Up Summary fields', () => {
+        expect(EDUCATION_BLUEPRINT_PACKS).toHaveLength(3);
+        expect(getEducationBlueprintById('K12_SCHOOL_CLOUD')?.objects.map(o => o.apiName)).toEqual([
+            'transport_allocation',
+            'discipline_incident',
+            'scholarship_grant',
+        ]);
+        expect(
+            getEducationBlueprintById('COLLEGE_HIGHER_ED_CLOUD')?.objects.map(o => o.apiName),
+        ).toEqual(['academic_program', 'semester_enrollment', 'placement_drive']);
+        expect(
+            getEducationBlueprintById('COACHING_INSTITUTE_CLOUD')?.objects.map(o => o.apiName),
+        ).toEqual(['coaching_batch', 'coaching_inquiry', 'test_series_attempt']);
+
+        // Roll-up summary field normalization & runtime evaluation
+        const rollupField = normalizeMetadataFieldInput({
+            label: 'Total Inquiries',
+            apiName: 'total_inquiries',
+            dataType: 'ROLLUP_SUMMARY',
+            rollupChildObject: 'coaching_inquiry',
+            rollupForeignKeyField: 'preferred_batch_id',
+            rollupAggregate: 'COUNT',
+        });
+        expect(rollupField.dataType).toBe('NUMBER');
+        expect(rollupField.isRequired).toBe(false);
+        expect(rollupField.validationRules.fieldSubType).toBe('ROLLUP_SUMMARY');
+
+        const childRows = [
+            { credits_earned: 20 },
+            { credits_earned: 24 },
+            { credits_earned: 16 },
+        ];
+        expect(evaluateMetadataRollupSummary('COUNT', childRows)).toBe(3);
+        expect(evaluateMetadataRollupSummary('SUM', childRows, 'credits_earned')).toBe(60);
+        expect(evaluateMetadataRollupSummary('AVG', childRows, 'credits_earned')).toBe(20);
+        expect(evaluateMetadataRollupSummary('MIN', childRows, 'credits_earned')).toBe(16);
+        expect(evaluateMetadataRollupSummary('MAX', childRows, 'credits_earned')).toBe(24);
+    });
+
+    it('wires Metadata-Driven Custom Object Report Builder, Record Experience 2.0 (Stage Path + Approvals + Timeline), and Flow Builder 2.0', () => {
+        const biActions = readWebSource('src/app/(admin)/reports/bi-actions.ts');
+        expect(biActions).toContain('export async function getCustomObjectReportCatalog');
+        expect(biActions).toContain('export async function runCustomObjectBiReport');
+
+        const customReportUi = readWebSource('src/app/(admin)/reports/custom-object-report-builder.tsx');
+        expect(customReportUi).toContain('custom-object-report-builder');
+        expect(customReportUi).toContain('run-custom-object-report');
+
+        const recordDetailUi = readWebSource('src/app/(admin)/app/[object]/[id]/record-detail-client.tsx');
+        expect(recordDetailUi).toContain('record-stage-path');
+        expect(recordDetailUi).toContain('record-approval-bar');
+        expect(recordDetailUi).toContain('record-audit-timeline');
+
+        const genericList = readWebSource('src/app/(admin)/app/[object]/generic-list.tsx');
+        expect(genericList).toContain('saved-list-views-bar');
+        expect(genericList).toContain('pin-list-view-btn');
+
+        const workflowBuilder = readWebSource('src/components/automation/workflow-builder.tsx');
+        expect(workflowBuilder).toContain('CREATE_RECORD');
+        expect(workflowBuilder).toContain('SUBMIT_FOR_APPROVAL');
     });
 });
 

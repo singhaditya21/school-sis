@@ -48,6 +48,13 @@ const PALETTE_BLOCKS = [
         description: 'Continue when text contains substring',
     },
     {
+        id: 'cond-changed',
+        kind: 'CONDITION' as const,
+        label: 'Filter: Field Is Changed / Non-Empty',
+        operator: 'is_changed',
+        description: 'Continue when a field value is populated or updated',
+    },
+    {
         id: 'act-email',
         kind: 'ACTION' as const,
         label: 'Action: Send Email',
@@ -78,6 +85,22 @@ const PALETTE_BLOCKS = [
         actionType: 'CREATE_TASK',
         defaultPayload: '{"title": "Follow up on record", "due_days": 1, "type": "FOLLOW_UP"}',
         description: 'Schedule a staff task and queue background job',
+    },
+    {
+        id: 'act-create-record',
+        kind: 'ACTION' as const,
+        label: 'Action: Create Linked Record',
+        actionType: 'CREATE_RECORD',
+        defaultPayload: '{"target_object": "scholarship_grant", "field_values": {"student_id": "{id}", "approval_status": "DRAFT"}}',
+        description: 'Automatically create a child or cross-object record',
+    },
+    {
+        id: 'act-approval',
+        kind: 'ACTION' as const,
+        label: 'Action: Submit for Approval',
+        actionType: 'SUBMIT_FOR_APPROVAL',
+        defaultPayload: '{"policy": "principal_approval", "comment": "Auto-routed by workflow"}',
+        description: 'Route record into declarative approval process',
     },
 ];
 
@@ -400,6 +423,9 @@ export function WorkflowBuilder({
                                                     <SelectItem value="less_than">
                                                         Less than
                                                     </SelectItem>
+                                                    <SelectItem value="is_changed">
+                                                        Is Changed / Populated
+                                                    </SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -456,6 +482,8 @@ export function WorkflowBuilder({
                                         <SelectItem value="WEBHOOK">Trigger Signed Webhook</SelectItem>
                                         <SelectItem value="UPDATE_FIELD">Update Record Field</SelectItem>
                                         <SelectItem value="CREATE_TASK">Create Follow-Up Task</SelectItem>
+                                        <SelectItem value="CREATE_RECORD">Create Linked Record (Cross-Object)</SelectItem>
+                                        <SelectItem value="SUBMIT_FOR_APPROVAL">Submit Record for Approval</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>

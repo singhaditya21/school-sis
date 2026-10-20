@@ -1,14 +1,20 @@
 export type MetadataDataType = 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'PICKLIST' | 'CURRENCY';
 
+export type RollupAggregateFunction = 'COUNT' | 'SUM' | 'MIN' | 'MAX' | 'AVG';
+
 export type MetadataValidationRules = {
     minLength?: number;
     maxLength?: number;
     min?: number;
     max?: number;
     pattern?: string;
-    fieldSubType?: 'LOOKUP' | 'FORMULA';
+    fieldSubType?: 'LOOKUP' | 'FORMULA' | 'ROLLUP_SUMMARY';
     lookupTargetObject?: string;
     formulaExpression?: string;
+    rollupChildObject?: string;
+    rollupForeignKeyField?: string;
+    rollupAggregate?: RollupAggregateFunction;
+    rollupTargetField?: string;
 };
 
 export type RuntimeMetadataField = {
@@ -135,7 +141,11 @@ export function normalizeValidationRules(value: unknown): MetadataValidationRule
         rules.pattern = pattern;
     }
 
-    if (input.fieldSubType === 'LOOKUP' || input.fieldSubType === 'FORMULA') {
+    if (
+        input.fieldSubType === 'LOOKUP' ||
+        input.fieldSubType === 'FORMULA' ||
+        input.fieldSubType === 'ROLLUP_SUMMARY'
+    ) {
         rules.fieldSubType = input.fieldSubType;
     }
 
@@ -151,6 +161,30 @@ export function normalizeValidationRules(value: unknown): MetadataValidationRule
         if (expr.length > 500) throw new Error('Formula expression must be 500 characters or fewer.');
         rules.formulaExpression = expr;
         rules.fieldSubType = 'FORMULA';
+    }
+
+    if (input.rollupChildObject != null && String(input.rollupChildObject).trim() !== '') {
+        const childObj = String(input.rollupChildObject).trim().toLowerCase();
+        assertSafeMetadataIdentifier(childObj, 'roll-up child object');
+        rules.rollupChildObject = childObj;
+        rules.fieldSubType = 'ROLLUP_SUMMARY';
+    }
+    if (input.rollupForeignKeyField != null && String(input.rollupForeignKeyField).trim() !== '') {
+        const fkField = String(input.rollupForeignKeyField).trim().toLowerCase();
+        assertSafeMetadataIdentifier(fkField, 'roll-up foreign key field');
+        rules.rollupForeignKeyField = fkField;
+    }
+    if (input.rollupAggregate != null && String(input.rollupAggregate).trim() !== '') {
+        const agg = String(input.rollupAggregate).trim().toUpperCase() as RollupAggregateFunction;
+        if (!['COUNT', 'SUM', 'MIN', 'MAX', 'AVG'].includes(agg)) {
+            throw new Error('Roll-up aggregate must be COUNT, SUM, MIN, MAX, or AVG.');
+        }
+        rules.rollupAggregate = agg;
+    }
+    if (input.rollupTargetField != null && String(input.rollupTargetField).trim() !== '') {
+        const targetField = String(input.rollupTargetField).trim().toLowerCase();
+        assertSafeMetadataIdentifier(targetField, 'roll-up target field');
+        rules.rollupTargetField = targetField;
     }
 
     if (rules.minLength != null && rules.maxLength != null && rules.minLength > rules.maxLength) {
@@ -200,6 +234,48 @@ export function normalizeMetadataFieldInput(input: Record<string, unknown>) {
         validationRules.fieldSubType = 'FORMULA';
         validationRules.formulaExpression = expr;
         dataType = /^CONCAT\s*\(/i.test(expr) ? 'TEXT' : 'NUMBER';
+    } else if (rawType === 'ROLLUP_SUMMARY' || validationRules.fieldSubType === 'ROLLUP_SUMMARY') {
+        const childObj = String(
+            input.rollupChildObject ?? validationRules.rollupChildObject ?? '',
+        )
+            .trim()
+            .toLowerCase();
+        const fkField = String(
+            input.rollupForeignKeyField ?? validationRules.rollupForeignKeyField ?? '',
+        )
+            .trim()
+            .toLowerCase();
+        const agg = String(
+            input.rollupAggregate ?? validationRules.rollupAggregate ?? 'COUNT',
+        )
+            .trim()
+            .toUpperCase() as RollupAggregateFunction;
+        const targetField = String(
+            input.rollupTargetField ?? validationRules.rollupTargetField ?? '',
+        )
+            .trim()
+            .toLowerCase();
+
+        if (!childObj || !fkField) {
+            throw new Error('Roll-up summary fields require a child object and lookup foreign-key field.');
+        }
+        assertSafeMetadataIdentifier(childObj, 'roll-up child object');
+        assertSafeMetadataIdentifier(fkField, 'roll-up foreign key field');
+        if (!['COUNT', 'SUM', 'MIN', 'MAX', 'AVG'].includes(agg)) {
+            throw new Error('Roll-up aggregate must be COUNT, SUM, MIN, MAX, or AVG.');
+        }
+        if (agg !== 'COUNT') {
+            if (!targetField) {
+                throw new Error(`Roll-up ${agg} requires a numeric target field on ${childObj}.`);
+            }
+            assertSafeMetadataIdentifier(targetField, 'roll-up target field');
+            validationRules.rollupTargetField = targetField;
+        }
+        validationRules.fieldSubType = 'ROLLUP_SUMMARY';
+        validationRules.rollupChildObject = childObj;
+        validationRules.rollupForeignKeyField = fkField;
+        validationRules.rollupAggregate = agg;
+        dataType = 'NUMBER';
     } else {
         if (!METADATA_DATA_TYPES.has(rawType as MetadataDataType)) {
             throw new Error('Unsupported field data type.');
@@ -215,14 +291,60 @@ export function normalizeMetadataFieldInput(input: Record<string, unknown>) {
         throw new Error('Picklist fields require at least one option.');
     }
 
+    const isVirtual =
+        validationRules.fieldSubType === 'FORMULA' ||
+        validationRules.fieldSubType === 'ROLLUP_SUMMARY';
+
     return {
         label,
         apiName,
         dataType,
-        isRequired: validationRules.fieldSubType === 'FORMULA' ? false : Boolean(input.isRequired),
+        isRequired: isVirtual ? false : Boolean(input.isRequired),
         picklistOptions,
         validationRules,
     };
+}
+
+export function isVirtualMetadataField(field: { validationRules?: MetadataValidationRules | null }): boolean {
+    const sub = field.validationRules?.fieldSubType;
+    return sub === 'FORMULA' || sub === 'ROLLUP_SUMMARY';
+}
+
+/**
+ * Evaluates a Salesforce-style Roll-Up Summary (`COUNT`, `SUM`, `AVG`, `MIN`, `MAX`)
+ * across all child records referencing a parent record ID.
+ */
+export function evaluateMetadataRollupSummary(
+    aggregate: RollupAggregateFunction,
+    childRecords: Record<string, unknown>[],
+    targetField?: string,
+): number {
+    if (aggregate === 'COUNT') {
+        return childRecords.length;
+    }
+    if (!targetField || childRecords.length === 0) return 0;
+
+    const nums: number[] = [];
+    for (const row of childRecords) {
+        const parsed = Number(row[targetField]);
+        if (Number.isFinite(parsed)) {
+            nums.push(parsed);
+        }
+    }
+    if (nums.length === 0) return 0;
+
+    switch (aggregate) {
+        case 'SUM':
+            return Math.round(nums.reduce((acc, n) => acc + n, 0) * 100) / 100;
+        case 'AVG':
+            return Math.round((nums.reduce((acc, n) => acc + n, 0) / nums.length) * 100) / 100;
+        case 'MIN':
+            return Math.min(...nums);
+        case 'MAX':
+            return Math.max(...nums);
+        default:
+            return 0;
+    }
 }
 
 /**
@@ -436,7 +558,7 @@ export function validateMetadataRecordPayload(
 
     if (options.requireAll ?? true) {
         for (const field of fields) {
-            if (field.validationRules?.fieldSubType === 'FORMULA') continue;
+            if (isVirtualMetadataField(field)) continue;
             if (!field.isRequired) continue;
             if (isEmpty(payload[field.apiName])) errors.push(`${field.label} is required.`);
         }
@@ -448,7 +570,7 @@ export function validateMetadataRecordPayload(
             errors.push(`Unknown field: ${key}`);
             continue;
         }
-        if (field.validationRules?.fieldSubType === 'FORMULA') {
+        if (isVirtualMetadataField(field)) {
             continue;
         }
 

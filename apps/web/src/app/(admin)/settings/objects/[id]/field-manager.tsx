@@ -49,6 +49,12 @@ export default function FieldManagerClient({
         availableObjects[0]?.api_name || 'student',
     );
     const [newFormulaExpr, setNewFormulaExpr] = useState('');
+    const [newRollupChildObject, setNewRollupChildObject] = useState(
+        availableObjects[0]?.api_name || 'semester_enrollment',
+    );
+    const [newRollupFkField, setNewRollupFkField] = useState('program_id');
+    const [newRollupAggregate, setNewRollupAggregate] = useState('COUNT');
+    const [newRollupTargetField, setNewRollupTargetField] = useState('');
     const [approvalReason, setApprovalReason] = useState('Adding custom field via Object Manager');
 
     // Field-Level Security (FLS) Dialog State
@@ -113,13 +119,26 @@ export default function FieldManagerClient({
                 label: newLabel,
                 apiName: newApiName,
                 dataType: newType,
-                isRequired: newType === 'FORMULA' ? false : newRequired,
+                isRequired:
+                    newType === 'FORMULA' || newType === 'ROLLUP_SUMMARY'
+                        ? false
+                        : newRequired,
                 picklistOptions:
                     newType === 'PICKLIST'
                         ? newOptions.split(',').map(s => s.trim())
                         : null,
                 lookupTargetObject: newType === 'LOOKUP' ? newLookupTarget : undefined,
                 formulaExpression: newType === 'FORMULA' ? newFormulaExpr : undefined,
+                rollupChildObject:
+                    newType === 'ROLLUP_SUMMARY' ? newRollupChildObject : undefined,
+                rollupForeignKeyField:
+                    newType === 'ROLLUP_SUMMARY' ? newRollupFkField : undefined,
+                rollupAggregate:
+                    newType === 'ROLLUP_SUMMARY' ? newRollupAggregate : undefined,
+                rollupTargetField:
+                    newType === 'ROLLUP_SUMMARY' && newRollupAggregate !== 'COUNT'
+                        ? newRollupTargetField
+                        : undefined,
             };
             const created = await createCustomField(objectId, fieldData, {
                 reason: approvalReason,
@@ -246,9 +265,76 @@ export default function FieldManagerClient({
                                             <SelectItem value="PICKLIST">Picklist (Dropdown)</SelectItem>
                                             <SelectItem value="LOOKUP">Relational Lookup (Parent Object)</SelectItem>
                                             <SelectItem value="FORMULA">Calculated Formula (f(x))</SelectItem>
+                                            <SelectItem value="ROLLUP_SUMMARY">Roll-Up Summary (Child Aggregate)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
+
+                                {newType === 'ROLLUP_SUMMARY' && (
+                                    <div className="space-y-3 rounded-lg border border-border bg-muted/40 p-3">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs">Child Object API Name</Label>
+                                            <Select
+                                                value={newRollupChildObject}
+                                                onValueChange={setNewRollupChildObject}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {lookupTargetChoices.map(obj => (
+                                                        <SelectItem
+                                                            key={obj.api_name}
+                                                            value={obj.api_name}
+                                                        >
+                                                            {obj.name} ({obj.api_name})
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs">Child Lookup Field</Label>
+                                                <Input
+                                                    value={newRollupFkField}
+                                                    onChange={e => setNewRollupFkField(e.target.value)}
+                                                    placeholder="e.g. program_id"
+                                                    className="font-mono text-xs"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs">Aggregate Function</Label>
+                                                <Select
+                                                    value={newRollupAggregate}
+                                                    onValueChange={setNewRollupAggregate}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="COUNT">COUNT</SelectItem>
+                                                        <SelectItem value="SUM">SUM</SelectItem>
+                                                        <SelectItem value="AVG">AVG</SelectItem>
+                                                        <SelectItem value="MIN">MIN</SelectItem>
+                                                        <SelectItem value="MAX">MAX</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+                                        {newRollupAggregate !== 'COUNT' && (
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs">Child Numeric Field to Aggregate</Label>
+                                                <Input
+                                                    value={newRollupTargetField}
+                                                    onChange={e => setNewRollupTargetField(e.target.value)}
+                                                    placeholder="e.g. paid_amount or credits_earned"
+                                                    className="font-mono text-xs"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 {newType === 'PICKLIST' && (
                                     <div className="space-y-2">

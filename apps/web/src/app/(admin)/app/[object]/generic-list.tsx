@@ -97,6 +97,17 @@ function renderCell(field: MetadataField | undefined, value: unknown): React.Rea
         );
     }
 
+    if (field?.validationRules?.fieldSubType === 'ROLLUP_SUMMARY') {
+        return (
+            <span className="inline-flex items-center gap-1.5 font-mono text-foreground">
+                <span className="rounded bg-accent px-1 py-0.5 text-[10px] font-semibold text-primary">
+                    Σ {field.validationRules.rollupAggregate || 'COUNT'}
+                </span>
+                {String(value)}
+            </span>
+        );
+    }
+
     switch (field?.dataType) {
         case 'CURRENCY':
             return formatCurrency(value as string | number);
@@ -211,6 +222,55 @@ export default function GenericListClient({
     const [showImportPanel, setShowImportPanel] = useState(false);
     const [csvInputText, setCsvInputText] = useState('');
     const [importingCsv, setImportingCsv] = useState(false);
+
+    // Saved List Views & Field Filter Bar (Salesforce Lightning List Views)
+    const [filterField, setFilterField] = useState<string>(fields[0]?.apiName || '');
+    const [filterOperator, setFilterOperator] = useState<
+        'ALL' | 'equals' | 'contains' | 'greater_than' | 'less_than'
+    >('ALL');
+    const [filterValue, setFilterValue] = useState<string>('');
+    const [newViewName, setNewViewName] = useState<string>('');
+    const [savedViews, setSavedViews] = useState<
+        Array<{
+            name: string;
+            field: string;
+            operator: 'ALL' | 'equals' | 'contains' | 'greater_than' | 'less_than';
+            value: string;
+        }>
+    >([{ name: 'All Records', field: '', operator: 'ALL', value: '' }]);
+
+    const filteredRecords = localRecords.filter(rec => {
+        if (filterOperator === 'ALL' || !filterField || !filterValue.trim()) return true;
+        const raw = rec[filterField];
+        const actualStr = raw == null ? '' : String(raw).toLowerCase();
+        const expectedStr = filterValue.trim().toLowerCase();
+        switch (filterOperator) {
+            case 'equals':
+                return actualStr === expectedStr;
+            case 'contains':
+                return actualStr.includes(expectedStr);
+            case 'greater_than':
+                return Number(raw) > Number(filterValue);
+            case 'less_than':
+                return Number(raw) < Number(filterValue);
+            default:
+                return true;
+        }
+    });
+
+    const handleSaveListView = () => {
+        const trimmed = newViewName.trim();
+        if (!trimmed) {
+            toast.error('Enter a name for this List View.');
+            return;
+        }
+        setSavedViews(prev => [
+            ...prev.filter(v => v.name !== trimmed),
+            { name: trimmed, field: filterField, operator: filterOperator, value: filterValue },
+        ]);
+        setNewViewName('');
+        toast.success(`Saved List View "${trimmed}"`);
+    };
 
     const handleExportCsv = () => {
         const exportCols = displayColumns.length > 0 ? displayColumns : fields.map(f => f.apiName);
@@ -396,6 +456,106 @@ export default function GenericListClient({
                     </div>
                 )}
 
+                {/* Saved List Views & Field Filter Bar */}
+                <div
+                    className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b border-border bg-muted/20 text-xs"
+                    data-testid="saved-list-views-bar"
+                >
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-semibold text-muted-foreground mr-1">
+                            List Views:
+                        </span>
+                        {savedViews.map(view => {
+                            const isActive =
+                                view.operator === filterOperator &&
+                                view.field === filterField &&
+                                view.value === filterValue;
+                            return (
+                                <button
+                                    key={view.name}
+                                    type="button"
+                                    onClick={() => {
+                                        setFilterField(view.field || fields[0]?.apiName || '');
+                                        setFilterOperator(view.operator);
+                                        setFilterValue(view.value);
+                                    }}
+                                    className={`rounded-full px-2.5 py-0.5 font-medium border transition-colors ${
+                                        isActive
+                                            ? 'bg-primary text-primary-foreground border-primary'
+                                            : 'bg-card text-muted-foreground border-border hover:text-foreground'
+                                    }`}
+                                >
+                                    {view.name}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        <select
+                            value={filterField}
+                            onChange={e => setFilterField(e.target.value)}
+                            aria-label="Filter field"
+                            className="h-7 rounded border border-border bg-card px-2 text-xs text-foreground"
+                        >
+                            {fields.map(f => (
+                                <option key={f.apiName} value={f.apiName}>
+                                    {f.label}
+                                </option>
+                            ))}
+                        </select>
+                        <select
+                            value={filterOperator}
+                            onChange={e =>
+                                setFilterOperator(
+                                    e.target.value as
+                                        | 'ALL'
+                                        | 'equals'
+                                        | 'contains'
+                                        | 'greater_than'
+                                        | 'less_than',
+                                )
+                            }
+                            aria-label="Filter operator"
+                            className="h-7 rounded border border-border bg-card px-2 text-xs text-foreground"
+                        >
+                            <option value="ALL">All Values</option>
+                            <option value="contains">Contains</option>
+                            <option value="equals">Equals</option>
+                            <option value="greater_than">&gt; Greater Than</option>
+                            <option value="less_than">&lt; Less Than</option>
+                        </select>
+                        {filterOperator !== 'ALL' && (
+                            <>
+                                <input
+                                    type="text"
+                                    value={filterValue}
+                                    onChange={e => setFilterValue(e.target.value)}
+                                    placeholder="Filter value..."
+                                    className="h-7 w-28 rounded border border-border bg-card px-2 text-xs text-foreground"
+                                />
+                                <input
+                                    type="text"
+                                    value={newViewName}
+                                    onChange={e => setNewViewName(e.target.value)}
+                                    placeholder="Pin view as..."
+                                    className="h-7 w-28 rounded border border-border bg-card px-2 text-xs text-foreground"
+                                />
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={handleSaveListView}
+                                    data-testid="pin-list-view-btn"
+                                    className="h-7 px-2 text-xs"
+                                >
+                                    Pin View
+                                </Button>
+                            </>
+                        )}
+                    </div>
+                </div>
+
                 {viewMode === 'TABLE' ? (
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left text-muted-foreground">
@@ -413,7 +573,7 @@ export default function GenericListClient({
                                 </tr>
                             </thead>
                             <tbody>
-                                {localRecords.length === 0 ? (
+                                {filteredRecords.length === 0 ? (
                                     <tr>
                                         <td
                                             colSpan={displayColumns.length + 1}
@@ -423,7 +583,7 @@ export default function GenericListClient({
                                         </td>
                                     </tr>
                                 ) : (
-                                    localRecords.map(record => (
+                                    filteredRecords.map(record => (
                                         <tr
                                             key={String(record.id)}
                                             className="bg-card border-b border-border hover:bg-muted"
@@ -468,7 +628,7 @@ export default function GenericListClient({
                     <div className="p-4 overflow-x-auto">
                         <div className="flex gap-4 min-w-max">
                             {kanbanBuckets.map(bucket => {
-                                const bucketRecords = localRecords.filter(
+                                const bucketRecords = filteredRecords.filter(
                                     r =>
                                         String(r[groupByField] ?? '').toLowerCase() ===
                                         bucket.toLowerCase(),

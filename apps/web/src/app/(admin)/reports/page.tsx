@@ -6,7 +6,8 @@ import {
 } from '@school-sis/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ReportBuilder from './report-builder';
-import { getSavedBiReports } from './bi-actions';
+import { CustomObjectReportBuilder } from './custom-object-report-builder';
+import { getCustomObjectReportCatalog, getSavedBiReports } from './bi-actions';
 import { getBiDatasetDateLabel, isExecutableBiDataset, UNSUPPORTED_BI_DATASETS } from './bi-query-plan';
 import type { ReportDatasetOption, ReportWorkspace } from './bi-types';
 
@@ -18,9 +19,10 @@ export const metadata = {
 };
 
 export default async function ReportsPage() {
-    const [{ tenantId, userId, session }, savedReports] = await Promise.all([
+    const [{ tenantId, userId, session }, savedReports, customCatalog] = await Promise.all([
         requireAuth('reports:read'),
         getSavedBiReports().catch(() => []),
+        getCustomObjectReportCatalog().catch(() => []),
     ]);
 
     const snapshot = buildBiCatalogSnapshot(
@@ -95,6 +97,8 @@ export default async function ReportsPage() {
                     catalog your role is entitled to — no free-form SQL is accepted from this screen.
                 </p>
             </div>
+
+            <CustomObjectReportBuilder catalog={customCatalog} />
 
             {workspace.datasets.length === 0 ? (
                 <Card>

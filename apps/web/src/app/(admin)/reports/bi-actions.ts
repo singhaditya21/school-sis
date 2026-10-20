@@ -3,6 +3,12 @@
 import { pool, sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import {
+    getAllMetadataObjects,
+    getObjectMetadata,
+    queryRecords,
+} from '@/lib/actions/metadata-engine';
+import type { RollupAggregateFunction } from '@/lib/metadata/platform';
+import {
     assertBiExportAllowed,
     getBiDataset,
     getBiExportPolicy,
@@ -475,4 +481,197 @@ export async function getSavedBiReports(): Promise<SavedBiReportDefinition[]> {
         return [];
     }
 }
+
+export interface CustomObjectReportCatalogEntry {
+    apiName: string;
+    label: string;
+    isCustom: boolean;
+    dimensionFields: { apiName: string; label: string; dataType: string }[];
+    numericFields: { apiName: string; label: string; dataType: string }[];
+}
+
+/**
+ * Discovers all published metadata objects (including Education Cloud Blueprint objects
+ * and custom EAV objects) and classifies their readable fields into groupable dimensions
+ * and numeric/formula/roll-up metrics for the Metadata-Driven Report Builder.
+ */
+export async function getCustomObjectReportCatalog(): Promise<
+    CustomObjectReportCatalogEntry[]
+> {
+    try {
+        await requireAuth('reports:read');
+        const allObjects = await getAllMetadataObjects();
+        const catalog: CustomObjectReportCatalogEntry[] = [];
+
+        for (const obj of allObjects) {
+            const apiName = String(obj.api_name || '');
+            if (!apiName) continue;
+            try {
+                const { fields } = await getObjectMetadata(apiName);
+                if (fields.length === 0) continue;
+
+                const dimensionFields = fields
+                    .filter(
+                        f =>
+                            f.dataType === 'PICKLIST' ||
+                            f.dataType === 'TEXT' ||
+                            f.dataType === 'DATE' ||
+                            f.dataType === 'BOOLEAN',
+                    )
+                    .map(f => ({
+                        apiName: f.apiName,
+                        label: f.label,
+                        dataType: f.dataType,
+                    }));
+
+                const numericFields = fields
+                    .filter(
+                        f =>
+                            f.dataType === 'NUMBER' ||
+                            f.dataType === 'CURRENCY' ||
+                            f.validationRules?.fieldSubType === 'FORMULA' ||
+                            f.validationRules?.fieldSubType === 'ROLLUP_SUMMARY',
+                    )
+                    .map(f => ({
+                        apiName: f.apiName,
+                        label: f.label,
+                        dataType: f.dataType,
+                    }));
+
+                catalog.push({
+                    apiName,
+                    label: String(obj.name || apiName),
+                    isCustom: Boolean(obj.is_custom),
+                    dimensionFields,
+                    numericFields,
+                });
+            } catch {
+                // Skip inaccessible objects
+            }
+        }
+        return catalog;
+    } catch {
+        return [];
+    }
+}
+
+export interface RunCustomObjectBiReportResult {
+    success: boolean;
+    error?: string;
+    columns?: BiReportColumn[];
+    rows?: BiReportRow[];
+    totalRecordsScanned?: number;
+}
+
+/**
+ * Executes a grouped aggregation (`COUNT`, `SUM`, `AVG`, `MIN`, `MAX`) over any
+ * standard, custom EAV, or Education Cloud Blueprint object (`reports:read`),
+ * including virtual `FORMULA` and `ROLLUP_SUMMARY` fields.
+ */
+export async function runCustomObjectBiReport(input: {
+    objectApiName: string;
+    groupByField: string;
+    aggregateFunction: RollupAggregateFunction;
+    metricField?: string;
+}): Promise<RunCustomObjectBiReportResult> {
+    try {
+        await requireAuth('reports:read');
+        const { objectDef, fields } = await getObjectMetadata(input.objectApiName);
+        const dimField = fields.find(f => f.apiName === input.groupByField);
+        if (!dimField) {
+            return { success: false, error: `Unknown group-by field: ${input.groupByField}` };
+        }
+
+        const agg = input.aggregateFunction || 'COUNT';
+        const targetMetricField =
+            agg === 'COUNT'
+                ? undefined
+                : fields.find(f => f.apiName === input.metricField);
+        if (agg !== 'COUNT' && !targetMetricField) {
+            return {
+                success: false,
+                error: `Select a numeric or formula field for ${agg} aggregation.`,
+            };
+        }
+
+        const records = await queryRecords(input.objectApiName, {}, 500, 0);
+        const groups = new Map<string, number[]>();
+
+        for (const rec of records) {
+            const bucketRaw = rec[dimField.apiName];
+            const bucketKey =
+                bucketRaw === null || bucketRaw === undefined || String(bucketRaw).trim() === ''
+                    ? '(Unassigned)'
+                    : String(bucketRaw);
+
+            if (!groups.has(bucketKey)) {
+                groups.set(bucketKey, []);
+            }
+            if (agg === 'COUNT') {
+                groups.get(bucketKey)!.push(1);
+            } else if (targetMetricField) {
+                const num = Number(rec[targetMetricField.apiName]);
+                if (Number.isFinite(num)) {
+                    groups.get(bucketKey)!.push(num);
+                }
+            }
+        }
+
+        const dimLabel = dimField.label;
+        const metricLabel =
+            agg === 'COUNT'
+                ? `Record Count (${objectDef.name})`
+                : `${agg} of ${targetMetricField!.label}`;
+
+        const columns: BiReportColumn[] = [
+            { label: dimLabel, kind: 'dimension', format: 'text' },
+            {
+                label: metricLabel,
+                kind: 'metric',
+                format: targetMetricField?.dataType === 'CURRENCY' ? 'currency' : 'number',
+            },
+        ];
+
+        const rows: BiReportRow[] = Array.from(groups.entries()).map(([bucket, vals]) => {
+            let computed = 0;
+            if (agg === 'COUNT') {
+                computed = vals.length;
+            } else if (vals.length > 0) {
+                switch (agg) {
+                    case 'SUM':
+                        computed = Math.round(vals.reduce((a, b) => a + b, 0) * 100) / 100;
+                        break;
+                    case 'AVG':
+                        computed =
+                            Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) /
+                            100;
+                        break;
+                    case 'MIN':
+                        computed = Math.min(...vals);
+                        break;
+                    case 'MAX':
+                        computed = Math.max(...vals);
+                        break;
+                }
+            }
+            return {
+                [dimLabel]: bucket,
+                [metricLabel]: computed,
+            };
+        });
+
+        return {
+            success: true,
+            columns,
+            rows,
+            totalRecordsScanned: records.length,
+        };
+    } catch (error) {
+        return {
+            success: false,
+            error: describeError(error, 'Failed to run custom object report.'),
+        };
+    }
+}
+
 

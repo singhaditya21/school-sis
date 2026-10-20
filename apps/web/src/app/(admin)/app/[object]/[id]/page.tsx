@@ -3,13 +3,19 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
     getObjectMetadata,
+    getRecordAuditTimeline,
     getRelatedLookupRecords,
     queryRecords,
+    type RecordAuditTimelineEntry,
     type RelatedLookupGroup,
 } from '@/lib/actions/metadata-engine';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ExternalLink, Link2 } from 'lucide-react';
 import GenericFormClient from './generic-form';
+import {
+    RecordAuditTimelineCard,
+    RecordExperienceHeader,
+} from './record-detail-client';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -36,10 +42,12 @@ export default async function GenericObjectFormPage({ params }: { params: Promis
 
         let initialData = {};
         let relatedGroups: RelatedLookupGroup[] = [];
+        let auditTimeline: RecordAuditTimelineEntry[] = [];
         if (resolvedParams.id !== 'new') {
-            const [records, loadedRelated] = await Promise.all([
+            const [records, loadedRelated, loadedTimeline] = await Promise.all([
                 queryRecords(resolvedParams.object, { id: resolvedParams.id }, 1, 0),
                 getRelatedLookupRecords(resolvedParams.object, resolvedParams.id),
+                getRecordAuditTimeline(resolvedParams.object, resolvedParams.id),
             ]);
             if (records.length > 0) {
                 initialData = records[0];
@@ -47,6 +55,7 @@ export default async function GenericObjectFormPage({ params }: { params: Promis
                 throw new Error("Record not found");
             }
             relatedGroups = loadedRelated;
+            auditTimeline = loadedTimeline;
         }
 
         // Find the FORM layout if it exists
@@ -66,6 +75,15 @@ export default async function GenericObjectFormPage({ params }: { params: Promis
                         )}
                     </div>
                 </div>
+
+                {resolvedParams.id !== 'new' && (
+                    <RecordExperienceHeader
+                        objectName={resolvedParams.object}
+                        recordId={resolvedParams.id}
+                        fields={fields}
+                        recordData={initialData as Record<string, unknown>}
+                    />
+                )}
 
                 <GenericFormClient 
                     objectName={resolvedParams.object}
@@ -134,6 +152,10 @@ export default async function GenericObjectFormPage({ params }: { params: Promis
                             ))}
                         </CardContent>
                     </Card>
+                )}
+
+                {resolvedParams.id !== 'new' && (
+                    <RecordAuditTimelineCard timeline={auditTimeline} />
                 )}
             </div>
         );
