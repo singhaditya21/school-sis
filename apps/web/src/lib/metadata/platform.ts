@@ -2,19 +2,45 @@ export type MetadataDataType = 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'PICKLIS
 
 export type RollupAggregateFunction = 'COUNT' | 'SUM' | 'MIN' | 'MAX' | 'AVG';
 
+export type MetadataFieldSubType =
+    | 'LOOKUP'
+    | 'FORMULA'
+    | 'ROLLUP_SUMMARY'
+    | 'AUTO_NUMBER'
+    | 'EMAIL'
+    | 'PHONE'
+    | 'URL';
+
+export type CrossFieldConditionOperator = 'gt' | 'gte' | 'lt' | 'lte' | 'eq' | 'neq';
+
+export type DynamicVisibilityOperator =
+    | 'equals'
+    | 'not_equals'
+    | 'contains'
+    | 'greater_than'
+    | 'less_than'
+    | 'not_empty';
+
 export type MetadataValidationRules = {
     minLength?: number;
     maxLength?: number;
     min?: number;
     max?: number;
     pattern?: string;
-    fieldSubType?: 'LOOKUP' | 'FORMULA' | 'ROLLUP_SUMMARY';
+    fieldSubType?: MetadataFieldSubType;
     lookupTargetObject?: string;
     formulaExpression?: string;
     rollupChildObject?: string;
     rollupForeignKeyField?: string;
     rollupAggregate?: RollupAggregateFunction;
     rollupTargetField?: string;
+    autoNumberPrefix?: string;
+    crossFieldTarget?: string;
+    crossFieldOperator?: CrossFieldConditionOperator;
+    crossFieldErrorMessage?: string;
+    visibilityWhenField?: string;
+    visibilityWhenOperator?: DynamicVisibilityOperator;
+    visibilityWhenValue?: string;
 };
 
 export type RuntimeMetadataField = {
@@ -144,9 +170,50 @@ export function normalizeValidationRules(value: unknown): MetadataValidationRule
     if (
         input.fieldSubType === 'LOOKUP' ||
         input.fieldSubType === 'FORMULA' ||
-        input.fieldSubType === 'ROLLUP_SUMMARY'
+        input.fieldSubType === 'ROLLUP_SUMMARY' ||
+        input.fieldSubType === 'AUTO_NUMBER' ||
+        input.fieldSubType === 'EMAIL' ||
+        input.fieldSubType === 'PHONE' ||
+        input.fieldSubType === 'URL'
     ) {
         rules.fieldSubType = input.fieldSubType;
+    }
+
+    if (input.autoNumberPrefix != null && String(input.autoNumberPrefix).trim() !== '') {
+        const prefix = String(input.autoNumberPrefix).trim();
+        if (prefix.length > 64) throw new Error('Auto-number prefix must be 64 characters or fewer.');
+        rules.autoNumberPrefix = prefix;
+        rules.fieldSubType = 'AUTO_NUMBER';
+    }
+
+    if (input.crossFieldTarget != null && String(input.crossFieldTarget).trim() !== '') {
+        const target = String(input.crossFieldTarget).trim().toLowerCase();
+        assertSafeMetadataIdentifier(target, 'cross-field validation target');
+        rules.crossFieldTarget = target;
+        const op = String(input.crossFieldOperator || 'lte').trim().toLowerCase() as CrossFieldConditionOperator;
+        if (!['gt', 'gte', 'lt', 'lte', 'eq', 'neq'].includes(op)) {
+            throw new Error('Invalid cross-field validation operator.');
+        }
+        rules.crossFieldOperator = op;
+        if (input.crossFieldErrorMessage != null && String(input.crossFieldErrorMessage).trim() !== '') {
+            rules.crossFieldErrorMessage = String(input.crossFieldErrorMessage).trim().slice(0, 250);
+        }
+    }
+
+    if (input.visibilityWhenField != null && String(input.visibilityWhenField).trim() !== '') {
+        const visField = String(input.visibilityWhenField).trim().toLowerCase();
+        assertSafeMetadataIdentifier(visField, 'visibility condition field');
+        rules.visibilityWhenField = visField;
+        const visOp = String(input.visibilityWhenOperator || 'equals').trim().toLowerCase() as DynamicVisibilityOperator;
+        if (
+            !['equals', 'not_equals', 'contains', 'greater_than', 'less_than', 'not_empty'].includes(
+                visOp,
+            )
+        ) {
+            throw new Error('Invalid visibility condition operator.');
+        }
+        rules.visibilityWhenOperator = visOp;
+        rules.visibilityWhenValue = String(input.visibilityWhenValue ?? '').trim();
     }
 
     if (input.lookupTargetObject != null && String(input.lookupTargetObject).trim() !== '') {
@@ -276,6 +343,22 @@ export function normalizeMetadataFieldInput(input: Record<string, unknown>) {
         validationRules.rollupForeignKeyField = fkField;
         validationRules.rollupAggregate = agg;
         dataType = 'NUMBER';
+    } else if (rawType === 'AUTO_NUMBER' || validationRules.fieldSubType === 'AUTO_NUMBER') {
+        const prefix = String(
+            input.autoNumberPrefix ?? validationRules.autoNumberPrefix ?? 'REC-{YYYY}-{0000}',
+        ).trim();
+        validationRules.fieldSubType = 'AUTO_NUMBER';
+        validationRules.autoNumberPrefix = prefix;
+        dataType = 'TEXT';
+    } else if (rawType === 'EMAIL' || validationRules.fieldSubType === 'EMAIL') {
+        validationRules.fieldSubType = 'EMAIL';
+        dataType = 'TEXT';
+    } else if (rawType === 'PHONE' || validationRules.fieldSubType === 'PHONE') {
+        validationRules.fieldSubType = 'PHONE';
+        dataType = 'TEXT';
+    } else if (rawType === 'URL' || validationRules.fieldSubType === 'URL') {
+        validationRules.fieldSubType = 'URL';
+        dataType = 'TEXT';
     } else {
         if (!METADATA_DATA_TYPES.has(rawType as MetadataDataType)) {
             throw new Error('Unsupported field data type.');
@@ -291,15 +374,16 @@ export function normalizeMetadataFieldInput(input: Record<string, unknown>) {
         throw new Error('Picklist fields require at least one option.');
     }
 
-    const isVirtual =
+    const isAutoOrVirtual =
         validationRules.fieldSubType === 'FORMULA' ||
-        validationRules.fieldSubType === 'ROLLUP_SUMMARY';
+        validationRules.fieldSubType === 'ROLLUP_SUMMARY' ||
+        validationRules.fieldSubType === 'AUTO_NUMBER';
 
     return {
         label,
         apiName,
         dataType,
-        isRequired: isVirtual ? false : Boolean(input.isRequired),
+        isRequired: isAutoOrVirtual ? false : Boolean(input.isRequired),
         picklistOptions,
         validationRules,
     };
@@ -308,6 +392,64 @@ export function normalizeMetadataFieldInput(input: Record<string, unknown>) {
 export function isVirtualMetadataField(field: { validationRules?: MetadataValidationRules | null }): boolean {
     const sub = field.validationRules?.fieldSubType;
     return sub === 'FORMULA' || sub === 'ROLLUP_SUMMARY';
+}
+
+/**
+ * Generates a formatted sequential or timestamped auto-number string from a pattern
+ * such as `'ADM-{YYYY}-{0000}'` or `'BATCH-{0000}'`.
+ */
+export function generateMetadataAutoNumber(
+    formatPattern = 'REC-{YYYY}-{0000}',
+    sequenceNumber?: number,
+): string {
+    const year = String(new Date().getFullYear());
+    const seq =
+        sequenceNumber != null && Number.isFinite(sequenceNumber)
+            ? Math.max(1, Math.floor(sequenceNumber))
+            : Math.floor(1000 + Math.random() * 9000);
+    return formatPattern
+        .replace(/\{YYYY\}/gi, year)
+        .replace(/\{(0+)\}/g, (_m, zeros: string) => String(seq).padStart(zeros.length, '0'));
+}
+
+/**
+ * Evaluates a Dynamic Form conditional visibility rule (section-level or field-level)
+ * against the current form values.
+ */
+export function evaluateMetadataVisibilityRule(
+    rule: {
+        field?: string;
+        operator?: DynamicVisibilityOperator | string;
+        value?: string;
+    } | null | undefined,
+    recordValues: Record<string, unknown>,
+): boolean {
+    if (!rule || !rule.field) return true;
+    const raw = recordValues[rule.field];
+    const actualStr = raw == null ? '' : String(raw).trim();
+    const expectedStr = String(rule.value ?? '').trim();
+    const op = rule.operator || 'equals';
+
+    switch (op) {
+        case 'equals':
+        case 'eq':
+            return actualStr.toLowerCase() === expectedStr.toLowerCase();
+        case 'not_equals':
+        case 'neq':
+            return actualStr.toLowerCase() !== expectedStr.toLowerCase();
+        case 'contains':
+            return actualStr.toLowerCase().includes(expectedStr.toLowerCase());
+        case 'greater_than':
+        case 'gt':
+            return Number(raw) > Number(expectedStr);
+        case 'less_than':
+        case 'lt':
+            return Number(raw) < Number(expectedStr);
+        case 'not_empty':
+            return actualStr.length > 0;
+        default:
+            return true;
+    }
 }
 
 /**
@@ -534,6 +676,16 @@ function coerceMetadataValue(field: RuntimeMetadataField, value: unknown): unkno
         }
     }
 
+    if (rules.fieldSubType === 'EMAIL' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
+        throw new Error(`${field.label} must be a valid email address.`);
+    }
+    if (rules.fieldSubType === 'PHONE' && !/^[+\d][\d\s\-()]{6,20}$/.test(text)) {
+        throw new Error(`${field.label} must be a valid phone number.`);
+    }
+    if (rules.fieldSubType === 'URL' && !/^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(text)) {
+        throw new Error(`${field.label} must be a valid http(s) URL.`);
+    }
+
     if (rules.minLength != null && text.length < rules.minLength) {
         throw new Error(`${field.label} must be at least ${rules.minLength} characters.`);
     }
@@ -578,6 +730,62 @@ export function validateMetadataRecordPayload(
             data[key] = coerceMetadataValue(field, value);
         } catch (error) {
             errors.push(error instanceof Error ? error.message : `Invalid value for ${key}`);
+        }
+    }
+
+    // Populate AUTO_NUMBER fields when empty on create, and evaluate Cross-Field Validation Rules
+    for (const field of fields) {
+        const rules = field.validationRules;
+        if (!rules) continue;
+
+        if (
+            rules.fieldSubType === 'AUTO_NUMBER' &&
+            (options.requireAll ?? true) &&
+            isEmpty(data[field.apiName])
+        ) {
+            data[field.apiName] = generateMetadataAutoNumber(
+                rules.autoNumberPrefix || 'REC-{YYYY}-{0000}',
+            );
+        }
+
+        if (rules.crossFieldTarget && rules.crossFieldOperator) {
+            const leftVal = data[field.apiName] ?? payload[field.apiName];
+            const rightVal = data[rules.crossFieldTarget] ?? payload[rules.crossFieldTarget];
+            if (!isEmpty(leftVal) && !isEmpty(rightVal)) {
+                const leftNum = Number(leftVal);
+                const rightNum = Number(rightVal);
+                const bothNumeric = Number.isFinite(leftNum) && Number.isFinite(rightNum);
+                const a = bothNumeric ? leftNum : String(leftVal);
+                const b = bothNumeric ? rightNum : String(rightVal);
+
+                let passes = true;
+                switch (rules.crossFieldOperator) {
+                    case 'gt':
+                        passes = a > b;
+                        break;
+                    case 'gte':
+                        passes = a >= b;
+                        break;
+                    case 'lt':
+                        passes = a < b;
+                        break;
+                    case 'lte':
+                        passes = a <= b;
+                        break;
+                    case 'eq':
+                        passes = a === b;
+                        break;
+                    case 'neq':
+                        passes = a !== b;
+                        break;
+                }
+                if (!passes) {
+                    errors.push(
+                        rules.crossFieldErrorMessage ||
+                            `${field.label} must satisfy ${rules.crossFieldOperator.toUpperCase()} ${rules.crossFieldTarget}.`,
+                    );
+                }
+            }
         }
     }
 

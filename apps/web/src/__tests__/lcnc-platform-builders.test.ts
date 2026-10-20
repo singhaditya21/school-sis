@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import {
     evaluateMetadataFormula,
     evaluateMetadataRollupSummary,
+    evaluateMetadataVisibilityRule,
+    generateMetadataAutoNumber,
     normalizeMetadataFieldInput,
     validateMetadataRecordPayload,
 } from '@/lib/metadata/platform';
@@ -278,6 +280,127 @@ describe('LCNC & Drag-and-Drop Platform Builders', () => {
         const workflowBuilder = readWebSource('src/components/automation/workflow-builder.tsx');
         expect(workflowBuilder).toContain('CREATE_RECORD');
         expect(workflowBuilder).toContain('SUBMIT_FOR_APPROVAL');
+    });
+
+    it('supports Track A Dynamic Forms (conditional visibility), Cross-Field Validation Rules, and Auto-Number + Rich Subtypes (EMAIL, PHONE, URL)', () => {
+        // 1. Auto-Number format generation
+        const autoNumField = normalizeMetadataFieldInput({
+            label: 'Inquiry Number',
+            apiName: 'inquiry_no',
+            dataType: 'AUTO_NUMBER',
+            autoNumberPrefix: 'INQ-{YYYY}-{0000}',
+        });
+        expect(autoNumField.dataType).toBe('TEXT');
+        expect(autoNumField.isRequired).toBe(false);
+        expect(autoNumField.validationRules.fieldSubType).toBe('AUTO_NUMBER');
+        expect(autoNumField.validationRules.autoNumberPrefix).toBe('INQ-{YYYY}-{0000}');
+
+        const formattedId = generateMetadataAutoNumber('INQ-{YYYY}-{0000}', 42);
+        expect(formattedId).toMatch(/^INQ-\d{4}-0042$/);
+
+        // 2. Dynamic Forms conditional visibility evaluation
+        expect(
+            evaluateMetadataVisibilityRule(
+                { field: 'stage', operator: 'eq', value: 'DISROLLED' },
+                { stage: 'DISROLLED' },
+            ),
+        ).toBe(true);
+        expect(
+            evaluateMetadataVisibilityRule(
+                { field: 'stage', operator: 'eq', value: 'DISROLLED' },
+                { stage: 'ENROLLED' },
+            ),
+        ).toBe(false);
+        expect(
+            evaluateMetadataVisibilityRule(
+                { field: 'scholarship_percent', operator: 'gt', value: '50' },
+                { scholarship_percent: 75 },
+            ),
+        ).toBe(true);
+
+        // 3. Rich subtypes (EMAIL, PHONE, URL) + Cross-Field Validation Rules
+        const fields = [
+            {
+                apiName: 'contact_email',
+                label: 'Contact Email',
+                dataType: 'TEXT' as const,
+                isRequired: true,
+                validationRules: { fieldSubType: 'EMAIL' as const },
+            },
+            {
+                apiName: 'contact_phone',
+                label: 'Contact Phone',
+                dataType: 'TEXT' as const,
+                isRequired: true,
+                validationRules: { fieldSubType: 'PHONE' as const },
+            },
+            {
+                apiName: 'portfolio_url',
+                label: 'Portfolio URL',
+                dataType: 'TEXT' as const,
+                isRequired: false,
+                validationRules: { fieldSubType: 'URL' as const },
+            },
+            {
+                apiName: 'max_marks',
+                label: 'Max Marks',
+                dataType: 'NUMBER' as const,
+                isRequired: true,
+                validationRules: {},
+            },
+            {
+                apiName: 'score_obtained',
+                label: 'Score Obtained',
+                dataType: 'NUMBER' as const,
+                isRequired: true,
+                validationRules: {
+                    crossFieldTarget: 'max_marks',
+                    crossFieldOperator: 'lte' as const,
+                    crossFieldErrorMessage: 'Score Obtained cannot exceed Max Marks.',
+                },
+            },
+        ];
+
+        const invalidEmailResult = validateMetadataRecordPayload(fields, {
+            contact_email: 'not-an-email',
+            contact_phone: '+91 9876543210',
+            max_marks: 100,
+            score_obtained: 80,
+        });
+        expect(invalidEmailResult).toEqual({
+            ok: false,
+            errors: ['Contact Email must be a valid email address.'],
+        });
+
+        const crossFieldViolation = validateMetadataRecordPayload(fields, {
+            contact_email: 'student@example.edu',
+            contact_phone: '+91 9876543210',
+            portfolio_url: 'https://portfolio.example.edu',
+            max_marks: 100,
+            score_obtained: 120,
+        });
+        expect(crossFieldViolation).toEqual({
+            ok: false,
+            errors: ['Score Obtained cannot exceed Max Marks.'],
+        });
+
+        const validPayload = validateMetadataRecordPayload(fields, {
+            contact_email: 'student@example.edu',
+            contact_phone: '+91 9876543210',
+            portfolio_url: 'https://portfolio.example.edu',
+            max_marks: 100,
+            score_obtained: 95,
+        });
+        expect(validPayload).toEqual({
+            ok: true,
+            data: {
+                contact_email: 'student@example.edu',
+                contact_phone: '+91 9876543210',
+                portfolio_url: 'https://portfolio.example.edu',
+                max_marks: '100',
+                score_obtained: '95',
+            },
+        });
     });
 });
 

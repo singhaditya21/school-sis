@@ -108,6 +108,62 @@ function renderCell(field: MetadataField | undefined, value: unknown): React.Rea
         );
     }
 
+    if (field?.validationRules?.fieldSubType === 'AUTO_NUMBER') {
+        return (
+            <span className="inline-flex items-center rounded bg-muted px-2 py-0.5 font-mono text-xs font-semibold text-foreground border border-border">
+                {String(value)}
+            </span>
+        );
+    }
+
+    if (field?.validationRules?.fieldSubType === 'EMAIL') {
+        const email = String(value);
+        return (
+            <a
+                href={`mailto:${email}`}
+                className="font-medium text-primary hover:underline"
+            >
+                {email}
+            </a>
+        );
+    }
+
+    if (field?.validationRules?.fieldSubType === 'PHONE') {
+        const phone = String(value);
+        const digits = phone.replace(/[^\d]/g, '');
+        return (
+            <span className="inline-flex items-center gap-2">
+                <a href={`tel:${phone}`} className="font-mono text-xs text-primary hover:underline">
+                    {phone}
+                </a>
+                {digits.length >= 10 && (
+                    <a
+                        href={`https://wa.me/${digits}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded bg-success-subtle px-1.5 py-0.5 text-[10px] font-semibold text-success hover:underline"
+                    >
+                        WhatsApp
+                    </a>
+                )}
+            </span>
+        );
+    }
+
+    if (field?.validationRules?.fieldSubType === 'URL') {
+        const url = String(value);
+        return (
+            <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="font-mono text-xs text-primary hover:underline"
+            >
+                {url}
+            </a>
+        );
+    }
+
     switch (field?.dataType) {
         case 'CURRENCY':
             return formatCurrency(value as string | number);

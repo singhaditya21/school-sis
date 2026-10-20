@@ -13,9 +13,16 @@ import { Input } from '@/components/ui/input';
 import { GripVertical, Plus, Save, Trash2, Columns, LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner';
 
+type SectionVisibilityRule = {
+    field?: string;
+    operator?: 'equals' | 'not_equals' | 'contains' | 'greater_than' | 'less_than' | 'not_empty';
+    value?: string;
+};
+
 type FormSection = {
     title: string;
     fields: string[];
+    visibilityRule?: SectionVisibilityRule;
 };
 
 export default function ObjectLayoutBuilderClient({
@@ -46,6 +53,7 @@ export default function ObjectLayoutBuilderClient({
             ? existingForm.sections.map(sec => ({
                   title: sec.title || 'General Information',
                   fields: Array.isArray(sec.fields) ? [...sec.fields] : [],
+                  visibilityRule: sec.visibilityRule,
               }))
             : [
                   {
@@ -313,29 +321,141 @@ export default function ObjectLayoutBuilderClient({
                                             : 'border-border bg-card'
                                     }`}
                                 >
-                                    <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-border">
-                                        <Input
-                                            value={section.title}
-                                            onChange={e => {
-                                                const val = e.target.value;
-                                                setSections(prev =>
-                                                    prev.map((s, idx) =>
-                                                        idx === sectionIdx ? { ...s, title: val } : s,
-                                                    ),
-                                                );
-                                            }}
-                                            className="h-8 max-w-xs font-semibold text-sm"
-                                            aria-label={`Section ${sectionIdx + 1} title`}
-                                        />
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleRemoveSection(sectionIdx)}
-                                            className="text-muted-foreground hover:text-destructive"
+                                    <div className="flex flex-col gap-2 mb-4 pb-3 border-b border-border">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <Input
+                                                value={section.title}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setSections(prev =>
+                                                        prev.map((s, idx) =>
+                                                            idx === sectionIdx
+                                                                ? { ...s, title: val }
+                                                                : s,
+                                                        ),
+                                                    );
+                                                }}
+                                                className="h-8 max-w-xs font-semibold text-sm"
+                                                aria-label={`Section ${sectionIdx + 1} title`}
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleRemoveSection(sectionIdx)}
+                                                className="text-muted-foreground hover:text-destructive"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                        <div
+                                            className="flex flex-wrap items-center gap-2 text-xs"
+                                            data-testid={`section-visibility-rule-${sectionIdx}`}
                                         >
-                                            <Trash2 className="w-4 h-4" />
-                                        </Button>
+                                            <span className="text-[11px] font-medium text-muted-foreground">
+                                                Dynamic Form Visibility:
+                                            </span>
+                                            <select
+                                                value={section.visibilityRule?.field || ''}
+                                                onChange={e => {
+                                                    const field = e.target.value;
+                                                    setSections(prev =>
+                                                        prev.map((s, idx) =>
+                                                            idx === sectionIdx
+                                                                ? {
+                                                                      ...s,
+                                                                      visibilityRule: field
+                                                                          ? {
+                                                                                field,
+                                                                                operator:
+                                                                                    s.visibilityRule
+                                                                                        ?.operator ||
+                                                                                    'equals',
+                                                                                value:
+                                                                                    s.visibilityRule
+                                                                                        ?.value || '',
+                                                                            }
+                                                                          : undefined,
+                                                                  }
+                                                                : s,
+                                                        ),
+                                                    );
+                                                }}
+                                                className="h-7 rounded border border-border bg-card px-2 text-xs text-foreground"
+                                            >
+                                                <option value="">Always Visible</option>
+                                                {selectableFields.map(f => (
+                                                    <option key={f.apiName} value={f.apiName}>
+                                                        Show when {f.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {section.visibilityRule?.field && (
+                                                <>
+                                                    <select
+                                                        value={
+                                                            section.visibilityRule.operator ||
+                                                            'equals'
+                                                        }
+                                                        onChange={e => {
+                                                            const operator = e.target
+                                                                .value as SectionVisibilityRule['operator'];
+                                                            setSections(prev =>
+                                                                prev.map((s, idx) =>
+                                                                    idx === sectionIdx
+                                                                        ? {
+                                                                              ...s,
+                                                                              visibilityRule: {
+                                                                                  ...s.visibilityRule,
+                                                                                  operator,
+                                                                              },
+                                                                          }
+                                                                        : s,
+                                                                ),
+                                                            );
+                                                        }}
+                                                        className="h-7 rounded border border-border bg-card px-2 text-xs text-foreground"
+                                                    >
+                                                        <option value="equals">Equals</option>
+                                                        <option value="not_equals">
+                                                            Not Equals
+                                                        </option>
+                                                        <option value="greater_than">
+                                                            &gt; Greater Than
+                                                        </option>
+                                                        <option value="not_empty">
+                                                            Is Not Empty
+                                                        </option>
+                                                    </select>
+                                                    {section.visibilityRule.operator !==
+                                                        'not_empty' && (
+                                                        <Input
+                                                            value={
+                                                                section.visibilityRule.value || ''
+                                                            }
+                                                            onChange={e => {
+                                                                const value = e.target.value;
+                                                                setSections(prev =>
+                                                                    prev.map((s, idx) =>
+                                                                        idx === sectionIdx
+                                                                            ? {
+                                                                                  ...s,
+                                                                                  visibilityRule: {
+                                                                                      ...s.visibilityRule,
+                                                                                      value,
+                                                                                  },
+                                                                              }
+                                                                            : s,
+                                                                    ),
+                                                                );
+                                                            }}
+                                                            placeholder="Expected value..."
+                                                            className="h-7 w-36 text-xs"
+                                                        />
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {section.fields.length === 0 ? (

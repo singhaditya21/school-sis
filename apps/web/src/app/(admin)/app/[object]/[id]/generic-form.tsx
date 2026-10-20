@@ -9,16 +9,31 @@ import {
     getLookupOptions,
     upsertRecord,
 } from '@/lib/actions/metadata-engine';
-import { evaluateMetadataFormula } from '@/lib/metadata/platform';
+import {
+    evaluateMetadataFormula,
+    evaluateMetadataVisibilityRule,
+    isVirtualMetadataField,
+    type DynamicVisibilityOperator,
+} from '@/lib/metadata/platform';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Calculator, ExternalLink, Link2, Loader2 } from 'lucide-react';
+import { Calculator, ExternalLink, Hash, Link2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 /** Shape of the FORM layout schema stored in metadata_layouts. */
-type MetadataFormLayout = { sections?: { title?: string; fields?: string[] }[] };
+type MetadataFormLayout = {
+    sections?: {
+        title?: string;
+        fields?: string[];
+        visibilityRule?: {
+            field?: string;
+            operator?: DynamicVisibilityOperator | string;
+            value?: string;
+        };
+    }[];
+};
 
 export default function GenericFormClient({ 
     objectName, 
@@ -86,7 +101,7 @@ export default function GenericFormClient({
             const writable: Record<string, unknown> = {};
             for (const field of fields) {
                 if (field.canWrite === false) continue;
-                if (field.validationRules?.fieldSubType === 'FORMULA') continue;
+                if (isVirtualMetadataField(field)) continue;
                 if (Object.prototype.hasOwnProperty.call(data, field.apiName)) {
                     writable[field.apiName] = data[field.apiName];
                 }
@@ -106,6 +121,26 @@ export default function GenericFormClient({
         }
     };
 
+    const currentFormValues: Record<string, unknown> = {
+        ...initialData,
+        ...watchedValues,
+    };
+
+    // Filter out fields belonging to sections hidden by Dynamic Form visibility rules
+    const hiddenBySectionFields = new Set<string>();
+    if (Array.isArray(layout?.sections)) {
+        for (const section of layout.sections) {
+            if (
+                section.visibilityRule &&
+                !evaluateMetadataVisibilityRule(section.visibilityRule, currentFormValues)
+            ) {
+                for (const fname of section.fields ?? []) {
+                    hiddenBySectionFields.add(fname);
+                }
+            }
+        }
+    }
+
     const layoutOrder: string[] = Array.isArray(layout?.sections)
         ? layout.sections.flatMap(section => section.fields ?? [])
         : [];
@@ -119,7 +154,7 @@ export default function GenericFormClient({
         : fields;
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit)} data-testid="dynamic-metadata-form">
             <Card>
                 <CardHeader>
                     <CardTitle>Record Details</CardTitle>
@@ -128,10 +163,70 @@ export default function GenericFormClient({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {orderedFields.map(field => {
                             if (field.apiName === 'id' || field.apiName === 'tenant_id') return null;
+                            if (hiddenBySectionFields.has(field.apiName)) return null;
+
+                            if (
+                                field.validationRules?.visibilityWhenField &&
+                                !evaluateMetadataVisibilityRule(
+                                    {
+                                        field: field.validationRules.visibilityWhenField,
+                                        operator: field.validationRules.visibilityWhenOperator,
+                                        value: field.validationRules.visibilityWhenValue,
+                                    },
+                                    currentFormValues,
+                                )
+                            ) {
+                                return null;
+                            }
 
                             const raw = initialData[field.apiName];
                             const initialValue = raw === null || raw === undefined ? '' : String(raw);
                             const subType = field.validationRules?.fieldSubType;
+
+                            if (subType === 'AUTO_NUMBER') {
+                                return (
+                                    <div key={field.apiName} className="space-y-2">
+                                        <Label className="flex items-center gap-1.5" htmlFor={field.apiName}>
+                                            <Hash className="w-3.5 h-3.5 text-primary" />
+                                            {field.label}
+                                            <span className="ml-1 text-xs font-mono text-primary">
+                                                (Auto-Number)
+                                            </span>
+                                        </Label>
+                                        <Input
+                                            id={field.apiName}
+                                            disabled
+                                            readOnly
+                                            value={
+                                                initialValue ||
+                                                `Auto-generated (${field.validationRules?.autoNumberPrefix || 'REC-{YYYY}-{0000}'})`
+                                            }
+                                            className="bg-muted/60 font-mono"
+                                        />
+                                    </div>
+                                );
+                            }
+
+                            if (subType === 'ROLLUP_SUMMARY') {
+                                return (
+                                    <div key={field.apiName} className="space-y-2">
+                                        <Label className="flex items-center gap-1.5" htmlFor={field.apiName}>
+                                            <Calculator className="w-3.5 h-3.5 text-primary" />
+                                            {field.label}
+                                            <span className="ml-1 text-xs font-mono text-primary">
+                                                (Roll-Up: {field.validationRules?.rollupAggregate || 'COUNT'} on {field.validationRules?.rollupChildObject})
+                                            </span>
+                                        </Label>
+                                        <Input
+                                            id={field.apiName}
+                                            disabled
+                                            readOnly
+                                            value={initialValue || '0'}
+                                            className="bg-muted/60 font-mono"
+                                        />
+                                    </div>
+                                );
+                            }
 
                             if (subType === 'FORMULA' && field.validationRules?.formulaExpression) {
                                 const computed = evaluateMetadataFormula(

@@ -55,6 +55,13 @@ export default function FieldManagerClient({
     const [newRollupFkField, setNewRollupFkField] = useState('program_id');
     const [newRollupAggregate, setNewRollupAggregate] = useState('COUNT');
     const [newRollupTargetField, setNewRollupTargetField] = useState('');
+    const [newAutoNumberPrefix, setNewAutoNumberPrefix] = useState('ADM-{YYYY}-{0000}');
+    const [newCrossFieldTarget, setNewCrossFieldTarget] = useState('');
+    const [newCrossFieldOperator, setNewCrossFieldOperator] = useState('lte');
+    const [newCrossFieldError, setNewCrossFieldError] = useState('');
+    const [newVisField, setNewVisField] = useState('');
+    const [newVisOperator, setNewVisOperator] = useState('equals');
+    const [newVisValue, setNewVisValue] = useState('');
     const [approvalReason, setApprovalReason] = useState('Adding custom field via Object Manager');
 
     // Field-Level Security (FLS) Dialog State
@@ -139,6 +146,20 @@ export default function FieldManagerClient({
                     newType === 'ROLLUP_SUMMARY' && newRollupAggregate !== 'COUNT'
                         ? newRollupTargetField
                         : undefined,
+                validationRules: {
+                    autoNumberPrefix:
+                        newType === 'AUTO_NUMBER' ? newAutoNumberPrefix : undefined,
+                    crossFieldTarget: newCrossFieldTarget.trim() || undefined,
+                    crossFieldOperator: newCrossFieldTarget.trim()
+                        ? newCrossFieldOperator
+                        : undefined,
+                    crossFieldErrorMessage: newCrossFieldError.trim() || undefined,
+                    visibilityWhenField: newVisField.trim() || undefined,
+                    visibilityWhenOperator: newVisField.trim()
+                        ? newVisOperator
+                        : undefined,
+                    visibilityWhenValue: newVisField.trim() ? newVisValue : undefined,
+                },
             };
             const created = await createCustomField(objectId, fieldData, {
                 reason: approvalReason,
@@ -266,9 +287,28 @@ export default function FieldManagerClient({
                                             <SelectItem value="LOOKUP">Relational Lookup (Parent Object)</SelectItem>
                                             <SelectItem value="FORMULA">Calculated Formula (f(x))</SelectItem>
                                             <SelectItem value="ROLLUP_SUMMARY">Roll-Up Summary (Child Aggregate)</SelectItem>
+                                            <SelectItem value="AUTO_NUMBER">Auto-Number (ADM-&#123;YYYY&#125;-&#123;0000&#125;)</SelectItem>
+                                            <SelectItem value="EMAIL">Email Address</SelectItem>
+                                            <SelectItem value="PHONE">Phone / WhatsApp Number</SelectItem>
+                                            <SelectItem value="URL">Web URL</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
+
+                                {newType === 'AUTO_NUMBER' && (
+                                    <div className="space-y-1.5 rounded-lg border border-border bg-muted/40 p-3">
+                                        <Label className="text-xs">Auto-Number Format Pattern</Label>
+                                        <Input
+                                            value={newAutoNumberPrefix}
+                                            onChange={e => setNewAutoNumberPrefix(e.target.value)}
+                                            placeholder="ADM-{YYYY}-{0000}"
+                                            className="font-mono text-xs"
+                                        />
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Uses &#123;YYYY&#125; for current year and &#123;0000&#125; for zero-padded sequence.
+                                        </p>
+                                    </div>
+                                )}
 
                                 {newType === 'ROLLUP_SUMMARY' && (
                                     <div className="space-y-3 rounded-lg border border-border bg-muted/40 p-3">
@@ -389,7 +429,7 @@ export default function FieldManagerClient({
                                     </div>
                                 )}
 
-                                {newType !== 'FORMULA' && (
+                                {newType !== 'FORMULA' && newType !== 'ROLLUP_SUMMARY' && newType !== 'AUTO_NUMBER' && (
                                     <div className="flex items-center space-x-2 pt-2">
                                         <Switch
                                             checked={newRequired}
@@ -399,6 +439,73 @@ export default function FieldManagerClient({
                                         <Label htmlFor="required">Required Field</Label>
                                     </div>
                                 )}
+
+                                {/* Cross-Field Validation Rule & Dynamic Form Visibility */}
+                                <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3 text-xs">
+                                    <p className="font-semibold text-foreground">
+                                        Cross-Field Validation &amp; Dynamic Form Visibility (Optional)
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Input
+                                            value={newCrossFieldTarget}
+                                            onChange={e => setNewCrossFieldTarget(e.target.value)}
+                                            placeholder="Compare field (e.g. base_course_fee)"
+                                            className="h-8 text-xs font-mono"
+                                        />
+                                        <Select
+                                            value={newCrossFieldOperator}
+                                            onValueChange={setNewCrossFieldOperator}
+                                        >
+                                            <SelectTrigger className="h-8 text-xs">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="lte">&lt;= Less or Equal</SelectItem>
+                                                <SelectItem value="lt">&lt; Less Than</SelectItem>
+                                                <SelectItem value="gte">&gt;= Greater or Equal</SelectItem>
+                                                <SelectItem value="gt">&gt; Greater Than</SelectItem>
+                                                <SelectItem value="eq">== Equal To</SelectItem>
+                                                <SelectItem value="neq">!= Not Equal</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    {newCrossFieldTarget.trim() && (
+                                        <Input
+                                            value={newCrossFieldError}
+                                            onChange={e => setNewCrossFieldError(e.target.value)}
+                                            placeholder="Custom validation error message..."
+                                            className="h-8 text-xs"
+                                        />
+                                    )}
+                                    <div className="grid grid-cols-3 gap-2 pt-1">
+                                        <Input
+                                            value={newVisField}
+                                            onChange={e => setNewVisField(e.target.value)}
+                                            placeholder="Show when field..."
+                                            className="h-8 text-xs font-mono"
+                                        />
+                                        <Select
+                                            value={newVisOperator}
+                                            onValueChange={setNewVisOperator}
+                                        >
+                                            <SelectTrigger className="h-8 text-xs">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="equals">Equals</SelectItem>
+                                                <SelectItem value="not_equals">Not Equal</SelectItem>
+                                                <SelectItem value="greater_than">&gt; Greater</SelectItem>
+                                                <SelectItem value="not_empty">Not Empty</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <Input
+                                            value={newVisValue}
+                                            onChange={e => setNewVisValue(e.target.value)}
+                                            placeholder="Value..."
+                                            className="h-8 text-xs"
+                                        />
+                                    </div>
+                                </div>
 
                                 <div className="space-y-2">
                                     <Label>Approval Reason</Label>
