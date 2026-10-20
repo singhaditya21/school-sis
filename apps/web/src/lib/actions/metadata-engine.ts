@@ -32,9 +32,11 @@ import {
     detectMetadataDuplicates,
     evaluateMetadataFormula,
     evaluateMetadataRollupSummary,
+    isSafeWebhookDestinationUrl,
     isVirtualMetadataField,
     normalizeMetadataFieldInput,
     quoteIdentifier,
+    redactSensitiveWorkflowPayload,
     validateMetadataRecordPayload,
     type DuplicateMatchEntry,
     type MetadataDataType,
@@ -2280,7 +2282,9 @@ export async function runSingleWorkflowAction(params: {
         };
     } else if (normalizedAction === 'WEBHOOK') {
         const targetUrl = String(actionPayload.url || 'https://example.org/webhook').trim();
-        const method = String(actionPayload.method || 'POST').trim().toUpperCase();
+        const rawMethod = String(actionPayload.method || 'POST').trim().toUpperCase();
+        const method = rawMethod === 'PUT' ? 'PUT' : 'POST';
+        const isSafeUrl = isSafeWebhookDestinationUrl(targetUrl);
         const signingSecret =
             String(actionPayload.secret || '').trim() ||
             process.env.WEBHOOK_SIGNING_SECRET ||
@@ -2302,42 +2306,45 @@ export async function runSingleWorkflowAction(params: {
             .update(serializedBody)
             .digest('hex')}`;
 
-        const jobRows = await sql<{ id: string }>`
-            INSERT INTO background_jobs (
-                tenant_id, scope, queue, task_name, status, priority, payload,
-                scheduled_for, available_at, max_attempts
-            )
-            VALUES (
-                ${tenantId},
-                'TENANT',
-                'webhooks',
-                'webhook.dispatch',
-                'QUEUED',
-                0,
-                ${JSON.stringify({
-                    tenantId,
-                    workflowId,
-                    url: targetUrl,
-                    method,
-                    signature,
-                    body: eventBody,
-                })}::jsonb,
-                NOW(),
-                NOW(),
-                3
-            )
-            RETURNING id
-        `;
+        const jobRows = isSafeUrl
+            ? await sql<{ id: string }>`
+                  INSERT INTO background_jobs (
+                      tenant_id, scope, queue, task_name, status, priority, payload,
+                      scheduled_for, available_at, max_attempts
+                  )
+                  VALUES (
+                      ${tenantId},
+                      'TENANT',
+                      'webhooks',
+                      'webhook.dispatch',
+                      'QUEUED',
+                      0,
+                      ${JSON.stringify({
+                          tenantId,
+                          workflowId,
+                          url: targetUrl,
+                          method,
+                          signature,
+                          body: eventBody,
+                      })}::jsonb,
+                      NOW(),
+                      NOW(),
+                      3
+                  )
+                  RETURNING id
+              `
+            : [];
 
         let httpStatus: number | null = null;
         if (
-            targetUrl.startsWith('https://') &&
+            isSafeUrl &&
             !targetUrl.includes('example.org') &&
             process.env.NODE_ENV !== 'test'
         ) {
             try {
                 const res = await fetch(targetUrl, {
                     method,
+                    redirect: 'error',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-ScholarMind-Signature': signature,
@@ -2357,6 +2364,7 @@ export async function runSingleWorkflowAction(params: {
             jobId: jobRows[0]?.id ?? null,
             url: targetUrl,
             method,
+            ssrfBlocked: !isSafeUrl,
             signature,
             httpStatus,
         };
@@ -2432,7 +2440,7 @@ export async function runSingleWorkflowAction(params: {
                 workflowName,
                 triggerEvent,
                 actionType: normalizedAction,
-                actionPayload,
+                actionPayload: redactSensitiveWorkflowPayload(actionPayload),
                 actionResult: actionDetails,
                 executedAt: new Date().toISOString(),
             })}::jsonb
@@ -2668,7 +2676,22 @@ export async function decideRecordApproval(
         if (decision !== 'APPROVED' && decision !== 'REJECTED') {
             return { success: false, error: 'Invalid approval decision.' };
         }
-        const { tenantId, userId } = await requireAuth();
+        const { tenantId, userId, session } = await requireAuth();
+        const allowedApproverRoles = new Set([
+            'SUPER_ADMIN',
+            'PLATFORM_ADMIN',
+            'SCHOOL_ADMIN',
+            'PRINCIPAL',
+            'VICE_PRINCIPAL',
+            'HOD',
+            'ACCOUNTANT',
+        ]);
+        if (!allowedApproverRoles.has(String(session.role || '').toUpperCase())) {
+            return {
+                success: false,
+                error: 'Your role does not have permission to approve or reject records.',
+            };
+        }
         const { fields } = await loadObjectMetadata(apiName, tenantId);
         const approvalField = fields.find(
             f =>
@@ -2968,7 +2991,7 @@ export async function cloneMetadataRecord(
         if (!UUID_RE.test(sourceRecordId)) {
             return { success: false, error: 'Invalid source record ID.' };
         }
-        const { tenantId, userId } = await requireAuth();
+        const { tenantId, userId, session } = await requireAuth();
         const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
         if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
             return { success: false, error: 'Cloning is supported on custom EAV objects.' };
@@ -2979,7 +3002,20 @@ export async function cloneMetadataRecord(
             return { success: false, error: 'Source record not found.' };
         }
         const sourceRow = existing[0] as Record<string, unknown>;
-        const writableFields = fields.filter(f => !isVirtualMetadataField(f));
+        const writableFields = fields.filter(
+            f =>
+                !isVirtualMetadataField(f) &&
+                canWriteMetadataField(
+                    session.role,
+                    f as unknown as RuntimeMetadataFieldWithPermissions,
+                ),
+        );
+        if (writableFields.length === 0) {
+            return {
+                success: false,
+                error: 'You do not have write permission to clone records on this object.',
+            };
+        }
 
         const clonePayload: Record<string, unknown> = {};
         for (const field of writableFields) {
@@ -3050,7 +3086,7 @@ export async function mergeMetadataRecords(
         if (primaryRecordId === duplicateRecordId) {
             return { success: false, error: 'Cannot merge a record with itself.' };
         }
-        const { tenantId, userId } = await requireAuth();
+        const { tenantId, userId, session } = await requireAuth();
         const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
         if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
             return { success: false, error: 'Record merging is supported on custom EAV objects.' };
@@ -3066,7 +3102,20 @@ export async function mergeMetadataRecords(
 
         const primaryData = primaryRows[0] as Record<string, unknown>;
         const duplicateData = duplicateRows[0] as Record<string, unknown>;
-        const writableFields = fields.filter(f => !isVirtualMetadataField(f));
+        const writableFields = fields.filter(
+            f =>
+                !isVirtualMetadataField(f) &&
+                canWriteMetadataField(
+                    session.role,
+                    f as unknown as RuntimeMetadataFieldWithPermissions,
+                ),
+        );
+        if (writableFields.length === 0) {
+            return {
+                success: false,
+                error: 'You do not have write permission to merge records on this object.',
+            };
+        }
 
         const mergedPatch: Record<string, unknown> = {};
         for (const field of writableFields) {
@@ -3431,6 +3480,12 @@ export async function submitPublicPortalIntakeRecord(
         const filteredPayload: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(rawSubmission)) {
             if (exposedSet.has(k)) {
+                if (typeof v === 'string' && v.length > 4000) {
+                    return {
+                        success: false,
+                        error: `Field "${k}" exceeds the 4,000 character guest portal limit.`,
+                    };
+                }
                 filteredPayload[k] = v;
             }
         }
@@ -3575,6 +3630,16 @@ export async function lookupPublicPortalRecordStatus(
         const records = await queryEavRecords(objectDef, fields, tenantId, null, 200, 0);
 
         const autoNumField = fields.find(f => f.validationRules?.fieldSubType === 'AUTO_NUMBER');
+        const contactFieldNames = new Set(
+            fields
+                .filter(
+                    f =>
+                        f.validationRules?.fieldSubType === 'EMAIL' ||
+                        f.validationRules?.fieldSubType === 'PHONE' ||
+                        /email|phone|mobile|contact/i.test(f.apiName),
+                )
+                .map(f => f.apiName),
+        );
         const verifierDigits = cleanVerifier.replace(/\D/g, '');
 
         const matchedRow = records.find(row => {
@@ -3584,12 +3649,15 @@ export async function lookupPublicPortalRecordStatus(
                 : '';
             const refMatches =
                 idStr === cleanRef ||
-                idStr.startsWith(cleanRef) ||
+                (cleanRef.length >= 8 && idStr.startsWith(cleanRef)) ||
                 (autoVal.length > 0 && autoVal === cleanRef);
             if (!refMatches) return false;
 
-            // Verify that at least one field on the record matches the contact verifier (email, phone, or name)
-            return Object.values(row).some(val => {
+            // Strictly verify against designated contact fields (EMAIL / PHONE)
+            const candidateKeys =
+                contactFieldNames.size > 0 ? [...contactFieldNames] : Object.keys(row);
+            return candidateKeys.some(key => {
+                const val = row[key];
                 if (val === null || val === undefined) return false;
                 const strVal = String(val).trim().toLowerCase();
                 if (strVal === cleanVerifier) return true;

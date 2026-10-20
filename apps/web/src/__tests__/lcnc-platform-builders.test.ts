@@ -7,7 +7,9 @@ import {
     evaluateMetadataRollupSummary,
     evaluateMetadataVisibilityRule,
     generateMetadataAutoNumber,
+    isSafeWebhookDestinationUrl,
     normalizeMetadataFieldInput,
+    redactSensitiveWorkflowPayload,
     validateMetadataRecordPayload,
 } from '@/lib/metadata/platform';
 import {
@@ -527,6 +529,51 @@ describe('LCNC & Drag-and-Drop Platform Builders', () => {
         expect(portalClient).toContain('portal-submission-confirmation');
         expect(portalClient).toContain('portal-status-tracker');
         expect(portalClient).toContain('evaluateMetadataVisibilityRule');
+    });
+
+    it('enforces Salesforce AppExchange Security Review controls (SSRF callout guard, secret redaction, FLS/RBAC on approvals/clone/merge, and guest portal verifier hardening)', () => {
+        // 1. Outbound Webhook Callout SSRF Guard
+        expect(isSafeWebhookDestinationUrl('https://hooks.zapier.com/hooks/catch/12345/')).toBe(
+            true,
+        );
+        expect(isSafeWebhookDestinationUrl('http://hooks.zapier.com/hooks/catch/12345/')).toBe(
+            false,
+        );
+        expect(isSafeWebhookDestinationUrl('https://localhost/webhook')).toBe(false);
+        expect(isSafeWebhookDestinationUrl('https://127.0.0.1:8080/internal')).toBe(false);
+        expect(isSafeWebhookDestinationUrl('https://169.254.169.254/latest/meta-data/')).toBe(
+            false,
+        );
+        expect(isSafeWebhookDestinationUrl('https://10.0.0.12/api')).toBe(false);
+        expect(isSafeWebhookDestinationUrl('https://172.16.4.1/api')).toBe(false);
+        expect(isSafeWebhookDestinationUrl('https://192.168.1.10/api')).toBe(false);
+        expect(isSafeWebhookDestinationUrl('https://metadata.google.internal/computeMetadata')).toBe(
+            false,
+        );
+        expect(isSafeWebhookDestinationUrl('https://service.internal/hook')).toBe(false);
+
+        // 2. Audit Log Secret Redaction
+        expect(
+            redactSensitiveWorkflowPayload({
+                url: 'https://hooks.zapier.com/hooks/catch/12345/',
+                method: 'POST',
+                secret: 'whsec_live_super_secret',
+                apiKey: 'sk_live_999',
+            }),
+        ).toEqual({
+            url: 'https://hooks.zapier.com/hooks/catch/12345/',
+            method: 'POST',
+            secret: '[REDACTED]',
+            apiKey: '[REDACTED]',
+        });
+
+        // 3. Server Action RBAC / FLS & Guest Portal Hardening
+        const metadataEngine = readWebSource('src/lib/actions/metadata-engine.ts');
+        expect(metadataEngine).toContain('isSafeWebhookDestinationUrl(targetUrl)');
+        expect(metadataEngine).toContain('redactSensitiveWorkflowPayload(actionPayload)');
+        expect(metadataEngine).toContain('allowedApproverRoles');
+        expect(metadataEngine).toContain('cleanRef.length >= 8 && idStr.startsWith(cleanRef)');
+        expect(metadataEngine).toContain('contactFieldNames');
     });
 });
 

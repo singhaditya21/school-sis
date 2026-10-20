@@ -968,3 +968,90 @@ export function computeRecordSlaStatus(params: {
         slaHours,
     };
 }
+
+/**
+ * Salesforce AppExchange Callout / SSRF Guard:
+ * Validates that an outbound workflow webhook URL uses `https:` and does not target
+ * loopback (`localhost`, `127.x.x.x`, `::1`), cloud metadata endpoints (`169.254.169.254`,
+ * `metadata.google.internal`), or private RFC1918 / internal networks (`10.x`, `172.16-31.x`,
+ * `192.168.x`, `.local`, `.internal`).
+ */
+export function isSafeWebhookDestinationUrl(rawUrl: string): boolean {
+    try {
+        const parsed = new URL(String(rawUrl || '').trim());
+        if (parsed.protocol !== 'https:') return false;
+
+        const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+        if (!host) return false;
+
+        if (
+            host === 'localhost' ||
+            host === '::1' ||
+            host === '0.0.0.0' ||
+            host === 'metadata.google.internal' ||
+            host.endsWith('.local') ||
+            host.endsWith('.internal') ||
+            host.endsWith('.localhost')
+        ) {
+            return false;
+        }
+
+        // IPv4 literal checks for loopback, link-local / cloud metadata, and RFC1918 ranges
+        const ipv4Match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+        if (ipv4Match) {
+            const octets = ipv4Match.slice(1, 5).map(Number);
+            if (octets.some((o) => o < 0 || o > 255)) return false;
+            const [a, b] = octets;
+            if (a === 0 || a === 10 || a === 127) return false;
+            if (a === 169 && b === 254) return false;
+            if (a === 172 && b >= 16 && b <= 31) return false;
+            if (a === 192 && b === 168) return false;
+        }
+
+        // IPv6 loopback / unique-local / link-local checks
+        if (
+            host.startsWith('fe80:') ||
+            host.startsWith('fc00:') ||
+            host.startsWith('fd00:') ||
+            host.startsWith('::ffff:127.') ||
+            host.startsWith('::ffff:10.') ||
+            host.startsWith('::ffff:169.254.') ||
+            host.startsWith('::ffff:192.168.')
+        ) {
+            return false;
+        }
+
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+const SENSITIVE_PAYLOAD_KEYS = new Set([
+    'secret',
+    'signingsecret',
+    'signing_secret',
+    'token',
+    'password',
+    'apikey',
+    'api_key',
+    'authorization',
+]);
+
+/**
+ * Redacts webhook secrets, API keys, and tokens from workflow action payloads
+ * before persisting execution traces to `audit_logs`.
+ */
+export function redactSensitiveWorkflowPayload(
+    payload: Record<string, unknown>,
+): Record<string, unknown> {
+    const redacted: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(payload || {})) {
+        if (SENSITIVE_PAYLOAD_KEYS.has(key.toLowerCase())) {
+            redacted[key] = value ? '[REDACTED]' : null;
+        } else {
+            redacted[key] = value;
+        }
+    }
+    return redacted;
+}
