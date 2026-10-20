@@ -1,3 +1,14 @@
+/**
+ * @module screens/MetadataExplorerScreen
+ *
+ * Mobile Dynamic Object Explorer for the ScholarMind LCNC Platform.
+ *
+ * Responsibilities:
+ *   1. Native Session Sign-In: Authenticates via `POST /api/auth/token` (`schoolCode`, `email`, `password`).
+ *   2. Object Discovery: Fetches published tenant & standard objects via `GET /api/data`.
+ *   3. Dynamic Record List & Creation: Fetches FLS-filtered fields and records (including evaluated
+ *      `FORMULA` fields) via `GET /api/data/[object_name]` and submits new records via `POST /api/data/[object_name]`.
+ */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,

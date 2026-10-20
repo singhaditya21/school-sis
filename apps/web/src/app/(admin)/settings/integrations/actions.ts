@@ -1,5 +1,17 @@
 'use server';
 
+/**
+ * @module app/(admin)/settings/integrations/actions
+ *
+ * Server actions powering the `/settings/integrations` Notification & Provider Readiness Console:
+ *   - `getIntegrationsConsoleData`: Inspects live adapter configuration (`EMAIL`, `SMS`, `WHATSAPP`, `PUSH`, `IN_APP`)
+ *     and aggregates tenant-scoped `notification_outbox` delivery counts (`settings:read`).
+ *   - `sendTestChannelNotification`: Enqueues and immediately processes a verification message on a configured
+ *     channel and records `NOTIFICATION_TEST_DISPATCH` in `audit_logs` (`settings:write`).
+ *   - `retryOutboxNotification`: Re-runs `processNotification` for a queued/failed outbox entry and records
+ *     `NOTIFICATION_OUTBOX_RETRY` in `audit_logs` (`settings:write`).
+ */
+
 import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/auth/middleware';
 import { sql } from '@/lib/db';

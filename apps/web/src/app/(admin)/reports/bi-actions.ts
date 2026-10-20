@@ -307,6 +307,12 @@ export interface SavedBiReportDefinition {
     createdAt: string;
 }
 
+/**
+ * Saves a custom BI report definition (dataset, metrics, dimensions, and optional recurring
+ * delivery schedule) into `audit_logs` (`BI_REPORT_SAVED`). When a recurring `scheduleFrequency`
+ * (`DAILY`, `WEEKLY`, `MONTHLY`) is selected, also enqueues a `BI_SCHEDULED_REPORT` job in
+ * `background_jobs` and a confirmation entry in `notification_outbox`.
+ */
 export async function saveCustomReportDefinition(input: {
     name: string;
     datasetId: string;
@@ -424,6 +430,10 @@ export async function saveCustomReportDefinition(input: {
     }
 }
 
+/**
+ * Returns the 20 most recently saved custom BI report definitions (`BI_REPORT_SAVED`)
+ * for the authenticated tenant (`reports:read`).
+ */
 export async function getSavedBiReports(): Promise<SavedBiReportDefinition[]> {
     try {
         const { tenantId } = await requireAuth('reports:read');

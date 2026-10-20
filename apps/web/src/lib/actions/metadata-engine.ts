@@ -1,5 +1,20 @@
 'use server';
 
+/**
+ * @module lib/actions/metadata-engine
+ *
+ * Core Server Action & Runtime Engine for the ScholarMind Low-Code / No-Code (LCNC) Platform.
+ *
+ * File Organization:
+ *   1. Types, Constants & Cached Metadata Schema Resolution (`getObjectMetadata`, `loadObjectMetadata`)
+ *   2. Runtime Record Query, Relational Lookup & Formula Evaluation (`queryRecords`, `getLookupOptions`, `getRelatedLookupRecords`)
+ *   3. Record Upsert Engine — Dual EAV (`metadata_records` / `metadata_values`) & Standard Table (`custom_data` JSONB)
+ *   4. Object & Field Governance, Schema Versioning & Rollback (`createMetadataObject`, `createMetadataField`, `rollbackMetadataObjectToVersion`)
+ *   5. Visual Builders: Page/List Layouts, Field-Level Security (FLS) & Inline Field Updates (`saveObjectLayout`, `updateFieldPermissions`, `updateRecordFieldValue`)
+ *   6. Record Lifecycle: Deletion & Bulk CSV Import (`deleteRecord`, `bulkImportRecords`)
+ *   7. Declarative Workflow Execution Engine (`runSingleWorkflowAction`, `executeMatchingWorkflows`)
+ */
+
 import { pool, runWithTenantContext, sql, sqlFor, identifier } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { redirect } from 'next/navigation';
@@ -317,6 +332,14 @@ async function queryEavRecords(
  * table (standard columns + `custom_data` JSONB); tenant-defined objects read
  * from `metadata_records`/`metadata_values`.
  */
+// ============================================================================
+// 2. Runtime Record Query, Relational Lookup & Formula Evaluation
+// ============================================================================
+
+/**
+ * Evaluates virtual `FORMULA` fields (`validationRules.fieldSubType === 'FORMULA'`)
+ * against each record's projected field values using the safe AST evaluator.
+ */
 function applyFormulaFields(
     records: Record<string, unknown>[],
     readableFields: MetadataField[],
@@ -340,6 +363,11 @@ function applyFormulaFields(
     });
 }
 
+/**
+ * Queries tenant-scoped records for a metadata object (either EAV or table-backed),
+ * enforces Field-Level Security (FLS) read grants for the caller's role, flattens
+ * readable `custom_data` JSONB keys, and computes virtual `FORMULA` fields.
+ */
 export async function queryRecords(apiName: string, filters: Record<string, unknown> = {}, limit = 50, offset = 0) {
     const { tenantId, session } = await requireAuth();
     const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
@@ -1477,6 +1505,15 @@ export async function createCustomObject(
 /**
  * Persists a FORM or LIST layout schema for an object (created via the Drag-and-Drop Layout Builder).
  */
+// ============================================================================
+// 5. Visual Builders: Page/List Layouts, Field-Level Security (FLS) & Inline Updates
+// ============================================================================
+
+/**
+ * Persists a tenant-scoped `FORM` or `LIST` layout definition (`sections`, `columns`,
+ * `kanbanGroupByField`, `defaultViewMode`) in `metadata_layouts`.
+ * Automatically forks global standard objects into a tenant-owned copy first.
+ */
 export async function saveObjectLayout(
     objectId: string,
     layoutType: 'FORM' | 'LIST',
@@ -1653,6 +1690,10 @@ export async function updateRecordFieldValue(
         };
     }
 }
+
+// ============================================================================
+// 6. Record Lifecycle: Deletion & Bulk CSV Import
+// ============================================================================
 
 /**
  * Deletes a metadata record (EAV or TABLE), writes an audit log entry, and fires
@@ -1893,6 +1934,10 @@ export async function bulkImportRecords(
         };
     }
 }
+
+// ============================================================================
+// 7. Declarative Workflow Execution Engine
+// ============================================================================
 
 export interface WorkflowExecutionResult {
     workflowId: string;
