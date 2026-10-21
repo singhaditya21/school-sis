@@ -255,6 +255,13 @@ export const API_ROUTES: readonly ApiRouteDoc[] = [
         summary: 'SMS delivery-status webhook. Twilio (X-Twilio-Signature) or MSG91 (shared secret), selected by SMS_PROVIDER; ingests delivery receipts.',
         auth: 'webhook-signature',
     },
+    {
+        path: '/api/webhooks/inbound',
+        methods: ['POST'],
+        group: 'Webhooks',
+        summary: 'Inbound Lead-Ad & External Webhook Connector. Maps external JSON payloads (Meta Lead Ads, Google Forms, Zapier) into tenant Custom Objects.',
+        auth: 'webhook-signature',
+    },
 
     // ---- Reporting & analytics ------------------------------------------------
     {

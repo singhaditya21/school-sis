@@ -321,6 +321,12 @@ export const API_ACCESS_POLICIES = [
         expectedGuardSnippets: ['verifyTwilioSignature'],
     },
     {
+        prefix: '/api/webhooks/inbound',
+        boundary: 'provider-webhook',
+        description: 'Inbound lead-ad and external webhook connector (Meta Lead Ads, Google Forms, Zapier).',
+        expectedGuardSnippets: ['x-scholarmind-webhook-token'],
+    },
+    {
         prefix: '/api/workflow-approvals',
         boundary: 'session',
         description: 'Workflow approval APIs with downstream authorization.',
