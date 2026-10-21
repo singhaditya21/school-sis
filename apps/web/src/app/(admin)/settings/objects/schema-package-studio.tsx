@@ -17,6 +17,7 @@ import {
     Copy,
     Download,
     Package,
+    Sparkles,
     Upload,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,6 +27,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
     exportTenantSchemaBundle,
+    generateAndDeploySchemaFromPrompt,
     importTenantSchemaBundle,
 } from '@/lib/actions/metadata-engine';
 
@@ -36,7 +38,7 @@ export function SchemaPackageStudio({
 }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
-    const [mode, setMode] = useState<'EXPORT' | 'IMPORT'>('EXPORT');
+    const [mode, setMode] = useState<'EXPORT' | 'IMPORT' | 'AI_COPILOT'>('EXPORT');
 
     // Export state
     const [bundleName, setBundleName] = useState('Campus Production Release v1');
@@ -50,6 +52,12 @@ export function SchemaPackageStudio({
 
     // Import state
     const [importJsonText, setImportJsonText] = useState<string>('');
+
+    // Track F: Agentforce AI Schema & Workflow Copilot state
+    const [aiPrompt, setAiPrompt] = useState<string>(
+        'Create a Campus Hostel Visitor Log object with visitor email, phone, student lookup, visit date, approval status, and block duplicate phone numbers',
+    );
+    const [aiSummary, setAiSummary] = useState<string>('');
 
     const toggleObjectSelection = (apiName: string) => {
         setSelectedApis(prev =>
@@ -133,6 +141,30 @@ export function SchemaPackageStudio({
         });
     };
 
+    const handleAiCopilotAction = (deployImmediately: boolean) => {
+        if (!aiPrompt.trim()) {
+            toast.error('Enter a natural-language prompt describing your object and workflow.');
+            return;
+        }
+        startTransition(async () => {
+            const res = await generateAndDeploySchemaFromPrompt(aiPrompt, deployImmediately);
+            if (!res.success || !res.bundle) {
+                toast.error(res.error || 'AI Copilot could not synthesize schema.');
+                return;
+            }
+            setAiSummary(res.summary || '');
+            setImportJsonText(JSON.stringify(res.bundle, null, 2));
+            if (deployImmediately) {
+                toast.success(
+                    `AI Copilot deployed: ${(res.deployedObjects || []).join(', ')}!`,
+                );
+                router.refresh();
+            } else {
+                toast.success('AI Copilot synthesized schema bundle! Preview ready below.');
+            }
+        });
+    };
+
     return (
         <Card className="border-border shadow-sm" data-testid="schema-package-studio">
             <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
@@ -175,10 +207,73 @@ export function SchemaPackageStudio({
                     >
                         Import / Deploy Package
                     </button>
+                    <button
+                        type="button"
+                        onClick={() => setMode('AI_COPILOT')}
+                        data-testid="package-studio-tab-copilot"
+                        className={`inline-flex items-center gap-1 rounded-md px-3 py-1.5 font-medium transition-colors ${
+                            mode === 'AI_COPILOT'
+                                ? 'bg-background text-primary shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                    >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        AI Schema Copilot
+                    </button>
                 </div>
             </CardHeader>
             <CardContent className="p-6 space-y-4">
-                {mode === 'EXPORT' ? (
+                {mode === 'AI_COPILOT' ? (
+                    <div className="space-y-4" data-testid="ai-schema-copilot">
+                        <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-primary" />
+                                Describe the Custom Object, Fields, Duplicate Rules &amp; Workflow in Plain English
+                            </Label>
+                            <textarea
+                                rows={3}
+                                value={aiPrompt}
+                                onChange={e => setAiPrompt(e.target.value)}
+                                placeholder="e.g. Create a Campus Hostel Visitor Log object with visitor email, phone, student lookup, visit date, and block duplicate phone numbers"
+                                data-testid="ai-copilot-prompt-input"
+                                className="w-full rounded-lg border border-border bg-background p-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            />
+                        </div>
+                        {aiSummary && (
+                            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
+                                <span className="font-semibold text-primary">AI Synthesis: </span>
+                                {aiSummary}
+                            </div>
+                        )}
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={isPending}
+                                onClick={() => handleAiCopilotAction(false)}
+                                data-testid="ai-copilot-generate-btn"
+                                className="text-xs gap-1.5"
+                            >
+                                <Sparkles className="w-3.5 h-3.5" />
+                                Preview Synthesized Bundle
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                disabled={isPending}
+                                onClick={() => handleAiCopilotAction(true)}
+                                data-testid="ai-copilot-deploy-btn"
+                                className="text-xs gap-1.5"
+                            >
+                                <Upload className="w-3.5 h-3.5" />
+                                {isPending
+                                    ? 'Deploying...'
+                                    : 'Synthesize & Deploy to Neon'}
+                            </Button>
+                        </div>
+                    </div>
+                ) : mode === 'EXPORT' ? (
                     <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-1.5">

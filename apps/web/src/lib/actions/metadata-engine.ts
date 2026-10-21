@@ -34,13 +34,17 @@ import {
     evaluateMetadataRollupSummary,
     isSafeWebhookDestinationUrl,
     isVirtualMetadataField,
+    mapInboundWebhookPayloadToRecord,
     normalizeMetadataFieldInput,
     quoteIdentifier,
     redactSensitiveWorkflowPayload,
+    renderMetadataDocumentTemplate,
+    synthesizeSchemaBundleFromPrompt,
     validateMetadataRecordPayload,
     validateScholarMindSchemaBundle,
     type DuplicateMatchEntry,
     type MetadataDataType,
+    type MetadataDocumentTemplate,
     type MetadataValidationRules,
     type ScholarMindSchemaBundle,
 } from '@/lib/metadata/platform';
@@ -1628,10 +1632,16 @@ export async function saveObjectLayout(
                 LIMIT 1
             `;
             const mergedSchema =
-                layoutType === 'FORM' &&
-                existingRows[0]?.schema?.portalConfig &&
-                !schema.portalConfig
-                    ? { ...schema, portalConfig: existingRows[0].schema.portalConfig }
+                layoutType === 'FORM'
+                    ? {
+                          ...schema,
+                          ...(existingRows[0]?.schema?.portalConfig && !schema.portalConfig
+                              ? { portalConfig: existingRows[0].schema.portalConfig }
+                              : {}),
+                          ...(existingRows[0]?.schema?.documentTemplates && !schema.documentTemplates
+                              ? { documentTemplates: existingRows[0].schema.documentTemplates }
+                              : {}),
+                      }
                     : schema;
 
             await q`
@@ -2598,6 +2608,8 @@ export async function getRecordAuditTimeline(
                 summary = `Cloned from record ${String(after.sourceRecordId || '').slice(0, 8)}`;
             } else if (eventAction === 'METADATA_RECORD_MERGED') {
                 summary = `Merged duplicate record ${String(after.duplicateRecordId || '').slice(0, 8)} into this record`;
+            } else if (eventAction === 'RECORD_DOCUMENT_GENERATED') {
+                summary = `Generated official document "${String(after.templateName || 'Certificate')}" (Ref: ${String(after.verificationCode || '')})`;
             } else if (eventAction === 'CREATE') {
                 summary = `Record created via API / Form`;
             }
@@ -3264,6 +3276,11 @@ export interface ExperiencePortalConfig {
     defaultStageValue?: string;
     successMessage?: string;
     enableStatusTracker: boolean;
+    enableSlotBooking?: boolean;
+    slotBookingLabel?: string;
+    availableTimeSlots?: string[];
+    applicationFeeAmount?: number;
+    applicationFeeLabel?: string;
 }
 
 /**
@@ -3315,6 +3332,18 @@ export async function savePortalIntakeConfig(
                 defaultStageValue: config.defaultStageValue?.trim() || undefined,
                 successMessage: config.successMessage?.trim().slice(0, 300) || undefined,
                 enableStatusTracker: Boolean(config.enableStatusTracker),
+                enableSlotBooking: Boolean(config.enableSlotBooking),
+                slotBookingLabel:
+                    config.slotBookingLabel?.trim().slice(0, 120) ||
+                    'Book Counseling / Campus Tour Slot',
+                availableTimeSlots:
+                    Array.isArray(config.availableTimeSlots) && config.availableTimeSlots.length > 0
+                        ? config.availableTimeSlots.map(s => String(s || '').trim()).filter(Boolean)
+                        : ['10:00', '11:30', '14:00', '16:00'],
+                applicationFeeAmount: Math.max(0, Number(config.applicationFeeAmount || 0) || 0),
+                applicationFeeLabel:
+                    config.applicationFeeLabel?.trim().slice(0, 120) ||
+                    'Application & Prospectus Fee',
             };
 
             const nextSchema = {
@@ -3441,6 +3470,17 @@ export async function getPublicPortalIntakeSchema(
                     rawPortal.successMessage ||
                     'Your submission has been received! Keep your tracking reference below to check your live application status.',
                 enableStatusTracker: rawPortal.enableStatusTracker ?? true,
+                enableSlotBooking: Boolean(rawPortal.enableSlotBooking),
+                slotBookingLabel:
+                    rawPortal.slotBookingLabel || 'Book Counseling / Campus Tour Slot',
+                availableTimeSlots:
+                    Array.isArray(rawPortal.availableTimeSlots) &&
+                    rawPortal.availableTimeSlots.length > 0
+                        ? rawPortal.availableTimeSlots
+                        : ['10:00', '11:30', '14:00', '16:00'],
+                applicationFeeAmount: Math.max(0, Number(rawPortal.applicationFeeAmount || 0) || 0),
+                applicationFeeLabel:
+                    rawPortal.applicationFeeLabel || 'Application & Prospectus Fee',
             },
             fields: publicFields,
             stageField: stageCandidate
@@ -3468,10 +3508,17 @@ export async function submitPublicPortalIntakeRecord(
     tenantId: string,
     objectApiName: string,
     rawSubmission: Record<string, unknown>,
+    bookingOptions?: {
+        slotDate?: string;
+        slotTime?: string;
+        feePaymentConfirmed?: boolean;
+    },
 ): Promise<{
     success: boolean;
     recordId?: string;
     trackingReference?: string;
+    appointmentBooked?: { id: string; date: string; time: string } | null;
+    feeReceiptNumber?: string | null;
     error?: string;
 }> {
     try {
@@ -3579,6 +3626,47 @@ export async function submitPublicPortalIntakeRecord(
                 ? String(validated.data[autoNumField.apiName])
                 : recordId.slice(0, 8).toUpperCase();
 
+        // Track G: Counselor / Campus Tour Slot Booking into `appointments`
+        let appointmentBooked: { id: string; date: string; time: string } | null = null;
+        if (
+            portalSchema.portalConfig.enableSlotBooking &&
+            bookingOptions?.slotDate &&
+            /^\d{4}-\d{2}-\d{2}$/.test(bookingOptions.slotDate)
+        ) {
+            const slotTime = String(bookingOptions.slotTime || '10:00').slice(0, 10);
+            const apptRows = await sql<{ id: string }>`
+                INSERT INTO appointments (
+                    tenant_id, title, description, date, time, duration, status, type
+                )
+                VALUES (
+                    ${tenantId},
+                    ${`[Portal Booking] ${portalSchema.objectName} (${trackingReference})`},
+                    ${`Self-service portal booking for ${portalSchema.objectName} ref ${trackingReference}.`},
+                    ${bookingOptions.slotDate},
+                    ${slotTime},
+                    30,
+                    'SCHEDULED',
+                    'ADMISSION_COUNSELING'
+                )
+                RETURNING id
+            `;
+            if (apptRows[0]?.id) {
+                appointmentBooked = {
+                    id: apptRows[0].id,
+                    date: bookingOptions.slotDate,
+                    time: slotTime,
+                };
+            }
+        }
+
+        // Track G: Application / Registration Fee Receipt Generation
+        let feeReceiptNumber: string | null = null;
+        const configuredFee = Number(portalSchema.portalConfig.applicationFeeAmount || 0);
+        if (configuredFee > 0 && bookingOptions?.feePaymentConfirmed) {
+            const year = new Date().getUTCFullYear();
+            feeReceiptNumber = `RCPT-${year}-${recordId.slice(0, 6).toUpperCase()}`;
+        }
+
         await sql`
             INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)
             VALUES (
@@ -3590,6 +3678,8 @@ export async function submitPublicPortalIntakeRecord(
                     auditEvent: 'EXPERIENCE_PORTAL_SUBMISSION',
                     trackingReference,
                     submittedFields: Object.keys(validated.data),
+                    appointmentBooked,
+                    feeReceiptNumber,
                     submittedAt: new Date().toISOString(),
                 })}::jsonb
             )
@@ -3600,6 +3690,8 @@ export async function submitPublicPortalIntakeRecord(
             success: true,
             recordId,
             trackingReference,
+            appointmentBooked,
+            feeReceiptNumber,
         };
     } catch (error) {
         return {
@@ -4084,6 +4176,452 @@ export async function importTenantSchemaBundle(
         };
     }
 }
+
+// ============================================================================
+// 12. Track E: Declarative Document & Certificate Merge Studio (OmniStudio DocGen)
+// ============================================================================
+
+const DEFAULT_DOCUMENT_TEMPLATES: MetadataDocumentTemplate[] = [
+    {
+        id: 'default-offer-letter',
+        name: 'Official Admission / Program Offer Letter',
+        category: 'OFFER_LETTER',
+        headerTitle: 'Official Offer of Admission & Scholarship Notification',
+        bodyMarkdown:
+            'Dear {{full_name}}{{student_name}}{{candidate_name}},\n\nWe are pleased to inform you that your record (Reference #{{RECORD_ID}}) for {{OBJECT_NAME}} has been reviewed and approved.\n\nCurrent Lifecycle Status: {{pipeline_stage}}{{status}}\nIssued Date: {{ISSUED_DATE}}\n\nPlease retain this verified letter for your campus onboarding and fee desk verification.',
+        footerText: 'Issued by the Office of Admissions & Registrar · ScholarMind Education Cloud',
+        includeVerificationBadge: true,
+    },
+    {
+        id: 'default-bonafide-certificate',
+        name: 'Bonafide / Completion Certificate',
+        category: 'CERTIFICATE',
+        headerTitle: 'Certificate of Bonafide Standing',
+        bodyMarkdown:
+            'This is to certify that {{full_name}}{{student_name}}{{candidate_name}} (Record #{{RECORD_ID}}) is a registered record in {{OBJECT_NAME}} as of {{ISSUED_DATE}}.\n\nVerified Status: {{pipeline_stage}}{{status}}',
+        footerText: 'Digitally Verified Certificate · ScholarMind Document Studio',
+        includeVerificationBadge: true,
+    },
+];
+
+/**
+ * Saves custom Document / Certificate Merge Templates (`MetadataDocumentTemplate[]`) inside
+ * an object's `FORM` layout schema (`schema.documentTemplates`) in `metadata_layouts`.
+ */
+export async function saveObjectDocumentTemplates(
+    objectId: string,
+    templates: MetadataDocumentTemplate[],
+): Promise<{ success: boolean; objectId?: string; error?: string }> {
+    try {
+        const { tenantId, userId } = await requireAuth('metadata:publish');
+        const client = await pool.connect();
+        const q = sqlFor(client);
+        try {
+            await q`BEGIN`.execute();
+            const targetObject = await ensureTenantOwnedMetadataObject(
+                client,
+                objectId,
+                tenantId,
+                userId,
+            );
+
+            const existingLayouts = await q<{ schema: Record<string, unknown> }>`
+                SELECT schema
+                FROM metadata_layouts
+                WHERE object_id = ${targetObject.id}
+                  AND layout_type = 'FORM'
+                LIMIT 1
+            `;
+            const baseSchema =
+                existingLayouts.length > 0 &&
+                existingLayouts[0].schema &&
+                typeof existingLayouts[0].schema === 'object'
+                    ? { ...existingLayouts[0].schema }
+                    : { sections: [] };
+
+            const sanitizedTemplates: MetadataDocumentTemplate[] = (
+                Array.isArray(templates) ? templates : []
+            )
+                .slice(0, 20)
+                .map((tpl, idx) => ({
+                    id: String(tpl.id || `tpl-${idx + 1}`).trim(),
+                    name: String(tpl.name || `Template ${idx + 1}`).trim().slice(0, 120),
+                    category: (
+                        [
+                            'OFFER_LETTER',
+                            'CERTIFICATE',
+                            'SCHOLARSHIP_LETTER',
+                            'FEE_RECEIPT',
+                            'CUSTOM',
+                        ].includes(tpl.category)
+                            ? tpl.category
+                            : 'CUSTOM'
+                    ) as MetadataDocumentTemplate['category'],
+                    headerTitle: String(tpl.headerTitle || tpl.name || 'Official Document')
+                        .trim()
+                        .slice(0, 160),
+                    bodyMarkdown: String(tpl.bodyMarkdown || '').trim().slice(0, 6000),
+                    footerText: String(tpl.footerText || '').trim().slice(0, 240),
+                    includeVerificationBadge: Boolean(tpl.includeVerificationBadge ?? true),
+                }));
+
+            const nextSchema = {
+                ...baseSchema,
+                documentTemplates: sanitizedTemplates,
+            };
+
+            await q`
+                DELETE FROM metadata_layouts
+                WHERE object_id = ${targetObject.id}
+                  AND layout_type = 'FORM'
+            `.execute();
+
+            await q`
+                INSERT INTO metadata_layouts (object_id, layout_type, schema, is_default, created_at)
+                VALUES (${targetObject.id}, 'FORM', ${JSON.stringify(nextSchema)}::jsonb, true, NOW())
+            `.execute();
+
+            await q`
+                INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
+                VALUES (
+                    ${tenantId},
+                    ${userId},
+                    'UPDATE',
+                    'metadata_object',
+                    ${targetObject.id},
+                    ${JSON.stringify({
+                        auditEvent: 'DOCUMENT_TEMPLATES_SAVED',
+                        templateCount: sanitizedTemplates.length,
+                        savedAt: new Date().toISOString(),
+                    })}::jsonb
+                )
+            `.execute();
+
+            await q`COMMIT`.execute();
+            revalidateTag('metadata', 'max');
+            return { success: true, objectId: targetObject.id };
+        } catch (err) {
+            await q`ROLLBACK`.execute();
+            throw err;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to save document templates.',
+        };
+    }
+}
+
+/**
+ * Generates an official merged document / certificate for a single record on `/app/[object]/[id]`
+ * and logs `RECORD_DOCUMENT_GENERATED` onto the record's 360° Audit Timeline.
+ */
+export async function generateRecordDocument(
+    apiName: string,
+    recordId: string,
+    templateId?: string,
+): Promise<{
+    success: boolean;
+    templateName?: string;
+    renderedBody?: string;
+    verificationCode?: string;
+    htmlDocument?: string;
+    error?: string;
+}> {
+    try {
+        if (!UUID_RE.test(recordId)) {
+            return { success: false, error: 'Invalid record ID.' };
+        }
+        const { tenantId, userId } = await requireAuth();
+        const { objectDef, layouts } = await loadObjectMetadata(apiName, tenantId);
+        const rows = await queryRecords(apiName, { id: recordId }, 1, 0);
+        if (rows.length === 0) {
+            return { success: false, error: 'Record not found.' };
+        }
+        const recordData = rows[0] as Record<string, unknown>;
+
+        const formLayout = layouts.find(l => l.layoutType === 'FORM');
+        const rawSchema = (formLayout?.schema || {}) as Record<string, unknown>;
+        const configuredTemplates = Array.isArray(rawSchema.documentTemplates)
+            ? (rawSchema.documentTemplates as MetadataDocumentTemplate[])
+            : [];
+        const availableTemplates =
+            configuredTemplates.length > 0 ? configuredTemplates : DEFAULT_DOCUMENT_TEMPLATES;
+
+        const chosenTemplate =
+            availableTemplates.find(t => t.id === templateId) || availableTemplates[0];
+
+        const rendered = renderMetadataDocumentTemplate(chosenTemplate, recordData, {
+            objectName: objectDef.name,
+            recordId,
+        });
+
+        await sql`
+            INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
+            VALUES (
+                ${tenantId},
+                ${userId},
+                'EXPORT',
+                ${apiName},
+                ${recordId},
+                ${JSON.stringify({
+                    auditEvent: 'RECORD_DOCUMENT_GENERATED',
+                    templateId: chosenTemplate.id,
+                    templateName: chosenTemplate.name,
+                    verificationCode: rendered.verificationCode,
+                    generatedAt: new Date().toISOString(),
+                })}::jsonb
+            )
+        `.execute();
+
+        revalidateTag('metadata', 'max');
+        return {
+            success: true,
+            templateName: chosenTemplate.name,
+            renderedBody: rendered.renderedBody,
+            verificationCode: rendered.verificationCode,
+            htmlDocument: rendered.htmlDocument,
+        };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to generate document.',
+        };
+    }
+}
+
+// ============================================================================
+// 13. Track F: Natural-Language AI Schema & Workflow Copilot (Agentforce Parity)
+// ============================================================================
+
+/**
+ * Synthesizes a `ScholarMindSchemaBundle` from a plain-English prompt and optionally
+ * deploys it directly into the current tenant on Neon PostgreSQL.
+ */
+export async function generateAndDeploySchemaFromPrompt(
+    prompt: string,
+    deployImmediately = false,
+): Promise<{
+    success: boolean;
+    summary?: string;
+    bundle?: ScholarMindSchemaBundle;
+    deployedObjects?: string[];
+    error?: string;
+}> {
+    try {
+        const { tenantId, userId } = await requireAuth('metadata:publish');
+        const cleanPrompt = String(prompt || '').trim();
+        if (cleanPrompt.length < 5) {
+            return {
+                success: false,
+                error: 'Describe the object, fields, or workflow you want to build (at least 5 characters).',
+            };
+        }
+
+        const { bundle, summary } = synthesizeSchemaBundleFromPrompt(cleanPrompt);
+
+        if (!deployImmediately) {
+            return {
+                success: true,
+                summary,
+                bundle,
+            };
+        }
+
+        const importRes = await importTenantSchemaBundle(bundle);
+        if (!importRes.success) {
+            return {
+                success: false,
+                error: importRes.error || 'Failed to deploy AI Copilot schema bundle.',
+            };
+        }
+
+        await sql`
+            INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, after_state)
+            VALUES (
+                ${tenantId},
+                ${userId},
+                'CREATE',
+                'metadata_copilot',
+                ${JSON.stringify({
+                    auditEvent: 'AI_COPILOT_SCHEMA_DEPLOYED',
+                    prompt: cleanPrompt.slice(0, 300),
+                    deployedObjects: importRes.importedObjects,
+                    deployedAt: new Date().toISOString(),
+                })}::jsonb
+            )
+        `.execute();
+
+        return {
+            success: true,
+            summary,
+            bundle,
+            deployedObjects: importRes.importedObjects,
+        };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'AI Copilot schema generation failed.',
+        };
+    }
+}
+
+// ============================================================================
+// 14. Track H: Inbound Webhook & External Lead-Ad Connector (MuleSoft / Zapier)
+// ============================================================================
+
+/**
+ * Ingests an external JSON webhook payload (from Meta Lead Ads, Google Forms, Shiksha,
+ * Collegedunia, or Zapier), maps keys via `mapInboundWebhookPayloadToRecord`, validates
+ * and checks Duplicate Rules, inserts the EAV record, triggers active workflows, and
+ * writes `INBOUND_WEBHOOK_INGESTED` to `audit_logs`.
+ */
+export async function ingestInboundWebhookLead(params: {
+    tenantId: string;
+    objectApiName: string;
+    externalPayload: Record<string, unknown>;
+    fieldMappings?: Record<string, string>;
+    defaultValues?: Record<string, unknown>;
+    sourceName?: string;
+}): Promise<{
+    success: boolean;
+    recordId?: string;
+    mappedFields?: string[];
+    error?: string;
+}> {
+    try {
+        const {
+            tenantId,
+            objectApiName,
+            externalPayload,
+            fieldMappings = {},
+            defaultValues = {},
+            sourceName = 'EXTERNAL_WEBHOOK',
+        } = params;
+
+        if (!UUID_RE.test(tenantId)) {
+            return { success: false, error: 'Invalid tenant ID.' };
+        }
+        assertSafeMetadataIdentifier(objectApiName, 'target object API name');
+
+        const { objectDef, fields } = await loadObjectMetadata(objectApiName, tenantId);
+        if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
+            return {
+                success: false,
+                error: 'Inbound webhook ingestion targets custom EAV objects.',
+            };
+        }
+
+        const persistedFields = fields.filter(f => !isVirtualMetadataField(f));
+        const mappedCandidate = mapInboundWebhookPayloadToRecord(
+            externalPayload,
+            fieldMappings,
+            defaultValues,
+        );
+
+        const knownPayload = pickKnownMetadataFields(persistedFields, mappedCandidate);
+        const validated = validateMetadataRecordPayload(persistedFields, knownPayload, {
+            requireAll: false,
+        });
+        if (validated.ok === false) {
+            return { success: false, error: validated.errors.join(' ') };
+        }
+
+        // Check blocking duplicate rules
+        const hasBlockingDuplicateRule = persistedFields.some(
+            f => f.validationRules?.duplicateRuleBehavior === 'BLOCK',
+        );
+        if (hasBlockingDuplicateRule) {
+            const existingRecords = await queryEavRecords(
+                objectDef,
+                persistedFields,
+                tenantId,
+                null,
+                250,
+                0,
+            );
+            const dupCheck = detectMetadataDuplicates(
+                persistedFields,
+                validated.data,
+                existingRecords,
+            );
+            if (dupCheck.blocked && dupCheck.matches.length > 0) {
+                const firstBlock =
+                    dupCheck.matches.find(m => m.behavior === 'BLOCK') ?? dupCheck.matches[0];
+                return {
+                    success: false,
+                    error: `Duplicate blocked by ${firstBlock.fieldLabel}: "${firstBlock.matchedValue}" already exists.`,
+                };
+            }
+        }
+
+        const recordId = await upsertEavRecord(
+            objectDef,
+            persistedFields,
+            tenantId,
+            validated.data,
+        );
+
+        await executeMatchingWorkflows(
+            tenantId,
+            objectApiName,
+            'object.record.upserted',
+            validated.data,
+            recordId,
+        );
+
+        await sql`
+            INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)
+            VALUES (
+                ${tenantId},
+                'CREATE',
+                ${objectApiName},
+                ${recordId},
+                ${JSON.stringify({
+                    auditEvent: 'INBOUND_WEBHOOK_INGESTED',
+                    sourceName,
+                    mappedFields: Object.keys(validated.data),
+                    ingestedAt: new Date().toISOString(),
+                })}::jsonb
+            )
+        `.execute();
+
+        revalidateTag('metadata', 'max');
+        return {
+            success: true,
+            recordId,
+            mappedFields: Object.keys(validated.data),
+        };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to ingest inbound webhook.',
+        };
+    }
+}
+
+/**
+ * Authenticated wrapper used by the `/settings/integrations` Inbound Lead Connector Studio
+ * to test-fire and ingest an external lead payload into any custom object of the current tenant.
+ */
+export async function simulateInboundWebhookForCurrentTenant(params: {
+    objectApiName: string;
+    externalPayload: Record<string, unknown>;
+    fieldMappings: Record<string, string>;
+    sourceName?: string;
+}) {
+    const { tenantId } = await requireAuth('settings:write');
+    return ingestInboundWebhookLead({
+        tenantId,
+        objectApiName: params.objectApiName,
+        externalPayload: params.externalPayload,
+        fieldMappings: params.fieldMappings,
+        sourceName: params.sourceName || 'INTEGRATIONS_STUDIO_TEST',
+    });
+}
+
 
 
 

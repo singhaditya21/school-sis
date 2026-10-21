@@ -8,8 +8,11 @@ import {
     evaluateMetadataVisibilityRule,
     generateMetadataAutoNumber,
     isSafeWebhookDestinationUrl,
+    mapInboundWebhookPayloadToRecord,
     normalizeMetadataFieldInput,
     redactSensitiveWorkflowPayload,
+    renderMetadataDocumentTemplate,
+    synthesizeSchemaBundleFromPrompt,
     validateMetadataRecordPayload,
     validateScholarMindSchemaBundle,
 } from '@/lib/metadata/platform';
@@ -662,6 +665,139 @@ describe('LCNC & Drag-and-Drop Platform Builders', () => {
         expect(packageStudioUi).toContain('schema-package-studio');
         expect(packageStudioUi).toContain('export-schema-bundle-btn');
         expect(packageStudioUi).toContain('import-schema-bundle-btn');
+    });
+
+    it('supports Track E Declarative Document & Certificate Merge Studio (OmniStudio DocGen parity)', () => {
+        const rendered = renderMetadataDocumentTemplate(
+            {
+                id: 'tpl-offer-1',
+                name: 'Admission Offer Letter',
+                category: 'OFFER_LETTER',
+                headerTitle: 'Official Offer of Admission',
+                bodyMarkdown:
+                    'Dear {{candidate_name}}, your application (#{{RECORD_ID}}) for {{OBJECT_NAME}} is {{pipeline_stage}} as of {{ISSUED_DATE}}.',
+                footerText: 'Office of Admissions',
+                includeVerificationBadge: true,
+            },
+            {
+                candidate_name: 'Aarav Sharma',
+                pipeline_stage: 'ENROLLED',
+            },
+            {
+                objectName: 'Coaching Inquiry',
+                recordId: 'abcdef12-3456-7890-abcd-ef1234567890',
+                issuedDate: '2026-10-21',
+            },
+        );
+
+        expect(rendered.renderedBody).toBe(
+            'Dear Aarav Sharma, your application (#ABCDEF12) for Coaching Inquiry is ENROLLED as of 2026-10-21.',
+        );
+        expect(rendered.verificationCode).toMatch(/^SM-DOC-2026-[0-9A-F]{8}$/);
+        expect(rendered.htmlDocument).toContain('Official Offer of Admission');
+        expect(rendered.htmlDocument).toContain(rendered.verificationCode);
+
+        const metadataEngine = readWebSource('src/lib/actions/metadata-engine.ts');
+        expect(metadataEngine).toContain('export async function saveObjectDocumentTemplates');
+        expect(metadataEngine).toContain('export async function generateRecordDocument');
+        expect(metadataEngine).toContain("'DOCUMENT_TEMPLATES_SAVED'");
+        expect(metadataEngine).toContain("'RECORD_DOCUMENT_GENERATED'");
+
+        const docStudioUi = readWebSource(
+            'src/app/(admin)/settings/objects/[id]/document-template-studio.tsx',
+        );
+        expect(docStudioUi).toContain('document-template-studio');
+        expect(docStudioUi).toContain('save-doc-templates-btn');
+
+        const recordConsoleUi = readWebSource(
+            'src/app/(admin)/app/[object]/[id]/record-detail-client.tsx',
+        );
+        expect(recordConsoleUi).toContain('record-docgen-bar');
+        expect(recordConsoleUi).toContain('generate-record-doc-btn');
+    });
+
+    it('supports Track F Natural-Language AI Schema & Workflow Copilot (Agentforce parity)', () => {
+        const synthesized = synthesizeSchemaBundleFromPrompt(
+            'Create a Campus Hostel Visitor Log object with visitor email, phone, student lookup, visit date, approval status, and block duplicate phone numbers',
+        );
+
+        expect(synthesized.bundle.formatVersion).toBe('scholarmind.bundle.v1');
+        expect(synthesized.bundle.objects).toHaveLength(1);
+        const obj = synthesized.bundle.objects[0];
+        expect(obj.apiName).toBe('campus_hostel_visitor_log');
+        expect(obj.fields.some(f => f.validationRules?.fieldSubType === 'AUTO_NUMBER')).toBe(true);
+        expect(
+            obj.fields.some(
+                f =>
+                    f.apiName === 'contact_phone' &&
+                    f.validationRules?.duplicateRuleBehavior === 'BLOCK',
+            ),
+        ).toBe(true);
+        expect(obj.fields.some(f => f.apiName === 'student_id')).toBe(true);
+        expect(synthesized.bundle.workflows).toHaveLength(1);
+
+        const metadataEngine = readWebSource('src/lib/actions/metadata-engine.ts');
+        expect(metadataEngine).toContain('export async function generateAndDeploySchemaFromPrompt');
+        expect(metadataEngine).toContain("'AI_COPILOT_SCHEMA_DEPLOYED'");
+
+        const packageStudioUi = readWebSource(
+            'src/app/(admin)/settings/objects/schema-package-studio.tsx',
+        );
+        expect(packageStudioUi).toContain('ai-schema-copilot');
+        expect(packageStudioUi).toContain('ai-copilot-prompt-input');
+        expect(packageStudioUi).toContain('ai-copilot-deploy-btn');
+    });
+
+    it('supports Track G Experience Cloud 2.0 (Counselor Slot Booking & Application Fee Checkout) and Track H Inbound Webhook Lead-Ad Connector', () => {
+        // Track G UI & Server Action wiring
+        const portalPublisher = readWebSource(
+            'src/app/(admin)/settings/objects/[id]/portal-publisher.tsx',
+        );
+        expect(portalPublisher).toContain('toggle-portal-slot-booking');
+        expect(portalPublisher).toContain('portal-fee-amount-input');
+
+        const portalClient = readWebSource(
+            'src/app/portal/[tenantId]/[object]/portal-intake-client.tsx',
+        );
+        expect(portalClient).toContain('portal-slot-booking-section');
+        expect(portalClient).toContain('portal-fee-checkout-section');
+        expect(portalClient).toContain('portal-booked-slot-confirmation');
+        expect(portalClient).toContain('portal-fee-receipt-confirmation');
+
+        // Track H Inbound Webhook Payload Mapper & Connector
+        const mapped = mapInboundWebhookPayloadToRecord(
+            {
+                full_name: 'Riya Verma',
+                lead: { email: 'riya@example.edu' },
+                phone_number: '+91 9811223344',
+                utm_campaign: 'JEE_2027',
+            },
+            {
+                full_name: 'candidate_name',
+                'lead.email': 'candidate_email',
+                phone_number: 'contact_phone',
+            },
+            {
+                pipeline_stage: 'NEW_INQUIRY',
+            },
+        );
+        expect(mapped).toMatchObject({
+            candidate_name: 'Riya Verma',
+            candidate_email: 'riya@example.edu',
+            contact_phone: '+91 9811223344',
+            pipeline_stage: 'NEW_INQUIRY',
+            utm_campaign: 'JEE_2027',
+        });
+
+        const inboundRoute = readWebSource('src/app/api/webhooks/inbound/route.ts');
+        expect(inboundRoute).toContain('ingestInboundWebhookLead');
+        expect(inboundRoute).toContain('x-scholarmind-webhook-token');
+
+        const integrationsUi = readWebSource(
+            'src/app/(admin)/settings/integrations/integrations-client.tsx',
+        );
+        expect(integrationsUi).toContain('inbound-webhook-connector');
+        expect(integrationsUi).toContain('simulate-inbound-webhook-btn');
     });
 });
 

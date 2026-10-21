@@ -97,6 +97,12 @@ export default function ExperiencePortalPublisherClient({
     const [enableStatusTracker, setEnableStatusTracker] = useState<boolean>(
         existingPortal.enableStatusTracker ?? true,
     );
+    const [enableSlotBooking, setEnableSlotBooking] = useState<boolean>(
+        Boolean(existingPortal.enableSlotBooking),
+    );
+    const [applicationFeeAmount, setApplicationFeeAmount] = useState<string>(
+        String(existingPortal.applicationFeeAmount || 0),
+    );
 
     const portalPath = `/portal/${tenantId}/${objectApiName}`;
     const selectedStageFieldObj = picklistFields.find(f => f.apiName === defaultStageField);
@@ -122,6 +128,8 @@ export default function ExperiencePortalPublisherClient({
                 defaultStageValue: defaultStageValue || undefined,
                 successMessage,
                 enableStatusTracker,
+                enableSlotBooking,
+                applicationFeeAmount: Math.max(0, Number(applicationFeeAmount || 0) || 0),
             });
             if (!res.success) {
                 toast.error(res.error || 'Failed to save Experience Cloud portal settings.');
@@ -325,6 +333,38 @@ export default function ExperiencePortalPublisherClient({
                             checked={enableStatusTracker}
                             onCheckedChange={setEnableStatusTracker}
                             data-testid="toggle-portal-status-tracker"
+                        />
+                    </div>
+                </div>
+
+                {/* Track G: Experience Cloud 2.0 — Counselor Slot Booking & Application Fee Checkout */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                    <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+                        <div className="space-y-0.5">
+                            <span className="text-xs font-medium text-foreground block">
+                                Counselor / Campus Tour Slot Picker
+                            </span>
+                            <span className="text-[11px] text-muted-foreground block">
+                                Auto-creates a scheduled appointment on public form submit
+                            </span>
+                        </div>
+                        <Switch
+                            checked={enableSlotBooking}
+                            onCheckedChange={setEnableSlotBooking}
+                            data-testid="toggle-portal-slot-booking"
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label className="text-xs">
+                            Application / Registration Fee (INR · 0 = Free Intake)
+                        </Label>
+                        <Input
+                            type="number"
+                            min={0}
+                            value={applicationFeeAmount}
+                            onChange={e => setApplicationFeeAmount(e.target.value)}
+                            data-testid="portal-fee-amount-input"
+                            className="h-9 text-xs"
                         />
                     </div>
                 </div>

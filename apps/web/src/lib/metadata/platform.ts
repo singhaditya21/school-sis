@@ -1227,3 +1227,385 @@ export function validateScholarMindSchemaBundle(
         };
     }
 }
+
+// ============================================================================
+// Track E: Declarative Document & Certificate Merge Engine (OmniStudio DocGen)
+// ============================================================================
+
+export type DocumentTemplateCategory =
+    | 'OFFER_LETTER'
+    | 'CERTIFICATE'
+    | 'SCHOLARSHIP_LETTER'
+    | 'FEE_RECEIPT'
+    | 'CUSTOM';
+
+export interface MetadataDocumentTemplate {
+    id: string;
+    name: string;
+    category: DocumentTemplateCategory;
+    headerTitle: string;
+    bodyMarkdown: string;
+    footerText: string;
+    includeVerificationBadge: boolean;
+}
+
+function escapeHtml(raw: string): string {
+    return raw
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/**
+ * Renders a declarative Document / Certificate Merge Template (`MetadataDocumentTemplate`)
+ * against a record payload, substituting `{{field_api_name}}` and system tokens (`{{RECORD_ID}}`,
+ * `{{ISSUED_DATE}}`, `{{OBJECT_NAME}}`) with HTML-escaped values and computing a deterministic
+ * verification code.
+ */
+export function renderMetadataDocumentTemplate(
+    template: MetadataDocumentTemplate,
+    record: Record<string, unknown>,
+    context: { objectName?: string; recordId?: string; issuedDate?: string } = {},
+): {
+    renderedBody: string;
+    verificationCode: string;
+    htmlDocument: string;
+} {
+    const issuedDate = context.issuedDate || new Date().toISOString().split('T')[0];
+    const recordId = String(context.recordId || record.id || '00000000');
+    const objectName = String(context.objectName || 'Record');
+
+    const tokenLookup = (key: string): string => {
+        const cleanKey = key.trim();
+        if (cleanKey === 'RECORD_ID') return recordId.slice(0, 8).toUpperCase();
+        if (cleanKey === 'ISSUED_DATE') return issuedDate;
+        if (cleanKey === 'OBJECT_NAME') return objectName;
+        const val = record[cleanKey] ?? record[cleanKey.toLowerCase()];
+        if (val === null || val === undefined || val === '') return '—';
+        return String(val);
+    };
+
+    const renderedBody = String(template.bodyMarkdown || '').replace(
+        /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g,
+        (_match, tokenKey: string) => tokenLookup(tokenKey),
+    );
+
+    // Deterministic verification code from recordId + template.id + issuedDate
+    const seed = `${recordId}:${template.id}:${issuedDate}`;
+    let hash = 2166136261;
+    for (let i = 0; i < seed.length; i++) {
+        hash ^= seed.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    const hexSuffix = (hash >>> 0).toString(16).toUpperCase().padStart(8, '0');
+    const verificationCode = `SM-DOC-${issuedDate.slice(0, 4)}-${hexSuffix}`;
+
+    const paragraphsHtml = renderedBody
+        .split(/\n{2,}/)
+        .map(p => `<p style="margin:0 0 14px 0;line-height:1.65;">${escapeHtml(p.trim()).replace(/\n/g, '<br/>')}</p>`)
+        .join('');
+
+    const badgeHtml = template.includeVerificationBadge
+        ? `<div style="margin-top:28px;padding:12px 16px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#334155;">
+             <div><strong>Verified Official Document</strong> · Issued ${escapeHtml(issuedDate)}</div>
+             <div style="font-family:monospace;font-weight:700;color:#0f172a;">Ref: ${escapeHtml(verificationCode)}</div>
+           </div>`
+        : '';
+
+    const htmlDocument = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>${escapeHtml(template.headerTitle || template.name)}</title>
+</head>
+<body style="font-family:system-ui,-apple-system,sans-serif;max-width:760px;margin:32px auto;padding:40px;border:2px solid #0f172a;border-radius:12px;color:#0f172a;background:#ffffff;">
+  <div style="border-bottom:2px solid #0f172a;padding-bottom:16px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-end;">
+    <div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:#475569;font-weight:600;">ScholarMind Official Document · ${escapeHtml(template.category.replace(/_/g, ' '))}</div>
+      <h1 style="margin:6px 0 0 0;font-size:24px;">${escapeHtml(template.headerTitle || template.name)}</h1>
+    </div>
+    <div style="font-size:12px;color:#475569;font-family:monospace;">Date: ${escapeHtml(issuedDate)}</div>
+  </div>
+  <div style="font-size:14px;color:#1e293b;">
+    ${paragraphsHtml}
+  </div>
+  ${badgeHtml}
+  <div style="margin-top:32px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;text-align:center;">
+    ${escapeHtml(template.footerText || 'Generated via ScholarMind Document Studio')}
+  </div>
+</body>
+</html>`;
+
+    return {
+        renderedBody,
+        verificationCode,
+        htmlDocument,
+    };
+}
+
+// ============================================================================
+// Track F: Agentforce Natural-Language AI Schema & Workflow Copilot
+// ============================================================================
+
+/**
+ * Synthesizes a complete, validated `ScholarMindSchemaBundle` (`scholarmind.bundle.v1`)
+ * from a plain-English administrator prompt (Salesforce Agentforce Builder parity).
+ */
+export function synthesizeSchemaBundleFromPrompt(prompt: string): {
+    bundle: ScholarMindSchemaBundle;
+    summary: string;
+} {
+    const rawPrompt = String(prompt || '').trim();
+    const lower = rawPrompt.toLowerCase();
+
+    // 1. Extract or infer object name and API name
+    const namedMatch =
+        rawPrompt.match(/(?:create|build|design|add)\s+(?:an?\s+)?([a-z0-9\s-]{3,45}?)\s+(?:object|module|table)\b/i) ||
+        rawPrompt.match(/(?:create|build|design|add)\s+(?:an?\s+)?([a-z0-9\s-]{3,40}?\s+(?:tracker|log|registry|form))\b/i) ||
+        rawPrompt.match(/([a-z0-9\s-]{3,35}?)\s+(?:object|module|table)\b/i);
+
+    let objectTitle = namedMatch?.[1]?.trim() || 'Campus Operations Tracker';
+    objectTitle = objectTitle
+        .split(/\s+/)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ')
+        .slice(0, 60);
+
+    let objectApiName = objectTitle
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 40);
+    if (!/^[a-z]/.test(objectApiName)) {
+        objectApiName = `custom_${objectApiName || 'tracker'}`;
+    }
+
+    const prefix = objectTitle
+        .split(/\s+/)
+        .map(w => w[0]?.toUpperCase() || '')
+        .join('')
+        .slice(0, 4) || 'REC';
+
+    const blockDuplicates = /block\s+duplicate|prevent\s+duplicate|unique|no\s+duplicate/i.test(lower);
+
+    const fields: ScholarMindSchemaBundleField[] = [
+        normalizeMetadataFieldInput({
+            label: `${objectTitle} Reference`,
+            apiName: `${objectApiName}_no`,
+            dataType: 'AUTO_NUMBER',
+            autoNumberPrefix: `${prefix}-{YYYY}-{0000}`,
+        }),
+        normalizeMetadataFieldInput({
+            label: 'Primary Name / Title',
+            apiName: 'full_name',
+            dataType: 'TEXT',
+            isRequired: true,
+        }),
+    ];
+
+    const addFieldIfNotExists = (input: Record<string, unknown>) => {
+        const norm = normalizeMetadataFieldInput(input);
+        if (!fields.some(f => f.apiName === norm.apiName)) {
+            fields.push(norm);
+        }
+    };
+
+    if (lower.includes('email') || lower.includes('contact') || lower.includes('applicant') || lower.includes('visitor') || lower.includes('alumni') || lower.includes('student')) {
+        addFieldIfNotExists({
+            label: 'Contact Email',
+            apiName: 'contact_email',
+            dataType: 'EMAIL',
+            isRequired: true,
+            validationRules: blockDuplicates ? { duplicateRuleBehavior: 'BLOCK' } : { duplicateRuleBehavior: 'WARN' },
+        });
+    }
+
+    if (lower.includes('phone') || lower.includes('mobile') || lower.includes('whatsapp') || lower.includes('visitor')) {
+        addFieldIfNotExists({
+            label: 'Mobile Phone',
+            apiName: 'contact_phone',
+            dataType: 'PHONE',
+            isRequired: true,
+            validationRules: blockDuplicates ? { duplicateRuleBehavior: 'BLOCK' } : { duplicateRuleBehavior: 'WARN' },
+        });
+    }
+
+    if (lower.includes('student')) {
+        addFieldIfNotExists({
+            label: 'Linked Student',
+            apiName: 'student_id',
+            dataType: 'LOOKUP',
+            lookupTargetObject: 'student',
+        });
+    }
+
+    if (lower.includes('fee') || lower.includes('amount') || lower.includes('scholarship') || lower.includes('stipend') || lower.includes('grant') || lower.includes('budget')) {
+        addFieldIfNotExists({
+            label: 'Amount (INR)',
+            apiName: 'amount_inr',
+            dataType: 'CURRENCY',
+            isRequired: false,
+            validationRules: { min: 0 },
+        });
+    }
+
+    if (lower.includes('score') || lower.includes('marks') || lower.includes('year') || lower.includes('count') || lower.includes('rating')) {
+        addFieldIfNotExists({
+            label: 'Score / Metric Value',
+            apiName: 'metric_value',
+            dataType: 'NUMBER',
+            isRequired: false,
+        });
+    }
+
+    if (lower.includes('date') || lower.includes('visit') || lower.includes('event') || lower.includes('deadline')) {
+        addFieldIfNotExists({
+            label: 'Scheduled Date',
+            apiName: 'event_date',
+            dataType: 'DATE',
+            isRequired: false,
+        });
+    }
+
+    if (lower.includes('url') || lower.includes('website') || lower.includes('linkedin') || lower.includes('portfolio')) {
+        addFieldIfNotExists({
+            label: 'Reference Link URL',
+            apiName: 'reference_url',
+            dataType: 'URL',
+            isRequired: false,
+        });
+    }
+
+    const stageOptions = lower.includes('approval')
+        ? ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED']
+        : lower.includes('visitor')
+          ? ['CHECKED_IN', 'IN_CAMPUS', 'CHECKED_OUT']
+          : ['NEW', 'IN_PROGRESS', 'COMPLETED', 'CLOSED'];
+
+    addFieldIfNotExists({
+        label: 'Lifecycle Stage',
+        apiName: 'pipeline_stage',
+        dataType: 'PICKLIST',
+        isRequired: true,
+        picklistOptions: stageOptions,
+    });
+
+    const workflowActionType = lower.includes('email') && lower.includes('send')
+        ? 'SEND_EMAIL'
+        : lower.includes('approval')
+          ? 'SUBMIT_FOR_APPROVAL'
+          : 'CREATE_TASK';
+
+    const workflows: ScholarMindSchemaBundleWorkflow[] = [
+        {
+            name: `Auto-${workflowActionType.replace(/_/g, ' ')} on ${objectTitle}`,
+            objectName: objectApiName,
+            triggerEvent: 'object.record.upserted',
+            conditions: [{ field: 'full_name', operator: 'not_empty', value: '' }],
+            actionType: workflowActionType,
+            actionPayload:
+                workflowActionType === 'SEND_EMAIL'
+                    ? {
+                          to_field: 'contact_email',
+                          subject: `Confirmation: ${objectTitle} Received`,
+                      }
+                    : {
+                          title: `Follow up on new ${objectTitle} submission`,
+                          due_days: 1,
+                      },
+        },
+    ];
+
+    const bundle: ScholarMindSchemaBundle = {
+        formatVersion: 'scholarmind.bundle.v1',
+        bundleName: `${objectTitle} AI Copilot Package`,
+        bundleDescription: `Synthesized from prompt: "${rawPrompt.slice(0, 180)}"`,
+        exportedAt: new Date().toISOString(),
+        objects: [
+            {
+                name: objectTitle,
+                apiName: objectApiName,
+                description: `AI-synthesized custom object for ${objectTitle}.`,
+                fields,
+                layouts: [
+                    {
+                        layoutType: 'FORM',
+                        schema: {
+                            sections: [
+                                {
+                                    title: `${objectTitle} Details`,
+                                    fields: fields.map(f => f.apiName),
+                                },
+                            ],
+                        },
+                    },
+                    {
+                        layoutType: 'LIST',
+                        schema: {
+                            columns: fields.map(f => f.apiName),
+                            kanbanGroupByField: 'pipeline_stage',
+                            defaultViewMode: 'KANBAN',
+                        },
+                    },
+                ],
+            },
+        ],
+        workflows,
+    };
+
+    return {
+        bundle,
+        summary: `Generated "${objectTitle}" (${objectApiName}) with ${fields.length} fields (${blockDuplicates ? 'Duplicate Blocking enabled, ' : ''}Kanban Stage Path on pipeline_stage) and 1 automated workflow.`,
+    };
+}
+
+// ============================================================================
+// Track H: Inbound Webhook & External Lead-Ad Payload Mapper (MuleSoft / Zapier)
+// ============================================================================
+
+function readNestedKey(obj: Record<string, unknown>, path: string): unknown {
+    const parts = path.split('.').map(p => p.trim()).filter(Boolean);
+    let current: unknown = obj;
+    for (const part of parts) {
+        if (!current || typeof current !== 'object') return undefined;
+        current = (current as Record<string, unknown>)[part];
+    }
+    return current;
+}
+
+/**
+ * Maps an external JSON webhook payload (from Meta Lead Ads, Google Forms, Typeform,
+ * Shiksha, Collegedunia, or Zapier) into a target ScholarMind metadata record payload
+ * using declarative `fieldMappings` (`{ externalKeyPath: targetFieldApiName }`) and
+ * optional `defaultValues`.
+ */
+export function mapInboundWebhookPayloadToRecord(
+    externalPayload: Record<string, unknown>,
+    fieldMappings: Record<string, string>,
+    defaultValues: Record<string, unknown> = {},
+): Record<string, unknown> {
+    const mapped: Record<string, unknown> = { ...defaultValues };
+    const source = externalPayload && typeof externalPayload === 'object' ? externalPayload : {};
+
+    // 1. Apply explicit field mappings ({ "full_name": "candidate_name", "lead.email": "contact_email" })
+    for (const [externalPath, targetFieldApi] of Object.entries(fieldMappings || {})) {
+        const cleanTarget = String(targetFieldApi || '').trim();
+        if (!cleanTarget) continue;
+        const val = readNestedKey(source, externalPath);
+        if (val !== undefined && val !== null && val !== '') {
+            mapped[cleanTarget] = val;
+        }
+    }
+
+    // 2. Also pass through any top-level keys that aren't already mapped
+    for (const [key, value] of Object.entries(source)) {
+        if (mapped[key] === undefined && value !== undefined && value !== null && typeof value !== 'object') {
+            mapped[key] = value;
+        }
+    }
+
+    return mapped;
+}
+

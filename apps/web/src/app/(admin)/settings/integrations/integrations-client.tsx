@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CheckCircle2, AlertTriangle, RefreshCw, Send, Server } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, RefreshCw, Send, Server, Webhook } from 'lucide-react';
 import type { ChannelReadiness, NotificationChannel } from '@/lib/notifications/channels';
 import {
     retryOutboxNotification,
@@ -15,6 +15,7 @@ import {
     type OutboxMessageRow,
     type OutboxSummaryRow,
 } from './actions';
+import { simulateInboundWebhookForCurrentTenant } from '@/lib/actions/metadata-engine';
 
 export function IntegrationsClient({
     channels,
@@ -36,6 +37,42 @@ export function IntegrationsClient({
         IN_APP: defaultEmail,
     });
     const [isPending, startTransition] = useTransition();
+    const [inboundTargetObject, setInboundTargetObject] = useState('coaching_inquiry');
+    const [inboundSourceName, setInboundSourceName] = useState('META_LEAD_ADS');
+    const [inboundMappingsJson, setInboundMappingsJson] = useState(
+        '{"full_name": "candidate_name", "email_address": "candidate_email", "phone_number": "contact_phone"}',
+    );
+    const [inboundPayloadJson, setInboundPayloadJson] = useState(
+        '{"full_name": "Riya Verma", "email_address": "riya.verma@example.edu", "phone_number": "+919811223344", "pipeline_stage": "NEW_INQUIRY"}',
+    );
+
+    const handleSimulateInboundWebhook = () => {
+        let parsedMappings: Record<string, string>;
+        let parsedPayload: Record<string, unknown>;
+        try {
+            parsedMappings = JSON.parse(inboundMappingsJson);
+            parsedPayload = JSON.parse(inboundPayloadJson);
+        } catch {
+            toast.error('Invalid JSON in field mappings or sample payload.');
+            return;
+        }
+        startTransition(async () => {
+            const res = await simulateInboundWebhookForCurrentTenant({
+                objectApiName: inboundTargetObject,
+                externalPayload: parsedPayload,
+                fieldMappings: parsedMappings,
+                sourceName: inboundSourceName,
+            });
+            if (!res.success) {
+                toast.error(res.error || 'Inbound webhook simulation failed.');
+                return;
+            }
+            toast.success(
+                `Inbound lead ingested into ${inboundTargetObject} (Record #${res.recordId?.slice(0, 8)})`,
+            );
+            router.refresh();
+        });
+    };
 
     const handleTestSend = (channel: NotificationChannel) => {
         const target = recipients[channel] || '';
@@ -260,6 +297,97 @@ export function IntegrationsClient({
                                 )}
                             </tbody>
                         </table>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Track H: Inbound Lead-Ad Webhook Connector & Field Mapper */}
+            <Card
+                className="shadow-sm border-border"
+                data-testid="inbound-webhook-connector"
+            >
+                <CardHeader className="pb-3 border-b border-border">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div className="space-y-1">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <Webhook className="w-5 h-5 text-primary" />
+                                Inbound Webhook &amp; External Lead-Ad Connector
+                            </CardTitle>
+                            <CardDescription>
+                                Map incoming JSON webhooks from Meta Lead Ads, Google Forms, Shiksha, Collegedunia, or Zapier (`POST /api/webhooks/inbound`) directly into any Custom Object with automatic Duplicate Rule checks.
+                            </CardDescription>
+                        </div>
+                        <Badge variant="outline" className="font-mono text-[10px] w-fit">
+                            POST /api/webhooks/inbound
+                        </Badge>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <span className="text-xs font-medium text-foreground block">
+                                Target Custom Object API Name
+                            </span>
+                            <Input
+                                value={inboundTargetObject}
+                                onChange={e => setInboundTargetObject(e.target.value)}
+                                placeholder="e.g. coaching_inquiry"
+                                data-testid="inbound-webhook-target-object"
+                                className="h-9 text-xs font-mono"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <span className="text-xs font-medium text-foreground block">
+                                External Source Identifier
+                            </span>
+                            <Input
+                                value={inboundSourceName}
+                                onChange={e => setInboundSourceName(e.target.value)}
+                                placeholder="e.g. META_LEAD_ADS"
+                                className="h-9 text-xs font-mono"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <span className="text-xs font-medium text-foreground block">
+                                Declarative Field Mappings (`externalKey: targetFieldApiName`)
+                            </span>
+                            <textarea
+                                rows={3}
+                                value={inboundMappingsJson}
+                                onChange={e => setInboundMappingsJson(e.target.value)}
+                                data-testid="inbound-webhook-mappings-textarea"
+                                className="w-full rounded-md border border-border bg-background p-2.5 font-mono text-xs text-foreground"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <span className="text-xs font-medium text-foreground block">
+                                Sample External Lead JSON Payload
+                            </span>
+                            <textarea
+                                rows={3}
+                                value={inboundPayloadJson}
+                                onChange={e => setInboundPayloadJson(e.target.value)}
+                                data-testid="inbound-webhook-payload-textarea"
+                                className="w-full rounded-md border border-border bg-background p-2.5 font-mono text-xs text-foreground"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                        <Button
+                            type="button"
+                            size="sm"
+                            disabled={isPending}
+                            onClick={handleSimulateInboundWebhook}
+                            data-testid="simulate-inbound-webhook-btn"
+                            className="text-xs gap-1.5"
+                        >
+                            <Webhook className="w-3.5 h-3.5" />
+                            {isPending ? 'Ingesting...' : 'Test-Fire Inbound Lead Webhook'}
+                        </Button>
                     </div>
                 </CardContent>
             </Card>

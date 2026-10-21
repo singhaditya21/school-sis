@@ -20,6 +20,8 @@ import {
     ChevronRight,
     Clock,
     Copy,
+    Download,
+    FileSignature,
     GitMerge,
     History,
     MessageSquarePlus,
@@ -41,6 +43,7 @@ import {
 import {
     cloneMetadataRecord,
     decideRecordApproval,
+    generateRecordDocument,
     logRecordQuickActivity,
     mergeMetadataRecords,
     submitRecordForApproval,
@@ -84,6 +87,12 @@ export function RecordExperienceHeader({
     >('COUNSELING_NOTE');
     const [activitySubject, setActivitySubject] = useState('');
     const [activityNotes, setActivityNotes] = useState('');
+    const [generatedDoc, setGeneratedDoc] = useState<{
+        templateName: string;
+        renderedBody: string;
+        verificationCode: string;
+        htmlDocument: string;
+    } | null>(null);
 
     // Resolve primary stage picklist field for the Lightning Path Bar
     const stageField =
@@ -206,6 +215,42 @@ export function RecordExperienceHeader({
             toast.success('Duplicate record merged into this record.');
             router.refresh();
         });
+    };
+
+    const handleGenerateDocument = (templateId?: string) => {
+        startTransition(async () => {
+            const res = await generateRecordDocument(objectName, recordId, templateId);
+            if (
+                !res.success ||
+                !res.renderedBody ||
+                !res.verificationCode ||
+                !res.htmlDocument
+            ) {
+                toast.error(res.error || 'Failed to generate document');
+                return;
+            }
+            setGeneratedDoc({
+                templateName: res.templateName || 'Official Document',
+                renderedBody: res.renderedBody,
+                verificationCode: res.verificationCode,
+                htmlDocument: res.htmlDocument,
+            });
+            toast.success(`Generated "${res.templateName}" (${res.verificationCode})`);
+            router.refresh();
+        });
+    };
+
+    const handleDownloadHtmlDocument = () => {
+        if (!generatedDoc || typeof window === 'undefined') return;
+        const blob = new Blob([generatedDoc.htmlDocument], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `${objectName}-${recordId.slice(0, 8)}-${generatedDoc.verificationCode}.html`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
     };
 
     const slaBadgeColor =
@@ -450,6 +495,86 @@ export function RecordExperienceHeader({
                             Reject
                         </Button>
                     </div>
+                </CardContent>
+            </Card>
+
+            {/* 4. Track E: 1-Click OmniStudio Document & Certificate Generator */}
+            <Card className="border-border shadow-sm" data-testid="record-docgen-bar">
+                <CardContent className="p-4 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-xs">
+                            <FileSignature className="w-4 h-4 text-primary shrink-0" />
+                            <span className="font-semibold text-foreground">
+                                OmniStudio Document &amp; Certificate Generator
+                            </span>
+                            <span className="text-muted-foreground hidden md:inline">
+                                Merge live record fields into verified Offer Letters &amp; Bonafide Certificates
+                            </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={isPending}
+                                onClick={() => handleGenerateDocument('default-offer-letter')}
+                                data-testid="generate-record-doc-btn"
+                                className="h-8 text-xs gap-1.5"
+                            >
+                                <FileSignature className="w-3.5 h-3.5" />
+                                Generate Offer Letter
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={isPending}
+                                onClick={() =>
+                                    handleGenerateDocument('default-bonafide-certificate')
+                                }
+                                data-testid="generate-bonafide-doc-btn"
+                                className="h-8 text-xs gap-1.5"
+                            >
+                                <FileSignature className="w-3.5 h-3.5" />
+                                Generate Certificate
+                            </Button>
+                        </div>
+                    </div>
+
+                    {generatedDoc && (
+                        <div
+                            className="rounded-lg border border-primary/30 bg-muted/30 p-4 space-y-2.5 text-xs"
+                            data-testid="generated-doc-preview"
+                        >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-bold text-foreground">
+                                        {generatedDoc.templateName}
+                                    </span>
+                                    <Badge
+                                        variant="outline"
+                                        className="font-mono text-[10px] bg-success-subtle text-success border-success/30"
+                                    >
+                                        Verified: {generatedDoc.verificationCode}
+                                    </Badge>
+                                </div>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={handleDownloadHtmlDocument}
+                                    data-testid="download-generated-doc-btn"
+                                    className="h-7 text-xs gap-1"
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                    Download Printable Document
+                                </Button>
+                            </div>
+                            <pre className="whitespace-pre-wrap rounded border border-border bg-background p-3 font-sans text-xs text-foreground leading-relaxed">
+                                {generatedDoc.renderedBody}
+                            </pre>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>

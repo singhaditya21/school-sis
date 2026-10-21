@@ -4,6 +4,7 @@ import { getAllMetadataObjects, getObjectMetadataById } from '@/lib/actions/meta
 import FieldManagerClient from './field-manager';
 import ObjectLayoutBuilderClient from './layout-builder';
 import ExperiencePortalPublisherClient from './portal-publisher';
+import DocumentTemplateStudioClient from './document-template-studio';
 import Link from 'next/link';
 import { ChevronLeft, ExternalLink } from 'lucide-react';
 
@@ -86,6 +87,13 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
             />
 
             <ObjectLayoutBuilderClient
+                objectId={resolvedParams.id}
+                objectName={objectDef.name}
+                fields={fields}
+                initialLayouts={layouts ?? []}
+            />
+
+            <DocumentTemplateStudioClient
                 objectId={resolvedParams.id}
                 objectName={objectDef.name}
                 fields={fields}

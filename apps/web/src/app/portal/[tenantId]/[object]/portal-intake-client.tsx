@@ -52,9 +52,16 @@ export default function PortalIntakeClient({
     const [isPending, startTransition] = useTransition();
     const [activeTab, setActiveTab] = useState<'SUBMIT' | 'TRACK'>('SUBMIT');
     const [formValues, setFormValues] = useState<Record<string, unknown>>({});
+    const [slotDate, setSlotDate] = useState<string>('');
+    const [slotTime, setSlotTime] = useState<string>(
+        schema.portalConfig.availableTimeSlots?.[0] || '10:00',
+    );
+    const [feePaymentConfirmed, setFeePaymentConfirmed] = useState<boolean>(false);
     const [submissionResult, setSubmissionResult] = useState<{
         recordId: string;
         trackingReference: string;
+        appointmentBooked?: { id: string; date: string; time: string } | null;
+        feeReceiptNumber?: string | null;
     } | null>(null);
 
     // Status Tracker state
@@ -92,11 +99,23 @@ export default function PortalIntakeClient({
 
     const handleSubmitForm = (e: React.FormEvent) => {
         e.preventDefault();
+        if (
+            Number(schema.portalConfig.applicationFeeAmount || 0) > 0 &&
+            !feePaymentConfirmed
+        ) {
+            toast.error('Please confirm the application fee checkout step before submitting.');
+            return;
+        }
         startTransition(async () => {
             const res = await submitPublicPortalIntakeRecord(
                 tenantId,
                 objectApiName,
                 formValues,
+                {
+                    slotDate: slotDate || undefined,
+                    slotTime: slotTime || undefined,
+                    feePaymentConfirmed,
+                },
             );
             if (!res.success || !res.recordId || !res.trackingReference) {
                 toast.error(res.error || 'Submission failed. Please check your inputs.');
@@ -105,6 +124,8 @@ export default function PortalIntakeClient({
             setSubmissionResult({
                 recordId: res.recordId,
                 trackingReference: res.trackingReference,
+                appointmentBooked: res.appointmentBooked,
+                feeReceiptNumber: res.feeReceiptNumber,
             });
             setReferenceInput(res.trackingReference);
             toast.success('Submitted! Your tracking reference is ready.');
@@ -206,6 +227,29 @@ export default function PortalIntakeClient({
                                             {submissionResult.trackingReference}
                                         </span>
                                     </div>
+                                    {submissionResult.appointmentBooked && (
+                                        <div
+                                            className="rounded-lg border border-info/30 bg-info-subtle/40 p-3 text-xs text-foreground"
+                                            data-testid="portal-booked-slot-confirmation"
+                                        >
+                                            Counseling / Campus Slot Confirmed:{' '}
+                                            <span className="font-mono font-semibold">
+                                                {submissionResult.appointmentBooked.date} at{' '}
+                                                {submissionResult.appointmentBooked.time}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {submissionResult.feeReceiptNumber && (
+                                        <div
+                                            className="rounded-lg border border-success/30 bg-success-subtle/40 p-3 text-xs text-foreground"
+                                            data-testid="portal-fee-receipt-confirmation"
+                                        >
+                                            Application Fee Receipt:{' '}
+                                            <span className="font-mono font-semibold">
+                                                {submissionResult.feeReceiptNumber}
+                                            </span>
+                                        </div>
+                                    )}
                                     <div className="flex justify-center gap-3 pt-2">
                                         {schema.portalConfig.enableStatusTracker && (
                                             <Button
@@ -321,6 +365,92 @@ export default function PortalIntakeClient({
                                                 </div>
                                             );
                                         })}
+
+                                        {/* Track G: Counselor / Campus Tour Slot Booking */}
+                                        {schema.portalConfig.enableSlotBooking && (
+                                            <div
+                                                className="rounded-lg border border-border bg-muted/20 p-4 space-y-3"
+                                                data-testid="portal-slot-booking-section"
+                                            >
+                                                <Label className="text-xs font-semibold block">
+                                                    {schema.portalConfig.slotBookingLabel ||
+                                                        'Book Counseling / Campus Tour Slot (Optional)'}
+                                                </Label>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <div className="space-y-1">
+                                                        <Label className="text-[11px] text-muted-foreground">
+                                                            Preferred Date
+                                                        </Label>
+                                                        <Input
+                                                            type="date"
+                                                            value={slotDate}
+                                                            onChange={e => setSlotDate(e.target.value)}
+                                                            data-testid="portal-slot-date-input"
+                                                            className="h-9 text-xs"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-[11px] text-muted-foreground">
+                                                            Preferred Time Slot
+                                                        </Label>
+                                                        <Select
+                                                            value={slotTime}
+                                                            onValueChange={setSlotTime}
+                                                        >
+                                                            <SelectTrigger className="h-9 text-xs">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {(
+                                                                    schema.portalConfig
+                                                                        .availableTimeSlots || [
+                                                                        '10:00',
+                                                                        '11:30',
+                                                                        '14:00',
+                                                                        '16:00',
+                                                                    ]
+                                                                ).map(t => (
+                                                                    <SelectItem key={t} value={t}>
+                                                                        {t}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Track G: Application Fee Checkout Step */}
+                                        {Number(schema.portalConfig.applicationFeeAmount || 0) >
+                                            0 && (
+                                            <div
+                                                className="rounded-lg border border-primary/30 bg-primary/5 p-4 flex items-center justify-between gap-3"
+                                                data-testid="portal-fee-checkout-section"
+                                            >
+                                                <div className="space-y-0.5 text-xs">
+                                                    <span className="font-semibold text-foreground block">
+                                                        {schema.portalConfig.applicationFeeLabel ||
+                                                            'Application & Prospectus Fee'}
+                                                        : INR{' '}
+                                                        {schema.portalConfig.applicationFeeAmount}
+                                                    </span>
+                                                    <span className="text-[11px] text-muted-foreground block">
+                                                        Instant digital fee receipt issued upon submission
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Switch
+                                                        checked={feePaymentConfirmed}
+                                                        onCheckedChange={setFeePaymentConfirmed}
+                                                        data-testid="portal-fee-confirm-switch"
+                                                    />
+                                                    <span className="text-xs font-medium">
+                                                        Confirm Fee Payment
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <Button
                                             type="submit"
