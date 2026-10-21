@@ -112,6 +112,12 @@ export const PAGE_ACCESS_POLICIES = [
         level: 'public',
     },
     {
+        // Experience Cloud self-service Web-to-Object public intake & status tracker portals.
+        name: 'experience-portal',
+        prefixes: ['/portal'],
+        level: 'public',
+    },
+    {
         name: 'platform',
         prefixes: ['/platform', '/hq'],
         level: 'role',

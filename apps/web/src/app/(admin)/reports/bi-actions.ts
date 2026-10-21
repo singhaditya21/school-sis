@@ -341,6 +341,7 @@ export async function saveCustomReportDefinition(input: {
         const recipientEmail = String(input.recipientEmail || session.email || 'admin@scholarmind.local').trim();
 
         const reportPayload = {
+            auditEvent: 'BI_REPORT_SAVED',
             name: trimmedName,
             datasetId: input.datasetId,
             metricIds: input.metricIds,
@@ -356,7 +357,7 @@ export async function saveCustomReportDefinition(input: {
             VALUES (
                 ${tenantId},
                 ${userId},
-                'BI_REPORT_SAVED',
+                'CREATE',
                 'bi_report',
                 ${JSON.stringify(reportPayload)}::jsonb
             )
@@ -451,7 +452,8 @@ export async function getSavedBiReports(): Promise<SavedBiReportDefinition[]> {
             SELECT id, after_state, created_at
             FROM audit_logs
             WHERE tenant_id = ${tenantId}
-              AND action = 'BI_REPORT_SAVED'
+              AND action = 'CREATE'
+              AND entity_type = 'bi_report'
             ORDER BY created_at DESC
             LIMIT 20
         `;

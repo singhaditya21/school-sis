@@ -161,10 +161,11 @@ export async function sendTestChannelNotification(
             VALUES (
                 ${tenantId},
                 ${userId},
-                'NOTIFICATION_TEST_DISPATCH',
+                'CREATE',
                 'notification_outbox',
                 ${queued.notificationId},
                 ${JSON.stringify({
+                    auditEvent: 'NOTIFICATION_TEST_DISPATCH',
                     channel,
                     recipient: cleanRecipient,
                     status: delivery.status,
@@ -210,10 +211,11 @@ export async function retryOutboxNotification(
             VALUES (
                 ${tenantId},
                 ${userId},
-                'NOTIFICATION_OUTBOX_RETRY',
+                'UPDATE',
                 'notification_outbox',
                 ${notificationId},
                 ${JSON.stringify({
+                    auditEvent: 'NOTIFICATION_OUTBOX_RETRY',
                     status: result.status,
                     success: result.success,
                 })}::jsonb

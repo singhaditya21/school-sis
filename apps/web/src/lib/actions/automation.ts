@@ -60,7 +60,8 @@ export async function getWorkflowExecutions(limit = 10): Promise<WorkflowExecuti
                created_at as "createdAt"
         FROM audit_logs
         WHERE tenant_id = ${tenantId}
-          AND action = 'WORKFLOW_EXECUTED'
+          AND action = 'CREATE'
+          AND after_state->>'auditEvent' = 'WORKFLOW_EXECUTED'
         ORDER BY created_at DESC
         LIMIT ${safeLimit}
     `;

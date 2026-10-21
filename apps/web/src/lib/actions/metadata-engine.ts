@@ -1857,10 +1857,13 @@ export async function deleteRecord(
             INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, before_state)
             VALUES (
                 ${tenantId},
-                'METADATA_RECORD_DELETED',
+                'DELETE',
                 ${apiName},
                 ${recordId},
-                ${JSON.stringify(priorRecord)}::jsonb
+                ${JSON.stringify({
+                    auditEvent: 'METADATA_RECORD_DELETED',
+                    ...priorRecord,
+                })}::jsonb
             )
         `.execute();
 
@@ -2011,10 +2014,11 @@ export async function bulkImportRecords(
                 INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)
                 VALUES (
                     ${tenantId},
-                    'METADATA_BULK_IMPORT',
+                    'CREATE',
                     ${apiName},
                     ${objectDef.id},
                     ${JSON.stringify({
+                        auditEvent: 'METADATA_BULK_IMPORT',
                         importedCount,
                         errorCount: errors.length,
                         importedAt: new Date().toISOString(),
@@ -2434,10 +2438,11 @@ export async function runSingleWorkflowAction(params: {
         INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)
         VALUES (
             ${tenantId},
-            'WORKFLOW_EXECUTED',
+            'CREATE',
             ${objectName},
             ${entityUuid},
             ${JSON.stringify({
+                auditEvent: 'WORKFLOW_EXECUTED',
                 workflowId,
                 workflowName,
                 triggerEvent,
@@ -2579,25 +2584,26 @@ export async function getRecordAuditTimeline(
             const after = (row.after_state && typeof row.after_state === 'object'
                 ? row.after_state
                 : {}) as Record<string, unknown>;
-            let summary = row.action.replace(/_/g, ' ');
-            if (row.action === 'WORKFLOW_EXECUTED') {
+            const eventAction = String(after.auditEvent || row.action);
+            let summary = eventAction.replace(/_/g, ' ');
+            if (eventAction === 'WORKFLOW_EXECUTED') {
                 summary = `Workflow "${String(after.workflowName || 'Automation')}" executed (${String(after.actionType || '')})`;
-            } else if (row.action === 'RECORD_APPROVAL_REQUESTED') {
+            } else if (eventAction === 'RECORD_APPROVAL_REQUESTED') {
                 summary = `Submitted for approval${after.comment ? `: "${String(after.comment)}"` : ''}`;
-            } else if (row.action === 'RECORD_APPROVAL_DECIDED') {
+            } else if (eventAction === 'RECORD_APPROVAL_DECIDED') {
                 summary = `Approval ${String(after.decision || 'DECIDED')}${after.comment ? `: "${String(after.comment)}"` : ''}`;
-            } else if (row.action === 'METADATA_RECORD_ACTIVITY') {
+            } else if (eventAction === 'METADATA_RECORD_ACTIVITY') {
                 summary = `[${String(after.activityType || 'ACTIVITY')}] ${String(after.subject || 'Activity logged')}${after.notes ? ` — ${String(after.notes)}` : ''}`;
-            } else if (row.action === 'METADATA_RECORD_CLONED') {
+            } else if (eventAction === 'METADATA_RECORD_CLONED') {
                 summary = `Cloned from record ${String(after.sourceRecordId || '').slice(0, 8)}`;
-            } else if (row.action === 'METADATA_RECORD_MERGED') {
+            } else if (eventAction === 'METADATA_RECORD_MERGED') {
                 summary = `Merged duplicate record ${String(after.duplicateRecordId || '').slice(0, 8)} into this record`;
-            } else if (row.action === 'CREATE') {
+            } else if (eventAction === 'CREATE') {
                 summary = `Record created via API / Form`;
             }
             return {
                 id: row.id,
-                action: row.action,
+                action: eventAction,
                 createdAt:
                     row.created_at instanceof Date
                         ? row.created_at.toISOString()
@@ -2641,10 +2647,11 @@ export async function submitRecordForApproval(
             VALUES (
                 ${tenantId},
                 ${userId},
-                'RECORD_APPROVAL_REQUESTED',
+                'UPDATE',
                 ${apiName},
                 ${recordId},
                 ${JSON.stringify({
+                    auditEvent: 'RECORD_APPROVAL_REQUESTED',
                     status: 'SUBMITTED',
                     comment: comment?.trim() || null,
                     submittedAt: new Date().toISOString(),
@@ -2709,10 +2716,11 @@ export async function decideRecordApproval(
             VALUES (
                 ${tenantId},
                 ${userId},
-                'RECORD_APPROVAL_DECIDED',
+                'UPDATE',
                 ${apiName},
                 ${recordId},
                 ${JSON.stringify({
+                    auditEvent: 'RECORD_APPROVAL_DECIDED',
                     decision,
                     comment: comment?.trim() || null,
                     decidedAt: new Date().toISOString(),
@@ -2916,9 +2924,10 @@ export async function installEducationBlueprint(
                 VALUES (
                     ${tenantId},
                     ${userId},
-                    'EDUCATION_BLUEPRINT_INSTALLED',
+                    'CREATE',
                     'metadata_blueprint',
                     ${JSON.stringify({
+                        auditEvent: 'EDUCATION_BLUEPRINT_INSTALLED',
                         packId: pack.id,
                         title: pack.title,
                         installedObjects,
@@ -3049,10 +3058,11 @@ export async function cloneMetadataRecord(
             VALUES (
                 ${tenantId},
                 ${userId},
-                'METADATA_RECORD_CLONED',
+                'CREATE',
                 ${apiName},
                 ${clonedRecordId},
                 ${JSON.stringify({
+                    auditEvent: 'METADATA_RECORD_CLONED',
                     sourceRecordId,
                     clonedRecordId,
                     clonedAt: new Date().toISOString(),
@@ -3165,10 +3175,11 @@ export async function mergeMetadataRecords(
             VALUES (
                 ${tenantId},
                 ${userId},
-                'METADATA_RECORD_MERGED',
+                'UPDATE',
                 ${apiName},
                 ${primaryRecordId},
                 ${JSON.stringify({
+                    auditEvent: 'METADATA_RECORD_MERGED',
                     primaryRecordId,
                     duplicateRecordId,
                     backfilledFields: Object.keys(mergedPatch),
@@ -3216,10 +3227,11 @@ export async function logRecordQuickActivity(
             VALUES (
                 ${tenantId},
                 ${userId},
-                'METADATA_RECORD_ACTIVITY',
+                'CREATE',
                 ${apiName},
                 ${recordId},
                 ${JSON.stringify({
+                    auditEvent: 'METADATA_RECORD_ACTIVITY',
                     activityType: payload.activityType,
                     subject,
                     notes: payload.notes?.trim() || null,
@@ -3326,10 +3338,13 @@ export async function savePortalIntakeConfig(
                 VALUES (
                     ${tenantId},
                     ${userId},
-                    'EXPERIENCE_PORTAL_CONFIGURED',
+                    'UPDATE',
                     'metadata_object',
                     ${targetObject.id},
-                    ${JSON.stringify(sanitizedConfig)}::jsonb
+                    ${JSON.stringify({
+                        auditEvent: 'EXPERIENCE_PORTAL_CONFIGURED',
+                        ...sanitizedConfig,
+                    })}::jsonb
                 )
             `.execute();
 
@@ -3568,10 +3583,11 @@ export async function submitPublicPortalIntakeRecord(
             INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)
             VALUES (
                 ${tenantId},
-                'EXPERIENCE_PORTAL_SUBMISSION',
+                'CREATE',
                 ${objectApiName},
                 ${recordId},
                 ${JSON.stringify({
+                    auditEvent: 'EXPERIENCE_PORTAL_SUBMISSION',
                     trackingReference,
                     submittedFields: Object.keys(validated.data),
                     submittedAt: new Date().toISOString(),
@@ -3842,9 +3858,10 @@ export async function exportTenantSchemaBundle(params: {
             VALUES (
                 ${tenantId},
                 ${userId},
-                'SCHEMA_BUNDLE_EXPORTED',
+                'EXPORT',
                 'metadata_bundle',
                 ${JSON.stringify({
+                    auditEvent: 'SCHEMA_BUNDLE_EXPORTED',
                     bundleName,
                     objectCount: bundleObjects.length,
                     workflowCount: bundleWorkflows.length,
@@ -4030,9 +4047,10 @@ export async function importTenantSchemaBundle(
                 VALUES (
                     ${tenantId},
                     ${userId},
-                    'SCHEMA_BUNDLE_IMPORTED',
+                    'CREATE',
                     'metadata_bundle',
                     ${JSON.stringify({
+                        auditEvent: 'SCHEMA_BUNDLE_IMPORTED',
                         bundleName: bundle.bundleName,
                         importedObjects,
                         importedFields,
