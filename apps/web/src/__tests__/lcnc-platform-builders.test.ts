@@ -11,6 +11,7 @@ import {
     normalizeMetadataFieldInput,
     redactSensitiveWorkflowPayload,
     validateMetadataRecordPayload,
+    validateScholarMindSchemaBundle,
 } from '@/lib/metadata/platform';
 import {
     EDUCATION_BLUEPRINT_PACKS,
@@ -574,6 +575,93 @@ describe('LCNC & Drag-and-Drop Platform Builders', () => {
         expect(metadataEngine).toContain('allowedApproverRoles');
         expect(metadataEngine).toContain('cleanRef.length >= 8 && idStr.startsWith(cleanRef)');
         expect(metadataEngine).toContain('contactFieldNames');
+    });
+
+    it('supports Track D Native Schema Package Studio (.scholarmind.json export/import for Vercel + Neon)', () => {
+        const validBundleResult = validateScholarMindSchemaBundle({
+            formatVersion: 'scholarmind.bundle.v1',
+            bundleName: 'Kota Coaching Campus Pack v1',
+            bundleDescription: 'Coaching batch and inquiry schema',
+            exportedAt: '2026-10-20T12:00:00.000Z',
+            objects: [
+                {
+                    name: 'Coaching Inquiry',
+                    apiName: 'coaching_inquiry',
+                    description: 'Prospective student inquiry',
+                    fields: [
+                        {
+                            label: 'Candidate Name',
+                            apiName: 'candidate_name',
+                            dataType: 'TEXT',
+                            isRequired: true,
+                            picklistOptions: [],
+                            validationRules: {},
+                        },
+                        {
+                            label: 'Candidate Email',
+                            apiName: 'candidate_email',
+                            dataType: 'EMAIL',
+                            isRequired: true,
+                            picklistOptions: [],
+                            validationRules: { duplicateRuleBehavior: 'BLOCK' },
+                        },
+                    ],
+                    layouts: [
+                        {
+                            layoutType: 'FORM',
+                            schema: {
+                                sections: [
+                                    {
+                                        title: 'Candidate Info',
+                                        fields: ['candidate_name', 'candidate_email'],
+                                    },
+                                ],
+                            },
+                        },
+                    ],
+                },
+            ],
+            workflows: [
+                {
+                    name: 'Notify Counselor on New Inquiry',
+                    objectName: 'coaching_inquiry',
+                    triggerEvent: 'object.record.upserted',
+                    conditions: [{ field: 'candidate_email', operator: 'not_empty', value: '' }],
+                    actionType: 'WEBHOOK',
+                    actionPayload: {
+                        url: 'https://hooks.zapier.com/hooks/catch/999/',
+                        secret: 'should_be_redacted',
+                    },
+                },
+            ],
+        });
+
+        expect(validBundleResult.ok).toBe(true);
+        if (validBundleResult.ok) {
+            expect(validBundleResult.bundle.objects).toHaveLength(1);
+            expect(validBundleResult.bundle.objects[0].fields).toHaveLength(2);
+            expect(validBundleResult.bundle.workflows[0].actionPayload.secret).toBe('[REDACTED]');
+        }
+
+        const invalidBundleResult = validateScholarMindSchemaBundle({
+            formatVersion: 'unknown.v0',
+            bundleName: 'Bad Bundle',
+            objects: [],
+        });
+        expect(invalidBundleResult.ok).toBe(false);
+
+        const metadataEngine = readWebSource('src/lib/actions/metadata-engine.ts');
+        expect(metadataEngine).toContain('export async function exportTenantSchemaBundle');
+        expect(metadataEngine).toContain('export async function importTenantSchemaBundle');
+        expect(metadataEngine).toContain("'SCHEMA_BUNDLE_EXPORTED'");
+        expect(metadataEngine).toContain("'SCHEMA_BUNDLE_IMPORTED'");
+
+        const packageStudioUi = readWebSource(
+            'src/app/(admin)/settings/objects/schema-package-studio.tsx',
+        );
+        expect(packageStudioUi).toContain('schema-package-studio');
+        expect(packageStudioUi).toContain('export-schema-bundle-btn');
+        expect(packageStudioUi).toContain('import-schema-bundle-btn');
     });
 });
 

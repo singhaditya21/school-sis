@@ -1055,3 +1055,175 @@ export function redactSensitiveWorkflowPayload(
     }
     return redacted;
 }
+
+export interface ScholarMindSchemaBundleField {
+    label: string;
+    apiName: string;
+    dataType: MetadataDataType;
+    isRequired: boolean;
+    picklistOptions: string[];
+    validationRules: MetadataValidationRules;
+}
+
+export interface ScholarMindSchemaBundleObject {
+    name: string;
+    apiName: string;
+    description: string;
+    fields: ScholarMindSchemaBundleField[];
+    layouts: {
+        layoutType: 'FORM' | 'LIST';
+        schema: Record<string, unknown>;
+    }[];
+}
+
+export interface ScholarMindSchemaBundleWorkflow {
+    name: string;
+    objectName: string;
+    triggerEvent: string;
+    conditions: { field: string; operator: string; value: string }[];
+    actionType: string;
+    actionPayload: Record<string, unknown>;
+}
+
+export interface ScholarMindSchemaBundle {
+    formatVersion: 'scholarmind.bundle.v1';
+    bundleName: string;
+    bundleDescription: string;
+    exportedAt: string;
+    objects: ScholarMindSchemaBundleObject[];
+    workflows: ScholarMindSchemaBundleWorkflow[];
+}
+
+/**
+ * Validates and normalizes a portable `.scholarmind.json` Schema Bundle (`ScholarMindSchemaBundle`)
+ * for Sandbox-to-Production and Multi-Campus deployments on Vercel + Neon PostgreSQL.
+ */
+export function validateScholarMindSchemaBundle(
+    raw: unknown,
+): { ok: true; bundle: ScholarMindSchemaBundle } | { ok: false; error: string } {
+    try {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+            return { ok: false, error: 'Schema bundle must be a JSON object.' };
+        }
+        const input = raw as Record<string, unknown>;
+        if (input.formatVersion !== 'scholarmind.bundle.v1') {
+            return {
+                ok: false,
+                error: 'Unsupported bundle formatVersion. Expected "scholarmind.bundle.v1".',
+            };
+        }
+        const bundleName = String(input.bundleName || '').trim();
+        if (!bundleName || bundleName.length > 140) {
+            return { ok: false, error: 'Bundle name is required (max 140 chars).' };
+        }
+        const bundleDescription = String(input.bundleDescription || '').trim().slice(0, 500);
+        const rawObjects = Array.isArray(input.objects) ? input.objects : [];
+        if (rawObjects.length === 0) {
+            return { ok: false, error: 'Schema bundle must include at least one object.' };
+        }
+        if (rawObjects.length > 50) {
+            return { ok: false, error: 'Schema bundle supports at most 50 objects per package.' };
+        }
+
+        const normalizedObjects: ScholarMindSchemaBundleObject[] = [];
+        for (const rawObj of rawObjects) {
+            if (!rawObj || typeof rawObj !== 'object') {
+                return { ok: false, error: 'Invalid object entry in schema bundle.' };
+            }
+            const o = rawObj as Record<string, unknown>;
+            const name = String(o.name || '').trim();
+            const apiName = String(o.apiName || '').trim().toLowerCase();
+            if (!name || name.length > 120) {
+                return { ok: false, error: `Object "${apiName || 'unknown'}" requires a valid name.` };
+            }
+            assertSafeMetadataIdentifier(apiName, 'bundle object API name');
+
+            const rawFields = Array.isArray(o.fields) ? o.fields : [];
+            const normalizedFields: ScholarMindSchemaBundleField[] = [];
+            for (const rf of rawFields) {
+                if (!rf || typeof rf !== 'object') continue;
+                const f = rf as Record<string, unknown>;
+                const normField = normalizeMetadataFieldInput({
+                    label: f.label,
+                    apiName: f.apiName,
+                    dataType: f.dataType,
+                    isRequired: f.isRequired,
+                    picklistOptions: f.picklistOptions,
+                    validationRules: f.validationRules,
+                });
+                normalizedFields.push(normField);
+            }
+
+            const rawLayouts = Array.isArray(o.layouts) ? o.layouts : [];
+            const normalizedLayouts: { layoutType: 'FORM' | 'LIST'; schema: Record<string, unknown> }[] = [];
+            for (const rl of rawLayouts) {
+                if (!rl || typeof rl !== 'object') continue;
+                const l = rl as Record<string, unknown>;
+                const lt = String(l.layoutType || '').toUpperCase();
+                if (lt !== 'FORM' && lt !== 'LIST') continue;
+                const schema =
+                    l.schema && typeof l.schema === 'object' && !Array.isArray(l.schema)
+                        ? (l.schema as Record<string, unknown>)
+                        : {};
+                normalizedLayouts.push({ layoutType: lt, schema });
+            }
+
+            normalizedObjects.push({
+                name,
+                apiName,
+                description: String(o.description || '').trim().slice(0, 500),
+                fields: normalizedFields,
+                layouts: normalizedLayouts,
+            });
+        }
+
+        const rawWorkflows = Array.isArray(input.workflows) ? input.workflows : [];
+        const normalizedWorkflows: ScholarMindSchemaBundleWorkflow[] = [];
+        for (const rw of rawWorkflows.slice(0, 100)) {
+            if (!rw || typeof rw !== 'object') continue;
+            const w = rw as Record<string, unknown>;
+            const wfName = String(w.name || '').trim();
+            const objName = String(w.objectName || '').trim().toLowerCase();
+            if (!wfName || !objName) continue;
+            assertSafeMetadataIdentifier(objName, 'workflow object API name');
+            const conditions = Array.isArray(w.conditions)
+                ? w.conditions
+                      .filter((c): c is Record<string, unknown> => Boolean(c && typeof c === 'object'))
+                      .map((c) => ({
+                          field: String(c.field || '').trim(),
+                          operator: String(c.operator || 'equals').trim(),
+                          value: String(c.value ?? '').trim(),
+                      }))
+                : [];
+            const rawPayload =
+                w.actionPayload && typeof w.actionPayload === 'object' && !Array.isArray(w.actionPayload)
+                    ? (w.actionPayload as Record<string, unknown>)
+                    : {};
+            normalizedWorkflows.push({
+                name: wfName,
+                objectName: objName,
+                triggerEvent: String(w.triggerEvent || 'object.record.upserted').trim(),
+                conditions,
+                actionType: String(w.actionType || 'CREATE_TASK').trim().toUpperCase(),
+                actionPayload: redactSensitiveWorkflowPayload(rawPayload),
+            });
+        }
+
+        return {
+            ok: true,
+            bundle: {
+                formatVersion: 'scholarmind.bundle.v1',
+                bundleName,
+                bundleDescription,
+                exportedAt: String(input.exportedAt || new Date().toISOString()),
+                objects: normalizedObjects,
+                workflows: normalizedWorkflows,
+            },
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Invalid schema bundle.',
+        };
+    }
+}

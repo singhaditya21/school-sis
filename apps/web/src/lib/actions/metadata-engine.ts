@@ -38,9 +38,11 @@ import {
     quoteIdentifier,
     redactSensitiveWorkflowPayload,
     validateMetadataRecordPayload,
+    validateScholarMindSchemaBundle,
     type DuplicateMatchEntry,
     type MetadataDataType,
     type MetadataValidationRules,
+    type ScholarMindSchemaBundle,
 } from '@/lib/metadata/platform';
 import {
     getEducationBlueprintById,
@@ -3698,6 +3700,373 @@ export async function lookupPublicPortalRecordStatus(
         };
     }
 }
+
+// ============================================================================
+// 11. Track D: Native Schema Package Studio (Export & Import .scholarmind.json Bundles)
+// ============================================================================
+
+/**
+ * Exports selected (or all) tenant custom objects, fields, validation rules, layouts,
+ * and workflow automations into a portable `.scholarmind.json` Schema Bundle (`ScholarMindSchemaBundle`)
+ * for Sandbox-to-Production and Multi-Campus deployment on Vercel + Neon PostgreSQL.
+ */
+export async function exportTenantSchemaBundle(params: {
+    bundleName: string;
+    bundleDescription?: string;
+    objectApiNames?: string[];
+}): Promise<{
+    success: boolean;
+    bundle?: ScholarMindSchemaBundle;
+    error?: string;
+}> {
+    try {
+        const { tenantId, userId } = await requireAuth('metadata:publish');
+        const bundleName = String(params.bundleName || 'ScholarMind Campus Schema Bundle').trim();
+
+        const objectRows = await sql<{
+            id: string;
+            name: string;
+            api_name: string;
+            description: string | null;
+        }>`
+            SELECT id, name, api_name, description
+            FROM metadata_objects
+            WHERE tenant_id = ${tenantId}
+              AND status = 'PUBLISHED'
+            ORDER BY name ASC
+        `;
+
+        const filterSet =
+            Array.isArray(params.objectApiNames) && params.objectApiNames.length > 0
+                ? new Set(params.objectApiNames.map(a => a.trim().toLowerCase()))
+                : null;
+
+        const selectedObjects = filterSet
+            ? objectRows.filter(o => filterSet.has(o.api_name.toLowerCase()))
+            : objectRows;
+
+        if (selectedObjects.length === 0) {
+            return {
+                success: false,
+                error: 'No published custom objects found to export into the schema bundle.',
+            };
+        }
+
+        const bundleObjects: ScholarMindSchemaBundle['objects'] = [];
+        const selectedApiNames = new Set<string>();
+
+        for (const obj of selectedObjects) {
+            selectedApiNames.add(obj.api_name.toLowerCase());
+            const fieldRows = await sql<{
+                label: string;
+                api_name: string;
+                data_type: MetadataDataType;
+                is_required: boolean;
+                picklist_options: string[] | null;
+                validation_rules: MetadataValidationRules | null;
+            }>`
+                SELECT label, api_name, data_type, is_required, picklist_options, validation_rules
+                FROM metadata_fields
+                WHERE object_id = ${obj.id}
+                  AND status = 'ACTIVE'
+                ORDER BY created_at ASC
+            `;
+
+            const layoutRows = await sql<{
+                layout_type: 'FORM' | 'LIST';
+                schema: Record<string, unknown>;
+            }>`
+                SELECT layout_type, schema
+                FROM metadata_layouts
+                WHERE object_id = ${obj.id}
+                  AND layout_type IN ('FORM', 'LIST')
+            `;
+
+            bundleObjects.push({
+                name: obj.name,
+                apiName: obj.api_name,
+                description: obj.description || '',
+                fields: fieldRows.map(f => ({
+                    label: f.label,
+                    apiName: f.api_name,
+                    dataType: f.data_type,
+                    isRequired: Boolean(f.is_required),
+                    picklistOptions: Array.isArray(f.picklist_options) ? f.picklist_options : [],
+                    validationRules: f.validation_rules || {},
+                })),
+                layouts: layoutRows.map(l => ({
+                    layoutType: l.layout_type,
+                    schema: l.schema || {},
+                })),
+            });
+        }
+
+        const workflowRows = await sql<{
+            name: string;
+            object_name: string;
+            trigger_event: string;
+            conditions: { field: string; operator: string; value: string }[] | null;
+            action_type: string;
+            action_payload: Record<string, unknown> | null;
+        }>`
+            SELECT name, object_name, trigger_event, conditions, action_type, action_payload
+            FROM metadata_workflows
+            WHERE tenant_id = ${tenantId}
+              AND is_active = true
+        `;
+
+        const bundleWorkflows = workflowRows
+            .filter(w => selectedApiNames.has(w.object_name.toLowerCase()))
+            .map(w => ({
+                name: w.name,
+                objectName: w.object_name,
+                triggerEvent: w.trigger_event,
+                conditions: Array.isArray(w.conditions) ? w.conditions : [],
+                actionType: w.action_type,
+                actionPayload: redactSensitiveWorkflowPayload(w.action_payload || {}),
+            }));
+
+        const bundle: ScholarMindSchemaBundle = {
+            formatVersion: 'scholarmind.bundle.v1',
+            bundleName,
+            bundleDescription:
+                String(params.bundleDescription || '').trim() ||
+                `Exported ${bundleObjects.length} object(s) and ${bundleWorkflows.length} workflow(s).`,
+            exportedAt: new Date().toISOString(),
+            objects: bundleObjects,
+            workflows: bundleWorkflows,
+        };
+
+        await sql`
+            INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, after_state)
+            VALUES (
+                ${tenantId},
+                ${userId},
+                'SCHEMA_BUNDLE_EXPORTED',
+                'metadata_bundle',
+                ${JSON.stringify({
+                    bundleName,
+                    objectCount: bundleObjects.length,
+                    workflowCount: bundleWorkflows.length,
+                    exportedAt: bundle.exportedAt,
+                })}::jsonb
+            )
+        `.execute();
+
+        return { success: true, bundle };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to export schema bundle.',
+        };
+    }
+}
+
+/**
+ * Validates and deploys a `.scholarmind.json` Schema Bundle (`ScholarMindSchemaBundle`)
+ * idempotently into the current tenant on Neon PostgreSQL, provisioning objects, fields,
+ * layouts, and workflows in a single database transaction.
+ */
+export async function importTenantSchemaBundle(
+    rawBundle: unknown,
+): Promise<{
+    success: boolean;
+    importedObjects: string[];
+    importedFields: number;
+    importedWorkflows: number;
+    error?: string;
+}> {
+    try {
+        const { tenantId, userId } = await requireAuth('metadata:publish');
+        const validated = validateScholarMindSchemaBundle(rawBundle);
+        if (validated.ok === false) {
+            return {
+                success: false,
+                importedObjects: [],
+                importedFields: 0,
+                importedWorkflows: 0,
+                error: validated.error,
+            };
+        }
+
+        const { bundle } = validated;
+        const client = await pool.connect();
+        const q = sqlFor(client);
+        const importedObjects: string[] = [];
+        let importedFields = 0;
+        let importedWorkflows = 0;
+
+        try {
+            await q`BEGIN`.execute();
+
+            for (const objSpec of bundle.objects) {
+                const existingObj = await q<{ id: string }>`
+                    SELECT id
+                    FROM metadata_objects
+                    WHERE tenant_id = ${tenantId}
+                      AND api_name = ${objSpec.apiName}
+                    LIMIT 1
+                `;
+
+                let objectId: string;
+                if (existingObj.length > 0) {
+                    objectId = existingObj[0].id;
+                    await q`
+                        UPDATE metadata_objects
+                        SET name = ${objSpec.name},
+                            description = ${objSpec.description},
+                            status = 'PUBLISHED'
+                        WHERE id = ${objectId}
+                    `.execute();
+                } else {
+                    const insertedObj = await q<{ id: string }>`
+                        INSERT INTO metadata_objects (
+                            tenant_id, name, api_name, table_name, description, is_custom,
+                            status, version, published_version, published_at
+                        )
+                        VALUES (
+                            ${tenantId},
+                            ${objSpec.name},
+                            ${objSpec.apiName},
+                            ${metadataTableNameForNewObject()},
+                            ${objSpec.description},
+                            true,
+                            'PUBLISHED',
+                            1,
+                            1,
+                            NOW()
+                        )
+                        RETURNING id
+                    `;
+                    objectId = insertedObj[0].id;
+                }
+
+                for (const fieldSpec of objSpec.fields) {
+                    const existingField = await q<{ id: string }>`
+                        SELECT id
+                        FROM metadata_fields
+                        WHERE object_id = ${objectId}
+                          AND api_name = ${fieldSpec.apiName}
+                        LIMIT 1
+                    `;
+                    if (existingField.length === 0) {
+                        await q`
+                            INSERT INTO metadata_fields (
+                                object_id, label, api_name, data_type, is_custom, is_required,
+                                picklist_options, validation_rules, status, version
+                            )
+                            VALUES (
+                                ${objectId},
+                                ${fieldSpec.label},
+                                ${fieldSpec.apiName},
+                                ${fieldSpec.dataType},
+                                true,
+                                ${fieldSpec.isRequired},
+                                ${JSON.stringify(fieldSpec.picklistOptions)}::jsonb,
+                                ${JSON.stringify(fieldSpec.validationRules)}::jsonb,
+                                'ACTIVE',
+                                1
+                            )
+                        `.execute();
+                        importedFields++;
+                    }
+                }
+
+                if (objSpec.layouts.length > 0) {
+                    for (const layoutSpec of objSpec.layouts) {
+                        await q`
+                            DELETE FROM metadata_layouts
+                            WHERE object_id = ${objectId}
+                              AND layout_type = ${layoutSpec.layoutType}
+                        `.execute();
+                        await q`
+                            INSERT INTO metadata_layouts (object_id, layout_type, schema, is_default, created_at)
+                            VALUES (
+                                ${objectId},
+                                ${layoutSpec.layoutType},
+                                ${JSON.stringify(layoutSpec.schema)}::jsonb,
+                                true,
+                                NOW()
+                            )
+                        `.execute();
+                    }
+                }
+
+                importedObjects.push(objSpec.apiName);
+            }
+
+            for (const wfSpec of bundle.workflows) {
+                const existingWf = await q<{ id: string }>`
+                    SELECT id
+                    FROM metadata_workflows
+                    WHERE tenant_id = ${tenantId}
+                      AND name = ${wfSpec.name}
+                      AND object_name = ${wfSpec.objectName}
+                    LIMIT 1
+                `;
+                if (existingWf.length === 0) {
+                    await q`
+                        INSERT INTO metadata_workflows (
+                            tenant_id, name, object_name, trigger_event, conditions,
+                            action_type, action_payload, is_active
+                        )
+                        VALUES (
+                            ${tenantId},
+                            ${wfSpec.name},
+                            ${wfSpec.objectName},
+                            ${wfSpec.triggerEvent},
+                            ${JSON.stringify(wfSpec.conditions)}::jsonb,
+                            ${wfSpec.actionType},
+                            ${JSON.stringify(wfSpec.actionPayload)}::jsonb,
+                            true
+                        )
+                    `.execute();
+                    importedWorkflows++;
+                }
+            }
+
+            await q`
+                INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, after_state)
+                VALUES (
+                    ${tenantId},
+                    ${userId},
+                    'SCHEMA_BUNDLE_IMPORTED',
+                    'metadata_bundle',
+                    ${JSON.stringify({
+                        bundleName: bundle.bundleName,
+                        importedObjects,
+                        importedFields,
+                        importedWorkflows,
+                        importedAt: new Date().toISOString(),
+                    })}::jsonb
+                )
+            `.execute();
+
+            await q`COMMIT`.execute();
+            revalidateTag('metadata', 'max');
+            return {
+                success: true,
+                importedObjects,
+                importedFields,
+                importedWorkflows,
+            };
+        } catch (err) {
+            await q`ROLLBACK`.execute();
+            throw err;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return {
+            success: false,
+            importedObjects: [],
+            importedFields: 0,
+            importedWorkflows: 0,
+            error: error instanceof Error ? error.message : 'Failed to import schema bundle.',
+        };
+    }
+}
+
 
 
 

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { getObjectFieldCounts, getObjectRecordCounts } from './actions';
 import NewObjectDialog from './new-object-dialog';
 import { BlueprintInstaller } from './blueprint-installer';
+import { SchemaPackageStudio } from './schema-package-studio';
 import { METADATA_EAV_TABLE_NAME } from '@school-sis/api/src/metadata/runtime';
 
 export const dynamic = 'force-dynamic';
@@ -57,6 +58,12 @@ export default async function ObjectManagerListPage() {
             </div>
 
             <BlueprintInstaller existingObjectApiNames={objects.map(o => o.api_name)} />
+
+            <SchemaPackageStudio
+                customObjects={objects
+                    .filter(o => o.is_custom)
+                    .map(o => ({ apiName: o.api_name, name: o.name }))}
+            />
 
             {objects.length === 0 ? (
                 <Card>
