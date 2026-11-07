@@ -38,6 +38,13 @@ function allowlist() {
         expires: "2026-12-31",
         reason: "Scoped build/test globbing exposure.",
       },
+      "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5": {
+        module: "zod",
+        severity: "high",
+        pathPrefix: "* >",
+        expires: "2026-12-31",
+        reason: "Zod 3 retained until coordinated zod 4 migration.",
+      },
     },
   };
 }
