@@ -27,6 +27,13 @@
       "pathPrefix": "* >",
       "expires": "2026-12-31",
       "reason": "No patched release exists (patched_versions <0.0.0); exposure is confined to build/test/lint file-globbing dependencies (micromatch/chokidar) and is not user-controlled at runtime."
+    },
+    "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5": {
+      "module": "zod",
+      "severity": "high",
+      "pathPrefix": "* >",
+      "expires": "2026-12-31",
+      "reason": "Advisory patches only exist on zod 4.6.6+; the app and Expo/Vercel CLI graphs remain on zod 3 until a coordinated zod 4 migration. Zod 4 paths are overridden to 4.6.7."
     }
   }
 }

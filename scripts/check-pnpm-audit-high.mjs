@@ -9,6 +9,7 @@ const KNOWN_SEVERITIES = ["info", "low", "moderate", "high", "critical"];
 const OBSERVED_IMAGE_SIZE_VERSIONS = Object.freeze(["1.2.1"]);
 const OBSERVED_NODE_FORGE_VERSIONS = Object.freeze(["1.4.0"]);
 const OBSERVED_BRACES_VERSIONS = Object.freeze(["3.0.3"]);
+const OBSERVED_ZOD3_VERSIONS = Object.freeze(["3.22.4", "3.25.76"]);
 const OBSERVED_BUILD_TOOL_SUFFIXES = Object.freeze([
   Object.freeze([
     "react-native@0.85.3",
@@ -30,11 +31,16 @@ const OBSERVED_BRACES_SUFFIXES = Object.freeze([
   Object.freeze(["micromatch@4.0.8", "braces@3.0.3"]),
   Object.freeze(["chokidar@3.6.0", "braces@3.0.3"]),
 ]);
+const OBSERVED_ZOD3_SUFFIXES = Object.freeze([
+  Object.freeze(["zod@3.22.4"]),
+  Object.freeze(["zod@3.25.76"]),
+]);
 const ALLOWED_WORKSPACE_PREFIXES = new Set([
   ". >",
   "apps/mobile >",
   "apps/web >",
   "apps/website >",
+  "packages/api >",
 ]);
 const ALLOWED_EXCEPTION_POLICY = Object.freeze({
   "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr": Object.freeze({
@@ -68,6 +74,14 @@ const ALLOWED_EXCEPTION_POLICY = Object.freeze({
     expires: "2026-12-31",
     findingVersions: OBSERVED_BRACES_VERSIONS,
     buildToolSuffixes: OBSERVED_BRACES_SUFFIXES,
+  }),
+  "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5": Object.freeze({
+    module: "zod",
+    severity: "high",
+    pathPrefix: "* >",
+    expires: "2026-12-31",
+    findingVersions: OBSERVED_ZOD3_VERSIONS,
+    buildToolSuffixes: OBSERVED_ZOD3_SUFFIXES,
   }),
 });
 
@@ -188,6 +202,11 @@ function validateFindingPath(path, findingVersion, policy, label) {
 
   for (const [segmentIndex, segment] of segments.entries()) {
     const normalized = segment.replaceAll("\\", "/");
+    // pnpm workspace links look like `pkg@link:../../packages/api` and are not
+    // filesystem escapes in the audit-path sense.
+    if (normalized.includes("link:")) {
+      continue;
+    }
     if (
       (normalized === "." && segmentIndex !== 0) ||
       normalized === ".." ||
