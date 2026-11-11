@@ -98,7 +98,7 @@ export default async function DashboardLayout({
                             className="group flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors"
                         >
                             <BarChart3 className="w-4 h-4 text-muted-foreground group-hover:text-brass shrink-0" />
-                            <span className="text-sm font-medium">Executive Overview</span>
+                            <span className="text-sm font-medium">Executive Dashboard</span>
                         </Link>
                         <Link
                             href="/students"
