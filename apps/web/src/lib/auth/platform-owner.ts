@@ -10,6 +10,8 @@
 export const PERMANENT_PLATFORM_ADMIN_EMAIL = 'singhaditya21@gmail.com';
 export const PLATFORM_HQ_TENANT_CODE = 'HQ';
 export const PLATFORM_HQ_COMPANY_NAME = 'ScholarMind HQ';
+export const DEMO_SANDBOX_TENANT_CODE = 'DEMO-CAMPUS';
+export const DEMO_SANDBOX_COMPANY_NAME = 'Delhi Heritage Public School (Sandbox)';
 
 export const CORE_DEFAULT_MODULES = [
     'ATTENDANCE',
@@ -60,6 +62,9 @@ export const RESERVED_WORKSPACE_CODES = new Set([
     'SYSTEM',
     'ROOT',
     'SUPPORT',
+    'DEMO',
+    'DEMO-CAMPUS',
+    'SANDBOX',
 ]);
 
 export function isPermanentPlatformAdminEmail(email: string | null | undefined): boolean {

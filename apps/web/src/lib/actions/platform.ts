@@ -16,6 +16,7 @@ import {
     PLATFORM_HQ_COMPANY_NAME,
     PLATFORM_HQ_TENANT_CODE,
 } from '@/lib/auth/platform-owner';
+import { estimateMonthlySubscription } from '@/lib/billing/pricing-catalog';
 import { logger } from '@/lib/observability/logger';
 import crypto from 'crypto';
 
@@ -537,20 +538,27 @@ export async function getPlatformBillingStats() {
     `;
 
     const invoices = rows.map((row) => {
-        let amount = 0;
         const students = Number(row.students);
-        if (row.tier === 'CORE') amount = students * 10;
-        if (row.tier === 'AI_PRO') amount = students * 18;
-        if (row.tier === 'ENTERPRISE') amount = students * 30;
+        const isHq = row.school.trim().toLowerCase() === PLATFORM_HQ_COMPANY_NAME.toLowerCase();
+        const estimate = isHq
+            ? { subtotalInr: 0, gstInr: 0, totalWithGstInr: 0, amountUsd: 0 }
+            : estimateMonthlySubscription(row.tier, students, { applyCampusFloor: students > 0 });
 
         return {
             id: row.id.substring(0, 8),
             rawId: row.id,
             school: row.school,
-            amount,
+            students,
+            amount: estimate.subtotalInr,
+            subtotalInr: estimate.subtotalInr,
+            gstInr: estimate.gstInr,
+            totalWithGstInr: estimate.totalWithGstInr,
+            amountUsd: estimate.amountUsd,
             status: row.status || 'PAID', // Fallback to PAID if no billing sync
-            date: row.date ? new Date(row.date).toLocaleDateString() : 'N/A',
-            tier: row.tier
+            date: row.date
+                ? new Date(row.date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })
+                : 'N/A',
+            tier: row.tier,
         };
     });
 

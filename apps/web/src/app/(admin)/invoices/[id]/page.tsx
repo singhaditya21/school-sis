@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { getInvoiceDetail } from '@/lib/actions/queries';
 import { RecordPaymentForm } from '@/components/fees/record-payment-form';
 import { InvoiceCorrection } from '@/components/fees/invoice-correction';
+import { SharePaymentLinkButton } from '@/components/fees/share-payment-link-button';
 import { requireAuth } from '@/lib/auth/middleware';
 import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 import { formatCurrency } from '@/lib/utils';
@@ -74,6 +75,20 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                     </CardContent>
                 </Card>
             </div>
+
+            {balance > 0 && invoice.status !== 'CANCELLED' && invoice.status !== 'WAIVED' && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>WhatsApp &amp; 1-Click UPI Payment Link</CardTitle>
+                        <CardDescription>
+                            Generate a signed, no-login parent payment link for UPI (GPay / PhonePe / Paytm), NetBanking, or Card checkout.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <SharePaymentLinkButton invoiceId={invoice.id} />
+                    </CardContent>
+                </Card>
+            )}
 
             <Card>
                 <CardHeader>

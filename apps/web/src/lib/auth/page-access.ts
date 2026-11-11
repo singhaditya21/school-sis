@@ -31,7 +31,7 @@ export const PARENT_PAGE_ROLES = ['PARENT'] as const;
 export const STUDENT_PAGE_ROLES = ['STUDENT'] as const;
 export const OPERATOR_PAGE_ROLES = ['PLATFORM_ADMIN', 'SUPER_ADMIN', 'SCHOOL_ADMIN'] as const;
 
-export const PUBLIC_PAGE_PREFIXES = ['/', '/login', '/register', '/setup'] as const;
+export const PUBLIC_PAGE_PREFIXES = ['/', '/login', '/register', '/setup', '/demo', '/pay'] as const;
 
 const ADMIN_PAGE_PREFIXES = [
     '/admissions',

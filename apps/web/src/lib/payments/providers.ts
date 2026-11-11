@@ -13,11 +13,29 @@ export type ProviderOrder = {
     checkoutUrl?: string | null;
 };
 
+export type RazorpayRouteTransfer = {
+    account: string;
+    amount: number;
+    currency: string;
+    on_hold?: boolean;
+    notes?: Record<string, string>;
+};
+
 export type CreateProviderOrderInput = {
     amountMinor: number;
     currency: string;
     receipt: string;
     notes: Record<string, string>;
+    transfers?: RazorpayRouteTransfer[];
+};
+
+export type CreateRazorpayPaymentLinkInput = {
+    amountMinor: number;
+    currency: string;
+    referenceId: string;
+    description: string;
+    callbackUrl?: string;
+    notes?: Record<string, string>;
 };
 
 export type CreateStripeCheckoutInput = CreateProviderOrderInput & {
@@ -113,6 +131,42 @@ export function requirePaymentPublicKey(name: string): string {
     return value;
 }
 
+export function isRazorpayConfigured(): boolean {
+    const keyId = (process.env.RAZORPAY_KEY_ID || '').trim();
+    const keySecret = (process.env.RAZORPAY_KEY_SECRET || '').trim();
+    if (keyId.length < 8 || keySecret.length < 16) return false;
+    if (process.env.NODE_ENV === 'production') {
+        try {
+            rejectPlaceholderSecret('RAZORPAY_KEY_ID', keyId);
+            rejectPlaceholderSecret('RAZORPAY_KEY_SECRET', keySecret);
+        } catch {
+            return false;
+        }
+    }
+    return true;
+}
+
+export function isStripeConfigured(): boolean {
+    const secret = (process.env.STRIPE_SECRET_KEY || '').trim();
+    if (secret.length < 16) return false;
+    if (process.env.NODE_ENV === 'production') {
+        try {
+            rejectPlaceholderSecret('STRIPE_SECRET_KEY', secret);
+        } catch {
+            return false;
+        }
+    }
+    return true;
+}
+
+export function resolveRazorpayRouteAccountId(explicitAccountId?: string | null): string | null {
+    const candidate = (explicitAccountId || process.env.RAZORPAY_ROUTE_ACCOUNT_ID || '').trim();
+    if (!candidate || !/^acc_[A-Za-z0-9]{8,32}$/.test(candidate)) {
+        return null;
+    }
+    return candidate;
+}
+
 export class RazorpayGateway {
     readonly provider = 'RAZORPAY' as const;
     readonly keyId: string;
@@ -140,6 +194,7 @@ export class RazorpayGateway {
                 currency: input.currency,
                 receipt: input.receipt,
                 notes: input.notes,
+                ...(input.transfers && input.transfers.length > 0 ? { transfers: input.transfers } : {}),
             }),
         });
 
@@ -155,6 +210,45 @@ export class RazorpayGateway {
             currency: data.currency,
             status: data.status || 'created',
             publicKey: this.keyId,
+        };
+    }
+
+    async createPaymentLink(input: CreateRazorpayPaymentLinkInput): Promise<ProviderOrder> {
+        const response = await fetch(`${this.baseUrl}/payment_links`, {
+            method: 'POST',
+            headers: {
+                authorization: this.authHeader,
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                amount: input.amountMinor,
+                currency: input.currency,
+                accept_partial: false,
+                reference_id: input.referenceId.slice(0, 40),
+                description: input.description.slice(0, 200),
+                ...(input.callbackUrl
+                    ? {
+                        callback_url: input.callbackUrl,
+                        callback_method: 'get',
+                    }
+                    : {}),
+                notes: input.notes || {},
+            }),
+        });
+
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data?.short_url) {
+            throw new Error(data?.error?.description || 'Razorpay payment link creation failed.');
+        }
+
+        return {
+            provider: this.provider,
+            providerOrderId: data.id,
+            amountMinor: data.amount ?? input.amountMinor,
+            currency: (data.currency || input.currency).toUpperCase(),
+            status: data.status || 'created',
+            publicKey: this.keyId,
+            checkoutUrl: data.short_url,
         };
     }
 

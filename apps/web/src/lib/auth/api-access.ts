@@ -207,6 +207,12 @@ export const API_ACCESS_POLICIES = [
         expectedGuardSnippets: ['requireApiAuth'],
     },
     {
+        prefix: '/api/payments/link',
+        boundary: 'public-rate-limited',
+        description: 'HMAC-signed WhatsApp invoice payment link order and verification endpoint.',
+        expectedGuardSnippets: ['consumeRateLimit', 'verifyInvoicePaymentToken'],
+    },
+    {
         prefix: '/api/payments/webhook',
         boundary: 'provider-webhook',
         description: 'Payment provider webhook endpoint.',

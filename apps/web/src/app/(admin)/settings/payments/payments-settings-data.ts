@@ -2,7 +2,11 @@ import { redirect } from 'next/navigation';
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { hasPermission, UserRole } from '@/lib/rbac/permissions';
-import { getStripeClient } from '@/lib/payments/providers';
+import {
+    getStripeClient,
+    isRazorpayConfigured,
+    resolveRazorpayRouteAccountId,
+} from '@/lib/payments/providers';
 
 /**
  * Payment-processing settings.
@@ -49,6 +53,9 @@ export type PaymentsSettings = {
     /** Server-side credential presence. Never the values themselves. */
     secretKeyConfigured: boolean;
     webhookSecretConfigured: boolean;
+    razorpayConfigured: boolean;
+    razorpayWebhookConfigured: boolean;
+    razorpayRouteAccountId: string | null;
     connectedAccountId: string | null;
     state: StripeOnboardingState;
     detailsSubmitted: boolean | null;
@@ -103,10 +110,16 @@ export async function getPaymentsSettings(): Promise<PaymentsSettings> {
     ]);
 
     const secretKeyConfigured = isStripeSecretConfigured();
+    const razorpayConfigured = isRazorpayConfigured();
+    const razorpayWebhookConfigured = (process.env.RAZORPAY_WEBHOOK_SECRET ?? '').length >= 16;
+    const razorpayRouteAccountId = resolveRazorpayRouteAccountId();
     const base = {
         canManage,
         secretKeyConfigured,
         webhookSecretConfigured: isStripeWebhookSecretConfigured(),
+        razorpayConfigured,
+        razorpayWebhookConfigured,
+        razorpayRouteAccountId,
         connectedAccountId,
         detailsSubmitted: null,
         chargesEnabled: null,

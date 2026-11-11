@@ -168,6 +168,14 @@ export const API_ROUTES: readonly ApiRouteDoc[] = [
         permission: 'payments:create',
     },
     {
+        path: '/api/payments/link',
+        methods: ['POST'],
+        group: 'Fees',
+        summary: 'Create or verify a Razorpay UPI/card order against a signed WhatsApp payment link token.',
+        auth: 'public',
+        note: 'Rate limited per client IP and gated by a short-lived HMAC-SHA256 tenant/invoice signature token.',
+    },
+    {
         path: '/api/payments/orders',
         methods: ['POST'],
         group: 'Fees',

@@ -2,15 +2,22 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import type { BillingCurrency } from '@/lib/billing/pricing-catalog';
 
 export function UpgradePlanButton({
     planType,
     label,
     variant = 'outline',
+    currency = 'INR',
+    gstin = '',
+    estimatedStudents,
 }: {
     planType: 'AI_PRO' | 'ENTERPRISE';
     label: string;
     variant?: 'primary' | 'outline';
+    currency?: BillingCurrency;
+    gstin?: string;
+    estimatedStudents?: number;
 }) {
     const [loading, setLoading] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
@@ -22,7 +29,12 @@ export function UpgradePlanButton({
             const response = await fetch('/api/checkout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ planType }),
+                body: JSON.stringify({
+                    planType,
+                    currency,
+                    ...(gstin.trim() ? { gstin: gstin.trim().toUpperCase() } : {}),
+                    ...(estimatedStudents ? { estimatedStudents } : {}),
+                }),
             });
             const data = (await response.json().catch(() => ({}))) as {
                 url?: string;
@@ -34,7 +46,9 @@ export function UpgradePlanButton({
             }
             if (response.status === 503) {
                 setNotice(
-                    'Self-serve card checkout is being finalized for this environment. Your Core SIS workspace is already active — continue setup now and our team can upgrade your tier anytime.',
+                    currency === 'INR'
+                        ? 'Online Razorpay / GST subscription billing is being finalized on this deployment. Your Core SIS workspace is already active — continue setup now and our onboarding team can issue a GST tax invoice (SAC 998314) anytime.'
+                        : 'Self-serve card checkout is being finalized for this environment. Your Core SIS workspace is already active — continue setup now and our team can upgrade your tier anytime.',
                 );
             } else {
                 setNotice(data.error || 'Unable to start subscription checkout right now.');

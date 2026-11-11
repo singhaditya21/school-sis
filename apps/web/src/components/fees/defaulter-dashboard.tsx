@@ -27,6 +27,7 @@ import type {
     DefaulterItem,
 } from '@/lib/actions/fees';
 import { formatCompactCurrency as formatCurrency } from '@/lib/format';
+import { SharePaymentLinkButton } from '@/components/fees/share-payment-link-button';
 
 
 // ─── Summary Cards ───────────────────────────────────────────
@@ -293,15 +294,22 @@ function DefaulterTable({
                                             >
                                                 <FileText className="w-4 h-4" />
                                             </Link>
-                                            <button
-                                                type="button"
-                                                disabled
-                                                className="p-1.5 rounded-lg text-muted-foreground opacity-40 cursor-not-allowed"
-                                                title="Configure a live fee-reminder notification workflow first."
-                                                aria-label="Send reminder — not available"
-                                            >
-                                                <Send className="w-4 h-4" />
-                                            </button>
+                                            {payableInvoiceIds[d.studentId] ? (
+                                                <SharePaymentLinkButton
+                                                    invoiceId={payableInvoiceIds[d.studentId]}
+                                                    compact
+                                                />
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    disabled
+                                                    className="p-1.5 rounded-lg text-muted-foreground opacity-40 cursor-not-allowed"
+                                                    title="No single overdue invoice available for direct link."
+                                                    aria-label="Send reminder — not available"
+                                                >
+                                                    <Send className="w-4 h-4" />
+                                                </button>
+                                            )}
                                             {payableInvoiceIds[d.studentId] ? (
                                                 <Link
                                                     href={`/invoices/${payableInvoiceIds[d.studentId]}`}

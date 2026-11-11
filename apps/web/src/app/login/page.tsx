@@ -287,6 +287,18 @@ export default function LoginPage() {
                             </CardContent>
                             <CardFooter className="flex-col gap-3 pt-0">
                                 <Separator />
+                                <div className="w-full rounded-xl border border-primary/20 bg-primary/5 p-3 text-center">
+                                    <p className="text-xs text-muted-foreground mb-1.5">
+                                        Evaluating ScholarMind for your school or trust?
+                                    </p>
+                                    <Link
+                                        href="/demo"
+                                        data-testid="explore-live-demo-link"
+                                        className="inline-flex items-center justify-center text-sm font-semibold text-primary hover:underline"
+                                    >
+                                        ✨ Launch 1-Click Interactive Demo Campus →
+                                    </Link>
+                                </div>
                                 <p className="text-sm text-center text-muted-foreground">
                                     New school or institution?{' '}
                                     <Link

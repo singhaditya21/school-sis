@@ -20,10 +20,48 @@ export default async function PaymentsSettingsPage() {
                     Payment Processing
                 </h1>
                 <p className="text-muted-foreground mt-1">
-                    Stripe Connect lets parents pay invoices online, with funds settling into the school&apos;s own
-                    bank account.
+                    Collect parent fees online via Razorpay India (UPI Intent, QR, NetBanking, Cards &amp; Route Split Settlements) and Stripe Connect.
                 </p>
             </div>
+
+            {/* Razorpay India — Primary Domestic Fee Gateway */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        {settings.razorpayConfigured ? (
+                            <CheckCircle2 className="h-5 w-5 text-success" />
+                        ) : (
+                            <CreditCard className="h-5 w-5 text-primary" />
+                        )}
+                        Razorpay India (UPI · NetBanking · RuPay · Route)
+                        <Badge variant={settings.razorpayConfigured ? 'default' : 'outline'}>
+                            {settings.razorpayConfigured ? 'Active' : 'Awaiting Keys'}
+                        </Badge>
+                    </CardTitle>
+                    <CardDescription>
+                        Powers parent portal UPI payments (/my-fees/pay) and 1-click no-login WhatsApp payment links (/pay/[token]).
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                    {settings.razorpayConfigured ? (
+                        <p className="text-success font-medium">
+                            ✓ Razorpay API keys are configured. Parents can pay invoices via GPay, PhonePe, Paytm, NetBanking, and Cards.
+                        </p>
+                    ) : (
+                        <p className="text-muted-foreground">
+                            Set <code className="font-mono">RAZORPAY_KEY_ID</code>, <code className="font-mono">RAZORPAY_KEY_SECRET</code>, and <code className="font-mono">RAZORPAY_WEBHOOK_SECRET</code> (plus optional <code className="font-mono">RAZORPAY_ROUTE_ACCOUNT_ID</code> for split campus settlement) on your deployment environment.
+                        </p>
+                    )}
+                    <div className="flex flex-wrap gap-2 text-xs">
+                        <Badge variant="secondary">
+                            Webhook Signature: {settings.razorpayWebhookConfigured ? 'Configured' : 'Not set'}
+                        </Badge>
+                        <Badge variant="secondary">
+                            Split Route Account: {settings.razorpayRouteAccountId ? maskAccountId(settings.razorpayRouteAccountId) : 'Direct Merchant Settlement'}
+                        </Badge>
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* Connection state — read back from Stripe, not inferred from the database. */}
             <Card>

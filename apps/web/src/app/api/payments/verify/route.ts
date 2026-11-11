@@ -19,7 +19,15 @@ const VerifyPaymentSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-    const auth = await requireApiAuth(['PARENT', 'ACCOUNTANT', 'SCHOOL_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN']);
+    const auth = await requireApiAuth([
+        'PARENT',
+        'STUDENT',
+        'FINANCE_LEAD',
+        'ACCOUNTANT',
+        'SCHOOL_ADMIN',
+        'SUPER_ADMIN',
+        'PLATFORM_ADMIN',
+    ]);
     if (auth.ok === false) return auth.response;
 
     try {

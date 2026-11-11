@@ -40,7 +40,7 @@ export default function LandingPage() {
                         Reconcile fee data, govern sensitive exceptions, and compare campus performance while your existing systems remain in place.
                     </p>
                     
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-8">
+                    <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-4 pt-8">
                         <a
                             href={`${appUrl}/setup`}
                             data-testid="hero-start-workspace"
@@ -48,6 +48,13 @@ export default function LandingPage() {
                         >
                             Start school workspace
                             <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20}/>
+                        </a>
+                        <a
+                            href={`${appUrl}/demo`}
+                            data-testid="hero-explore-demo"
+                            className="px-8 py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-lg transition-all shadow-lg"
+                        >
+                            Explore live demo
                         </a>
                         <Link href="/book-demo" className="px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg transition-all shadow-lg">
                             Book a pilot assessment

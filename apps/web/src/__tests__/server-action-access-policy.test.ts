@@ -11,6 +11,7 @@ const SRC_DIR = path.join(process.cwd(), 'src');
 const PUBLIC_RATE_LIMITED_SERVER_ACTIONS = new Set([
     'lib/actions/auth.ts::loginAction',
     'lib/actions/onboarding.ts::setupSchoolWorkspace',
+    'lib/actions/demo-sandbox.ts::launchDemoSandboxAction',
     'lib/actions/metadata-engine.ts::getPublicPortalIntakeSchema',
     'lib/actions/metadata-engine.ts::submitPublicPortalIntakeRecord',
     'lib/actions/metadata-engine.ts::lookupPublicPortalRecordStatus',

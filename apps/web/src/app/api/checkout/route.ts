@@ -3,7 +3,17 @@ import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 import { requireApiAuth } from '@/lib/auth/api';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
-import { getStripeClient } from '@/lib/payments/providers';
+import {
+    getRazorpayGateway,
+    getStripeClient,
+    isRazorpayConfigured,
+    isStripeConfigured,
+} from '@/lib/payments/providers';
+import {
+    estimateMonthlySubscription,
+    isValidIndianGstin,
+    SAAS_SAC_CODE,
+} from '@/lib/billing/pricing-catalog';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -12,6 +22,9 @@ const SUBSCRIPTION_CHECKOUT_ROLES = ['PLATFORM_ADMIN', 'SUPER_ADMIN'] as const;
 
 const CheckoutSchema = z.object({
     planType: z.enum(['AI_PRO', 'ENTERPRISE']),
+    currency: z.enum(['INR', 'USD']).optional(),
+    gstin: z.string().trim().max(20).optional(),
+    estimatedStudents: z.number().int().min(1).max(100000).optional(),
 });
 
 function resolveServerPriceId(planType: 'AI_PRO' | 'ENTERPRISE'): string | null {
@@ -63,13 +76,12 @@ export async function POST(req: NextRequest) {
                 { status: 400 },
             );
         }
-        const { planType } = parsed.data;
-
-        const priceId = resolveServerPriceId(planType);
-        if (!priceId) {
+        const { planType, currency = 'INR', gstin, estimatedStudents = 500 } = parsed.data;
+        const normalizedGstin = gstin?.trim().toUpperCase() || '';
+        if (normalizedGstin && !isValidIndianGstin(normalizedGstin)) {
             return NextResponse.json(
-                { error: `Subscription pricing is not configured for ${planType}` },
-                { status: 503 },
+                { error: 'Invalid Indian GSTIN format' },
+                { status: 400 },
             );
         }
 
@@ -77,6 +89,17 @@ export async function POST(req: NextRequest) {
         if (!appBaseUrl) {
             return NextResponse.json(
                 { error: 'Application base URL is not configured' },
+                { status: 503 },
+            );
+        }
+
+        const priceId = resolveServerPriceId(planType);
+        const canUseStripe = Boolean(priceId && isStripeConfigured());
+        const canUseRazorpayInr = currency === 'INR' && isRazorpayConfigured();
+
+        if (!canUseStripe && !canUseRazorpayInr) {
+            return NextResponse.json(
+                { error: `Subscription pricing is not configured for ${planType}` },
                 { status: 503 },
             );
         }
@@ -91,6 +114,36 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Company not found' }, { status: 404 });
         }
 
+        // Prefer Razorpay UPI/NetBanking/GST checkout for INR when Stripe price IDs are absent
+        if (!canUseStripe && canUseRazorpayInr) {
+            const estimate = estimateMonthlySubscription(planType, estimatedStudents, {
+                applyCampusFloor: true,
+            });
+            const annualGrossInr = estimate.totalWithGstInr * 12;
+            const amountMinor = annualGrossInr * 100;
+
+            const gateway = getRazorpayGateway();
+            const link = await gateway.createPaymentLink({
+                amountMinor,
+                currency: 'INR',
+                referenceId: `saas_${company.id.slice(0, 12)}_${Date.now().toString(36)}`,
+                description: `ScholarMind ${planType} Annual Subscription (incl. 18% GST · SAC ${SAAS_SAC_CODE})`,
+                callbackUrl: `${appBaseUrl}/setup/success`,
+                notes: {
+                    companyId: String(company.id),
+                    planType,
+                    sacCode: SAAS_SAC_CODE,
+                    ...(normalizedGstin ? { gstin: normalizedGstin } : {}),
+                },
+            });
+
+            return NextResponse.json({
+                provider: 'RAZORPAY',
+                sessionId: link.providerOrderId,
+                url: link.checkoutUrl,
+            });
+        }
+
         let stripeCustomerId = company.stripeCustomerId;
 
         // If no stripe customer exists for this company, create one without upgrading subscription_tier pre-payment
@@ -100,6 +153,7 @@ export async function POST(req: NextRequest) {
                 name: company.name,
                 metadata: {
                     companyId: company.id,
+                    ...(normalizedGstin ? { gstin: normalizedGstin } : {}),
                 },
             });
             stripeCustomerId = customer.id;
@@ -117,7 +171,7 @@ export async function POST(req: NextRequest) {
             customer: stripeCustomerId,
             line_items: [
                 {
-                    price: priceId,
+                    price: priceId!,
                     quantity: 1,
                 },
             ],
@@ -125,6 +179,8 @@ export async function POST(req: NextRequest) {
             metadata: {
                 companyId: company.id,
                 planType,
+                sacCode: SAAS_SAC_CODE,
+                ...(normalizedGstin ? { gstin: normalizedGstin } : {}),
             },
             client_reference_id: company.id,
             success_url: `${appBaseUrl}/setup/success?session_id={CHECKOUT_SESSION_ID}`,

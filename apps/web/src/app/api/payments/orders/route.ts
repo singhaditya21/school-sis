@@ -9,7 +9,7 @@ import {
     isPayableInvoiceStatus,
     outstandingMinor,
 } from '@/lib/payments/ledger';
-import { getRazorpayGateway } from '@/lib/payments/providers';
+import { getRazorpayGateway, resolveRazorpayRouteAccountId } from '@/lib/payments/providers';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +21,15 @@ const OrderRequestSchema = z.object({
 
 export async function POST(request: NextRequest) {
     try {
-        const auth = await requireApiAuth(['PARENT', 'ACCOUNTANT', 'SCHOOL_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN']);
+        const auth = await requireApiAuth([
+            'PARENT',
+            'STUDENT',
+            'FINANCE_LEAD',
+            'ACCOUNTANT',
+            'SCHOOL_ADMIN',
+            'SUPER_ADMIN',
+            'PLATFORM_ADMIN',
+        ]);
         if (auth.ok === false) return auth.response;
 
         const json = await readTenantScopedJson(request, auth.context.tenantId);
@@ -77,6 +85,7 @@ export async function POST(request: NextRequest) {
         }
 
         const gateway = getRazorpayGateway();
+        const routeAccountId = resolveRazorpayRouteAccountId();
         const providerOrder = await gateway.createOrder({
             amountMinor: amountInPaise,
             currency: 'INR',
@@ -87,6 +96,21 @@ export async function POST(request: NextRequest) {
                 studentId: invoice.studentId,
                 requestedBy: auth.context.userId,
             },
+            ...(routeAccountId
+                ? {
+                    transfers: [
+                        {
+                            account: routeAccountId,
+                            amount: amountInPaise,
+                            currency: 'INR',
+                            notes: {
+                                invoiceId: invoice.id,
+                                tenantId: auth.context.tenantId,
+                            },
+                        },
+                    ],
+                }
+                : {}),
         });
 
         await createPaymentOrderRecord({
