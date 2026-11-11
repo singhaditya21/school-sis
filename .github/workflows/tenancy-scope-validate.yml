@@ -165,6 +165,21 @@ jobs:
           console.log('NEON_PRODUCTION_DIRECT_URL passed the direct-migration-URL contract.');
           NODE
 
+      - name: Wake the Neon production branch out of cold storage
+        env:
+          NEON_DIRECT_URL: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            if psql "$NEON_DIRECT_URL" --no-psqlrc --tuples-only --quiet --set ON_ERROR_STOP=1 --command 'SELECT 1' >/dev/null; then
+              echo "Neon production compute responded on attempt ${attempt}."
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Neon production compute did not respond after 5 attempts." >&2
+          exit 1
+
       - name: Validate the selected scope constraints
         env:
           STEP: ${{ inputs.step }}

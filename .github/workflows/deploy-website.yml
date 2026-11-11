@@ -1,0 +1,497 @@
+name: Website Production Release
+
+# Single-owner deployment pipeline for apps/website (public marketing site).
+# Mirrors deploy-production.yml's prebuilt build, credential scan, staged
+# --skip-domain verification, promotion, canonical probe, and REST rollback
+# without touching Neon (apps/website is database-free and forwards leads over
+# HTTPS to PRODUCTION_URL/api/leads).
+
+on:
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website-production-release
+  cancel-in-progress: false
+
+jobs:
+  deploy-website:
+    name: Build, stage, verify, and promote marketing website
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      NODE_VERSION: "24"
+      PNPM_VERSION: "9.15.9"
+      TARGET_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_WEBSITE_PROJECT_ID }}
+      WEBSITE_URL: ${{ vars.WEBSITE_PRODUCTION_URL }}
+
+    steps:
+      - name: Validate website deployment configuration
+        id: config
+        env:
+          VERCEL_TOKEN_VALUE: ${{ secrets.VERCEL_TOKEN }}
+          CORE_VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          PREVIEW_VERCEL_PROJECT_ID: ${{ vars.VERCEL_PREVIEW_PROJECT_ID }}
+          CORE_PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_PROJECT_ID:-}" ] || [ -z "${WEBSITE_URL:-}" ]; then
+            {
+              echo "### Website deployment is not yet configured"
+              echo
+              echo "Set repository variables \`VERCEL_WEBSITE_PROJECT_ID\` and \`WEBSITE_PRODUCTION_URL\`"
+              echo "(for the separate \`school-sis-website\` Vercel project with Root Directory \`apps/website\`)"
+              echo "to activate automated marketing-site releases."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning title=Website deployment unconfigured::Set VERCEL_WEBSITE_PROJECT_ID and WEBSITE_PRODUCTION_URL repository variables to enable apps/website deployments."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+              exit 1
+            fi
+            exit 0
+          fi
+
+          for name in VERCEL_TOKEN_VALUE VERCEL_ORG_ID TARGET_SHA; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required website deployment configuration: $name" >&2
+              exit 1
+            fi
+          done
+          if ! [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "TARGET_SHA is not a 40-character commit SHA." >&2
+            exit 1
+          fi
+          if ! [[ "$VERCEL_ORG_ID" =~ ^[A-Za-z0-9_-]+$ ]] || ! [[ "$VERCEL_PROJECT_ID" =~ ^[A-Za-z0-9_-]+$ ]]; then
+            echo "VERCEL_ORG_ID or VERCEL_WEBSITE_PROJECT_ID contains unsupported characters." >&2
+            exit 1
+          fi
+          if [ "$VERCEL_PROJECT_ID" = "${CORE_VERCEL_PROJECT_ID:-}" ] || [ "$VERCEL_PROJECT_ID" = "${PREVIEW_VERCEL_PROJECT_ID:-}" ]; then
+            echo "VERCEL_WEBSITE_PROJECT_ID must identify a dedicated Vercel project distinct from apps/web production and preview." >&2
+            exit 1
+          fi
+
+          node --input-type=module <<'NODE'
+          const parseOrigin = (value, label) => {
+            let parsed;
+            try {
+              parsed = new URL(value);
+            } catch {
+              throw new Error(`${label} is not a valid URL.`);
+            }
+            if (
+              parsed.protocol !== 'https:' ||
+              parsed.pathname !== '/' ||
+              parsed.search ||
+              parsed.hash ||
+              parsed.username ||
+              parsed.password
+            ) {
+              throw new Error(`${label} must be a bare HTTPS origin.`);
+            }
+            return parsed.origin;
+          };
+          const websiteOrigin = parseOrigin(process.env.WEBSITE_URL || '', 'WEBSITE_PRODUCTION_URL');
+          const coreOrigin = process.env.CORE_PRODUCTION_URL
+            ? parseOrigin(process.env.CORE_PRODUCTION_URL, 'PRODUCTION_URL')
+            : '';
+          if (coreOrigin && websiteOrigin === coreOrigin) {
+            throw new Error('WEBSITE_PRODUCTION_URL must differ from core PRODUCTION_URL.');
+          }
+          NODE
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the verified main commit
+        if: steps.config.outputs.configured == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install pnpm
+        if: steps.config.outputs.configured == 'true'
+        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        if: steps.config.outputs.configured == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Verify protected main release provenance
+        if: steps.config.outputs.configured == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          node scripts/verify-production-release-provenance.mjs
+          --repository "$GITHUB_REPOSITORY"
+          --sha "$TARGET_SHA"
+          --ref main
+
+      - name: Install locked dependencies and verify claims
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          configured_version="$(node -p "require('./package.json').devDependencies.vercel || ''")"
+          if [ "$configured_version" != "59.0.0" ]; then
+            echo "Root devDependency vercel must be pinned exactly to 59.0.0." >&2
+            exit 1
+          fi
+          pnpm exec vercel --version | grep -Eq '(^|[^0-9])59\.0\.0([^0-9]|$)'
+          pnpm audit:claims
+
+      - name: Pull Vercel website production settings
+        if: steps.config.outputs.configured == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CORE_PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: |
+          set -euo pipefail
+          pnpm exec vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          node --input-type=module <<'NODE'
+          import { createRequire } from 'node:module';
+          import { existsSync, readFileSync } from 'node:fs';
+          import { dirname, resolve } from 'node:path';
+
+          const linkCandidates = [
+            '.vercel/project.json',
+            'apps/website/.vercel/project.json',
+          ].filter(existsSync);
+          if (linkCandidates.length !== 1) {
+            throw new Error(`Expected exactly one Vercel website project link, found ${linkCandidates.length}.`);
+          }
+          const link = JSON.parse(readFileSync(linkCandidates[0], 'utf8'));
+          if (
+            link.orgId !== process.env.VERCEL_ORG_ID ||
+            link.projectId !== process.env.VERCEL_PROJECT_ID
+          ) {
+            throw new Error('Pulled Vercel settings do not belong to VERCEL_WEBSITE_PROJECT_ID.');
+          }
+          const envPath = resolve(dirname(linkCandidates[0]), '.env.production.local');
+          if (!existsSync(envPath)) {
+            throw new Error('Vercel did not materialize .env.production.local for apps/website.');
+          }
+          const require = createRequire(resolve('apps/web/package.json'));
+          const { parse } = require('dotenv');
+          const pulled = parse(readFileSync(envPath));
+          const proxySecret = pulled.LEAD_CAPTURE_PROXY_SECRET || '';
+          if (proxySecret && proxySecret.length < 32) {
+            throw new Error('LEAD_CAPTURE_PROXY_SECRET in Vercel website production must be at least 32 characters.');
+          }
+          for (const [key, value] of Object.entries(pulled)) {
+            if (key.startsWith('NEXT_PUBLIC_') && proxySecret && value === proxySecret) {
+              throw new Error(`LEAD_CAPTURE_PROXY_SECRET must never be exposed in ${key}.`);
+            }
+          }
+          if (pulled.LEAD_CAPTURE_API_URL && process.env.CORE_PRODUCTION_URL) {
+            const apiOrigin = new URL(pulled.LEAD_CAPTURE_API_URL).origin;
+            const coreOrigin = new URL(process.env.CORE_PRODUCTION_URL).origin;
+            if (apiOrigin !== coreOrigin) {
+              throw new Error('Website LEAD_CAPTURE_API_URL does not match core PRODUCTION_URL.');
+            }
+          }
+          NODE
+
+      - name: Build immutable website output and scan for leaked secrets
+        if: steps.config.outputs.configured == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TARGET_ENV: production
+          GIT_COMMIT_SHA: ${{ env.TARGET_SHA }}
+        run: |
+          set -euo pipefail
+          pnpm exec vercel build --prod --yes --token="$VERCEL_TOKEN"
+          node --input-type=module <<'NODE'
+          import { createRequire } from 'node:module';
+          import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+          import { dirname, join, resolve } from 'node:path';
+
+          const linkCandidates = ['.vercel/project.json', 'apps/website/.vercel/project.json'].filter(existsSync);
+          const outputCandidates = ['.vercel/output', 'apps/website/.vercel/output'].filter(existsSync);
+          if (linkCandidates.length !== 1 || outputCandidates.length !== 1) {
+            throw new Error('Expected exactly one Vercel link and one website build output.');
+          }
+          const envPath = resolve(dirname(linkCandidates[0]), '.env.production.local');
+          const require = createRequire(resolve('apps/web/package.json'));
+          const { parse } = require('dotenv');
+          const pulled = parse(readFileSync(envPath));
+          const needles = [pulled.LEAD_CAPTURE_PROXY_SECRET].filter(
+            (value) => typeof value === 'string' && value.length >= 12,
+          );
+          if (needles.length > 0) {
+            const pending = [outputCandidates[0]];
+            while (pending.length > 0) {
+              const current = pending.pop();
+              for (const entry of readdirSync(current)) {
+                const full = join(current, entry);
+                const stats = statSync(full);
+                if (stats.isDirectory()) pending.push(full);
+                if (!stats.isFile()) continue;
+                const contents = readFileSync(full);
+                if (needles.some((needle) => contents.includes(Buffer.from(needle)))) {
+                  throw new Error('The website build output contains LEAD_CAPTURE_PROXY_SECRET.');
+                }
+              }
+            }
+          }
+          NODE
+
+      - name: Capture current website deployment for rollback
+        id: prior
+        if: steps.config.outputs.configured == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          # On a brand-new project with no initial deployment, HTTP 404 on the
+          # production alias means there is no rollback target yet; any other
+          # failure fails closed.
+          probe="$RUNNER_TEMP/website-prior-probe.json"
+          host="$(node -p "new URL(process.env.WEBSITE_URL).hostname")"
+          http="$(curl --silent --show-error --retry 3 --retry-all-errors --max-time 20 \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header 'Accept: application/json' \
+            --output "$probe" \
+            --write-out '%{http_code}' \
+            "https://api.vercel.com/v13/deployments/${host}?teamId=${VERCEL_ORG_ID}")"
+          if [ "$http" = "404" ]; then
+            echo "No existing website production deployment on ${host}; proceeding with initial release."
+            echo "prior_id=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          node scripts/vercel-recovery.mjs capture \
+            --team "$VERCEL_ORG_ID" \
+            --project "$VERCEL_PROJECT_ID" \
+            --production-url "$WEBSITE_URL"
+
+      - name: Deploy prebuilt website candidate without assigning domains
+        id: candidate
+        if: steps.config.outputs.configured == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          deployment_json="$RUNNER_TEMP/vercel-website-candidate.json"
+          pnpm exec vercel deploy \
+            --prebuilt \
+            --archive=tgz \
+            --prod \
+            --regions sin1 \
+            --skip-domain \
+            --yes \
+            --json \
+            --token="$VERCEL_TOKEN" \
+            --meta "githubDeployment=1" \
+            --meta "githubCommitRef=main" \
+            --meta "gitCommitSha=$TARGET_SHA" \
+            --meta "githubCommitSha=$TARGET_SHA" \
+            --meta "githubCommitOrg=${{ github.repository_owner }}" \
+            --meta "githubCommitRepo=${{ github.event.repository.name }}" \
+            --meta "githubRunId=$GITHUB_RUN_ID" \
+            --env "GIT_COMMIT_SHA=$TARGET_SHA" \
+            >"$deployment_json"
+          candidate_url="$(jq -er '(.deployment // .).url | select(type == "string" and length > 0)' "$deployment_json")"
+          candidate_id="$(jq -er '(.deployment // .).id | select(type == "string" and length > 0)' "$deployment_json")"
+          case "$candidate_url" in
+            https://*) ;;
+            *) candidate_url="https://$candidate_url" ;;
+          esac
+          echo "candidate_url=$candidate_url" >> "$GITHUB_OUTPUT"
+          echo "candidate_id=$candidate_id" >> "$GITHUB_OUTPUT"
+
+      - name: Verify staged website candidate
+        id: candidate_verify
+        if: steps.config.outputs.configured == 'true'
+        env:
+          CANDIDATE_URL: ${{ steps.candidate.outputs.candidate_url }}
+          EXPECTED_SHA: ${{ env.TARGET_SHA }}
+          BYPASS_SECRET: ${{ secrets.VERCEL_WEBSITE_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const base = new URL(process.env.CANDIDATE_URL).origin;
+          const expectedSha = (process.env.EXPECTED_SHA || '').toLowerCase();
+          const bypass = process.env.BYPASS_SECRET || '';
+          const headers = { 'Cache-Control': 'no-cache' };
+          if (bypass) headers['x-vercel-protection-bypass'] = bypass;
+
+          let lastError = 'not yet probed';
+          for (let attempt = 1; attempt <= 18; attempt += 1) {
+            try {
+              const healthRes = await fetch(`${base}/api/health`, {
+                headers: { ...headers, Accept: 'application/json' },
+                redirect: 'manual',
+                signal: AbortSignal.timeout(15_000),
+              });
+              if (healthRes.status !== 200) {
+                throw new Error(`/api/health returned HTTP ${healthRes.status}`);
+              }
+              const health = await healthRes.json();
+              if (
+                health?.status !== 'ok' ||
+                health?.service !== 'school-sis-website' ||
+                String(health?.commit || '').toLowerCase() !== expectedSha ||
+                health?.region !== 'sin1'
+              ) {
+                throw new Error(`Unexpected website health payload: ${JSON.stringify(health)}`);
+              }
+              const htmlRes = await fetch(`${base}/`, {
+                headers: { ...headers, Accept: 'text/html' },
+                redirect: 'manual',
+                signal: AbortSignal.timeout(15_000),
+              });
+              if (htmlRes.status !== 200) {
+                throw new Error(`/ returned HTTP ${htmlRes.status}`);
+              }
+              const html = await htmlRes.text();
+              if (!/<html[\s>]/i.test(html)) {
+                throw new Error('/ did not return an HTML document');
+              }
+              console.log(`Verified staged website candidate at ${base} on attempt ${attempt}.`);
+              process.exit(0);
+            } catch (err) {
+              lastError = err instanceof Error ? err.message : String(err);
+              if (attempt < 18) await new Promise((r) => setTimeout(r, 5_000));
+            }
+          }
+          throw new Error(`Staged website candidate verification failed: ${lastError}`);
+          NODE
+
+      - name: Promote verified website candidate
+        id: promote
+        if: steps.config.outputs.configured == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
+        run: |
+          set -euo pipefail
+          node scripts/verify-production-release-provenance.mjs \
+            --repository "$GITHUB_REPOSITORY" \
+            --sha "$TARGET_SHA" \
+            --ref main
+          echo "attempted=true" >> "$GITHUB_OUTPUT"
+          pnpm exec vercel promote "$CANDIDATE_ID" --yes --timeout 5m --token="$VERCEL_TOKEN"
+
+      - name: Verify canonical website after promotion
+        id: canonical_verify
+        if: steps.config.outputs.configured == 'true'
+        env:
+          CANONICAL_URL: ${{ env.WEBSITE_URL }}
+          EXPECTED_SHA: ${{ env.TARGET_SHA }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const base = new URL(process.env.CANONICAL_URL).origin;
+          const expectedSha = (process.env.EXPECTED_SHA || '').toLowerCase();
+          let lastError = 'not yet probed';
+          for (let attempt = 1; attempt <= 18; attempt += 1) {
+            try {
+              const healthRes = await fetch(`${base}/api/health`, {
+                headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+                redirect: 'manual',
+                signal: AbortSignal.timeout(15_000),
+              });
+              if (healthRes.status !== 200) {
+                throw new Error(`/api/health returned HTTP ${healthRes.status}`);
+              }
+              const health = await healthRes.json();
+              if (
+                health?.status !== 'ok' ||
+                health?.service !== 'school-sis-website' ||
+                String(health?.commit || '').toLowerCase() !== expectedSha ||
+                health?.region !== 'sin1'
+              ) {
+                throw new Error(`Unexpected canonical health payload: ${JSON.stringify(health)}`);
+              }
+              console.log(`Verified canonical website ${base} on attempt ${attempt}.`);
+              process.exit(0);
+            } catch (err) {
+              lastError = err instanceof Error ? err.message : String(err);
+              if (attempt < 18) await new Promise((r) => setTimeout(r, 5_000));
+            }
+          }
+          throw new Error(`Canonical website verification failed: ${lastError}`);
+          NODE
+
+      - name: Roll back website to captured production on promotion failure
+        id: rollback
+        if: >-
+          failure() &&
+          steps.config.outputs.configured == 'true' &&
+          steps.promote.outputs.attempted == 'true' &&
+          steps.canonical_verify.outcome != 'success' &&
+          steps.prior.outputs.prior_id != ''
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PRIOR_ID: ${{ steps.prior.outputs.prior_id }}
+        run: >-
+          node scripts/vercel-recovery.mjs rollback
+          --team "$VERCEL_ORG_ID"
+          --project "$VERCEL_PROJECT_ID"
+          --production-url "$WEBSITE_URL"
+          --deployment "$PRIOR_ID"
+
+      - name: Verify website rollback restored the captured deployment
+        if: always() && steps.rollback.outcome == 'success'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PRIOR_ID: ${{ steps.prior.outputs.prior_id }}
+        run: >-
+          node scripts/vercel-recovery.mjs verify-rollback
+          --team "$VERCEL_ORG_ID"
+          --production-url "$WEBSITE_URL"
+          --deployment "$PRIOR_ID"
+
+      - name: Delete an unpromoted or rolled-back website candidate
+        if: >-
+          failure() &&
+          steps.config.outputs.configured == 'true' &&
+          steps.candidate.outputs.candidate_id != '' &&
+          steps.canonical_verify.outcome != 'success'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
+        run: >-
+          node scripts/vercel-recovery.mjs guard-delete
+          --team "$VERCEL_ORG_ID"
+          --project "$VERCEL_PROJECT_ID"
+          --production-url "$WEBSITE_URL"
+          --deployment "$CANDIDATE_ID"
+          --sha "$TARGET_SHA"
+          --run-id "$GITHUB_RUN_ID"
+
+      - name: Report what website production is serving
+        if: always() && steps.config.outputs.configured == 'true'
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
+          PRIOR_ID: ${{ steps.prior.outputs.prior_id }}
+        run: >-
+          node scripts/vercel-recovery.mjs report
+          --team "$VERCEL_ORG_ID"
+          --production-url "$WEBSITE_URL"
+          --candidate "$CANDIDATE_ID"
+          --prior "$PRIOR_ID"
+          --sha "$TARGET_SHA"

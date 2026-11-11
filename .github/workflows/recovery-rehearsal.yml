@@ -19,10 +19,19 @@ name: Recovery Rehearsal
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/vercel-recovery.mjs
+      - scripts/vercel-recovery.test.mjs
+      - scripts/rehearsal-deploy.sh
+      - .github/workflows/recovery-rehearsal.yml
+      - .github/workflows/deploy-production.yml
   pull_request:
     paths:
       - scripts/vercel-recovery.mjs
       - scripts/vercel-recovery.test.mjs
+      - scripts/rehearsal-deploy.sh
       - .github/workflows/recovery-rehearsal.yml
       - .github/workflows/deploy-production.yml
 
@@ -45,6 +54,7 @@ jobs:
     name: Rehearse production recovery against the preview project
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
       (github.event_name == 'pull_request' &&
        github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest

@@ -221,6 +221,8 @@ Repository variables:
 | `NEON_PREVIEW_PLATFORM_ROLE`                      | Exact preview-project platform role: `school_sis_platform`                                                        |
 | `PRODUCTION_TENANT_CONTEXT_SIGNING_SECRET_SHA256` | Lowercase SHA-256 of the current production signing secret; repository/org scope only                             |
 | `PREVIEW_TENANT_CONTEXT_SIGNING_SECRET_SHA256`    | Lowercase SHA-256 of the current preview signing secret; repository/org scope only                                |
+| `VERCEL_WEBSITE_PROJECT_ID`                       | Separate marketing-site Vercel project ID (`apps/website`) for `.github/workflows/deploy-website.yml`             |
+| `WEBSITE_PRODUCTION_URL`                          | Canonical HTTPS origin of the deployed marketing site (e.g. `https://school-sis-website.vercel.app`)              |
 
 The `production` and `preview` Environments each define their own
 `TENANT_CONTEXT_SIGNING_KEY_ID`, optional `TENANT_CONTEXT_PREVIOUS_KEY_ID`, and
@@ -255,21 +257,26 @@ production recovery checkpoint is created.
 
 Keep these non-secret identifiers as repository variables so both isolated
 workflows can prove that preview and production IDs differ. The repository is
-operated by one maintainer. Keep `main` PR-only, set the required approval
-count to zero, and block direct pushes through administrator enforcement.
-Protect both GitHub Environments with the sole maintainer as their required
-reviewer and with self-review prevention disabled. For `production`, disable
-administrator bypass so the exact workflow run still needs a recorded manual
-approval. Release and adoption gates also require the owner to remain the only
-push-capable collaborator. Keep force-push/deletion blocked and require these
-checks:
+operated by one maintainer (`singhaditya21`) using trunk-based development on
+`main` (`enforce_admins: false`). Release and adoption provenance gates accept
+commits on protected `main` only when `singhaditya21` remains the sole
+push-capable collaborator and the `main` commit was either merged from a
+sole-owner pull request or committed directly on `main` by `singhaditya21`
+(requiring your local Git author email to resolve to `singhaditya21` on GitHub).
+The `Production` GitHub Environment enforces a `main` branch policy. Keep
+force-push/deletion blocked and require these checks on `main`:
 
-- `Dependency Review` on pull requests
+- `Dependency Review` (runs on both `pull_request` and `push` to `main`)
 - `validate`
 - `Tenant RLS Integration`
 - `Build & Lint`
 - `Migration Chain`
 - `Playwright Smoke`
+
+When recovery mechanics (`scripts/vercel-recovery.mjs`,
+`scripts/rehearsal-deploy.sh`, or `.github/workflows/deploy-production.yml`)
+change, `.github/workflows/recovery-rehearsal.yml` runs automatically on both
+`push` to `main` and `pull_request`.
 
 Fork pull requests run secretless CI and do not receive preview/deployment
 credentials. Same-repository pull requests receive only the isolated preview
@@ -360,11 +367,18 @@ migration, tenant-runtime, and platform-runtime URLs must have nonempty,
 pairwise-distinct decoded passwords in addition to distinct role names.
 Environment changes require a new deployment.
 
-The separate `school-sis-website` Vercel project requires
-`LEAD_CAPTURE_API_URL=https://school-sis-web.vercel.app` and the same
-`LEAD_CAPTURE_PROXY_SECRET` as `school-sis-web`. Never expose that secret as a
-`NEXT_PUBLIC_*` variable. Without the optional CRM variables, accepted leads
-remain encrypted and visible in the HQ lead workspace while the durable
+The separate `school-sis-website` Vercel project (`apps/website`, with automatic
+Git deployments disabled by `apps/website/vercel.json`) is deployed by
+`.github/workflows/deploy-website.yml` after `CI/CD Pipeline` succeeds on `main`
+once `VERCEL_WEBSITE_PROJECT_ID` and `WEBSITE_PRODUCTION_URL` are configured
+(plus optional `VERCEL_WEBSITE_AUTOMATION_BYPASS_SECRET` in the `production`
+GitHub Environment when Vercel Deployment Protection is enabled on candidate
+URLs). It requires `LEAD_CAPTURE_API_URL=https://school-sis-web.vercel.app` and
+the same `LEAD_CAPTURE_PROXY_SECRET` as `school-sis-web`. Never expose that
+secret as a `NEXT_PUBLIC_*` variable; the website deployment workflow scans
+`.vercel/output` and fails closed if `LEAD_CAPTURE_PROXY_SECRET` appears in any
+build artifact. Without the optional CRM variables, accepted leads remain
+encrypted and visible in the HQ lead workspace while the durable
 `lead.crm.route` job retries; configure both CRM variables before claiming
 external CRM delivery.
 
@@ -499,8 +513,8 @@ chain before deployment.
 After `E2E Tests` succeeds for the current `main` SHA, `.github/workflows/deploy-production.yml`:
 
 1. verifies that protected `main` still points to the exact triggering SHA and
-   that the SHA is the unique merged pull request authored by the configured
-   sole release owner;
+   that the SHA was either merged from a sole-owner pull request or committed
+   directly to `main` by the configured sole release owner (`singhaditya21`);
 2. waits for all required CI workflows/checks for that SHA;
 3. pulls production Vercel settings and builds an immutable artifact;
 4. captures the currently promoted Vercel deployment;
@@ -535,12 +549,15 @@ the phases:
    and canonical probes must prove the signed runtime and platform paths.
 2. After promotion, the workflow records the exact canonical deployment ID,
    commit SHA, current key ID, and audience. A follow-up reviewed release
-   changes `PRODUCTION_TENANT_CONTEXT_ENFORCEMENT_PHASE` from `1` to `2`.
+   changes `PRODUCTION_TENANT_CONTEXT_ENFORCEMENT_PHASE` from `1` to `2` (now
+   active in `apps/web/scripts/deployment-migrations.ts`).
    Before applying strict mode, the migrator requires that the recorded phase-1
    deployment is exactly the currently serving prior deployment. Phase 2 then
    removes unsigned tenant and runtime-bypass compatibility. Both the live
    phase-1 app and its rollback image already sign, so migration-before-promotion
-   remains safe.
+   remains safe. All 137 Stage-3 composite scope FKs and 112 Stage-4 presence
+   CHECK constraints have also been validated on Neon production via
+   `.github/workflows/tenancy-scope-validate.yml`.
 
 Rotate a production key with the same expand/contract discipline:
 

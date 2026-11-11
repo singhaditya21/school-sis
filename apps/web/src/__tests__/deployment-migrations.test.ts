@@ -37,6 +37,8 @@ import {
   type RlsCoverageRow,
   EXPECTED_RLS_POLICY_COUNT,
   EXPECTED_RLS_POLICY_CATALOG_SHA256,
+  PRODUCTION_TENANT_CONTEXT_ENFORCEMENT_PHASE,
+  reconcileTenantContextEnforcementPhase,
 } from "../../scripts/deployment-migrations";
 
 const HASH_A = "a".repeat(64);
@@ -1585,5 +1587,64 @@ describe("atomic migration, RLS, and runtime-grant boundary", () => {
       errors: [workError, rollbackError],
       message: "Deployment transaction failed and rollback also failed.",
     });
+  });
+});
+
+describe("tenant-context enforcement phase reconciliation", () => {
+  it("pins production enforcement to strict phase 2", () => {
+    expect(PRODUCTION_TENANT_CONTEXT_ENFORCEMENT_PHASE).toBe(2);
+  });
+
+  it("advances phase 1 to phase 2 only when prior promoted signing runtime matches", async () => {
+    const query = jest.fn(async (sql: string) => {
+      if (sql.includes("FROM app_private.tenant_context_rollout_state")) {
+        return {
+          rows: [
+            {
+              enforcement_phase: 1,
+              promoted_key_id: "production-v1",
+              promoted_audience: "production:proj:branch",
+              promoted_deployment_id: "dpl_priorPromoted123",
+              signed_runtime_sha: "a".repeat(40),
+              promoted_at: "2026-11-11T09:51:30Z",
+            },
+          ],
+        };
+      }
+      return { rows: [{ enforcement_phase: 2 }] };
+    });
+
+    await expect(
+      reconcileTenantContextEnforcementPhase({ query } as never, "production", {
+        GIT_COMMIT_SHA: "b".repeat(40),
+        TENANT_CONTEXT_SIGNING_KEY_ID: "production-v1",
+        TENANT_CONTEXT_AUDIENCE: "production:proj:branch",
+        CURRENT_PRODUCTION_DEPLOYMENT_ID: "dpl_priorPromoted123",
+      }),
+    ).resolves.toBe(2);
+  });
+
+  it("refuses phase 2 cutover when prior deployment or commit SHA does not match recorded promotion", async () => {
+    const query = jest.fn(async () => ({
+      rows: [
+        {
+          enforcement_phase: 1,
+          promoted_key_id: "production-v1",
+          promoted_audience: "production:proj:branch",
+          promoted_deployment_id: "dpl_priorPromoted123",
+          signed_runtime_sha: "a".repeat(40),
+          promoted_at: "2026-11-11T09:51:30Z",
+        },
+      ],
+    }));
+
+    await expect(
+      reconcileTenantContextEnforcementPhase({ query } as never, "production", {
+        GIT_COMMIT_SHA: "a".repeat(40),
+        TENANT_CONTEXT_SIGNING_KEY_ID: "production-v1",
+        TENANT_CONTEXT_AUDIENCE: "production:proj:branch",
+        CURRENT_PRODUCTION_DEPLOYMENT_ID: "dpl_priorPromoted123",
+      }),
+    ).rejects.toThrow("Phase 2 requires a signing runtime from an earlier commit");
   });
 });

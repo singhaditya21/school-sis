@@ -16,7 +16,7 @@ env:
 jobs:
   dependency-review:
     name: Dependency Review
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,6 +28,7 @@ jobs:
 
       - name: Detect Dependency Graph Availability
         id: dependency_graph
+        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -42,30 +43,30 @@ jobs:
           fi
 
       - name: Review dependency changes
-        if: steps.dependency_graph.outputs.available == 'true'
+        if: github.event_name == 'pull_request' && steps.dependency_graph.outputs.available == 'true'
         uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
         with:
           fail-on-severity: high
 
       - name: Install pnpm for fallback audit
-        if: steps.dependency_graph.outputs.available != 'true'
+        if: github.event_name != 'pull_request' || steps.dependency_graph.outputs.available != 'true'
         uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js for fallback audit
-        if: steps.dependency_graph.outputs.available != 'true'
+        if: github.event_name != 'pull_request' || steps.dependency_graph.outputs.available != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
 
       - name: Install dependencies for fallback audit
-        if: steps.dependency_graph.outputs.available != 'true'
+        if: github.event_name != 'pull_request' || steps.dependency_graph.outputs.available != 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Run full dependency audit fallback
-        if: steps.dependency_graph.outputs.available != 'true'
+        if: github.event_name != 'pull_request' || steps.dependency_graph.outputs.available != 'true'
         run: |
           pnpm audit --json > pnpm-audit-high.json || true
           pnpm audit:check -- pnpm-audit-high.json
@@ -177,8 +178,14 @@ jobs:
       - name: Run Secret Pattern Scan
         run: pnpm audit:secrets
 
+      - name: Enforce Repository Hygiene
+        run: pnpm audit:hygiene
+
       - name: Enforce Static Risk-Debt Ratchet
         run: pnpm audit:debt
+
+      - name: Verify SQL Column Contracts
+        run: pnpm audit:sql
 
       - name: Verify Public Product Claims
         run: pnpm audit:claims
@@ -205,7 +212,10 @@ jobs:
         run: pnpm audit:rls-matrix
 
       - name: Run TypeScript
-        run: pnpm --filter @school-sis/web exec tsc --noEmit --pretty false --incremental false
+        run: |
+          pnpm --filter @school-sis/web exec tsc -p ../../packages/api/tsconfig.json --noEmit --pretty false --incremental false
+          pnpm --filter website run typecheck
+          pnpm --filter @school-sis/web exec tsc --noEmit --pretty false --incremental false
 
       - name: Run Build
         run: pnpm run build
@@ -216,7 +226,9 @@ jobs:
         run: pnpm perf:bundle
 
       - name: Run Linting
-        run: pnpm --filter @school-sis/web exec eslint src --quiet
+        run: |
+          pnpm run lint
+          pnpm --filter @school-sis/web exec eslint src --quiet
 
       - name: Validate Testing Architecture
         run: pnpm test:architecture

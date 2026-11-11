@@ -21,6 +21,10 @@ const workflow = readFileSync(
   resolve(process.cwd(), "../..", ".github/workflows/deploy-production.yml"),
   "utf8",
 );
+const websiteWorkflow = readFileSync(
+  resolve(process.cwd(), "../..", ".github/workflows/deploy-website.yml"),
+  "utf8",
+);
 const rehearsal = readFileSync(
   resolve(process.cwd(), "../..", ".github/workflows/recovery-rehearsal.yml"),
   "utf8",
@@ -330,6 +334,7 @@ describe("production release failure-path gates", () => {
     // "Unexpected argument \\." after a generated edit doubled them.
     for (const [name, source] of [
       ["deploy-production.yml", workflow],
+      ["deploy-website.yml", websiteWorkflow],
       ["recovery-rehearsal.yml", rehearsal],
     ] as const) {
       const offenders = source
@@ -341,6 +346,18 @@ describe("production release failure-path gates", () => {
         offenders: [],
       });
     }
+  });
+
+  it("keeps website release recovery wired to the same shared recovery script", () => {
+    const websiteCommands = [
+      ...websiteWorkflow.matchAll(/node scripts\/vercel-recovery\.mjs ([a-z-]+)/g),
+    ].map((match) => match[1]);
+    expect(new Set(websiteCommands)).toEqual(
+      new Set(["capture", "rollback", "verify-rollback", "guard-delete", "report"]),
+    );
+    expect(websiteWorkflow).toContain("steps.canonical_verify.outcome != 'success'");
+    expect(websiteWorkflow).toContain("VERCEL_WEBSITE_PROJECT_ID");
+    expect(websiteWorkflow).toContain("WEBSITE_PRODUCTION_URL");
   });
 
   it("resolves protected PII key slots and rotates Neon only when explicitly enabled", () => {
@@ -390,9 +407,13 @@ describe("production release failure-path gates", () => {
       rehearsal.indexOf("\non:"),
       rehearsal.indexOf("\npermissions:"),
     );
+    expect(triggers).toContain("push:");
+    expect(triggers).toContain("branches: [main]");
+    expect(triggers).toContain("pull_request:");
     const paths = triggers.slice(triggers.indexOf("paths:"));
     for (const watched of [
       "scripts/vercel-recovery.mjs",
+      "scripts/rehearsal-deploy.sh",
       ".github/workflows/deploy-production.yml",
       ".github/workflows/recovery-rehearsal.yml",
     ]) {

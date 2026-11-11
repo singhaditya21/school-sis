@@ -32,10 +32,10 @@ export const TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET_ENV =
   "TENANT_CONTEXT_PREVIOUS_SIGNING_SECRET";
 export const TENANT_CONTEXT_RETIRE_PREVIOUS_KEY_ENV =
   "TENANT_CONTEXT_RETIRE_PREVIOUS_KEY";
-// Phase 1 ships the signer and verifier while preserving rollback compatibility.
-// The reviewed phase-2 follow-up changes only this constant to 2 after the
-// production workflow has recorded a successfully promoted signing runtime.
-export const PRODUCTION_TENANT_CONTEXT_ENFORCEMENT_PHASE: 1 | 2 = 1;
+// Phase 1 shipped the signer and verifier while preserving rollback compatibility.
+// Phase 2 enforces strict signed tenant context now that the production workflow
+// has recorded a promoted signing runtime in app_private.tenant_context_rollout_state.
+export const PRODUCTION_TENANT_CONTEXT_ENFORCEMENT_PHASE: 1 | 2 = 2;
 export const DEFAULT_MIGRATION_LOCK_TIMEOUT_MS = 60_000;
 export const DEFAULT_MIGRATION_LOCK_RETRY_MS = 1_000;
 
