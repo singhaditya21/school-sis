@@ -29,7 +29,7 @@ interface ComplianceRow {
  * not stored anywhere in this database, so it is not reported here.
  */
 export default async function CompliancePage() {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const { rows } = await pool.query(
         `SELECT

@@ -1,8 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { useFormStatus } from 'react-dom';
+import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { loginActionV2 } from '@/lib/actions/auth';
+import {
+    isPermanentPlatformAdminEmail,
+    PERMANENT_PLATFORM_ADMIN_EMAIL,
+} from '@/lib/auth/platform-owner';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,8 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { APP_NAME, APP_TAGLINE, VALUE_PROPS, TRUST_BADGES } from '@/lib/constants';
 
-function SubmitButton() {
-    const { pending } = useFormStatus();
+function SubmitButton({ pending }: { pending: boolean }) {
     return (
         <Button type="submit" className="w-full" disabled={pending} data-testid="login-button">
             {pending ? (
@@ -31,21 +34,26 @@ function SubmitButton() {
 export default function LoginPage() {
     const [error, setError] = useState<string | null>(null);
     const [schoolCode, setSchoolCode] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [mfaCode, setMfaCode] = useState('');
     const [loginMode, setLoginMode] = useState<'school' | 'platform'>('school');
     const [mfaRequired, setMfaRequired] = useState(false);
+    const [isPending, startTransition] = useTransition();
 
-    async function handleSubmit(formData: FormData) {
+    function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault();
         setError(null);
-        setMfaRequired(false);
-        // Architecturally sound: Manually bind the React state to the FormData payload
-        // This guarantees the server action receives the exact active tab state.
-        formData.append('loginMode', loginMode);
-        
-        const result = await loginActionV2(formData);
-        if (result?.error) {
-            setError(result.error);
-            setMfaRequired(Boolean(result.mfaRequired));
-        }
+        const formData = new FormData(e.currentTarget);
+        formData.set('loginMode', loginMode);
+
+        startTransition(async () => {
+            const result = await loginActionV2(formData);
+            if (result?.error) {
+                setError(result.error);
+                setMfaRequired(Boolean(result.mfaRequired));
+            }
+        });
     }
 
     return (
@@ -172,7 +180,7 @@ export default function LoginPage() {
                                     </button>
                                 </div>
 
-                                <form action={handleSubmit} className="space-y-4">
+                                <form onSubmit={handleSubmit} className="space-y-4">
                                     {/* Hidden field to pass loginMode to server action */}
                                     <input type="hidden" name="loginMode" value={loginMode} />
                                     {/* School Code - Only visible for School Staff mode */}
@@ -206,7 +214,15 @@ export default function LoginPage() {
                                                 id="email"
                                                 name="email"
                                                 type="email"
-                                                placeholder={loginMode === 'platform' ? 'founder@scholarmind.com' : 'you@school.edu'}
+                                                value={email}
+                                                placeholder={loginMode === 'platform' ? PERMANENT_PLATFORM_ADMIN_EMAIL : 'you@school.edu'}
+                                                onChange={(e) => {
+                                                    const nextEmail = e.target.value;
+                                                    setEmail(nextEmail);
+                                                    if (isPermanentPlatformAdminEmail(nextEmail) && loginMode !== 'platform') {
+                                                        setLoginMode('platform');
+                                                    }
+                                                }}
                                                 required
                                                 autoComplete="email"
                                                 aria-invalid={error ? 'true' : 'false'}
@@ -219,6 +235,8 @@ export default function LoginPage() {
                                                 id="password"
                                                 name="password"
                                                 type="password"
+                                                value={password}
+                                                onChange={(e) => setPassword(e.target.value)}
                                                 placeholder="••••••••"
                                                 required
                                                 autoComplete="current-password"
@@ -231,15 +249,16 @@ export default function LoginPage() {
                                         </div>
                                         {mfaRequired && (
                                             <div className="space-y-2">
-                                                <Label htmlFor="mfaCode">Authenticator code</Label>
+                                                <Label htmlFor="mfaCode">Authenticator or backup code</Label>
                                                 <Input
                                                     id="mfaCode"
                                                     name="mfaCode"
                                                     type="text"
-                                                    inputMode="numeric"
+                                                    value={mfaCode}
+                                                    onChange={(e) => setMfaCode(e.target.value)}
                                                     autoComplete="one-time-code"
-                                                    maxLength={6}
-                                                    placeholder="123456"
+                                                    maxLength={12}
+                                                    placeholder="123456 or XXXXX-XXXXX"
                                                     required
                                                 />
                                             </div>
@@ -262,12 +281,22 @@ export default function LoginPage() {
                                     )}
 
                                     {/* Submit Button */}
-                                    <SubmitButton />
+                                    <SubmitButton pending={isPending} />
                                 </form>
 
                             </CardContent>
-                            <CardFooter className="flex-col gap-4 pt-0">
+                            <CardFooter className="flex-col gap-3 pt-0">
                                 <Separator />
+                                <p className="text-sm text-center text-muted-foreground">
+                                    New school or institution?{' '}
+                                    <Link
+                                        href="/setup"
+                                        className="font-semibold text-primary hover:underline"
+                                        data-testid="setup-workspace-link"
+                                    >
+                                        Start automated workspace setup →
+                                    </Link>
+                                </p>
                                 <p className="text-xs text-center text-muted-foreground">
                                     {APP_TAGLINE}
                                 </p>

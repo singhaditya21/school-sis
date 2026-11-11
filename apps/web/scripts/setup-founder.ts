@@ -1,124 +1,234 @@
-import { Pool, type QueryResultRow } from 'pg';
+import crypto from 'node:crypto';
+import { Pool } from 'pg';
 import { hash } from 'bcryptjs';
-import { createSqlTag, identifier, type ColumnRef } from '../../../packages/api/src/db/sql';
 import { resolveDatabaseConnectionOptions } from '../../../packages/api/src/db/ssl';
-import { companies, tenants, users } from '../../../packages/api/src/db/generated/tables';
+import {
+    PERMANENT_PLATFORM_ADMIN_EMAIL,
+    PLATFORM_ALL_MODULES,
+    PLATFORM_HQ_COMPANY_NAME,
+    PLATFORM_HQ_TENANT_CODE,
+} from '../src/lib/auth/platform-owner';
+import { encryptEmail, encryptEmailCandidates } from '../src/lib/encryption';
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
 if (!connectionString) {
-    console.error('❌ DATABASE_URL is required. Set it in your .env file.');
+    console.error('❌ DATABASE_URL or DIRECT_URL is required.');
     process.exit(1);
 }
 
-// A direct owner connection. This script seeds cross-tenant platform data (the HQ
-// company/tenant and the founder), so it deliberately does NOT go through the app's
-// RLS-routing pool, which requires a signed per-request tenant context.
+const hasPiiKey =
+    (process.env.PII_ENCRYPTION_KEY && process.env.PII_ENCRYPTION_KEY.length >= 32) ||
+    (process.env.NODE_ENV !== 'production' &&
+        process.env.ENCRYPTION_KEY &&
+        process.env.ENCRYPTION_KEY.length >= 32);
+
+// Direct owner connection: bootstraps cross-tenant HQ company/tenant and permanent
+// PLATFORM_ADMIN identity (`singhaditya21@gmail.com`).
 const pool = new Pool({
     ...resolveDatabaseConnectionOptions(connectionString),
     max: 1,
 });
-const sql = createSqlTag(() => pool);
-
-/**
- * INSERT one row from a generated table object and a values map keyed by the table's
- * own column properties. The keys are checked against the table at compile time (so a
- * drifted column name fails `tsc`), and every value is bound as a parameter.
- */
-async function insertRow<T extends { readonly $name: string }, Row extends QueryResultRow = QueryResultRow>(
-    table: T,
-    values: { [K in Exclude<keyof T, '$name'>]?: unknown },
-): Promise<Row> {
-    const entries = Object.entries(values).filter(([, value]) => value !== undefined);
-    const columns = entries.map(([key]) => `"${((table as Record<string, unknown>)[key] as ColumnRef).column}"`).join(', ');
-    const placeholders = entries.map((_, index) => `$${index + 1}`).join(', ');
-    const params = entries.map(([, value]) => value);
-    const { rows } = await pool.query(
-        `INSERT INTO "${table.$name}" (${columns}) VALUES (${placeholders}) RETURNING *`,
-        params,
-    );
-    // node-pg returns raw snake_case column names; map them back to the table's own
-    // camelCase property names so callers read `.id`, not the raw column key.
-    const raw = rows[0] ?? {};
-    const mapped: Record<string, unknown> = {};
-    for (const [property, ref] of Object.entries(table)) {
-        if (property === '$name') continue;
-        mapped[property] = raw[(ref as ColumnRef).column];
-    }
-    return mapped as Row;
-}
 
 async function setup() {
-    console.log('🚀 Setting up ScholarMind Platform Admin (Founder)...');
+    console.log(`🚀 Bootstrapping permanent ScholarMind Platform Admin (${PERMANENT_PLATFORM_ADMIN_EMAIL})...`);
 
-    // 1. HQ company
-    let companyId: string;
-    const existingCompany = await sql<{ id: string }>`
-        SELECT id FROM ${identifier(companies.$name)} WHERE ${companies.name} = ${'ScholarMind HQ'} LIMIT 1
-    `.maybeOne();
-    if (existingCompany) {
-        console.log('HQ Company already exists.');
-        companyId = existingCompany.id;
-    } else {
-        console.log('🏢 Creating HQ company...');
-        const company = await insertRow<typeof companies, { id: string }>(companies, {
-            name: 'ScholarMind HQ',
-            subscriptionTier: 'ENTERPRISE',
-            isActive: true,
-            region: 'GLOBAL',
-        });
-        companyId = company.id;
-    }
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
 
-    // 2. HQ tenant
-    let tenantId: string;
-    const existingHQ = await sql<{ id: string }>`
-        SELECT id FROM ${identifier(tenants.$name)} WHERE ${tenants.code} = ${'HQ'} LIMIT 1
-    `.maybeOne();
-    if (existingHQ) {
-        console.log('HQ Tenant already exists.');
-        tenantId = existingHQ.id;
-    } else {
-        console.log('📦 Creating HQ tenant...');
-        const tenant = await insertRow<typeof tenants, { id: string }>(tenants, {
-            name: 'ScholarMind HQ',
-            code: 'HQ',
-            companyId,
-            isActive: true,
-        });
-        tenantId = tenant.id;
-    }
+        // 1. Ensure ScholarMind HQ company exists and is locked to active ENTERPRISE + full modules
+        const existingCompany = await client.query<{ id: string }>(
+            `SELECT id FROM companies WHERE name = $1 LIMIT 1`,
+            [PLATFORM_HQ_COMPANY_NAME],
+        );
 
-    // 3. Founder user
-    const existingFounder = await sql<{ id: string }>`
-        SELECT id FROM ${identifier(users.$name)} WHERE ${users.email} = ${'founder@scholarmind.com'} LIMIT 1
-    `.maybeOne();
-
-    if (existingFounder) {
-        console.log('✅ Founder account already exists: founder@scholarmind.com');
-    } else {
-        console.log('👤 Creating founder user...');
-        const founderPassword = process.env.FOUNDER_PASSWORD;
-        if (!founderPassword || founderPassword.length < 12) {
-            throw new Error('FOUNDER_PASSWORD is required and must be at least 12 characters.');
+        let companyId: string;
+        if (existingCompany.rows[0]) {
+            companyId = existingCompany.rows[0].id;
+            await client.query(
+                `UPDATE companies
+                 SET subscription_tier = 'ENTERPRISE',
+                     billing_status = 'ACTIVE',
+                     active_modules = $1::text[],
+                     is_active = true,
+                     region = COALESCE(region, 'GLOBAL'),
+                     updated_at = NOW()
+                 WHERE id = $2`,
+                [[...PLATFORM_ALL_MODULES], companyId],
+            );
+            console.log('🏢 Verified HQ company governance settings.');
+        } else {
+            const insertedCompany = await client.query<{ id: string }>(
+                `INSERT INTO companies (name, subscription_tier, billing_status, active_modules, is_active, region)
+                 VALUES ($1, 'ENTERPRISE', 'ACTIVE', $2::text[], true, 'GLOBAL')
+                 RETURNING id`,
+                [PLATFORM_HQ_COMPANY_NAME, [...PLATFORM_ALL_MODULES]],
+            );
+            companyId = insertedCompany.rows[0].id;
+            console.log('🏢 Created ScholarMind HQ company.');
         }
-        const defaultPassword = await hash(founderPassword, 12);
 
-        await insertRow(users, {
-            tenantId,
-            email: 'founder@scholarmind.com',
-            passwordHash: defaultPassword,
-            firstName: 'SaaS',
-            lastName: 'Founder',
-            role: 'SUPER_ADMIN',
-        });
-        console.log('✅ Founder account created: founder@scholarmind.com');
+        // 2. Ensure HQ tenant exists and is active under ScholarMind HQ company
+        const existingHqTenant = await client.query<{ id: string }>(
+            `SELECT id FROM tenants WHERE upper(code) = $1 LIMIT 1`,
+            [PLATFORM_HQ_TENANT_CODE],
+        );
+
+        let hqTenantId: string;
+        if (existingHqTenant.rows[0]) {
+            hqTenantId = existingHqTenant.rows[0].id;
+            await client.query(
+                `UPDATE tenants
+                 SET code = $1,
+                     name = $2,
+                     company_id = $3,
+                     domain = COALESCE(domain, 'hq.scholarmind.app'),
+                     email = $4,
+                     is_active = true,
+                     updated_at = NOW()
+                 WHERE id = $5`,
+                [
+                    PLATFORM_HQ_TENANT_CODE,
+                    PLATFORM_HQ_COMPANY_NAME,
+                    companyId,
+                    PERMANENT_PLATFORM_ADMIN_EMAIL,
+                    hqTenantId,
+                ],
+            );
+            console.log('📦 Verified HQ tenant governance settings.');
+        } else {
+            const insertedTenant = await client.query<{ id: string }>(
+                `INSERT INTO tenants (name, code, domain, company_id, email, is_active)
+                 VALUES ($1, $2, 'hq.scholarmind.app', $3, $4, true)
+                 RETURNING id`,
+                [
+                    PLATFORM_HQ_COMPANY_NAME,
+                    PLATFORM_HQ_TENANT_CODE,
+                    companyId,
+                    PERMANENT_PLATFORM_ADMIN_EMAIL,
+                ],
+            );
+            hqTenantId = insertedTenant.rows[0].id;
+            console.log('📦 Created HQ tenant.');
+        }
+
+        // 3. Upsert & lock permanent full admin (`singhaditya21@gmail.com`) onto HQ
+        const emailCandidates = hasPiiKey
+            ? encryptEmailCandidates(PERMANENT_PLATFORM_ADMIN_EMAIL)
+            : [];
+        const encryptedOwnerEmail = hasPiiKey
+            ? encryptEmail(PERMANENT_PLATFORM_ADMIN_EMAIL)
+            : null;
+
+        const existingOwner = await client.query<{ id: string }>(
+            `SELECT id
+             FROM users
+             WHERE lower(email) = $1
+                OR ($2::text[] IS NOT NULL AND cardinality($2::text[]) > 0 AND email_enc = ANY($2::text[]))
+             ORDER BY CASE WHEN tenant_id = $3 THEN 0 ELSE 1 END, created_at ASC
+             LIMIT 1`,
+            [PERMANENT_PLATFORM_ADMIN_EMAIL, emailCandidates, hqTenantId],
+        );
+
+        const founderPassword = process.env.FOUNDER_PASSWORD?.trim();
+        const rotatePassword = process.env.ROTATE_FOUNDER_PASSWORD === 'true';
+
+        if (founderPassword && founderPassword.length < 12) {
+            throw new Error('FOUNDER_PASSWORD must be at least 12 characters when provided.');
+        }
+
+        let ownerUserId: string;
+        if (existingOwner.rows[0]) {
+            ownerUserId = existingOwner.rows[0].id;
+            if (founderPassword && rotatePassword) {
+                const passwordHash = await hash(founderPassword, 12);
+                await client.query(
+                    `UPDATE users
+                     SET tenant_id = $1,
+                         email = $2,
+                         email_enc = COALESCE($3, email_enc),
+                         password_hash = $4,
+                         first_name = COALESCE(NULLIF(first_name, ''), 'Aditya'),
+                         last_name = COALESCE(NULLIF(last_name, ''), 'Singh'),
+                         role = 'PLATFORM_ADMIN',
+                         is_active = true,
+                         updated_at = NOW()
+                     WHERE id = $5`,
+                    [
+                        hqTenantId,
+                        hasPiiKey ? null : PERMANENT_PLATFORM_ADMIN_EMAIL,
+                        encryptedOwnerEmail,
+                        passwordHash,
+                        ownerUserId,
+                    ],
+                );
+                console.log(`🔐 Updated permanent Platform Admin (${PERMANENT_PLATFORM_ADMIN_EMAIL}) with rotated password.`);
+            } else {
+                await client.query(
+                    `UPDATE users
+                     SET tenant_id = $1,
+                         email = $2,
+                         email_enc = COALESCE($3, email_enc),
+                         first_name = COALESCE(NULLIF(first_name, ''), 'Aditya'),
+                         last_name = COALESCE(NULLIF(last_name, ''), 'Singh'),
+                         role = 'PLATFORM_ADMIN',
+                         is_active = true,
+                         updated_at = NOW()
+                     WHERE id = $4`,
+                    [
+                        hqTenantId,
+                        hasPiiKey ? null : PERMANENT_PLATFORM_ADMIN_EMAIL,
+                        encryptedOwnerEmail,
+                        ownerUserId,
+                    ],
+                );
+                console.log(`✅ Verified permanent Platform Admin (${PERMANENT_PLATFORM_ADMIN_EMAIL}) on HQ.`);
+            }
+        } else {
+            const bootstrapSecret =
+                founderPassword || crypto.randomBytes(48).toString('base64url');
+            const passwordHash = await hash(bootstrapSecret, 12);
+            const insertedOwner = await client.query<{ id: string }>(
+                `INSERT INTO users (tenant_id, email, email_enc, password_hash, first_name, last_name, role, is_active)
+                 VALUES ($1, $2, $3, $4, 'Aditya', 'Singh', 'PLATFORM_ADMIN', true)
+                 RETURNING id`,
+                [
+                    hqTenantId,
+                    hasPiiKey ? null : PERMANENT_PLATFORM_ADMIN_EMAIL,
+                    encryptedOwnerEmail,
+                    passwordHash,
+                ],
+            );
+            ownerUserId = insertedOwner.rows[0].id;
+            console.log(
+                founderPassword
+                    ? `✅ Created permanent Platform Admin (${PERMANENT_PLATFORM_ADMIN_EMAIL}) with configured FOUNDER_PASSWORD.`
+                    : `✅ Provisioned permanent Platform Admin (${PERMANENT_PLATFORM_ADMIN_EMAIL}) on HQ (set FOUNDER_PASSWORD + ROTATE_FOUNDER_PASSWORD=true to set password credential, or sign in via verified SSO).`,
+            );
+        }
+
+        // 4. Deactivate any legacy non-owner PLATFORM_ADMIN accounts on HQ (e.g. old founder@scholarmind.com)
+        await client.query(
+            `UPDATE users
+             SET is_active = false,
+                 updated_at = NOW()
+             WHERE role = 'PLATFORM_ADMIN'
+               AND id <> $1
+               AND is_active = true`,
+            [ownerUserId],
+        );
+
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err;
+    } finally {
+        client.release();
+        await pool.end();
     }
-
-    await pool.end();
-    process.exit(0);
 }
 
-setup().catch(err => {
-    console.error('Error:', err);
+setup().catch((err) => {
+    console.error('❌ Platform Admin bootstrap failed:', err);
     process.exit(1);
 });

@@ -1,6 +1,11 @@
 import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import type { QueryResult } from 'pg';
 import { shouldRequireMfaEnrollment } from './identity';
+import {
+    isPermanentPlatformAdminEmail,
+    PLATFORM_ALL_MODULES,
+    PLATFORM_HQ_TENANT_CODE,
+} from './platform-owner';
 import { encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 
 type SSOCallbackResult =
@@ -311,10 +316,24 @@ export async function handleSSOCallback(
     }
 
     const { user } = identity;
+    if (
+        user.role === 'PLATFORM_ADMIN' ||
+        isPermanentPlatformAdminEmail(user.email)
+    ) {
+        if (
+            user.role !== 'PLATFORM_ADMIN' ||
+            (user.tenantCode || '').toUpperCase() !== PLATFORM_HQ_TENANT_CODE ||
+            !isPermanentPlatformAdminEmail(user.email)
+        ) {
+            return { success: false, error: 'Invalid platform administrator identity mapping.' };
+        }
+    }
     const requiresMfaBackedSso = user.mfaEnabled || shouldRequireMfaEnrollment(user.role, Boolean(user.mfaEnabled));
     if (requiresMfaBackedSso && !config.assumeMfa) {
         return { success: false, error: 'This account requires MFA-backed SSO. Enable SSO_ASSUME_MFA only after enforcing MFA at the identity provider.' };
     }
+
+    const isHqAdmin = user.role === 'PLATFORM_ADMIN';
 
     return {
         success: true,
@@ -326,8 +345,10 @@ export async function handleSSOCallback(
         email: user.email,
         displayName: displayNameFor(user, userInfo),
         companyId: user.companyId || undefined,
-        subscriptionTier: user.subscriptionTier || undefined,
-        activeModules: Array.isArray(user.activeModules) ? user.activeModules : [],
+        subscriptionTier: isHqAdmin ? 'ENTERPRISE' : (user.subscriptionTier || undefined),
+        activeModules: isHqAdmin
+            ? [...PLATFORM_ALL_MODULES]
+            : (Array.isArray(user.activeModules) ? user.activeModules : []),
         mfaEnabled: Boolean(user.mfaEnabled),
         mfaVerified: config.assumeMfa,
     };

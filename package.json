@@ -34,6 +34,7 @@
     "db:adopt:legacy-production": "pnpm --filter @school-sis/web run db:adopt:legacy-production",
     "db:reconciliation:audit": "pnpm --silent --filter @school-sis/web exec node --import tsx scripts/run-migration-reconciliation-audit.ts",
     "db:migrate:deploy": "pnpm --filter @school-sis/web run db:migrate:deploy",
+    "db:bootstrap:admin": "pnpm --filter @school-sis/web exec tsx scripts/setup-founder.ts",
     "db:seed": "pnpm --filter @school-sis/web run db:seed",
     "scheduler": "node --env-file=apps/web/.env.local scripts/scheduler.mjs",
     "jobs:tick": "node --env-file=apps/web/.env.local scripts/scheduler.mjs --once",

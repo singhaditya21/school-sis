@@ -26,7 +26,7 @@ export async function createCampusGroupAction(input: {
     name: string;
     hqCity: string;
 }): Promise<HqActionResult & { groupId?: string }> {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN, UserRole.GROUP_EXECUTIVE);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const name = input.name.trim();
     const hqCity = input.hqCity.trim();
@@ -55,7 +55,7 @@ export async function attachCampusAction(input: {
     region: string;
     campusType: string;
 }): Promise<HqActionResult> {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN, UserRole.GROUP_EXECUTIVE);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const region = input.region.trim();
     if (!input.groupId || !input.tenantId) {
@@ -94,7 +94,7 @@ export async function attachCampusAction(input: {
 }
 
 export async function detachCampusAction(hierarchyId: string): Promise<HqActionResult> {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN, UserRole.GROUP_EXECUTIVE);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     if (!hierarchyId) {
         return { success: false, error: 'Missing campus mapping.' };
@@ -115,7 +115,7 @@ export async function createGroupPolicyAction(input: {
     policyValue: string;
     isHardBlock: boolean;
 }): Promise<HqActionResult> {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN, UserRole.GROUP_EXECUTIVE);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const policyName = input.policyName.trim();
     const policyKey = input.policyKey.trim().toUpperCase();
@@ -151,7 +151,7 @@ export async function deleteGroupPolicyAction(input: {
     groupId: string;
     policyId: string;
 }): Promise<HqActionResult> {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN, UserRole.GROUP_EXECUTIVE);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     if (!input.groupId || !input.policyId) {
         return { success: false, error: 'Missing policy.' };

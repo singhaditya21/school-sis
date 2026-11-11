@@ -8,6 +8,14 @@ import { hash } from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
 import { getSession } from '@/lib/auth/session';
 import { establishSession, impersonationExpiresAt, legacyImpersonationActorId } from '@/lib/auth/identity';
+import {
+    CORE_DEFAULT_MODULES,
+    isPermanentPlatformAdminEmail,
+    isReservedWorkspaceCode,
+    PLATFORM_ALL_MODULES,
+    PLATFORM_HQ_COMPANY_NAME,
+    PLATFORM_HQ_TENANT_CODE,
+} from '@/lib/auth/platform-owner';
 import { logger } from '@/lib/observability/logger';
 import crypto from 'crypto';
 
@@ -143,20 +151,29 @@ export async function getAllPlatformTenants(): Promise<PlatformTenant[]> {
 export async function createTenantAction(formData: FormData) {
     await requireRole(UserRole.PLATFORM_ADMIN);
 
-    const name = formData.get('name') as string;
-    const adminEmail = formData.get('adminEmail') as string;
-    const adminFirstName = formData.get('adminFirstName') as string;
-    const adminLastName = formData.get('adminLastName') as string;
-    const region = (formData.get('region') as string) || 'US-EAST';
+    const name = String(formData.get('name') || '').trim();
+    const adminEmail = String(formData.get('adminEmail') || '').trim().toLowerCase();
+    const adminFirstName = String(formData.get('adminFirstName') || '').trim();
+    const adminLastName = String(formData.get('adminLastName') || '').trim();
+    const region = String(formData.get('region') || 'US-EAST').trim() || 'US-EAST';
 
     if (!name || !adminEmail || !adminFirstName || !adminLastName) {
         return { error: 'All fields are required.' };
+    }
+    if (isPermanentPlatformAdminEmail(adminEmail)) {
+        return { error: 'This email address is reserved for ScholarMind Platform Administration.' };
+    }
+    if (
+        name.toLowerCase() === PLATFORM_HQ_COMPANY_NAME.toLowerCase() ||
+        isReservedWorkspaceCode(name)
+    ) {
+        return { error: 'This institution name is reserved by ScholarMind HQ.' };
     }
 
     try {
         // Check for duplicate school name
         const existingCompany = await sql<{ id: string }>`
-            SELECT id FROM companies WHERE name = ${`${name} Org`} LIMIT 1
+            SELECT id FROM companies WHERE lower(name) = lower(${`${name} Org`}) OR lower(name) = lower(${name}) LIMIT 1
         `;
         if (existingCompany.length > 0) {
             return { error: 'A school with this name already exists.' };
@@ -164,27 +181,36 @@ export async function createTenantAction(formData: FormData) {
 
         // Check for duplicate admin email
         const existingUser = await sql<{ id: string }>`
-            SELECT id FROM users WHERE (email_enc = ANY(${encryptEmailCandidates(adminEmail)}::text[]) OR email = ${adminEmail}) LIMIT 1
+            SELECT id FROM users WHERE (email_enc = ANY(${encryptEmailCandidates(adminEmail)}::text[]) OR lower(email) = lower(${adminEmail})) LIMIT 1
         `;
         if (existingUser.length > 0) {
             return { error: 'A user with this email address already exists.' };
         }
 
-        const baseCode = name.replace(/[^a-zA-Z0-9]/g, '').substring(0, 5).toUpperCase();
-        const randSuffix = Math.floor(Math.random() * 900) + 100;
-        const tenantCode = `${baseCode}${randSuffix}`;
+        const baseCode = (name.replace(/[^a-zA-Z0-9]/g, '').substring(0, 5).toUpperCase()) || 'SCH';
+        let tenantCode = `${baseCode}${Math.floor(Math.random() * 900) + 100}`;
+        for (let attempt = 0; attempt < 5; attempt++) {
+            if (!isReservedWorkspaceCode(tenantCode)) {
+                const collision = await sql<{ id: string }>`
+                    SELECT id FROM tenants WHERE upper(code) = ${tenantCode} LIMIT 1
+                `;
+                if (collision.length === 0) break;
+            }
+            tenantCode = `${baseCode}${Math.floor(Math.random() * 9000) + 1000}`;
+        }
+        const domainUrl = `${tenantCode.toLowerCase()}.scholarmind.app`;
 
         // 1. Create Company First
         const companyRows = await sql<{ id: string }>`
-            INSERT INTO companies (name, subscription_tier, is_active, region) 
-            VALUES (${`${name} Org`}, ${'CORE'}, ${true}, ${region}) RETURNING id
+            INSERT INTO companies (name, subscription_tier, billing_status, active_modules, is_active, region) 
+            VALUES (${`${name} Org`}, ${'CORE'}, ${'ACTIVE'}, ${[...CORE_DEFAULT_MODULES]}::text[], ${true}, ${region}) RETURNING id
         `;
         const newCompany = companyRows[0];
 
         // 2. Create Tenant bounded to Company
         const tenantRows = await sql<{ id: string }>`
-            INSERT INTO tenants (name, code, company_id, is_active) 
-            VALUES (${name}, ${tenantCode}, ${newCompany.id}, ${true}) RETURNING id
+            INSERT INTO tenants (name, code, domain, email, company_id, is_active) 
+            VALUES (${name}, ${tenantCode}, ${domainUrl}, ${adminEmail}, ${newCompany.id}, ${true}) RETURNING id
         `;
         const newTenant = tenantRows[0];
 
@@ -192,9 +218,11 @@ export async function createTenantAction(formData: FormData) {
         const temporaryPassword = crypto.randomBytes(18).toString('base64url');
         const defaultPassword = await hash(temporaryPassword, 12);
         await sql`
-            INSERT INTO users (tenant_id, email_enc, first_name, last_name, role, password_hash)
-            VALUES (${newTenant.id}, ${encryptEmail(adminEmail)}, ${adminFirstName}, ${adminLastName}, ${'SUPER_ADMIN'}, ${defaultPassword})
+            INSERT INTO users (tenant_id, email_enc, first_name, last_name, role, password_hash, is_active)
+            VALUES (${newTenant.id}, ${encryptEmail(adminEmail)}, ${adminFirstName}, ${adminLastName}, ${'SUPER_ADMIN'}, ${defaultPassword}, ${true})
         `;
+
+        await logPlatformAudit('CREATE_TENANT', `Provisioned tenant ${name} (${tenantCode})`, newCompany.id, newTenant.id);
 
         revalidatePath('/platform/tenants');
         revalidatePath('/hq/tenants');
@@ -216,12 +244,20 @@ export async function createTenantAction(formData: FormData) {
 export async function toggleTenantStatusAction(tenantId: string, isActive: boolean) {
     await requireRole(UserRole.PLATFORM_ADMIN);
 
-    await sql`UPDATE tenants SET is_active = ${isActive} WHERE id = ${tenantId}`;
+    const targetRows = await sql<{ code: string | null }>`
+        SELECT code FROM tenants WHERE id = ${tenantId} LIMIT 1
+    `;
+    if ((targetRows[0]?.code || '').toUpperCase() === PLATFORM_HQ_TENANT_CODE && !isActive) {
+        return { error: 'ScholarMind HQ cannot be suspended.' };
+    }
+
+    await sql`UPDATE tenants SET is_active = ${isActive}, updated_at = NOW() WHERE id = ${tenantId}`;
     
     await logPlatformAudit('TOGGLE_TENANT_STATUS', `Status changed to ${isActive}`, undefined, tenantId);
     
     revalidatePath('/platform/tenants');
     revalidatePath('/hq/tenants');
+    revalidatePath('/hq');
     
     return { success: true };
 }
@@ -274,6 +310,9 @@ export async function impersonateTenantAction(tenantId: string) {
         WHERE t.id = ${tenantId}
     `;
     const targetCompany = tenantsData[0];
+    if ((targetCompany?.tenantCode || '').toUpperCase() === PLATFORM_HQ_TENANT_CODE) {
+        return { error: 'ScholarMind HQ cannot be impersonated.' };
+    }
 
     const originalId = session.userId;
     const originalTenantId = session.tenantId;
@@ -367,7 +406,7 @@ export async function returnToHQAction() {
         provider: 'system',
         displayName: [founder.firstName, founder.lastName].filter(Boolean).join(' ') || founder.email,
         subscriptionTier: 'ENTERPRISE',
-        activeModules: ['ATTENDANCE', 'FEES', 'COMMUNICATION', 'AI_AGENTS', 'HIGHER_ED', 'COACHING', 'INTERNATIONAL', 'MULTI_CAMPUS', 'ENTERPRISE'],
+        activeModules: [...PLATFORM_ALL_MODULES],
         mfaEnabled: Boolean(founder.mfaEnabled),
         mfaVerified: true,
     });
@@ -433,20 +472,44 @@ export async function updateCompanySettingsAction(companyId: string, payload: {
 }) {
     await requireRole(UserRole.PLATFORM_ADMIN);
 
+    const hqCheck = await sql<{ isHq: boolean }>`
+        SELECT EXISTS (
+            SELECT 1 FROM companies c
+            LEFT JOIN tenants t ON t.company_id = c.id
+            WHERE c.id = ${companyId}
+              AND (lower(c.name) = lower(${PLATFORM_HQ_COMPANY_NAME}) OR upper(t.code) = ${PLATFORM_HQ_TENANT_CODE})
+        ) AS "isHq"
+    `;
+    if (hqCheck[0]?.isHq && (!payload.isActive || payload.subscriptionTier !== 'ENTERPRISE')) {
+        return { error: 'ScholarMind HQ must remain active on the ENTERPRISE tier.' };
+    }
+
     await sql`
         UPDATE companies SET 
             subscription_tier = ${payload.subscriptionTier}, 
             active_modules = ${payload.activeModules || []}, 
             is_active = ${payload.isActive}, 
             theme_color = ${payload.themeColor || null}, 
-            domain_mask = ${payload.domainMask || null} 
+            domain_mask = ${payload.domainMask || null},
+            updated_at = NOW()
         WHERE id = ${companyId}
     `;
+
+    if (!hqCheck[0]?.isHq) {
+        await sql`
+            UPDATE tenants
+            SET is_active = ${payload.isActive},
+                updated_at = NOW()
+            WHERE company_id = ${companyId}
+              AND upper(code) <> ${PLATFORM_HQ_TENANT_CODE}
+        `;
+    }
 
     await logPlatformAudit('UPDATE_COMPANY_SETTINGS', `Updated tier to ${payload.subscriptionTier}, features toggled`, companyId);
 
     revalidatePath(`/platform/tenants/${companyId}`);
     revalidatePath('/hq/tenants');
+    revalidatePath('/hq');
     
     return { success: true };
 }

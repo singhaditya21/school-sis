@@ -11,6 +11,12 @@ import { verifyMFACode } from '@/lib/auth/mfa';
 import { establishSession } from '@/lib/auth/identity';
 import { encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 import { logger } from '@/lib/observability/logger';
+import {
+    isPermanentPlatformAdminEmail,
+    normalizeWorkspaceCode,
+    PLATFORM_ALL_MODULES,
+    PLATFORM_HQ_TENANT_CODE,
+} from '@/lib/auth/platform-owner';
 
 /**
  * Login action — production-ready authentication.
@@ -28,18 +34,6 @@ const loginSchema = z.object({
     schoolCode: z.string().optional(),
     mfaCode: z.string().optional(),
 });
-
-const PLATFORM_ACTIVE_MODULES = [
-    'ATTENDANCE',
-    'FEES',
-    'COMMUNICATION',
-    'AI_AGENTS',
-    'HIGHER_ED',
-    'COACHING',
-    'INTERNATIONAL',
-    'MULTI_CAMPUS',
-    'ENTERPRISE',
-];
 
 const DUMMY_PASSWORD_HASH = '$2a$12$rtRIcbN90xzIGNYbZ/balew0SMhGjd38LHz8rS9D5jEx4QEvSpLEO';
 
@@ -108,11 +102,17 @@ async function loginActionV2WithBypass(formData: FormData) {
     try {
         const loginMode = formData.get('loginMode') as string | null;
 
-        // Strict architectural boundary: Only attempt platform auth if explicitly requested
-        const isPlatformAdmin = loginMode === 'platform';
+        // Permanent Platform Admin (`singhaditya21@gmail.com`) always routes to HQ
+        // platform authentication, even when submitted from the default login view.
+        const isPlatformAdmin =
+            loginMode === 'platform' || isPermanentPlatformAdminEmail(normalizedEmailInput);
 
         if (isPlatformAdmin) {
             const normalizedEmail = normalizedEmailInput;
+            if (!isPermanentPlatformAdminEmail(normalizedEmail)) {
+                await compare(password, DUMMY_PASSWORD_HASH);
+                return { error: 'Invalid email or password' };
+            }
 
             const platformRows = await sql<{
                 id: string;
@@ -141,8 +141,8 @@ async function loginActionV2WithBypass(formData: FormData) {
                     u.mfa_enabled as "mfaEnabled"
                 FROM users u
                 INNER JOIN tenants t ON t.id = u.tenant_id
-                WHERE (u.email_enc = ANY(${encryptEmailCandidates(normalizedEmail)}::text[]) OR u.email = ${normalizedEmail})
-                  AND t.code = 'HQ'
+                WHERE (u.email_enc = ANY(${encryptEmailCandidates(normalizedEmail)}::text[]) OR lower(u.email) = ${normalizedEmail})
+                  AND upper(t.code) = ${PLATFORM_HQ_TENANT_CODE}
                   AND t.is_active = true
                   AND u.role = 'PLATFORM_ADMIN'
                 LIMIT 1
@@ -184,19 +184,28 @@ async function loginActionV2WithBypass(formData: FormData) {
                 provider: 'password',
                 displayName: displayNameFor(user),
                 subscriptionTier: 'ENTERPRISE',
-                activeModules: PLATFORM_ACTIVE_MODULES,
+                activeModules: [...PLATFORM_ALL_MODULES],
                 mfaEnabled: Boolean(user.mfaEnabled),
                 mfaVerified: Boolean(user.mfaEnabled),
             });
             await session.save();
+
+            await sql`
+                UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ${user.id}
+            `;
 
             redirectPath =
                 session.mfaRequired && !session.mfaVerified ? '/mfa/setup' : '/hq';
 
         } else {
             // School staff login — requires school code
-            if (!schoolCode) {
+            const normalizedSchoolCode = normalizeWorkspaceCode(schoolCode);
+            if (!normalizedSchoolCode) {
                 return { error: 'School code is required for staff login' };
+            }
+            if (normalizedSchoolCode === PLATFORM_HQ_TENANT_CODE) {
+                await compare(password, DUMMY_PASSWORD_HASH);
+                return { error: 'Invalid school code. Please check with your school administrator.' };
             }
 
             // Look up tenant by school code and join company for features
@@ -215,7 +224,7 @@ async function loginActionV2WithBypass(formData: FormData) {
                     c.id as "companyId", c.is_active as "companyIsActive", c.subscription_tier as "subscriptionTier", c.active_modules as "activeModules"
                 FROM tenants t
                 LEFT JOIN companies c ON t.company_id = c.id
-                WHERE t.code = ${schoolCode.toUpperCase()} LIMIT 1
+                WHERE upper(t.code) = ${normalizedSchoolCode} LIMIT 1
             `;
             const tenantRecord = tenantRows[0];
 

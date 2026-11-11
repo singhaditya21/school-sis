@@ -162,7 +162,7 @@ export const PAGE_ACCESS_POLICIES = [
     },
     {
         name: 'authenticated-support',
-        prefixes: ['/lti', '/unauthorized', '/upgrade'],
+        prefixes: ['/lti', '/setup/success', '/unauthorized', '/upgrade'],
         level: 'authenticated',
     },
     {

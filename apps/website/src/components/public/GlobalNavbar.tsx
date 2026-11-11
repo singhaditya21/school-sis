@@ -4,14 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Menu, X, ArrowRight } from 'lucide-react';
+import { resolveAppUrl } from '@/lib/app-url';
 
 const DARK_HERO_ROUTES = new Set(['/', '/architecture']);
-
-function resolveAppUrl(): string {
-    const configured = (process.env.NEXT_PUBLIC_APP_URL || '').trim().replace(/\/+$/, '');
-    if (configured) return configured;
-    return process.env.NODE_ENV !== 'production' ? 'http://localhost:3000' : '';
-}
 
 export default function GlobalNavbar() {
     const pathname = usePathname();
@@ -75,15 +70,20 @@ export default function GlobalNavbar() {
 
                     {/* CTAs */}
                     <div className="hidden md:flex items-center space-x-4">
-                        {appUrl ? (
-                            <a href={`${appUrl}/login`} className={signInClass}>
-                                Sign In
-                            </a>
-                        ) : (
-                            <Link href="/book-demo" className={signInClass}>
-                                Sign In
-                            </Link>
-                        )}
+                        <a href={`${appUrl}/login`} className={signInClass}>
+                            Sign In
+                        </a>
+                        <a
+                            href={`${appUrl}/setup`}
+                            data-testid="navbar-start-workspace"
+                            className={`px-4 py-2 rounded-full text-sm font-bold border transition-all ${
+                                useLightTheme
+                                    ? 'border-indigo-200 text-indigo-700 hover:bg-indigo-50'
+                                    : 'border-white/25 text-white hover:bg-white/10'
+                            }`}
+                        >
+                            Start Workspace
+                        </a>
                         <Link href="/book-demo" className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all flex items-center gap-2 group ${
                             useLightTheme
                                 ? 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-600/30'
@@ -115,11 +115,8 @@ export default function GlobalNavbar() {
                     <Link href="/pricing" onClick={() => setMobileOpen(false)} className="text-gray-700 font-medium px-4 py-2 hover:bg-gray-50 rounded-lg">Pricing</Link>
                     <Link href="/apply-online" onClick={() => setMobileOpen(false)} className="text-gray-700 font-medium px-4 py-2 hover:bg-gray-50 rounded-lg">Apply Preview</Link>
                     <div className="h-px bg-gray-100 my-2"></div>
-                    {appUrl ? (
-                        <a href={`${appUrl}/login`} onClick={() => setMobileOpen(false)} className="text-gray-700 font-medium px-4 py-2 hover:bg-gray-50 rounded-lg">Sign In</a>
-                    ) : (
-                        <Link href="/book-demo" onClick={() => setMobileOpen(false)} className="text-gray-700 font-medium px-4 py-2 hover:bg-gray-50 rounded-lg">Sign In</Link>
-                    )}
+                    <a href={`${appUrl}/login`} onClick={() => setMobileOpen(false)} className="text-gray-700 font-medium px-4 py-2 hover:bg-gray-50 rounded-lg">Sign In</a>
+                    <a href={`${appUrl}/setup`} onClick={() => setMobileOpen(false)} className="text-center border border-indigo-200 text-indigo-700 font-bold px-4 py-3 rounded-xl hover:bg-indigo-50">Start Workspace</a>
                     <Link href="/book-demo" onClick={() => setMobileOpen(false)} className="text-center bg-indigo-600 text-white font-bold px-4 py-3 rounded-xl shadow-md">Book Demo</Link>
                 </div>
             )}

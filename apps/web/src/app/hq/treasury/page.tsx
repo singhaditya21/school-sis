@@ -20,7 +20,7 @@ export const metadata = {
  * row are reported as unassigned rather than being silently dropped.
  */
 export default async function TreasuryPage() {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const { rows: campusRows } = await pool.query(
         `SELECT

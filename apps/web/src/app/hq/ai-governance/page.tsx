@@ -17,7 +17,7 @@ export const metadata = {
  * produces, so the surface stays honest until metering is reinstated.
  */
 export default async function AIGovernancePage() {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     return (
         <div className="max-w-2xl space-y-6">

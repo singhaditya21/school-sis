@@ -54,7 +54,7 @@ export default function MfaSetupPage() {
         const result = await completeMfaEnrollment(new FormData(event.currentTarget));
         if (result.success) {
             // The session is now verified, which releases the proxy gate.
-            router.push('/pricing');
+            router.push(result.nextPath || '/pricing');
         } else {
             setError(result.error || 'Could not complete two-factor setup.');
             setSubmitting(false);

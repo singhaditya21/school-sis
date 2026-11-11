@@ -2,6 +2,7 @@ import React from 'react';
 import { requireRole } from '@/lib/auth/middleware';
 import { UserRole } from '@/lib/rbac/permissions';
 import { pool } from '@/lib/db';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import { Shield, Fingerprint, Users } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -28,7 +29,7 @@ interface ActionSummaryRow {
 const PAGE_LIMIT = 100;
 
 export default async function AuditPage() {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const { rows: logRows } = await pool.query(
         `SELECT
@@ -37,7 +38,7 @@ export default async function AuditPage() {
             a.metadata,
             a.ip_address  AS "ipAddress",
             a.created_at  AS "createdAt",
-            u.email       AS "actorEmail",
+            COALESCE(u.email_enc, u.email) AS "actorEmail",
             t.name        AS "targetTenantName",
             t.code        AS "targetTenantCode"
          FROM platform_audit_logs a
@@ -64,7 +65,10 @@ export default async function AuditPage() {
          FROM platform_audit_logs`
     );
 
-    const logs = logRows as AuditRow[];
+    const logs = (logRows as AuditRow[]).map((row) => ({
+        ...row,
+        actorEmail: row.actorEmail ? decryptFieldTolerant(row.actorEmail) : null,
+    }));
     const summary = summaryRows as ActionSummaryRow[];
     const overall = overallRows[0] as { total: number; actors: number; last7: number };
 

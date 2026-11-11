@@ -7,6 +7,12 @@ import { cookies, headers } from 'next/headers';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, SessionData } from '@/lib/auth/session';
 import { establishSession } from '@/lib/auth/identity';
+import {
+    CORE_DEFAULT_MODULES,
+    isPermanentPlatformAdminEmail,
+    isReservedWorkspaceCode,
+    normalizeWorkspaceCode,
+} from '@/lib/auth/platform-owner';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
 import { logger } from '@/lib/observability/logger';
 
@@ -42,8 +48,14 @@ function normalizeOnboardingInput(formData: FormData): { ok: true; data: Onboard
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254) {
         return { ok: false, error: 'Enter a valid administrator email address.' };
     }
+    if (isPermanentPlatformAdminEmail(email)) {
+        return { ok: false, error: 'This email address is reserved for ScholarMind Platform Administration.' };
+    }
     if (!DOMAIN_RE.test(domain)) {
         return { ok: false, error: 'Workspace subdomain must be 4-50 lowercase letters, numbers, or hyphens.' };
+    }
+    if (isReservedWorkspaceCode(domain)) {
+        return { ok: false, error: 'This workspace subdomain is reserved. Please choose another.' };
     }
     if (password.length < 12 || password.length > 128) {
         return { ok: false, error: 'Password must be 12-128 characters.' };
@@ -107,7 +119,8 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
         if (limitError) return { error: limitError };
 
         const { schoolName, firstName, lastName, email, domain, password } = input.data;
-        const domainUrl = `${domain}.scholarmind.app`;
+        const tenantCode = normalizeWorkspaceCode(domain);
+        const domainUrl = `${domain.toLowerCase()}.scholarmind.app`;
 
         // Ensure email isn't already used
         const existingUser = await sql<{ id: string }>`
@@ -118,7 +131,7 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
         }
 
         const existingDomain = await sql<{ id: string }>`
-            SELECT id FROM tenants WHERE code = ${domain} OR domain = ${domainUrl} LIMIT 1
+            SELECT id FROM tenants WHERE upper(code) = ${tenantCode} OR lower(domain) = ${domainUrl} LIMIT 1
         `;
         if (existingDomain.length > 0) {
             return { error: 'This workspace subdomain is already taken. Please choose another.' };
@@ -128,15 +141,10 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
         // hundred milliseconds and there is no reason to hold a connection for it.
         const passwordHash = await hash(password, 12);
 
-        // `billing_status` lives on companies, not tenants — tenants has no such
-        // column. Inserting it here raised `column "billing_status" of relation
-        // "tenants" does not exist`, which the catch below reported as the generic
-        // "Failed to create workspace database", so onboarding was dead for every
-        // prospective customer with nothing in the UI to say why.
-        //
-        // A workspace is a billing entity (companies) plus the school itself
-        // (tenants.company_id -> companies.id). Creating only the tenant left no
-        // company for checkout to bill against.
+        // Self-serve tenants auto-activate immediately on the CORE tier with an
+        // UPPERCASE `tenants.code` (matching `loginActionV2`), `is_active = true`,
+        // and founding owner `role = 'SUPER_ADMIN'` so the school can re-login,
+        // configure custom objects, and upgrade to AI_PRO/ENTERPRISE via Stripe.
         const client = await pool.connect();
         const q = sqlFor(client);
         let companyId = '';
@@ -146,22 +154,22 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
             await q`BEGIN`;
 
             const companyRows = await q<{ id: string }>`
-                INSERT INTO companies (name, billing_status)
-                VALUES (${schoolName}, ${'INCOMPLETE'})
+                INSERT INTO companies (name, subscription_tier, billing_status, active_modules, is_active)
+                VALUES (${schoolName}, ${'CORE'}, ${'ACTIVE'}, ${[...CORE_DEFAULT_MODULES]}::text[], ${true})
                 RETURNING id
             `;
             companyId = companyRows[0].id;
 
             const tenantRows = await q<{ id: string }>`
                 INSERT INTO tenants (company_id, name, code, domain, email, is_active)
-                VALUES (${companyId}, ${schoolName}, ${domain}, ${domainUrl}, ${email}, ${false})
+                VALUES (${companyId}, ${schoolName}, ${tenantCode}, ${domainUrl}, ${email}, ${true})
                 RETURNING id
             `;
             tenant = tenantRows[0];
 
             const adminUserRows = await q<{ id: string; role: string; email: string; firstName: string; lastName: string }>`
                 INSERT INTO users (tenant_id, email_enc, password_hash, first_name, last_name, role, is_active)
-                VALUES (${tenant.id}, ${encryptEmail(email)}, ${passwordHash}, ${firstName}, ${lastName}, ${'SCHOOL_ADMIN'}, ${true})
+                VALUES (${tenant.id}, ${encryptEmail(email)}, ${passwordHash}, ${firstName}, ${lastName}, ${'SUPER_ADMIN'}, ${true})
                 RETURNING id, COALESCE(email_enc, email) AS email, first_name AS "firstName", last_name AS "lastName", role
             `;
             adminUser = adminUserRows[0];
@@ -182,19 +190,21 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
         establishSession(session, {
             userId: adminUser.id,
             tenantId: tenant.id,
-            tenantCode: domain,
+            tenantCode,
             tenantDomain: domainUrl,
             role: adminUser.role,
             email: adminUser.email,
             provider: 'password',
             displayName: `${adminUser.firstName} ${adminUser.lastName}`,
             companyId,
+            subscriptionTier: 'CORE',
+            activeModules: [...CORE_DEFAULT_MODULES],
             mfaEnabled: false,
             mfaVerified: false,
         });
         await session.save();
 
-        return { success: true, tenantId: tenant.id };
+        return { success: true, tenantId: tenant.id, tenantCode };
     } catch (error: unknown) {
         logger.error('onboarding.setup_failed', 'Workspace provisioning failed', {
             source: 'onboarding-action',

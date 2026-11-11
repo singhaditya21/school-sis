@@ -1,15 +1,19 @@
 'use client';
 
-import React, { useMemo, useTransition } from 'react';
+import React, { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell,
 } from 'recharts';
-import { Target, Users, Mail, ExternalLink } from 'lucide-react';
+import { Target, Users, Mail, ExternalLink, Sparkles, Copy, Check } from 'lucide-react';
 import { format } from 'date-fns';
-import { updateLeadStatusAction } from './actions';
+import {
+    provisionTenantFromLeadAction,
+    updateLeadStatusAction,
+    type ProvisionLeadTenantResult,
+} from './actions';
 
 export interface StatusAggregate {
     status: string;
@@ -50,6 +54,8 @@ export default function LeadsClient({
 }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
+    const [provisioned, setProvisioned] = useState<ProvisionLeadTenantResult | null>(null);
+    const [copied, setCopied] = useState(false);
 
     const funnelData = useMemo(
         () => STAGES.map((stage) => ({
@@ -90,12 +96,103 @@ export default function LeadsClient({
         });
     };
 
+    const provisionLead = (lead: Lead) => {
+        startTransition(async () => {
+            const result = await provisionTenantFromLeadAction({ leadId: lead.id });
+            if (!result.success) {
+                toast.error(result.error ?? 'Could not provision workspace.');
+                return;
+            }
+            setProvisioned(result);
+            setCopied(false);
+            toast.success(`Provisioned ${result.schoolName} (${result.tenantCode}).`);
+            router.refresh();
+        });
+    };
+
+    const copyCredentials = async () => {
+        if (!provisioned) return;
+        const text = [
+            `School: ${provisioned.schoolName}`,
+            `School Code: ${provisioned.tenantCode}`,
+            `Admin Email: ${provisioned.adminEmail}`,
+            `One-Time Password: ${provisioned.temporaryPassword}`,
+        ].join('\n');
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        toast.success('Provisioned credentials copied to clipboard.');
+    };
+
     return (
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Lead Pipeline</h1>
-                <p className="text-sm text-muted-foreground mt-1">Inbound schools captured from the marketing site.</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                    Inbound schools captured from the marketing site — convert qualified prospects into live isolated tenants in one click.
+                </p>
             </div>
+
+            {provisioned && (
+                <div
+                    data-testid="provisioned-lead-credentials"
+                    className="rounded-xl border border-success/40 bg-card/10 p-6 text-white space-y-4"
+                >
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-widest text-success">
+                                Tenant Workspace Provisioned (Shown Once)
+                            </p>
+                            <h2 className="text-lg font-bold text-white mt-0.5">
+                                {provisioned.schoolName} is active on Core SIS
+                            </h2>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={copyCredentials}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90"
+                            >
+                                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                {copied ? 'Copied' : 'Copy Credentials'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setProvisioned(null)}
+                                className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-muted/20"
+                            >
+                                Dismiss
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                        <div className="rounded-lg bg-background/10 border border-border/40 p-3">
+                            <span className="text-muted-foreground block">School Sign-In Code</span>
+                            <span
+                                data-testid="provisioned-lead-code"
+                                className="font-mono text-base font-bold text-success mt-1 block"
+                            >
+                                {provisioned.tenantCode}
+                            </span>
+                        </div>
+                        <div className="rounded-lg bg-background/10 border border-border/40 p-3">
+                            <span className="text-muted-foreground block">Founding SUPER_ADMIN Email</span>
+                            <span className="font-mono text-sm text-white mt-1 block break-all">
+                                {provisioned.adminEmail}
+                            </span>
+                        </div>
+                        <div className="rounded-lg bg-background/10 border border-border/40 p-3">
+                            <span className="text-muted-foreground block">One-Time Initial Password</span>
+                            <span
+                                data-testid="provisioned-lead-password"
+                                className="font-mono text-sm text-warning mt-1 block break-all"
+                            >
+                                {provisioned.temporaryPassword}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Stat
@@ -113,7 +210,7 @@ export default function LeadsClient({
                 <Stat
                     label="Closed"
                     value={String(Number(statusData.find((s) => s.status === 'CLOSED')?.count ?? 0))}
-                    hint="Marked won or lost"
+                    hint="Provisioned or closed"
                     icon={<Target className="w-5 h-5 text-emerald-400" />}
                 />
             </div>
@@ -164,7 +261,7 @@ export default function LeadsClient({
                                 <th className="px-6 py-4 font-semibold">Contact</th>
                                 <th className="px-6 py-4 font-semibold text-right">Seats</th>
                                 <th className="px-6 py-4 font-semibold">Stage</th>
-                                <th className="px-6 py-4 font-semibold text-right">Move to</th>
+                                <th className="px-6 py-4 font-semibold text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/60">
@@ -203,6 +300,18 @@ export default function LeadsClient({
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center justify-end gap-2 flex-wrap">
+                                            {lead.status !== 'CLOSED' && (
+                                                <button
+                                                    type="button"
+                                                    disabled={isPending}
+                                                    data-testid={`provision-lead-${lead.id}`}
+                                                    onClick={() => provisionLead(lead)}
+                                                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-foreground bg-primary hover:opacity-90 rounded-md px-2.5 py-1.5 disabled:opacity-50 whitespace-nowrap"
+                                                >
+                                                    <Sparkles className="w-3.5 h-3.5" />
+                                                    Provision Tenant
+                                                </button>
+                                            )}
                                             {STAGES.filter((s) => s.key !== lead.status).map((stage) => (
                                                 <button
                                                     key={stage.key}
@@ -216,7 +325,7 @@ export default function LeadsClient({
                                             ))}
                                             <Link
                                                 href="/platform/tenants/new"
-                                                title="Provision a campus for this school"
+                                                title="Manual campus provisioning form"
                                                 className="p-1.5 text-muted-foreground hover:text-indigo-400 transition-colors"
                                             >
                                                 <ExternalLink className="w-4 h-4" />

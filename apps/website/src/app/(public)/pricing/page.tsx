@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Check } from 'lucide-react';
+import { Check, ArrowRight } from 'lucide-react';
+import { resolveAppUrl } from '@/lib/app-url';
 
 const engagements = [
     {
@@ -47,17 +48,33 @@ const engagements = [
 ];
 
 export default function PricingPage() {
+    const appUrl = resolveAppUrl();
     return (
         <div className="min-h-screen bg-slate-50 pt-28 pb-24 animate-fade-in">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="text-center max-w-3xl mx-auto mb-16">
-                    <p className="text-sm font-bold tracking-widest uppercase text-indigo-600 mb-4">Design-partner engagement</p>
+                    <p className="text-sm font-bold tracking-widest uppercase text-indigo-600 mb-4">Self-serve workspace &amp; design-partner pilots</p>
                     <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-4">
-                        Prove the outcome before committing to a rollout.
+                        Start an isolated campus workspace immediately, or scope a multi-campus pilot.
                     </h1>
                     <p className="text-xl text-slate-500">
-                        ScholarMind scopes pricing after discovery and a data workshop. Permanent public per-student pricing will follow real pilot and implementation evidence.
+                        Provision Core SIS in seconds with automated tenant onboarding, or engage our team for multi-campus finance reconciliation and rollout.
                     </p>
+                    <div className="mt-8 flex flex-wrap justify-center gap-4">
+                        <a
+                            href={`${appUrl}/setup`}
+                            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg hover:bg-indigo-700 transition"
+                        >
+                            Provision Core SIS Workspace
+                            <ArrowRight size={16} />
+                        </a>
+                        <Link
+                            href="/book-demo"
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-3.5 text-sm font-bold text-slate-700 hover:bg-slate-100 transition"
+                        >
+                            Request Multi-Campus Pilot
+                        </Link>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">

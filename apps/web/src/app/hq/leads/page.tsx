@@ -10,7 +10,7 @@ export const metadata = {
 };
 
 export default async function LeadsPage() {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const { rows: statusRows } = await pool.query(
         `SELECT

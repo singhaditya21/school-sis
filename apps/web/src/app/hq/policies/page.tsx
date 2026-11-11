@@ -20,7 +20,7 @@ export default async function HQPoliciesPage({
 }: {
     searchParams: Promise<{ group?: string }>;
 }) {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN, UserRole.GROUP_EXECUTIVE);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const { group: requestedGroup } = await searchParams;
 

@@ -42,6 +42,7 @@ export type BeginMfaEnrollmentResult = {
 export type CompleteMfaEnrollmentResult = {
     success: boolean;
     error?: string;
+    nextPath?: string;
 };
 
 async function currentSession() {
@@ -151,7 +152,8 @@ export async function completeMfaEnrollment(
         session.mfaRequired = isMFARequired(session.role);
         await session.save();
 
-        return { success: true };
+        const nextPath = session.role === 'PLATFORM_ADMIN' ? '/hq' : '/pricing';
+        return { success: true, nextPath };
     } catch (error) {
         logger.error('mfa.enrollment_complete_failed', 'Failed to complete MFA enrollment', {
             source: 'mfa-action',

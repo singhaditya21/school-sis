@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { LineChart, ShieldCheck, Zap, Globe, Users, ArrowRight } from 'lucide-react';
+import { resolveAppUrl } from '@/lib/app-url';
 
 export default function LandingPage() {
+    const appUrl = resolveAppUrl();
     return (
         <div className="flex flex-col min-h-screen bg-black overflow-x-hidden text-slate-200">
             {/* AMBIENT BACKGROUND GLOWS (CSS AURORA) */}
@@ -39,9 +41,16 @@ export default function LandingPage() {
                     </p>
                     
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-8">
-                        <Link href="/book-demo" className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-white text-black font-extrabold text-lg transition-transform hover:scale-105 shadow-[0_0_40px_rgba(255,255,255,0.2)]">
-                            Book a pilot assessment
+                        <a
+                            href={`${appUrl}/setup`}
+                            data-testid="hero-start-workspace"
+                            className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-white text-black font-extrabold text-lg transition-transform hover:scale-105 shadow-[0_0_40px_rgba(255,255,255,0.2)]"
+                        >
+                            Start school workspace
                             <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20}/>
+                        </a>
+                        <Link href="/book-demo" className="px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg transition-all shadow-lg">
+                            Book a pilot assessment
                         </Link>
                         <Link href="/architecture" className="px-8 py-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-lg transition-all backdrop-blur-md">
                             Inspect Architecture

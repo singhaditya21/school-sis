@@ -1064,6 +1064,8 @@ jobs:
           TENANT_CONTEXT_RETIRE_PREVIOUS_KEY: ${{ vars.TENANT_CONTEXT_RETIRE_PREVIOUS_KEY }}
           CURRENT_PRODUCTION_DEPLOYMENT_ID: ${{ steps.prior.outputs.prior_id }}
           GIT_COMMIT_SHA: ${{ env.TARGET_SHA }}
+          FOUNDER_PASSWORD: ${{ secrets.FOUNDER_PASSWORD }}
+          ROTATE_FOUNDER_PASSWORD: ${{ vars.ROTATE_FOUNDER_PASSWORD }}
         run: |
           set -euo pipefail
           node scripts/verify-production-release-provenance.mjs \
@@ -1071,6 +1073,7 @@ jobs:
             --sha "$TARGET_SHA" \
             --ref main
           pnpm db:migrate:deploy -- --target production
+          DATABASE_URL="$DIRECT_URL" pnpm db:bootstrap:admin
           case "$PII_ENCRYPTION_ROTATION_MODE" in
             execute)
               pnpm --filter @school-sis/web exec tsx scripts/backfill-encrypt-pii-identifiers.ts

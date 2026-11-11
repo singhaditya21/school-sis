@@ -1,17 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Building2, Mail, Lock, User, Globe, ArrowRight } from 'lucide-react';
+import { Building2, Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { setupSchoolWorkspace } from '@/lib/actions/onboarding';
+import { normalizeWorkspaceCode } from '@/lib/auth/platform-owner';
 
 export default function SetupWorkspacePage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [domainInput, setDomainInput] = useState('');
+    const previewCode = normalizeWorkspaceCode(domainInput);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -115,16 +119,31 @@ export default function SetupWorkspacePage() {
                                 </div>
 
                                 <div>
-                                    <label htmlFor="domain" className="block text-sm font-medium text-foreground">Workspace Custom Domain URL</label>
+                                    <label htmlFor="domain" className="block text-sm font-medium text-foreground">Workspace Subdomain &amp; School Code</label>
                                     <div className="mt-1 relative rounded-md flex">
                                         <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-border bg-muted text-muted-foreground sm:text-sm">
                                             https://
                                         </span>
-                                        <Input required type="text" name="domain" className="flex-1 rounded-none rounded-r-md h-11" placeholder="stjudes" />
-                                        <span className="inline-flex items-center px-3 rounded-l-md border border-l-0 border-border bg-muted text-muted-foreground sm:text-sm">
+                                        <Input
+                                            required
+                                            id="domain"
+                                            type="text"
+                                            name="domain"
+                                            value={domainInput}
+                                            onChange={(e) => setDomainInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                            className="flex-1 rounded-none h-11"
+                                            placeholder="stjudes"
+                                        />
+                                        <span className="inline-flex items-center px-3 rounded-r-md border border-l-0 border-border bg-muted text-muted-foreground sm:text-sm">
                                             .scholarmind.app
                                         </span>
                                     </div>
+                                    <p className="mt-1.5 text-xs text-muted-foreground">
+                                        Staff &amp; parent sign-in School Code:{' '}
+                                        <span className="font-mono font-semibold text-foreground" data-testid="setup-school-code-preview">
+                                            {previewCode || 'STJUDES'}
+                                        </span>
+                                    </p>
                                 </div>
 
                                 <div>
@@ -133,7 +152,7 @@ export default function SetupWorkspacePage() {
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <Lock className="h-5 w-5 text-muted-foreground" />
                                         </div>
-                                        <Input required type="password" name="password" className="pl-10 h-11" placeholder="Minimum 12 characters" minLength={12} />
+                                        <Input required id="password" type="password" name="password" className="pl-10 h-11" placeholder="Minimum 12 characters" minLength={12} />
                                     </div>
                                 </div>
                             </div>
@@ -141,6 +160,7 @@ export default function SetupWorkspacePage() {
                             <Button 
                                 type="submit" 
                                 disabled={loading}
+                                data-testid="setup-submit-button"
                                 className="w-full flex justify-center py-6 border border-transparent rounded-xl shadow-sm text-md font-semibold text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring transition-all"
                             >
                                 {loading ? (
@@ -150,15 +170,21 @@ export default function SetupWorkspacePage() {
                                     </span>
                                 ) : (
                                     <span className="flex items-center gap-2">
-                                        Create Workspace & Continue <ArrowRight className="w-5 h-5" />
+                                        Create Workspace &amp; Continue <ArrowRight className="w-5 h-5" />
                                     </span>
                                 )}
                             </Button>
                         </form>
                     </CardContent>
                 </Card>
-                <p className="mt-8 text-center text-sm text-muted-foreground max-w-sm mx-auto">
-                    By proceeding, you agree to ScholarMind's Terms of Service and Data Processing Addendum.
+                <p className="mt-6 text-center text-sm text-muted-foreground">
+                    Already have a school workspace?{' '}
+                    <Link href="/login" className="font-semibold text-primary hover:underline">
+                        Sign in →
+                    </Link>
+                </p>
+                <p className="mt-4 text-center text-xs text-muted-foreground max-w-sm mx-auto">
+                    By proceeding, you agree to ScholarMind&apos;s Terms of Service and Data Processing Addendum.
                 </p>
             </div>
         </div>

@@ -59,7 +59,7 @@ export async function completeOnboarding(data: {
                 VALUES (${tenantId}, ${yearId}, 'Term 2', 'TERM_2', ${term2StartStr}, ${data.endDate})
             `.execute();
 
-            // 3. Create Grades
+            // 3. Create Grades + Default Section A so Attendance, Timetable, Exams, and Admissions are ready immediately
             let displayOrder = 1;
             for (const gradeName of grades) {
                 let numericValue: number | null = null;
@@ -70,10 +70,17 @@ export async function completeOnboarding(data: {
                     numericValue = 0;
                 }
 
-                await q`
+                const gradeRow = await q<{ id: string }>`
                     INSERT INTO grades (tenant_id, name, numeric_value, display_order)
                     VALUES (${tenantId}, ${gradeName}, ${numericValue}, ${displayOrder})
+                    RETURNING id
+                `.one();
+
+                await q`
+                    INSERT INTO sections (tenant_id, grade_id, academic_year_id, name, capacity)
+                    VALUES (${tenantId}, ${gradeRow.id}, ${yearId}, 'A', 40)
                 `.execute();
+
                 displayOrder++;
             }
         });

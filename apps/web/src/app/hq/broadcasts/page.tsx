@@ -2,6 +2,7 @@ import React from 'react';
 import { requireRole } from '@/lib/auth/middleware';
 import { UserRole } from '@/lib/rbac/permissions';
 import { pool } from '@/lib/db';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import BroadcastsClient, { type BroadcastRow } from './client-page';
 
 export const metadata = {
@@ -9,7 +10,7 @@ export const metadata = {
 };
 
 export default async function BroadcastsPage() {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const { rows } = await pool.query(
         `SELECT
@@ -21,12 +22,19 @@ export default async function BroadcastsPage() {
             b.is_active    AS "isActive",
             b.expires_at   AS "expiresAt",
             b.created_at   AS "createdAt",
-            u.email        AS "createdByEmail"
+            COALESCE(u.email_enc, u.email) AS "createdByEmail"
          FROM platform_broadcasts b
          LEFT JOIN users u ON u.id = b.created_by
          ORDER BY b.created_at DESC
          LIMIT 50`
     );
 
-    return <BroadcastsClient broadcasts={rows as BroadcastRow[]} />;
+    return (
+        <BroadcastsClient
+            broadcasts={(rows as BroadcastRow[]).map((row) => ({
+                ...row,
+                createdByEmail: row.createdByEmail ? decryptFieldTolerant(row.createdByEmail) : null,
+            }))}
+        />
+    );
 }

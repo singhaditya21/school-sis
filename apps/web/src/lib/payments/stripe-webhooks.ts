@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass } from '@/lib/db';
+import { modulesForSubscriptionTier } from '@/lib/auth/platform-owner';
 import {
     completeProviderPayment,
     markProviderEventProcessed,
@@ -53,16 +54,28 @@ async function handleSubscriptionCheckoutCompleted(session: Stripe.Checkout.Sess
         throw new Error('Subscription checkout session is missing company or subscription metadata.');
     }
 
-    await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.STRIPE_SUBSCRIPTION_UPDATE, () => pool.query(
-        `UPDATE companies
-         SET stripe_subscription_id = $1,
-             subscription_tier = $2,
-             billing_status = 'ACTIVE',
-             is_active = true,
-             updated_at = NOW()
-         WHERE id = $3`,
-        [subscriptionId, planType, companyId],
-    ));
+    const activeModules = modulesForSubscriptionTier(planType);
+
+    await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.STRIPE_SUBSCRIPTION_UPDATE, async () => {
+        await pool.query(
+            `UPDATE companies
+             SET stripe_subscription_id = $1,
+                 subscription_tier = $2,
+                 active_modules = $3::text[],
+                 billing_status = 'ACTIVE',
+                 is_active = true,
+                 updated_at = NOW()
+             WHERE id = $4`,
+            [subscriptionId, planType, activeModules, companyId],
+        );
+        await pool.query(
+            `UPDATE tenants
+             SET is_active = true,
+                 updated_at = NOW()
+             WHERE company_id = $1`,
+            [companyId],
+        );
+    });
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<void> {

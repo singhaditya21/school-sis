@@ -3,6 +3,7 @@ import { Building, Users, TrendingUp, AlertTriangle, Layers } from 'lucide-react
 import { pool } from '@/lib/db';
 import { requireRole } from '@/lib/auth/middleware';
 import { UserRole } from '@/lib/rbac/permissions';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import { formatCurrency } from '@/lib/utils';
 
 export const metadata = {
@@ -34,7 +35,7 @@ export default async function HQDashboardPage() {
             t.code,
             t.is_active AS "isActive",
             COALESCE(c.subscription_tier::text, 'CORE') AS tier,
-            (SELECT u.email FROM users u WHERE u.tenant_id = t.id AND u.role = 'SUPER_ADMIN' LIMIT 1) AS "adminEmail",
+            (SELECT COALESCE(u.email_enc, u.email) FROM users u WHERE u.tenant_id = t.id AND u.role = 'SUPER_ADMIN' LIMIT 1) AS "adminEmail",
             g.name     AS "groupName",
             mch.region AS "groupRegion",
             COALESCE(st.active_students, 0)::int AS "activeStudents",
@@ -66,7 +67,10 @@ export default async function HQDashboardPage() {
          ORDER BY t.name ASC`
     );
 
-    const fleet = rows as FleetRow[];
+    const fleet = (rows as FleetRow[]).map((row) => ({
+        ...row,
+        adminEmail: row.adminEmail ? decryptFieldTolerant(row.adminEmail) : null,
+    }));
 
     const totals = fleet.reduce(
         (acc, t) => ({

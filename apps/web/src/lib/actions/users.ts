@@ -6,6 +6,7 @@ import { sql, runWithTenantContext } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 import { isMfaEnrollmentEnforced } from '@/lib/auth/identity';
 import { isMFARequired } from '@/lib/auth/mfa';
+import { isPermanentPlatformAdminEmail } from '@/lib/auth/platform-owner';
 import { encryptEmail, encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 
 export interface AdminUser {
@@ -135,6 +136,9 @@ export async function createUser(input: {
 
     const email = input.email?.trim().toLowerCase();
     if (!email) return { success: false, error: 'Email is required.' };
+    if (isPermanentPlatformAdminEmail(email)) {
+        return { success: false, error: 'This email is reserved for ScholarMind Platform Administration.' };
+    }
     if (!input.password || input.password.length < 8) {
         return { success: false, error: 'Password must be at least 8 characters.' };
     }
@@ -179,16 +183,25 @@ export async function updateUser(input: {
 
     const email = input.email?.trim().toLowerCase();
     if (!email) return { success: false, error: 'Email is required.' };
+    if (isPermanentPlatformAdminEmail(email)) {
+        return { success: false, error: 'This email is reserved for ScholarMind Platform Administration.' };
+    }
     if (!input.firstName?.trim()) return { success: false, error: 'First name is required.' };
     const roleError = validateAssignableRole(auth.role, input.role);
     if (roleError) return { success: false, error: roleError };
 
     try {
         const row = await runWithTenantContext(auth.tenantId, async () => {
-            const currentRows = await sql<{ role: string }>`
-                SELECT role FROM users WHERE id = ${input.userId} AND tenant_id = ${auth.tenantId} LIMIT 1
+            const currentRows = await sql<{ role: string; email: string | null }>`
+                SELECT role, COALESCE(email_enc, email) AS email
+                FROM users
+                WHERE id = ${input.userId} AND tenant_id = ${auth.tenantId}
+                LIMIT 1
             `.rows();
             if (!currentRows[0]) throw new Error('User not found.');
+            if (isPermanentPlatformAdminEmail(decryptFieldTolerant(currentRows[0].email))) {
+                throw new Error('The permanent Platform Administrator account cannot be modified from tenant user management.');
+            }
             if (!canManageExistingRole(auth.role, currentRows[0].role)) {
                 throw new Error('Insufficient privileges to modify this user account.');
             }
@@ -238,10 +251,16 @@ export async function setUserActive(userId: string, active: boolean): Promise<Re
     }
     try {
         const row = await runWithTenantContext(auth.tenantId, async () => {
-            const currentRows = await sql<{ role: string }>`
-                SELECT role FROM users WHERE id = ${userId} AND tenant_id = ${auth.tenantId} LIMIT 1
+            const currentRows = await sql<{ role: string; email: string | null }>`
+                SELECT role, COALESCE(email_enc, email) AS email
+                FROM users
+                WHERE id = ${userId} AND tenant_id = ${auth.tenantId}
+                LIMIT 1
             `.rows();
             if (!currentRows[0]) throw new Error('User not found.');
+            if (isPermanentPlatformAdminEmail(decryptFieldTolerant(currentRows[0].email))) {
+                throw new Error('The permanent Platform Administrator account cannot be modified from tenant user management.');
+            }
             if (!canManageExistingRole(auth.role, currentRows[0].role)) {
                 throw new Error('Insufficient privileges to modify this user account.');
             }
@@ -272,10 +291,16 @@ export async function resetUserPassword(userId: string): Promise<Result<{ tempor
         const temporaryPassword = randomBytes(9).toString('base64url');
         const passwordHash = await hash(temporaryPassword, 12);
         const updated = await runWithTenantContext(auth.tenantId, async () => {
-            const currentRows = await sql<{ role: string }>`
-                SELECT role FROM users WHERE id = ${userId} AND tenant_id = ${auth.tenantId} LIMIT 1
+            const currentRows = await sql<{ role: string; email: string | null }>`
+                SELECT role, COALESCE(email_enc, email) AS email
+                FROM users
+                WHERE id = ${userId} AND tenant_id = ${auth.tenantId}
+                LIMIT 1
             `.rows();
             if (!currentRows[0]) return false;
+            if (isPermanentPlatformAdminEmail(decryptFieldTolerant(currentRows[0].email))) {
+                throw new Error('The permanent Platform Administrator account cannot be modified from tenant user management.');
+            }
             if (!canManageExistingRole(auth.role, currentRows[0].role)) {
                 throw new Error('Insufficient privileges to reset password for this user account.');
             }
