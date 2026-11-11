@@ -3,16 +3,14 @@ export const LOCAL_TENANT_CONTEXT_AUDIENCE = "ci:local:database";
 export const LOCAL_TENANT_CONTEXT_SECRET =
   "localCI_0123456789abcdefghijklmnopqrstuvwxyzABCDEF";
 
-type TenantContextProcessEnvironment = Partial<
-  Pick<
-    NodeJS.ProcessEnv,
-    | "DATABASE_URL"
-    | "NODE_ENV"
-    | "TENANT_CONTEXT_AUDIENCE"
-    | "TENANT_CONTEXT_SIGNING_KEY_ID"
-    | "TENANT_CONTEXT_SIGNING_SECRET"
-  >
->;
+type TenantContextProcessEnvironment = {
+  readonly DATABASE_URL?: string;
+  readonly NODE_ENV?: string;
+  readonly TENANT_CONTEXT_AUDIENCE?: string;
+  readonly TENANT_CONTEXT_SIGNING_KEY_ID?: string;
+  readonly TENANT_CONTEXT_SIGNING_SECRET?: string;
+  readonly [key: string]: string | undefined;
+};
 
 export type TenantContextSigningEnvironment = Pick<
   TenantContextProcessEnvironment,
