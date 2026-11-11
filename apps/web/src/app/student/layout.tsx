@@ -1,14 +1,15 @@
 import { getSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
+import { ScholarMindCrest } from '@/components/brand/ScholarMindCrest';
 import { resolveStudentSelf } from './_lib/queries';
 import { StudentNav, type StudentNavLink } from './_components/StudentNav';
 
 /** Nav targets live here so scripts/check-navigation-targets.mjs keeps verifying them. */
 const STUDENT_NAV_LINKS: StudentNavLink[] = [
-    { href: '/student', icon: '📊', label: 'Overview' },
-    { href: '/student/attendance', icon: '🗓️', label: 'Attendance' },
-    { href: '/student/results', icon: '📄', label: 'Results' },
-    { href: '/student/homework', icon: '📝', label: 'Homework' },
+    { href: '/student', icon: 'overview', label: 'Overview' },
+    { href: '/student/attendance', icon: 'attendance', label: 'Attendance' },
+    { href: '/student/results', icon: 'results', label: 'Results' },
+    { href: '/student/homework', icon: 'homework', label: 'Homework' },
 ];
 
 function initials(name: string): string {
@@ -35,36 +36,37 @@ export default async function StudentLayout({
         redirect('/unauthorized');
     }
 
-    // Real identity, or nothing. The header used to hard-code "Aarav Sharma /
-    // B.Tech CS - Yr 2" for every signed-in student.
     const student = await resolveStudentSelf('profile:read:own');
 
     return (
         <div className="min-h-screen bg-muted">
             <header className="bg-card border-b border-border sticky top-0 z-50">
-                <div className="px-4 py-3 md:px-6 md:py-4">
+                <div className="h-[2px] w-full bg-gradient-to-r from-primary via-brass to-primary" />
+                <div className="px-4 py-3 md:px-6 md:py-3.5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-xl flex items-center justify-center">
-                                <span className="text-white text-lg md:text-xl">🎓</span>
-                            </div>
+                            <ScholarMindCrest size="md" />
                             <div>
-                                <h1 className="text-lg md:text-xl font-bold text-foreground leading-tight">
+                                <h1 className="text-lg font-bold text-foreground leading-tight">
                                     ScholarMind
                                 </h1>
-                                <p className="text-xs text-muted-foreground font-medium">Student Portal</p>
+                                <p className="text-xs text-muted-foreground font-medium">
+                                    Student Scholar Portal
+                                </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
                             {student && (
                                 <>
-                                    <div className="hidden md:flex flex-col items-end mr-2">
-                                        <span className="text-sm font-semibold text-foreground">{student.fullName}</span>
-                                        <span className="text-xs text-accent-foreground font-medium bg-accent px-2 py-0.5 rounded">
+                                    <div className="hidden md:flex flex-col items-end mr-1">
+                                        <span className="text-sm font-semibold text-foreground">
+                                            {student.fullName}
+                                        </span>
+                                        <span className="text-xs text-accent-foreground font-semibold bg-accent border border-brass/25 px-2 py-0.5 rounded">
                                             {student.gradeName} · {student.sectionName}
                                         </span>
                                     </div>
-                                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-accent flex items-center justify-center text-accent-foreground font-bold border border-border shadow-sm">
+                                    <div className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-accent flex items-center justify-center text-accent-foreground font-bold border border-brass/30 shadow-sm text-sm">
                                         {initials(student.fullName)}
                                     </div>
                                 </>

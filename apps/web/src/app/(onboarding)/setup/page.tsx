@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Building2, Mail, Lock, User, ArrowRight } from 'lucide-react';
+import { Building2, Mail, Lock, User, ArrowRight, AlertTriangle } from 'lucide-react';
+import { ScholarMindCrest } from '@/components/brand/ScholarMindCrest';
 import { setupSchoolWorkspace } from '@/lib/actions/onboarding';
 import { normalizeWorkspaceCode } from '@/lib/auth/platform-owner';
 
@@ -44,12 +45,12 @@ export default function SetupWorkspacePage() {
     };
 
     return (
-        <div className="min-h-screen bg-muted flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-background flex flex-col">
+            <div className="h-1.5 w-full bg-gradient-to-r from-primary via-brass to-primary" />
+            <div className="flex-1 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="flex justify-center">
-                    <div className="h-12 w-12 bg-primary rounded-xl flex items-center justify-center shadow-lg transform -rotate-6">
-                        <Building2 className="h-8 w-8 text-primary-foreground transform rotate-6" />
-                    </div>
+                    <ScholarMindCrest size="md" />
                 </div>
                 <h2 className="mt-6 text-center text-3xl font-extrabold text-foreground tracking-tight">
                     Onboard your school
@@ -69,8 +70,9 @@ export default function SetupWorkspacePage() {
                         <form onSubmit={handleSubmit} className="space-y-6">
                             
                             {error && (
-                                <div className="p-3 bg-destructive-subtle border border-destructive/30 rounded-lg text-sm text-destructive-subtle-foreground flex items-start">
-                                    <span className="mr-2">⚠️</span> {error}
+                                <div className="p-3 bg-destructive-subtle border border-destructive/30 rounded-lg text-sm text-destructive-subtle-foreground flex items-start gap-2">
+                                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                                    <span>{error}</span>
                                 </div>
                             )}
 
@@ -186,6 +188,7 @@ export default function SetupWorkspacePage() {
                 <p className="mt-4 text-center text-xs text-muted-foreground max-w-sm mx-auto">
                     By proceeding, you agree to ScholarMind&apos;s Terms of Service and Data Processing Addendum.
                 </p>
+            </div>
             </div>
         </div>
     );

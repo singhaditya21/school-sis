@@ -4,32 +4,24 @@ import Link from 'next/link';
 import { Database, Server, AppWindow, Cpu, ShieldAlert, ArrowLeft, Terminal, X, Network } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-type AccentColor = 'cyan' | 'emerald' | 'yellow' | 'rose' | 'indigo' | 'fuchsia';
+type AccentColor = 'brass' | 'emerald' | 'parchment' | 'sky';
 
 const ACCENT_STYLES: Record<AccentColor, { glow: string; badge: string }> = {
-    cyan: {
-        glow: 'bg-cyan-500',
-        badge: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
+    brass: {
+        glow: 'bg-brass',
+        badge: 'bg-brass/15 text-brass-light border-brass/40',
     },
     emerald: {
         glow: 'bg-emerald-500',
-        badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+        badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35',
     },
-    yellow: {
-        glow: 'bg-yellow-500',
-        badge: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+    parchment: {
+        glow: 'bg-parchment',
+        badge: 'bg-white/10 text-parchment border-parchment/30',
     },
-    rose: {
-        glow: 'bg-rose-500',
-        badge: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
-    },
-    indigo: {
-        glow: 'bg-indigo-500',
-        badge: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30',
-    },
-    fuchsia: {
-        glow: 'bg-fuchsia-500',
-        badge: 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/30',
+    sky: {
+        glow: 'bg-sky-400',
+        badge: 'bg-sky-400/15 text-sky-200 border-sky-400/35',
     },
 };
 
@@ -46,94 +38,94 @@ type TechSpec = {
 const TECH_SPECS: Record<string, TechSpec> = {
     website: {
         id: 'website',
-        title: 'apps/website (Marketing)',
-        badge: 'PUBLIC NEXT.JS 15 RUNTIME',
-        iconColor: 'cyan',
-        terminalText: `> pnpm --filter website dev\n> turbopack caching engine active...\n[OK] Server-Side Suspense streaming\n[WARN] High-Velocity anonymous traffic\n> ready on localhost:3000`,
+        title: 'apps/website (Public Surface)',
+        badge: 'ISOLATED MARKETING RUNTIME',
+        iconColor: 'parchment',
+        terminalText: `> pnpm --filter website build\n> static route generation active...\n[OK] Zero database credentials in environment\n[OK] Strict CSP & security headers bound\n> ready on isolated edge origin`,
         features: [
-            "Tailwind v4 GPU-Accelerated Micro-Animations",
-            "SEO-Optimized Edge Caching for Google Lighthouse",
-            "Cross-Origin API requests bridging to Core Product"
+            "Zero-DB static & edge surface isolated from tenant data",
+            "SEO-optimized pages for institutional evaluation",
+            "Authenticated proxy bridge to core lead intake"
         ],
-        description: "The highly creative, hyper-visual public runtime. Segregated from the core SaaS to guarantee marketing iterations cannot accidentally push bugs or break the production software databases."
+        description: "Segregated public runtime ensuring marketing updates and anonymous web traffic remain structurally isolated from tenant operational databases."
     },
     web: {
         id: 'web',
-        title: 'apps/web (SaaS Core)',
-        badge: 'SECURE PRODUCT RUNTIME',
+        title: 'apps/web (Institutional Core)',
+        badge: 'TENANT-ISOLATED SAAS RUNTIME',
         iconColor: 'emerald',
-        terminalText: `> pnpm --filter web dev\n> binding middleware auth guards...\n[SEC] JWT Validation on all wildcard routes\n[SYS] Strict Layout boundaries enforced\n> listening on localhost:3001`,
+        terminalText: `> pnpm --filter @school-sis/web start\n> binding middleware auth & CSP nonce guards...\n[SEC] Session + TOTP MFA verification active\n[SYS] Role-based portal boundaries enforced\n> serving tenant workspaces`,
         features: [
-            "100% Login-First Access Gating via Edge Middleware",
-            "Secure Server Actions for intense database mutations",
-            "Optimistic UI rendering masking heavy Drizzle payloads"
+            "Per-request CSP nonces & strict RBAC route gating",
+            "Mandatory TOTP MFA for administrative roles",
+            "Typed Server Actions with audit-log provenance"
         ],
-        description: "The beating heart of Scholar Mind. An un-breachable fortress requiring strict RBAC validations before any components ever render. Completely structurally isolated from the marketing website."
+        description: "The operational core of ScholarMind powering Principal, Finance, Registrar, Teacher, Parent, and Student portals behind strict authentication and role boundaries."
     },
     bridge: {
         id: 'bridge',
-        title: 'Cross-Origin API Bridge',
-        badge: 'NEXT HANDLER: /api/leads',
-        iconColor: 'yellow',
-        terminalText: `> HTTP POST request intercepted...\n[CORS] Validating payload source origin.\n[OK] Origin matches allowed-list.\n> Executing Drizzle ORM insert transaction.\n[OK] Lead securely stored in vault.`,
+        title: 'Authenticated Intake Bridge',
+        badge: 'ROUTE HANDLER: /api/leads',
+        iconColor: 'brass',
+        terminalText: `> HTTPS POST /api/leads intercepted...\n[AUTH] Validating proxy secret & origin.\n[OK] Zod schema & rate-limit checks passed.\n> Persisting institutional inquiry.\n[OK] Lead recorded with audit timestamp.`,
         features: [
-            "Strict CORS Origin Whitelisting",
-            "Zod Payload Validation rejecting malformed leads instantly",
-            "Serverless RPC executing within 50ms total latency"
+            "Strict origin allowlisting & shared-secret verification",
+            "Zod schema validation & abuse rate limiting",
+            "Zero direct database exposure to public marketing routes"
         ],
-        description: "The critical vascular tissue uniting the separated apps. When marketing captures a lead, it fetches across the origin into this exact Node endpoint standing at the edge of the Core SaaS boundary to inject the lead into the database safely."
+        description: "Controlled boundary endpoint connecting public pilot inquiries to the platform intake queue without exposing internal credentials."
     },
     turbo: {
         id: 'turbo',
-        title: 'Turborepo Task Orchestrator',
+        title: 'Turborepo Governance Pipeline',
         badge: 'MONOREPO WORKSPACE',
-        iconColor: 'rose',
-        terminalText: `> nx turbo run build\n[CACHE] HIT: packages/ui\n[CACHE] HIT: apps/website\n[TASK] Building apps/web (1 missing)\n> Orchestration complete in 3.4 seconds.`,
+        iconColor: 'parchment',
+        terminalText: `> pnpm audit:ci && pnpm test:unit && pnpm build\n[AUDIT] RLS matrix: 146/146 tables verified\n[AUDIT] SQL column & migration checks passed\n[TEST] 95 unit suites green\n> Release artifact verified.`,
         features: [
-            "Remote Caching preventing redundant builds natively",
-            "Atomic Task Graph compiling massive environments instantly",
-            "Shared Configs extracting messy ESLint/TS configs off-node"
+            "10 automated CI security, SQL, and RLS policy gates",
+            "Deterministic prebuilt artifacts promoted after health probes",
+            "Shared TypeScript & ESLint contracts across packages"
         ],
-        description: "Vercel's high-performance build system encapsulates the entire project. It allows developer iterations at light-speed by only compiling strictly what changed between the two distinct Next.js micro-frameworks."
+        description: "Unified monorepo build and release governance ensuring every commit passes SQL schema verification, RLS coverage checks, and unit tests before deployment."
     },
     runtime: {
         id: 'runtime',
-        title: 'Vercel Runtime Regions',
-        badge: 'CLOUD DEPLOYMENT',
-        iconColor: 'indigo',
-        terminalText: `> Deploying school-sis-web to Vercel...\n[SYS] Binding serverless functions...\n[OK] TLS certificates provisioned.\n[ACT] Runtime region pinned.\n> Edge network globally distributed.`,
+        title: 'Pinned Regional Compute',
+        badge: 'CLOUD DEPLOYMENT (SIN1)',
+        iconColor: 'sky',
+        terminalText: `> Staging prebuilt candidate (--skip-domain)...\n[PROBE] /api/health -> status: ok, region: sin1\n[MIGRATE] Advisory-locked SQL migrations verified\n[ALIAS] Promoting verified deployment to production`,
         features: [
-            "Automatic CI/CD Pipeline tracking Git Commits",
-            "DDoS mitigation at the reverse-proxy layer",
-            "Serverless isolation mapping requests to hardened Node runtimes"
+            "Staged candidate verification before domain promotion",
+            "Pinned sin1 compute co-located with primary database",
+            "Automated REST rollback on failed health or smoke checks"
         ],
-        description: "The managed runtime executing the app. Vercel receives internet traffic, applies edge protections, and routes requests into tenant-safe serverless handlers backed by Neon."
+        description: "Managed serverless execution co-located in Singapore (sin1) for low-latency Indian & international campus operations with zero-downtime promotion."
     },
     jobs: {
         id: 'jobs',
-        title: 'Background Job Runner',
-        badge: 'QUEUE & NOTIFICATIONS',
-        iconColor: 'fuchsia',
-        terminalText: `> POST /api/jobs/dispatch\n[QUEUE] Claiming due background_jobs rows...\n[OK] Tenant context applied per job.\n[SEND] Draining notification_outbox.\n> Dispatch cycle complete.`,
+        title: 'Transactional Outbox & Jobs',
+        badge: 'ASYNC QUEUE & DISPATCH',
+        iconColor: 'brass',
+        terminalText: `> POST /api/jobs/dispatch\n[QUEUE] Claiming due background_jobs rows...\n[RLS] Tenant context bound per job execution\n[SEND] Draining notification_outbox (WhatsApp/Email)\n> Dispatch cycle complete.`,
         features: [
-            "Durable Postgres-backed job queue with retry and dead-letter handling",
-            "Transactional notification outbox so messages send exactly once",
-            "Every job executes inside its own tenant's row-level-security context"
+            "Postgres-backed job queue with retry & dead-letter controls",
+            "Transactional notification outbox preventing duplicate sends",
+            "Per-job tenant RLS context enforcement"
         ],
-        description: "The asynchronous worker layer. Fee reminders, receipts, and admission notifications are queued in Postgres rather than sent inline, so a slow provider never blocks a request and nothing is lost on retry."
+        description: "Asynchronous worker layer ensuring fee receipts, reminders, and admissions notices are queued durably inside Postgres and dispatched reliably."
     },
     db: {
         id: 'db',
-        title: 'Drizzle/Postgres Enclave',
-        badge: 'PERSISTENT VAULT',
-        iconColor: 'fuchsia',
-        terminalText: `> querying Drizzle schema maps...\n[SEC] Validating Row-Level-Security (RLS)\n[OK] PgBouncer pool accepted connection.\n> Executing raw transactional JSONB injection.\n[OK] Write successful.`,
+        title: 'PostgreSQL RLS Enclave',
+        badge: 'MULTI-TENANT VAULT',
+        iconColor: 'emerald',
+        terminalText: `> BEGIN; SELECT set_config('app.tenant_id', $1, true);\n[RLS] FORCE ROW LEVEL SECURITY active on tenant tables\n[CRYPTO] AES-256-GCM field encryption verified\n> COMMIT;`,
         features: [
-            "End-to-End TypeScript Type Safety directly mapped to SQL",
-            "PgBouncer pooling optimizing concurrent massive scale writes",
-            "JSONB schema flexibility for hyper-custom analytic processing"
+            "PostgreSQL Row-Level Security across all tenant tables",
+            "Transaction-scoped withTenant() connection discipline",
+            "Immutable financial ledger & sensitive-data audit trail"
         ],
-        description: "The absolute bottom of the computational funnel. A severely locked-down Multi-Tenant database ensuring data from disparate schools never overlaps mathematically."
+        description: "Multi-tenant Neon PostgreSQL enclave enforcing mathematical tenant isolation via Row-Level Security policies on every transaction."
     }
 };
 
@@ -149,18 +141,17 @@ export default function ArchitectureDeepDive() {
     const selectedSpec = activeNode ? TECH_SPECS[activeNode] : null;
 
     return (
-        <div className="min-h-screen bg-black overflow-x-hidden overflow-y-auto text-slate-200 relative pb-32">
+        <div className="min-h-screen bg-oxford-dark overflow-x-hidden overflow-y-auto text-slate-200 relative pb-32">
             
-            {/* AMBIENT BACKGROUND GLOWS */}
+            {/* AMBIENT OXFORD & BRASS BLUEPRINT GLOWS */}
             <div className="fixed inset-0 z-0 pointer-events-none">
-                <div className="absolute top-[10%] left-[20%] w-[30%] h-[30%] rounded-full bg-indigo-900/30 blur-[150px] animate-pulse" style={{ animationDuration: '6s' }}></div>
-                <div className="absolute top-[40%] right-[10%] w-[40%] h-[40%] rounded-full bg-cyan-900/20 blur-[150px] animate-pulse" style={{ animationDuration: '8s', animationDelay: '2s' }}></div>
-                <div className="absolute bottom-[-10%] left-[30%] w-[50%] h-[50%] rounded-full bg-fuchsia-900/20 blur-[150px] animate-pulse" style={{ animationDuration: '10s', animationDelay: '4s' }}></div>
+                <div className="absolute top-[8%] left-[18%] w-[34%] h-[34%] rounded-full bg-oxford/60 blur-[150px]"></div>
+                <div className="absolute top-[38%] right-[12%] w-[36%] h-[36%] rounded-full bg-brass/15 blur-[150px]"></div>
                 <div
-                    className="absolute inset-0 opacity-15"
+                    className="absolute inset-0 opacity-20"
                     style={{
                         backgroundImage:
-                            'radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px)',
+                            'radial-gradient(rgba(212, 155, 67, 0.22) 1px, transparent 1px)',
                         backgroundSize: '24px 24px',
                     }}
                 ></div>
@@ -168,210 +159,185 @@ export default function ArchitectureDeepDive() {
 
             {/* HEADER */}
             <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-6">
-                <Link href="/" className="inline-flex items-center gap-2 text-indigo-400 hover:text-indigo-300 font-bold mb-8 transition-colors group">
+                <Link href="/" className="inline-flex items-center gap-2 text-brass-light hover:text-parchment font-bold mb-8 transition-colors group">
                     <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform"/> Back to Platform Overview
                 </Link>
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-4">
                     <div>
-                        <h1 className="text-5xl md:text-7xl font-black text-white tracking-tighter mb-4 animate-[slide-in_0.5s_ease-out]">
-                            True Systems<br/>
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-indigo-500 animate-gradient-x">Monorepo Engine.</span>
+                        <p className="text-xs font-bold uppercase tracking-[0.2em] text-brass-light mb-3">
+                            Institutional Security &amp; Tenancy Blueprint
+                        </p>
+                        <h1 className="text-5xl md:text-6xl font-black text-white tracking-tight mb-4">
+                            Tenant-Isolated<br/>
+                            <span className="text-brass-light">Platform Architecture.</span>
                         </h1>
-                        <p className="text-xl text-slate-400 max-w-3xl font-light">
-                            Trace exactly how our complex multi-application workspace is routed. An absolutely seamless dual-node integration ensuring marketing speed without sacrificing primary codebase security.
+                        <p className="text-xl text-slate-300 max-w-3xl leading-relaxed">
+                            Inspect how ScholarMind separates public discovery surfaces from authenticated campus workloads, background job dispatch, and row-level-security PostgreSQL enclaves.
                         </p>
                     </div>
                 </div>
             </div>
 
             {/* CANVAS WRAPPER - FIXED 900x800 BOX FOR FLAWLESS ALIGNMENT */}
-            <div className={`relative z-10 w-[900px] h-[800px] mx-auto mt-12 transition-all duration-500 ${activeNode ? 'opacity-30 blur-md pointer-events-none' : 'animate-[fade-in_0.7s_ease-out]'}`}>
+            <div className={`relative z-10 w-[900px] h-[800px] mx-auto mt-10 transition-all duration-500 ${activeNode ? 'opacity-30 blur-md pointer-events-none' : ''}`}>
                 
-                {/* BACKDROP GRID - Visual Tech Texture */}
-                <div className="absolute inset-0 border border-white/5 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.02)_0%,transparent_100%)] rounded-[3rem]"></div>
+                {/* BACKDROP GRID - Architectural Blueprint Card */}
+                <div className="absolute inset-0 border border-brass/25 bg-oxford/40 rounded-[3rem] shadow-2xl"></div>
 
                 {/* TURBOREPO BORDER BOX */}
-                <div onClick={() => setActiveNode('turbo')} className="absolute top-[30px] left-[70px] w-[760px] h-[220px] border-2 border-dashed border-rose-500/30 rounded-3xl group hover:border-rose-500 hover:bg-rose-900/10 cursor-pointer transition-all flex items-end justify-center pb-2 z-0">
-                    <span className="text-rose-500 tracking-widest uppercase font-bold text-sm bg-black px-4 group-hover:text-rose-400">Turborepo Workspace Isolation Container</span>
+                <div onClick={() => setActiveNode('turbo')} className="absolute top-[30px] left-[70px] w-[760px] h-[220px] border-2 border-dashed border-brass/40 rounded-3xl group hover:border-brass-light hover:bg-brass/5 cursor-pointer transition-all flex items-end justify-center pb-2 z-0">
+                    <span className="text-brass-light tracking-widest uppercase font-bold text-xs bg-oxford-dark px-4 py-0.5 rounded-full border border-brass/30">Turborepo Governance &amp; CI Audit Boundary</span>
                 </div>
 
                 {/* SVG PERFECT VECTOR CONNECTORS */}
-                {/* 
-                   Math Map:
-                   apps/website: centered at (270, 150), bottom boundary Y=200
-                   apps/web: centered at (630, 150), bottom boundary Y=200
-                   API Bridge: centered at (450, 320), top boundary Y=270, bottom Y=370
-                   Vercel Runtime: centered at (270, 500)
-                   Job Runner: centered at (630, 500)
-                   DB Enclave: centered at (450, 680)
-                */}
                 <svg className="absolute inset-0 w-[900px] h-[800px] pointer-events-none z-10" viewBox="0 0 900 800">
                     <defs>
                         <filter id="glow-connector" x="-20%" y="-20%" width="140%" height="140%">
-                            <feGaussianBlur stdDeviation="3" result="blur" />
+                            <feGaussianBlur stdDeviation="2.5" result="blur" />
                             <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
                         </filter>
                     </defs>
 
                     {/* Marketing -> Bridge */}
-                    <path d="M 270 200 C 270 235, 450 235, 450 270" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
-                    <path d="M 270 200 C 270 235, 450 235, 450 270" fill="none" stroke="#eab308" strokeWidth="4" className="animate-[flow-diagonal_2s_linear_infinite]" strokeDasharray="20 180" strokeLinecap="round" filter="url(#glow-connector)"/>
+                    <path d="M 270 200 C 270 235, 450 235, 450 270" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2.5" />
+                    <path d="M 270 200 C 270 235, 450 235, 450 270" fill="none" stroke="#D49B43" strokeWidth="3.5" strokeDasharray="18 180" strokeLinecap="round" filter="url(#glow-connector)"/>
 
                     {/* SaaS Web -> Bridge */}
-                    <path d="M 630 200 C 630 235, 450 235, 450 270" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
-                    <path d="M 630 200 C 630 235, 450 235, 450 270" fill="none" stroke="#eab308" strokeWidth="4" className="animate-[flow-diagonal_2.5s_linear_infinite] delay-[1s]" strokeDasharray="30 250" strokeLinecap="round" filter="url(#glow-connector)"/>
+                    <path d="M 630 200 C 630 235, 450 235, 450 270" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2.5" />
+                    <path d="M 630 200 C 630 235, 450 235, 450 270" fill="none" stroke="#D49B43" strokeWidth="3.5" strokeDasharray="28 240" strokeLinecap="round" filter="url(#glow-connector)"/>
 
                     {/* Bridge -> Vercel Runtime */}
-                    <path d="M 450 370 C 450 410, 270 410, 270 450" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
-                    <path d="M 450 370 C 450 410, 270 410, 270 450" fill="none" stroke="#6366f1" strokeWidth="4" className="animate-[flow-diagonal_2s_linear_infinite]" strokeDasharray="20 150" strokeLinecap="round" filter="url(#glow-connector)"/>
+                    <path d="M 450 370 C 450 410, 270 410, 270 450" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2.5" />
+                    <path d="M 450 370 C 450 410, 270 410, 270 450" fill="none" stroke="#93C5FD" strokeWidth="3.5" strokeDasharray="20 150" strokeLinecap="round" filter="url(#glow-connector)"/>
 
                     {/* Bridge -> Job Runner */}
-                    <path d="M 450 370 C 450 410, 630 410, 630 450" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
-                    <path d="M 450 370 C 450 410, 630 410, 630 450" fill="none" stroke="#d946ef" strokeWidth="4" className="animate-[flow-diagonal_2.5s_linear_infinite]" strokeDasharray="25 180" strokeLinecap="round" filter="url(#glow-connector)"/>
+                    <path d="M 450 370 C 450 410, 630 410, 630 450" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2.5" />
+                    <path d="M 450 370 C 450 410, 630 410, 630 450" fill="none" stroke="#D49B43" strokeWidth="3.5" strokeDasharray="25 180" strokeLinecap="round" filter="url(#glow-connector)"/>
 
                     {/* Vercel Runtime -> Database */}
-                    <path d="M 270 550 C 270 590, 450 590, 450 630" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
-                    <path d="M 270 550 C 270 590, 450 590, 450 630" fill="none" stroke="#10b981" strokeWidth="4" className="animate-[flow-diagonal_2s_linear_infinite]" strokeDasharray="30 200" strokeLinecap="round" filter="url(#glow-connector)"/>
+                    <path d="M 270 550 C 270 590, 450 590, 450 630" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2.5" />
+                    <path d="M 270 550 C 270 590, 450 590, 450 630" fill="none" stroke="#34D399" strokeWidth="3.5" strokeDasharray="30 200" strokeLinecap="round" filter="url(#glow-connector)"/>
 
                     {/* Job Runner -> Database */}
-                    <path d="M 630 550 C 630 590, 450 590, 450 630" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
-                    <path d="M 630 550 C 630 590, 450 590, 450 630" fill="none" stroke="#10b981" strokeWidth="4" className="animate-[flow-diagonal_2.5s_linear_infinite]" strokeDasharray="25 190" strokeLinecap="round" filter="url(#glow-connector)"/>
+                    <path d="M 630 550 C 630 590, 450 590, 450 630" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2.5" />
+                    <path d="M 630 550 C 630 590, 450 590, 450 630" fill="none" stroke="#34D399" strokeWidth="3.5" strokeDasharray="25 190" strokeLinecap="round" filter="url(#glow-connector)"/>
                 </svg>
 
-                {/* THE PIXEL-PERFECT NODES */}
-                {/* Node Box size: w-[240px] h-[100px].  Center offset requires left-[Center.X - 120] and top-[Center.Y - 50] */}
-                
-                {/* 1. Marketing Node (X:270, Y:150) -> Top:100, Left:150 */}
-                <div onClick={() => setActiveNode('website')} className="absolute top-[100px] left-[150px] w-[240px] h-[100px] bg-black/60 backdrop-blur-xl border border-cyan-500/30 rounded-2xl flex items-center p-4 hover:bg-cyan-900/30 hover:scale-105 hover:shadow-[0_0_30px_rgba(34,211,238,0.3)] transition-all cursor-pointer z-20 group">
-                    <div className="w-12 h-12 flex-shrink-0 bg-cyan-500/20 text-cyan-400 flex items-center justify-center rounded-xl mr-4 border border-cyan-500/40 group-hover:bg-cyan-400 group-hover:text-black transition-colors"><AppWindow size={24}/></div>
+                {/* 1. Marketing Node */}
+                <div onClick={() => setActiveNode('website')} className="absolute top-[100px] left-[150px] w-[240px] h-[100px] bg-oxford-dark/90 backdrop-blur-xl border border-parchment/30 rounded-2xl flex items-center p-4 hover:border-brass-light hover:scale-[1.03] transition-all cursor-pointer z-20 group">
+                    <div className="w-12 h-12 flex-shrink-0 bg-white/10 text-parchment flex items-center justify-center rounded-xl mr-4 border border-parchment/30 group-hover:bg-brass group-hover:text-white transition-colors"><AppWindow size={24}/></div>
                     <div>
                         <h3 className="font-bold text-white leading-tight">apps/website</h3>
-                        <p className="text-[10px] text-cyan-400 uppercase tracking-wider font-mono mt-1">Marketing Runtime</p>
+                        <p className="text-[10px] text-parchment/80 uppercase tracking-wider font-mono mt-1">Public Surface</p>
                     </div>
                 </div>
 
-                {/* 2. SaaS Core Node (X:630, Y:150) -> Top:100, Left:510 */}
-                <div onClick={() => setActiveNode('web')} className="absolute top-[100px] left-[510px] w-[240px] h-[100px] bg-black/60 backdrop-blur-xl border border-emerald-500/30 rounded-2xl flex items-center p-4 hover:bg-emerald-900/30 hover:scale-105 hover:shadow-[0_0_30px_rgba(16,185,129,0.3)] transition-all cursor-pointer z-20 group">
-                    <div className="w-12 h-12 flex-shrink-0 bg-emerald-500/20 text-emerald-400 flex items-center justify-center rounded-xl mr-4 border border-emerald-500/40 group-hover:bg-emerald-400 group-hover:text-black transition-colors"><ShieldAlert size={24}/></div>
+                {/* 2. SaaS Core Node */}
+                <div onClick={() => setActiveNode('web')} className="absolute top-[100px] left-[510px] w-[240px] h-[100px] bg-oxford-dark/90 backdrop-blur-xl border border-emerald-400/35 rounded-2xl flex items-center p-4 hover:border-emerald-400 hover:scale-[1.03] transition-all cursor-pointer z-20 group">
+                    <div className="w-12 h-12 flex-shrink-0 bg-emerald-500/15 text-emerald-300 flex items-center justify-center rounded-xl mr-4 border border-emerald-400/35 group-hover:bg-emerald-500 group-hover:text-white transition-colors"><ShieldAlert size={24}/></div>
                     <div>
                         <h3 className="font-bold text-white leading-tight">apps/web</h3>
-                        <p className="text-[10px] text-emerald-400 uppercase tracking-wider font-mono mt-1">Primary SaaS Pipeline</p>
+                        <p className="text-[10px] text-emerald-300 uppercase tracking-wider font-mono mt-1">Institutional Core</p>
                     </div>
                 </div>
 
-                {/* 3. API Bridge Node (X:450, Y:320) -> Top:270, Left:330 */}
-                <div onClick={() => setActiveNode('bridge')} className="absolute top-[270px] left-[330px] w-[240px] h-[100px] bg-[#222] backdrop-blur-xl border-2 border-yellow-500/50 rounded-2xl flex items-center p-4 hover:bg-yellow-900/30 hover:scale-105 hover:shadow-[0_0_40px_rgba(234,179,8,0.4)] transition-all cursor-pointer z-30 group shadow-[0_0_20px_rgba(234,179,8,0.1)] outline outline-offset-4 outline-yellow-500/10">
-                    <div className="w-12 h-12 flex-shrink-0 bg-yellow-500/20 text-yellow-400 flex items-center justify-center rounded-xl mr-4 border border-yellow-500/40 group-hover:bg-yellow-400 group-hover:text-black transition-colors"><Network size={24}/></div>
+                {/* 3. API Bridge Node */}
+                <div onClick={() => setActiveNode('bridge')} className="absolute top-[270px] left-[330px] w-[240px] h-[100px] bg-oxford border-2 border-brass/60 rounded-2xl flex items-center p-4 hover:border-brass-light hover:scale-[1.03] transition-all cursor-pointer z-30 group shadow-xl">
+                    <div className="w-12 h-12 flex-shrink-0 bg-brass/20 text-brass-light flex items-center justify-center rounded-xl mr-4 border border-brass/45 group-hover:bg-brass group-hover:text-white transition-colors"><Network size={24}/></div>
                     <div>
                         <h3 className="font-bold text-white leading-tight font-mono text-sm">/api/leads</h3>
-                        <p className="text-[10px] text-yellow-400 uppercase tracking-wider font-mono mt-1">Cross-Origin Fetch</p>
+                        <p className="text-[10px] text-brass-light uppercase tracking-wider font-mono mt-1">Authenticated Bridge</p>
                     </div>
                 </div>
 
-                {/* 4. Vercel Runtime Node (X:270, Y:500) -> Top:450, Left:150 */}
-                <div onClick={() => setActiveNode('runtime')} className="absolute top-[450px] left-[150px] w-[240px] h-[100px] bg-black/60 backdrop-blur-xl border border-indigo-500/30 rounded-2xl flex items-center p-4 hover:bg-indigo-900/30 hover:scale-105 hover:shadow-[0_0_30px_rgba(99,102,241,0.3)] transition-all cursor-pointer z-20 group">
-                    <div className="w-12 h-12 flex-shrink-0 bg-indigo-500/20 text-indigo-400 flex items-center justify-center rounded-xl mr-4 border border-indigo-500/40 group-hover:bg-indigo-400 group-hover:text-black transition-colors"><Server size={24}/></div>
+                {/* 4. Vercel Runtime Node */}
+                <div onClick={() => setActiveNode('runtime')} className="absolute top-[450px] left-[150px] w-[240px] h-[100px] bg-oxford-dark/90 backdrop-blur-xl border border-sky-400/35 rounded-2xl flex items-center p-4 hover:border-sky-300 hover:scale-[1.03] transition-all cursor-pointer z-20 group">
+                    <div className="w-12 h-12 flex-shrink-0 bg-sky-400/15 text-sky-200 flex items-center justify-center rounded-xl mr-4 border border-sky-400/35 group-hover:bg-sky-500 group-hover:text-white transition-colors"><Server size={24}/></div>
                     <div>
-                        <h3 className="font-bold text-white leading-tight">Vercel Runtime</h3>
-                        <p className="text-[10px] text-indigo-400 uppercase tracking-wider font-mono mt-1">Serverless Region</p>
+                        <h3 className="font-bold text-white leading-tight">Regional Compute</h3>
+                        <p className="text-[10px] text-sky-200 uppercase tracking-wider font-mono mt-1">Pinned sin1 Region</p>
                     </div>
                 </div>
 
-                {/* 5. Job Runner Node (X:630, Y:500) -> Top:450, Left:510 */}
-                <div onClick={() => setActiveNode('jobs')} className="absolute top-[450px] left-[510px] w-[240px] h-[100px] bg-black/60 backdrop-blur-xl border border-fuchsia-500/30 rounded-2xl flex items-center p-4 hover:bg-fuchsia-900/30 hover:scale-105 hover:shadow-[0_0_30px_rgba(217,70,239,0.3)] transition-all cursor-pointer z-20 group">
-                    <div className="w-12 h-12 flex-shrink-0 bg-fuchsia-500/20 text-fuchsia-400 flex items-center justify-center rounded-xl mr-4 border border-fuchsia-500/40 group-hover:bg-fuchsia-400 group-hover:text-black transition-colors"><Cpu size={24}/></div>
+                {/* 5. Job Runner Node */}
+                <div onClick={() => setActiveNode('jobs')} className="absolute top-[450px] left-[510px] w-[240px] h-[100px] bg-oxford-dark/90 backdrop-blur-xl border border-brass/40 rounded-2xl flex items-center p-4 hover:border-brass-light hover:scale-[1.03] transition-all cursor-pointer z-20 group">
+                    <div className="w-12 h-12 flex-shrink-0 bg-brass/20 text-brass-light flex items-center justify-center rounded-xl mr-4 border border-brass/40 group-hover:bg-brass group-hover:text-white transition-colors"><Cpu size={24}/></div>
                     <div>
                         <h3 className="font-bold text-white leading-tight">Background Jobs</h3>
-                        <p className="text-[10px] text-fuchsia-400 uppercase tracking-wider font-mono mt-1">Queue &amp; Notifications</p>
+                        <p className="text-[10px] text-brass-light uppercase tracking-wider font-mono mt-1">Outbox &amp; Dispatch</p>
                     </div>
                 </div>
 
-                {/* 6. Postgres Vault (X:450, Y:680) -> Top:630, Left:330 */}
-                <div onClick={() => setActiveNode('db')} className="absolute top-[630px] left-[330px] w-[240px] h-[100px] bg-black border-2 border-emerald-500/50 rounded-[2rem] flex items-center p-4 hover:bg-emerald-900/20 hover:scale-105 hover:shadow-[0_0_60px_rgba(16,185,129,0.4)] transition-all cursor-pointer z-20 group shadow-[0_0_30px_rgba(16,185,129,0.2)]">
-                    <div className="w-12 h-12 flex-shrink-0 bg-emerald-500/20 text-emerald-400 flex items-center justify-center rounded-full mr-4 border border-emerald-500/40 animate-[pulse_2s_infinite]"><Database size={24}/></div>
+                {/* 6. Postgres Vault */}
+                <div onClick={() => setActiveNode('db')} className="absolute top-[630px] left-[330px] w-[240px] h-[100px] bg-oxford border-2 border-emerald-400/50 rounded-[2rem] flex items-center p-4 hover:border-emerald-300 hover:scale-[1.03] transition-all cursor-pointer z-20 group shadow-2xl">
+                    <div className="w-12 h-12 flex-shrink-0 bg-emerald-500/20 text-emerald-300 flex items-center justify-center rounded-full mr-4 border border-emerald-400/40"><Database size={24}/></div>
                     <div>
                         <h3 className="font-black text-white leading-tight text-lg">Postgres Enclave</h3>
-                        <p className="text-[10px] text-emerald-400 uppercase tracking-widest font-mono mt-1">Multi-Tenant Vault</p>
+                        <p className="text-[10px] text-emerald-300 uppercase tracking-widest font-mono mt-1">RLS Multi-Tenant Vault</p>
                     </div>
                 </div>
 
             </div>
 
-             {/* EXPANSION DEEP-DIVE MODAL (HACKER UI) */}
+             {/* EXPANSION DEEP-DIVE MODAL */}
              {activeNode && selectedSpec && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-[slide-in_0.3s_ease-out]">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     
-                    {/* Dark Backdrop Hack closing the modal */}
                     <div 
-                        className="absolute inset-0 bg-black/80 backdrop-blur-md cursor-pointer" 
+                        className="absolute inset-0 bg-oxford-dark/85 backdrop-blur-md cursor-pointer" 
                         onClick={() => setActiveNode(null)}
                     ></div>
 
-                    {/* Highly Technical Terminal Overlay Box */}
-                    <div className="relative w-full max-w-5xl h-[80vh] bg-[#0a0a0a] border border-[#222] rounded-3xl overflow-hidden shadow-2xl flex flex-col shadow-[0_0_100px_rgba(0,0,0,1)]">
+                    <div className="relative w-full max-w-5xl h-[80vh] bg-oxford-dark border border-brass/35 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
                         
-                        {/* Fake Browser/Terminal Header */}
-                        <div className="h-14 bg-[#111] border-b border-[#222] flex items-center px-6 justify-between select-none">
+                        <div className="h-14 bg-oxford border-b border-brass/25 flex items-center px-6 justify-between select-none">
                             <div className="flex gap-2.5">
-                                <span className="w-3.5 h-3.5 rounded-full bg-rose-500/80 shadow-[0_0_8px_rgba(244,63,94,0.5)]"></span>
-                                <span className="w-3.5 h-3.5 rounded-full bg-amber-500/80 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></span>
-                                <span className="w-3.5 h-3.5 rounded-full bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                                <span className="w-3 h-3 rounded-full bg-rose-400/80"></span>
+                                <span className="w-3 h-3 rounded-full bg-brass-light/90"></span>
+                                <span className="w-3 h-3 rounded-full bg-emerald-400/80"></span>
                             </div>
-                            <span className="text-sm font-mono text-slate-500 ml-4 hidden sm:block tracking-widest">GUEST@SCHOLARMIND: /usr/core/node_{selectedSpec.id}</span>
-                            <button onClick={() => setActiveNode(null)} className="text-slate-400 hover:text-white transition-colors bg-white/5 p-2 rounded-full hover:bg-rose-500 hover:text-white">
-                                <X size={20} />
+                            <span className="text-xs font-mono text-parchment/80 ml-4 hidden sm:block tracking-widest uppercase">SCHOLARMIND · ARCHITECTURE INSPECTOR ({selectedSpec.id})</span>
+                            <button onClick={() => setActiveNode(null)} className="text-slate-300 hover:text-white transition-colors bg-white/10 p-2 rounded-full hover:bg-brass">
+                                <X size={18} />
                             </button>
                         </div>
 
-                        {/* Modal Body */}
                         <div className="flex flex-col md:flex-row h-[calc(100%-3.5rem)]">
                             
-                            {/* Left Panel: The Pseudo-Terminal */}
-                            <div className="w-full md:w-1/2 bg-[#050505] p-8 border-r border-[#222] flex flex-col font-mono text-sm text-green-400 shadow-inner overflow-hidden relative">
-                                {/* Decorative Terminal Background Grid */}
-                                <div
-                                    className="absolute inset-0 opacity-10"
-                                    style={{
-                                        backgroundImage:
-                                            'radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px)',
-                                        backgroundSize: '20px 20px',
-                                    }}
-                                ></div>
+                            {/* Left Panel: Verification Trace */}
+                            <div className="w-full md:w-1/2 bg-oxford-dark p-8 border-r border-brass/20 flex flex-col font-mono text-sm text-parchment overflow-hidden relative">
+                                <div className="flex items-center gap-3 text-brass-light mb-6 border-b border-brass/20 pb-3 uppercase tracking-widest font-bold text-xs"><Terminal size={16}/> VERIFICATION_TRACE.LOG</div>
                                 
-                                <div className="flex items-center gap-3 text-slate-500 mb-6 border-b border-[#222] pb-3 uppercase tracking-widest font-bold"><Terminal size={18}/> SYSTEM_LOGS.OUT</div>
-                                
-                                <pre className="whitespace-pre-wrap leading-loose animate-[fade-in_0.5s_ease-out]">
+                                <pre className="whitespace-pre-wrap leading-loose text-slate-200">
                                     {selectedSpec.terminalText}
                                 </pre>
 
-                                {/* Blinking Cursor */}
-                                <div className="mt-2 w-3 h-5 bg-green-400 animate-pulse opacity-80 rounded-sm"></div>
+                                <div className="mt-2 w-2.5 h-4 bg-brass-light animate-pulse opacity-80 rounded-sm"></div>
                             </div>
 
-                            {/* Right Panel: The Marketing Pitch Matrix */}
-                            <div className="w-full md:w-1/2 p-10 md:p-14 flex flex-col justify-center bg-black/40 relative overflow-y-auto">
-                                {/* Glow Accent relative to iconColor */}
+                            {/* Right Panel: Architectural Specification */}
+                            <div className="w-full md:w-1/2 p-10 md:p-14 flex flex-col justify-center bg-oxford/50 relative overflow-y-auto">
                                 <div className={`absolute top-10 right-10 w-80 h-80 blur-[120px] rounded-full pointer-events-none opacity-20 ${ACCENT_STYLES[selectedSpec.iconColor].glow}`}></div>
 
                                 <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold font-mono tracking-widest mb-6 w-fit border uppercase ${ACCENT_STYLES[selectedSpec.iconColor].badge}`}>
                                     {selectedSpec.badge}
                                 </span>
 
-                                <h2 className="text-4xl font-black text-white mb-6 tracking-tight leading-tight">
+                                <h2 className="text-3xl md:text-4xl font-black text-white mb-5 tracking-tight leading-tight">
                                     {selectedSpec.title}
                                 </h2>
 
-                                <p className="text-slate-400 text-lg leading-relaxed mb-10 font-light border-l-2 border-white/10 pl-6">
+                                <p className="text-slate-300 text-base md:text-lg leading-relaxed mb-8 border-l-2 border-brass/50 pl-5">
                                     {selectedSpec.description}
                                 </p>
 
-                                <div className="space-y-4">
+                                <div className="space-y-3.5">
                                     {selectedSpec.features.map((feature: string, idx: number) => (
-                                        <div key={idx} className="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors shadow-sm">
-                                            <div className="h-8 w-8 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                                                <div className="h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]"></div>
+                                        <div key={idx} className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10">
+                                            <div className="h-7 w-7 rounded-full bg-brass/20 border border-brass/40 flex items-center justify-center flex-shrink-0">
+                                                <div className="h-2.5 w-2.5 rounded-full bg-brass-light"></div>
                                             </div>
-                                            <span className="text-base font-medium text-slate-300">{feature}</span>
+                                            <span className="text-sm md:text-base font-medium text-slate-200">{feature}</span>
                                         </div>
                                     ))}
                                 </div>

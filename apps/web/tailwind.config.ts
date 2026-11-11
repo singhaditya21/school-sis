@@ -50,6 +50,10 @@ const config: Config = {
     				DEFAULT: 'hsl(var(--primary))',
     				foreground: 'hsl(var(--primary-foreground))'
     			},
+    			brass: {
+    				DEFAULT: 'hsl(var(--brass))',
+    				foreground: 'hsl(var(--brass-foreground))'
+    			},
     			secondary: {
     				DEFAULT: 'hsl(var(--secondary))',
     				foreground: 'hsl(var(--secondary-foreground))'
@@ -103,11 +107,11 @@ const config: Config = {
     			},
                 tremor: {
                     brand: {
-                        faint: colors.teal[50],
-                        muted: colors.teal[200],
-                        subtle: colors.teal[400],
-                        DEFAULT: colors.teal[600],
-                        emphasis: colors.teal[700],
+                        faint: colors.amber[50],
+                        muted: colors.amber[200],
+                        subtle: colors.slate[500],
+                        DEFAULT: colors.slate[800],
+                        emphasis: colors.slate[900],
                         inverted: colors.white,
                     },
                     background: {
@@ -141,6 +145,13 @@ const config: Config = {
     				'Roboto',
     				'Helvetica Neue',
     				'Arial',
+    				'sans-serif'
+    			],
+    			display: [
+    				'var(--font-display)',
+    				'var(--font-sans)',
+    				'ui-sans-serif',
+    				'system-ui',
     				'sans-serif'
     			]
     		},

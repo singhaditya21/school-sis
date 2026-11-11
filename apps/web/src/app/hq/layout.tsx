@@ -1,6 +1,20 @@
 import { getSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import {
+    Globe,
+    Building2,
+    Inbox,
+    Cpu,
+    Landmark,
+    Scale,
+    Megaphone,
+    Sliders,
+    ShieldCheck,
+    ArrowLeft,
+    type LucideIcon,
+} from 'lucide-react';
+import { ScholarMindCrest } from '@/components/brand/ScholarMindCrest';
 
 export default async function HQLayout({
     children,
@@ -13,41 +27,38 @@ export default async function HQLayout({
         redirect('/login');
     }
 
-    // Check if user has PLATFORM_ADMIN access
     if (session.role !== 'PLATFORM_ADMIN') {
         redirect('/unauthorized');
     }
 
     return (
-        <div className="min-h-screen bg-slate-900 text-slate-100">
-            {/* Header */}
-            <header className="bg-slate-950 border-b border-slate-800 sticky top-0 z-50">
-                <div className="px-6 py-4">
+        <div className="dark min-h-screen bg-background text-foreground">
+            <header className="bg-card border-b border-border sticky top-0 z-50">
+                <div className="h-[2px] w-full bg-brass" />
+                <div className="px-6 py-3.5">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-cyan-400 rounded-xl flex items-center justify-center">
-                                <span className="text-white text-xl">🌐</span>
-                            </div>
+                        <div className="flex items-center gap-3.5">
+                            <ScholarMindCrest size="md" variant="midnight" />
                             <div>
-                                <h1 className="text-xl font-bold text-white tracking-tight">
+                                <h1 className="text-lg font-bold text-foreground tracking-tight">
                                     ScholarMind HQ
                                 </h1>
-                                <p className="text-sm text-muted-foreground">
-                                    Global Command Center
+                                <p className="text-xs text-muted-foreground font-medium">
+                                    Platform Command Center
                                 </p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <span className="text-sm text-muted-foreground">
+                        <div className="flex items-center gap-3.5">
+                            <span className="hidden sm:inline text-sm text-muted-foreground">
                                 {session.email}
                             </span>
-                            <span className="px-2 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-medium rounded-full">
+                            <span className="px-2.5 py-1 bg-accent text-accent-foreground border border-brass/40 text-xs font-semibold tracking-wider rounded-md">
                                 PLATFORM ADMIN
                             </span>
                             <form action="/api/logout" method="POST">
                                 <button
                                     type="submit"
-                                    className="px-4 py-2 text-sm font-medium text-slate-200 hover:text-white hover:bg-slate-800 border border-slate-700 rounded-lg transition-colors"
+                                    className="px-3.5 py-1.5 text-sm font-medium text-foreground/90 hover:text-foreground hover:bg-muted border border-border rounded-lg transition-colors"
                                 >
                                     Sign Out
                                 </button>
@@ -58,58 +69,66 @@ export default async function HQLayout({
             </header>
 
             <div className="flex">
-                {/* Sidebar Navigation */}
-                <aside className="w-64 bg-slate-950 border-r border-slate-800 min-h-[calc(100vh-73px)] sticky top-[73px]">
+                <aside className="w-64 bg-card border-r border-border min-h-[calc(100vh-67px)] sticky top-[67px]">
                     <nav className="p-4 space-y-2">
-                        <div className="pb-4 mb-2 border-b border-slate-800">
-                            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Orchestration</p>
-                            <NavLink href="/hq" icon="🌍">
+                        <div className="pb-3 mb-2 border-b border-border">
+                            <p className="px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
+                                Orchestration
+                            </p>
+                            <NavLink href="/hq" icon={Globe}>
                                 Global Dashboard
                             </NavLink>
-                            <NavLink href="/hq/tenants" icon="🏢">
+                            <NavLink href="/hq/tenants" icon={Building2}>
                                 Campus Management
                             </NavLink>
-                            <NavLink href="/hq/leads" icon="📥">
+                            <NavLink href="/hq/leads" icon={Inbox}>
                                 Lead Pipeline
                             </NavLink>
-                            <NavLink href="/hq/ai-governance" icon="🧠">
+                            <NavLink href="/hq/ai-governance" icon={Cpu}>
                                 AI Governance
                             </NavLink>
                         </div>
 
-                        <div className="pb-4 mb-2 border-b border-slate-800">
-                            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Operations</p>
-                            <NavLink href="/hq/treasury" icon="🏦">
+                        <div className="pb-3 mb-2 border-b border-border">
+                            <p className="px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
+                                Operations
+                            </p>
+                            <NavLink href="/hq/treasury" icon={Landmark}>
                                 Cross-Campus Finance
                             </NavLink>
-                            <NavLink href="/hq/compliance" icon="⚖️">
+                            <NavLink href="/hq/compliance" icon={Scale}>
                                 Data Residency
                             </NavLink>
-                            <NavLink href="/hq/broadcasts" icon="📢">
+                            <NavLink href="/hq/broadcasts" icon={Megaphone}>
                                 Broadcasts
                             </NavLink>
                         </div>
 
                         <div>
-                            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">System</p>
-                            <NavLink href="/hq/policies" icon="⚙️">
+                            <p className="px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
+                                System
+                            </p>
+                            <NavLink href="/hq/policies" icon={Sliders}>
                                 Global Policy Engine
                             </NavLink>
-                            <NavLink href="/hq/audit" icon="🛡️">
+                            <NavLink href="/hq/audit" icon={ShieldCheck}>
                                 Platform Audit Log
                             </NavLink>
                         </div>
-                        
-                        <div className="mt-8 pt-4">
-                             <Link href="/dashboard" className="flex items-center justify-center p-3 rounded-lg border border-slate-700 bg-slate-800/50 text-slate-300 hover:bg-slate-800 hover:text-white transition-all text-sm font-medium">
-                                ← Switch to Campus Admin
-                             </Link>
+
+                        <div className="mt-6 pt-4 border-t border-border">
+                            <Link
+                                href="/dashboard"
+                                className="flex items-center justify-center gap-2 p-2.5 rounded-lg border border-border bg-muted text-foreground hover:bg-accent hover:text-accent-foreground transition-all text-xs font-semibold"
+                            >
+                                <ArrowLeft className="w-3.5 h-3.5" />
+                                Switch to Campus Admin
+                            </Link>
                         </div>
                     </nav>
                 </aside>
 
-                {/* Main Content */}
-                <main className="flex-1 p-6 lg:p-8 bg-slate-900">{children}</main>
+                <main className="flex-1 p-6 lg:p-8 bg-background">{children}</main>
             </div>
         </div>
     );
@@ -117,19 +136,19 @@ export default async function HQLayout({
 
 function NavLink({
     href,
-    icon,
+    icon: Icon,
     children,
 }: {
     href: string;
-    icon: string;
+    icon: LucideIcon;
     children: React.ReactNode;
 }) {
     return (
         <Link
             href={href}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-slate-800 hover:text-slate-100 transition-colors"
+            className="group flex items-center gap-3 px-3 py-2 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
         >
-            <span className="text-lg">{icon}</span>
+            <Icon className="w-4 h-4 text-muted-foreground group-hover:text-brass shrink-0" />
             <span className="text-sm font-medium">{children}</span>
         </Link>
     );

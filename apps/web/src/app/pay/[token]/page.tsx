@@ -130,11 +130,14 @@ export default async function PublicInvoicePaymentLinkPage({
     const dueDateStr = summary.dueDate ? String(summary.dueDate).slice(0, 10) : null;
 
     return (
-        <main className="min-h-screen flex items-center justify-center bg-muted/50 p-4 sm:p-6">
-            <Card className="w-full max-w-lg border-border shadow-xl">
+        <main className="min-h-screen flex items-center justify-center bg-muted/60 p-4 sm:p-6">
+            <Card className="w-full max-w-lg border-border shadow-xl overflow-hidden">
+                <div className="h-1 w-full bg-gradient-to-r from-primary via-brass to-primary" />
                 <CardHeader className="space-y-2 border-b border-border pb-5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                        <Badge variant="outline">Verified School Payment Link</Badge>
+                        <Badge variant="outline" className="border-brass/40 bg-accent/60 text-accent-foreground font-semibold">
+                            Verified School Payment Link
+                        </Badge>
                         <Badge variant={summary.status === 'PAID' ? 'secondary' : 'default'}>
                             {summary.status}
                         </Badge>

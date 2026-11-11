@@ -109,24 +109,24 @@ export default function ApplySandboxStepThroughPage() {
 
     if (completedPreview) {
         return (
-            <div className="min-h-screen bg-slate-50 pt-28 pb-20 px-4 sm:px-6">
+            <div className="min-h-screen bg-ivory pt-28 pb-20 px-4 sm:px-6">
                 <div className="max-w-2xl mx-auto">
-                    <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-amber-950">
-                        <Eye size={15} />
+                    <div className="mb-6 rounded-2xl border border-brass/35 bg-parchment px-4 py-3 flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-oxford">
+                        <Eye size={15} className="text-brass" />
                         Interactive Product Preview — Synthetic Demo Data Only
                     </div>
 
-                    <Card className="border-slate-200 shadow-lg rounded-3xl overflow-hidden">
+                    <Card className="border-slate-200/80 shadow-lg rounded-3xl overflow-hidden">
                         <CardContent className="pt-10 pb-10 px-8 text-center space-y-6">
-                            <div className="w-16 h-16 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto">
-                                <CheckCircle2 size={34} />
+                            <div className="w-16 h-16 bg-parchment text-oxford border border-brass/30 rounded-2xl flex items-center justify-center mx-auto">
+                                <CheckCircle2 size={34} className="text-brass" />
                             </div>
 
                             <div className="space-y-2">
-                                <p className="text-xs font-bold uppercase tracking-widest text-indigo-600">
+                                <p className="text-xs font-bold uppercase tracking-widest text-brass">
                                     Sandbox Walkthrough Complete · {profile.applicationRef}
                                 </p>
-                                <h1 className="text-2xl md:text-3xl font-black text-slate-900">
+                                <h1 className="text-2xl md:text-3xl font-black text-oxford">
                                     Previewed Experience Cloud Handoff
                                 </h1>
                                 <p className="text-slate-600 text-sm md:text-base max-w-xl mx-auto leading-relaxed">
@@ -134,7 +134,7 @@ export default function ApplySandboxStepThroughPage() {
                                 </p>
                             </div>
 
-                            <div className="text-left bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3 text-sm text-slate-700">
+                            <div className="text-left bg-ivory border border-slate-200 rounded-2xl p-5 space-y-3 text-sm text-slate-700">
                                 <p>
                                     <strong>1. Tenant-Isolated Intake:</strong> Persists the application under the campus&apos;s PostgreSQL row-level-security policy.
                                 </p>
@@ -149,7 +149,7 @@ export default function ApplySandboxStepThroughPage() {
                             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                                 <Link
                                     href="/book-demo"
-                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors"
+                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-oxford text-white rounded-xl font-bold text-sm hover:bg-oxford-dark transition-colors"
                                 >
                                     Book a Live Pilot Walkthrough
                                     <ArrowRight size={16} />
@@ -157,14 +157,14 @@ export default function ApplySandboxStepThroughPage() {
                                 <button
                                     type="button"
                                     onClick={handleResetPreview}
-                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 border border-slate-300 bg-white text-slate-700 rounded-xl font-semibold text-sm hover:bg-slate-50 transition-colors"
+                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 border border-slate-300 bg-white text-slate-700 rounded-xl font-semibold text-sm hover:bg-ivory transition-colors"
                                 >
                                     <RotateCcw size={15} />
                                     Replay Step-Through
                                 </button>
                                 <Link
                                     href="/apply-online"
-                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-5 py-3 text-indigo-600 hover:text-indigo-700 font-semibold text-sm"
+                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-5 py-3 text-oxford hover:text-brass font-semibold text-sm"
                                 >
                                     <ArrowLeft size={15} />
                                     Back to Admissions Preview
@@ -178,20 +178,20 @@ export default function ApplySandboxStepThroughPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 pt-28 pb-20 px-4 sm:px-6">
+        <div className="min-h-screen bg-ivory pt-28 pb-20 px-4 sm:px-6">
             <div className="max-w-2xl mx-auto">
                 {/* Navigation & Mandatory Sandbox Badge */}
                 <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <Link
                         href="/apply-online"
-                        className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 font-bold text-sm"
+                        className="inline-flex items-center gap-1.5 text-oxford hover:text-brass font-bold text-sm"
                     >
                         <ArrowLeft size={16} />
                         Back to Admissions Preview
                     </Link>
                     <Link
                         href="/book-demo"
-                        className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 font-semibold text-xs"
+                        className="inline-flex items-center gap-1.5 text-slate-600 hover:text-oxford font-semibold text-xs"
                     >
                         Want a live tenant demo? Book assessment →
                     </Link>
@@ -200,19 +200,19 @@ export default function ApplySandboxStepThroughPage() {
                 <div
                     role="region"
                     aria-label="Synthetic demo data notice"
-                    className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm"
+                    className="mb-6 rounded-2xl border border-brass/35 bg-parchment p-4 shadow-sm"
                 >
-                    <div className="inline-flex items-center gap-2 rounded-full bg-amber-200/80 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-amber-950 mb-2">
-                        <Eye size={14} />
+                    <div className="inline-flex items-center gap-2 rounded-full bg-brass/20 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-oxford mb-2">
+                        <Eye size={14} className="text-brass" />
                         Interactive Product Preview — Synthetic Demo Data Only
                     </div>
-                    <p className="text-xs sm:text-sm text-amber-900 leading-relaxed">
+                    <p className="text-xs sm:text-sm text-slate-800 leading-relaxed">
                         To protect student and family privacy, free-text PII entry is disabled on this public marketing preview. Select a pre-filled synthetic applicant below and step through all stages of the ScholarMind Experience Cloud admission flow.
                     </p>
                 </div>
 
                 {/* Synthetic Sample Switcher */}
-                <div className="mb-6 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                <div className="mb-6 bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm">
                     <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
                         Choose Synthetic Sample Applicant
                     </p>
@@ -226,8 +226,8 @@ export default function ApplySandboxStepThroughPage() {
                                     onClick={() => setSelectedProfileId(item.id)}
                                     className={`text-left px-4 py-2.5 rounded-xl border text-xs font-bold transition-all ${
                                         active
-                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                                            ? 'bg-oxford text-white border-oxford shadow-sm'
+                                            : 'bg-ivory text-slate-700 border-slate-200 hover:bg-parchment/60'
                                     }`}
                                 >
                                     {item.label}
@@ -239,11 +239,11 @@ export default function ApplySandboxStepThroughPage() {
 
                 {/* Header */}
                 <div className="text-center mb-6">
-                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900">
+                    <h1 className="text-2xl sm:text-3xl font-black text-oxford">
                         Experience Cloud Admission Flow
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Sample Reference: <span className="font-mono font-semibold text-slate-700">{profile.applicationRef}</span>
+                        Sample Reference: <span className="font-mono font-semibold text-oxford">{profile.applicationRef}</span>
                     </p>
                 </div>
 
@@ -260,9 +260,9 @@ export default function ApplySandboxStepThroughPage() {
                                 onClick={() => setStep(s.num)}
                                 className={`px-3.5 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-colors ${
                                     step === s.num
-                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        ? 'bg-oxford text-white shadow-sm'
                                         : step > s.num
-                                          ? 'bg-indigo-100 text-indigo-800'
+                                          ? 'bg-parchment text-oxford border border-brass/30'
                                           : 'bg-slate-200 text-slate-600'
                                 }`}
                             >
@@ -270,7 +270,7 @@ export default function ApplySandboxStepThroughPage() {
                                 <span>{s.label}</span>
                             </button>
                             {s.num < 3 && (
-                                <div className={`w-8 sm:w-12 h-1 rounded ${step > s.num ? 'bg-indigo-600' : 'bg-slate-200'}`} />
+                                <div className={`w-8 sm:w-12 h-1 rounded ${step > s.num ? 'bg-brass' : 'bg-slate-200'}`} />
                             )}
                         </div>
                     ))}
@@ -356,11 +356,11 @@ export default function ApplySandboxStepThroughPage() {
                                     </ul>
                                 </div>
 
-                                <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl text-sm">
-                                    <p className="font-bold text-indigo-950">
+                                <div className="bg-parchment border border-brass/30 p-4 rounded-2xl text-sm">
+                                    <p className="font-bold text-oxford">
                                         Registration Fee Preview: {profile.registrationFee}
                                     </p>
-                                    <p className="text-indigo-800 text-xs mt-1">
+                                    <p className="text-slate-700 text-xs mt-1">
                                         In production tenants with payment reconciliation configured, applicants transition to invoice-backed checkout; in this public preview, clicking below displays the staff queue handoff summary.
                                     </p>
                                 </div>
@@ -372,14 +372,14 @@ export default function ApplySandboxStepThroughPage() {
                                 <button
                                     type="button"
                                     onClick={() => setStep(step - 1)}
-                                    className="px-5 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                                    className="px-5 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold text-slate-700 hover:bg-ivory transition-colors"
                                 >
                                     ← Previous Step
                                 </button>
                             ) : (
                                 <Link
                                     href="/apply-online"
-                                    className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:text-slate-900"
+                                    className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:text-oxford"
                                 >
                                     ← Overview
                                 </Link>
@@ -389,7 +389,7 @@ export default function ApplySandboxStepThroughPage() {
                                 <button
                                     type="button"
                                     onClick={() => setStep(step + 1)}
-                                    className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors ml-auto"
+                                    className="px-6 py-2.5 bg-oxford text-white rounded-xl text-sm font-bold hover:bg-oxford-dark transition-colors ml-auto"
                                 >
                                     Next Step →
                                 </button>
@@ -397,7 +397,7 @@ export default function ApplySandboxStepThroughPage() {
                                 <button
                                     type="button"
                                     onClick={() => setCompletedPreview(true)}
-                                    className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors ml-auto"
+                                    className="px-6 py-2.5 bg-brass text-white rounded-xl text-sm font-bold hover:opacity-95 transition-opacity ml-auto"
                                 >
                                     Preview Sandbox Completion →
                                 </button>

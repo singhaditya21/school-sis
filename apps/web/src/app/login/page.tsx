@@ -2,11 +2,21 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
+import {
+    IndianRupee,
+    BarChart3,
+    ShieldCheck,
+    Building2,
+    Globe,
+    Sparkles,
+    Check,
+} from 'lucide-react';
 import { loginActionV2 } from '@/lib/actions/auth';
 import {
     isPermanentPlatformAdminEmail,
     PERMANENT_PLATFORM_ADMIN_EMAIL,
 } from '@/lib/auth/platform-owner';
+import { ScholarMindCrest } from '@/components/brand/ScholarMindCrest';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,16 +26,18 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { APP_NAME, APP_TAGLINE, VALUE_PROPS, TRUST_BADGES } from '@/lib/constants';
 
+const VALUE_PROP_ICONS = [IndianRupee, BarChart3, ShieldCheck, Building2] as const;
+
 function SubmitButton({ pending }: { pending: boolean }) {
     return (
-        <Button type="submit" className="w-full" disabled={pending} data-testid="login-button">
+        <Button type="submit" className="w-full font-semibold" disabled={pending} data-testid="login-button">
             {pending ? (
                 <span className="flex items-center gap-2">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                     Signing in...
                 </span>
             ) : (
-                'Sign in'
+                'Sign in to Workspace'
             )}
         </Button>
     );
@@ -57,169 +69,208 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent dark:from-background dark:via-background dark:to-accent">
-            {/* Background Pattern */}
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiM5NDk0OTQiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyem0wLTRoLTEydjJoMTJ2LTJ6bTAtNGgtMTJ2MmgxMnYtMnptMC00aC0xMnYyaDEydi0yem0tMTgtNHYyaDEydi0ySDEyem0xOCAwaC0xMnYyaDEydi0yem0wIDR2LTJIMTh2MmgxMnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-50" />
+        <div className="min-h-screen bg-background">
+            <div className="h-1 w-full bg-gradient-to-r from-primary via-brass to-primary" />
 
-            <div className="relative flex min-h-screen">
-                {/* Left Panel - Brand & Value Props (hidden on mobile) */}
-                <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] flex-col justify-between p-8 xl:p-12">
-                    <div>
-                        {/* Logo */}
-                        <div className="flex items-center gap-3 mb-12">
-                            <div className="w-12 h-12 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
-                                <span className="text-white text-2xl">🎓</span>
-                            </div>
+            <div className="relative flex min-h-[calc(100vh-4px)]">
+                {/* Left Panel — Oxford Navy Institutional Editorial Column */}
+                <div className="hidden lg:flex lg:w-1/2 xl:w-[54%] bg-primary text-primary-foreground flex-col justify-between p-10 xl:p-14 relative overflow-hidden">
+                    <div
+                        aria-hidden="true"
+                        className="absolute inset-0 opacity-[0.06]"
+                        style={{
+                            backgroundImage:
+                                'radial-gradient(hsl(var(--brass)) 1px, transparent 1px)',
+                            backgroundSize: '24px 24px',
+                        }}
+                    />
+
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3.5 mb-12">
+                            <ScholarMindCrest size="lg" variant="midnight" />
                             <div>
-                                <h1 className="text-2xl font-bold text-foreground dark:text-white">{APP_NAME}</h1>
-                                <p className="text-sm text-muted-foreground dark:text-muted-foreground">School Management Platform</p>
+                                <h1 className="text-2xl font-bold tracking-tight text-primary-foreground">
+                                    {APP_NAME}
+                                </h1>
+                                <p className="text-xs uppercase tracking-widest text-primary-foreground/70 font-semibold">
+                                    Institutional Operating System
+                                </p>
                             </div>
                         </div>
 
-                        {/* Hero Text - Changes based on login mode */}
-                        <div className="max-w-md mb-10">
-                            <h2 className="text-4xl xl:text-5xl font-bold text-foreground dark:text-white mb-4 leading-tight">
+                        <div className="max-w-lg mb-10">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brass/20 border border-brass/40 text-xs font-semibold tracking-wider uppercase text-primary-foreground mb-5">
+                                Academic Heritage · Fintech Precision
+                            </span>
+                            <h2 className="text-4xl xl:text-5xl font-bold text-primary-foreground mb-4 leading-[1.12]">
                                 {loginMode === 'platform'
-                                    ? 'Your SaaS Command Center'
-                                    : 'Fees-First Intelligence for Modern Schools'}
+                                    ? 'Global SaaS Command Center'
+                                    : 'Financial Governance & Campus Intelligence'}
                             </h2>
-                            <p className="text-lg text-muted-foreground dark:text-gray-300">
+                            <p className="text-base xl:text-lg text-primary-foreground/80 leading-relaxed">
                                 {loginMode === 'platform'
-                                    ? 'Monitor all tenant schools, track ARR growth, and manage subscription tiers from a single unified dashboard.'
-                                    : 'Streamline fee collections, automate reminders, and gain actionable insights into your school\u0027s financial health.'}
+                                    ? 'Oversee every tenant institution, ARR performance, and security posture from a single audited control plane.'
+                                    : 'Unify admissions, student records, encrypted guardian communications, and audited ₹ fee reconciliation across your institution.'}
                             </p>
                         </div>
 
-                        {/* Value Props */}
-                        <div className="space-y-4 mb-8">
-                            {VALUE_PROPS.map((prop, i) => (
-                                <div key={i} className="flex items-start gap-4 p-4 rounded-xl bg-white/60 dark:bg-slate-800/40 backdrop-blur-sm border border-border/50 dark:border-slate-700/50">
-                                    <span className="text-2xl">{prop.icon}</span>
-                                    <div>
-                                        <h3 className="font-semibold text-foreground dark:text-white">{prop.title}</h3>
-                                        <p className="text-sm text-muted-foreground dark:text-muted-foreground">{prop.description}</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-8">
+                            {VALUE_PROPS.map((prop, i) => {
+                                const Icon = VALUE_PROP_ICONS[i % VALUE_PROP_ICONS.length];
+                                return (
+                                    <div
+                                        key={prop.title}
+                                        className="flex items-start gap-3.5 p-4 rounded-xl bg-primary-foreground/[0.06] border border-primary-foreground/12"
+                                    >
+                                        <div className="w-9 h-9 rounded-lg bg-brass/20 border border-brass/40 flex items-center justify-center shrink-0">
+                                            <Icon className="w-4 h-4 text-brass" />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-semibold text-sm text-primary-foreground">
+                                                {prop.title}
+                                            </h3>
+                                            <p className="text-xs text-primary-foreground/75 mt-0.5 leading-relaxed">
+                                                {prop.description}
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
-                        {/* Trust Badges */}
                         <div className="flex flex-wrap gap-2">
-                            {TRUST_BADGES.map((badge, i) => (
-                                <Badge key={i} variant="secondary" className="bg-white/80 dark:bg-slate-800 text-foreground dark:text-gray-300">
-                                    ✓ {badge}
+                            {TRUST_BADGES.map((badge) => (
+                                <Badge
+                                    key={badge}
+                                    variant="secondary"
+                                    className="bg-primary-foreground/10 hover:bg-primary-foreground/15 text-primary-foreground border border-primary-foreground/15 font-medium"
+                                >
+                                    <Check className="w-3 h-3 mr-1 text-brass" />
+                                    {badge}
                                 </Badge>
                             ))}
                         </div>
                     </div>
 
-                    {/* Preview Card */}
-                    <div className="mt-8 p-6 rounded-2xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-border/50 dark:border-slate-700/50 shadow-xl">
-                        <p className="text-xs font-medium text-muted-foreground dark:text-muted-foreground mb-3 uppercase tracking-wide">Live Insights Preview</p>
+                    {/* Live Ledger Snapshot Card */}
+                    <div className="relative z-10 mt-8 p-5 rounded-2xl bg-primary-foreground/[0.07] border border-brass/30">
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="text-[11px] font-bold text-primary-foreground/75 uppercase tracking-widest">
+                                Verified Treasury Telemetry
+                            </p>
+                            <span className="text-[11px] font-mono text-brass font-semibold">
+                                RLS · AES-256-GCM
+                            </span>
+                        </div>
                         <div className="grid grid-cols-3 gap-4">
                             <div>
-                                <p className="text-2xl font-bold tabular-nums text-destructive">₹12.4L</p>
-                                <p className="text-xs text-muted-foreground">Overdue</p>
+                                <p className="text-2xl font-bold tabular-nums text-primary-foreground">₹12.4L</p>
+                                <p className="text-xs text-primary-foreground/70">Ageing Arrears</p>
                             </div>
                             <div>
-                                <p className="text-2xl font-bold tabular-nums text-warning">₹8.2L</p>
-                                <p className="text-xs text-muted-foreground">Due this week</p>
+                                <p className="text-2xl font-bold tabular-nums text-brass">₹8.2L</p>
+                                <p className="text-xs text-primary-foreground/70">Due This Week</p>
                             </div>
                             <div>
-                                <p className="text-2xl font-bold tabular-nums text-success">78%</p>
-                                <p className="text-xs text-muted-foreground">Collection rate</p>
+                                <p className="text-2xl font-bold tabular-nums text-primary-foreground">99.5%</p>
+                                <p className="text-xs text-primary-foreground/70">Ledger Match</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Right Panel - Login Form */}
-                <div className="flex-1 flex items-center justify-center p-6 lg:p-8">
+                {/* Right Panel — Warm Ivory Daylight Sign-In Card */}
+                <div className="flex-1 flex items-center justify-center p-6 lg:p-10 bg-muted/40">
                     <div className="w-full max-w-md">
-                        {/* Mobile Logo */}
                         <div className="flex items-center justify-center gap-3 mb-8 lg:hidden">
-                            <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
-                                <span className="text-white text-xl">🎓</span>
-                            </div>
-                            <h1 className="text-xl font-bold text-foreground dark:text-white">{APP_NAME}</h1>
+                            <ScholarMindCrest size="md" />
+                            <h1 className="text-xl font-bold text-foreground">{APP_NAME}</h1>
                         </div>
 
-                        <Card className="shadow-xl border-border/50 dark:border-slate-700/50">
-                            <CardHeader className="space-y-1 pb-4">
-                                <CardTitle className="text-2xl font-bold text-center">Welcome back</CardTitle>
+                        <Card className="shadow-lg border-border">
+                            <CardHeader className="space-y-1.5 pb-4">
+                                <CardTitle className="text-2xl font-bold text-center">
+                                    Welcome back
+                                </CardTitle>
                                 <CardDescription className="text-center">
                                     {loginMode === 'platform'
                                         ? 'Sign in to your Platform Command Center'
-                                        : 'Sign in to access your school dashboard'}
+                                        : 'Sign in to access your institution workspace'}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                {/* Login Mode Toggle */}
-                                <div className="flex rounded-xl bg-muted dark:bg-slate-800 p-1 mb-6">
+                                <div className="flex rounded-xl bg-muted p-1 mb-6 border border-border">
                                     <button
                                         type="button"
                                         onClick={() => setLoginMode('school')}
-                                        className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                                        className={`flex-1 inline-flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
                                             loginMode === 'school'
-                                                ? 'bg-white dark:bg-slate-700 text-foreground dark:text-white shadow-sm'
-                                                : 'text-muted-foreground dark:text-muted-foreground hover:text-foreground'
+                                                ? 'bg-card text-foreground shadow-sm border border-border'
+                                                : 'text-muted-foreground hover:text-foreground'
                                         }`}
                                     >
-                                        🏫 School Staff
+                                        <Building2 className="w-4 h-4" />
+                                        School Staff
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setLoginMode('platform')}
-                                        className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                                        className={`flex-1 inline-flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
                                             loginMode === 'platform'
-                                                ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/30'
-                                                : 'text-muted-foreground dark:text-muted-foreground hover:text-foreground'
+                                                ? 'bg-primary text-primary-foreground shadow-sm'
+                                                : 'text-muted-foreground hover:text-foreground'
                                         }`}
                                     >
-                                        🌍 Platform Admin
+                                        <Globe className="w-4 h-4" />
+                                        Platform Admin
                                     </button>
                                 </div>
 
                                 <form onSubmit={handleSubmit} className="space-y-4">
-                                    {/* Hidden field to pass loginMode to server action */}
                                     <input type="hidden" name="loginMode" value={loginMode} />
-                                    {/* School Code - Only visible for School Staff mode */}
+
                                     {loginMode === 'school' && (
                                         <div className="space-y-2">
-                                            <Label htmlFor="schoolCode">School Code</Label>
+                                            <Label htmlFor="schoolCode">School Workspace Code</Label>
                                             <Input
                                                 id="schoolCode"
                                                 name="schoolCode"
                                                 type="text"
-                                                placeholder="Enter your school code"
+                                                placeholder="e.g. DPSN or DEMO-CAMPUS"
                                                 value={schoolCode}
                                                 onChange={(e) => setSchoolCode(e.target.value.toUpperCase())}
                                                 required
-                                                className="uppercase"
+                                                className="uppercase font-mono"
                                                 aria-describedby="schoolCode-hint"
                                             />
                                             <p id="schoolCode-hint" className="text-xs text-muted-foreground">
-                                                Contact your school administrator for the code
+                                                Provided by your institution registrar or onboarding email
                                             </p>
                                         </div>
                                     )}
 
                                     {loginMode === 'school' && <Separator className="my-4" />}
 
-                                    {/* Credentials */}
                                     <div className="space-y-4">
                                         <div className="space-y-2">
-                                            <Label htmlFor="email">Email</Label>
+                                            <Label htmlFor="email">Work Email</Label>
                                             <Input
                                                 id="email"
                                                 name="email"
                                                 type="email"
                                                 value={email}
-                                                placeholder={loginMode === 'platform' ? PERMANENT_PLATFORM_ADMIN_EMAIL : 'you@school.edu'}
+                                                placeholder={
+                                                    loginMode === 'platform'
+                                                        ? PERMANENT_PLATFORM_ADMIN_EMAIL
+                                                        : 'you@school.edu.in'
+                                                }
                                                 onChange={(e) => {
                                                     const nextEmail = e.target.value;
                                                     setEmail(nextEmail);
-                                                    if (isPermanentPlatformAdminEmail(nextEmail) && loginMode !== 'platform') {
+                                                    if (
+                                                        isPermanentPlatformAdminEmail(nextEmail) &&
+                                                        loginMode !== 'platform'
+                                                    ) {
                                                         setLoginMode('platform');
                                                     }
                                                 }}
@@ -244,7 +295,7 @@ export default function LoginPage() {
                                                 data-testid="password-input"
                                             />
                                             <p className="text-xs text-muted-foreground">
-                                                Forgot your password? Contact your school administrator to reset your credentials.
+                                                Forgot your password? Contact your school administrator to reset credentials.
                                             </p>
                                         </div>
                                         {mfaRequired && (
@@ -265,7 +316,6 @@ export default function LoginPage() {
                                         )}
                                     </div>
 
-                                    {/* Remember Me */}
                                     <div className="flex items-center space-x-2">
                                         <Checkbox id="remember" name="remember" />
                                         <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
@@ -273,30 +323,33 @@ export default function LoginPage() {
                                         </Label>
                                     </div>
 
-                                    {/* Error Message */}
                                     {error && (
-                                        <div className="p-3 rounded-lg bg-destructive-subtle border border-destructive/20" data-testid="login-error">
-                                            <p className="text-sm font-medium text-destructive-subtle-foreground">{error}</p>
+                                        <div
+                                            className="p-3 rounded-lg bg-destructive-subtle border border-destructive/20"
+                                            data-testid="login-error"
+                                        >
+                                            <p className="text-sm font-medium text-destructive-subtle-foreground">
+                                                {error}
+                                            </p>
                                         </div>
                                     )}
 
-                                    {/* Submit Button */}
                                     <SubmitButton pending={isPending} />
                                 </form>
-
                             </CardContent>
                             <CardFooter className="flex-col gap-3 pt-0">
                                 <Separator />
-                                <div className="w-full rounded-xl border border-primary/20 bg-primary/5 p-3 text-center">
-                                    <p className="text-xs text-muted-foreground mb-1.5">
-                                        Evaluating ScholarMind for your school or trust?
+                                <div className="w-full rounded-xl border border-brass/35 bg-accent/70 p-3.5 text-center">
+                                    <p className="text-xs text-muted-foreground mb-1">
+                                        Evaluating ScholarMind for your school or education trust?
                                     </p>
                                     <Link
                                         href="/demo"
                                         data-testid="explore-live-demo-link"
-                                        className="inline-flex items-center justify-center text-sm font-semibold text-primary hover:underline"
+                                        className="inline-flex items-center justify-center gap-1.5 text-sm font-bold text-primary hover:underline"
                                     >
-                                        ✨ Launch 1-Click Interactive Demo Campus →
+                                        <Sparkles className="w-3.5 h-3.5 text-brass" />
+                                        Launch 1-Click Interactive Demo Campus →
                                     </Link>
                                 </div>
                                 <p className="text-sm text-center text-muted-foreground">

@@ -1,174 +1,231 @@
 import Link from 'next/link';
-import { LineChart, ShieldCheck, Zap, Globe, Users, ArrowRight } from 'lucide-react';
+import {
+    LineChart,
+    ShieldCheck,
+    Landmark,
+    Globe,
+    Users,
+    ArrowRight,
+    Sparkles,
+    CheckCircle2,
+} from 'lucide-react';
 import { resolveAppUrl } from '@/lib/app-url';
 
 export default function LandingPage() {
     const appUrl = resolveAppUrl();
     return (
-        <div className="flex flex-col min-h-screen bg-black overflow-x-hidden text-slate-200">
-            {/* AMBIENT BACKGROUND GLOWS (CSS AURORA) */}
-            <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-900/40 blur-[150px] animate-pulse" style={{ animationDuration: '8s' }}></div>
-                <div className="absolute top-[20%] right-[-10%] w-[40%] h-[40%] rounded-full bg-fuchsia-900/30 blur-[150px] animate-pulse" style={{ animationDuration: '10s', animationDelay: '2s' }}></div>
-                <div className="absolute bottom-[-20%] left-[20%] w-[60%] h-[60%] rounded-full bg-cyan-900/20 blur-[150px] animate-pulse" style={{ animationDuration: '12s', animationDelay: '4s' }}></div>
-                {/* CSS Grid Pattern Overlay */}
-                <div
-                    className="absolute inset-0 opacity-20"
-                    style={{
-                        backgroundImage:
-                            'radial-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px)',
-                        backgroundSize: '24px 24px',
-                    }}
-                ></div>
-            </div>
+        <div className="flex flex-col min-h-screen bg-ivory overflow-x-hidden text-slate-900">
+            {/* Subtle Architectural Grid Overlay */}
+            <div
+                aria-hidden="true"
+                className="fixed inset-0 z-0 pointer-events-none opacity-45"
+                style={{
+                    backgroundImage: 'radial-gradient(rgba(22, 43, 77, 0.08) 1px, transparent 1px)',
+                    backgroundSize: '28px 28px',
+                }}
+            />
 
-            {/* HERO SECTION */}
-            <section className="relative z-10 min-h-screen flex items-center justify-center pt-32 pb-16">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-10 group">
-                    <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md shadow-2xl hover:bg-white/10 transition-colors mx-auto relative overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-[200%] animate-[slide-in_3s_infinite]"></div>
-                        <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span className="text-sm font-bold tracking-widest uppercase text-slate-300">Design-partner pilots now open</span>
+            {/* EDITORIAL OXFORD NAVY & WARM IVORY HERO */}
+            <section className="relative z-10 pt-32 pb-20 md:pt-40 md:pb-28 border-b border-slate-200/80">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-8">
+                    <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-parchment border border-brass/35 shadow-xs mx-auto">
+                        <span className="flex h-2 w-2 rounded-full bg-brass" />
+                        <span className="text-xs font-bold tracking-widest uppercase text-oxford">
+                            Institutional Operating System · India INR &amp; Global Campuses
+                        </span>
                     </div>
-                    
-                    <h1 className="text-6xl md:text-8xl font-black tracking-tighter leading-[1.1] max-w-5xl mx-auto">
-                        Financial control <br className="hidden md:block"/>
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-fuchsia-400 animate-gradient-x">for every campus.</span>
+
+                    <h1 className="text-5xl md:text-7xl font-black tracking-tight leading-[1.08] max-w-5xl mx-auto text-oxford">
+                        Financial governance &amp; clarity{' '}
+                        <span className="text-brass">for every campus.</span>
                     </h1>
-                    
-                    <p className="max-w-2xl mx-auto text-xl md:text-2xl text-slate-400 font-light leading-relaxed">
-                        Reconcile fee data, govern sensitive exceptions, and compare campus performance while your existing systems remain in place.
+
+                    <p className="max-w-2xl mx-auto text-lg md:text-xl text-slate-600 leading-relaxed">
+                        Unify student registries, Razorpay UPI &amp; WhatsApp fee collection, maker-checker waiver approvals, and multi-campus treasury visibility — with a guided 48-hour ERP importer.
                     </p>
-                    
-                    <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-4 pt-8">
+
+                    <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3.5 pt-4">
                         <a
                             href={`${appUrl}/setup`}
                             data-testid="hero-start-workspace"
-                            className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-white text-black font-extrabold text-lg transition-transform hover:scale-105 shadow-[0_0_40px_rgba(255,255,255,0.2)]"
+                            className="group inline-flex items-center justify-center gap-2.5 px-7 py-4 rounded-xl bg-oxford text-ivory font-bold text-base transition-all hover:bg-oxford-dark shadow-md"
                         >
                             Start school workspace
-                            <ArrowRight className="group-hover:translate-x-1 transition-transform" size={20}/>
+                            <ArrowRight className="group-hover:translate-x-1 transition-transform" size={18} />
                         </a>
                         <a
                             href={`${appUrl}/demo`}
                             data-testid="hero-explore-demo"
-                            className="px-8 py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-lg transition-all shadow-lg"
+                            className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl bg-parchment hover:bg-parchment/80 border border-brass/45 text-oxford font-bold text-base transition-all shadow-xs"
                         >
-                            Explore live demo
+                            <Sparkles size={17} className="text-brass" />
+                            Explore 1-click live demo
                         </a>
-                        <Link href="/book-demo" className="px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg transition-all shadow-lg">
+                        <Link
+                            href="/book-demo"
+                            className="px-6 py-4 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-oxford font-semibold text-base transition-all"
+                        >
                             Book a pilot assessment
                         </Link>
-                        <Link href="/architecture" className="px-8 py-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-lg transition-all backdrop-blur-md">
-                            Inspect Architecture
+                        <Link
+                            href="/architecture"
+                            className="px-6 py-4 rounded-xl text-slate-600 hover:text-oxford font-semibold text-base transition-colors"
+                        >
+                            Inspect Architecture →
                         </Link>
                     </div>
 
-                    {/* Creative Statistics Row */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 pt-16 border-t border-white/10 max-w-4xl mx-auto">
-                        <div className="flex flex-col items-center">
-                            <span className="text-4xl font-black text-indigo-400">1–2</span>
-                            <span className="text-sm font-medium tracking-wide text-slate-500 uppercase mt-2">Pilot campuses</span>
+                    {/* Institutional Benchmark Strip */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-14 pt-12 border-t border-slate-200 max-w-4xl mx-auto">
+                        <div className="flex flex-col items-center p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                            <span className="text-3xl font-black tabular-nums text-oxford">48 hrs</span>
+                            <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase mt-1.5">
+                                Guided ERP migration
+                            </span>
                         </div>
-                        <div className="flex flex-col items-center">
-                            <span className="text-4xl font-black text-fuchsia-400">8–12</span>
-                            <span className="text-sm font-medium tracking-wide text-slate-500 uppercase mt-2">Week pilot</span>
+                        <div className="flex flex-col items-center p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                            <span className="text-3xl font-black tabular-nums text-brass">99.5%</span>
+                            <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase mt-1.5">
+                                Reconciliation target
+                            </span>
                         </div>
-                        <div className="flex flex-col items-center">
-                            <span className="text-4xl font-black text-emerald-400">99.5%</span>
-                            <span className="text-sm font-medium tracking-wide text-slate-500 uppercase mt-2">Reconciliation target</span>
+                        <div className="flex flex-col items-center p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                            <span className="text-3xl font-black tabular-nums text-oxford">8–12 wk</span>
+                            <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase mt-1.5">
+                                Structured group pilot
+                            </span>
                         </div>
-                        <div className="flex flex-col items-center">
-                            <span className="text-4xl font-black text-sky-400">0</span>
-                            <span className="text-sm font-medium tracking-wide text-slate-500 uppercase mt-2">Big-bang migrations</span>
+                        <div className="flex flex-col items-center p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                            <span className="text-3xl font-black tabular-nums text-oxford">0</span>
+                            <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase mt-1.5">
+                                Big-bang cutover risk
+                            </span>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* NEON BENTO GRID */}
-            <section id="features" className="relative z-10 py-32 border-t border-white/5">
+            {/* INSTITUTIONAL CAPABILITY BENTO GRID */}
+            <section id="features" className="relative z-10 py-24 md:py-32">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="mb-20">
-                        <h2 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight mb-6 animate-fade-in">Verified control. Lower migration risk.</h2>
-                        <p className="text-xl text-slate-400 max-w-2xl animate-fade-in" style={{animationDelay: '100ms'}}>Start with the finance workflow leadership needs most, prove the data, and expand only after the pilot creates measurable value.</p>
+                    <div className="mb-16 max-w-3xl">
+                        <p className="text-xs font-bold uppercase tracking-widest text-brass mb-3">
+                            Built for Trustees, Principals &amp; Finance Leads
+                        </p>
+                        <h2 className="text-4xl md:text-5xl font-extrabold text-oxford tracking-tight mb-4">
+                            Verified financial control. Zero migration guesswork.
+                        </h2>
+                        <p className="text-lg text-slate-600 leading-relaxed">
+                            Start with the fee, receipt, and approval workflows leadership relies on every day, verify every rupee against bank settlements, and scale across campuses with confidence.
+                        </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 auto-rows-[360px]">
-                        
-                        {/* Box 1: Large Span AI - Glassmorphism */}
-                        <div className="md:col-span-8 relative bg-black/40 backdrop-blur-xl rounded-3xl p-10 overflow-hidden border border-white/10 hover:border-indigo-500/50 hover:shadow-[0_0_50px_rgba(79,70,229,0.15)] hover:-translate-y-1 transition-all duration-500 group">
-                            {/* Abstract Glow inside card */}
-                            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 blur-3xl rounded-full group-hover:bg-indigo-400/30 transition-colors"></div>
-                            
-                            <div className="absolute -bottom-10 -right-10 opacity-20 group-hover:scale-110 group-hover:-rotate-12 transition-all duration-700">
-                                <LineChart size={240} className="text-indigo-400" />
-                            </div>
-                            
-                            <div className="relative z-10 h-full flex flex-col justify-between max-w-lg">
-                                <div className="w-16 h-16 bg-gradient-to-br from-indigo-500/20 to-fuchsia-500/20 border border-indigo-500/30 rounded-2xl flex items-center justify-center backdrop-blur-sm shadow-[0_0_15px_rgba(79,70,229,0.2)]">
-                                    <Zap className="text-indigo-300" size={32} />
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                        {/* Box 1: Primary Oxford Navy Feature Card */}
+                        <div className="md:col-span-8 relative bg-oxford text-ivory rounded-3xl p-8 md:p-10 overflow-hidden border border-oxford-dark shadow-lg flex flex-col justify-between min-h-[320px]">
+                            <div className="h-1 w-24 bg-brass rounded-full mb-6" />
+                            <div className="relative z-10 max-w-xl space-y-4">
+                                <div className="w-12 h-12 bg-brass/20 border border-brass/45 rounded-xl flex items-center justify-center">
+                                    <Landmark className="text-brass-light" size={24} />
                                 </div>
-                                <div>
-                                    <h3 className="text-4xl font-black text-white mb-4 tracking-tight">Fee reconciliation</h3>
-                                    <p className="text-slate-300 text-lg leading-relaxed">Import authorized student, invoice, payment, waiver, refund, and settlement data; expose every unexplained variance before executive sign-off.</p>
+                                <h3 className="text-3xl font-extrabold tracking-tight text-ivory">
+                                    UPI, WhatsApp Pay Links &amp; Fee Reconciliation
+                                </h3>
+                                <p className="text-slate-200/90 text-base leading-relaxed">
+                                    Collect tuition via Razorpay UPI, NetBanking, RuPay, and 1-click signed WhatsApp payment links while exposing every waiver, refund, or settlement variance before sign-off.
+                                </p>
+                                <div className="flex flex-wrap gap-3 pt-2 text-xs font-semibold text-parchment">
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <CheckCircle2 size={14} className="text-brass-light" />
+                                        Tally Prime XML Sync
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <CheckCircle2 size={14} className="text-brass-light" />
+                                        Razorpay Route Split Settlements
+                                    </span>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Box 2: Square - Compliance */}
-                        <div className="md:col-span-4 bg-black/40 backdrop-blur-xl rounded-3xl p-10 border border-white/10 hover:border-emerald-500/50 hover:shadow-[0_0_40px_rgba(16,185,129,0.15)] hover:-translate-y-1 transition-all duration-500 group flex flex-col justify-between relative overflow-hidden">
-                            <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-emerald-500/10 to-transparent"></div>
-                            <div className="relative z-10 w-14 h-14 bg-emerald-500/20 border border-emerald-500/30 rounded-2xl flex items-center justify-center">
-                                <ShieldCheck className="text-emerald-400" size={28} />
+                        {/* Box 2: Maker-Checker Compliance */}
+                        <div className="md:col-span-4 bg-white rounded-3xl p-8 md:p-10 border border-slate-200 shadow-xs flex flex-col justify-between min-h-[320px]">
+                            <div className="w-12 h-12 bg-parchment border border-brass/35 rounded-xl flex items-center justify-center">
+                                <ShieldCheck className="text-brass" size={24} />
                             </div>
-                            <div className="relative z-10">
-                                <h3 className="text-2xl font-bold text-white mb-2">Approval evidence</h3>
-                                <p className="text-slate-400 leading-relaxed">Apply authorization and preserve an auditable history for sensitive waiver, refund, and exception decisions.</p>
-                            </div>
-                        </div>
-
-                        {/* Box 3: Square - Cloud */}
-                        <div className="md:col-span-4 bg-black/40 backdrop-blur-xl rounded-3xl p-10 border border-white/10 hover:border-fuchsia-500/50 hover:shadow-[0_0_40px_rgba(217,70,239,0.15)] hover:-translate-y-1 transition-all duration-500 group flex flex-col justify-between">
-                            <div className="w-14 h-14 bg-fuchsia-500/20 border border-fuchsia-500/30 rounded-2xl flex items-center justify-center">
-                                <Globe className="text-fuchsia-400" size={28} />
-                            </div>
-                            <div>
-                                <h3 className="text-2xl font-bold text-white mb-2">Coexist first</h3>
-                                <p className="text-slate-400 leading-relaxed">Begin with controlled exports from current systems, validate the outcome, and plan migration only when the evidence supports it.</p>
+                            <div className="space-y-2.5 mt-6">
+                                <h3 className="text-2xl font-bold text-oxford">4-Eyes Approval Evidence</h3>
+                                <p className="text-slate-600 text-sm leading-relaxed">
+                                    Enforce maker-checker authorization and preserve an immutable audit trail for fee concessions, waivers, refunds, and sensitive gradebook changes.
+                                </p>
                             </div>
                         </div>
 
-                        {/* Box 4: Span - White Label */}
-                        <div className="md:col-span-8 bg-black/40 backdrop-blur-xl rounded-3xl p-10 border border-white/10 hover:border-sky-500/50 hover:shadow-[0_0_50px_rgba(14,165,233,0.15)] hover:-translate-y-1 transition-all duration-500 relative overflow-hidden group">
-                           <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1/2 h-[150%] bg-gradient-to-l from-sky-500/10 via-sky-500/5 to-transparent rotate-12"></div>
-                           <div className="relative z-10 h-full flex flex-col justify-between max-w-md">
-                                <div className="flex gap-3">
-                                    <div className="w-12 h-12 bg-sky-500/20 border border-sky-500/30 flex items-center justify-center rounded-xl backdrop-blur-sm"><LineChart className="text-sky-300" /></div>
-                                    <div className="w-12 h-12 bg-white/10 border border-white/20 flex items-center justify-center rounded-xl backdrop-blur-sm"><Users className="text-sky-300" /></div>
+                        {/* Box 3: 48h Coexist & Migrate */}
+                        <div className="md:col-span-4 bg-white rounded-3xl p-8 md:p-10 border border-slate-200 shadow-xs flex flex-col justify-between min-h-[300px]">
+                            <div className="w-12 h-12 bg-parchment border border-brass/35 rounded-xl flex items-center justify-center">
+                                <Globe className="text-oxford" size={24} />
+                            </div>
+                            <div className="space-y-2.5 mt-6">
+                                <h3 className="text-2xl font-bold text-oxford">Coexist or Switch in 48h</h3>
+                                <p className="text-slate-600 text-sm leading-relaxed">
+                                    Auto-map Entab, Fedena, MCB, Edunext, or Tally spreadsheets with dry-run validation, AES-256-GCM guardian PII encryption, and 1-click batch rollback.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Box 4: Group Executive Visibility */}
+                        <div className="md:col-span-8 bg-parchment/55 rounded-3xl p-8 md:p-10 border border-brass/30 flex flex-col justify-between min-h-[300px]">
+                            <div className="flex gap-3">
+                                <div className="w-11 h-11 bg-white border border-brass/30 flex items-center justify-center rounded-xl">
+                                    <LineChart className="text-oxford" size={20} />
                                 </div>
-                                <div>
-                                    <h3 className="text-3xl font-black text-white mb-3 tracking-tight">Group visibility</h3>
-                                    <p className="text-slate-300 text-lg">Compare billed, collected, outstanding, aging, exceptions, and reconciliation status across pilot campuses in one executive view.</p>
+                                <div className="w-11 h-11 bg-white border border-brass/30 flex items-center justify-center rounded-xl">
+                                    <Users className="text-brass" size={20} />
                                 </div>
+                            </div>
+                            <div className="max-w-xl space-y-2.5 mt-6">
+                                <h3 className="text-3xl font-extrabold text-oxford tracking-tight">
+                                    Multi-Campus Trust &amp; Society Visibility
+                                </h3>
+                                <p className="text-slate-700 text-base leading-relaxed">
+                                    Compare billed, collected, overdue ageing buckets, concessions, and daily attendance across every campus in your education trust from a single row-level-isolated platform.
+                                </p>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* FINAL NEON CTA */}
-            <section id="demo" className="relative z-10 py-32 border-t border-white/10 overflow-hidden">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl h-[300px] bg-indigo-600/30 rounded-[100%] blur-[120px] pointer-events-none"></div>
-                <div className="max-w-4xl mx-auto px-4 text-center relative z-10">
-                    <h2 className="text-5xl md:text-7xl font-black text-white tracking-tighter mb-8">Prove value before migration.</h2>
-                    <p className="text-2xl text-slate-400 mb-12 font-light">Start with a structured assessment, agree the data and success criteria, and scope a paid design-partner pilot.</p>
-                    <div className="flex flex-col sm:flex-row justify-center gap-6">
-                        <Link href="/book-demo" className="px-10 py-5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xl transition-all shadow-[0_0_30px_rgba(79,70,229,0.4)] hover:shadow-[0_0_50px_rgba(79,70,229,0.7)] hover:-translate-y-1">
-                            Start pilot assessment
+            {/* OXFORD NAVY & HERITAGE BRASS CLOSING CTA */}
+            <section id="demo" className="relative z-10 py-24 bg-oxford text-ivory border-t-2 border-brass">
+                <div className="max-w-4xl mx-auto px-4 text-center space-y-6">
+                    <p className="text-xs font-bold uppercase tracking-widest text-brass-light">
+                        Zero-Risk Evaluation
+                    </p>
+                    <h2 className="text-4xl md:text-6xl font-black tracking-tight text-ivory">
+                        Prove value before campus cutover.
+                    </h2>
+                    <p className="text-lg md:text-xl text-slate-300 max-w-2xl mx-auto">
+                        Explore our pre-seeded CBSE sandbox in one click, provision your own school workspace in 60 seconds, or scope a multi-campus pilot with our engineering team.
+                    </p>
+                    <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
+                        <a
+                            href={`${appUrl}/demo`}
+                            className="px-8 py-4 rounded-xl bg-brass hover:bg-brass-light text-ivory font-bold text-base transition-all shadow-md"
+                        >
+                            Launch 1-Click Demo Campus
+                        </a>
+                        <Link
+                            href="/book-demo"
+                            className="px-8 py-4 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-ivory font-bold text-base transition-all"
+                        >
+                            Start Pilot Assessment
                         </Link>
-                        <Link href="/pricing" className="px-10 py-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xl transition-all backdrop-blur-md">
-                            View pilot approach
+                        <Link
+                            href="/pricing"
+                            className="px-8 py-4 rounded-xl border border-brass/45 text-parchment hover:bg-white/5 font-semibold text-base transition-all"
+                        >
+                            View INR &amp; USD Pricing
                         </Link>
                     </div>
                 </div>

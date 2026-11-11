@@ -58,12 +58,12 @@ export default function BookDemoPage() {
 
     if (status === 'success') {
         return (
-            <div className="min-h-screen bg-slate-50 pt-32 pb-24 flex items-center justify-center animate-fade-in">
-                <div className="bg-white rounded-3xl border border-slate-200 shadow-xl p-10 max-w-lg w-full text-center">
-                    <CheckCircle className="w-20 h-20 text-emerald-500 mx-auto mb-6" />
-                    <h2 className="text-3xl font-black text-slate-900 mb-4">Demo Requested.</h2>
-                    <p className="text-slate-500 mb-8">We have received your details. We will email you within 24 hours to schedule a working session on your finance-control workflow and pilot fit.</p>
-                    <Link href="/" className="bg-indigo-600 text-white font-bold py-3 px-6 rounded-xl hover:bg-indigo-700 transition block w-full">
+            <div className="min-h-screen bg-ivory pt-32 pb-24 flex items-center justify-center animate-fade-in">
+                <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xl p-10 max-w-lg w-full text-center">
+                    <CheckCircle className="w-20 h-20 text-brass mx-auto mb-6" />
+                    <h2 className="text-3xl font-black text-oxford mb-4">Demo Requested.</h2>
+                    <p className="text-slate-600 mb-8">We have received your details. We will email you within 24 hours to schedule a working session on your finance-control workflow and pilot fit.</p>
+                    <Link href="/" className="bg-oxford text-white font-bold py-3 px-6 rounded-xl hover:bg-oxford-dark transition block w-full">
                         Return home
                     </Link>
                 </div>
@@ -72,40 +72,40 @@ export default function BookDemoPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 pt-28 pb-24 animate-fade-in relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/5 rounded-full blur-[100px]"></div>
+        <div className="min-h-screen bg-ivory pt-28 pb-24 animate-fade-in relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brass/10 rounded-full blur-[120px]"></div>
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
                     
                     <div>
-                        <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center mb-6">
-                            <Building size={24} />
+                        <div className="w-12 h-12 bg-parchment text-oxford border border-brass/30 rounded-xl flex items-center justify-center mb-6">
+                            <Building size={24} className="text-brass" />
                         </div>
-                        <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-6">Assess your pilot fit.</h1>
-                        <p className="text-lg text-slate-500 mb-8 leading-relaxed">
+                        <h1 className="text-4xl md:text-5xl font-extrabold text-oxford tracking-tight mb-6">Assess your pilot fit.</h1>
+                        <p className="text-lg text-slate-600 mb-8 leading-relaxed">
                             Bring one real fee-reconciliation or approval workflow. We will map the source data, control gaps, and success measures for a focused 1–2 campus pilot.
                         </p>
                         
                         <div className="space-y-4">
                             <div className="flex gap-4">
-                                <div className="mt-1"><CheckCircle className="text-emerald-500" size={20} /></div>
+                                <div className="mt-1"><CheckCircle className="text-brass" size={20} /></div>
                                 <div>
-                                    <h4 className="font-bold text-slate-900">Workflow and Data Review</h4>
-                                    <p className="text-slate-500 text-sm">We map how Scholar Mind can coexist with your current ERP, payment, and accounting tools.</p>
+                                    <h4 className="font-bold text-oxford">Workflow and Data Review</h4>
+                                    <p className="text-slate-600 text-sm">We map how Scholar Mind can coexist with your current ERP, payment, and accounting tools.</p>
                                 </div>
                             </div>
                             <div className="flex gap-4">
-                                <div className="mt-1"><CheckCircle className="text-emerald-500" size={20} /></div>
+                                <div className="mt-1"><CheckCircle className="text-brass" size={20} /></div>
                                 <div>
-                                    <h4 className="font-bold text-slate-900">Control-Focused Walkthrough</h4>
-                                    <p className="text-slate-500 text-sm">Review reconciliation, exception handling, approvals, exports, and audit evidence.</p>
+                                    <h4 className="font-bold text-oxford">Control-Focused Walkthrough</h4>
+                                    <p className="text-slate-600 text-sm">Review reconciliation, exception handling, approvals, exports, and audit evidence.</p>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-8 md:p-10">
+                    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xl p-8 md:p-10">
                         <form action={handleSubmit} className="space-y-6">
                             <input type="hidden" name="startedAt" value={startedAt} />
                             <div className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
@@ -115,30 +115,30 @@ export default function BookDemoPage() {
                             <div className="grid grid-cols-2 gap-6">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 mb-2">Full Name</label>
-                                    <input type="text" name="contactName" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition" placeholder="Jane Doe" />
+                                    <input type="text" name="contactName" required className="w-full px-4 py-3 bg-ivory border border-slate-200 rounded-xl focus:ring-2 focus:ring-brass outline-none transition" placeholder="Jane Doe" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 mb-2">Work Email</label>
-                                    <input type="email" name="contactEmail" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition" placeholder="jane@school.edu" />
+                                    <input type="email" name="contactEmail" required className="w-full px-4 py-3 bg-ivory border border-slate-200 rounded-xl focus:ring-2 focus:ring-brass outline-none transition" placeholder="jane@school.edu" />
                                 </div>
                             </div>
 
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Institution Name</label>
-                                <input type="text" name="schoolName" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition" placeholder="Franklin High Network" />
+                                <input type="text" name="schoolName" required className="w-full px-4 py-3 bg-ivory border border-slate-200 rounded-xl focus:ring-2 focus:ring-brass outline-none transition" placeholder="Franklin High Network" />
                             </div>
 
                             <label className="flex items-start gap-3 text-sm text-slate-600">
-                                <input type="checkbox" name="privacyConsent" value="true" required className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                                <input type="checkbox" name="privacyConsent" value="true" required className="mt-1 h-4 w-4 rounded border-slate-300 text-oxford focus:ring-brass" />
                                 <span>
                                     I agree that Scholar Mind may use these details to respond to this request under its{' '}
-                                    <Link href="/privacy" className="font-semibold text-indigo-600 hover:text-indigo-700">Privacy Notice</Link>.
+                                    <Link href="/privacy" className="font-semibold text-oxford underline decoration-brass/60 hover:text-brass">Privacy Notice</Link>.
                                 </span>
                             </label>
 
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Total Student Capacity</label>
-                                <select name="studentCapacity" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition">
+                                <select name="studentCapacity" required className="w-full px-4 py-3 bg-ivory border border-slate-200 rounded-xl focus:ring-2 focus:ring-brass outline-none transition">
                                     <option value="">Select an estimate...</option>
                                     <option value="500">Under 500</option>
                                     <option value="1500">500 - 1,500</option>
@@ -149,7 +149,7 @@ export default function BookDemoPage() {
 
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Biggest Administrative Hurdle</label>
-                                <textarea name="painPoints" rows={3} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition" placeholder="e.g. Too many manual excel sheets, fee defaults are causing cash flow issues..."></textarea>
+                                <textarea name="painPoints" rows={3} className="w-full px-4 py-3 bg-ivory border border-slate-200 rounded-xl focus:ring-2 focus:ring-brass outline-none transition" placeholder="e.g. Too many manual excel sheets, fee defaults are causing cash flow issues..."></textarea>
                             </div>
 
                             {TURNSTILE_SITE_KEY && (
@@ -162,7 +162,7 @@ export default function BookDemoPage() {
                                 </div>
                             )}
 
-                            <button type="submit" disabled={status === 'loading'} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-indigo-700 transition disabled:opacity-70 flex justify-center items-center">
+                            <button type="submit" disabled={status === 'loading'} className="w-full bg-oxford text-white font-bold py-4 rounded-xl shadow-lg hover:bg-oxford-dark transition disabled:opacity-70 flex justify-center items-center">
                                 {status === 'loading' ? 'Submitting...' : 'Request Pilot Assessment'}
                             </button>
                         </form>

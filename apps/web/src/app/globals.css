@@ -3,113 +3,119 @@
 @tailwind utilities;
 
 /*
- * ScholarMind design tokens.
+ * ScholarMind Design System — "Oxford Navy & Heritage Brass" (Modern Institutional Trust)
  *
  * Colors are HSL channels (H S% L%) consumed as hsl(var(--token)) in
- * tailwind.config.ts, so every token has a light value on :root and a dark value
- * on .dark. The brand is a deep teal/emerald; neutrals carry a slight teal bias
- * so grays read as chosen, not defaulted. Contrast: text-on-solid pairs meet
- * WCAG AA (primary/success/info/destructive use white text at L<=32%; warning is
- * an amber that takes dark text).
+ * tailwind.config.ts, with daylight values on :root and midnight values on .dark.
+ *
+ * Palette Architecture:
+ * - Primary: Deep Oxford Navy (217 56% 20% / #162B4D) — >12:1 AAA contrast with ivory-white text
+ * - Brass / Accent: Burnished Heritage Brass (37 64% 42% / #AF7627) & warm parchment tint (39 58% 93%)
+ * - Daylight Surfaces: Warm Alabaster/Ivory (40 33% 99% canvas, 40 24% 96% muted, #FFFFFF ledger cards)
+ * - Ink: Deep Oxford Ink (218 54% 13% / #0F1D33) & Slate Ink (216 18% 41% / #56657A)
  */
 @layer base {
     :root {
-        /* Surfaces & text (teal-biased neutrals) */
-        --background: 0 0% 100%;
-        --foreground: 200 24% 12%;
+        /* Surfaces & ink (warm ivory daylight + Oxford slate ink) */
+        --background: 40 33% 99%;
+        --foreground: 218 54% 13%;
         --card: 0 0% 100%;
-        --card-foreground: 200 24% 12%;
+        --card-foreground: 218 54% 13%;
         --popover: 0 0% 100%;
-        --popover-foreground: 200 24% 12%;
+        --popover-foreground: 218 54% 13%;
 
-        /* Brand */
-        --primary: 174 80% 28%;
-        --primary-foreground: 0 0% 100%;
+        /* Brand — Oxford Navy & Heritage Brass */
+        --primary: 217 56% 20%;
+        --primary-foreground: 42 40% 98%;
+        --brass: 37 64% 42%;
+        --brass-foreground: 42 40% 99%;
 
-        /* Neutral roles */
-        --secondary: 180 22% 96%;
-        --secondary-foreground: 200 22% 20%;
-        --muted: 190 20% 96%;
-        --muted-foreground: 200 12% 42%;
-        --accent: 172 55% 94%;
-        --accent-foreground: 174 82% 22%;
+        /* Neutral & parchment highlight roles */
+        --secondary: 216 28% 95%;
+        --secondary-foreground: 217 54% 18%;
+        --muted: 40 24% 96%;
+        --muted-foreground: 216 18% 41%;
+        --accent: 39 58% 93%;
+        --accent-foreground: 34 74% 26%;
 
-        /* Semantic intents: solid (X) + tinted (X-subtle) pairs */
-        --destructive: 0 72% 48%;
+        /* Semantic financial & institutional intents */
+        --destructive: 356 68% 46%;
         --destructive-foreground: 0 0% 100%;
-        --destructive-subtle: 0 80% 96%;
-        --destructive-subtle-foreground: 0 70% 38%;
-        --success: 152 62% 33%;
+        --destructive-subtle: 356 76% 96%;
+        --destructive-subtle-foreground: 356 70% 35%;
+        --success: 156 56% 29%;
         --success-foreground: 0 0% 100%;
-        --success-subtle: 150 55% 94%;
-        --success-subtle-foreground: 153 65% 24%;
-        --warning: 36 92% 46%;
+        --success-subtle: 152 46% 94%;
+        --success-subtle-foreground: 156 62% 22%;
+        --warning: 37 86% 44%;
         --warning-foreground: 36 100% 10%;
-        --warning-subtle: 42 92% 92%;
-        --warning-subtle-foreground: 30 85% 30%;
-        --info: 202 84% 38%;
+        --warning-subtle: 40 84% 92%;
+        --warning-subtle-foreground: 32 82% 28%;
+        --info: 214 72% 36%;
         --info-foreground: 0 0% 100%;
-        --info-subtle: 202 88% 95%;
-        --info-subtle-foreground: 202 82% 30%;
+        --info-subtle: 214 76% 95%;
+        --info-subtle-foreground: 214 74% 26%;
 
-        /* Lines & focus */
-        --border: 195 18% 90%;
-        --input: 195 18% 88%;
-        --ring: 174 80% 30%;
+        /* Lines & Heritage Brass focus ring */
+        --border: 216 20% 89%;
+        --input: 216 20% 86%;
+        --ring: 37 64% 42%;
         --radius: 0.5rem;
 
-        /* Categorical chart palette (teal-emerald harmonized, distinguishable) */
-        --chart-1: 174 72% 34%;
-        --chart-2: 152 58% 42%;
-        --chart-3: 196 78% 42%;
-        --chart-4: 38 92% 50%;
-        --chart-5: 250 60% 60%;
+        /* Categorical chart palette (Oxford Navy + Brass + Forest + Cerulean + Crimson) */
+        --chart-1: 217 56% 24%;
+        --chart-2: 37 68% 44%;
+        --chart-3: 156 52% 34%;
+        --chart-4: 202 68% 42%;
+        --chart-5: 356 62% 48%;
     }
 
     .dark {
-        --background: 200 28% 8%;
-        --foreground: 180 16% 92%;
-        --card: 200 24% 11%;
-        --card-foreground: 180 16% 92%;
-        --popover: 200 24% 11%;
-        --popover-foreground: 180 16% 92%;
+        --background: 220 42% 8%;
+        --foreground: 40 24% 94%;
+        --card: 220 38% 11%;
+        --card-foreground: 40 24% 94%;
+        --popover: 220 38% 11%;
+        --popover-foreground: 40 24% 94%;
 
-        --primary: 168 74% 44%;
-        --primary-foreground: 172 92% 9%;
+        --primary: 38 68% 54%;
+        --primary-foreground: 220 48% 10%;
+        --brass: 38 72% 56%;
+        --brass-foreground: 220 48% 10%;
 
-        --secondary: 200 18% 17%;
-        --secondary-foreground: 180 16% 92%;
-        --muted: 200 18% 17%;
-        --muted-foreground: 190 12% 62%;
-        --accent: 174 46% 18%;
-        --accent-foreground: 168 72% 70%;
+        --secondary: 218 28% 17%;
+        --secondary-foreground: 40 20% 92%;
+        --muted: 218 28% 16%;
+        --muted-foreground: 216 16% 66%;
+        --accent: 37 42% 18%;
+        --accent-foreground: 40 76% 76%;
 
-        --destructive: 0 66% 50%;
+        --destructive: 356 66% 52%;
         --destructive-foreground: 0 0% 100%;
-        --destructive-subtle: 0 45% 18%;
-        --destructive-subtle-foreground: 0 85% 82%;
-        --success: 152 56% 42%;
-        --success-foreground: 152 92% 8%;
-        --success-subtle: 153 45% 16%;
-        --success-subtle-foreground: 150 65% 76%;
-        --warning: 38 90% 52%;
+        --destructive-subtle: 356 44% 18%;
+        --destructive-subtle-foreground: 356 84% 82%;
+        --success: 156 52% 42%;
+        --success-foreground: 156 92% 8%;
+        --success-subtle: 156 42% 16%;
+        --success-subtle-foreground: 152 64% 76%;
+        --warning: 38 88% 52%;
         --warning-foreground: 36 100% 8%;
-        --warning-subtle: 34 60% 16%;
-        --warning-subtle-foreground: 42 90% 74%;
-        --info: 202 80% 52%;
-        --info-foreground: 202 92% 9%;
-        --info-subtle: 202 60% 16%;
-        --info-subtle-foreground: 202 85% 78%;
+        --warning-subtle: 35 56% 16%;
+        --warning-subtle-foreground: 42 88% 76%;
+        --info: 212 78% 56%;
+        --info-foreground: 218 90% 9%;
+        --info-subtle: 214 54% 17%;
+        --info-subtle-foreground: 210 86% 80%;
 
-        --border: 200 16% 20%;
-        --input: 200 16% 22%;
-        --ring: 168 74% 44%;
+        --border: 218 24% 20%;
+        --input: 218 24% 22%;
+        --ring: 38 68% 54%;
 
-        --chart-1: 168 70% 48%;
-        --chart-2: 152 58% 52%;
-        --chart-3: 196 78% 55%;
-        --chart-4: 40 90% 58%;
-        --chart-5: 252 70% 72%;
+        --chart-1: 38 72% 56%;
+        --chart-2: 212 78% 60%;
+        --chart-3: 156 54% 48%;
+        --chart-4: 262 66% 68%;
+        --chart-5: 356 68% 60%;
     }
 }
 
@@ -119,6 +125,12 @@
     }
 
     body {
-        @apply bg-background text-foreground;
+        @apply bg-background text-foreground antialiased;
+        font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    }
+
+    h1, h2, h3, h4 {
+        font-family: var(--font-display), var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: -0.02em;
     }
 }

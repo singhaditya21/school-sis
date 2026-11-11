@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { Globe, IndianRupee } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -50,25 +51,25 @@ export function WorkspacePricingGridClient({
                             type="button"
                             data-testid="currency-toggle-inr"
                             onClick={() => setCurrency('INR')}
-                            className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
+                            className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition ${
                                 currency === 'INR'
-                                    ? 'bg-background text-foreground shadow-sm'
+                                    ? 'bg-primary text-primary-foreground shadow-sm'
                                     : 'text-muted-foreground hover:text-foreground'
                             }`}
                         >
-                            🇮🇳 India — INR (₹) + 18% GST
+                            <IndianRupee className="h-3.5 w-3.5" /> India — INR (₹) + 18% GST
                         </button>
                         <button
                             type="button"
                             data-testid="currency-toggle-usd"
                             onClick={() => setCurrency('USD')}
-                            className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
+                            className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition ${
                                 currency === 'USD'
-                                    ? 'bg-background text-foreground shadow-sm'
+                                    ? 'bg-primary text-primary-foreground shadow-sm'
                                     : 'text-muted-foreground hover:text-foreground'
                             }`}
                         >
-                            🌍 International — USD ($)
+                            <Globe className="h-3.5 w-3.5" /> International — USD ($)
                         </button>
                     </div>
                 </div>
