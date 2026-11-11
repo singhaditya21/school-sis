@@ -27,6 +27,12 @@ interface Props {
 const FIELD =
     'w-full px-3 py-2 border border-border rounded-lg bg-card text-sm focus:ring-2 focus:ring-ring';
 
+function toIsoDate(value: string | Date | null | undefined): string {
+    if (!value) return '';
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    return String(value).slice(0, 10);
+}
+
 export function AddPaperForm({
     examId,
     examStartDate,
@@ -38,9 +44,12 @@ export function AddPaperForm({
     const [open, setOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
 
+    const minExamDate = toIsoDate(examStartDate);
+    const maxExamDate = toIsoDate(examEndDate);
+
     const [gradeId, setGradeId] = useState(defaultGradeId ?? '');
     const [subjectId, setSubjectId] = useState('');
-    const [examDate, setExamDate] = useState(examStartDate?.slice(0, 10) ?? '');
+    const [examDate, setExamDate] = useState(minExamDate);
     const [startTime, setStartTime] = useState('09:00');
     const [endTime, setEndTime] = useState('11:00');
     const [maxMarks, setMaxMarks] = useState('100');
@@ -139,8 +148,8 @@ export function AddPaperForm({
                                     type="date"
                                     className={FIELD}
                                     value={examDate}
-                                    min={examStartDate?.slice(0, 10)}
-                                    max={examEndDate?.slice(0, 10)}
+                                    min={minExamDate || undefined}
+                                    max={maxExamDate || undefined}
                                     onChange={(e) => setExamDate(e.target.value)}
                                 />
                             </label>

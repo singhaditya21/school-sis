@@ -29,6 +29,7 @@ const PRINT_CSS = `
 interface IdCardsClientProps {
     cards: IdCardItem[];
     school: CardSchool;
+    nonce?: string;
 }
 
 function initials(name: string): string {
@@ -40,7 +41,7 @@ function initials(name: string): string {
         .join('');
 }
 
-export default function IdCardsClient({ cards, school }: IdCardsClientProps) {
+export default function IdCardsClient({ cards, school, nonce }: IdCardsClientProps) {
     const router = useRouter();
     const [selected, setSelected] = useState<string[]>([]);
     const [pending, setPending] = useState(false);
@@ -86,7 +87,7 @@ export default function IdCardsClient({ cards, school }: IdCardsClientProps) {
 
     return (
         <div className="space-y-4">
-            <style>{PRINT_CSS}</style>
+            <style nonce={nonce}>{PRINT_CSS}</style>
 
             <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
                 <Button

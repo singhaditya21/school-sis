@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { getSession } from '@/lib/auth/session';
@@ -35,12 +36,14 @@ export default async function IDCardsPage({ searchParams }: PageProps) {
         ? rawStatus!
         : undefined;
 
-    const [stats, cards, grades, school] = await Promise.all([
+    const [stats, cards, grades, school, requestHeaders] = await Promise.all([
         getIdCardStats(personType),
         listIdCards(personType, status),
         listGradesForIdCards(),
         getCardSchool(),
+        headers(),
     ]);
+    const nonce = requestHeaders.get('x-nonce') ?? undefined;
 
     function href(next: { type?: string; status?: string | undefined }): string {
         const params = new URLSearchParams();
@@ -141,7 +144,7 @@ export default async function IDCardsPage({ searchParams }: PageProps) {
                 ))}
             </div>
 
-            <IdCardsClient cards={cards} school={school} />
+            <IdCardsClient cards={cards} school={school} nonce={nonce} />
 
             <p className="text-xs text-muted-foreground print:hidden">
                 The QR on each card encodes that card&apos;s code — a student&apos;s admission number

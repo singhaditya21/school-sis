@@ -48,6 +48,7 @@ const PAYMENT_FRAME_SOURCES = [
 
 type ContentSecurityPolicyOptions = {
     isDevelopment?: boolean;
+    upgradeInsecureRequests?: boolean;
 };
 
 function assertValidNonce(nonce: string): void {
@@ -71,6 +72,7 @@ export function createContentSecurityPolicy(
     assertValidNonce(nonce);
 
     const isDevelopment = options.isDevelopment ?? process.env.NODE_ENV === 'development';
+    const upgradeInsecureRequests = options.upgradeInsecureRequests ?? !isDevelopment;
     const scriptSources = [
         "'self'",
         `'nonce-${nonce}'`,
@@ -100,7 +102,7 @@ export function createContentSecurityPolicy(
         "base-uri 'self'",
         "form-action 'self'",
         "frame-ancestors 'none'",
-        ...(isDevelopment ? [] : ['upgrade-insecure-requests']),
+        ...(upgradeInsecureRequests ? ['upgrade-insecure-requests'] : []),
         `report-uri ${CSP_REPORT_ENDPOINT}`,
     ].join('; ');
 }

@@ -41,6 +41,23 @@ function clientIpFrom(request: Request): string {
     return 'unknown';
 }
 
+function isLoopbackHostname(hostname: string): boolean {
+    const normalized = hostname.trim().toLowerCase();
+    return (
+        normalized === 'localhost'
+        || normalized === '127.0.0.1'
+        || normalized === '::1'
+        || normalized === '[::1]'
+    );
+}
+
+function isLocalLoopbackAllowed(hostname: string): boolean {
+    return (
+        (process.env.NODE_ENV !== 'production' || process.env.PLAYWRIGHT_TEST === '1')
+        && isLoopbackHostname(hostname)
+    );
+}
+
 function isAllowedOrigin(request: Request): boolean {
     const secFetchSite = request.headers.get('sec-fetch-site');
     if (secFetchSite && secFetchSite !== 'same-origin' && secFetchSite !== 'none') {
@@ -59,13 +76,22 @@ function isAllowedOrigin(request: Request): boolean {
         return false;
     }
 
-    if (process.env.NODE_ENV === 'production' && requestOrigin.protocol !== 'https:') {
+    if (
+        process.env.NODE_ENV === 'production'
+        && requestOrigin.protocol !== 'https:'
+        && !isLocalLoopbackAllowed(requestOrigin.hostname)
+    ) {
         return false;
     }
 
     const allowedOrigins = new Set<string>();
     try {
-        allowedOrigins.add(new URL(request.url).origin);
+        const internalUrl = new URL(request.url);
+        allowedOrigins.add(internalUrl.origin);
+        const hostHeader = (request.headers.get('host') || '').trim();
+        if (hostHeader && /^[a-z0-9.:[\]-]+$/i.test(hostHeader)) {
+            allowedOrigins.add(`${internalUrl.protocol}//${hostHeader}`);
+        }
     } catch {
         // Ignore malformed internal request URL
     }
@@ -157,13 +183,19 @@ async function parseBoundedFormData(request: Request): Promise<FormData> {
 function upstreamUrl(): URL | null {
     const configured = process.env.LEAD_CAPTURE_API_URL;
     if (!configured) {
-        return process.env.NODE_ENV === 'production'
+        return process.env.NODE_ENV === 'production' && process.env.PLAYWRIGHT_TEST !== '1'
             ? null
             : new URL('/api/leads', 'http://127.0.0.1:3000');
     }
     try {
         const url = new URL('/api/leads', configured);
-        if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') return null;
+        if (
+            process.env.NODE_ENV === 'production'
+            && url.protocol !== 'https:'
+            && !isLocalLoopbackAllowed(url.hostname)
+        ) {
+            return null;
+        }
         return url;
     } catch {
         return null;

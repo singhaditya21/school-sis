@@ -72,6 +72,18 @@ describe('security headers', () => {
         expect(csp).not.toContain('upgrade-insecure-requests');
     });
 
+    it('allows plain-HTTP loopback production validation to omit upgrade-insecure-requests while preserving strict nonces', () => {
+        const nonce = 'loopbackProdNonce12345';
+        const csp = createContentSecurityPolicy(nonce, {
+            isDevelopment: false,
+            upgradeInsecureRequests: false,
+        });
+
+        expect(csp).toContain(`'nonce-${nonce}'`);
+        expect(csp).not.toContain("'unsafe-eval'");
+        expect(csp).not.toContain('upgrade-insecure-requests');
+    });
+
     it('rejects a nonce that could inject another CSP directive', () => {
         expect(() => createContentSecurityPolicy("valid'; script-src *", {
             isDevelopment: false,

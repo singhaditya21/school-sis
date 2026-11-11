@@ -107,7 +107,7 @@ export async function getReportCardExamOptions(): Promise<ReportCardExamOption[]
                 e.name,
                 e.type,
                 e.status,
-                e.start_date AS "startDate",
+                e.start_date::text AS "startDate",
                 ay.name      AS "academicYearName",
                 (SELECT COUNT(*) FROM exam_schedules es WHERE es.exam_id = e.id) AS "scheduleCount",
                 (SELECT COUNT(*)
@@ -252,7 +252,7 @@ export async function getClassReportCards(
         `SELECT es.id            AS "scheduleId",
                 sub.name         AS "subjectName",
                 sub.code         AS "subjectCode",
-                es.exam_date     AS "examDate",
+                es.exam_date::text AS "examDate",
                 es.max_marks     AS "maxMarks",
                 es.passing_marks AS "passingMarks"
          FROM exam_schedules es

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/session';
 import { requireAuth } from '@/lib/auth/middleware';
@@ -46,6 +47,7 @@ export default async function CertificateRecordPage({ params }: PageProps) {
     const { id } = await params;
     const record = await getCertificateRecord(id);
     if (!record) notFound();
+    const nonce = (await headers()).get('x-nonce') ?? undefined;
 
     const snapshot = (record.data ?? {}) as Record<string, unknown>;
     // The snapshot is the truth for a document already handed to a family; the
@@ -66,7 +68,7 @@ export default async function CertificateRecordPage({ params }: PageProps) {
 
     return (
         <div className="space-y-6">
-            <style>{PRINT_CSS}</style>
+            <style nonce={nonce}>{PRINT_CSS}</style>
 
             <div className="flex flex-wrap items-start justify-between gap-4 print:hidden">
                 <div>

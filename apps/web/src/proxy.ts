@@ -102,9 +102,19 @@ function tenantHostMatchesSession(hostHint: string, session: SessionData): boole
 
 export async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const normalizedHost = normalizeHostname(request.nextUrl.hostname);
+    const forwardedProto = (request.headers.get('x-forwarded-proto') || '')
+        .split(',')[0]
+        .trim()
+        .toLowerCase();
+    const isPlainHttpLoopback = request.nextUrl.protocol === 'http:'
+        && forwardedProto !== 'https'
+        && (normalizedHost === 'localhost' || normalizedHost === '127.0.0.1' || normalizedHost === '::1');
     const nonce = createCspNonce();
     const contentSecurityPolicy = createContentSecurityPolicy(nonce, {
-        isDevelopment: process.env.NODE_ENV === 'development',
+        isDevelopment,
+        upgradeInsecureRequests: !isDevelopment && !isPlainHttpLoopback,
     });
     // Production is secure by default. `false` is an explicit, temporary
     // rollback switch; non-production stays report-only unless opted in so local
