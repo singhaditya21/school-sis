@@ -83,6 +83,46 @@ export async function completeOnboarding(data: {
 
                 displayOrder++;
             }
+
+            // 4. Provision default core Subjects if none exist yet so Timetable, Homework, Lesson Plans, and Exams work immediately
+            const existingSubjects = await q<{ count: number }>`
+                SELECT count(*)::int AS count FROM subjects WHERE tenant_id = ${tenantId}
+            `.one();
+            if ((existingSubjects?.count ?? 0) === 0) {
+                const defaultSubjects: Array<[string, string]> = [
+                    ['Mathematics', 'MATH'],
+                    ['English', 'ENG'],
+                    ['Science', 'SCI'],
+                    ['Social Studies', 'SST'],
+                    ['Computer Science', 'CS'],
+                ];
+                for (const [subName, subCode] of defaultSubjects) {
+                    await q`
+                        INSERT INTO subjects (tenant_id, name, code, is_elective)
+                        VALUES (${tenantId}, ${subName}, ${subCode}, false)
+                    `.execute();
+                }
+            }
+
+            // 5. Provision default Bell Schedule (Periods) if none exist yet so Timetable Grid & Teacher Class Assignment work immediately
+            const existingPeriods = await q<{ count: number }>`
+                SELECT count(*)::int AS count FROM periods WHERE tenant_id = ${tenantId}
+            `.one();
+            if ((existingPeriods?.count ?? 0) === 0) {
+                const defaultPeriods: Array<[string, string, string, number, number]> = [
+                    ['Period 1', '08:30', '09:15', 1, 0],
+                    ['Period 2', '09:15', '10:00', 2, 0],
+                    ['Short Break', '10:00', '10:15', 3, 1],
+                    ['Period 3', '10:15', '11:00', 4, 0],
+                    ['Period 4', '11:00', '11:45', 5, 0],
+                ];
+                for (const [pName, pStart, pEnd, pOrder, isBreak] of defaultPeriods) {
+                    await q`
+                        INSERT INTO periods (tenant_id, name, start_time, end_time, display_order, is_break)
+                        VALUES (${tenantId}, ${pName}, ${pStart}, ${pEnd}, ${pOrder}, ${isBreak})
+                    `.execute();
+                }
+            }
         });
 
         revalidatePath('/dashboard');

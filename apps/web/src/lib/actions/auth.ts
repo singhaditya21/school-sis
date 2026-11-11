@@ -324,7 +324,7 @@ async function loginActionV2WithBypass(formData: FormData) {
             } else if (user.role === 'PARENT') {
                 redirectPath = '/overview';
             } else if (user.role === 'STUDENT') {
-                redirectPath = '/profile';
+                redirectPath = '/student';
             } else {
                 redirectPath = '/dashboard';
             }

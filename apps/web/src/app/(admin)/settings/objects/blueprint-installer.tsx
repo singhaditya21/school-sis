@@ -16,6 +16,7 @@ import { CheckCircle2, GraduationCap, Layers, Loader2, Sparkles } from 'lucide-r
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
     EDUCATION_BLUEPRINT_PACKS,
     type EducationBlueprintId,
@@ -30,17 +31,35 @@ export function BlueprintInstaller({
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [activePackId, setActivePackId] = useState<EducationBlueprintId | null>(null);
+    const [reason, setReason] = useState('Provision institutional Education Cloud blueprint');
+    const [pendingApprovals, setPendingApprovals] = useState<Partial<Record<EducationBlueprintId, string>>>({});
     const existingSet = new Set(existingObjectApiNames.map(s => s.toLowerCase()));
 
     const handleInstall = (packId: EducationBlueprintId, title: string) => {
         setActivePackId(packId);
         startTransition(async () => {
-            const res = await installEducationBlueprint(packId);
+            const approvalRequestId = pendingApprovals[packId];
+            const res = await installEducationBlueprint(packId, {
+                reason: reason.trim() || `Install ${title}`,
+                approvalRequestId,
+            });
             setActivePackId(null);
+            if (res.approvalRequired && res.approvalId) {
+                setPendingApprovals(prev => ({ ...prev, [packId]: res.approvalId }));
+                toast.message('Governance approval requested', {
+                    description: 'Approve the request under Approvals, then click Publish Approved Pack.',
+                });
+                return;
+            }
             if (!res.success) {
                 toast.error(res.error || `Failed to install ${title}`);
                 return;
             }
+            setPendingApprovals(prev => {
+                const next = { ...prev };
+                delete next[packId];
+                return next;
+            });
             toast.success(
                 `Installed ${title}: ${res.installedObjects.length} objects & ${res.installedWorkflows} workflow(s) provisioned.`,
             );
@@ -69,6 +88,18 @@ export function BlueprintInstaller({
                 </div>
             </CardHeader>
             <CardContent>
+                <div className="mb-4 max-w-md space-y-1">
+                    <label htmlFor="blueprint-reason" className="text-xs font-medium text-muted-foreground">
+                        Governance Reason (for metadata publish approval)
+                    </label>
+                    <Input
+                        id="blueprint-reason"
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        placeholder="Reason for installing blueprint pack"
+                        className="h-8 text-xs bg-card"
+                    />
+                </div>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     {EDUCATION_BLUEPRINT_PACKS.map(pack => {
                         const installedCount = pack.objects.filter(o =>
@@ -76,6 +107,7 @@ export function BlueprintInstaller({
                         ).length;
                         const allInstalled = installedCount === pack.objects.length;
                         const isInstallingThis = isPending && activePackId === pack.id;
+                        const pendingApprovalId = pendingApprovals[pack.id];
 
                         return (
                             <div
@@ -136,6 +168,12 @@ export function BlueprintInstaller({
                                     </div>
                                 </div>
 
+                                {pendingApprovalId && (
+                                    <p className="rounded-md border border-warning/30 bg-warning-subtle p-2 text-[11px] text-warning-subtle-foreground">
+                                        Approval <span className="font-mono">{pendingApprovalId.slice(0, 8)}</span> requested. Approve under Approvals, then click below.
+                                    </p>
+                                )}
+
                                 <Button
                                     size="sm"
                                     variant={allInstalled ? 'outline' : 'default'}
@@ -152,9 +190,11 @@ export function BlueprintInstaller({
                                     ) : (
                                         <>
                                             <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                                            {allInstalled
-                                                ? 'Re-Sync Blueprint Pack'
-                                                : `Install ${pack.institutionType} Pack`}
+                                            {pendingApprovalId
+                                                ? 'Publish Approved Pack'
+                                                : allInstalled
+                                                  ? 'Re-Sync Blueprint Pack'
+                                                  : `Install ${pack.institutionType} Pack`}
                                         </>
                                     )}
                                 </Button>

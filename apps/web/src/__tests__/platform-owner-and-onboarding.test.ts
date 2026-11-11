@@ -29,6 +29,7 @@ jest.mock('@/lib/db', () => ({
     },
     runWithRlsBypass: (j: unknown, fn: () => unknown) => mockRunWithRlsBypass(j, fn),
     runWithTenantContext: (t: string, fn: () => unknown) => mockRunWithTenantContext(t, fn),
+    withTenant: (t: string, fn: (client: unknown) => unknown) => mockRunWithTenantContext(t, () => fn({})),
     RLS_BYPASS_JUSTIFICATIONS: {
         PASSWORD_LOGIN: 'auth.password-login',
         TENANT_PROVISIONING: 'onboarding.tenant-provisioning',
@@ -104,6 +105,7 @@ jest.mock('@/lib/payments/ledger', () => ({
 
 import { loginActionV2 } from '@/lib/actions/auth';
 import { setupSchoolWorkspace } from '@/lib/actions/onboarding';
+import { completeOnboarding } from '@/lib/actions/onboarding-wizard';
 import { createUser, updateUser } from '@/lib/actions/users';
 import {
     createTenantAction,
@@ -207,6 +209,45 @@ describe('Permanent Platform Owner (`singhaditya21@gmail.com`) & Automated Tenan
                 error: 'Invalid school code. Please check with your school administrator.',
             });
             expect(mockSql).not.toHaveBeenCalled();
+        });
+
+        it('redirects STUDENT role logins directly to /student instead of nonexistent /profile', async () => {
+            mockSql
+                .mockResolvedValueOnce([
+                    {
+                        tenantId: 'ten-1',
+                        tenantCode: 'STJUDES',
+                        tenantDomain: 'stjudes.scholarmind.app',
+                        tenantIsActive: true,
+                        companyId: 'comp-1',
+                        companyIsActive: true,
+                        subscriptionTier: 'CORE',
+                        activeModules: ['ATTENDANCE', 'FEES', 'COMMUNICATION'],
+                    },
+                ])
+                .mockResolvedValueOnce([
+                    {
+                        id: 'stu-user-1',
+                        email: 'enc:student@stjudes.edu',
+                        passwordHash: '$2a$12$realhash',
+                        role: 'STUDENT',
+                        isActive: true,
+                        firstName: 'Aarav',
+                        lastName: 'Sharma',
+                        mfaEnabled: false,
+                    },
+                ])
+                .mockResolvedValueOnce([]);
+            mockCompare.mockResolvedValueOnce(true);
+
+            const studentForm = new FormData();
+            studentForm.set('loginMode', 'school');
+            studentForm.set('schoolCode', 'stjudes');
+            studentForm.set('email', 'student@stjudes.edu');
+            studentForm.set('password', 'StudentPortalPass123!');
+
+            await expect(loginActionV2(studentForm)).rejects.toThrow('NEXT_REDIRECT:/student');
+            expect(mockRedirect).toHaveBeenCalledWith('/student');
         });
     });
 
@@ -315,6 +356,40 @@ describe('Permanent Platform Owner (`singhaditya21@gmail.com`) & Automated Tenan
             expect(mockSessionState.role).toBe('SUPER_ADMIN');
             expect(mockSessionState.subscriptionTier).toBe('CORE');
             expect(mockClientRelease).toHaveBeenCalledTimes(1);
+        });
+
+        it('provisions default Section A, core Subjects, and Bell Periods during completeOnboarding wizard', async () => {
+            const { requireAuth } = jest.requireMock('@/lib/auth/middleware') as {
+                requireAuth: jest.Mock;
+            };
+            requireAuth.mockResolvedValueOnce({ tenantId: 'ten-stjudes-1', userId: 'usr-stjudes-1' });
+
+            const executedSql: string[] = [];
+            mockSqlFor.mockImplementationOnce(() => {
+                return (strings: TemplateStringsArray) => {
+                    const text = strings.join('?');
+                    executedSql.push(text);
+                    return {
+                        one: async () => {
+                            if (text.includes('SELECT count(*)::int AS count')) return { count: 0 };
+                            return { id: 'mock-id-1' };
+                        },
+                        execute: async () => 1,
+                    };
+                };
+            });
+
+            const res = await completeOnboarding({
+                academicYear: '2026-2027',
+                startDate: '2026-04-01',
+                endDate: '2027-03-31',
+                grades: ['Grade 1', 'Grade 2'],
+            });
+
+            expect(res).toEqual({ success: true });
+            expect(executedSql.filter((q) => q.includes('INSERT INTO sections')).length).toBe(2);
+            expect(executedSql.filter((q) => q.includes('INSERT INTO subjects')).length).toBe(5);
+            expect(executedSql.filter((q) => q.includes('INSERT INTO periods')).length).toBe(5);
         });
     });
 
