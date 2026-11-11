@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
                     es.max_marks AS "Total Marks",
                     er.grade AS "Grade"
                 FROM student_results er
-                JOIN exam_schedules es ON es.id = er.exam_schedule_id AND es.tenant_id = ${tenantId}
+                JOIN exam_schedules es ON es.id = er.exam_schedule_id
                 JOIN subjects sub ON sub.id = es.subject_id AND sub.tenant_id = ${tenantId}
                 JOIN exams e ON e.id = es.exam_id AND e.tenant_id = ${tenantId}
                 JOIN students s ON s.id = er.student_id AND s.tenant_id = ${tenantId}
