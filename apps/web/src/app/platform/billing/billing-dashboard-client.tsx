@@ -89,7 +89,7 @@ export function PlatformBillingDashboardClient({
                     <div className="absolute right-0 top-0 w-24 h-24 bg-accent rounded-bl-[100px] z-0" />
                     <div className="relative z-10">
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                            Platform MRR (Net)
+                            Platform MRR (Est)
                         </p>
                         <span className="text-3xl font-bold tabular-nums text-foreground">
                             {formatCommercialAmount(totalMrrBase, currency)}
@@ -137,12 +137,12 @@ export function PlatformBillingDashboardClient({
 
             {/* Invoice Table */}
             <div>
-                <h2 className="text-2xl font-bold text-foreground mb-5">Workspace Subscription Schedule</h2>
+                <h2 className="text-2xl font-bold text-foreground mb-5">Recent Invoices &amp; Subscriptions</h2>
                 <div className="bg-card border border-border rounded-2xl shadow-sm overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-muted border-b border-border">
-                                <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Account</th>
+                                <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Invoice</th>
                                 <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">School / Trust</th>
                                 <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Tier</th>
                                 <th className="p-4 text-xs font-semibold text-muted-foreground uppercase text-right">Active Students</th>

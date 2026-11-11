@@ -162,7 +162,9 @@ jobs:
           key: ${{ runner.os }}-nextjs-${{ github.sha }}
 
       - name: Install Playwright Browsers
-        run: pnpm --filter @school-sis/web exec playwright install --with-deps chromium
+        run: |
+          pnpm --filter @school-sis/web exec playwright install chromium
+          timeout 30s pnpm --filter @school-sis/web exec playwright install-deps chromium || echo "::warning::Ubuntu apt mirror unreachable within 30s; proceeding with runner-preinstalled Chromium shared libraries."
 
       - name: Run Maintained Playwright Suite
         timeout-minutes: 15
