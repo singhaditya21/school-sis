@@ -301,7 +301,7 @@ export default function DigilockerClient({ students, certificates, syncAttempts 
                                 {syncAttempts.map((log) => (
                                     <tr key={log.id} className="hover:bg-muted">
                                         <td className="px-4 py-3 text-sm text-muted-foreground">
-                                            {new Date(log.syncAttemptedAt).toLocaleString('en-IN')}
+                                            {new Date(log.syncAttemptedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                                         </td>
                                         <td className="px-4 py-3 text-sm">{log.documentType}</td>
                                         <td className="px-4 py-3 text-sm">{log.studentName ?? '—'}</td>

@@ -227,7 +227,7 @@ export default function DocumentsChecklist({ pack }: Props) {
                                             </td>
                                             <td className="px-4 py-3 text-sm text-muted-foreground">
                                                 {doc?.verifiedAt
-                                                    ? `${doc.verifiedByName || 'Staff'} • ${new Date(doc.verifiedAt).toLocaleDateString('en-IN')}`
+                                                    ? `${doc.verifiedByName || 'Staff'} • ${new Date(doc.verifiedAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}`
                                                     : '—'}
                                             </td>
                                             <td className="px-4 py-3">

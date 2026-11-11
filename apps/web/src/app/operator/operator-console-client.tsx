@@ -78,9 +78,10 @@ function statusIcon(status: OperatorSeverity) {
 
 function formatDate(value: string) {
     try {
-        return new Intl.DateTimeFormat(undefined, {
+        return new Intl.DateTimeFormat('en-IN', {
             dateStyle: 'medium',
             timeStyle: 'short',
+            timeZone: 'Asia/Kolkata',
         }).format(new Date(value));
     } catch {
         return value;

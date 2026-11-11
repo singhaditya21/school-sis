@@ -8,7 +8,7 @@ import { useState, useTransition } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { FileText, Users, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, toDateInputValue } from '@/lib/format';
 import type { InvoicePreview } from '@/lib/actions/invoice-generation';
 
 
@@ -52,7 +52,9 @@ export default function InvoiceGenerationForm({
 }) {
     const [feePlanId, setFeePlanId] = useState('');
     const [gradeId, setGradeId] = useState('');
-    const [dueDate, setDueDate] = useState('');
+    const [dueDate, setDueDate] = useState(() =>
+        toDateInputValue(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
+    );
     const [description, setDescription] = useState('');
     const [preview, setPreview] = useState<InvoicePreview | null>(null);
     const [result, setResult] = useState<GenerationResult | null>(null);
@@ -79,11 +81,6 @@ export default function InvoiceGenerationForm({
             setResult(r);
         });
     };
-
-    // Default due date to 30 days from now
-    const defaultDueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split('T')[0];
 
     return (
         <div className="space-y-6">
@@ -148,7 +145,7 @@ export default function InvoiceGenerationForm({
                         </label>
                         <input
                             type="date"
-                            value={dueDate || defaultDueDate}
+                            value={dueDate}
                             onChange={(e) => setDueDate(e.target.value)}
                             className="w-full px-3 py-2 rounded-lg border border-border dark:border-gray-700 bg-card text-sm focus:ring-2 focus:ring-ring focus:border-blue-500"
                         />

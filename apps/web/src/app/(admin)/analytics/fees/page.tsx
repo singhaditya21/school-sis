@@ -101,7 +101,7 @@ export default function FeeAnalyticsPage() {
                                     return (
                                         <tr key={idx} className="hover:bg-muted">
                                             <td className="px-4 py-3 font-medium">{row.class}</td>
-                                            <td className="px-4 py-3 text-right">{row.students.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-right">{row.students.toLocaleString('en-IN')}</td>
                                             <td className="px-4 py-3 text-right text-green-600 font-semibold">{formatCurrency(row.collected)}</td>
                                             <td className="px-4 py-3 text-right text-orange-600">{formatCurrency(row.pending)}</td>
                                             <td className="px-4 py-3"><div className="flex items-center gap-2"><div className="flex-1 bg-gray-200 rounded-full h-2"><div className="bg-green-500 h-2 rounded-full" style={{ width: `${percent}%` }} /></div><span className="text-xs font-medium w-10">{percent}%</span></div></td>

@@ -265,7 +265,7 @@ export default function ReportBuilder({
                                 <SelectContent>
                                     {LIMIT_OPTIONS.map((option) => (
                                         <SelectItem key={option} value={String(option)}>
-                                            {option.toLocaleString()}
+                                            {option.toLocaleString('en-IN')}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -495,7 +495,7 @@ export default function ReportBuilder({
                         <CardDescription>
                             {rows.length === 0
                                 ? 'The query ran successfully and matched no rows.'
-                                : `${rows.length.toLocaleString()} row${rows.length === 1 ? '' : 's'}${truncated ? ` (row limit of ${limit.toLocaleString()} reached — narrow the filters for a complete answer)` : ''}`}
+                                : `${rows.length.toLocaleString('en-IN')} row${rows.length === 1 ? '' : 's'}${truncated ? ` (row limit of ${limit.toLocaleString('en-IN')} reached — narrow the filters for a complete answer)` : ''}`}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
@@ -538,7 +538,7 @@ export default function ReportBuilder({
                                     <ShieldCheck className="h-4 w-4" /> Governed export — {dataset.exportPolicy.label}
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                    CSV, up to {dataset.exportPolicy.maxRows.toLocaleString()} rows.{' '}
+                                    CSV, up to {dataset.exportPolicy.maxRows.toLocaleString('en-IN')} rows.{' '}
                                     {dataset.exportPolicy.requiresApproval
                                         ? 'This policy is approval-gated: the first request raises a workflow approval, and the file is released once it is approved.'
                                         : 'This policy releases the file immediately, with the audit reason recorded.'}
@@ -702,7 +702,7 @@ export default function ReportBuilder({
                     <CardHeader>
                         <CardTitle className="text-base">Catalog notes</CardTitle>
                         <CardDescription>
-                            Snapshot generated {new Date(workspace.generatedAt).toLocaleString()}
+                            Snapshot generated {new Date(workspace.generatedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' })}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4 text-sm">
@@ -761,7 +761,7 @@ function formatCell(value: string | number | null, column: BiReportColumn): stri
         case 'percentage':
             return `${value}%`;
         default:
-            return value.toLocaleString();
+            return value.toLocaleString('en-IN');
     }
 }
 

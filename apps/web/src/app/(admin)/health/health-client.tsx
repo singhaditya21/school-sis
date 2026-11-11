@@ -281,8 +281,8 @@ export default function HealthClient({
                                         incidents.map((inc) => (
                                             <tr key={inc.id} className="hover:bg-muted/60 transition-colors" data-testid={`incident-row-${inc.id}`}>
                                                 <td className="px-5 py-4 whitespace-nowrap">
-                                                    <div className="font-medium text-foreground">{new Date(inc.incidentDate).toLocaleDateString('en-IN')}</div>
-                                                    <div className="text-xs text-muted-foreground">{new Date(inc.incidentDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                                    <div className="font-medium text-foreground">{new Date(inc.incidentDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
+                                                    <div className="text-xs text-muted-foreground">{new Date(inc.incidentDate).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}</div>
                                                 </td>
                                                 <td className="px-5 py-4 font-semibold text-foreground whitespace-nowrap">
                                                     {inc.studentName || 'Unknown'}

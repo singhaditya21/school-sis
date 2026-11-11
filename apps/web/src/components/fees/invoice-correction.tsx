@@ -161,7 +161,7 @@ function formatTimestamp(value: string): string {
     if (!value) return '—';
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return '—';
-    return parsed.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+    return parsed.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' });
 }
 
 function statusVariant(status: ApprovalStatus): 'default' | 'secondary' | 'destructive' | 'outline' {

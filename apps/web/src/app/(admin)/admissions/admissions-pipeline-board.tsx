@@ -79,7 +79,7 @@ function formatRelativeDate(date: Date): string {
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
     if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
-    return new Date(date).toLocaleDateString();
+    return new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
 }
 
 function LeadCard({

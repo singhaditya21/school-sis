@@ -327,7 +327,7 @@ export default function UserManagementPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'Never'}
+                                            {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'Never'}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">

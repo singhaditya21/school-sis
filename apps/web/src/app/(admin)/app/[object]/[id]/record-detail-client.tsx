@@ -618,7 +618,7 @@ export function RecordAuditTimelineCard({
                                 </div>
                                 <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground font-mono shrink-0">
                                     <Clock className="w-3 h-3" />
-                                    {new Date(entry.createdAt).toLocaleString()}
+                                    {new Date(entry.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' })}
                                 </span>
                             </div>
                         ))}

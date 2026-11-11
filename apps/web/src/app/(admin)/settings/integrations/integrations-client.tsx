@@ -275,7 +275,7 @@ export function IntegrationsClient({
                                                 {item.attempts} / {item.maxAttempts}
                                             </td>
                                             <td className="px-4 py-3 text-right text-xs text-muted-foreground whitespace-nowrap">
-                                                {new Date(item.createdAt).toLocaleString('en-IN')}
+                                                {new Date(item.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 {['PENDING', 'QUEUED', 'FAILED'].includes(item.status) && (

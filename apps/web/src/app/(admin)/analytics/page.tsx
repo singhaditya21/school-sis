@@ -46,7 +46,7 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Active students</div><div className="text-2xl font-bold text-primary">{summary.totalStudents.toLocaleString()}</div></CardContent></Card>
+                <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Active students</div><div className="text-2xl font-bold text-primary">{summary.totalStudents.toLocaleString('en-IN')}</div></CardContent></Card>
                 <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Payments received (all time)</div><div className="text-2xl font-bold text-success">{formatCurrency(summary.totalFeeCollected)}</div></CardContent></Card>
                 <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Outstanding invoices</div><div className="text-2xl font-bold text-warning">{formatCurrency(summary.pendingFees)}</div></CardContent></Card>
                 <Card><CardContent className="pt-4"><div className="text-sm text-muted-foreground">Attendance (last 30 days)</div><div className="text-2xl font-bold text-info">{summary.averageAttendance}%</div></CardContent></Card>
