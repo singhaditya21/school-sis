@@ -163,5 +163,17 @@ describe('Phase 1 Commercial Readiness — Pricing, Payment Links, Demo Sandbox 
             expect(row.openingFeeBalance).toBe(4500);
             expect(row.errors).toContain('Missing Admission Number');
         });
+
+        it('never issues nested BEGIN/COMMIT/ROLLBACK inside withTenant in legacy-import actions', async () => {
+            const fs = await import('node:fs');
+            const path = await import('node:path');
+            const source = fs.readFileSync(
+                path.resolve(process.cwd(), 'src/lib/actions/legacy-import.ts'),
+                'utf8',
+            );
+            expect(source).not.toMatch(/q`BEGIN`/i);
+            expect(source).not.toMatch(/q`COMMIT`/i);
+            expect(source).not.toMatch(/q`ROLLBACK`/i);
+        });
     });
 });

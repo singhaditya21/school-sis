@@ -459,7 +459,7 @@ export function normalizeLegacyRow(
 
     return {
         rowNumber,
-        admissionNumber,
+        admissionNumber: admissionNumber.slice(0, 50),
         firstName: firstName.slice(0, 100),
         lastName: lastName.slice(0, 100),
         dateOfBirth: normalizedDob || '2014-01-01',
@@ -475,7 +475,7 @@ export function normalizeLegacyRow(
         guardianEmail: rawEmail || null,
         city: getVal('city').slice(0, 100) || null,
         state: getVal('state').slice(0, 100) || null,
-        pincode: getVal('pincode').slice(0, 12) || null,
+        pincode: getVal('pincode').slice(0, 10) || null,
         openingFeeBalance: feeParsed.ok ? feeParsed.value : 0,
         feeDescription: getVal('feeDescription').slice(0, 160) || null,
         errors,

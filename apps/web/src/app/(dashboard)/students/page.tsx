@@ -1,6 +1,7 @@
 import React from 'react';
+import Link from 'next/link';
 import { runWithTenantContext, sql } from '@/lib/db';
-import { Search, Plus, Filter, MoreVertical } from 'lucide-react';
+import { Search, Plus, Filter, MoreVertical, Upload } from 'lucide-react';
 import { redirect } from "next/navigation";
 import { requireAuth } from '@/lib/auth/middleware';
 import { isTenantStaffRole } from '@/lib/auth/page-access';
@@ -66,10 +67,19 @@ export default async function StudentDirectoryPage() {
           <h1 className="text-2xl font-bold text-foreground">Student Directory</h1>
           <p className="text-muted-foreground text-sm mt-1">Manage enrollments, view profiles, and update records.</p>
         </div>
-        <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg font-medium flex items-center transition-colors">
-          <Plus className="w-5 h-5 mr-2" />
-          Add Student
-        </button>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/settings/import"
+            className="border border-border bg-card hover:bg-muted text-foreground px-4 py-2 rounded-lg font-medium flex items-center transition-colors"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Import Legacy ERP CSV
+          </Link>
+          <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg font-medium flex items-center transition-colors">
+            <Plus className="w-5 h-5 mr-2" />
+            Add Student
+          </button>
+        </div>
       </div>
 
       {/* Table Toolbar */}

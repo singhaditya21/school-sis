@@ -5,7 +5,8 @@ import {
   Database, 
   Store, 
   LogOut,
-  GraduationCap
+  GraduationCap,
+  Upload
 } from 'lucide-react';
 
 import { runWithTenantContext, sql } from "@/lib/db";
@@ -60,6 +61,11 @@ export default async function DashboardLayout({
           <Link href="/students" className="flex items-center px-4 py-3 rounded-lg hover:bg-slate-800 transition-colors">
             <Users className="w-5 h-5 mr-3 text-muted-foreground" />
             <span>Student Directory</span>
+          </Link>
+
+          <Link href="/settings/import" className="flex items-center px-4 py-3 rounded-lg hover:bg-slate-800 transition-colors">
+            <Upload className="w-5 h-5 mr-3 text-muted-foreground" />
+            <span>48h ERP Data Import</span>
           </Link>
 
           <Link href="/data" className="flex items-center px-4 py-3 rounded-lg hover:bg-slate-800 transition-colors">
