@@ -7,7 +7,13 @@ import { verifyTurnstileToken } from '@/lib/marketing/turnstile';
 import { logger } from '@/lib/observability/logger';
 
 function clientIpFrom(request: Request): string {
-    return (request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown')
+    return (
+        request.headers.get('x-lead-client-ip') ||
+        request.headers.get('x-vercel-forwarded-for') ||
+        request.headers.get('x-forwarded-for') ||
+        request.headers.get('x-real-ip') ||
+        'unknown'
+    )
         .split(',')[0]
         .trim()
         .toLowerCase() || 'unknown';

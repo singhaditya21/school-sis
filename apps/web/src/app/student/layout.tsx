@@ -55,19 +55,29 @@ export default async function StudentLayout({
                                 <p className="text-xs text-muted-foreground font-medium">Student Portal</p>
                             </div>
                         </div>
-                        {student && (
-                            <div className="flex items-center gap-3">
-                                <div className="hidden md:flex flex-col items-end mr-2">
-                                    <span className="text-sm font-semibold text-foreground">{student.fullName}</span>
-                                    <span className="text-xs text-accent-foreground font-medium bg-accent px-2 py-0.5 rounded">
-                                        {student.gradeName} · {student.sectionName}
-                                    </span>
-                                </div>
-                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-accent flex items-center justify-center text-accent-foreground font-bold border border-border shadow-sm">
-                                    {initials(student.fullName)}
-                                </div>
-                            </div>
-                        )}
+                        <div className="flex items-center gap-3">
+                            {student && (
+                                <>
+                                    <div className="hidden md:flex flex-col items-end mr-2">
+                                        <span className="text-sm font-semibold text-foreground">{student.fullName}</span>
+                                        <span className="text-xs text-accent-foreground font-medium bg-accent px-2 py-0.5 rounded">
+                                            {student.gradeName} · {student.sectionName}
+                                        </span>
+                                    </div>
+                                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-accent flex items-center justify-center text-accent-foreground font-bold border border-border shadow-sm">
+                                        {initials(student.fullName)}
+                                    </div>
+                                </>
+                            )}
+                            <form action="/api/logout" method="POST">
+                                <button
+                                    type="submit"
+                                    className="px-3 py-1.5 text-xs md:text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg border border-border transition-colors"
+                                >
+                                    Sign Out
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </header>

@@ -3,13 +3,33 @@ import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/upload/route';
 import { requireApiAuth } from '@/lib/auth/api';
 
+const mockS3Send = jest.fn().mockResolvedValue({});
+
 jest.mock('@/lib/auth/api', () => ({
+    ROLE_GROUPS: {
+        staff: [
+            'PLATFORM_ADMIN',
+            'SUPER_ADMIN',
+            'GROUP_EXECUTIVE',
+            'SCHOOL_ADMIN',
+            'PRINCIPAL',
+            'REGISTRAR',
+            'FINANCE_LEAD',
+            'ACCOUNTANT',
+            'ADMISSION_COUNSELOR',
+            'STUDENT_SUCCESS_COUNSELOR',
+            'TEACHER',
+            'TRANSPORT_MANAGER',
+            'TRUST_OFFICER',
+            'CREDENTIAL_OFFICER',
+        ],
+    },
     requireApiAuth: jest.fn(),
 }));
 
 jest.mock('@aws-sdk/client-s3', () => ({
     PutObjectCommand: jest.fn((input) => ({ input })),
-    S3Client: jest.fn(() => ({ send: jest.fn().mockResolvedValue({}) })),
+    S3Client: jest.fn(() => ({ send: mockS3Send })),
 }));
 
 const TENANT_ID = '0c413c23-6f0f-40ab-bd41-73e6e996ff35';
@@ -20,7 +40,7 @@ function uploadRequest(options: { tenantId?: string; folder?: string; filename?:
     const form = new FormData();
     form.set(
         'file',
-        new File(['report'], options.filename ?? '../../term-results.final.pdf', {
+        new File(['%PDF-1.4\nreport'], options.filename ?? '../../term-results.final.pdf', {
             type: 'application/pdf',
         }),
     );
@@ -74,8 +94,7 @@ describe('storage upload boundary', () => {
             Metadata: { tenantId: TENANT_ID },
         }));
 
-        const client = (S3Client as unknown as jest.Mock).mock.results[0]?.value;
-        expect(client.send).toHaveBeenCalledWith(expect.objectContaining({
+        expect(mockS3Send).toHaveBeenCalledWith(expect.objectContaining({
             input: expect.objectContaining({ Key: body.data.key }),
         }));
     });
@@ -85,7 +104,7 @@ describe('storage upload boundary', () => {
 
         expect(response.status).toBe(403);
         expect(PutObjectCommand).not.toHaveBeenCalled();
-        const client = (S3Client as unknown as jest.Mock).mock.results[0]?.value;
-        expect(client.send).not.toHaveBeenCalled();
+        expect(mockS3Send).not.toHaveBeenCalled();
+        expect(S3Client).toHaveBeenCalledTimes(0);
     });
 });

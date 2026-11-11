@@ -27,7 +27,7 @@ export default function Error({
                     Something went wrong
                 </h2>
                 <p className="text-sm text-muted-foreground mb-6">
-                    {error.message || 'An unexpected error occurred. Please try again.'}
+                    An unexpected error occurred while loading this page. Please try again.
                 </p>
                 <div className="flex gap-3 justify-center">
                     <button

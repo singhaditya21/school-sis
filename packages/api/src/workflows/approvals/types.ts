@@ -80,6 +80,7 @@ export interface WorkflowApprovalRequest {
     createdAt: string;
     updatedAt: string;
     completedAt?: string;
+    consumedAt?: string;
     reviews: readonly WorkflowApprovalReview[];
     events: readonly WorkflowApprovalEvent[];
 }

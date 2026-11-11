@@ -37,6 +37,7 @@ export const CashflowService = {
                 CROSS JOIN bounds b
                 WHERE i.tenant_id = ${tenantId}
                     AND i.due_date >= b.start_month
+                    AND i.status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
                 GROUP BY 1
             )
             SELECT
@@ -55,13 +56,23 @@ export const CashflowService = {
             SELECT
                 COALESCE(SUM(total_amount), 0) AS "totalInvoiced",
                 COALESCE(SUM(paid_amount), 0) AS "totalCollected",
-                COALESCE(SUM(total_amount - paid_amount), 0) AS "totalOutstanding",
-                COUNT(*) FILTER (WHERE status = 'OVERDUE') AS "overdueCount",
-                COALESCE(SUM(total_amount - paid_amount) FILTER (WHERE status = 'OVERDUE'), 0) AS "overdueAmount"
+                COALESCE(SUM(GREATEST(total_amount - COALESCE(paid_amount, 0), 0)) FILTER (WHERE status != 'PAID'), 0) AS "totalOutstanding",
+                COUNT(*) FILTER (WHERE status != 'PAID' AND (status = 'OVERDUE' OR due_date < CURRENT_DATE)) AS "overdueCount",
+                COALESCE(SUM(GREATEST(total_amount - COALESCE(paid_amount, 0), 0)) FILTER (WHERE status != 'PAID' AND (status = 'OVERDUE' OR due_date < CURRENT_DATE)), 0) AS "overdueAmount"
             FROM invoices
             WHERE tenant_id = ${tenantId}
+                AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
         `;
-        return { totalInvoiced: Number(s?.totalInvoiced||0), totalCollected: Number(s?.totalCollected||0), totalOutstanding: Number(s?.totalOutstanding||0), overdueCount: Number(s?.overdueCount||0), overdueAmount: Number(s?.overdueAmount||0), collectionRate: s?.totalInvoiced>0?Math.round(Number(s.totalCollected)/Number(s.totalInvoiced)*100):0 };
+        const totalInvoiced = Number(s?.totalInvoiced || 0);
+        const totalCollected = Number(s?.totalCollected || 0);
+        return {
+            totalInvoiced,
+            totalCollected,
+            totalOutstanding: Number(s?.totalOutstanding || 0),
+            overdueCount: Number(s?.overdueCount || 0),
+            overdueAmount: Number(s?.overdueAmount || 0),
+            collectionRate: totalInvoiced > 0 ? Math.round((totalCollected / totalInvoiced) * 100) : 0,
+        };
     },
     async getPaymentMethodBreakdown(tenantId: string) {
         const rows = await sql`
@@ -81,7 +92,7 @@ export const CashflowService = {
                 COALESCE(g.name, 'Unassigned') AS grade,
                 COALESCE(SUM(i.total_amount), 0) AS expected,
                 COALESCE(SUM(i.paid_amount), 0) AS collected,
-                COALESCE(SUM(i.total_amount - i.paid_amount), 0) AS outstanding,
+                COALESCE(SUM(GREATEST(i.total_amount - COALESCE(i.paid_amount, 0), 0)), 0) AS outstanding,
                 COUNT(DISTINCT i.student_id) AS students
             FROM invoices i
             JOIN students s
@@ -94,6 +105,7 @@ export const CashflowService = {
                 ON g.id = sec.grade_id
                 AND g.tenant_id = sec.tenant_id
             WHERE i.tenant_id = ${tenantId}
+                AND i.status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
             GROUP BY g.name, g.display_order
             ORDER BY g.display_order NULLS LAST, g.name ASC
         `;

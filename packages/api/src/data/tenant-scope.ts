@@ -24,7 +24,7 @@
  * replaced by that gate, not lost.
  */
 
-import { column, identifier, pool, sqlFor } from "../db";
+import { column, identifier, pool, runWithTenantContext, sqlFor } from "../db";
 import type { ColumnRef, SqlQuery, SqlRunner, SqlTag } from "../db";
 import { and } from "./operators";
 
@@ -243,11 +243,19 @@ export class ScopedFrom {
 
 // ─── The scope ───────────────────────────────────────────────
 
+const IMMUTABLE_UPDATE_KEYS = new Set(["id", "tenantId", "tenant_id"]);
+const IMMUTABLE_UPDATE_COLUMNS = new Set(["id", "tenant_id"]);
+
 export class TenantScope {
     readonly tenantId: string;
     private readonly sql: SqlTag;
+    private savepointCounter = 0;
 
-    constructor(tenantId: string, private readonly runner: SqlRunner = pool) {
+    constructor(
+        tenantId: string,
+        private readonly runner: SqlRunner = pool,
+        private readonly inTransaction = false,
+    ) {
         this.tenantId = assertTenantId(tenantId);
         this.sql = sqlFor(this.runner);
     }
@@ -309,7 +317,10 @@ export class TenantScope {
     async insert(table: TenantOwnedTable, values: ScopedValues | ScopedValues[]): Promise<number> {
         const list = Array.isArray(values) ? values : [values];
         if (list.length === 0) return 0;
-        const rows = list.map((value) => ({ ...value, tenantId: this.tenantId }));
+        const rows = list.map((value) => {
+            const { tenant_id: _snakeTenantId, ...rest } = value;
+            return { ...rest, tenantId: this.tenantId };
+        });
         return this.insertRows(table, rows);
     }
 
@@ -377,8 +388,10 @@ export class TenantScope {
         where?: SqlQuery,
     ): Promise<number> {
         this.assertOwned(parent);
-        const predicate = and(this.sql`${columnRef(child, foreignKey)} = ${parent.id}`, this.grouped(where))!;
-        return this.updateRows(child, values, predicate);
+        const fkColumn = columnRef(child, foreignKey);
+        const predicate = and(this.sql`${fkColumn} = ${parent.id}`, this.grouped(where))!;
+        const blockedKeys = new Set([...IMMUTABLE_UPDATE_KEYS, foreignKey, fkColumn.column]);
+        return this.updateRows(child, values, predicate, blockedKeys);
     }
 
     async childDelete(
@@ -395,19 +408,44 @@ export class TenantScope {
     // ─── Shared write builders ───────────────────────────────
 
     private async insertRows(table: GeneratedTable, rows: ScopedValues[]): Promise<number> {
-        const keys = Object.keys(rows[0]!);
+        const keySet = new Set<string>();
+        for (const row of rows) {
+            for (const key of Object.keys(row)) {
+                keySet.add(key);
+            }
+        }
+        const keys = Array.from(keySet);
+        if (keys.length === 0) return 0;
         const columns = commaJoin(this.sql, keys.map((key) => columnName(table, key)));
         const tuples = rows.map((row) =>
-            this.sql`(${commaJoin(this.sql, keys.map((key) => this.sql`${row[key]}`))})`,
+            this.sql`(${commaJoin(
+                this.sql,
+                keys.map((key) => this.sql`${row[key] === undefined ? null : row[key]}`),
+            )})`,
         );
         const values = commaJoin(this.sql, tuples);
         return this.sql`INSERT INTO ${identifier(table.$name)} (${columns}) VALUES ${values}`.execute(this.runner);
     }
 
-    private async updateRows(table: GeneratedTable, values: ScopedValues, where: SqlQuery): Promise<number> {
+    private async updateRows(
+        table: GeneratedTable,
+        values: ScopedValues,
+        where: SqlQuery,
+        blockedKeys: ReadonlySet<string> = IMMUTABLE_UPDATE_KEYS,
+    ): Promise<number> {
+        const mutableEntries = Object.entries(values).filter(([key]) => {
+            if (blockedKeys.has(key)) return false;
+            const ref = table[key];
+            if (ref && typeof ref !== "string" && IMMUTABLE_UPDATE_COLUMNS.has((ref as ColumnRef).column)) {
+                return false;
+            }
+            return true;
+        });
+        if (mutableEntries.length === 0) return 0;
+
         const assignments = commaJoin(
             this.sql,
-            Object.entries(values).map(([key, value]) => this.sql`${columnName(table, key)} = ${value}`),
+            mutableEntries.map(([key, value]) => this.sql`${columnName(table, key)} = ${value}`),
         );
         return this.sql`UPDATE ${identifier(table.$name)} SET ${assignments} WHERE ${where}`.execute(this.runner);
     }
@@ -442,18 +480,51 @@ export class TenantScope {
 
     /** Runs `fn` in a transaction against a scope bound to the same tenant. */
     async transaction<TResult>(fn: (tx: TenantScope) => Promise<TResult>): Promise<TResult> {
-        const client = await pool.connect();
-        try {
-            await client.query("BEGIN");
-            const result = await fn(new TenantScope(this.tenantId, client));
-            await client.query("COMMIT");
-            return result;
-        } catch (error) {
-            await client.query("ROLLBACK").catch(() => {});
-            throw error;
-        } finally {
-            client.release();
-        }
+        return runWithTenantContext(this.tenantId, async () => {
+            const isCheckedOutClient = this.runner !== pool && "release" in this.runner;
+            if (this.inTransaction || isCheckedOutClient) {
+                this.savepointCounter += 1;
+                const sp = identifier(`sp_tenant_scope_${this.savepointCounter}`);
+                const nestedScope = this.inTransaction
+                    ? this
+                    : new TenantScope(this.tenantId, this.runner, true);
+                await this.sql`SAVEPOINT ${sp}`.execute(this.runner);
+                try {
+                    const result = await fn(nestedScope);
+                    await this.sql`RELEASE SAVEPOINT ${sp}`.execute(this.runner);
+                    return result;
+                } catch (error) {
+                    await this.sql`ROLLBACK TO SAVEPOINT ${sp}`.execute(this.runner).catch(() => {});
+                    throw error;
+                }
+            }
+
+            if (this.runner !== pool) {
+                await this.sql`BEGIN`.execute(this.runner);
+                try {
+                    const result = await fn(new TenantScope(this.tenantId, this.runner, true));
+                    await this.sql`COMMIT`.execute(this.runner);
+                    return result;
+                } catch (error) {
+                    await this.sql`ROLLBACK`.execute(this.runner).catch(() => {});
+                    throw error;
+                }
+            }
+
+            const client = await pool.connect();
+            const txSql = sqlFor(client);
+            try {
+                await txSql`BEGIN`.execute(client);
+                const result = await fn(new TenantScope(this.tenantId, client, true));
+                await txSql`COMMIT`.execute(client);
+                return result;
+            } catch (error) {
+                await txSql`ROLLBACK`.execute(client).catch(() => {});
+                throw error;
+            } finally {
+                client.release();
+            }
+        });
     }
 }
 

@@ -1,5 +1,7 @@
 'use client';
 
+import { sanitizeCsvValue } from '@/lib/utils/csv-sanitize';
+
 /**
  * Saves a table that is already rendered on screen as CSV.
  *
@@ -13,13 +15,10 @@ export function downloadTableCsv(
     headers: readonly string[],
     rows: readonly (readonly (string | number | null | undefined)[])[],
 ): void {
-    const escape = (value: string | number | null | undefined): string => {
-        if (value === null || value === undefined) return '';
-        const text = String(value);
-        return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-    };
-
-    const csv = [headers.map(escape).join(','), ...rows.map((row) => row.map(escape).join(','))].join('\n');
+    const csv = [
+        headers.map(sanitizeCsvValue).join(','),
+        ...rows.map((row) => row.map(sanitizeCsvValue).join(',')),
+    ].join('\n');
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);

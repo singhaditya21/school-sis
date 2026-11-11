@@ -194,6 +194,7 @@ export async function runAssistantTurn(
                 model: createAiModel(config),
                 system: systemPrompt(availableTools),
                 prompt: question,
+                maxOutputTokens: 1024,
                 tools: modelTools,
                 stopWhen: stepCountIs(4),
             });

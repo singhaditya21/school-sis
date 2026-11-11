@@ -56,7 +56,7 @@ export default function PortalIntakeClient({
     const [slotTime, setSlotTime] = useState<string>(
         schema.portalConfig.availableTimeSlots?.[0] || '10:00',
     );
-    const [feePaymentConfirmed, setFeePaymentConfirmed] = useState<boolean>(false);
+    const [paymentOrderId, setPaymentOrderId] = useState<string>('');
     const [submissionResult, setSubmissionResult] = useState<{
         recordId: string;
         trackingReference: string;
@@ -101,9 +101,9 @@ export default function PortalIntakeClient({
         e.preventDefault();
         if (
             Number(schema.portalConfig.applicationFeeAmount || 0) > 0 &&
-            !feePaymentConfirmed
+            !paymentOrderId.trim()
         ) {
-            toast.error('Please confirm the application fee checkout step before submitting.');
+            toast.error('Please enter your verified payment order ID before submitting.');
             return;
         }
         startTransition(async () => {
@@ -114,7 +114,7 @@ export default function PortalIntakeClient({
                 {
                     slotDate: slotDate || undefined,
                     slotTime: slotTime || undefined,
-                    feePaymentConfirmed,
+                    paymentOrderId: paymentOrderId.trim() || undefined,
                 },
             );
             if (!res.success || !res.recordId || !res.trackingReference) {
@@ -425,7 +425,7 @@ export default function PortalIntakeClient({
                                         {Number(schema.portalConfig.applicationFeeAmount || 0) >
                                             0 && (
                                             <div
-                                                className="rounded-lg border border-primary/30 bg-primary/5 p-4 flex items-center justify-between gap-3"
+                                                className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-2"
                                                 data-testid="portal-fee-checkout-section"
                                             >
                                                 <div className="space-y-0.5 text-xs">
@@ -436,18 +436,21 @@ export default function PortalIntakeClient({
                                                         {schema.portalConfig.applicationFeeAmount}
                                                     </span>
                                                     <span className="text-[11px] text-muted-foreground block">
-                                                        Instant digital fee receipt issued upon submission
+                                                        Verified settled payment order ID required to mint an official digital receipt
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    <Switch
-                                                        checked={feePaymentConfirmed}
-                                                        onCheckedChange={setFeePaymentConfirmed}
-                                                        data-testid="portal-fee-confirm-switch"
+                                                <div className="space-y-1">
+                                                    <Label className="text-[11px] text-muted-foreground">
+                                                        Settled Payment Order ID *
+                                                    </Label>
+                                                    <Input
+                                                        value={paymentOrderId}
+                                                        onChange={e => setPaymentOrderId(e.target.value)}
+                                                        placeholder="e.g. 00000000-0000-4000-8000-000000000000"
+                                                        required
+                                                        data-testid="portal-payment-order-input"
+                                                        className="h-9 font-mono text-xs"
                                                     />
-                                                    <span className="text-xs font-medium">
-                                                        Confirm Fee Payment
-                                                    </span>
                                                 </div>
                                             </div>
                                         )}

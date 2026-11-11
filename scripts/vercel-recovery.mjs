@@ -269,7 +269,11 @@ export async function capture(options, fetchImpl, log = console) {
   log.log(`  aliases    : ${(deployment.alias ?? []).join(", ") || "<none assigned at creation>"}`);
 
   const problems = deploymentProblems(deployment, options);
-  if (!deployment.url) problems.push("reported no url to roll back to");
+  if (!deployment.url) {
+    problems.push("reported no url to roll back to");
+  } else if (/[\r\n\s]/.test(deployment.url)) {
+    problems.push("reported a malformed url containing whitespace or newline characters");
+  }
   if (problems.length > 0) {
     throw new Error(
       `Refusing to start without a usable rollback target:\n  - ${problems.join("\n  - ")}`,
@@ -538,11 +542,20 @@ export async function report(options, fetchImpl, log = console) {
 const RUNNING_AS_CLI =
   process.argv[1] && process.argv[1].endsWith("vercel-recovery.mjs");
 
+export function sanitizeGithubOutputValue(value) {
+  return String(value ?? "").replace(/[\r\n\0]+/g, "");
+}
+
 async function writeOutputs(entries) {
   if (!process.env.GITHUB_OUTPUT) return;
   const { appendFile } = await import("node:fs/promises");
   const body = Object.entries(entries)
-    .map(([key, value]) => `${key}=${value}`)
+    .map(([key, value]) => {
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+        throw new Error(`Invalid GITHUB_OUTPUT key "${key}".`);
+      }
+      return `${key}=${sanitizeGithubOutputValue(value)}`;
+    })
     .join("\n");
   await appendFile(process.env.GITHUB_OUTPUT, `${body}\n`);
 }

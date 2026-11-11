@@ -1,11 +1,11 @@
 'use server';
 
 import { sql } from '@/lib/db';
-import { getSession } from '@/lib/auth/session';
+import { requireAuth } from '@/lib/auth/middleware';
 
-async function tid() {
-    const s = await getSession();
-    return s.tenantId;
+async function tid(permission = 'dashboard:read') {
+    const { tenantId } = await requireAuth(permission);
+    return tenantId;
 }
 
 export type AnalyticsSummary = {
@@ -40,7 +40,7 @@ export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
 }
 
 export async function getFeeCollectionData() {
-    const tenantId = await tid();
+    const tenantId = await tid('fees:read');
     const rows = await sql<{
         month: string;
         collected: string | number | null;
@@ -203,7 +203,7 @@ export async function getClassWiseAttendance() {
 }
 
 export async function getClassWiseFees() {
-    const tenantId = await tid();
+    const tenantId = await tid('fees:read');
     const rows = await sql<{
         class: string | null;
         students: string | number | null;

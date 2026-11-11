@@ -22,10 +22,22 @@ const TERMINAL_STATUSES = new Set<WorkflowApprovalStatus>([
     'EXPIRED',
 ]);
 
+export function isWorkflowApprovalExpired(
+    request: Pick<WorkflowApprovalRequest, 'expiresAt'>,
+    now: Date = new Date(),
+): boolean {
+    const expiresAtMs = new Date(request.expiresAt).getTime();
+    return !Number.isFinite(expiresAtMs) || expiresAtMs <= now.getTime();
+}
+
 export function createWorkflowApprovalRequest(input: CreateWorkflowApprovalInput): WorkflowApprovalRequest {
     const workflowPolicy = getApprovalWorkflowPolicy(input.policyId);
     if (!workflowPolicy) {
         throw new Error(`Unknown approval workflow policy: ${input.policyId}`);
+    }
+
+    if (!input.requestedBy.userId?.trim()) {
+        throw new Error('Approval requester userId is required.');
     }
 
     assertSameTenant(input.requestedBy, input.resource);
@@ -82,20 +94,33 @@ export function reviewWorkflowApprovalRequest(
     request: WorkflowApprovalRequest,
     input: ReviewWorkflowApprovalInput,
 ): WorkflowApprovalRequest {
+    if (!input.actor.userId?.trim()) {
+        throw new Error('Approval reviewer userId is required.');
+    }
+
     assertReviewable(request);
+    const now = input.now ?? new Date();
+    if (isWorkflowApprovalExpired(request, now)) {
+        throw new Error('Approval request has expired.');
+    }
+
     assertActorTenant(request, input.actor);
     assertEligibleApprover(request, input.actor);
     assertNotDuplicateReviewer(request, input.actor.userId);
 
-    if (!request.allowRequesterApproval && input.actor.userId === request.requestedByUserId) {
-        throw new Error('Requester cannot approve their own workflow approval request.');
+    if (!request.allowRequesterApproval) {
+        if (!request.requestedByUserId?.trim()) {
+            throw new Error('Requester identity is missing; cannot verify self-approval separation.');
+        }
+        if (input.actor.userId === request.requestedByUserId) {
+            throw new Error('Requester cannot approve their own workflow approval request.');
+        }
     }
 
     if ((input.decision === 'REJECTED' || request.policy.requiresReason) && !input.reason?.trim()) {
         throw new Error('Approval review reason is required.');
     }
 
-    const now = input.now ?? new Date();
     const createdAt = now.toISOString();
     const review: WorkflowApprovalReview = {
         id: input.reviewId ?? createReviewId(request.id, input.actor.userId, createdAt),
@@ -257,13 +282,19 @@ export function toWorkflowApprovalQueueItem(
 export function canActorReviewWorkflowApproval(
     request: WorkflowApprovalRequest,
     actor: WorkflowApprovalActor,
+    now: Date = new Date(),
 ): boolean {
     try {
+        if (!actor.userId?.trim()) return false;
         assertReviewable(request);
+        if (isWorkflowApprovalExpired(request, now)) return false;
         assertActorTenant(request, actor);
         assertEligibleApprover(request, actor);
         assertNotDuplicateReviewer(request, actor.userId);
-        if (!request.allowRequesterApproval && actor.userId === request.requestedByUserId) return false;
+        if (!request.allowRequesterApproval) {
+            if (!request.requestedByUserId?.trim()) return false;
+            if (actor.userId === request.requestedByUserId) return false;
+        }
         return true;
     } catch {
         return false;

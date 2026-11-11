@@ -7,8 +7,8 @@
  * Security design:
  * - The TOTP secret is encrypted with AES-256-GCM before it is stored in the DB
  * - Backup codes are bcrypt-hashed before storage; each is single-use
- * - MFA is enforced at the proxy level for SUPER_ADMIN, GROUP_EXECUTIVE,
- *   FINANCE_LEAD, and REGISTRAR roles (see middleware.ts enforcement)
+ * - MFA is enforced across proxy, API routes, Server Actions, and RLS session
+ *   resolvers for PLATFORM_ADMIN, SUPER_ADMIN, SCHOOL_ADMIN, PRINCIPAL, and ACCOUNTANT
  *
  * Dependencies (add to apps/web/package.json):
  *   "otplib": "^12.0.1",
@@ -20,6 +20,7 @@ import QRCode from 'qrcode';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { encrypt, decrypt } from '@/lib/encryption';
+import { claimSingleUseToken } from '@/lib/auth/rate-limit';
 import { tenantScope, eq } from '@school-sis/api/src/data';
 import { users } from '@school-sis/api/src/db/generated/tables';
 
@@ -63,6 +64,19 @@ export async function generateMFAEnrollment(
     tenantId: string,
     userEmail: string,
 ): Promise<MFAEnrollmentResult> {
+    const scope = tenantScope(tenantId);
+    const existing = await scope
+        .from(users)
+        .select<{ mfaEnabled: boolean | null }>({ mfaEnabled: users.mfaEnabled })
+        .where(eq(users.id, userId))
+        .first();
+    if (!existing) {
+        throw new Error('Account not found for MFA enrollment.');
+    }
+    if (existing.mfaEnabled) {
+        throw new Error('MFA is already active for this account.');
+    }
+
     const secret = authenticator.generateSecret(32); // 160-bit secret
 
     const otpAuthUrl = authenticator.keyuri(userEmail, 'ScholarMind', secret);
@@ -80,7 +94,7 @@ export async function generateMFAEnrollment(
         backupCodes.map(code => bcrypt.hash(code, BCRYPT_ROUNDS))
     );
 
-    await tenantScope(tenantId).update(
+    await scope.update(
         users,
         {
             mfaSecret: encryptedSecret,
@@ -120,10 +134,16 @@ export async function activateMFA(
     }
 
     const secret = decrypt(user.mfaSecret);
-    const isValid = authenticator.verify({ token: totpCode, secret });
+    const normalizedCode = totpCode.trim().replace(/\s+/g, '');
+    const isValid = authenticator.verify({ token: normalizedCode, secret });
 
     if (!isValid) {
         return { success: false, error: 'Invalid or expired code. Please try again.' };
+    }
+
+    const claimed = await claimSingleUseToken(`${userId}:${normalizedCode}`, 'mfa_totp');
+    if (!claimed) {
+        return { success: false, error: 'This code was already used. Wait for the next 30-second code.' };
     }
 
     await scope.update(users, { mfaEnabled: true }, eq(users.id, userId));
@@ -134,7 +154,7 @@ export async function activateMFA(
 // ─── Verification (login challenge) ─────────────────────────
 
 /**
- * Verify a TOTP code at login.
+ * Verify a TOTP code or single-use 10-character backup code at login.
  * Called after password authentication succeeds for MFA-enrolled users.
  */
 export async function verifyMFACode(
@@ -149,17 +169,36 @@ export async function verifyMFACode(
         .first();
 
     if (!user?.mfaEnabled || !user.mfaSecret) {
-        // MFA not configured — pass through (enforcement happens at the proxy level)
+        // MFA not configured — pass through (enforcement happens at the proxy/guard level)
         return { success: true };
+    }
+
+    const normalized = totpCode.trim().replace(/[\s-]+/g, '');
+    if (/^[0-9A-F]{10}$/i.test(normalized) && !/^\d{6}$/.test(normalized)) {
+        const backup = await redeemBackupCode(userId, tenantId, normalized);
+        return backup.success
+            ? { success: true }
+            : { success: false, error: backup.error || 'Invalid backup code.' };
     }
 
     const secret = decrypt(user.mfaSecret);
 
     // otplib uses a 30-second window; allow ±1 step for clock skew
-    const isValid = authenticator.verify({ token: totpCode, secret });
+    const isValid = authenticator.verify({ token: normalized, secret });
 
     if (!isValid) {
+        if (/^[0-9A-F]{10}$/i.test(normalized)) {
+            const backup = await redeemBackupCode(userId, tenantId, normalized);
+            if (backup.success) {
+                return { success: true };
+            }
+        }
         return { success: false, error: 'Invalid or expired TOTP code.' };
+    }
+
+    const claimed = await claimSingleUseToken(`${userId}:${normalized}`, 'mfa_totp');
+    if (!claimed) {
+        return { success: false, error: 'This authenticator code was already used. Wait for the next code.' };
     }
 
     return { success: true };

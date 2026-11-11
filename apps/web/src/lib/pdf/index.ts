@@ -1,7 +1,8 @@
-export { attachmentDisposition, fetchExternalPdf } from './external';
+export { attachmentDisposition, buildSafeExternalPdfUrl, fetchExternalPdf } from './external';
 export { EMPTY, filenameSlug, formatPdfDate, formatRupees, orEmpty, pdfText } from './format';
 export {
     findReceiptIdForPayment,
+    formatReceiptNotes,
     loadReceiptForPdf,
     receiptPdfFilename,
     renderReceiptPdf,

@@ -1,4 +1,4 @@
-import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext, sqlFor } from '@/lib/db';
 import { recordSreIncident } from '@/lib/observability/logger';
 import { tasks } from '@/lib/worker/tasks';
 
@@ -36,41 +36,58 @@ function backoffForAttempt(attempt: number): string {
   return `${minutes} minutes`;
 }
 
+const STALE_JOB_LEASE_ERROR = 'Job lease expired after worker crash or timeout';
+
 async function claimDueJobs(options: Required<DispatchJobsOptions>): Promise<BackgroundJobRow[]> {
   const client = await pool.connect();
+  const q = sqlFor(client);
   try {
-    await client.query('BEGIN');
-    const { rows } = await client.query(
-      `WITH next_jobs AS (
+    await q`BEGIN`;
+    await q`
+      UPDATE background_jobs
+      SET status = 'FAILED',
+          last_error = ${STALE_JOB_LEASE_ERROR},
+          locked_at = NULL,
+          locked_by = NULL,
+          updated_at = NOW()
+      WHERE queue = ${options.queue}
+        AND status = 'RUNNING'
+        AND locked_at < NOW() - INTERVAL '15 minutes'
+        AND attempts >= max_attempts
+    `;
+
+    const rows = await q<BackgroundJobRow>`
+      WITH next_jobs AS (
           SELECT id
           FROM background_jobs
-          WHERE queue = $1
-            AND status IN ('QUEUED', 'SCHEDULED', 'FAILED')
-            AND available_at <= NOW()
+          WHERE queue = ${options.queue}
+            AND (
+              (status IN ('QUEUED', 'SCHEDULED', 'FAILED') AND available_at <= NOW())
+              OR (status = 'RUNNING' AND locked_at < NOW() - INTERVAL '15 minutes')
+            )
             AND attempts < max_attempts
           ORDER BY priority DESC, available_at ASC, created_at ASC
           FOR UPDATE SKIP LOCKED
-          LIMIT $2
-       )
-       UPDATE background_jobs bj
-       SET status = 'RUNNING',
-           locked_at = NOW(),
-           locked_by = $3,
-           updated_at = NOW()
-       WHERE bj.id IN (SELECT id FROM next_jobs)
-       RETURNING bj.id,
-                 bj.tenant_id AS "tenantId",
-                 bj.scope,
-                 bj.task_name AS "taskName",
-                 bj.payload,
-                 bj.attempts,
-                 bj.max_attempts AS "maxAttempts"`,
-      [options.queue, options.limit, options.workerId],
-    );
-    await client.query('COMMIT');
+          LIMIT ${options.limit}
+      )
+      UPDATE background_jobs bj
+      SET status = 'RUNNING',
+          locked_at = NOW(),
+          locked_by = ${options.workerId},
+          updated_at = NOW()
+      WHERE bj.id IN (SELECT id FROM next_jobs)
+      RETURNING bj.id,
+                bj.tenant_id AS "tenantId",
+                bj.scope,
+                bj.task_name AS "taskName",
+                bj.payload,
+                bj.attempts,
+                bj.max_attempts AS "maxAttempts"
+    `;
+    await q`COMMIT`;
     return rows;
   } catch (error) {
-    await client.query('ROLLBACK');
+    await q`ROLLBACK`;
     throw error;
   } finally {
     client.release();

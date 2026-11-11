@@ -19,40 +19,22 @@ export interface HostelFeeRow {
 }
 
 export async function getHostelFees(
-    tenantIdOrStatus?: string,
-    filtersOrFeeType?: { status?: string; feeType?: string } | string
+    status?: string,
+    feeType?: string
 ): Promise<HostelFeeRow[]> {
-    let tenantId: string;
-    let status: string | undefined;
-    let feeType: string | undefined;
-
-    // Determine parameter layout: (tenantId, filters) vs (status, feeType)
-    const isFirstArgTenantId =
-        typeof tenantIdOrStatus === 'string' &&
-        (typeof filtersOrFeeType === 'object' || filtersOrFeeType === undefined) &&
-        !['paid', 'pending', 'overdue'].includes(tenantIdOrStatus);
-
-    if (isFirstArgTenantId) {
-        tenantId = tenantIdOrStatus as string;
-        const filters = filtersOrFeeType as { status?: string; feeType?: string } | undefined;
-        status = filters?.status;
-        feeType = filters?.feeType;
-    } else {
-        const auth = await requireAuth('hostel:read');
-        tenantId = auth.tenantId;
-        status = tenantIdOrStatus;
-        feeType = filtersOrFeeType as string | undefined;
-    }
+    const auth = await requireAuth('hostel:read');
+    const tenantId = auth.tenantId;
 
     let query = `
         SELECT hf.id, s.admission_number AS "studentId", s.first_name||' '||s.last_name AS "studentName",
                g.name||'-'||sec.name AS class, h.name AS "hostelName", hr.room_number AS "roomNumber",
                hf.fee_type AS "feeType", hf.amount, hf.due_date AS "dueDate", hf.status, hf.paid_date AS "paidDate"
         FROM hostel_fees hf
-        JOIN students s ON s.id = hf.student_id
-        LEFT JOIN sections sec ON sec.id = s.section_id LEFT JOIN grades g ON g.id = sec.grade_id
-        LEFT JOIN hostel_allocations ha ON ha.student_id = s.id AND ha.status = 'ACTIVE'
-        LEFT JOIN hostels h ON h.id = ha.hostel_id
+        JOIN students s ON s.id = hf.student_id AND s.tenant_id = hf.tenant_id
+        LEFT JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = hf.tenant_id
+        LEFT JOIN grades g ON g.id = sec.grade_id AND g.tenant_id = hf.tenant_id
+        LEFT JOIN hostel_allocations ha ON ha.student_id = s.id AND ha.tenant_id = hf.tenant_id AND ha.status = 'ACTIVE'
+        LEFT JOIN hostels h ON h.id = ha.hostel_id AND h.tenant_id = hf.tenant_id
         LEFT JOIN hostel_rooms hr ON hr.id = ha.room_id
         WHERE hf.tenant_id = $1
     `;
@@ -67,8 +49,13 @@ export async function getHostelFees(
     }
     query += ` ORDER BY hf.due_date DESC LIMIT 100`;
 
-    const { rows } = await pool.query(query, params);
-    return rows.map(r => ({
+    type RawHostelFeeRow = Omit<HostelFeeRow, 'amount' | 'dueDate' | 'paidDate'> & {
+        amount: string | number | null;
+        dueDate: Date | string | null;
+        paidDate: Date | string | null;
+    };
+    const { rows } = await pool.query<RawHostelFeeRow>(query, params);
+    return rows.map((r) => ({
         ...r,
         amount: Number(r.amount || 0),
         dueDate: r.dueDate instanceof Date ? r.dueDate.toISOString().split('T')[0] : r.dueDate,

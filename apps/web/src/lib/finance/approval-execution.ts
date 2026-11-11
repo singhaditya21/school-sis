@@ -10,6 +10,7 @@ import {
 } from '@school-sis/api';
 import { insertMoneyAudit, minorFromAmount, outstandingMinor } from '@/lib/payments/ledger';
 import {
+    buildRefundIdempotencyKey,
     getRazorpayGateway,
     getStripeGateway,
     type PaymentProviderName,
@@ -40,6 +41,9 @@ export type PaymentSnapshot = {
     status: PaymentStatus;
     transactionId: string | null;
     razorpayPaymentId: string | null;
+    notes?: string | null;
+    stripeConnectAccountId?: string | null;
+    refundInProgress?: boolean;
     invoiceNumber: string;
     invoiceTotalAmount: string;
     invoicePaidAmount: string | null;
@@ -117,8 +121,9 @@ export function computeInvoiceStatusAfterRefund(input: {
     now?: Date;
 }): InvoiceStatus {
     if (input.paidAmountMinor >= input.totalAmountMinor) return 'PAID';
-    if (input.paidAmountMinor > 0) return 'PARTIAL';
-    return isPastDueDate(input.dueDate, input.now ?? new Date()) ? 'OVERDUE' : 'PENDING';
+    const pastDue = isPastDueDate(input.dueDate, input.now ?? new Date());
+    if (input.paidAmountMinor > 0) return pastDue ? 'OVERDUE' : 'PARTIAL';
+    return pastDue ? 'OVERDUE' : 'PENDING';
 }
 
 export function buildInvoiceApprovalPayload(
@@ -174,6 +179,26 @@ export function financeResultHttpStatus(result: FinanceApprovalExecutionResult):
     if (result.status === 'EXECUTED') return 200;
     if (result.approval.status === 'PENDING' || result.approval.status === 'ESCALATED') return 202;
     return 409;
+}
+
+async function withTenantClientTransaction<T>(
+    tenantId: string,
+    fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+    return runWithTenantContext(tenantId, async () => {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const result = await fn(client);
+            await client.query('COMMIT');
+            return result;
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    });
 }
 
 export async function waiveInvoiceBalanceWithApproval(
@@ -297,95 +322,160 @@ export async function refundPaymentWithApproval(
     });
     if (!gate.approved) return { status: 'APPROVAL_REQUIRED', approval: toWorkflowApprovalSummary(gate.request) };
 
-    return runWithTenantContext(input.tenantId, async () => {
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-            const lockedPayment = await fetchPaymentSnapshot(input.tenantId, input.paymentId, client, true);
-            assertPaymentRefundable(lockedPayment, refundAmountMinor);
+    const idempotencyKey = buildRefundIdempotencyKey({
+        paymentId: input.paymentId,
+        approvalRequestId: gate.request.id,
+        amountMinor: refundAmountMinor,
+    });
 
-            const currentPayload = buildRefundApprovalPayload(lockedPayment, reason, refundAmountMinor);
-            assertApprovalMatchesAction(gate.request, {
-                tenantId: input.tenantId,
-                policyId: FINANCE_APPROVAL_POLICIES.refundPayment,
-                resource: {
-                    type: 'payments.payment',
-                    id: input.paymentId,
-                    tenantId: input.tenantId,
-                },
-                payload: currentPayload,
-            });
+    // Phase 1 (short DB transaction): lock & validate payment/invoice, ensure no concurrent refund, record intent
+    const lockedSnapshot = await withTenantClientTransaction(input.tenantId, async (client) => {
+        const lockedPayment = await fetchPaymentSnapshot(input.tenantId, input.paymentId, client, true);
+        if (lockedPayment.refundInProgress) {
+            throw new FinanceApprovalExecutionError('A refund is already in progress for this payment.', 409);
+        }
+        assertPaymentRefundable(lockedPayment, refundAmountMinor);
 
-            const providerRefund = await executeProviderRefundIfAvailable({
+        const currentPayload = buildRefundApprovalPayload(lockedPayment, reason, refundAmountMinor);
+        assertApprovalMatchesAction(gate.request, {
+            tenantId: input.tenantId,
+            policyId: FINANCE_APPROVAL_POLICIES.refundPayment,
+            resource: {
+                type: 'payments.payment',
+                id: input.paymentId,
                 tenantId: input.tenantId,
-                payment: lockedPayment,
-                refundAmountMinor,
-                reason,
+            },
+            payload: currentPayload,
+        });
+
+        const resolvedProvider = resolveRefundProvider(lockedPayment);
+        await insertMoneyAudit(client, {
+            tenantId: input.tenantId,
+            invoiceId: lockedPayment.invoiceId,
+            paymentId: lockedPayment.id,
+            actorUserId: input.actor.userId,
+            provider: resolvedProvider.provider,
+            action: 'PAYMENT_REFUND_INITIATED',
+            amount: amountFromMinor(refundAmountMinor),
+            currency: CURRENCY,
+            metadata: {
                 approvalRequestId: gate.request.id,
-            });
+                idempotencyKey,
+                reason,
+            },
+        });
 
-            const currentPaidMinor = minorFromAmount(Number(lockedPayment.invoicePaidAmount || 0));
-            const newPaidMinor = Math.max(0, currentPaidMinor - refundAmountMinor);
-            const newInvoiceStatus = computeInvoiceStatusAfterRefund({
-                totalAmountMinor: minorFromAmount(Number(lockedPayment.invoiceTotalAmount)),
-                paidAmountMinor: newPaidMinor,
-                dueDate: lockedPayment.invoiceDueDate,
-            });
+        return lockedPayment;
+    });
 
-            await client.query(
-                `UPDATE payments
-                 SET status = 'REFUNDED'
-                 WHERE tenant_id = $1 AND id = $2`,
-                [input.tenantId, input.paymentId],
-            );
-
-            await client.query(
-                `UPDATE invoices
-                 SET paid_amount = $1,
-                     status = $2,
-                     updated_at = NOW()
-                 WHERE tenant_id = $3 AND id = $4`,
-                [amountFromMinor(newPaidMinor), newInvoiceStatus, input.tenantId, lockedPayment.invoiceId],
-            );
-
+    // Phase 2 (outside DB transaction — no FOR UPDATE locks or pool client held across external network I/O)
+    let providerRefund: ProviderRefundExecution;
+    try {
+        providerRefund = await executeProviderRefundIfAvailable({
+            tenantId: input.tenantId,
+            payment: lockedSnapshot,
+            refundAmountMinor,
+            reason,
+            approvalRequestId: gate.request.id,
+            idempotencyKey,
+        });
+    } catch (gatewayError) {
+        const resolvedProvider = resolveRefundProvider(lockedSnapshot);
+        await withTenantClientTransaction(input.tenantId, async (client) => {
             await insertMoneyAudit(client, {
                 tenantId: input.tenantId,
-                invoiceId: lockedPayment.invoiceId,
-                paymentId: lockedPayment.id,
+                invoiceId: lockedSnapshot.invoiceId,
+                paymentId: lockedSnapshot.id,
                 actorUserId: input.actor.userId,
-                provider: providerRefund.provider,
-                action: 'PAYMENT_REFUNDED',
+                provider: resolvedProvider.provider,
+                action: 'PAYMENT_REFUND_FAILED',
                 amount: amountFromMinor(refundAmountMinor),
                 currency: CURRENCY,
                 metadata: {
                     approvalRequestId: gate.request.id,
+                    idempotencyKey,
                     reason,
-                    previousPaymentStatus: lockedPayment.status,
-                    previousInvoiceStatus: lockedPayment.invoiceStatus,
-                    previousInvoicePaidAmount: lockedPayment.invoicePaidAmount,
-                    newInvoicePaidAmount: amountFromMinor(newPaidMinor),
-                    newInvoiceStatus,
-                    providerRefund,
+                    error: gatewayError instanceof Error ? gatewayError.message : String(gatewayError),
                 },
             });
+        });
+        throw gatewayError;
+    }
 
-            await client.query('COMMIT');
+    // Phase 3 (short DB transaction): finalize refund ledger rows & invoice balance adjustment
+    return withTenantClientTransaction(input.tenantId, async (client) => {
+        const finalPayment = await fetchPaymentSnapshot(input.tenantId, input.paymentId, client, true);
+        if (finalPayment.status === 'REFUNDED') {
             return {
                 status: 'EXECUTED',
                 action: 'PAYMENT_REFUNDED',
                 approvalRequestId: gate.request.id,
-                invoiceId: lockedPayment.invoiceId,
-                paymentId: lockedPayment.id,
+                invoiceId: finalPayment.invoiceId,
+                paymentId: finalPayment.id,
                 amount: amountFromMinor(refundAmountMinor),
                 currency: CURRENCY,
                 providerRefund,
             };
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-        } finally {
-            client.release();
         }
+
+        const currentPaidMinor = minorFromAmount(Number(finalPayment.invoicePaidAmount || 0));
+        const newPaidMinor = Math.max(0, currentPaidMinor - refundAmountMinor);
+        const newInvoiceStatus = TERMINAL_INVOICE_STATUSES.has(finalPayment.invoiceStatus)
+            ? finalPayment.invoiceStatus
+            : computeInvoiceStatusAfterRefund({
+                totalAmountMinor: minorFromAmount(Number(finalPayment.invoiceTotalAmount)),
+                paidAmountMinor: newPaidMinor,
+                dueDate: finalPayment.invoiceDueDate,
+            });
+
+        await client.query(
+            `UPDATE payments
+             SET status = 'REFUNDED'
+             WHERE tenant_id = $1 AND id = $2`,
+            [input.tenantId, input.paymentId],
+        );
+
+        await client.query(
+            `UPDATE invoices
+             SET paid_amount = $1,
+                 status = $2,
+                 updated_at = NOW()
+             WHERE tenant_id = $3 AND id = $4`,
+            [amountFromMinor(newPaidMinor), newInvoiceStatus, input.tenantId, finalPayment.invoiceId],
+        );
+
+        await insertMoneyAudit(client, {
+            tenantId: input.tenantId,
+            invoiceId: finalPayment.invoiceId,
+            paymentId: finalPayment.id,
+            actorUserId: input.actor.userId,
+            provider: providerRefund.provider,
+            action: 'PAYMENT_REFUNDED',
+            amount: amountFromMinor(refundAmountMinor),
+            currency: CURRENCY,
+            metadata: {
+                approvalRequestId: gate.request.id,
+                idempotencyKey,
+                reason,
+                previousPaymentStatus: finalPayment.status,
+                previousInvoiceStatus: finalPayment.invoiceStatus,
+                previousInvoicePaidAmount: finalPayment.invoicePaidAmount,
+                newInvoicePaidAmount: amountFromMinor(newPaidMinor),
+                newInvoiceStatus,
+                providerRefund,
+            },
+        });
+
+        return {
+            status: 'EXECUTED',
+            action: 'PAYMENT_REFUNDED',
+            approvalRequestId: gate.request.id,
+            invoiceId: finalPayment.invoiceId,
+            paymentId: finalPayment.id,
+            amount: amountFromMinor(refundAmountMinor),
+            currency: CURRENCY,
+            providerRefund,
+        };
     });
 }
 
@@ -400,75 +490,65 @@ async function executeInvoiceStateChange(input: {
     targetStatus: 'WAIVED' | 'CANCELLED';
     auditAction: 'INVOICE_WAIVED' | 'INVOICE_CANCELLED';
 }): Promise<FinanceApprovalExecutionResult> {
-    return runWithTenantContext(input.tenantId, async () => {
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-            const invoice = await fetchInvoiceSnapshot(input.tenantId, input.invoiceId, client, true);
-            if (input.targetStatus === 'WAIVED') {
-                assertInvoiceWaivable(invoice);
-            } else {
-                assertInvoiceCancellable(invoice);
-            }
-
-            const action = input.targetStatus === 'WAIVED' ? 'WAIVE_INVOICE' : 'CANCEL_INVOICE';
-            const currentPayload = buildInvoiceApprovalPayload(action, invoice, input.reason);
-            assertApprovalMatchesAction(input.approvalRequest, {
-                tenantId: input.tenantId,
-                policyId: input.expectedPolicyId,
-                resource: {
-                    type: 'fees.invoice',
-                    id: input.invoiceId,
-                    tenantId: input.tenantId,
-                },
-                payload: currentPayload,
-            });
-
-            await client.query(
-                `UPDATE invoices
-                 SET status = $1,
-                     updated_at = NOW()
-                 WHERE tenant_id = $2 AND id = $3`,
-                [input.targetStatus, input.tenantId, input.invoiceId],
-            );
-
-            const amountMinor = input.targetStatus === 'WAIVED'
-                ? outstandingMinor(invoice)
-                : minorFromAmount(Number(invoice.totalAmount));
-
-            await insertMoneyAudit(client, {
-                tenantId: input.tenantId,
-                invoiceId: invoice.id,
-                actorUserId: input.actorUserId,
-                provider: 'MANUAL',
-                action: input.auditAction,
-                amount: amountFromMinor(amountMinor),
-                currency: CURRENCY,
-                metadata: {
-                    approvalRequestId: input.approvalRequestId,
-                    reason: input.reason,
-                    previousStatus: invoice.status,
-                    newStatus: input.targetStatus,
-                    paidAmount: invoice.paidAmount,
-                    outstandingAmount: amountFromMinor(outstandingMinor(invoice)),
-                },
-            });
-
-            await client.query('COMMIT');
-            return {
-                status: 'EXECUTED',
-                action: input.auditAction,
-                approvalRequestId: input.approvalRequestId,
-                invoiceId: invoice.id,
-                amount: amountFromMinor(amountMinor),
-                currency: CURRENCY,
-            };
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-        } finally {
-            client.release();
+    return withTenantClientTransaction(input.tenantId, async (client) => {
+        const invoice = await fetchInvoiceSnapshot(input.tenantId, input.invoiceId, client, true);
+        if (input.targetStatus === 'WAIVED') {
+            assertInvoiceWaivable(invoice);
+        } else {
+            assertInvoiceCancellable(invoice);
         }
+
+        const action = input.targetStatus === 'WAIVED' ? 'WAIVE_INVOICE' : 'CANCEL_INVOICE';
+        const currentPayload = buildInvoiceApprovalPayload(action, invoice, input.reason);
+        assertApprovalMatchesAction(input.approvalRequest, {
+            tenantId: input.tenantId,
+            policyId: input.expectedPolicyId,
+            resource: {
+                type: 'fees.invoice',
+                id: input.invoiceId,
+                tenantId: input.tenantId,
+            },
+            payload: currentPayload,
+        });
+
+        await client.query(
+            `UPDATE invoices
+             SET status = $1,
+                 updated_at = NOW()
+             WHERE tenant_id = $2 AND id = $3`,
+            [input.targetStatus, input.tenantId, input.invoiceId],
+        );
+
+        const amountMinor = input.targetStatus === 'WAIVED'
+            ? outstandingMinor(invoice)
+            : minorFromAmount(Number(invoice.totalAmount));
+
+        await insertMoneyAudit(client, {
+            tenantId: input.tenantId,
+            invoiceId: invoice.id,
+            actorUserId: input.actorUserId,
+            provider: 'MANUAL',
+            action: input.auditAction,
+            amount: amountFromMinor(amountMinor),
+            currency: CURRENCY,
+            metadata: {
+                approvalRequestId: input.approvalRequestId,
+                reason: input.reason,
+                previousStatus: invoice.status,
+                newStatus: input.targetStatus,
+                paidAmount: invoice.paidAmount,
+                outstandingAmount: amountFromMinor(outstandingMinor(invoice)),
+            },
+        });
+
+        return {
+            status: 'EXECUTED',
+            action: input.auditAction,
+            approvalRequestId: input.approvalRequestId,
+            invoiceId: invoice.id,
+            amount: amountFromMinor(amountMinor),
+            currency: CURRENCY,
+        };
     });
 }
 
@@ -516,6 +596,31 @@ async function fetchPaymentSnapshot(
             p.status,
             p.transaction_id AS "transactionId",
             p.razorpay_payment_id AS "razorpayPaymentId",
+            p.notes AS "notes",
+            (
+                SELECT po.metadata->>'stripeConnectAccountId'
+                FROM payment_orders po
+                WHERE po.tenant_id = p.tenant_id
+                  AND po.provider = 'STRIPE'
+                  AND po.provider_payment_id = p.transaction_id
+                LIMIT 1
+            ) AS "stripeConnectAccountId",
+            EXISTS (
+                SELECT 1
+                FROM payment_audit_logs pal
+                WHERE pal.tenant_id = p.tenant_id
+                  AND pal.payment_id = p.id
+                  AND pal.action = 'PAYMENT_REFUND_INITIATED'
+                  AND pal.created_at > NOW() - INTERVAL '15 minutes'
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM payment_audit_logs pal_done
+                      WHERE pal_done.tenant_id = p.tenant_id
+                        AND pal_done.payment_id = p.id
+                        AND pal_done.action IN ('PAYMENT_REFUNDED', 'PAYMENT_REFUND_FAILED')
+                        AND pal_done.created_at >= pal.created_at
+                  )
+            ) AS "refundInProgress",
             i.invoice_number AS "invoiceNumber",
             i.total_amount AS "invoiceTotalAmount",
             i.paid_amount AS "invoicePaidAmount",
@@ -574,12 +679,28 @@ function assertInvoiceWaivable(invoice: InvoiceSnapshot): void {
     }
 }
 
+function extractConnectedAccountId(payment: PaymentSnapshot): string | undefined {
+    if (payment.stripeConnectAccountId) return payment.stripeConnectAccountId;
+    if (payment.notes && payment.notes.trim().startsWith('{')) {
+        try {
+            const parsed = JSON.parse(payment.notes) as Record<string, unknown>;
+            if (typeof parsed.stripeConnectAccountId === 'string' && parsed.stripeConnectAccountId.length > 0) {
+                return parsed.stripeConnectAccountId;
+            }
+        } catch {
+            // ignore non-JSON notes
+        }
+    }
+    return undefined;
+}
+
 async function executeProviderRefundIfAvailable(input: {
     tenantId: string;
     payment: PaymentSnapshot;
     refundAmountMinor: number;
     reason: string;
     approvalRequestId: string;
+    idempotencyKey: string;
 }): Promise<ProviderRefundExecution> {
     const provider = resolveRefundProvider(input.payment);
     if (provider.provider === 'MANUAL' || !provider.providerPaymentId) {
@@ -590,11 +711,13 @@ async function executeProviderRefundIfAvailable(input: {
         };
     }
 
-    const metadata = {
+    const connectedAccountId = extractConnectedAccountId(input.payment);
+    const metadata: Record<string, string> = {
         tenantId: input.tenantId,
         invoiceId: input.payment.invoiceId,
         paymentId: input.payment.id,
         approvalRequestId: input.approvalRequestId,
+        ...(connectedAccountId ? { stripeConnectAccountId: connectedAccountId } : {}),
     };
 
     const refund: ProviderRefund = provider.provider === 'RAZORPAY'
@@ -603,6 +726,7 @@ async function executeProviderRefundIfAvailable(input: {
             amountMinor: input.refundAmountMinor,
             currency: CURRENCY,
             reason: input.reason,
+            idempotencyKey: input.idempotencyKey,
             metadata,
         })
         : await getStripeGateway().refundPayment({
@@ -610,6 +734,8 @@ async function executeProviderRefundIfAvailable(input: {
             amountMinor: input.refundAmountMinor,
             currency: CURRENCY,
             reason: input.reason,
+            idempotencyKey: input.idempotencyKey,
+            connectedAccountId,
             metadata,
         });
 

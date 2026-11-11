@@ -1,13 +1,14 @@
 'use server';
 
 import { requireRole } from '@/lib/auth/middleware';
-import { sql } from '@/lib/db';
+import { sql, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { encryptEmail, encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 import { UserRole } from '@/lib/rbac/permissions';
 import { hash } from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
 import { getSession } from '@/lib/auth/session';
 import { establishSession, impersonationExpiresAt, legacyImpersonationActorId } from '@/lib/auth/identity';
+import { logger } from '@/lib/observability/logger';
 import crypto from 'crypto';
 
 export interface PlatformTenant {
@@ -33,7 +34,7 @@ export interface PlatformStats {
  * Platform-level stats — cross-tenant aggregation.
  */
 export async function getGlobalPlatformStats(): Promise<PlatformStats> {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const schoolRows = await sql<{ value: string }>`
         SELECT COUNT(*) AS value FROM tenants WHERE is_active = true
@@ -86,7 +87,7 @@ export async function getGlobalPlatformStats(): Promise<PlatformStats> {
  * All tenants with aggregated metrics.
  */
 export async function getAllPlatformTenants(): Promise<PlatformTenant[]> {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const rows = await sql<{
         id: string;
@@ -140,7 +141,7 @@ export async function getAllPlatformTenants(): Promise<PlatformTenant[]> {
  * Provisions a completely new Company, Tenant, and SUPER_ADMIN.
  */
 export async function createTenantAction(formData: FormData) {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const name = formData.get('name') as string;
     const adminEmail = formData.get('adminEmail') as string;
@@ -201,7 +202,10 @@ export async function createTenantAction(formData: FormData) {
 
         return { success: true, tenantId: newTenant.id, code: tenantCode, temporaryPassword };
     } catch (e: unknown) {
-        console.error('Error creating tenant:', e);
+        logger.error('platform.create_tenant_failed', 'Error creating tenant', {
+            source: 'platform-action',
+            metadata: { error: e instanceof Error ? e.message : String(e) },
+        });
         return { error: 'An unexpected error occurred while creating the tenant.' };
     }
 }
@@ -231,20 +235,26 @@ export async function impersonateTenantAction(tenantId: string) {
     const session = await getSession();
     if (session.role !== 'PLATFORM_ADMIN') return { error: 'Unauthorized' };
 
-    // Find the super admin of the target tenant
+    // Find the primary admin of the target tenant (prefer SUPER_ADMIN, fall back to SCHOOL_ADMIN)
     const admins = await sql<{
         id: string;
-        email: string;
+        email: string | null;
+        role: string;
         firstName: string | null;
         lastName: string | null;
     }>`
-        SELECT id, email, first_name AS "firstName", last_name AS "lastName"
+        SELECT id, COALESCE(email_enc, email) AS email, role, first_name AS "firstName", last_name AS "lastName"
         FROM users
-        WHERE tenant_id = ${tenantId} AND role = 'SUPER_ADMIN' AND is_active = true
+        WHERE tenant_id = ${tenantId}
+          AND role IN ('SUPER_ADMIN', 'SCHOOL_ADMIN')
+          AND is_active = true
+        ORDER BY CASE WHEN role = 'SUPER_ADMIN' THEN 0 ELSE 1 END, created_at ASC
         LIMIT 1
     `;
     if (admins.length === 0) return { error: 'Target tenant does not have an active admin to impersonate.' };
     const targetAdmin = admins[0];
+    const resolvedAdminEmail =
+        targetAdmin.email == null ? `admin@${tenantId.slice(0, 8)}.local` : decryptFieldTolerant(targetAdmin.email);
 
     const tenantsData = await sql<{
         tenantCode: string | null;
@@ -278,10 +288,10 @@ export async function impersonateTenantAction(tenantId: string) {
         tenantId,
         tenantCode: targetCompany?.tenantCode || undefined,
         tenantDomain: targetCompany?.tenantDomain || undefined,
-        role: 'SUPER_ADMIN',
-        email: targetAdmin.email,
+        role: targetAdmin.role,
+        email: resolvedAdminEmail,
         provider: 'impersonation',
-        displayName: [targetAdmin.firstName, targetAdmin.lastName].filter(Boolean).join(' ') || targetAdmin.email,
+        displayName: [targetAdmin.firstName, targetAdmin.lastName].filter(Boolean).join(' ') || resolvedAdminEmail,
         companyId: targetCompany?.companyId || undefined,
         subscriptionTier: targetCompany?.subscriptionTier || undefined,
         activeModules: targetCompany?.activeModules || [],
@@ -309,30 +319,37 @@ export async function returnToHQAction() {
         return { error: 'Not currently impersonating a session.' };
     }
 
-    const usersList = await sql<{
-        id: string;
-        tenantId: string;
-        tenantCode: string | null;
-        tenantDomain: string | null;
-        email: string;
-        firstName: string | null;
-        lastName: string | null;
-        mfaEnabled: boolean | null;
-    }>`
-        SELECT
-            u.id,
-            u.tenant_id AS "tenantId",
-            t.code AS "tenantCode",
-            t.domain AS "tenantDomain",
-            COALESCE(u.email_enc, u.email) AS "email",
-            u.first_name AS "firstName",
-            u.last_name AS "lastName",
-            u.mfa_enabled AS "mfaEnabled"
-        FROM users u
-        LEFT JOIN tenants t ON t.id = u.tenant_id
-        WHERE u.id = ${originalUserId} AND u.role = 'PLATFORM_ADMIN' AND u.is_active = true
-        LIMIT 1
-    `;
+    const usersList = await runWithRlsBypass(
+        RLS_BYPASS_JUSTIFICATIONS.PLATFORM_SESSION,
+        async () => sql<{
+            id: string;
+            tenantId: string;
+            tenantCode: string | null;
+            tenantDomain: string | null;
+            email: string;
+            firstName: string | null;
+            lastName: string | null;
+            mfaEnabled: boolean | null;
+        }>`
+            SELECT
+                u.id,
+                u.tenant_id AS "tenantId",
+                t.code AS "tenantCode",
+                t.domain AS "tenantDomain",
+                COALESCE(u.email_enc, u.email) AS "email",
+                u.first_name AS "firstName",
+                u.last_name AS "lastName",
+                u.mfa_enabled AS "mfaEnabled"
+            FROM users u
+            INNER JOIN tenants t ON t.id = u.tenant_id
+            WHERE u.id = ${originalUserId}
+              AND t.code = 'HQ'
+              AND t.is_active = true
+              AND u.role = 'PLATFORM_ADMIN'
+              AND u.is_active = true
+            LIMIT 1
+        `,
+    );
     const founder = usersList[0];
     if (!founder) {
         session.destroy();
@@ -352,11 +369,13 @@ export async function returnToHQAction() {
         subscriptionTier: 'ENTERPRISE',
         activeModules: ['ATTENDANCE', 'FEES', 'COMMUNICATION', 'AI_AGENTS', 'HIGHER_ED', 'COACHING', 'INTERNATIONAL', 'MULTI_CAMPUS', 'ENTERPRISE'],
         mfaEnabled: Boolean(founder.mfaEnabled),
-        mfaVerified: Boolean(founder.mfaEnabled),
+        mfaVerified: true,
     });
 
     await session.save();
-    await logPlatformAudit('RETURN_FROM_IMPERSONATION', 'Founder returned from tenant impersonation');
+    await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.PLATFORM_SESSION, () =>
+        logPlatformAudit('RETURN_FROM_IMPERSONATION', 'Founder returned from tenant impersonation', undefined, undefined, founder.id),
+    );
     return { success: true };
 }
 
@@ -365,7 +384,7 @@ export async function returnToHQAction() {
  */
 
 export async function getCompanyDetailsWithTenants(companyId: string) {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const companyRows = await sql<{
         id: string;
@@ -412,7 +431,7 @@ export async function updateCompanySettingsAction(companyId: string, payload: {
     themeColor?: string;
     domainMask?: string;
 }) {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     await sql`
         UPDATE companies SET 
@@ -433,7 +452,7 @@ export async function updateCompanySettingsAction(companyId: string, payload: {
 }
 
 export async function getPlatformBillingStats() {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const rows = await sql<{
         id: string;
@@ -476,19 +495,29 @@ export async function getPlatformBillingStats() {
 }
 
 /**
- * Stage 2: Central Logs & Impersonation Safety
+ * Stage 2: Central Logs & Impersonation Safety (internal helper — NOT exported as a public Server Action)
  */
-export async function logPlatformAudit(actionType: string, metadata: string, targetCompanyId?: string, targetTenantId?: string) {
+async function logPlatformAudit(
+    actionType: string,
+    metadata: string,
+    targetCompanyId?: string,
+    targetTenantId?: string,
+    explicitActorId?: string,
+) {
     const session = await getSession();
-    if (!session.userId) return;
+    const actorId = explicitActorId || (session.role === 'PLATFORM_ADMIN' ? session.userId : '');
+    if (!actorId) return;
 
     try {
         await sql`
             INSERT INTO platform_audit_logs (actor_id, target_company_id, target_tenant_id, action_type, metadata, ip_address) 
-            VALUES (${session.userId}, ${targetCompanyId || null}, ${targetTenantId || null}, ${actionType}, ${metadata}, ${'127.0.0.1'})
+            VALUES (${actorId}, ${targetCompanyId || null}, ${targetTenantId || null}, ${actionType}, ${metadata}, ${'127.0.0.1'})
         `;
-    } catch(e) {
-        console.error('Audit Log Failed', e);
+    } catch (e) {
+        logger.error('platform.audit_log_failed', 'Platform audit log insert failed', {
+            source: 'platform-action',
+            metadata: { error: e instanceof Error ? e.message : String(e) },
+        });
     }
 }
 
@@ -523,7 +552,7 @@ export async function fetchActiveBroadcasts() {
 }
 
 export async function getPlatformAIAnalytics() {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const logs = await sql<{
         id: string;

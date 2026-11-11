@@ -74,15 +74,16 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
                 subject: options.subject,
                 html: options.html,
             }),
+            signal: AbortSignal.timeout(10_000),
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            console.error('[Email] Send failed:', error);
-            return { success: false, error: error.message || 'Failed to send email' };
+            const errorBody = (await response.json().catch(() => ({}))) as { message?: string };
+            console.error('[Email] Send failed:', errorBody);
+            return { success: false, error: errorBody.message || 'Failed to send email' };
         }
 
-        const data = await response.json();
+        const data = (await response.json()) as { id?: string };
         return { success: true, messageId: data.id };
     } catch (error: unknown) {
         console.error('[Email] Error:', (error as Error).message);

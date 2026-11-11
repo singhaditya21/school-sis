@@ -24,20 +24,21 @@ School SIS uses a layered quality model that keeps fast checks cheap while reser
 
 ## Critical Regression Coverage
 
-The current foundation coverage protects:
+The current regression suite protects:
 
 - Tenant ID validation, tenant field rejection, tenant-scoped JSON parsing, job payload construction, and tenant-scoped file retrieval.
-- R2 object key generation, traversal rejection, cross-tenant key rejection, and tenant metadata on uploads.
-- Async database tenant context and RLS bypass context restoration.
-- Structured observability logging, request/trace correlation, and metadata redaction.
+- Per-method API route guard verification (`api-access-policy.test.ts`) and exported `'use server'` action authentication/rate-limit enforcement (`server-action-access-policy.test.ts`).
+- Payment webhook signature verification, INR currency pinning, invoice status gating, refund idempotency, and document/file authorization (`audit-payments-storage.test.ts`, `fee-service.test.ts`).
+- Workflow approval expiry, single-use `CONSUMED` transitions, worker lease recovery, AI Spine budget accounting, and proxy/CSP header invariants (`workflow-approval-engine.test.ts`, `audit-workflows-ai-proxy.test.ts`, `middleware-csp-response.test.ts`).
+- Privileged MFA enforcement, RBAC scope boundaries (`TEACHER` class scope), LCNC metadata validation/SSRF/ReDoS guards, and CSV formula sanitization (`audit-auth-lcnc.test.ts`, `lcnc-platform-builders.test.ts`).
+- R2 object key generation, traversal rejection, cross-tenant key rejection, and tenant metadata on uploads (`storage-service.test.ts`).
+- Async database tenant context, RLS bypass context restoration, and structured observability redaction.
 
 ## Expansion Path
 
 Next coverage should be added in this order:
 
-1. Payment webhook idempotency and signature verification tests.
-2. RLS migration regression tests against a real Postgres database.
-3. API contract tests for public/private route boundaries.
-4. Role and MFA enforcement tests for privileged routes.
-5. Playwright critical path: login -> invoice payment -> receipt download.
-6. Load tests for background job dispatch, notification outbox, and agent approval queues.
+1. Expanded RLS migration integration tests against a real Postgres database across newly indexed tables.
+2. React Testing Library (`.tsx`) component suites for complex interactive surfaces (Data Studio, Report Builder, Portal 2.0).
+3. Playwright critical path: login -> invoice payment -> receipt download.
+4. Load tests for background job dispatch, notification outbox, and agent approval queues.

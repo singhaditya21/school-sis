@@ -68,14 +68,15 @@ if ! grep -q '^TENANT_CONTEXT_SIGNING_SECRET=' apps/web/.env.local; then
   } >> apps/web/.env.local
   echo "  generated a new local signing key"
 else
-  LOCAL_SECRET="$(grep '^TENANT_CONTEXT_SIGNING_SECRET=' apps/web/.env.local | cut -d= -f2-)"
+  LOCAL_SECRET="$(grep '^TENANT_CONTEXT_SIGNING_SECRET=' apps/web/.env.local | tail -n 1 | cut -d= -f2- | tr -d '\r')"
   echo "  reusing the signing key already in .env.local"
 fi
 # Postgres HMACs with the raw bytes of the secret STRING, so store convert_to(...,'utf8').
-psql "$LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -c \
-  "INSERT INTO app_private.tenant_context_signing_keys (key_id, audience, secret)
-   VALUES ('local-dev', 'school-sis:local', convert_to('${LOCAL_SECRET}', 'utf8'))
-   ON CONFLICT (key_id) DO UPDATE SET audience = EXCLUDED.audience, secret = EXCLUDED.secret;" >/dev/null
+psql "$LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -v local_secret="$LOCAL_SECRET" -q <<'SQL' >/dev/null
+INSERT INTO app_private.tenant_context_signing_keys (key_id, audience, secret)
+VALUES ('local-dev', 'school-sis:local', convert_to(:'local_secret', 'utf8'))
+ON CONFLICT (key_id) DO UPDATE SET audience = EXCLUDED.audience, secret = EXCLUDED.secret;
+SQL
 echo "  signing key installed in app_private"
 
 echo "▶ 4/4  seed"

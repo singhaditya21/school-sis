@@ -1,4 +1,4 @@
-import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext, sqlFor } from '@/lib/db';
 import type { QueryResult } from 'pg';
 import { getEmailProvider } from '@/lib/providers/email';
 import { getSmsProvider } from '@/lib/providers/sms';
@@ -404,7 +404,8 @@ export async function enqueueNotification(
     throw new Error('Notification body is required.');
   }
 
-  const scheduledFor = scheduledDate(input.scheduledFor);
+  const explicitScheduledFor = input.scheduledFor ? scheduledDate(input.scheduledFor) : null;
+  const scheduledFor = explicitScheduledFor ?? new Date();
   const provider = providerForChannel(input.channel);
   assertChannelCanDispatch(input.channel, provider);
 
@@ -419,7 +420,7 @@ export async function enqueueNotification(
             tenant_id, channel, status, provider, recipient, recipient_user_id, subject, body,
             template_id, payload, idempotency_key, scheduled_for, next_attempt_at, max_attempts, created_by
          )
-         VALUES ($1, $2, 'PENDING', $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $11, $12, $13)
+         VALUES ($1, $2, 'PENDING', $3, $4, $5, $6, $7, $8, $9::jsonb, $10, COALESCE($11::timestamptz, NOW()), COALESCE($11::timestamptz, NOW()), $12, $13)
          RETURNING id, status`,
         [
           input.tenantId,
@@ -432,7 +433,7 @@ export async function enqueueNotification(
           input.templateId || null,
           JSON.stringify(input.payload || {}),
           input.idempotencyKey || null,
-          scheduledFor,
+          explicitScheduledFor,
           input.maxAttempts ?? 3,
           input.createdBy || null,
         ],
@@ -481,48 +482,47 @@ export async function processNotification(notificationId: string, tenantId: stri
 
   return runWithTenantContext(tenantId, async () => {
     const client = await pool.connect();
+    const q = sqlFor(client);
     let row: NotificationRow | null = null;
     let attemptNumber = 0;
 
     try {
-      await client.query('BEGIN');
-      const { rows } = await client.query(
-        `SELECT id,
-                tenant_id AS "tenantId",
-                job_id AS "jobId",
-                channel,
-                status,
-                provider,
-                recipient,
-                recipient_user_id AS "recipientUserId",
-                subject,
-                body,
-                payload,
-                attempts,
-                max_attempts AS "maxAttempts"
-         FROM notification_outbox
-         WHERE tenant_id = $1 AND id = $2
-         FOR UPDATE`,
-        [tenantId, notificationId],
-      );
+      await q`BEGIN`;
+      const rows = await q<NotificationRow>`
+        SELECT id,
+               tenant_id AS "tenantId",
+               job_id AS "jobId",
+               channel,
+               status,
+               provider,
+               recipient,
+               recipient_user_id AS "recipientUserId",
+               subject,
+               body,
+               payload,
+               attempts,
+               max_attempts AS "maxAttempts"
+        FROM notification_outbox
+        WHERE tenant_id = ${tenantId} AND id = ${notificationId}
+        FOR UPDATE
+      `;
 
       row = rows[0] || null;
       if (!row) {
-        await client.query('COMMIT');
+        await q`COMMIT`;
         return { success: false, provider: 'unknown', error: 'Notification not found' };
       }
       if (TERMINAL_STATUSES.has(row.status)) {
-        await client.query('COMMIT');
+        await q`COMMIT`;
         return { success: true, provider: row.provider, status: row.status, metadata: { skipped: true } };
       }
       if (row.attempts >= row.maxAttempts) {
-        await client.query(
-          `UPDATE notification_outbox
-           SET status = 'DEAD_LETTER', updated_at = NOW()
-           WHERE tenant_id = $1 AND id = $2`,
-          [tenantId, notificationId],
-        );
-        await client.query('COMMIT');
+        await q`
+          UPDATE notification_outbox
+          SET status = 'DEAD_LETTER', updated_at = NOW()
+          WHERE tenant_id = ${tenantId} AND id = ${notificationId}
+        `;
+        await q`COMMIT`;
         await recordSreIncident({
           tenantId,
           severity: 'ERROR',
@@ -542,16 +542,33 @@ export async function processNotification(notificationId: string, tenantId: stri
         return { success: false, provider: row.provider, status: 'DEAD_LETTER', error: 'Max attempts exhausted' };
       }
 
-      attemptNumber = row.attempts + 1;
-      await client.query(
-        `UPDATE notification_outbox
-         SET status = 'QUEUED', attempts = attempts + 1, updated_at = NOW()
-         WHERE tenant_id = $1 AND id = $2`,
-        [tenantId, notificationId],
-      );
-      await client.query('COMMIT');
+      const claimed = await q<{ attempts: number }>`
+        UPDATE notification_outbox
+        SET status = 'QUEUED',
+            attempts = attempts + 1,
+            next_attempt_at = NOW() + INTERVAL '5 minutes',
+            updated_at = NOW()
+        WHERE tenant_id = ${tenantId}
+          AND id = ${notificationId}
+          AND status IN ('PENDING', 'QUEUED', 'FAILED')
+          AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
+          AND attempts < max_attempts
+        RETURNING attempts
+      `;
+      if (!claimed[0]) {
+        await q`COMMIT`;
+        return {
+          success: true,
+          provider: row.provider,
+          status: row.status,
+          metadata: { skipped: true, leased: true },
+        };
+      }
+
+      attemptNumber = Number(claimed[0].attempts);
+      await q`COMMIT`;
     } catch (error) {
-      await client.query('ROLLBACK');
+      await q`ROLLBACK`;
       throw error;
     } finally {
       client.release();

@@ -13,13 +13,15 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Fee receipt PDF, generated in-process with jsPDF. No external renderer is
  * required; PDF_SERVICE_URL is honoured only as an override when a deployment
  * sets it, and a failure there falls back to native generation.
  *
- * The read is tenant-scoped inside loadReceiptForPdf, so a receipt belonging to
- * another school reads as "not found" rather than as a permission error.
+ * Tenant scoping and student-document authorization MUST run before any call to
+ * an external PDF service so unauthenticated/unauthorized IDs never reach it.
  */
 export async function GET(
     _request: Request,
@@ -29,26 +31,11 @@ export async function GET(
     const auth = await requireApiAuth();
     if (auth.ok === false) return auth.response;
 
+    if (!UUID_RE.test(id)) {
+        return NextResponse.json({ error: 'Invalid receipt ID' }, { status: 400 });
+    }
+
     try {
-        const session = await getSession();
-        const external = await fetchExternalPdf({
-            path: `/api/v1/fees/receipts/${id}/pdf`,
-            token: session.token ?? '',
-            tenantId: auth.context.tenantId,
-            label: 'Receipt PDF',
-        });
-
-        if (external) {
-            return new NextResponse(external, {
-                status: 200,
-                headers: {
-                    'Content-Type': 'application/pdf',
-                    'Content-Disposition': attachmentDisposition(`receipt-${id}.pdf`),
-                    'Cache-Control': 'private, no-store',
-                },
-            });
-        }
-
         let receipt = await loadReceiptForPdf(id, auth.context.tenantId);
 
         // Older links carried a *payment* id into this route; resolve those to
@@ -75,12 +62,32 @@ export async function GET(
             return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
         }
 
+        const filename = receiptPdfFilename(receipt);
+        const session = await getSession();
+        const external = await fetchExternalPdf({
+            path: `/api/v1/fees/receipts/${encodeURIComponent(receipt.id)}/pdf`,
+            token: session.token ?? '',
+            tenantId: auth.context.tenantId,
+            label: 'Receipt PDF',
+        });
+
+        if (external) {
+            return new NextResponse(external, {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/pdf',
+                    'Content-Disposition': attachmentDisposition(filename),
+                    'Cache-Control': 'private, no-store',
+                },
+            });
+        }
+
         const pdf = renderReceiptPdf(receipt);
         return new NextResponse(new Uint8Array(pdf), {
             status: 200,
             headers: {
                 'Content-Type': 'application/pdf',
-                'Content-Disposition': attachmentDisposition(receiptPdfFilename(receipt)),
+                'Content-Disposition': attachmentDisposition(filename),
                 'Content-Length': String(pdf.byteLength),
                 'Cache-Control': 'private, no-store',
             },

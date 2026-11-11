@@ -12,6 +12,10 @@ function scriptDirective(policy: string | null): string | undefined {
     return policy?.split('; ').find((directive) => directive.startsWith('script-src '));
 }
 
+function styleDirective(policy: string | null): string | undefined {
+    return policy?.split('; ').find((directive) => directive.startsWith('style-src '));
+}
+
 beforeEach(() => {
     process.env = { ...ORIGINAL_ENV, NODE_ENV: 'production' };
     delete process.env.CSP_ENFORCE;
@@ -34,6 +38,9 @@ describe('proxy Content Security Policy response', () => {
         expect(firstPolicy).toBeTruthy();
         expect(firstScriptDirective).not.toContain("'unsafe-inline'");
         expect(firstScriptDirective).not.toContain("'unsafe-eval'");
+        expect(styleDirective(firstPolicy)).toContain(`'nonce-${firstNonce}'`);
+        expect(styleDirective(firstPolicy)).not.toContain("'unsafe-inline'");
+        expect(firstPolicy).toContain("style-src-attr 'unsafe-inline'");
         expect(firstPolicy).toContain(`report-uri ${CSP_REPORT_ENDPOINT}`);
         expect(first.headers.get(CONTENT_SECURITY_POLICY_REPORT_ONLY_HEADER)).toBeNull();
         expect(firstNonce).toBeTruthy();

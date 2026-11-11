@@ -17,6 +17,12 @@
 
 import { pool, runWithTenantContext, sql, sqlFor, identifier } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { isTenantStaffRole } from '@/lib/auth/page-access';
+import { consumeRateLimit } from '@/lib/auth/rate-limit';
+import { hasPermission, type UserRole } from '@/lib/rbac/permissions';
+import { sendWebhookRequest } from '@/lib/integrations/webhook-security';
+import { ingestInboundWebhookLead as ingestInboundWebhookLeadInternal } from '@/lib/metadata/inbound-webhook';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { unstable_cache, revalidateTag } from 'next/cache';
 import { hash } from 'bcryptjs';
@@ -266,7 +272,38 @@ export async function getObjectMetadata(apiName: string): Promise<{
     };
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+async function consumeGuestPortalRateLimit(
+    scope: string,
+    tenantId: string,
+    maxAttempts: number,
+): Promise<string | null> {
+    let clientIp = 'unknown';
+    try {
+        const hdrs = await headers();
+        clientIp =
+            (
+                hdrs.get('x-vercel-forwarded-for') ||
+                hdrs.get('x-forwarded-for') ||
+                hdrs.get('x-real-ip') ||
+                'unknown'
+            )
+                .split(',')[0]
+                .trim()
+                .toLowerCase() || 'unknown';
+    } catch {
+        // Non-request invocation (e.g. unit test without request context)
+    }
+
+    return consumeRateLimit(`${tenantId}:${clientIp}`, {
+        scope,
+        maxAttempts,
+        degradedMaxAttempts: Math.min(maxAttempts, 5),
+        endpointClass: 'public-write',
+        message: 'Too many portal requests. Please wait a few minutes and try again.',
+    });
+}
 
 function clampPageSize(value: unknown, fallback: number, max: number): number {
     const parsed = Number(value);
@@ -1291,7 +1328,13 @@ export async function createCustomField(
  * Fetches object and fields by its UUID
  */
 export async function getObjectMetadataById(objectId: string) {
-    const { tenantId } = await requireAuth();
+    const { tenantId, session } = await requireAuth();
+    if (!isTenantStaffRole(session.role)) {
+        throw new Error('Forbidden: metadata object inspection requires staff access.');
+    }
+    if (!UUID_RE.test(objectId)) {
+        throw new Error('Invalid object ID.');
+    }
 
     type RawObjectRow = {
         id: string;
@@ -1371,23 +1414,33 @@ export async function getObjectMetadataById(objectId: string) {
         WHERE object_id = ${objectDef.id} AND is_default = true
     `;
 
+    const mappedFields: MetadataField[] = fieldRows.map(row => ({
+        id: row.id,
+        objectId: row.object_id,
+        label: row.label,
+        apiName: row.api_name,
+        dataType: row.data_type,
+        isCustom: row.is_custom,
+        isRequired: row.is_required,
+        defaultValue: row.default_value,
+        picklistOptions: row.picklist_options,
+        validationRules: row.validation_rules || {},
+        status: row.status,
+        version: row.version || 1,
+        permissions: Array.isArray(row.permissions) ? row.permissions : [],
+    } as MetadataField));
+
+    const canManageSchema = hasPermission(session.role as UserRole, 'metadata:publish');
+    const visibleFields = canManageSchema
+        ? mappedFields
+        : (filterReadableMetadataFields(
+              mappedFields as RuntimeMetadataFieldWithPermissions[],
+              session.role,
+          ) as unknown as MetadataField[]).map(field => toClientField(field));
+
     return {
         objectDef,
-        fields: fieldRows.map(row => ({
-            id: row.id,
-            objectId: row.object_id,
-            label: row.label,
-            apiName: row.api_name,
-            dataType: row.data_type,
-            isCustom: row.is_custom,
-            isRequired: row.is_required,
-            defaultValue: row.default_value,
-            picklistOptions: row.picklist_options,
-            validationRules: row.validation_rules || {},
-            status: row.status,
-            version: row.version || 1,
-            permissions: Array.isArray(row.permissions) ? row.permissions : [],
-        } as MetadataField)),
+        fields: visibleFields,
         layouts: layoutRows as MetadataLayout[],
     };
 }
@@ -1677,10 +1730,53 @@ export async function updateFieldPermissions(
     objectId: string,
     fieldApiName: string,
     grants: { role: string; canRead: boolean; canWrite: boolean }[],
-): Promise<{ success: boolean; objectId?: string; error?: string }> {
+    approvalOptions: { approvalRequestId?: string; reason?: string } = {},
+): Promise<{
+    success: boolean;
+    objectId?: string;
+    approvalRequired?: boolean;
+    approvalId?: string;
+    error?: string;
+}> {
     try {
-        const { tenantId, userId } = await requireAuth('metadata:publish');
+        const { tenantId, userId, session } = await requireAuth('metadata:publish');
         assertSafeMetadataIdentifier(fieldApiName, 'field API name');
+
+        const approval = await requireApprovedWorkflowApprovalOrRequest({
+            approvalRequestId: approvalOptions.approvalRequestId,
+            policyId: 'metadata.publish',
+            tenantId,
+            title: `Approve FLS permissions for ${fieldApiName}`,
+            description: 'Updating field-level security grants changes runtime data visibility and write access.',
+            resource: {
+                type: 'metadata_object',
+                id: objectId,
+                tenantId,
+                label: fieldApiName,
+            },
+            payload: {
+                operation: 'UPDATE_FIELD_PERMISSIONS',
+                objectId,
+                fieldApiName,
+                grants,
+                reason: approvalOptions.reason,
+            },
+            reason: approvalOptions.reason,
+            requestedBy: {
+                userId,
+                role: session.role as AuthorizationRole,
+                tenantId,
+            },
+        });
+
+        if (!approval.approved) {
+            return {
+                success: false,
+                approvalRequired: true,
+                approvalId: approval.request.id,
+                error: 'This field permission change requires governance approval before publishing.',
+            };
+        }
 
         const client = await pool.connect();
         const q = sqlFor(client);
@@ -1820,8 +1916,17 @@ export async function deleteRecord(
         if (!UUID_RE.test(recordId)) {
             return { success: false, error: 'Invalid record ID.' };
         }
-        const { tenantId, session } = await requireAuth();
+        const { tenantId, userId, session } = await requireAuth();
+        if (!isTenantStaffRole(session.role)) {
+            return { success: false, error: 'Forbidden: staff access is required to delete records.' };
+        }
         const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
+        if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
+            return {
+                success: false,
+                error: 'Standard system records cannot be hard-deleted from the generic metadata engine; use the domain module lifecycle workflow.',
+            };
+        }
 
         const writableFields = fields.filter(f =>
             canWriteMetadataField(
@@ -1836,37 +1941,29 @@ export async function deleteRecord(
         const matchedRows = await queryRecords(apiName, { id: recordId }, 1, 0);
         const priorRecord = matchedRows[0] || { id: recordId };
 
-        if (resolveMetadataStorageMode(objectDef) === 'EAV') {
-            await sql`
-                DELETE FROM metadata_values
-                WHERE record_id = ${recordId}
-                  AND record_id IN (
-                      SELECT id FROM metadata_records
-                      WHERE id = ${recordId}
-                        AND object_id = ${objectDef.id}
-                        AND tenant_id = ${tenantId}
-                  )
-            `.execute();
-
-            await sql`
-                DELETE FROM metadata_records
-                WHERE id = ${recordId}
-                  AND object_id = ${objectDef.id}
-                  AND tenant_id = ${tenantId}
-            `.execute();
-        } else {
-            const tableIdent = identifier(objectDef.tableName);
-            await sql`
-                DELETE FROM ${tableIdent}
-                WHERE id = ${recordId}
-                  AND tenant_id = ${tenantId}
-            `.execute();
-        }
+        await sql`
+            DELETE FROM metadata_values
+            WHERE record_id = ${recordId}
+              AND record_id IN (
+                  SELECT id FROM metadata_records
+                  WHERE id = ${recordId}
+                    AND object_id = ${objectDef.id}
+                    AND tenant_id = ${tenantId}
+              )
+        `.execute();
 
         await sql`
-            INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, before_state)
+            DELETE FROM metadata_records
+            WHERE id = ${recordId}
+              AND object_id = ${objectDef.id}
+              AND tenant_id = ${tenantId}
+        `.execute();
+
+        await sql`
+            INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, before_state)
             VALUES (
                 ${tenantId},
+                ${userId},
                 'DELETE',
                 ${apiName},
                 ${recordId},
@@ -2066,9 +2163,30 @@ export interface WorkflowExecutionResult {
 
 /**
  * Executes a single workflow action (`UPDATE_FIELD`, `CREATE_TASK`, `SEND_EMAIL`, `WEBHOOK`)
- * and logs the execution result to `audit_logs`.
+ * for an authenticated administrator (`settings:write`), binding execution strictly to the
+ * caller's session `tenantId` rather than any client-supplied `tenantId`.
  */
 export async function runSingleWorkflowAction(params: {
+    tenantId?: string;
+    workflowId: string;
+    workflowName: string;
+    objectName: string;
+    triggerEvent: string;
+    actionType: string;
+    actionPayload: Record<string, unknown>;
+    recordId: string;
+    recordData: Record<string, unknown>;
+}): Promise<WorkflowExecutionResult> {
+    const { tenantId } = await requireAuth('settings:write');
+    return runWithTenantContext(tenantId, () =>
+        executeSingleWorkflowActionInternal({
+            ...params,
+            tenantId,
+        }),
+    );
+}
+
+async function executeSingleWorkflowActionInternal(params: {
     tenantId: string;
     workflowId: string;
     workflowName: string;
@@ -2301,10 +2419,12 @@ export async function runSingleWorkflowAction(params: {
         const rawMethod = String(actionPayload.method || 'POST').trim().toUpperCase();
         const method = rawMethod === 'PUT' ? 'PUT' : 'POST';
         const isSafeUrl = isSafeWebhookDestinationUrl(targetUrl);
+        const rawActionSecret = String(actionPayload.secret || '').trim();
+        const envSigningSecret = String(process.env.WEBHOOK_SIGNING_SECRET || '').trim();
         const signingSecret =
-            String(actionPayload.secret || '').trim() ||
-            process.env.WEBHOOK_SIGNING_SECRET ||
-            'scholarmind-workflow-hmac';
+            rawActionSecret && rawActionSecret !== '[REDACTED]'
+                ? rawActionSecret
+                : envSigningSecret;
 
         const eventBody = {
             event: triggerEvent,
@@ -2317,12 +2437,16 @@ export async function runSingleWorkflowAction(params: {
             timestamp: new Date().toISOString(),
         };
         const serializedBody = JSON.stringify(eventBody);
-        const signature = `sha256=${crypto
-            .createHmac('sha256', signingSecret)
-            .update(serializedBody)
-            .digest('hex')}`;
+        const signature =
+            signingSecret.length >= 16
+                ? `sha256=${crypto
+                      .createHmac('sha256', signingSecret)
+                      .update(serializedBody)
+                      .digest('hex')}`
+                : null;
+        const canDeliver = isSafeUrl && signature !== null;
 
-        const jobRows = isSafeUrl
+        const jobRows = canDeliver
             ? await sql<{ id: string }>`
                   INSERT INTO background_jobs (
                       tenant_id, scope, queue, task_name, status, priority, payload,
@@ -2340,7 +2464,6 @@ export async function runSingleWorkflowAction(params: {
                           workflowId,
                           url: targetUrl,
                           method,
-                          signature,
                           body: eventBody,
                       })}::jsonb,
                       NOW(),
@@ -2353,22 +2476,23 @@ export async function runSingleWorkflowAction(params: {
 
         let httpStatus: number | null = null;
         if (
-            isSafeUrl &&
+            canDeliver &&
+            signature &&
             !targetUrl.includes('example.org') &&
             process.env.NODE_ENV !== 'test'
         ) {
             try {
-                const res = await fetch(targetUrl, {
-                    method,
-                    redirect: 'error',
-                    headers: {
+                const res = await sendWebhookRequest(
+                    targetUrl,
+                    serializedBody,
+                    {
                         'Content-Type': 'application/json',
                         'X-ScholarMind-Signature': signature,
                         'X-ScholarMind-Event': triggerEvent,
                     },
-                    body: serializedBody,
-                    signal: AbortSignal.timeout(3000),
-                });
+                    3000,
+                    method,
+                );
                 httpStatus = res.status;
             } catch {
                 // Background worker job handles retries if immediate delivery fails
@@ -2381,7 +2505,8 @@ export async function runSingleWorkflowAction(params: {
             url: targetUrl,
             method,
             ssrfBlocked: !isSafeUrl,
-            signature,
+            missingSigningSecret: signature === null,
+            signed: signature !== null,
             httpStatus,
         };
     } else if (normalizedAction === 'CREATE_RECORD') {
@@ -2533,7 +2658,7 @@ async function executeMatchingWorkflows(
                 ? wf.action_payload
                 : {}) as Record<string, unknown>;
 
-            await runSingleWorkflowAction({
+            await executeSingleWorkflowActionInternal({
                 tenantId,
                 workflowId: wf.id,
                 workflowName: wf.name,
@@ -2572,7 +2697,18 @@ export async function getRecordAuditTimeline(
 ): Promise<RecordAuditTimelineEntry[]> {
     try {
         if (!UUID_RE.test(recordId)) return [];
-        const { tenantId } = await requireAuth();
+        const { tenantId, session } = await requireAuth();
+        if (!isTenantStaffRole(session.role)) {
+            return [];
+        }
+        const { fields } = await loadObjectMetadata(apiName, tenantId);
+        const readableFieldSet = new Set(
+            (filterReadableMetadataFields(
+                fields as RuntimeMetadataFieldWithPermissions[],
+                session.role,
+            ) as unknown as MetadataField[]).map(f => f.apiName),
+        );
+        const allFieldSet = new Set(fields.map(f => f.apiName));
 
         const rows = await sql<{
             id: string;
@@ -2591,9 +2727,15 @@ export async function getRecordAuditTimeline(
         `;
 
         return rows.map(row => {
-            const after = (row.after_state && typeof row.after_state === 'object'
+            const rawAfter = (row.after_state && typeof row.after_state === 'object'
                 ? row.after_state
                 : {}) as Record<string, unknown>;
+            const after: Record<string, unknown> = {};
+            for (const [key, val] of Object.entries(rawAfter)) {
+                if (key === 'signature') continue;
+                if (allFieldSet.has(key) && !readableFieldSet.has(key)) continue;
+                after[key] = val;
+            }
             const eventAction = String(after.auditEvent || row.action);
             let summary = eventAction.replace(/_/g, ' ');
             if (eventAction === 'WORKFLOW_EXECUTED') {
@@ -2757,14 +2899,17 @@ export async function decideRecordApproval(
  */
 export async function installEducationBlueprint(
     packId: EducationBlueprintId,
+    approvalOptions: { approvalRequestId?: string; reason?: string } = {},
 ): Promise<{
     success: boolean;
     installedObjects: string[];
     installedWorkflows: number;
+    approvalRequired?: boolean;
+    approvalId?: string;
     error?: string;
 }> {
     try {
-        const { tenantId, userId } = await requireAuth('metadata:publish');
+        const { tenantId, userId, session } = await requireAuth('metadata:publish');
         const pack = getEducationBlueprintById(packId);
         if (!pack) {
             return {
@@ -2772,6 +2917,42 @@ export async function installEducationBlueprint(
                 installedObjects: [],
                 installedWorkflows: 0,
                 error: `Unknown Education Cloud blueprint: ${packId}`,
+            };
+        }
+
+        const approval = await requireApprovedWorkflowApprovalOrRequest({
+            approvalRequestId: approvalOptions.approvalRequestId,
+            policyId: 'metadata.publish',
+            tenantId,
+            title: `Approve blueprint installation: ${pack.title}`,
+            description: 'Installing an institution blueprint provisions objects, fields, layouts, and workflows.',
+            resource: {
+                type: 'metadata_object',
+                id: packId,
+                tenantId,
+                label: pack.title,
+            },
+            payload: {
+                operation: 'INSTALL_EDUCATION_BLUEPRINT',
+                packId,
+                reason: approvalOptions.reason,
+            },
+            reason: approvalOptions.reason,
+            requestedBy: {
+                userId,
+                role: session.role as AuthorizationRole,
+                tenantId,
+            },
+        });
+
+        if (!approval.approved) {
+            return {
+                success: false,
+                installedObjects: [],
+                installedWorkflows: 0,
+                approvalRequired: true,
+                approvalId: approval.request.id,
+                error: 'Blueprint installation requires governance approval before publishing.',
             };
         }
 
@@ -3419,78 +3600,89 @@ export async function getPublicPortalIntakeSchema(
         if (!UUID_RE.test(tenantId)) return null;
         assertSafeMetadataIdentifier(objectApiName, 'object API name');
 
-        const { objectDef, fields, layouts } = await loadObjectMetadata(objectApiName, tenantId);
-        const formLayout = layouts.find(l => l.layoutType === 'FORM');
-        const rawSchema = (formLayout?.schema || {}) as Record<string, unknown>;
-        const rawPortal = (rawSchema.portalConfig || {}) as Partial<ExperiencePortalConfig>;
+        const throttled = await consumeGuestPortalRateLimit('portal-schema', tenantId, 60);
+        if (throttled) return null;
 
-        if (!rawPortal.enabled) {
-            return null;
-        }
+        return await runWithTenantContext(tenantId, async () => {
+            const { objectDef, fields, layouts } = await loadObjectMetadata(objectApiName, tenantId);
+            const formLayout = layouts.find(l => l.layoutType === 'FORM');
+            const rawSchema = (formLayout?.schema || {}) as Record<string, unknown>;
+            const rawPortal = (rawSchema.portalConfig || {}) as Partial<ExperiencePortalConfig>;
 
-        const writableFields = fields.filter(
-            f => !isVirtualMetadataField(f) && f.validationRules?.fieldSubType !== 'AUTO_NUMBER',
-        );
-        const exposedSet = new Set(
-            Array.isArray(rawPortal.exposedFields) && rawPortal.exposedFields.length > 0
-                ? rawPortal.exposedFields
-                : writableFields.map(f => f.apiName),
-        );
-        const publicFields = writableFields.filter(f => exposedSet.has(f.apiName));
+            if (!rawPortal.enabled) {
+                return null;
+            }
 
-        const stageCandidate =
-            fields.find(
-                f =>
-                    f.apiName === rawPortal.defaultStageField &&
-                    f.dataType === 'PICKLIST' &&
-                    Array.isArray(f.picklistOptions) &&
-                    f.picklistOptions.length > 0,
-            ) ||
-            fields.find(
-                f =>
-                    f.dataType === 'PICKLIST' &&
-                    Array.isArray(f.picklistOptions) &&
-                    f.picklistOptions.length > 0,
+            if (!Array.isArray(rawPortal.exposedFields) || rawPortal.exposedFields.length === 0) {
+                return null;
+            }
+
+            const writableFields = fields.filter(
+                f => !isVirtualMetadataField(f) && f.validationRules?.fieldSubType !== 'AUTO_NUMBER',
             );
+            const exposedSet = new Set(rawPortal.exposedFields);
+            const publicFields = writableFields
+                .filter(f => exposedSet.has(f.apiName))
+                .map(f => toClientField(f));
 
-        return {
-            enabled: true,
-            objectName: objectDef.name,
-            objectApiName: objectDef.apiName,
-            portalConfig: {
+            if (publicFields.length === 0) {
+                return null;
+            }
+
+            const stageCandidate =
+                fields.find(
+                    f =>
+                        f.apiName === rawPortal.defaultStageField &&
+                        f.dataType === 'PICKLIST' &&
+                        Array.isArray(f.picklistOptions) &&
+                        f.picklistOptions.length > 0,
+                ) ||
+                fields.find(
+                    f =>
+                        f.dataType === 'PICKLIST' &&
+                        Array.isArray(f.picklistOptions) &&
+                        f.picklistOptions.length > 0,
+                );
+
+            return {
                 enabled: true,
-                portalTitle: rawPortal.portalTitle || `${objectDef.name} Intake Portal`,
-                portalDescription:
-                    rawPortal.portalDescription ||
-                    `Submit your ${objectDef.name.toLowerCase()} details below.`,
-                exposedFields: publicFields.map(f => f.apiName),
-                defaultStageField: rawPortal.defaultStageField,
-                defaultStageValue: rawPortal.defaultStageValue,
-                successMessage:
-                    rawPortal.successMessage ||
-                    'Your submission has been received! Keep your tracking reference below to check your live application status.',
-                enableStatusTracker: rawPortal.enableStatusTracker ?? true,
-                enableSlotBooking: Boolean(rawPortal.enableSlotBooking),
-                slotBookingLabel:
-                    rawPortal.slotBookingLabel || 'Book Counseling / Campus Tour Slot',
-                availableTimeSlots:
-                    Array.isArray(rawPortal.availableTimeSlots) &&
-                    rawPortal.availableTimeSlots.length > 0
-                        ? rawPortal.availableTimeSlots
-                        : ['10:00', '11:30', '14:00', '16:00'],
-                applicationFeeAmount: Math.max(0, Number(rawPortal.applicationFeeAmount || 0) || 0),
-                applicationFeeLabel:
-                    rawPortal.applicationFeeLabel || 'Application & Prospectus Fee',
-            },
-            fields: publicFields,
-            stageField: stageCandidate
-                ? {
-                      apiName: stageCandidate.apiName,
-                      label: stageCandidate.label,
-                      options: stageCandidate.picklistOptions || [],
-                  }
-                : null,
-        };
+                objectName: objectDef.name,
+                objectApiName: objectDef.apiName,
+                portalConfig: {
+                    enabled: true,
+                    portalTitle: rawPortal.portalTitle || `${objectDef.name} Intake Portal`,
+                    portalDescription:
+                        rawPortal.portalDescription ||
+                        `Submit your ${objectDef.name.toLowerCase()} details below.`,
+                    exposedFields: publicFields.map(f => f.apiName),
+                    defaultStageField: rawPortal.defaultStageField,
+                    defaultStageValue: rawPortal.defaultStageValue,
+                    successMessage:
+                        rawPortal.successMessage ||
+                        'Your submission has been received! Keep your tracking reference below to check your live application status.',
+                    enableStatusTracker: rawPortal.enableStatusTracker ?? true,
+                    enableSlotBooking: Boolean(rawPortal.enableSlotBooking),
+                    slotBookingLabel:
+                        rawPortal.slotBookingLabel || 'Book Counseling / Campus Tour Slot',
+                    availableTimeSlots:
+                        Array.isArray(rawPortal.availableTimeSlots) &&
+                        rawPortal.availableTimeSlots.length > 0
+                            ? rawPortal.availableTimeSlots
+                            : ['10:00', '11:30', '14:00', '16:00'],
+                    applicationFeeAmount: Math.max(0, Number(rawPortal.applicationFeeAmount || 0) || 0),
+                    applicationFeeLabel:
+                        rawPortal.applicationFeeLabel || 'Application & Prospectus Fee',
+                },
+                fields: publicFields,
+                stageField: stageCandidate
+                    ? {
+                          apiName: stageCandidate.apiName,
+                          label: stageCandidate.label,
+                          options: stageCandidate.picklistOptions || [],
+                      }
+                    : null,
+            };
+        });
     } catch {
         return null;
     }
@@ -3511,6 +3703,7 @@ export async function submitPublicPortalIntakeRecord(
     bookingOptions?: {
         slotDate?: string;
         slotTime?: string;
+        paymentOrderId?: string;
         feePaymentConfirmed?: boolean;
     },
 ): Promise<{
@@ -3522,6 +3715,14 @@ export async function submitPublicPortalIntakeRecord(
     error?: string;
 }> {
     try {
+        if (!UUID_RE.test(tenantId)) {
+            return { success: false, error: 'Invalid portal tenant identifier.' };
+        }
+        const throttled = await consumeGuestPortalRateLimit('portal-submit', tenantId, 15);
+        if (throttled) {
+            return { success: false, error: throttled };
+        }
+
         const portalSchema = await getPublicPortalIntakeSchema(tenantId, objectApiName);
         if (!portalSchema || !portalSchema.enabled) {
             return {
@@ -3530,169 +3731,210 @@ export async function submitPublicPortalIntakeRecord(
             };
         }
 
-        const { objectDef, fields } = await loadObjectMetadata(objectApiName, tenantId);
-        if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
-            return {
-                success: false,
-                error: 'Web-to-Object public intake is supported on custom EAV objects.',
-            };
-        }
+        return await runWithTenantContext(tenantId, async () => {
+            const { objectDef, fields } = await loadObjectMetadata(objectApiName, tenantId);
+            if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
+                return {
+                    success: false,
+                    error: 'Web-to-Object public intake is supported on custom EAV objects.',
+                };
+            }
 
-        const persistedFields = fields.filter(f => !isVirtualMetadataField(f));
-        const exposedSet = new Set(portalSchema.portalConfig.exposedFields);
+            const persistedFields = fields.filter(f => !isVirtualMetadataField(f));
+            const exposedSet = new Set(portalSchema.portalConfig.exposedFields);
 
-        const filteredPayload: Record<string, unknown> = {};
-        for (const [k, v] of Object.entries(rawSubmission)) {
-            if (exposedSet.has(k)) {
-                if (typeof v === 'string' && v.length > 4000) {
+            const filteredPayload: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(rawSubmission)) {
+                if (exposedSet.has(k)) {
+                    if (typeof v === 'string' && v.length > 4000) {
+                        return {
+                            success: false,
+                            error: `Field "${k}" exceeds the 4,000 character guest portal limit.`,
+                        };
+                    }
+                    filteredPayload[k] = v;
+                }
+            }
+
+            // Apply default stage value if configured on the portal
+            const { defaultStageField, defaultStageValue } = portalSchema.portalConfig;
+            if (defaultStageField && defaultStageValue && !filteredPayload[defaultStageField]) {
+                filteredPayload[defaultStageField] = defaultStageValue;
+            }
+
+            // Validate only exposed + default + auto-number fields
+            const fieldsToValidate = persistedFields.filter(
+                f =>
+                    exposedSet.has(f.apiName) ||
+                    f.apiName === defaultStageField ||
+                    f.validationRules?.fieldSubType === 'AUTO_NUMBER',
+            );
+
+            const validated = validateMetadataRecordPayload(fieldsToValidate, filteredPayload, {
+                requireAll: true,
+            });
+            if (validated.ok === false) {
+                return { success: false, error: validated.errors.join(' ') };
+            }
+
+            // Check blocking duplicate rules without echoing stored PII
+            const hasBlockingDuplicateRule = fieldsToValidate.some(
+                f => f.validationRules?.duplicateRuleBehavior === 'BLOCK',
+            );
+            if (hasBlockingDuplicateRule) {
+                const existingRecords = await queryEavRecords(
+                    objectDef,
+                    persistedFields,
+                    tenantId,
+                    null,
+                    250,
+                    0,
+                );
+                const dupCheck = detectMetadataDuplicates(
+                    fieldsToValidate,
+                    validated.data,
+                    existingRecords,
+                );
+                if (dupCheck.blocked && dupCheck.matches.length > 0) {
+                    const firstBlock =
+                        dupCheck.matches.find(m => m.behavior === 'BLOCK') ?? dupCheck.matches[0];
                     return {
                         success: false,
-                        error: `Field "${k}" exceeds the 4,000 character guest portal limit.`,
+                        error: `A submission with this ${firstBlock.fieldLabel} is already registered.`,
                     };
                 }
-                filteredPayload[k] = v;
             }
-        }
 
-        // Apply default stage value if configured on the portal
-        const { defaultStageField, defaultStageValue } = portalSchema.portalConfig;
-        if (defaultStageField && defaultStageValue && !filteredPayload[defaultStageField]) {
-            filteredPayload[defaultStageField] = defaultStageValue;
-        }
+            // Enforce server-verified INR payment order settlement when a portal fee is configured
+            const configuredFee = Math.max(
+                0,
+                Number(portalSchema.portalConfig.applicationFeeAmount || 0) || 0,
+            );
+            let verifiedPaymentOrderId: string | null = null;
+            if (configuredFee > 0) {
+                const candidateOrderId = String(bookingOptions?.paymentOrderId || '').trim();
+                if (!UUID_RE.test(candidateOrderId)) {
+                    return {
+                        success: false,
+                        error: 'A verified settled payment order ID is required before submitting this paid portal.',
+                    };
+                }
+                const expectedAmountMinor = Math.round(configuredFee * 100);
+                const claimedOrders = await sql<{ id: string }>`
+                    UPDATE payment_orders
+                    SET metadata = COALESCE(metadata, '{}'::jsonb) || ${JSON.stringify({
+                        portalRedeemedAt: new Date().toISOString(),
+                        portalObject: objectApiName,
+                    })}::jsonb,
+                        updated_at = NOW()
+                    WHERE id = ${candidateOrderId}
+                      AND tenant_id = ${tenantId}
+                      AND status = 'PAID'
+                      AND UPPER(currency) = 'INR'
+                      AND amount_minor = ${expectedAmountMinor}
+                      AND (metadata IS NULL OR (metadata->>'portalRedeemedAt') IS NULL)
+                    RETURNING id
+                `;
+                if (claimedOrders.length === 0) {
+                    return {
+                        success: false,
+                        error: 'Payment order could not be verified as settled INR payment for this portal fee, or has already been redeemed.',
+                    };
+                }
+                verifiedPaymentOrderId = claimedOrders[0].id;
+            }
 
-        // Validate only exposed + default + auto-number fields
-        const fieldsToValidate = persistedFields.filter(
-            f =>
-                exposedSet.has(f.apiName) ||
-                f.apiName === defaultStageField ||
-                f.validationRules?.fieldSubType === 'AUTO_NUMBER',
-        );
-
-        const validated = validateMetadataRecordPayload(fieldsToValidate, filteredPayload, {
-            requireAll: true,
-        });
-        if (validated.ok === false) {
-            return { success: false, error: validated.errors.join(' ') };
-        }
-
-        // Check blocking duplicate rules
-        const hasBlockingDuplicateRule = fieldsToValidate.some(
-            f => f.validationRules?.duplicateRuleBehavior === 'BLOCK',
-        );
-        if (hasBlockingDuplicateRule) {
-            const existingRecords = await queryEavRecords(
+            const recordId = await upsertEavRecord(
                 objectDef,
                 persistedFields,
                 tenantId,
-                null,
-                250,
-                0,
-            );
-            const dupCheck = detectMetadataDuplicates(
-                fieldsToValidate,
                 validated.data,
-                existingRecords,
             );
-            if (dupCheck.blocked && dupCheck.matches.length > 0) {
-                const firstBlock =
-                    dupCheck.matches.find(m => m.behavior === 'BLOCK') ?? dupCheck.matches[0];
-                return {
-                    success: false,
-                    error: `A submission with this ${firstBlock.fieldLabel} ("${firstBlock.matchedValue}") is already registered.`,
-                };
+
+            await executeMatchingWorkflows(
+                tenantId,
+                objectApiName,
+                'object.record.upserted',
+                validated.data,
+                recordId,
+            );
+
+            const autoNumField = persistedFields.find(
+                f => f.validationRules?.fieldSubType === 'AUTO_NUMBER',
+            );
+            const trackingReference =
+                autoNumField && validated.data[autoNumField.apiName]
+                    ? String(validated.data[autoNumField.apiName])
+                    : recordId.slice(0, 8).toUpperCase();
+
+            // Track G: Counselor / Campus Tour Slot Booking into `appointments`
+            let appointmentBooked: { id: string; date: string; time: string } | null = null;
+            if (
+                portalSchema.portalConfig.enableSlotBooking &&
+                bookingOptions?.slotDate &&
+                /^\d{4}-\d{2}-\d{2}$/.test(bookingOptions.slotDate)
+            ) {
+                const slotTime = String(bookingOptions.slotTime || '10:00').slice(0, 10);
+                const apptRows = await sql<{ id: string }>`
+                    INSERT INTO appointments (
+                        tenant_id, title, description, date, time, duration, status, type
+                    )
+                    VALUES (
+                        ${tenantId},
+                        ${`[Portal Booking] ${portalSchema.objectName} (${trackingReference})`},
+                        ${`Self-service portal booking for ${portalSchema.objectName} ref ${trackingReference}.`},
+                        ${bookingOptions.slotDate},
+                        ${slotTime},
+                        30,
+                        'SCHEDULED',
+                        'ADMISSION_COUNSELING'
+                    )
+                    RETURNING id
+                `;
+                if (apptRows[0]?.id) {
+                    appointmentBooked = {
+                        id: apptRows[0].id,
+                        date: bookingOptions.slotDate,
+                        time: slotTime,
+                    };
+                }
             }
-        }
 
-        const recordId = await upsertEavRecord(
-            objectDef,
-            persistedFields,
-            tenantId,
-            validated.data,
-        );
+            // Track G: Application / Registration Fee Receipt Generation (only after verified payment_orders claim)
+            let feeReceiptNumber: string | null = null;
+            if (configuredFee > 0 && verifiedPaymentOrderId) {
+                const year = new Date().getUTCFullYear();
+                feeReceiptNumber = `RCPT-${year}-${recordId.slice(0, 6).toUpperCase()}`;
+            }
 
-        await executeMatchingWorkflows(
-            tenantId,
-            objectApiName,
-            'object.record.upserted',
-            validated.data,
-            recordId,
-        );
-
-        const autoNumField = persistedFields.find(
-            f => f.validationRules?.fieldSubType === 'AUTO_NUMBER',
-        );
-        const trackingReference =
-            autoNumField && validated.data[autoNumField.apiName]
-                ? String(validated.data[autoNumField.apiName])
-                : recordId.slice(0, 8).toUpperCase();
-
-        // Track G: Counselor / Campus Tour Slot Booking into `appointments`
-        let appointmentBooked: { id: string; date: string; time: string } | null = null;
-        if (
-            portalSchema.portalConfig.enableSlotBooking &&
-            bookingOptions?.slotDate &&
-            /^\d{4}-\d{2}-\d{2}$/.test(bookingOptions.slotDate)
-        ) {
-            const slotTime = String(bookingOptions.slotTime || '10:00').slice(0, 10);
-            const apptRows = await sql<{ id: string }>`
-                INSERT INTO appointments (
-                    tenant_id, title, description, date, time, duration, status, type
-                )
+            await sql`
+                INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)
                 VALUES (
                     ${tenantId},
-                    ${`[Portal Booking] ${portalSchema.objectName} (${trackingReference})`},
-                    ${`Self-service portal booking for ${portalSchema.objectName} ref ${trackingReference}.`},
-                    ${bookingOptions.slotDate},
-                    ${slotTime},
-                    30,
-                    'SCHEDULED',
-                    'ADMISSION_COUNSELING'
+                    'CREATE',
+                    ${objectApiName},
+                    ${recordId},
+                    ${JSON.stringify({
+                        auditEvent: 'EXPERIENCE_PORTAL_SUBMISSION',
+                        trackingReference,
+                        submittedFields: Object.keys(validated.data),
+                        appointmentBooked,
+                        feeReceiptNumber,
+                        paymentOrderId: verifiedPaymentOrderId,
+                        submittedAt: new Date().toISOString(),
+                    })}::jsonb
                 )
-                RETURNING id
-            `;
-            if (apptRows[0]?.id) {
-                appointmentBooked = {
-                    id: apptRows[0].id,
-                    date: bookingOptions.slotDate,
-                    time: slotTime,
-                };
-            }
-        }
+            `.execute();
 
-        // Track G: Application / Registration Fee Receipt Generation
-        let feeReceiptNumber: string | null = null;
-        const configuredFee = Number(portalSchema.portalConfig.applicationFeeAmount || 0);
-        if (configuredFee > 0 && bookingOptions?.feePaymentConfirmed) {
-            const year = new Date().getUTCFullYear();
-            feeReceiptNumber = `RCPT-${year}-${recordId.slice(0, 6).toUpperCase()}`;
-        }
-
-        await sql`
-            INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)
-            VALUES (
-                ${tenantId},
-                'CREATE',
-                ${objectApiName},
-                ${recordId},
-                ${JSON.stringify({
-                    auditEvent: 'EXPERIENCE_PORTAL_SUBMISSION',
-                    trackingReference,
-                    submittedFields: Object.keys(validated.data),
-                    appointmentBooked,
-                    feeReceiptNumber,
-                    submittedAt: new Date().toISOString(),
-                })}::jsonb
-            )
-        `.execute();
-
-        revalidateTag('metadata', 'max');
-        return {
-            success: true,
-            recordId,
-            trackingReference,
-            appointmentBooked,
-            feeReceiptNumber,
-        };
+            revalidateTag('metadata', 'max');
+            return {
+                success: true,
+                recordId,
+                trackingReference,
+                appointmentBooked,
+                feeReceiptNumber,
+            };
+        });
     } catch (error) {
         return {
             success: false,
@@ -3722,6 +3964,14 @@ export async function lookupPublicPortalRecordStatus(
     error?: string;
 }> {
     try {
+        if (!UUID_RE.test(tenantId)) {
+            return { found: false, error: 'Invalid portal tenant identifier.' };
+        }
+        const throttled = await consumeGuestPortalRateLimit('portal-status', tenantId, 20);
+        if (throttled) {
+            return { found: false, error: throttled };
+        }
+
         const portalSchema = await getPublicPortalIntakeSchema(tenantId, objectApiName);
         if (!portalSchema || !portalSchema.enabled || !portalSchema.portalConfig.enableStatusTracker) {
             return { found: false, error: 'Application status tracking is not enabled for this portal.' };
@@ -3736,71 +3986,78 @@ export async function lookupPublicPortalRecordStatus(
             };
         }
 
-        const { objectDef, fields } = await loadObjectMetadata(objectApiName, tenantId);
-        const records = await queryEavRecords(objectDef, fields, tenantId, null, 200, 0);
+        return await runWithTenantContext(tenantId, async () => {
+            const { objectDef, fields } = await loadObjectMetadata(objectApiName, tenantId);
+            const contactFieldNames = new Set(
+                fields
+                    .filter(
+                        f =>
+                            f.validationRules?.fieldSubType === 'EMAIL' ||
+                            f.validationRules?.fieldSubType === 'PHONE' ||
+                            /email|phone|mobile|contact/i.test(f.apiName),
+                    )
+                    .map(f => f.apiName),
+            );
+            if (contactFieldNames.size === 0) {
+                return {
+                    found: false,
+                    error: 'Application status verification is unavailable because no email or phone field is configured on this object.',
+                };
+            }
 
-        const autoNumField = fields.find(f => f.validationRules?.fieldSubType === 'AUTO_NUMBER');
-        const contactFieldNames = new Set(
-            fields
-                .filter(
-                    f =>
-                        f.validationRules?.fieldSubType === 'EMAIL' ||
-                        f.validationRules?.fieldSubType === 'PHONE' ||
-                        /email|phone|mobile|contact/i.test(f.apiName),
-                )
-                .map(f => f.apiName),
-        );
-        const verifierDigits = cleanVerifier.replace(/\D/g, '');
+            const records = await queryEavRecords(objectDef, fields, tenantId, null, 200, 0);
+            const autoNumField = fields.find(f => f.validationRules?.fieldSubType === 'AUTO_NUMBER');
+            const verifierDigits = cleanVerifier.replace(/\D/g, '');
+            const candidateKeys = [...contactFieldNames];
 
-        const matchedRow = records.find(row => {
-            const idStr = String(row.id || '').toLowerCase();
-            const autoVal = autoNumField
-                ? String(row[autoNumField.apiName] || '').trim().toLowerCase()
-                : '';
-            const refMatches =
-                idStr === cleanRef ||
-                (cleanRef.length >= 8 && idStr.startsWith(cleanRef)) ||
-                (autoVal.length > 0 && autoVal === cleanRef);
-            if (!refMatches) return false;
+            const matchedRow = records.find(row => {
+                const idStr = String(row.id || '').toLowerCase();
+                const autoVal = autoNumField
+                    ? String(row[autoNumField.apiName] || '').trim().toLowerCase()
+                    : '';
+                const refMatches =
+                    idStr === cleanRef ||
+                    (cleanRef.length >= 8 && idStr.startsWith(cleanRef)) ||
+                    (autoVal.length > 0 && autoVal === cleanRef);
+                if (!refMatches) return false;
 
-            // Strictly verify against designated contact fields (EMAIL / PHONE)
-            const candidateKeys =
-                contactFieldNames.size > 0 ? [...contactFieldNames] : Object.keys(row);
-            return candidateKeys.some(key => {
-                const val = row[key];
-                if (val === null || val === undefined) return false;
-                const strVal = String(val).trim().toLowerCase();
-                if (strVal === cleanVerifier) return true;
-                const valDigits = strVal.replace(/\D/g, '');
-                return verifierDigits.length >= 7 && valDigits === verifierDigits;
+                // Strictly verify against designated contact fields (EMAIL / PHONE)
+                return candidateKeys.some(key => {
+                    const val = row[key];
+                    if (val === null || val === undefined) return false;
+                    const strVal = String(val).trim().toLowerCase();
+                    if (strVal === cleanVerifier) return true;
+                    const valDigits = strVal.replace(/\D/g, '');
+                    return verifierDigits.length >= 7 && valDigits === verifierDigits;
+                });
             });
-        });
 
-        if (!matchedRow) {
+            if (!matchedRow) {
+                return {
+                    found: false,
+                    error: 'No matching submission found for that reference and contact detail.',
+                };
+            }
+
+            const stageField = portalSchema.stageField;
+            const currentStage = stageField
+                ? String(matchedRow[stageField.apiName] || 'SUBMITTED')
+                : 'SUBMITTED';
+            const displayRef =
+                autoNumField && matchedRow[autoNumField.apiName]
+                    ? String(matchedRow[autoNumField.apiName])
+                    : String(matchedRow.id || '').slice(0, 8).toUpperCase();
+
             return {
-                found: false,
-                error: 'No matching submission found for that reference and contact detail.',
+                found: true,
+                reference: displayRef,
+                currentStage,
+                stageLabel: stageField?.label || 'Application Status',
+                stageOptions: stageField?.options || ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED'],
+                submittedAt: matchedRow.created_at ? String(matchedRow.created_at) : undefined,
+                updatedAt: matchedRow.updated_at ? String(matchedRow.updated_at) : undefined,
             };
-        }
-
-        const stageField = portalSchema.stageField;
-        const currentStage = stageField
-            ? String(matchedRow[stageField.apiName] || 'SUBMITTED')
-            : 'SUBMITTED';
-        const displayRef =
-            autoNumField && matchedRow[autoNumField.apiName]
-                ? String(matchedRow[autoNumField.apiName])
-                : String(matchedRow.id || '').slice(0, 8).toUpperCase();
-
-        return {
-            found: true,
-            reference: displayRef,
-            currentStage,
-            stageLabel: stageField?.label || 'Application Status',
-            stageOptions: stageField?.options || ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED'],
-            submittedAt: matchedRow.created_at ? String(matchedRow.created_at) : undefined,
-            updatedAt: matchedRow.updated_at ? String(matchedRow.updated_at) : undefined,
-        };
+        });
     } catch (error) {
         return {
             found: false,
@@ -3978,15 +4235,18 @@ export async function exportTenantSchemaBundle(params: {
  */
 export async function importTenantSchemaBundle(
     rawBundle: unknown,
+    approvalOptions: { approvalRequestId?: string; reason?: string } = {},
 ): Promise<{
     success: boolean;
     importedObjects: string[];
     importedFields: number;
     importedWorkflows: number;
+    approvalRequired?: boolean;
+    approvalId?: string;
     error?: string;
 }> {
     try {
-        const { tenantId, userId } = await requireAuth('metadata:publish');
+        const { tenantId, userId, session } = await requireAuth('metadata:publish');
         const validated = validateScholarMindSchemaBundle(rawBundle);
         if (validated.ok === false) {
             return {
@@ -3999,6 +4259,45 @@ export async function importTenantSchemaBundle(
         }
 
         const { bundle } = validated;
+        const approval = await requireApprovedWorkflowApprovalOrRequest({
+            approvalRequestId: approvalOptions.approvalRequestId,
+            policyId: 'metadata.publish',
+            tenantId,
+            title: `Approve schema bundle import: ${bundle.bundleName}`,
+            description: 'Importing a schema bundle deploys custom objects, fields, layouts, and workflows.',
+            resource: {
+                type: 'metadata_object',
+                id: bundle.bundleName,
+                tenantId,
+                label: bundle.bundleName,
+            },
+            payload: {
+                operation: 'IMPORT_SCHEMA_BUNDLE',
+                bundleName: bundle.bundleName,
+                objectApiNames: bundle.objects.map(o => o.apiName),
+                workflowCount: bundle.workflows.length,
+                reason: approvalOptions.reason,
+            },
+            reason: approvalOptions.reason,
+            requestedBy: {
+                userId,
+                role: session.role as AuthorizationRole,
+                tenantId,
+            },
+        });
+
+        if (!approval.approved) {
+            return {
+                success: false,
+                importedObjects: [],
+                importedFields: 0,
+                importedWorkflows: 0,
+                approvalRequired: true,
+                approvalId: approval.request.id,
+                error: 'Schema bundle import requires governance approval before publishing.',
+            };
+        }
+
         const client = await pool.connect();
         const q = sqlFor(client);
         const importedObjects: string[] = [];
@@ -4083,6 +4382,19 @@ export async function importTenantSchemaBundle(
 
                 if (objSpec.layouts.length > 0) {
                     for (const layoutSpec of objSpec.layouts) {
+                        const rawLayoutSchema =
+                            layoutSpec.schema && typeof layoutSpec.schema === 'object'
+                                ? { ...layoutSpec.schema }
+                                : {};
+                        if (
+                            rawLayoutSchema.portalConfig &&
+                            typeof rawLayoutSchema.portalConfig === 'object'
+                        ) {
+                            rawLayoutSchema.portalConfig = {
+                                ...(rawLayoutSchema.portalConfig as Record<string, unknown>),
+                                enabled: false,
+                            };
+                        }
                         await q`
                             DELETE FROM metadata_layouts
                             WHERE object_id = ${objectId}
@@ -4093,7 +4405,7 @@ export async function importTenantSchemaBundle(
                             VALUES (
                                 ${objectId},
                                 ${layoutSpec.layoutType},
-                                ${JSON.stringify(layoutSpec.schema)}::jsonb,
+                                ${JSON.stringify(rawLayoutSchema)}::jsonb,
                                 true,
                                 NOW()
                             )
@@ -4114,6 +4426,13 @@ export async function importTenantSchemaBundle(
                     LIMIT 1
                 `;
                 if (existingWf.length === 0) {
+                    const sanitizedPayload: Record<string, unknown> = {};
+                    for (const [k, v] of Object.entries(wfSpec.actionPayload || {})) {
+                        if (v === '[REDACTED]') continue;
+                        sanitizedPayload[k] = v;
+                    }
+                    const isWebhookAction =
+                        String(wfSpec.actionType || '').trim().toUpperCase() === 'WEBHOOK';
                     await q`
                         INSERT INTO metadata_workflows (
                             tenant_id, name, object_name, trigger_event, conditions,
@@ -4126,8 +4445,8 @@ export async function importTenantSchemaBundle(
                             ${wfSpec.triggerEvent},
                             ${JSON.stringify(wfSpec.conditions)}::jsonb,
                             ${wfSpec.actionType},
-                            ${JSON.stringify(wfSpec.actionPayload)}::jsonb,
-                            true
+                            ${JSON.stringify(sanitizedPayload)}::jsonb,
+                            ${!isWebhookAction}
                         )
                     `.execute();
                     importedWorkflows++;
@@ -4403,11 +4722,14 @@ export async function generateRecordDocument(
 export async function generateAndDeploySchemaFromPrompt(
     prompt: string,
     deployImmediately = false,
+    approvalOptions: { approvalRequestId?: string; reason?: string } = {},
 ): Promise<{
     success: boolean;
     summary?: string;
     bundle?: ScholarMindSchemaBundle;
     deployedObjects?: string[];
+    approvalRequired?: boolean;
+    approvalId?: string;
     error?: string;
 }> {
     try {
@@ -4430,10 +4752,12 @@ export async function generateAndDeploySchemaFromPrompt(
             };
         }
 
-        const importRes = await importTenantSchemaBundle(bundle);
+        const importRes = await importTenantSchemaBundle(bundle, approvalOptions);
         if (!importRes.success) {
             return {
                 success: false,
+                approvalRequired: importRes.approvalRequired,
+                approvalId: importRes.approvalId,
                 error: importRes.error || 'Failed to deploy AI Copilot schema bundle.',
             };
         }
@@ -4473,138 +4797,10 @@ export async function generateAndDeploySchemaFromPrompt(
 // ============================================================================
 
 /**
- * Ingests an external JSON webhook payload (from Meta Lead Ads, Google Forms, Shiksha,
- * Collegedunia, or Zapier), maps keys via `mapInboundWebhookPayloadToRecord`, validates
- * and checks Duplicate Rules, inserts the EAV record, triggers active workflows, and
- * writes `INBOUND_WEBHOOK_INGESTED` to `audit_logs`.
- */
-export async function ingestInboundWebhookLead(params: {
-    tenantId: string;
-    objectApiName: string;
-    externalPayload: Record<string, unknown>;
-    fieldMappings?: Record<string, string>;
-    defaultValues?: Record<string, unknown>;
-    sourceName?: string;
-}): Promise<{
-    success: boolean;
-    recordId?: string;
-    mappedFields?: string[];
-    error?: string;
-}> {
-    try {
-        const {
-            tenantId,
-            objectApiName,
-            externalPayload,
-            fieldMappings = {},
-            defaultValues = {},
-            sourceName = 'EXTERNAL_WEBHOOK',
-        } = params;
-
-        if (!UUID_RE.test(tenantId)) {
-            return { success: false, error: 'Invalid tenant ID.' };
-        }
-        assertSafeMetadataIdentifier(objectApiName, 'target object API name');
-
-        const { objectDef, fields } = await loadObjectMetadata(objectApiName, tenantId);
-        if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
-            return {
-                success: false,
-                error: 'Inbound webhook ingestion targets custom EAV objects.',
-            };
-        }
-
-        const persistedFields = fields.filter(f => !isVirtualMetadataField(f));
-        const mappedCandidate = mapInboundWebhookPayloadToRecord(
-            externalPayload,
-            fieldMappings,
-            defaultValues,
-        );
-
-        const knownPayload = pickKnownMetadataFields(persistedFields, mappedCandidate);
-        const validated = validateMetadataRecordPayload(persistedFields, knownPayload, {
-            requireAll: false,
-        });
-        if (validated.ok === false) {
-            return { success: false, error: validated.errors.join(' ') };
-        }
-
-        // Check blocking duplicate rules
-        const hasBlockingDuplicateRule = persistedFields.some(
-            f => f.validationRules?.duplicateRuleBehavior === 'BLOCK',
-        );
-        if (hasBlockingDuplicateRule) {
-            const existingRecords = await queryEavRecords(
-                objectDef,
-                persistedFields,
-                tenantId,
-                null,
-                250,
-                0,
-            );
-            const dupCheck = detectMetadataDuplicates(
-                persistedFields,
-                validated.data,
-                existingRecords,
-            );
-            if (dupCheck.blocked && dupCheck.matches.length > 0) {
-                const firstBlock =
-                    dupCheck.matches.find(m => m.behavior === 'BLOCK') ?? dupCheck.matches[0];
-                return {
-                    success: false,
-                    error: `Duplicate blocked by ${firstBlock.fieldLabel}: "${firstBlock.matchedValue}" already exists.`,
-                };
-            }
-        }
-
-        const recordId = await upsertEavRecord(
-            objectDef,
-            persistedFields,
-            tenantId,
-            validated.data,
-        );
-
-        await executeMatchingWorkflows(
-            tenantId,
-            objectApiName,
-            'object.record.upserted',
-            validated.data,
-            recordId,
-        );
-
-        await sql`
-            INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)
-            VALUES (
-                ${tenantId},
-                'CREATE',
-                ${objectApiName},
-                ${recordId},
-                ${JSON.stringify({
-                    auditEvent: 'INBOUND_WEBHOOK_INGESTED',
-                    sourceName,
-                    mappedFields: Object.keys(validated.data),
-                    ingestedAt: new Date().toISOString(),
-                })}::jsonb
-            )
-        `.execute();
-
-        revalidateTag('metadata', 'max');
-        return {
-            success: true,
-            recordId,
-            mappedFields: Object.keys(validated.data),
-        };
-    } catch (error) {
-        return {
-            success: false,
-            error: error instanceof Error ? error.message : 'Failed to ingest inbound webhook.',
-        };
-    }
-}
-
-/**
  * Authenticated wrapper used by the `/settings/integrations` Inbound Lead Connector Studio
  * to test-fire and ingest an external lead payload into any custom object of the current tenant.
+ * Note: Unauthenticated external HTTP ingestion goes strictly through `POST /api/webhooks/inbound`
+ * -> `@/lib/metadata/inbound-webhook` (`ingestInboundWebhookLead`), NEVER via a `'use server'` export.
  */
 export async function simulateInboundWebhookForCurrentTenant(params: {
     objectApiName: string;
@@ -4613,7 +4809,7 @@ export async function simulateInboundWebhookForCurrentTenant(params: {
     sourceName?: string;
 }) {
     const { tenantId } = await requireAuth('settings:write');
-    return ingestInboundWebhookLead({
+    return ingestInboundWebhookLeadInternal({
         tenantId,
         objectApiName: params.objectApiName,
         externalPayload: params.externalPayload,

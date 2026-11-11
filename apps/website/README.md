@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ScholarMind Marketing & Pilot Assessment Site (`apps/website`)
 
-## Getting Started
+Public marketing, architecture overview, synthetic Experience Cloud admission preview, and pilot enquiry frontend for ScholarMind.
 
-First, run the development server:
+This Next.js application is deployed separately from the multi-tenant SaaS core (`apps/web`) so public content iterations remain isolated from tenant databases and authenticated school workflows.
+
+## Key Surfaces
+
+- `/` — Executive overview of multi-campus fee reconciliation, approval governance, and pilot engagement.
+- `/architecture` — Interactive monorepo and security boundary walkthrough.
+- `/pricing` — Design-partner pilot assessment and rollout structure.
+- `/solutions/ai-agents` — Bounded, human-reviewed decision-support evaluation principles.
+- `/apply-online` & `/apply-online/apply` — Read-only synthetic Experience Cloud admissions sandbox preview (collects zero student/parent PII).
+- `/book-demo` & `POST /api/leads` — Origin-validated, size-bounded enquiry proxy forwarding pilot requests to `apps/web` (`/api/leads`) with `x-lead-proxy-token` and `x-lead-client-ip`.
+
+## Environment Variables
+
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | Canonical HTTPS origin of the marketing site used for strict `Origin` validation on `/api/leads`. |
+| `NEXT_PUBLIC_APP_URL` | Base HTTPS URL of `apps/web` for the navbar `Sign In` link (falls back to `http://localhost:3000` in development and `/book-demo` if unset in production). |
+| `LEAD_CAPTURE_API_URL` | Upstream `apps/web` HTTPS base URL receiving proxied `/api/leads` submissions. |
+| `LEAD_CAPTURE_PROXY_SECRET` | Shared secret (32+ chars in production) sent in `x-lead-proxy-token` when forwarding verified visitor IP (`x-lead-client-ip`). |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Optional Cloudflare Turnstile site key rendered on `/book-demo`. |
+
+## Commands
+
+Run from the repository root:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm --filter website dev
+pnpm --filter website typecheck
+pnpm --filter website lint
+node scripts/check-website-claims.mjs
 ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

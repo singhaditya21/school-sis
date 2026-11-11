@@ -21,8 +21,10 @@ export async function getDiaryEntries(): Promise<DiaryEntryRow[]> {
         SELECT d.id, d.title, d.content, d.date, g.name AS class, sec.name AS section,
                sub.name AS subject, u.first_name||' '||u.last_name AS "teacherName", d.type
         FROM diary_entries d
-        LEFT JOIN grades g ON g.id = d.grade_id LEFT JOIN sections sec ON sec.id = d.section_id
-        LEFT JOIN subjects sub ON sub.id = d.subject_id LEFT JOIN users u ON u.id = d.teacher_id
+        LEFT JOIN grades g ON g.id = d.grade_id AND g.tenant_id = d.tenant_id
+        LEFT JOIN sections sec ON sec.id = d.section_id AND sec.tenant_id = d.tenant_id
+        LEFT JOIN subjects sub ON sub.id = d.subject_id AND sub.tenant_id = d.tenant_id
+        LEFT JOIN users u ON u.id = d.teacher_id AND u.tenant_id = d.tenant_id
         WHERE d.tenant_id = $1 ORDER BY d.date DESC LIMIT 50
     `, [tenantId]);
     return rows;

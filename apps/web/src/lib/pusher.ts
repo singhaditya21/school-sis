@@ -1,9 +1,38 @@
 import Pusher from 'pusher';
 
-export const pusher = new Pusher({
-  appId: process.env.PUSHER_APP_ID || '',
-  key: process.env.NEXT_PUBLIC_PUSHER_KEY || '',
-  secret: process.env.PUSHER_SECRET || '',
-  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'mt1',
-  useTLS: true,
-});
+let cachedPusher: Pusher | null = null;
+
+export function getPusher(): Pusher | null {
+  if (cachedPusher) return cachedPusher;
+
+  const appId = process.env.PUSHER_APP_ID?.trim() || '';
+  const key = process.env.NEXT_PUBLIC_PUSHER_KEY?.trim() || '';
+  const secret = process.env.PUSHER_SECRET?.trim() || '';
+  if (!appId || !key || !secret) {
+    return null;
+  }
+
+  cachedPusher = new Pusher({
+    appId,
+    key,
+    secret,
+    cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER?.trim() || 'mt1',
+    useTLS: true,
+  });
+  return cachedPusher;
+}
+
+export const pusher = {
+  async trigger(
+    channel: string | string[],
+    event: string,
+    data: unknown,
+    params?: Pusher.TriggerParams,
+  ): Promise<Pusher.Response | null> {
+    const client = getPusher();
+    if (!client) {
+      return null;
+    }
+    return client.trigger(channel, event, data, params);
+  },
+};

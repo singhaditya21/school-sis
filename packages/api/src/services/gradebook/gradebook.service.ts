@@ -44,8 +44,8 @@ export async function getGradebookData(classId?: string): Promise<{
             `SELECT s.id, s.first_name || ' ' || s.last_name AS name, s.roll_number AS "rollNo",
                     g.name AS class, sec.name AS section
              FROM students s 
-             LEFT JOIN sections sec ON sec.id = s.section_id 
-             LEFT JOIN grades g ON g.id = sec.grade_id
+             LEFT JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = s.tenant_id
+             LEFT JOIN grades g ON g.id = sec.grade_id AND g.tenant_id = s.tenant_id
              WHERE s.tenant_id = $1 AND g.tenant_id = $1 AND g.id = $2 AND s.status = 'ACTIVE'
              ORDER BY s.roll_number`,
             [tenantId, classId]

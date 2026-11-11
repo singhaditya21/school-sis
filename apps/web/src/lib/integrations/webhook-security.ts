@@ -239,10 +239,15 @@ export async function sendWebhookRequest(
   body: string,
   headers: Record<string, string>,
   timeoutMs: number,
+  method: 'POST' | 'PUT' = 'POST',
 ): Promise<WebhookHttpResponse> {
   const target = await resolveWebhookTarget(rawUrl);
   const hostname = normalizedHostname(target.url.hostname);
-  const pinnedLookup: LookupFunction = (_requestedHostname, _options, callback) => {
+  const pinnedLookup: LookupFunction = (_requestedHostname, options, callback) => {
+    if (typeof options === 'object' && options !== null && options.all) {
+      callback(null, [{ address: target.address, family: target.family }]);
+      return;
+    }
     callback(null, target.address, target.family);
   };
   const request = target.url.protocol === 'https:' ? httpsRequest : httpRequest;
@@ -261,7 +266,8 @@ export async function sendWebhookRequest(
       hostname,
       port: target.url.port || undefined,
       path: `${target.url.pathname}${target.url.search}`,
-      method: 'POST',
+      method,
+      family: target.family,
       headers,
       lookup: pinnedLookup,
       agent: false,

@@ -79,5 +79,10 @@ export const EXPECTED_DATABASE_MIGRATIONS = [
     "tag": "0015_secure_phase4_passport_data",
     "createdAt": "1789045200000",
     "hash": "5526bfb78d8c4a33dcf848b9ff317bf362251794dc13d90387477d126563b202"
+  },
+  {
+    "tag": "0016_tenant_indexes_and_integrity",
+    "createdAt": "1789128000000",
+    "hash": "f52cf2c2ff2e64f2b3cd43cc95e8fb3291e2b66cb1f85e0438c781acd31b32a9"
   }
 ] as const;

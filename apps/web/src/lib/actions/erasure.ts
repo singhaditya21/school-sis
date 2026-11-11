@@ -1,5 +1,3 @@
-'use server';
-
 /**
  * DPDPA right-to-erasure for a student's personal data.
  *

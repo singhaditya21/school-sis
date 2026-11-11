@@ -1,7 +1,11 @@
 'use server';
 
-import { pool, sql } from '@/lib/db';
+import { pool, runWithTenantContext, sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { hasPermission, type UserRole } from '@/lib/rbac/permissions';
+import { encryptEmailCandidates } from '@/lib/encryption';
+import { sanitizeCsvValue } from '@/lib/utils/csv-sanitize';
+import { logger } from '@/lib/observability/logger';
 import {
     getAllMetadataObjects,
     getObjectMetadata,
@@ -69,7 +73,9 @@ export async function runBiReport(input: RunBiReportInput): Promise<RunBiReportR
         );
         if ('error' in prepared) return { success: false, error: prepared.error };
 
-        const { rows } = await pool.query(prepared.compiled.sql, prepared.compiled.params);
+        const { rows } = await runWithTenantContext(tenantId, async () =>
+            pool.query<Record<string, unknown>>(prepared.compiled.sql, prepared.compiled.params),
+        );
         const metricLabels = new Set(prepared.compiled.metricColumns);
 
         return {
@@ -143,7 +149,9 @@ export async function exportBiReport(input: ExportBiReportInput): Promise<Export
         const prepared = prepareQuery(context, { ...input, limit: requestedLimit });
         if ('error' in prepared) return { success: false, error: prepared.error };
 
-        const { rows } = await pool.query(prepared.compiled.sql, prepared.compiled.params);
+        const { rows } = await runWithTenantContext(tenantId, async () =>
+            pool.query<Record<string, unknown>>(prepared.compiled.sql, prepared.compiled.params),
+        );
         const metricLabels = new Set(prepared.compiled.metricColumns);
         const csv = toCsv(
             prepared.compiled.columns,
@@ -281,14 +289,9 @@ function formatDateOnly(value: Date): string {
 }
 
 function toCsv(columns: readonly string[], rows: readonly BiReportRow[]): string {
-    const escape = (value: string | number | null): string => {
-        if (value === null) return '';
-        const text = String(value);
-        return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-    };
     return [
-        columns.map((column) => escape(column)).join(','),
-        ...rows.map((row) => columns.map((column) => escape(row[column] ?? null)).join(',')),
+        columns.map((column) => sanitizeCsvValue(column)).join(','),
+        ...rows.map((row) => columns.map((column) => sanitizeCsvValue(row[column] ?? null)).join(',')),
     ].join('\n');
 }
 
@@ -297,7 +300,9 @@ function describeError(error: unknown, fallback: string): string {
     if (error instanceof Error) {
         // Permission failures from requireAuth are safe and useful to surface verbatim.
         if (error.message.startsWith('Forbidden:')) return error.message;
-        console.error('[BI report]', error.message);
+        logger.error('bi_report.execution_failed', 'BI report error', {
+            metadata: { error: error.message },
+        });
     }
     return fallback;
 }
@@ -316,8 +321,8 @@ export interface SavedBiReportDefinition {
 /**
  * Saves a custom BI report definition (dataset, metrics, dimensions, and optional recurring
  * delivery schedule) into `audit_logs` (`BI_REPORT_SAVED`). When a recurring `scheduleFrequency`
- * (`DAILY`, `WEEKLY`, `MONTHLY`) is selected, also enqueues a `BI_SCHEDULED_REPORT` job in
- * `background_jobs` and a confirmation entry in `notification_outbox`.
+ * (`DAILY`, `WEEKLY`, `MONTHLY`) is selected, requires `reports:export` permission and verifies
+ * the recipient belongs to the current tenant before enqueuing `BI_SCHEDULED_REPORT`.
  */
 export async function saveCustomReportDefinition(input: {
     name: string;
@@ -337,8 +342,64 @@ export async function saveCustomReportDefinition(input: {
             return { success: false, error: 'Select a dataset and at least one metric before saving.' };
         }
 
+        const prepared = prepareQuery(
+            { role: session.role, tenantId, userId },
+            {
+                datasetId: input.datasetId,
+                metricIds: input.metricIds,
+                dimensionIds: input.dimensionIds || [],
+                filters: [],
+                limit: 100,
+            },
+        );
+        if ('error' in prepared) {
+            return { success: false, error: prepared.error };
+        }
+
         const scheduleFrequency = input.scheduleFrequency || 'NONE';
-        const recipientEmail = String(input.recipientEmail || session.email || 'admin@scholarmind.local').trim();
+        const rawRecipient = String(input.recipientEmail || session.email || '').trim().toLowerCase();
+
+        if (scheduleFrequency !== 'NONE') {
+            if (!hasPermission(session.role as UserRole, 'reports:export')) {
+                return {
+                    success: false,
+                    error: 'Forbidden: scheduling recurring report delivery requires reports:export permission.',
+                };
+            }
+            if (!rawRecipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawRecipient)) {
+                return {
+                    success: false,
+                    error: 'A valid tenant staff recipient email is required for scheduled delivery.',
+                };
+            }
+
+            const sessionEmail = String(session.email || '').trim().toLowerCase();
+            if (rawRecipient !== sessionEmail) {
+                const candidateHashes = encryptEmailCandidates(rawRecipient);
+                const recipientLookup = [rawRecipient, ...candidateHashes];
+                const memberRows = await runWithTenantContext(tenantId, async () =>
+                    sql<{ id: string }>`
+                        SELECT id
+                        FROM users
+                        WHERE tenant_id = ${tenantId}
+                          AND is_active = true
+                          AND (
+                            LOWER(email) = ${rawRecipient}
+                            OR email = ANY(${recipientLookup}::text[])
+                          )
+                        LIMIT 1
+                    `.rows(),
+                );
+                if (memberRows.length === 0) {
+                    return {
+                        success: false,
+                        error: 'Scheduled BI reports can only be delivered to active members of this tenant.',
+                    };
+                }
+            }
+        }
+
+        const recipientEmail = rawRecipient || String(session.email || '').trim();
 
         const reportPayload = {
             auditEvent: 'BI_REPORT_SAVED',
@@ -352,83 +413,85 @@ export async function saveCustomReportDefinition(input: {
             savedAt: new Date().toISOString(),
         };
 
-        const inserted = await sql<{ id: string; created_at: Date | string }>`
-            INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, after_state)
-            VALUES (
-                ${tenantId},
-                ${userId},
-                'CREATE',
-                'bi_report',
-                ${JSON.stringify(reportPayload)}::jsonb
-            )
-            RETURNING id, created_at
-        `;
-
-        if (scheduleFrequency !== 'NONE') {
-            await sql`
-                INSERT INTO background_jobs (
-                    tenant_id, scope, queue, task_name, status, priority, payload,
-                    scheduled_for, available_at, max_attempts
-                )
+        return await runWithTenantContext(tenantId, async () => {
+            const inserted = await sql<{ id: string; created_at: Date | string }>`
+                INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, after_state)
                 VALUES (
                     ${tenantId},
-                    'TENANT',
-                    'default',
-                    'BI_SCHEDULED_REPORT',
-                    'QUEUED',
-                    0,
-                    ${JSON.stringify({
-                        reportId: inserted[0]?.id,
-                        ...reportPayload,
-                    })}::jsonb,
-                    NOW(),
-                    NOW(),
-                    3
+                    ${userId},
+                    'CREATE',
+                    'bi_report',
+                    ${JSON.stringify(reportPayload)}::jsonb
                 )
-            `.execute();
+                RETURNING id, created_at
+            `;
 
-            await sql`
-                INSERT INTO notification_outbox (
-                    tenant_id, channel, status, provider, recipient, subject, body,
-                    template_id, payload, scheduled_for, next_attempt_at, max_attempts
-                )
-                VALUES (
-                    ${tenantId},
-                    'EMAIL',
-                    'QUEUED',
-                    'resend',
-                    ${recipientEmail},
-                    ${`[ScholarMind BI] Scheduled Report: ${trimmedName} (${scheduleFrequency})`},
-                    ${`Scheduled BI report "${trimmedName}" (${input.datasetId}) configured for ${scheduleFrequency} delivery.`},
-                    'bi_scheduled_report',
-                    ${JSON.stringify({
-                        reportName: trimmedName,
-                        datasetId: input.datasetId,
-                        scheduleFrequency,
-                    })}::jsonb,
-                    NOW(),
-                    NOW(),
-                    3
-                )
-            `.execute();
-        }
+            if (scheduleFrequency !== 'NONE') {
+                await sql`
+                    INSERT INTO background_jobs (
+                        tenant_id, scope, queue, task_name, status, priority, payload,
+                        scheduled_for, available_at, max_attempts
+                    )
+                    VALUES (
+                        ${tenantId},
+                        'TENANT',
+                        'default',
+                        'BI_SCHEDULED_REPORT',
+                        'QUEUED',
+                        0,
+                        ${JSON.stringify({
+                            reportId: inserted[0]?.id,
+                            ...reportPayload,
+                        })}::jsonb,
+                        NOW(),
+                        NOW(),
+                        3
+                    )
+                `.execute();
 
-        return {
-            success: true,
-            report: {
-                id: String(inserted[0]?.id || ''),
-                name: trimmedName,
-                datasetId: input.datasetId,
-                metricIds: input.metricIds,
-                dimensionIds: input.dimensionIds || [],
-                scheduleFrequency,
-                recipientEmail,
-                createdAt:
-                    inserted[0]?.created_at instanceof Date
-                        ? inserted[0].created_at.toISOString()
-                        : String(inserted[0]?.created_at || new Date().toISOString()),
-            },
-        };
+                await sql`
+                    INSERT INTO notification_outbox (
+                        tenant_id, channel, status, provider, recipient, subject, body,
+                        template_id, payload, scheduled_for, next_attempt_at, max_attempts
+                    )
+                    VALUES (
+                        ${tenantId},
+                        'EMAIL',
+                        'PENDING',
+                        'resend',
+                        ${recipientEmail},
+                        ${`[ScholarMind BI] Scheduled Report: ${trimmedName} (${scheduleFrequency})`},
+                        ${`Scheduled BI report "${trimmedName}" (${input.datasetId}) configured for ${scheduleFrequency} delivery.`},
+                        'bi_scheduled_report',
+                        ${JSON.stringify({
+                            reportName: trimmedName,
+                            datasetId: input.datasetId,
+                            scheduleFrequency,
+                        })}::jsonb,
+                        NOW(),
+                        NOW(),
+                        3
+                    )
+                `.execute();
+            }
+
+            return {
+                success: true,
+                report: {
+                    id: String(inserted[0]?.id || ''),
+                    name: trimmedName,
+                    datasetId: input.datasetId,
+                    metricIds: input.metricIds,
+                    dimensionIds: input.dimensionIds || [],
+                    scheduleFrequency,
+                    recipientEmail,
+                    createdAt:
+                        inserted[0]?.created_at instanceof Date
+                            ? inserted[0].created_at.toISOString()
+                            : String(inserted[0]?.created_at || new Date().toISOString()),
+                },
+            };
+        });
     } catch (error) {
         return {
             success: false,

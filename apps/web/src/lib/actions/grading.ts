@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache';
 import { tenantScope, asc, desc, eq } from '@school-sis/api/src/data';
 import { gradingScales, gradingRubrics } from '@school-sis/api/src/db/generated/tables';
 import { requireAuth } from '@/lib/auth/middleware';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
+import { logger } from '@/lib/observability/logger';
 
 export type GradingSchemeType = 'PERCENTAGE' | 'GPA' | 'CGPA' | 'LETTER';
 
@@ -87,8 +89,12 @@ export async function getGradingSchemes(): Promise<{
     data: GradingSchemeDTO[];
     error?: string;
 }> {
+    const auth = await requireAuth();
+    if (!hasPermission(auth.session.role as UserRole, 'academic:read')) {
+        return { success: false, data: [], error: 'Forbidden: insufficient permissions.' };
+    }
+    const { tenantId } = auth;
     try {
-        const { tenantId } = await requireAuth();
         const scope = tenantScope(tenantId);
 
         const scaleRows = await scope
@@ -161,10 +167,14 @@ export async function getGradingSchemes(): Promise<{
 
         return { success: true, data: [...dbSchemes, ...DEFAULT_SCHEMES.map(s => ({ ...s, isDefault: false }))] };
     } catch (error) {
+        logger.error('grading.schemes_load_failed', 'Failed to load grading schemes', {
+            tenantId,
+            metadata: { error: error instanceof Error ? error.message : String(error) },
+        });
         return {
             success: false,
             data: DEFAULT_SCHEMES,
-            error: error instanceof Error ? error.message : 'Failed to load grading schemes',
+            error: 'Failed to load grading schemes',
         };
     }
 }
@@ -178,8 +188,12 @@ export async function createGradingScheme(input: {
     data?: GradingSchemeDTO;
     error?: string;
 }> {
+    const auth = await requireAuth();
+    if (!hasPermission(auth.session.role as UserRole, 'academic:write')) {
+        return { success: false, error: 'Forbidden: insufficient permissions.' };
+    }
+    const { tenantId } = auth;
     try {
-        const { tenantId } = await requireAuth();
         const scope = tenantScope(tenantId);
 
         const name = input.name?.trim();
@@ -260,9 +274,13 @@ export async function createGradingScheme(input: {
             },
         };
     } catch (error) {
+        logger.error('grading.scheme_create_failed', 'Failed to create grading scheme', {
+            tenantId,
+            metadata: { error: error instanceof Error ? error.message : String(error) },
+        });
         return {
             success: false,
-            error: error instanceof Error ? error.message : 'Failed to create grading scheme',
+            error: 'Failed to create grading scheme',
         };
     }
 }

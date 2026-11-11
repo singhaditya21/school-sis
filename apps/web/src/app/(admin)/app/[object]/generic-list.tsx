@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { sanitizeCsvValue } from '@/lib/utils/csv-sanitize';
 
 function parseCsvToRecords(csvText: string): Record<string, unknown>[] {
     const lines = csvText
@@ -151,12 +152,15 @@ function renderCell(field: MetadataField | undefined, value: unknown): React.Rea
     }
 
     if (field?.validationRules?.fieldSubType === 'URL') {
-        const url = String(value);
+        const url = String(value).trim();
+        if (!/^https?:\/\//i.test(url)) {
+            return <span className="font-mono text-xs text-muted-foreground">{url}</span>;
+        }
         return (
             <a
                 href={url}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="font-mono text-xs text-primary hover:underline"
             >
                 {url}
@@ -330,16 +334,9 @@ export default function GenericListClient({
 
     const handleExportCsv = () => {
         const exportCols = displayColumns.length > 0 ? displayColumns : fields.map(f => f.apiName);
-        const escapeCell = (val: unknown): string => {
-            const raw = val == null ? '' : String(val);
-            if (/[",\r\n]/.test(raw)) {
-                return `"${raw.replace(/"/g, '""')}"`;
-            }
-            return raw;
-        };
-        const headerLine = exportCols.map(escapeCell).join(',');
+        const headerLine = exportCols.map(col => sanitizeCsvValue(col)).join(',');
         const bodyLines = localRecords.map(rec =>
-            exportCols.map(col => escapeCell(rec[col])).join(','),
+            exportCols.map(col => sanitizeCsvValue(rec[col])).join(','),
         );
         const csvContent = [headerLine, ...bodyLines].join('\n');
         if (typeof window !== 'undefined') {

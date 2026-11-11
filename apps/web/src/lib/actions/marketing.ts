@@ -1,5 +1,3 @@
-'use server';
-
 import { createHmac } from 'node:crypto';
 import { sql, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { encryptEmail } from '@/lib/encryption';

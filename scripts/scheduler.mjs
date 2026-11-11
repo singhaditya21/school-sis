@@ -5,16 +5,25 @@
 //
 //   node --env-file=apps/web/.env.local scripts/scheduler.mjs   (or: pnpm scheduler)
 //
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
 const SECRET = process.env.JOB_DISPATCH_SECRET;
-const INTERVAL_MS = Number(process.env.SCHEDULER_INTERVAL_MS || 60_000);
+const parsedInterval = Number(process.env.SCHEDULER_INTERVAL_MS || 60_000);
+const INTERVAL_MS = Number.isFinite(parsedInterval) && parsedInterval >= 1_000 ? parsedInterval : 60_000;
 
 if (!SECRET) {
   console.error('[scheduler] JOB_DISPATCH_SECRET is required (see apps/web/.env.local)');
   process.exit(1);
 }
 
+let inFlight = false;
+
 async function tick() {
+  if (inFlight) {
+    console.log(`[scheduler] ${new Date().toISOString()} → skipped (previous tick still in flight)`);
+    return;
+  }
+
+  inFlight = true;
   try {
     const res = await fetch(`${APP_URL}/api/jobs/dispatch`, {
       method: 'POST',
@@ -24,7 +33,10 @@ async function tick() {
     const data = await res.json().catch(() => ({}));
     console.log(`[scheduler] ${new Date().toISOString()} → ${res.status}`, JSON.stringify(data));
   } catch (err) {
-    console.log(`[scheduler] dispatch failed: ${err.message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    console.log(`[scheduler] dispatch failed: ${message}`);
+  } finally {
+    inFlight = false;
   }
 }
 
@@ -34,5 +46,7 @@ if (process.argv.includes('--once')) {
 }
 
 console.log(`[scheduler] every ${INTERVAL_MS}ms → ${APP_URL}/api/jobs/dispatch`);
-tick();
-setInterval(tick, INTERVAL_MS);
+void tick();
+setInterval(() => {
+  void tick();
+}, INTERVAL_MS);

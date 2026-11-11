@@ -37,13 +37,16 @@ export async function getLibraryStudents(): Promise<LibraryStudentRow[]> {
     const { tenantId } = await requireAuth('library:read');
     const { rows } = await pool.query(`
         SELECT s.id,
-               COALESCE(s.user_id, (SELECT user_id FROM guardians WHERE student_id = s.id AND is_primary = true LIMIT 1)) AS "userId",
+               COALESCE(
+                   s.user_id,
+                   (SELECT gdn.user_id FROM guardians gdn WHERE gdn.student_id = s.id AND gdn.tenant_id = s.tenant_id AND gdn.is_primary = true LIMIT 1)
+               ) AS "userId",
                s.admission_number AS "admissionNo",
                s.first_name||' '||s.last_name AS name,
                g.name||'-'||sec.name AS class
         FROM students s
-        LEFT JOIN sections sec ON sec.id = s.section_id
-        LEFT JOIN grades g ON g.id = sec.grade_id
+        LEFT JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = s.tenant_id
+        LEFT JOIN grades g ON g.id = sec.grade_id AND g.tenant_id = s.tenant_id
         WHERE s.tenant_id = $1 AND s.status = 'ACTIVE'
         ORDER BY s.first_name
         LIMIT 100
@@ -75,15 +78,21 @@ export async function getLibraryHistory(): Promise<LibraryHistoryRow[]> {
             bi.fine_amount AS "fineAmount",
             bi.is_fine_paid AS "finePaid"
         FROM book_issues bi
-        LEFT JOIN books b ON bi.book_id = b.id
-        LEFT JOIN students s ON bi.issued_to_student_id = s.id
-        LEFT JOIN sections sec ON sec.id = s.section_id
-        LEFT JOIN grades g ON g.id = sec.grade_id
-        LEFT JOIN users u ON bi.issued_to_user_id = u.id
+        LEFT JOIN books b ON bi.book_id = b.id AND b.tenant_id = bi.tenant_id
+        LEFT JOIN students s ON bi.issued_to_student_id = s.id AND s.tenant_id = bi.tenant_id
+        LEFT JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = bi.tenant_id
+        LEFT JOIN grades g ON g.id = sec.grade_id AND g.tenant_id = bi.tenant_id
+        LEFT JOIN users u ON bi.issued_to_user_id = u.id AND u.tenant_id = bi.tenant_id
         WHERE bi.tenant_id = $1
         ORDER BY bi.issue_date DESC
+        LIMIT 200
     `, [tenantId]);
-    return rows.map(r => ({
+    type RawLibraryHistoryRow = Omit<LibraryHistoryRow, 'issueDate' | 'dueDate' | 'returnDate'> & {
+        issueDate: Date | string | null;
+        dueDate: Date | string | null;
+        returnDate: Date | string | null;
+    };
+    return (rows as RawLibraryHistoryRow[]).map((r: RawLibraryHistoryRow) => ({
         ...r,
         issueDate: r.issueDate instanceof Date ? r.issueDate.toISOString().split('T')[0] : r.issueDate,
         dueDate: r.dueDate instanceof Date ? r.dueDate.toISOString().split('T')[0] : r.dueDate,

@@ -25,7 +25,7 @@ interface FleetRow {
 }
 
 export default async function HQDashboardPage() {
-    await requireRole(UserRole.PLATFORM_ADMIN, UserRole.SUPER_ADMIN);
+    await requireRole(UserRole.PLATFORM_ADMIN);
 
     const { rows } = await pool.query(
         `SELECT

@@ -25,6 +25,10 @@ const NAV_SOURCES = [
   'apps/web/src/app/student/layout.tsx',
   'apps/web/src/app/(parent)/layout.tsx',
   'apps/web/src/app/(dashboard)/layout.tsx',
+  'apps/web/src/app/hq/layout.tsx',
+  'apps/web/src/app/operator/page.tsx',
+  'apps/web/src/app/login/page.tsx',
+  'apps/web/src/app/mfa/setup/page.tsx',
   'apps/web/src/components/dashboard/ModuleGrid.tsx',
 ];
 

@@ -6,6 +6,7 @@ import {
     createPaymentOrderRecord,
     findInvoiceForPayment,
     getPaymentOrderByIdempotency,
+    isPayableInvoiceStatus,
     outstandingMinor,
 } from '@/lib/payments/ledger';
 import { getRazorpayGateway } from '@/lib/payments/providers';
@@ -41,9 +42,16 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, error: 'Invoice not found' }, { status: 404 });
         }
 
+        if (!isPayableInvoiceStatus(invoice.status)) {
+            return NextResponse.json(
+                { success: false, error: `Invoice with status ${invoice.status} cannot accept payments` },
+                { status: 400 },
+            );
+        }
+
         const outstandingInPaise = outstandingMinor(invoice);
         const amountInPaise = parsed.data.amountInPaise ?? outstandingInPaise;
-        if (amountInPaise <= 0 || amountInPaise > outstandingInPaise || invoice.status === 'PAID') {
+        if (amountInPaise <= 0 || amountInPaise > outstandingInPaise) {
             return NextResponse.json({ success: false, error: 'Invalid payment amount' }, { status: 400 });
         }
 

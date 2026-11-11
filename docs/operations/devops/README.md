@@ -32,13 +32,13 @@ pnpm install --frozen-lockfile
 ```
 
 `pnpm audit:security` fails closed on every high or critical advisory except
-the two named `image-size` advisories in `scripts/pnpm-audit-allowlist.json`.
-Those exceptions are restricted to the two exact, version-pinned
-React Native/Expo-to-Metro build-tool paths currently observed under
-`apps/mobile`, expire on 2026-09-15, and exist only because no patched npm
-release is available. A changed advisory, version, graph segment, terminal
-module, report shape, or date is blocking; the Vercel web and release-tool
-paths have no accepted high or critical exception.
+the explicitly scoped, version-pinned exceptions recorded in
+`scripts/pnpm-audit-allowlist.json` (`image-size` and `node-forge` under
+`apps/mobile` Metro/Expo build tooling, `braces` in build/test/lint globbing,
+and `zod` v3 pending a coordinated `zod` v4 migration, currently expiring on
+`2026-12-31`). Every exception requires a concrete reason, module, severity,
+`pathPrefix`, and non-expired `expires` date; a changed advisory, path prefix,
+report shape, or expired date is blocking.
 
 ## Database connection contract
 

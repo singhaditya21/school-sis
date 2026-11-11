@@ -5,6 +5,8 @@ import {
     countApprovals,
     countRejections,
     createWorkflowApprovalRequest,
+    expireWorkflowApprovalRequest,
+    isWorkflowApprovalExpired,
     reviewWorkflowApprovalRequest,
     toWorkflowApprovalQueueItem,
 } from './engine';
@@ -20,8 +22,10 @@ import type {
     WorkflowApprovalStatus,
 } from './types';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const INTERNAL_PAYLOAD_HASH_KEY = '__approvalPayloadHash';
+const INTERNAL_CONSUMED_AT_KEY = 'consumed_at';
+const INTERNAL_CONSUMED_BY_KEY = 'consumed_by';
 
 interface WorkflowApprovalRequestRow {
     id: string;
@@ -121,8 +125,19 @@ export async function createPersistedWorkflowApprovalRequest(
     input: PersistWorkflowApprovalInput,
 ): Promise<WorkflowApprovalRequest> {
     const workflowPolicy = assertWorkflowPolicy(input.policyId);
-    assertActorCanRequestPolicy(input.requestedBy, input.tenantId, workflowPolicy.policy.permission);
+    const requesterUserId = requireActorUuid(input.requestedBy.userId, 'Approval requester userId');
+    const delegatedFromUserId = input.requestedBy.delegatedFromUserId
+        ? requireActorUuid(input.requestedBy.delegatedFromUserId, 'Delegated requester userId')
+        : undefined;
+    const requestedBy: WorkflowApprovalActor = {
+        ...input.requestedBy,
+        userId: requesterUserId,
+        delegatedFromUserId,
+    };
+    assertActorCanRequestPolicy(requestedBy, input.tenantId, workflowPolicy.policy.permission);
     assertRequiredReason(input.policyId, input.reason);
+
+    const now = input.now ?? new Date();
 
     return runWithTenantContext(input.tenantId, async () => {
         const payload = withPayloadHash(input.payload ?? {});
@@ -132,11 +147,15 @@ export async function createPersistedWorkflowApprovalRequest(
             payload,
         });
         const existing = await fetchWorkflowApprovalByIdempotency(input.tenantId, idempotencyKey);
-        if (existing) return existing;
+        if (existing && !existing.consumedAt && !isWorkflowApprovalExpired(existing, now)) {
+            return existing;
+        }
 
         const request = createWorkflowApprovalRequest({
             ...input,
+            requestedBy,
             payload,
+            now,
         });
 
         const client = await pool.connect();
@@ -146,8 +165,11 @@ export async function createPersistedWorkflowApprovalRequest(
 
             const duplicate = await fetchWorkflowApprovalByIdempotency(input.tenantId, idempotencyKey, q);
             if (duplicate) {
-                await q`COMMIT`;
-                return duplicate;
+                if (!duplicate.consumedAt && !isWorkflowApprovalExpired(duplicate, now)) {
+                    await q`COMMIT`;
+                    return duplicate;
+                }
+                await retireStaleIdempotencyRow(q, duplicate, now);
             }
 
             const rows = await q<{ id: string }>`
@@ -175,7 +197,7 @@ export async function createPersistedWorkflowApprovalRequest(
                     ${0},
                     ${0},
                     ${request.allowRequesterApproval},
-                    ${nullableUuid(request.requestedByUserId)},
+                    ${requesterUserId},
                     ${request.requestedByRole},
                     ${idempotencyKey},
                     ${request.escalationLevel},
@@ -197,7 +219,9 @@ export async function createPersistedWorkflowApprovalRequest(
             await q`ROLLBACK`;
             if ((error as { code?: unknown })?.code === '23505') {
                 const duplicate = await fetchWorkflowApprovalByIdempotency(input.tenantId, idempotencyKey);
-                if (duplicate) return duplicate;
+                if (duplicate && !duplicate.consumedAt && !isWorkflowApprovalExpired(duplicate, now)) {
+                    return duplicate;
+                }
             }
             throw error;
         } finally {
@@ -251,6 +275,17 @@ export async function listWorkflowApprovalRequests(
 export async function reviewPersistedWorkflowApprovalRequest(
     input: WorkflowApprovalReviewInput,
 ): Promise<WorkflowApprovalRequest> {
+    const reviewerUserId = requireActorUuid(input.actor.userId, 'Approval reviewer userId');
+    const delegatedFromUserId = input.actor.delegatedFromUserId
+        ? requireActorUuid(input.actor.delegatedFromUserId, 'Delegated reviewer userId')
+        : undefined;
+    const actor: WorkflowApprovalActor = {
+        ...input.actor,
+        userId: reviewerUserId,
+        delegatedFromUserId,
+    };
+    const now = input.now ?? new Date();
+
     return runWithTenantContext(input.tenantId, async () => {
         const client = await pool.connect();
         const q = sqlFor(client);
@@ -261,11 +296,31 @@ export async function reviewPersistedWorkflowApprovalRequest(
                 throw new WorkflowApprovalError('Approval request not found.', 404);
             }
 
+            if ((existing.status === 'PENDING' || existing.status === 'ESCALATED') && isWorkflowApprovalExpired(existing, now)) {
+                const expired = expireWorkflowApprovalRequest(existing, now);
+                const expiredEvent = expired.events[expired.events.length - 1];
+                await q`
+                    UPDATE workflow_approval_requests
+                    SET status = 'EXPIRED',
+                        idempotency_key = NULL,
+                        completed_at = ${new Date(expired.completedAt ?? now.toISOString())},
+                        updated_at = ${new Date(expired.updatedAt)}
+                    WHERE tenant_id = ${existing.tenantId} AND id = ${existing.id}
+                `;
+                await insertWorkflowApprovalEvent(q, expired.tenantId, expired.id, expiredEvent);
+                await q`COMMIT`;
+                throw new WorkflowApprovalError('Approval request has expired.', 409);
+            }
+
+            if (isWorkflowApprovalExpired(existing, now)) {
+                throw new WorkflowApprovalError('Approval request has expired.', 409);
+            }
+
             const reviewed = reviewWorkflowApprovalRequest(existing, {
-                actor: input.actor,
+                actor,
                 decision: input.decision,
                 reason: input.reason,
-                now: input.now,
+                now,
             });
             const newReview = reviewed.reviews[reviewed.reviews.length - 1];
             const newEvent = reviewed.events[reviewed.events.length - 1];
@@ -278,16 +333,17 @@ export async function reviewPersistedWorkflowApprovalRequest(
                 VALUES (
                     ${reviewed.tenantId},
                     ${reviewed.id},
-                    ${nullableUuid(newReview.actorUserId)},
+                    ${reviewerUserId},
                     ${newReview.actorRole},
                     ${newReview.decision},
                     ${newReview.reason ?? null},
-                    ${nullableUuid(newReview.delegatedFromUserId)},
+                    ${delegatedFromUserId ?? null},
                     '{}'::jsonb,
                     ${new Date(newReview.createdAt)}
                 )
             `;
 
+            const clearIdempotencyKey = reviewed.status === 'REJECTED' ? sql`, idempotency_key = NULL` : sql``;
             await q`
                 UPDATE workflow_approval_requests
                 SET status = ${reviewed.status},
@@ -295,6 +351,7 @@ export async function reviewPersistedWorkflowApprovalRequest(
                     rejections_received = ${countRejections(reviewed.reviews)},
                     completed_at = ${reviewed.completedAt ? new Date(reviewed.completedAt) : null},
                     updated_at = ${new Date(reviewed.updatedAt)}
+                    ${clearIdempotencyKey}
                 WHERE tenant_id = ${reviewed.tenantId} AND id = ${reviewed.id}
             `;
 
@@ -302,7 +359,11 @@ export async function reviewPersistedWorkflowApprovalRequest(
             await q`COMMIT`;
             return (await fetchWorkflowApprovalRequestById(input.tenantId, input.approvalRequestId))!;
         } catch (error) {
-            await q`ROLLBACK`;
+            try {
+                await q`ROLLBACK`;
+            } catch {
+                // Ignore rollback failure on an aborted connection.
+            }
             throw error;
         } finally {
             client.release();
@@ -313,21 +374,129 @@ export async function reviewPersistedWorkflowApprovalRequest(
 export async function requireApprovedWorkflowApprovalOrRequest(
     input: WorkflowApprovalGateInput,
 ): Promise<WorkflowApprovalGateResult> {
+    assertWorkflowPolicy(input.policyId);
+    const consumerUserId = requireActorUuid(input.requestedBy.userId, 'Approval requester userId');
+    const now = input.now ?? new Date();
+
     if (input.approvalRequestId) {
-        const existing = await fetchWorkflowApprovalRequestById(input.tenantId, input.approvalRequestId);
-        if (!existing) {
-            throw new WorkflowApprovalError('Approval request not found.', 404);
-        }
-        assertApprovalMatchesAction(existing, input);
-        return existing.status === 'APPROVED'
-            ? { approved: true, request: existing }
-            : { approved: false, request: existing };
+        return consumeOrEvaluateApprovalById(input.approvalRequestId, input, consumerUserId, now);
     }
 
-    const request = await createPersistedWorkflowApprovalRequest(input);
-    return request.status === 'APPROVED'
-        ? { approved: true, request }
-        : { approved: false, request };
+    const request = await createPersistedWorkflowApprovalRequest({
+        ...input,
+        now,
+    });
+    if (request.status !== 'APPROVED') {
+        return { approved: false, request };
+    }
+    return consumeOrEvaluateApprovalById(request.id, input, consumerUserId, now);
+}
+
+async function consumeOrEvaluateApprovalById(
+    approvalRequestId: string,
+    input: WorkflowApprovalGateInput,
+    consumerUserId: string,
+    now: Date,
+): Promise<WorkflowApprovalGateResult> {
+    return runWithTenantContext(input.tenantId, async () => {
+        const client = await pool.connect();
+        const q = sqlFor(client);
+        try {
+            await q`BEGIN`;
+            const existing = await fetchWorkflowApprovalById(input.tenantId, approvalRequestId, q, true);
+            if (!existing) {
+                throw new WorkflowApprovalError('Approval request not found.', 404);
+            }
+            assertApprovalMatchesAction(existing, input);
+
+            if (existing.consumedAt) {
+                await q`COMMIT`;
+                throw new WorkflowApprovalError('Approval request has already been consumed.', 409);
+            }
+
+            if (isWorkflowApprovalExpired(existing, now)) {
+                if (existing.status === 'PENDING' || existing.status === 'ESCALATED' || existing.status === 'APPROVED') {
+                    const expiredAtIso = now.toISOString();
+                    await q`
+                        UPDATE workflow_approval_requests
+                        SET status = 'EXPIRED',
+                            idempotency_key = NULL,
+                            completed_at = COALESCE(completed_at, ${now}),
+                            updated_at = ${now}
+                        WHERE tenant_id = ${existing.tenantId} AND id = ${existing.id}
+                    `;
+                    await insertWorkflowApprovalEvent(q, existing.tenantId, existing.id, {
+                        id: `event_${existing.id}_expired_${now.getTime()}`,
+                        eventType: 'EXPIRED',
+                        fromStatus: existing.status,
+                        toStatus: 'EXPIRED',
+                        createdAt: expiredAtIso,
+                    });
+                    await q`COMMIT`;
+                    return {
+                        approved: false,
+                        request: {
+                            ...existing,
+                            status: 'EXPIRED',
+                            completedAt: existing.completedAt ?? expiredAtIso,
+                            updatedAt: expiredAtIso,
+                        },
+                    };
+                }
+                await q`COMMIT`;
+                return { approved: false, request: existing };
+            }
+
+            if (existing.status !== 'APPROVED') {
+                await q`COMMIT`;
+                return { approved: false, request: existing };
+            }
+
+            const consumedAt = now.toISOString();
+            const updated = await q<{ id: string }>`
+                UPDATE workflow_approval_requests
+                SET payload = COALESCE(payload, '{}'::jsonb) || ${JSON.stringify({
+                    [INTERNAL_CONSUMED_AT_KEY]: consumedAt,
+                    [INTERNAL_CONSUMED_BY_KEY]: consumerUserId,
+                })}::jsonb,
+                    idempotency_key = NULL,
+                    updated_at = ${now}
+                WHERE tenant_id = ${input.tenantId}
+                  AND id = ${existing.id}
+                  AND status = 'APPROVED'
+                  AND NOT (COALESCE(payload, '{}'::jsonb) ? ${INTERNAL_CONSUMED_AT_KEY})
+                RETURNING id
+            `;
+            if (updated.length === 0) {
+                await q`ROLLBACK`;
+                throw new WorkflowApprovalError('Approval request has already been consumed.', 409);
+            }
+
+            await q`COMMIT`;
+            return {
+                approved: true,
+                request: {
+                    ...existing,
+                    consumedAt,
+                    updatedAt: consumedAt,
+                    payload: {
+                        ...existing.payload,
+                        [INTERNAL_CONSUMED_AT_KEY]: consumedAt,
+                        [INTERNAL_CONSUMED_BY_KEY]: consumerUserId,
+                    },
+                },
+            };
+        } catch (error) {
+            try {
+                await q`ROLLBACK`;
+            } catch {
+                // Ignore rollback failure on an aborted connection.
+            }
+            throw error;
+        } finally {
+            client.release();
+        }
+    });
 }
 
 export function assertApprovalMatchesAction(
@@ -496,6 +665,10 @@ function mapWorkflowApprovalRow(
     events: readonly WorkflowApprovalEventRow[],
 ): WorkflowApprovalRequest {
     const workflowPolicy = assertWorkflowPolicy(row.policy_id);
+    const rawPayload = row.payload ?? {};
+    const consumedAt = typeof rawPayload[INTERNAL_CONSUMED_AT_KEY] === 'string'
+        ? rawPayload[INTERNAL_CONSUMED_AT_KEY]
+        : undefined;
 
     return {
         id: row.id,
@@ -511,7 +684,7 @@ function mapWorkflowApprovalRow(
             id: row.resource_id ?? undefined,
             tenantId: row.tenant_id,
         },
-        payload: row.payload ?? {},
+        payload: rawPayload,
         requestedByUserId: row.requested_by_user_id ?? '',
         requestedByRole: row.requested_by_role as AuthorizationRole,
         requiredApproverRoles: (row.required_approver_roles ?? []) as AuthorizationRole[],
@@ -521,6 +694,7 @@ function mapWorkflowApprovalRow(
         dueAt: toIso(row.due_at),
         expiresAt: toIso(row.expires_at),
         completedAt: row.completed_at ? toIso(row.completed_at) : undefined,
+        consumedAt,
         createdAt: toIso(row.created_at),
         updatedAt: toIso(row.updated_at),
         reviews: reviews.map((review) => ({
@@ -561,8 +735,53 @@ function hashApprovalPayload(payload: Record<string, unknown>): string {
 }
 
 function stripInternalPayloadFields(payload: Record<string, unknown>): Record<string, unknown> {
-    const { [INTERNAL_PAYLOAD_HASH_KEY]: _hash, ...rest } = payload;
+    const {
+        [INTERNAL_PAYLOAD_HASH_KEY]: _hash,
+        [INTERNAL_CONSUMED_AT_KEY]: _consumedAt,
+        [INTERNAL_CONSUMED_BY_KEY]: _consumedBy,
+        ...rest
+    } = payload;
     return rest;
+}
+
+async function retireStaleIdempotencyRow(
+    q: SqlTag,
+    stale: WorkflowApprovalRequest,
+    now: Date,
+): Promise<void> {
+    if (!stale.consumedAt && isWorkflowApprovalExpired(stale, now) && (stale.status === 'PENDING' || stale.status === 'ESCALATED' || stale.status === 'APPROVED')) {
+        await q`
+            UPDATE workflow_approval_requests
+            SET status = 'EXPIRED',
+                idempotency_key = NULL,
+                completed_at = COALESCE(completed_at, ${now}),
+                updated_at = ${now}
+            WHERE tenant_id = ${stale.tenantId} AND id = ${stale.id}
+        `;
+        await insertWorkflowApprovalEvent(q, stale.tenantId, stale.id, {
+            id: `event_${stale.id}_expired_${now.getTime()}`,
+            eventType: 'EXPIRED',
+            fromStatus: stale.status,
+            toStatus: 'EXPIRED',
+            createdAt: now.toISOString(),
+        });
+        return;
+    }
+
+    await q`
+        UPDATE workflow_approval_requests
+        SET idempotency_key = NULL,
+            updated_at = ${now}
+        WHERE tenant_id = ${stale.tenantId} AND id = ${stale.id}
+    `;
+}
+
+function requireActorUuid(value: string | undefined, label: string): string {
+    const normalized = value?.trim() ?? '';
+    if (!UUID_RE.test(normalized)) {
+        throw new WorkflowApprovalError(`${label} must be a valid UUID.`, 400);
+    }
+    return normalized;
 }
 
 function stableStringify(value: unknown): string {

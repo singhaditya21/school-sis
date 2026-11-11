@@ -80,6 +80,7 @@ export function RecentActivity() {
         if (!isLive) return;
 
         const interval = setInterval(async () => {
+             if (typeof document !== 'undefined' && document.hidden) return;
              try {
                 const logs = await getRecentActivity(10);
                 
@@ -100,7 +101,7 @@ export function RecentActivity() {
              } catch (error) {
                 // Silently swallow polling errors so we don't spam the console heavily
              }
-        }, 3000); // 3-second live DB polling
+        }, 30000); // 30-second live DB polling (skipped when tab is hidden)
 
         return () => clearInterval(interval);
     }, [isLive]);
