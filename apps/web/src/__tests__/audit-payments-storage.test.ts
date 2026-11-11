@@ -499,7 +499,7 @@ describe('H-01: S3/R2 upload RBAC, magic bytes, rate-limiting & presigned GET BO
 
         const badForm = new FormData();
         badForm.set('folder', 'documents');
-        badForm.set('file', new File(['<script>alert(1)</script>'], 'evil.png', { type: 'image/png' }));
+        badForm.set('file', new File(['<script>window.alert(1)</script>'], 'evil.png', { type: 'image/png' }));
         const badRes = await postUpload(new NextRequest('https://sis.scholarmind.example.edu/api/upload', {
             method: 'POST',
             body: badForm,

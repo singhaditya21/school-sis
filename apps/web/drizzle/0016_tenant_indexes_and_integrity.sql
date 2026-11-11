@@ -26,7 +26,7 @@ CREATE INDEX IF NOT EXISTS "idx_messages_tenant_id" ON "messages" ("tenant_id");
 CREATE INDEX IF NOT EXISTS "idx_exam_proctoring_logs_tenant_id" ON "exam_proctoring_logs" ("tenant_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_exam_result_hashes_tenant_id" ON "exam_result_hashes" ("tenant_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_exams_tenant_id" ON "exams" ("tenant_id");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "idx_exam_schedules_tenant_exam" ON "exam_schedules" ("tenant_id", "exam_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_exam_schedules_exam_id" ON "exam_schedules" ("exam_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_student_results_tenant_student" ON "student_results" ("tenant_id", "student_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_student_results_exam_schedule" ON "student_results" ("exam_schedule_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_audit_logs_tenant_created_at" ON "audit_logs" ("tenant_id", "created_at" DESC);--> statement-breakpoint

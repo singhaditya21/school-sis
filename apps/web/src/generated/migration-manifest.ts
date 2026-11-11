@@ -83,6 +83,6 @@ export const EXPECTED_DATABASE_MIGRATIONS = [
   {
     "tag": "0016_tenant_indexes_and_integrity",
     "createdAt": "1789128000000",
-    "hash": "f52cf2c2ff2e64f2b3cd43cc95e8fb3291e2b66cb1f85e0438c781acd31b32a9"
+    "hash": "cd307d42f2c6df81bbaa965bdbead36891b4563ee9687bbb160d1329f3c26daa"
   }
 ] as const;
