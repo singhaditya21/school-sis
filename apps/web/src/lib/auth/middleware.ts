@@ -1,6 +1,6 @@
-'use server';
-
 import { getSession } from '@/lib/auth/session';
+import { isMfaEnrollmentEnforced } from '@/lib/auth/identity';
+import { isMFARequired } from '@/lib/auth/mfa';
 import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 import { redirect } from 'next/navigation';
 
@@ -32,6 +32,13 @@ export async function requireAuth(permission?: string): Promise<AuthContext> {
 
     if (!session.isLoggedIn || !session.userId) {
         redirect('/login');
+    }
+
+    if (
+        (Boolean(session.mfaRequired) || (isMfaEnrollmentEnforced() && isMFARequired(session.role))) &&
+        !session.mfaVerified
+    ) {
+        redirect('/mfa/setup');
     }
 
     if (!session.tenantId) {

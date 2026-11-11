@@ -119,7 +119,7 @@ export type DbRlsContextResolver = () =>
   | Promise<DbRlsContext | undefined>;
 
 const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TENANT_CONTEXT_KEY_ID_RE = /^[a-z0-9][a-z0-9._-]{0,31}$/;
 const TENANT_CONTEXT_AUDIENCE_RE = /^[a-z0-9][a-z0-9:._-]{2,191}$/;
 const TENANT_CONTEXT_SECRET_RE = /^[A-Za-z0-9_-]{43,128}$/;
@@ -861,8 +861,8 @@ export function patchPoolForRlsContext(targetPool: Pool): Pool {
 
       return originalConnect(
         async (
-          err: Error,
-          client: PoolClient,
+          err: Error | undefined,
+          client: PoolClient | undefined,
           done: (release?: Error | boolean) => void,
         ) => {
           if (err || !client) {
@@ -1033,10 +1033,8 @@ const platformPool = patchPoolForRlsContext(
 
 export const pool = createRlsRoutingPool(tenantPool, platformPool);
 
-if (process.env.NODE_ENV !== "production") {
-  globalThis.pgPool = tenantPool;
-  globalThis.pgPlatformPool = platformPool;
-}
+globalThis.pgPool = tenantPool;
+globalThis.pgPlatformPool = platformPool;
 
 /**
  * Raw-SQL tagged template bound to the RLS-routing pool — the raw-Neon-Postgres

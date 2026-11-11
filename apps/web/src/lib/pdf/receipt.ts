@@ -43,7 +43,56 @@ function methodLabel(method: string): string {
 /** The reference a parent would quote back to the school for this payment. */
 function paymentReference(receipt: ReceiptDetail): string | null {
     if (receipt.method === 'CHEQUE') return receipt.chequeNumber;
-    return receipt.transactionId ?? receipt.razorpayPaymentId ?? receipt.chequeNumber;
+    const primary = receipt.transactionId ?? receipt.razorpayPaymentId ?? receipt.chequeNumber;
+    if (primary) return primary;
+
+    if (receipt.notes && receipt.notes.trim().startsWith('{')) {
+        try {
+            const parsed = JSON.parse(receipt.notes) as Record<string, unknown>;
+            for (const key of ['reference', 'providerPaymentId', 'providerOrderId']) {
+                const candidate = parsed[key];
+                if (typeof candidate === 'string' && candidate.trim().length > 0) {
+                    return candidate.trim();
+                }
+            }
+        } catch {
+            // ignore malformed JSON
+        }
+    }
+    return null;
+}
+
+/**
+ * Strip internal gateway JSON blobs (e.g. `{"provider":"RAZORPAY",...}`) from
+ * parent-facing receipts while preserving any human-authored remark.
+ */
+export function formatReceiptNotes(rawNotes: string | null | undefined): string | null {
+    if (!rawNotes) return null;
+    const trimmed = rawNotes.trim();
+    if (!trimmed) return null;
+
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+            const parsed: unknown = JSON.parse(trimmed);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                const record = parsed as Record<string, unknown>;
+                for (const key of ['note', 'notes', 'remarks', 'remark', 'description', 'comment']) {
+                    const candidate = record[key];
+                    if (typeof candidate === 'string') {
+                        const clean = candidate.trim();
+                        if (clean.length > 0 && !clean.startsWith('{') && !clean.startsWith('[')) {
+                            return clean;
+                        }
+                    }
+                }
+            }
+            return null;
+        } catch {
+            return null;
+        }
+    }
+
+    return trimmed;
 }
 
 /**
@@ -225,8 +274,9 @@ export function renderReceiptPdf(receipt: ReceiptDetail): Uint8Array {
         2,
     );
 
-    if (receipt.notes) {
-        builder.text(`Note: ${receipt.notes}`, { size: 8.5, color: MUTED, gap: 4 });
+    const cleanNote = formatReceiptNotes(receipt.notes);
+    if (cleanNote) {
+        builder.text(`Note: ${cleanNote}`, { size: 8.5, color: MUTED, gap: 4 });
     }
 
     builder.rule(6, 10);

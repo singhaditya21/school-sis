@@ -1,14 +1,16 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import { getSession } from '@/lib/auth/session';
-import { clearRateLimit, consumeLoginRateLimit } from '@/lib/auth/rate-limit';
+import { clearRateLimit, consumeLoginRateLimit, consumeRateLimit } from '@/lib/auth/rate-limit';
 import { sql, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { compare } from 'bcryptjs';
 import { z } from 'zod';
 import { verifyMFACode } from '@/lib/auth/mfa';
 import { establishSession } from '@/lib/auth/identity';
 import { encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
+import { logger } from '@/lib/observability/logger';
 
 /**
  * Login action — production-ready authentication.
@@ -39,6 +41,22 @@ const PLATFORM_ACTIVE_MODULES = [
     'ENTERPRISE',
 ];
 
+const DUMMY_PASSWORD_HASH = '$2a$12$rtRIcbN90xzIGNYbZ/balew0SMhGjd38LHz8rS9D5jEx4QEvSpLEO';
+
+async function resolveLoginClientIp(): Promise<string | null> {
+    try {
+        const hdrs = await headers();
+        const forwarded =
+            hdrs.get('x-vercel-forwarded-for') ||
+            hdrs.get('x-real-ip') ||
+            hdrs.get('x-forwarded-for');
+        const ip = forwarded?.split(',')[0]?.trim();
+        return ip || null;
+    } catch {
+        return null;
+    }
+}
+
 function displayNameFor(user: { firstName?: string | null; lastName?: string | null; email: string }): string {
     return [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email;
 }
@@ -66,7 +84,21 @@ async function loginActionV2WithBypass(formData: FormData) {
 
     // Consume before any account lookup or password work. Successful authentication
     // clears the bucket; every rejected authentication attempt remains counted.
-    const rateLimitError = await consumeLoginRateLimit(email);
+    const normalizedEmailInput = email.trim().toLowerCase();
+    const clientIp = await resolveLoginClientIp();
+    if (clientIp) {
+        const ipRateError = await consumeRateLimit(clientIp, {
+            scope: 'login_ip',
+            maxAttempts: 25,
+            degradedMaxAttempts: 5,
+            endpointClass: 'login',
+            message: 'Too many login attempts from this network. Please try again later.',
+        });
+        if (ipRateError) {
+            return { error: ipRateError };
+        }
+    }
+    const rateLimitError = await consumeLoginRateLimit(normalizedEmailInput);
     if (rateLimitError) {
         return { error: rateLimitError };
     }
@@ -80,7 +112,7 @@ async function loginActionV2WithBypass(formData: FormData) {
         const isPlatformAdmin = loginMode === 'platform';
 
         if (isPlatformAdmin) {
-            const normalizedEmail = email?.trim().toLowerCase() || '';
+            const normalizedEmail = normalizedEmailInput;
 
             const platformRows = await sql<{
                 id: string;
@@ -90,6 +122,7 @@ async function loginActionV2WithBypass(formData: FormData) {
                 email: string;
                 passwordHash: string;
                 role: string;
+                isActive: boolean;
                 firstName: string | null;
                 lastName: string | null;
                 mfaEnabled: boolean | null;
@@ -102,28 +135,25 @@ async function loginActionV2WithBypass(formData: FormData) {
                     COALESCE(u.email_enc, u.email) AS "email",
                     u.password_hash as "passwordHash",
                     u.role,
+                    u.is_active as "isActive",
                     u.first_name as "firstName",
                     u.last_name as "lastName",
                     u.mfa_enabled as "mfaEnabled"
                 FROM users u
-                LEFT JOIN tenants t ON t.id = u.tenant_id
-                WHERE (u.email_enc = ANY(${encryptEmailCandidates(normalizedEmail)}::text[]) OR u.email = ${normalizedEmail}) LIMIT 1
+                INNER JOIN tenants t ON t.id = u.tenant_id
+                WHERE (u.email_enc = ANY(${encryptEmailCandidates(normalizedEmail)}::text[]) OR u.email = ${normalizedEmail})
+                  AND t.code = 'HQ'
+                  AND t.is_active = true
+                  AND u.role = 'PLATFORM_ADMIN'
+                LIMIT 1
             `;
             const user = platformRows[0];
 
-            if (!user) {
+            const passwordValid = await compare(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+            if (!user || !user.isActive || user.role !== 'PLATFORM_ADMIN' || !passwordValid) {
                 return { error: 'Invalid email or password' };
             }
             user.email = user.email == null ? user.email : decryptFieldTolerant(user.email);
-
-            if (user.role !== 'PLATFORM_ADMIN') {
-                return { error: 'Invalid email or password' };
-            }
-
-            const passwordValid = await compare(password, user.passwordHash);
-            if (!passwordValid) {
-                return { error: 'Invalid credentials' };
-            }
 
             if (user.mfaEnabled) {
                 if (!mfaCode) {
@@ -142,7 +172,7 @@ async function loginActionV2WithBypass(formData: FormData) {
             // not born through /setup's own auto-login: enrolment needs a session,
             // and login refused to grant one, so the account could never be used.
 
-            await clearRateLimit(email);
+            await clearRateLimit(normalizedEmailInput);
             const session = await getSession();
             establishSession(session, {
                 userId: user.id,
@@ -218,22 +248,21 @@ async function loginActionV2WithBypass(formData: FormData) {
                     is_active as "isActive",
                     mfa_enabled as "mfaEnabled"
                 FROM users
-                WHERE (email_enc = ANY(${encryptEmailCandidates(email)}::text[]) OR email = ${email}) AND tenant_id = ${tenantRecord.tenantId} LIMIT 1
+                WHERE (email_enc = ANY(${encryptEmailCandidates(normalizedEmailInput)}::text[]) OR email = ${normalizedEmailInput}) AND tenant_id = ${tenantRecord.tenantId} LIMIT 1
             `;
             const user = userRows[0];
 
-            if (!user) {
+            const passwordValid = await compare(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+            if (!user || !passwordValid) {
+                return { error: 'Invalid email or password' };
+            }
+            if (user.role === 'PLATFORM_ADMIN' && tenantRecord.tenantCode !== 'HQ') {
                 return { error: 'Invalid email or password' };
             }
             user.email = user.email == null ? user.email : decryptFieldTolerant(user.email);
 
             if (!user.isActive) {
                 return { error: 'Your account has been deactivated. Contact your school admin.' };
-            }
-
-            const passwordValid = await compare(password, user.passwordHash);
-            if (!passwordValid) {
-                return { error: 'Invalid email or password' };
             }
 
             if (user.mfaEnabled) {
@@ -254,7 +283,7 @@ async function loginActionV2WithBypass(formData: FormData) {
             // and login refused to grant one, so the account could never be used.
 
             // Create session — clear rate limit on success
-            await clearRateLimit(email);
+            await clearRateLimit(normalizedEmailInput);
             const session = await getSession();
             establishSession(session, {
                 userId: user.id,
@@ -292,7 +321,10 @@ async function loginActionV2WithBypass(formData: FormData) {
             }
         }
     } catch (error) {
-        console.error('[Login] Error:', error);
+        logger.error('auth.login_failed', 'Unexpected login error', {
+            source: 'auth-action',
+            metadata: { error: error instanceof Error ? error.message : String(error) },
+        });
         return {
             error: 'An unexpected error occurred. Please try again or contact support.',
         };

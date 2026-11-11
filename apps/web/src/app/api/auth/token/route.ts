@@ -2,13 +2,24 @@ import { NextResponse } from 'next/server';
 import { compare } from 'bcryptjs';
 import { z } from 'zod';
 import { getSession } from '@/lib/auth/session';
-import { clearRateLimit, consumeLoginRateLimit } from '@/lib/auth/rate-limit';
+import { clearRateLimit, consumeLoginRateLimit, consumeRateLimit } from '@/lib/auth/rate-limit';
 import { verifyMFACode } from '@/lib/auth/mfa';
 import { establishSession, shouldRequireMfaEnrollment } from '@/lib/auth/identity';
 import { sql, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
+import { logger } from '@/lib/observability/logger';
 
 export const dynamic = "force-dynamic";
+
+const DUMMY_PASSWORD_HASH = '$2a$12$rtRIcbN90xzIGNYbZ/balew0SMhGjd38LHz8rS9D5jEx4QEvSpLEO';
+
+function extractClientIp(req: Request): string | null {
+    const raw =
+        req.headers.get('x-vercel-forwarded-for') ||
+        req.headers.get('x-real-ip') ||
+        req.headers.get('x-forwarded-for');
+    return raw?.split(',')[0]?.trim() || null;
+}
 
 const mobileLoginSchema = z.object({
     email: z.string().email('Invalid email address'),
@@ -59,7 +70,21 @@ export async function POST(req: Request) {
         }
 
         const { email, password, schoolCode, mfaCode } = parsed.data;
-        const rateLimitError = await consumeLoginRateLimit(email);
+        const normalizedEmail = email.trim().toLowerCase();
+        const clientIp = extractClientIp(req);
+        if (clientIp) {
+            const ipRateLimitError = await consumeRateLimit(clientIp, {
+                scope: 'login_ip',
+                maxAttempts: 25,
+                degradedMaxAttempts: 5,
+                endpointClass: 'login',
+                message: 'Too many login attempts from this network. Please try again later.',
+            });
+            if (ipRateLimitError) {
+                return NextResponse.json({ error: ipRateLimitError }, { status: 429 });
+            }
+        }
+        const rateLimitError = await consumeLoginRateLimit(normalizedEmail);
         if (rateLimitError) {
             return NextResponse.json({ error: rateLimitError }, { status: 429 });
         }
@@ -116,21 +141,20 @@ export async function POST(req: Request) {
                         is_active as "isActive",
                         mfa_enabled as "mfaEnabled"
                     FROM users
-                    WHERE (email_enc = ANY(${encryptEmailCandidates(email)}::text[]) OR email = ${email})
+                    WHERE (email_enc = ANY(${encryptEmailCandidates(normalizedEmail)}::text[]) OR email = ${normalizedEmail})
                       AND tenant_id = ${tenantRecord.tenantId}
                     LIMIT 1
                 `;
                 const user = userRows[0];
-                if (!user || !user.isActive) {
+                const passwordValid = await compare(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+                if (!user || !user.isActive || !passwordValid) {
+                    return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+                }
+                if (user.role === 'PLATFORM_ADMIN' && tenantRecord.tenantCode !== 'HQ') {
                     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
                 }
 
                 user.email = user.email == null ? user.email : decryptFieldTolerant(user.email);
-
-                const passwordValid = await compare(password, user.passwordHash);
-                if (!passwordValid) {
-                    return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
-                }
 
                 if (user.mfaEnabled) {
                     if (!mfaCode) {
@@ -148,7 +172,7 @@ export async function POST(req: Request) {
                     }
                 }
 
-                await clearRateLimit(email);
+                await clearRateLimit(normalizedEmail);
                 await sql`
                     UPDATE users
                     SET last_login_at = CURRENT_TIMESTAMP
@@ -187,7 +211,10 @@ export async function POST(req: Request) {
             },
         );
     } catch (error) {
-        console.error('Mobile token auth error:', error);
+        logger.error('auth.token_failed', 'Mobile token auth error', {
+            source: 'auth-token-api',
+            metadata: { error: error instanceof Error ? error.message : String(error) },
+        });
         return NextResponse.json({ error: 'Authentication failed' }, { status: 500 });
     }
 }

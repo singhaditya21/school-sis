@@ -4,12 +4,14 @@
  * Mobile Dynamic Object Explorer for the ScholarMind LCNC Platform.
  *
  * Responsibilities:
- *   1. Native Session Sign-In: Authenticates via `POST /api/auth/token` (`schoolCode`, `email`, `password`).
+ *   1. Native Session Sign-In & Sign-Out: Authenticates via `POST /api/auth/token`
+ *      (`schoolCode`, `email`, `password`, optional `mfaCode`) and supports explicit
+ *      bearer/session clearing on sign-out.
  *   2. Object Discovery: Fetches published tenant & standard objects via `GET /api/data`.
  *   3. Dynamic Record List & Creation: Fetches FLS-filtered fields and records (including evaluated
  *      `FORMULA` fields) via `GET /api/data/[object_name]` and submits new records via `POST /api/data/[object_name]`.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -20,7 +22,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { config } from '../config';
+import { config, requireBackendUrl } from '../config';
 
 export interface MobileMetadataObject {
   id: string;
@@ -50,107 +52,119 @@ export interface MobileMetadataField {
   } | null;
 }
 
+type DraftFieldValue = string | boolean;
+
+function authHeaders(token: string | null, extraHeaders?: Record<string, string>): Record<string, string> {
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extraHeaders,
+  };
+}
+
 export function MetadataExplorerScreen() {
   const [objects, setObjects] = useState<MobileMetadataObject[]>([]);
   const [selectedObject, setSelectedObject] = useState<string>('');
   const [fields, setFields] = useState<MobileMetadataField[]>([]);
   const [records, setRecords] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(
+    config.BACKEND_CONFIG_ERROR,
+  );
   const [showCreateForm, setShowCreateForm] = useState<boolean>(false);
-  const [draftValues, setDraftValues] = useState<Record<string, unknown>>({});
+  const [draftValues, setDraftValues] = useState<Record<string, DraftFieldValue>>({});
   const [schoolCode, setSchoolCode] = useState<string>('GWD');
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
+  const [mfaCode, setMfaCode] = useState<string>('');
+  const [bearerToken, setBearerToken] = useState<string | null>(null);
   const [signedInUser, setSignedInUser] = useState<string | null>(null);
 
-  const handleMobileLogin = async () => {
-    setLoading(true);
-    setErrorMessage(null);
-    try {
-      const res = await fetch(`${config.BACKEND_URL}/api/auth/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ schoolCode, email, password }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setErrorMessage(body.error || 'Sign-in failed.');
-        return;
-      }
-      setSignedInUser(body.displayName || body.email || email);
-      await loadObjects();
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Network error during sign-in.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const selectedObjectRef = useRef<string>('');
+  selectedObjectRef.current = selectedObject;
 
-  const loadObjects = useCallback(async () => {
-    setLoading(true);
-    setErrorMessage(null);
-    try {
-      const res = await fetch(`${config.BACKEND_URL}/api/data`, {
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
+  const isAuthenticated = Boolean(signedInUser || bearerToken || objects.length > 0);
+
+  const loadObjects = useCallback(
+    async (tokenOverride?: string | null) => {
+      setLoading(true);
+      setErrorMessage(null);
+      try {
+        const backendUrl = requireBackendUrl();
+        const activeToken = tokenOverride !== undefined ? tokenOverride : bearerToken;
+        const res = await fetch(`${backendUrl}/api/data`, {
+          headers: authHeaders(activeToken),
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          setErrorMessage(
+            body.error ||
+              `HTTP ${res.status}: Sign in to browse tenant metadata objects.`,
+          );
+          return;
+        }
+        const payload = (await res.json()) as { objects?: MobileMetadataObject[] };
+        const list = payload.objects || [];
+        setObjects(list);
+        if (list.length > 0 && !selectedObjectRef.current) {
+          setSelectedObject(list[0].apiName);
+        }
+      } catch (err) {
         setErrorMessage(
-          body.error ||
-            `HTTP ${res.status}: Sign in on ${config.BACKEND_URL} to browse tenant metadata objects.`,
+          err instanceof Error ? err.message : 'Unable to reach ScholarMind backend.',
         );
-        return;
+      } finally {
+        setLoading(false);
       }
-      const payload = (await res.json()) as { objects?: MobileMetadataObject[] };
-      const list = payload.objects || [];
-      setObjects(list);
-      if (list.length > 0 && !selectedObject) {
-        setSelectedObject(list[0].apiName);
-      }
-    } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : 'Unable to reach ScholarMind backend.',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedObject]);
+    },
+    [bearerToken],
+  );
 
-  const loadObjectData = useCallback(async (objectApiName: string) => {
-    if (!objectApiName) return;
-    setLoading(true);
-    setErrorMessage(null);
-    try {
-      const res = await fetch(
-        `${config.BACKEND_URL}/api/data/${encodeURIComponent(objectApiName)}`,
-        { credentials: 'include' },
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setErrorMessage(body.error || `Failed to load object '${objectApiName}'`);
-        return;
+  const loadObjectData = useCallback(
+    async (objectApiName: string, tokenOverride?: string | null) => {
+      if (!objectApiName) return;
+      setLoading(true);
+      setErrorMessage(null);
+      try {
+        const backendUrl = requireBackendUrl();
+        const activeToken = tokenOverride !== undefined ? tokenOverride : bearerToken;
+        const res = await fetch(
+          `${backendUrl}/api/data/${encodeURIComponent(objectApiName)}`,
+          {
+            headers: authHeaders(activeToken),
+            credentials: 'include',
+          },
+        );
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          setErrorMessage(body.error || `Failed to load object '${objectApiName}'`);
+          return;
+        }
+        const payload = (await res.json()) as {
+          data?: Record<string, unknown>[];
+          fields?: MobileMetadataField[];
+        };
+        setRecords(payload.data || []);
+        setFields(payload.fields || []);
+        setDraftValues({});
+      } catch (err) {
+        setErrorMessage(
+          err instanceof Error ? err.message : 'Could not fetch object records.',
+        );
+      } finally {
+        setLoading(false);
       }
-      const payload = (await res.json()) as {
-        data?: Record<string, unknown>[];
-        fields?: MobileMetadataField[];
-      };
-      setRecords(payload.data || []);
-      setFields(payload.fields || []);
-      setDraftValues({});
-    } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : 'Could not fetch object records.',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [bearerToken],
+  );
 
   useEffect(() => {
-    void loadObjects();
-  }, [loadObjects]);
+    if (config.BACKEND_URL) {
+      void loadObjects();
+    }
+    // Intentionally run initial probe once on mount when a valid backend URL exists.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (selectedObject) {
@@ -158,18 +172,135 @@ export function MetadataExplorerScreen() {
     }
   }, [selectedObject, loadObjectData]);
 
-  const handleCreateRecord = async () => {
-    if (!selectedObject) return;
+  const handleMobileLogin = async () => {
     setLoading(true);
     setErrorMessage(null);
     try {
+      const backendUrl = requireBackendUrl();
+      const trimmedMfa = mfaCode.trim();
+      const requestBody: Record<string, string> = {
+        schoolCode: schoolCode.trim(),
+        email: email.trim(),
+        password,
+      };
+      if (trimmedMfa.length > 0) {
+        requestBody.mfaCode = trimmedMfa;
+      }
+
+      const res = await fetch(`${backendUrl}/api/auth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(requestBody),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErrorMessage(body.error || 'Sign-in failed.');
+        return;
+      }
+
+      const issuedToken =
+        typeof body.token === 'string' && body.token.length > 0
+          ? body.token
+          : typeof body.accessToken === 'string' && body.accessToken.length > 0
+            ? body.accessToken
+            : null;
+
+      setBearerToken(issuedToken);
+      setPassword('');
+      setMfaCode('');
+      setSignedInUser(
+        body.user?.displayName ||
+          body.displayName ||
+          body.user?.email ||
+          body.email ||
+          email.trim(),
+      );
+      await loadObjects(issuedToken);
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Network error during sign-in.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    const tokenToRevoke = bearerToken;
+    setBearerToken(null);
+    setSignedInUser(null);
+    setObjects([]);
+    setSelectedObject('');
+    setFields([]);
+    setRecords([]);
+    setDraftValues({});
+    setShowCreateForm(false);
+    setPassword('');
+    setMfaCode('');
+    setErrorMessage(config.BACKEND_CONFIG_ERROR);
+
+    if (config.BACKEND_URL) {
+      await fetch(`${config.BACKEND_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: authHeaders(tokenToRevoke),
+        credentials: 'include',
+      }).catch(() => {});
+    }
+  };
+
+  const handleCreateRecord = async () => {
+    if (!selectedObject) return;
+    setErrorMessage(null);
+
+    const serializedPayload: Record<string, unknown> = {};
+    for (const field of fields) {
+      if (field.dataType === 'FORMULA') continue;
+
+      if (field.dataType === 'BOOLEAN') {
+        serializedPayload[field.apiName] = Boolean(draftValues[field.apiName]);
+        continue;
+      }
+
+      const rawValue = String(draftValues[field.apiName] ?? '');
+      const trimmed = rawValue.trim();
+
+      if (field.dataType === 'NUMBER' || field.dataType === 'CURRENCY') {
+        if (trimmed === '') {
+          if (field.isRequired) {
+            setErrorMessage(`"${field.label}" is required.`);
+            return;
+          }
+          continue;
+        }
+        const parsedNumber = Number(trimmed);
+        if (!Number.isFinite(parsedNumber)) {
+          setErrorMessage(`"${field.label}" must be a valid number.`);
+          return;
+        }
+        serializedPayload[field.apiName] = parsedNumber;
+        continue;
+      }
+
+      if (trimmed === '') {
+        if (field.isRequired) {
+          setErrorMessage(`"${field.label}" is required.`);
+          return;
+        }
+        continue;
+      }
+
+      serializedPayload[field.apiName] = rawValue;
+    }
+
+    setLoading(true);
+    try {
+      const backendUrl = requireBackendUrl();
       const res = await fetch(
-        `${config.BACKEND_URL}/api/data/${encodeURIComponent(selectedObject)}`,
+        `${backendUrl}/api/data/${encodeURIComponent(selectedObject)}`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders(bearerToken, { 'Content-Type': 'application/json' }),
           credentials: 'include',
-          body: JSON.stringify(draftValues),
+          body: JSON.stringify(serializedPayload),
         },
       );
       const body = await res.json().catch(() => ({}));
@@ -190,16 +321,31 @@ export function MetadataExplorerScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.headerRow}>
-        <View>
+        <View style={styles.headerTextWrap}>
           <Text style={styles.title}>Dynamic Object Explorer</Text>
           <Text style={styles.subtitle}>
             Renders tenant-defined objects &amp; custom fields from /api/data
           </Text>
         </View>
-        <Pressable style={styles.refreshBtn} onPress={loadObjects}>
-          <Text style={styles.refreshBtnText}>Refresh</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable style={styles.refreshBtn} onPress={() => void loadObjects()}>
+            <Text style={styles.refreshBtnText}>Refresh</Text>
+          </Pressable>
+          {isAuthenticated && (
+            <Pressable style={styles.signOutBtn} onPress={() => void handleSignOut()}>
+              <Text style={styles.signOutBtnText}>Sign Out</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
+
+      {isAuthenticated && (
+        <View style={styles.sessionBar}>
+          <Text style={styles.sessionText} numberOfLines={1}>
+            Signed in{signedInUser ? ` as ${signedInUser}` : ''} ({schoolCode.trim() || 'Tenant'})
+          </Text>
+        </View>
+      )}
 
       {errorMessage && (
         <View style={styles.errorBanner}>
@@ -208,7 +354,7 @@ export function MetadataExplorerScreen() {
         </View>
       )}
 
-      {!signedInUser && objects.length === 0 && (
+      {!isAuthenticated && (
         <View style={styles.formCard}>
           <Text style={styles.formHeading}>Sign In to Tenant Workspace</Text>
           <View style={styles.fieldGroup}>
@@ -242,7 +388,20 @@ export function MetadataExplorerScreen() {
               secureTextEntry
             />
           </View>
-          <Pressable style={styles.submitBtn} onPress={handleMobileLogin}>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>
+              MFA Code (Optional — 6-digit TOTP or backup code)
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={mfaCode}
+              onChangeText={setMfaCode}
+              placeholder="e.g. 123456"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+          <Pressable style={styles.submitBtn} onPress={() => void handleMobileLogin()}>
             <Text style={styles.submitBtnText}>Sign In &amp; Load Objects</Text>
           </Pressable>
         </View>
@@ -324,6 +483,9 @@ export function MetadataExplorerScreen() {
                   );
                 }
 
+                const isNumericField =
+                  field.dataType === 'NUMBER' || field.dataType === 'CURRENCY';
+
                 return (
                   <View key={field.id} style={styles.fieldGroup}>
                     <Text style={styles.fieldLabel}>
@@ -336,21 +498,16 @@ export function MetadataExplorerScreen() {
                           ? `Target ${field.validationRules?.targetObject || 'record'} UUID`
                           : field.dataType === 'DATE'
                             ? 'YYYY-MM-DD'
-                            : `Enter ${field.label}`
+                            : isNumericField
+                              ? 'e.g. 12.50'
+                              : `Enter ${field.label}`
                       }
-                      keyboardType={
-                        field.dataType === 'NUMBER' || field.dataType === 'CURRENCY'
-                          ? 'numeric'
-                          : 'default'
-                      }
+                      keyboardType={isNumericField ? 'decimal-pad' : 'default'}
                       value={String(draftValues[field.apiName] ?? '')}
                       onChangeText={(txt) =>
                         setDraftValues((prev) => ({
                           ...prev,
-                          [field.apiName]:
-                            field.dataType === 'NUMBER' || field.dataType === 'CURRENCY'
-                              ? Number(txt)
-                              : txt,
+                          [field.apiName]: txt,
                         }))
                       }
                     />
@@ -358,7 +515,7 @@ export function MetadataExplorerScreen() {
                 );
               })}
 
-              <Pressable style={styles.submitBtn} onPress={handleCreateRecord}>
+              <Pressable style={styles.submitBtn} onPress={() => void handleCreateRecord()}>
                 <Text style={styles.submitBtnText}>Save Record</Text>
               </Pressable>
             </View>
@@ -394,7 +551,16 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  headerTextWrap: {
+    flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
   title: {
     fontSize: 22,
@@ -416,6 +582,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#0F172A',
+  },
+  signOutBtn: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  signOutBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#991B1B',
+  },
+  sessionBar: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 12,
+  },
+  sessionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#065F46',
   },
   errorBanner: {
     backgroundColor: '#FEF3C7',
@@ -488,6 +681,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#CBD5E1',
     padding: 14,
+    marginTop: 14,
     marginBottom: 14,
   },
   formHeading: {

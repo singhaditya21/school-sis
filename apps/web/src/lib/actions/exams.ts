@@ -167,9 +167,9 @@ export async function saveMarks(
 ) {
     const { tenantId, userId } = await requireAuth('exams:write');
 
-    // Verify schedule belongs to tenant via its exam
-    const scheduleRows = await sql<{ maxMarks: string }>`
-        SELECT es.max_marks AS "maxMarks"
+    // Verify schedule belongs to tenant via its exam and exam is not published
+    const scheduleRows = await sql<{ maxMarks: string; examStatus: string }>`
+        SELECT es.max_marks AS "maxMarks", e.status AS "examStatus"
         FROM exam_schedules es
         INNER JOIN exams e ON es.exam_id = e.id
         WHERE es.id = ${examScheduleId} AND e.tenant_id = ${tenantId}
@@ -179,25 +179,41 @@ export async function saveMarks(
     if (!schedule) {
         throw new Error('Exam schedule not found or unauthorized');
     }
+    if (schedule.examStatus === 'PUBLISHED') {
+        throw new Error('Cannot modify marks after exam results have been published.');
+    }
     const maxMarks = Number(schedule?.maxMarks || 100);
 
     for (const entry of marks) {
-        const percentage = entry.marksObtained !== null ? (entry.marksObtained / maxMarks) * 100 : 0;
+        if (!entry.isAbsent && entry.marksObtained !== null) {
+            if (!Number.isFinite(entry.marksObtained) || entry.marksObtained < 0 || entry.marksObtained > maxMarks) {
+                throw new Error(`Marks obtained must be between 0 and ${maxMarks}.`);
+            }
+        }
+        const normalizedMarks = entry.isAbsent ? null : entry.marksObtained;
+        const percentage = normalizedMarks !== null ? (normalizedMarks / maxMarks) * 100 : 0;
         const grade = entry.isAbsent ? 'AB' : calculateGrade(percentage);
 
-        // Check if result already exists
-        const existingRows = await sql<{ id: string }>`
-            SELECT id
-            FROM student_results
-            WHERE exam_schedule_id = ${examScheduleId} AND student_id = ${entry.studentId} AND tenant_id = ${tenantId}
+        // Check if result already exists and whether it is hash-locked
+        const existingRows = await sql<{ id: string; isLocked: boolean }>`
+            SELECT sr.id,
+                   EXISTS (
+                       SELECT 1 FROM exam_result_hashes erh
+                       WHERE erh.result_id = sr.id AND erh.tenant_id = ${tenantId}
+                   ) AS "isLocked"
+            FROM student_results sr
+            WHERE sr.exam_schedule_id = ${examScheduleId} AND sr.student_id = ${entry.studentId} AND sr.tenant_id = ${tenantId}
         `;
 
         const existing = existingRows[0];
 
         if (existing) {
+            if (existing.isLocked) {
+                throw new Error('Cannot overwrite cryptographically verified exam result.');
+            }
             await sql`
                 UPDATE student_results
-                SET marks_obtained = ${entry.marksObtained !== null ? String(entry.marksObtained) : null},
+                SET marks_obtained = ${normalizedMarks !== null ? String(normalizedMarks) : null},
                     grade = ${grade},
                     is_absent = ${entry.isAbsent},
                     remarks = ${entry.remarks || null},
@@ -214,7 +230,7 @@ export async function saveMarks(
                     ${tenantId},
                     ${examScheduleId},
                     ${entry.studentId},
-                    ${entry.marksObtained !== null ? String(entry.marksObtained) : null},
+                    ${normalizedMarks !== null ? String(normalizedMarks) : null},
                     ${grade},
                     ${entry.isAbsent},
                     ${entry.remarks || null},
@@ -281,6 +297,21 @@ export async function verifyExamResults(resultIds: string[]) {
 export async function rejectExamResults(resultIds: string[]) {
     const { tenantId, userId } = await requireAuth('exams:write');
     for (const resultId of resultIds) {
+        const lockCheck = await sql<{ examStatus: string; isLocked: boolean }>`
+            SELECT e.status AS "examStatus",
+                   EXISTS (
+                       SELECT 1 FROM exam_result_hashes erh
+                       WHERE erh.result_id = sr.id AND erh.tenant_id = ${tenantId}
+                   ) AS "isLocked"
+            FROM student_results sr
+            INNER JOIN exam_schedules es ON es.id = sr.exam_schedule_id
+            INNER JOIN exams e ON e.id = es.exam_id
+            WHERE sr.id = ${resultId} AND sr.tenant_id = ${tenantId}
+        `;
+        if (!lockCheck[0]) continue;
+        if (lockCheck[0].examStatus === 'PUBLISHED' || lockCheck[0].isLocked) {
+            throw new Error('Cannot reject published or hash-locked exam results.');
+        }
         await sql`
             DELETE FROM student_results WHERE id = ${resultId} AND tenant_id = ${tenantId}
         `;

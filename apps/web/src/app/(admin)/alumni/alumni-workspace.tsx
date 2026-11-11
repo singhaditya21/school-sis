@@ -283,9 +283,9 @@ export default function AlumniWorkspace({ alumni, events, stats }: Props) {
                                             <td className="px-4 py-3">
                                                 <div className="font-medium">{a.name}</div>
                                                 <div className="text-xs text-muted-foreground">{a.email}</div>
-                                                {a.linkedIn && (
+                                                {a.linkedIn && /^https?:\/\//i.test(a.linkedIn.trim()) && (
                                                     <a
-                                                        href={a.linkedIn}
+                                                        href={a.linkedIn.trim()}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="text-xs text-primary hover:underline"

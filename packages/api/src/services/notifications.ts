@@ -31,13 +31,16 @@ export class NotificationService {
    */
   static async sendParentAlert(deviceToken: string, title: string, body: string, dataPayload: Record<string, unknown> = {}) {
     try {
+      const data = Object.fromEntries(
+        Object.entries(dataPayload).map(([key, value]) => [key, String(value ?? '')]),
+      );
       const message = {
         token: deviceToken,
         notification: {
           title,
           body,
         },
-        data: dataPayload as Record<string, string>,
+        data,
         android: {
           priority: 'high' as const,
         },

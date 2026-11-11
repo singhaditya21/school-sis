@@ -15,7 +15,7 @@
 import { tenantScope, and, eq, ne } from '@school-sis/api/src/data';
 import { concessions, feeComponents, feePlans, invoices, students } from '@school-sis/api/src/db/generated/tables';
 import { requireAuth } from '@/lib/auth/middleware';
-import { randomUUID } from 'crypto';
+import crypto from 'crypto';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -47,13 +47,21 @@ function isUniqueViolation(err: unknown): boolean {
     return candidate?.code === '23505' || candidate?.cause?.code === '23505';
 }
 
+function toPaise(amount: number | string): number {
+    return Math.round(Number(amount) * 100);
+}
+
+function paiseToRupeesString(paise: number): string {
+    return (Math.max(0, paise) / 100).toFixed(2);
+}
+
 // ─── Individual Invoice Generation ───────────────────────────
 
 export async function generateInvoices(options: GenerateInvoiceOptions): Promise<GenerationResult> {
     const { tenantId } = await requireAuth('fees:write');
     const scope = tenantScope(tenantId);
 
-    // Validate fee plan. `claim` reads it back under this tenant and returns the
+    // Validate fee plan. `claim` reads it under this tenant and returns the
     // handle that the fee_components read below requires.
     const plan = await scope.claim<{ name: string }>(feePlans, options.feePlanId);
 
@@ -77,9 +85,9 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
         return { success: false, generated: 0, skipped: 0, errors: ['Fee plan has no components'] };
     }
 
-    // Calculate total (mandatory components only)
+    // Calculate total in integer paise (mandatory components only)
     const mandatoryComponents = components.filter((c) => !c.isOptional);
-    const totalAmount = mandatoryComponents.reduce((sum, c) => sum + Number(c.amount), 0);
+    const totalPaise = mandatoryComponents.reduce((sum, c) => sum + toPaise(c.amount), 0);
 
     let generated = 0;
     let skipped = 0;
@@ -135,37 +143,37 @@ export async function generateInvoices(options: GenerateInvoiceOptions): Promise
                 ))
                 .rows();
 
-            // Apply concession
-            let finalAmount = totalAmount;
+            // Apply concessions strictly in integer paise before converting back to rupees
+            let finalPaise = totalPaise;
             for (const conc of studentConcessions) {
                 if (conc.type === 'PERCENTAGE') {
-                    finalAmount -= totalAmount * (Number(conc.value) / 100);
+                    finalPaise -= Math.round((totalPaise * Number(conc.value)) / 100);
                 } else {
-                    finalAmount -= Number(conc.value);
+                    finalPaise -= toPaise(conc.value);
                 }
             }
-            finalAmount = Math.max(0, Math.round(finalAmount * 100) / 100);
+            finalPaise = Math.max(0, finalPaise);
 
-            // Generate invoice number
-            const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}-${generated + 1}`;
+            // Generate collision-safe invoice number
+            const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
             // Build line items JSON
             const lineItems = JSON.stringify(
                 mandatoryComponents.map((c) => ({
                     componentId: c.id,
                     name: c.name,
-                    amount: Number(c.amount),
+                    amount: toPaise(c.amount) / 100,
                     frequency: c.frequency,
                 })),
             );
 
             await scope.insert(invoices, {
-                id: randomUUID(),
+                id: crypto.randomUUID(),
                 studentId,
                 feePlanId: plan.id,
                 invoiceNumber,
-                totalAmount: String(finalAmount),
-                paidAmount: '0',
+                totalAmount: paiseToRupeesString(finalPaise),
+                paidAmount: '0.00',
                 dueDate: options.dueDate,
                 status: 'PENDING',
                 description: options.description || `${plan.row.name} - Invoice`,
@@ -248,7 +256,8 @@ export async function getInvoiceGenerationPreview(
         .rows();
 
     const mandatory = components.filter((c) => !c.isOptional);
-    const totalPerStudent = mandatory.reduce((sum, c) => sum + Number(c.amount), 0);
+    const totalPerStudentPaise = mandatory.reduce((sum, c) => sum + toPaise(c.amount), 0);
+    const totalPerStudent = totalPerStudentPaise / 100;
 
     const studentCount = await scope.count(
         students,
@@ -265,9 +274,9 @@ export async function getInvoiceGenerationPreview(
         totalPerStudent,
         components: mandatory.map((c) => ({
             name: c.name,
-            amount: Number(c.amount),
+            amount: toPaise(c.amount) / 100,
             frequency: c.frequency,
         })),
-        estimatedTotal: totalPerStudent * studentCount,
+        estimatedTotal: (totalPerStudentPaise * studentCount) / 100,
     };
 }

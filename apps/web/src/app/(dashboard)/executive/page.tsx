@@ -1,26 +1,28 @@
 import React from 'react';
 import { getExecutiveFinancialMetrics } from '@/lib/actions/executive-analytics';
 import { getAllMetadataObjects } from '@/lib/actions/metadata-engine';
-import { getSession } from '@/lib/auth/session';
+import { requireAuth } from '@/lib/auth/middleware';
 import { isTenantStaffRole } from '@/lib/auth/page-access';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 import { redirect } from 'next/navigation';
 import { ExecutiveDashboardClient } from './executive-dashboard-client';
 
 // Executive fee position & drag-and-drop dashboard builder for the School Principal / Board.
 
 export default async function ExecutiveDashboardPage() {
-  const session = await getSession();
+  const auth = await requireAuth();
+  const role = auth.session.role as UserRole;
 
-  if (!session.isLoggedIn) {
-    redirect('/login');
-  }
-
-  if (!isTenantStaffRole(session.role) || !session.tenantId) {
+  if (
+    !isTenantStaffRole(role) ||
+    !auth.tenantId ||
+    (!hasPermission(role, 'fees:read') && !hasPermission(role, 'analytics:read'))
+  ) {
     redirect('/unauthorized');
   }
 
   const [metrics, allObjects] = await Promise.all([
-    getExecutiveFinancialMetrics(session.tenantId),
+    getExecutiveFinancialMetrics(auth.tenantId),
     getAllMetadataObjects().catch(() => []),
   ]);
 

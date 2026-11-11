@@ -22,7 +22,6 @@ import {
     desc,
     eq,
     ilike,
-    ne,
     notInArray,
     or,
     sql,
@@ -70,8 +69,11 @@ export interface InvoiceListItem {
     status: string;
 }
 
-/** Invoices that are still owed: everything except settled, voided or written off. */
-const UNSETTLED_STATUSES = ['PAID', 'CANCELLED', 'WAIVED'] as const;
+/** Invoices excluded from expected/pending collection totals. */
+const NON_COLLECTIBLE_STATUSES = ['CANCELLED', 'WAIVED', 'DRAFT'] as const;
+
+/** Invoices that are not owed: settled, voided, written off, or unissued drafts. */
+const UNSETTLED_STATUSES = ['PAID', 'CANCELLED', 'WAIVED', 'DRAFT'] as const;
 
 /** `due_date` is a calendar date; keep it a calendar date rather than a timestamp. */
 function toDateString(value: string): string {
@@ -112,7 +114,10 @@ export async function getFeePlans(): Promise<FeePlanListItem[]> {
                 count: sql`count(*)`,
                 totalPaid: sql`sum(${invoices.paidAmount})`,
             })
-            .where(eq(invoices.feePlanId, plan.id))
+            .where(and(
+                eq(invoices.feePlanId, plan.id),
+                notInArray(invoices.status, [...NON_COLLECTIBLE_STATUSES]),
+            ))
             .rows();
 
         result.push({
@@ -295,7 +300,10 @@ export async function getDefaulterStats(): Promise<DefaulterStats> {
             studentId: invoices.studentId,
         })
         .where(and(
-            sql`${invoices.dueDate} < ${today}`,
+            or(
+                eq(invoices.status, 'OVERDUE'),
+                sql`${invoices.dueDate} < ${today}`,
+            ),
             notInArray(invoices.status, [...UNSETTLED_STATUSES]),
         ))
         .rows();
@@ -349,7 +357,10 @@ export async function getFeeAgeingBreakdown(): Promise<AgeingBucket[]> {
             dueDate: sql`${invoices.dueDate}::text`,
         })
         .where(and(
-            sql`${invoices.dueDate} < ${todayStr}`,
+            or(
+                eq(invoices.status, 'OVERDUE'),
+                sql`${invoices.dueDate} < ${todayStr}`,
+            ),
             notInArray(invoices.status, [...UNSETTLED_STATUSES]),
         ))
         .rows();
@@ -412,7 +423,10 @@ export async function getDefaulterList(options?: {
             dueDate: sql`${invoices.dueDate}::text`,
         })
         .where(and(
-            sql`${invoices.dueDate} < ${todayStr}`,
+            or(
+                eq(invoices.status, 'OVERDUE'),
+                sql`${invoices.dueDate} < ${todayStr}`,
+            ),
             notInArray(invoices.status, [...UNSETTLED_STATUSES]),
         ))
         .rows();
@@ -493,7 +507,7 @@ export async function getCollectionTrend(months: number = 6): Promise<Collection
             to_char(${invoices.createdAt}, 'YYYY-MM') AS month,
             SUM(${invoices.totalAmount}) AS total
         FROM ${identifier(invoices.$name)}
-        WHERE ${tenant('invoices')} AND ${invoices.status} != 'CANCELLED'
+        WHERE ${tenant('invoices')} AND ${invoices.status} NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
         GROUP BY to_char(${invoices.createdAt}, 'YYYY-MM')
         ORDER BY to_char(${invoices.createdAt}, 'YYYY-MM')
     `);
@@ -530,7 +544,7 @@ export async function getFeeOverview(): Promise<FeeOverview> {
             totalPaid: sql`sum(${invoices.paidAmount})`,
             totalCount: sql`count(*)`,
         })
-        .where(ne(invoices.status, 'CANCELLED'))
+        .where(notInArray(invoices.status, [...NON_COLLECTIBLE_STATUSES]))
         .rows();
 
     const invoiceStats = invoiceStatsRows[0];
@@ -539,18 +553,31 @@ export async function getFeeOverview(): Promise<FeeOverview> {
 
     const overdueRows = await scope
         .from(invoices)
-        .select<{ studentId: string }>({ studentId: invoices.studentId })
+        .select<{ studentId: string; totalAmount: string; paidAmount: string | null }>({
+            studentId: invoices.studentId,
+            totalAmount: invoices.totalAmount,
+            paidAmount: invoices.paidAmount,
+        })
         .where(and(
-            sql`${invoices.dueDate} < ${todayStr}`,
+            or(
+                eq(invoices.status, 'OVERDUE'),
+                sql`${invoices.dueDate} < ${todayStr}`,
+            ),
             notInArray(invoices.status, [...UNSETTLED_STATUSES]),
         ))
         .rows();
 
     const uniqueDefaulters = new Set(overdueRows.map((r) => r.studentId));
+    const overdueAmount = Math.round(
+        overdueRows.reduce(
+            (sum, r) => sum + Math.max(0, Number(r.totalAmount) - Number(r.paidAmount || 0)),
+            0,
+        ) * 100,
+    ) / 100;
 
     const totalBilled = Number(invoiceStats?.totalBilled || 0);
     const totalCollected = Number(invoiceStats?.totalPaid || 0);
-    const totalPending = totalBilled - totalCollected;
+    const totalPending = Math.max(0, Math.round((totalBilled - totalCollected) * 100) / 100);
     const collectionRate = totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 100) : 0;
 
     return {
@@ -558,7 +585,7 @@ export async function getFeeOverview(): Promise<FeeOverview> {
         totalCollected,
         totalPending,
         collectionRate,
-        overdueAmount: totalPending,
+        overdueAmount,
         defaulterCount: uniqueDefaulters.size,
         invoiceCount: parseInt(invoiceStats?.totalCount || '0', 10),
         paidInvoiceCount,
@@ -590,7 +617,10 @@ export async function getDefaulterAlertStats(): Promise<DefaulterAlertStats> {
             dueDate: sql`${invoices.dueDate}::text`,
         })
         .where(and(
-            sql`${invoices.dueDate} < ${todayStr}`,
+            or(
+                eq(invoices.status, 'OVERDUE'),
+                sql`${invoices.dueDate} < ${todayStr}`,
+            ),
             notInArray(invoices.status, [...UNSETTLED_STATUSES]),
         ))
         .rows();

@@ -6,6 +6,8 @@ import {
     recordProviderEvent,
 } from './ledger';
 
+const ALLOWED_SUBSCRIPTION_TIERS = new Set(['CORE', 'AI_PRO', 'ENTERPRISE']);
+
 function safeStripePayload(event: Stripe.Event): Record<string, unknown> {
     return {
         id: event.id,
@@ -32,7 +34,7 @@ async function handleInvoiceCheckoutCompleted(
         providerOrderId: session.id,
         providerPaymentId: typeof session.payment_intent === 'string' ? session.payment_intent : session.id,
         amountMinor: session.amount_total || 0,
-        currency: (session.currency || 'usd').toUpperCase(),
+        currency: String(session.currency || '').trim().toUpperCase(),
         providerEventId,
         metadata: {
             checkoutSessionId: session.id,
@@ -44,7 +46,8 @@ async function handleInvoiceCheckoutCompleted(
 async function handleSubscriptionCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
     const companyId = session.client_reference_id;
     const subscriptionId = session.subscription as string | null;
-    const planType = session.metadata?.planType || 'CORE';
+    const rawPlanType = session.metadata?.planType || 'CORE';
+    const planType = ALLOWED_SUBSCRIPTION_TIERS.has(rawPlanType) ? rawPlanType : 'CORE';
 
     if (!companyId || !subscriptionId) {
         throw new Error('Subscription checkout session is missing company or subscription metadata.');
@@ -99,7 +102,11 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Pro
 }
 
 export async function handleStripeWebhookEvent(event: Stripe.Event): Promise<{ duplicate: boolean }> {
-    const tenantId = event.type === 'checkout.session.completed'
+    const isCheckoutEvent =
+        event.type === 'checkout.session.completed' ||
+        event.type === 'checkout.session.async_payment_succeeded';
+
+    const tenantId = isCheckoutEvent
         ? (event.data.object as Stripe.Checkout.Session).metadata?.tenantId || null
         : null;
 
@@ -117,8 +124,12 @@ export async function handleStripeWebhookEvent(event: Stripe.Event): Promise<{ d
 
     try {
         switch (event.type) {
-            case 'checkout.session.completed': {
+            case 'checkout.session.completed':
+            case 'checkout.session.async_payment_succeeded': {
                 const session = event.data.object as Stripe.Checkout.Session;
+                if (session.payment_status !== 'paid') {
+                    break;
+                }
                 if (session.metadata?.invoiceId) {
                     await handleInvoiceCheckoutCompleted(session, providerEvent.event.id);
                 } else {

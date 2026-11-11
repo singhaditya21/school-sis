@@ -6,6 +6,61 @@
  * deliberately pointed at its own renderer. Anything other than a clean 2xx PDF
  * response falls through to native generation rather than failing the request.
  */
+export function buildSafeExternalPdfUrl(base: string, rawPath: string): URL | null {
+    if (!base || !rawPath || !rawPath.startsWith('/')) return null;
+    if (
+        rawPath.includes('\\') ||
+        rawPath.includes('\0') ||
+        rawPath.includes('//') ||
+        rawPath.includes('?') ||
+        rawPath.includes('#')
+    ) {
+        return null;
+    }
+
+    let baseUrl: URL;
+    try {
+        baseUrl = new URL(base);
+    } catch {
+        return null;
+    }
+
+    const rawSegments = rawPath.slice(1).split('/');
+    if (rawSegments.length === 0) return null;
+
+    const encodedSegments: string[] = [];
+    for (const rawSegment of rawSegments) {
+        if (!rawSegment || rawSegment === '.' || rawSegment === '..') {
+            return null;
+        }
+        let decoded: string;
+        try {
+            decoded = decodeURIComponent(rawSegment);
+        } catch {
+            return null;
+        }
+        if (
+            !decoded ||
+            decoded === '.' ||
+            decoded === '..' ||
+            decoded.includes('/') ||
+            decoded.includes('\\') ||
+            decoded.includes('\0')
+        ) {
+            return null;
+        }
+        encodedSegments.push(encodeURIComponent(decoded));
+    }
+
+    const basePath = baseUrl.pathname.replace(/\/+$/, '');
+    const targetUrl = new URL(`${basePath}/${encodedSegments.join('/')}`, baseUrl.origin);
+    if (targetUrl.origin !== new URL(base).origin || targetUrl.search !== '' || targetUrl.hash !== '') {
+        return null;
+    }
+
+    return targetUrl;
+}
+
 export async function fetchExternalPdf(options: {
     path: string;
     token: string;
@@ -15,8 +70,14 @@ export async function fetchExternalPdf(options: {
     const base = process.env.PDF_SERVICE_URL;
     if (!base) return null;
 
+    const targetUrl = buildSafeExternalPdfUrl(base, options.path);
+    if (!targetUrl) {
+        console.warn(`[${options.label}] Rejected unsafe external PDF path; using native generation.`);
+        return null;
+    }
+
     try {
-        const response = await fetch(`${base.replace(/\/+$/, '')}${options.path}`, {
+        const response = await fetch(targetUrl.toString(), {
             headers: {
                 Authorization: `Bearer ${options.token}`,
                 'X-Tenant-Id': options.tenantId,

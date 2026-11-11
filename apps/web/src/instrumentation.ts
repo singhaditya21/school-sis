@@ -6,10 +6,18 @@ export async function register() {
       RLS_BYPASS_JUSTIFICATIONS,
     } = await import('@/lib/db');
     const { getSession } = await import('./lib/auth/session');
+    const { isMfaEnrollmentEnforced } = await import('./lib/auth/identity');
+    const { isMFARequired } = await import('./lib/auth/mfa');
 
     registerDbRlsContextResolver(async () => {
       const session = await getSession();
       if (!session.isLoggedIn || !session.userId) return undefined;
+      if (
+        (Boolean(session.mfaRequired) || (isMfaEnrollmentEnforced() && isMFARequired(session.role))) &&
+        !session.mfaVerified
+      ) {
+        return undefined;
+      }
       if (session.role === 'PLATFORM_ADMIN') {
         return {
           bypassRls: true,

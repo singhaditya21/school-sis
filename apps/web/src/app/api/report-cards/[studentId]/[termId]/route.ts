@@ -12,6 +12,8 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Report card PDF, generated in-process with jsPDF. No external renderer is
  * required; PDF_SERVICE_URL is honoured only as an override when a deployment
@@ -30,26 +32,14 @@ export async function GET(
     const auth = await requireApiAuth();
     if (auth.ok === false) return auth.response;
 
+    if (!UUID_RE.test(studentId) || !UUID_RE.test(termId)) {
+        return NextResponse.json(
+            { error: 'Invalid studentId or termId' },
+            { status: 400 },
+        );
+    }
+
     try {
-        const session = await getSession();
-        const external = await fetchExternalPdf({
-            path: `/api/v1/exams/report-cards/${studentId}/${termId}/pdf`,
-            token: session.token ?? '',
-            tenantId: auth.context.tenantId,
-            label: 'Report Card PDF',
-        });
-
-        if (external) {
-            return new NextResponse(external, {
-                status: 200,
-                headers: {
-                    'Content-Type': 'application/pdf',
-                    'Content-Disposition': attachmentDisposition(`report-card-${studentId}.pdf`),
-                    'Cache-Control': 'private, no-store',
-                },
-            });
-        }
-
         // requireApiAuth only proves a session in this tenant. Without this, any
         // signed-in parent or student could pull another child's report card.
         const allowed = await canAccessStudentDocument({
@@ -74,12 +64,32 @@ export async function GET(
             );
         }
 
+        const filename = reportCardPdfFilename(data);
+        const session = await getSession();
+        const external = await fetchExternalPdf({
+            path: `/api/v1/exams/report-cards/${encodeURIComponent(studentId)}/${encodeURIComponent(termId)}/pdf`,
+            token: session.token ?? '',
+            tenantId: auth.context.tenantId,
+            label: 'Report Card PDF',
+        });
+
+        if (external) {
+            return new NextResponse(external, {
+                status: 200,
+                headers: {
+                    'Content-Type': 'application/pdf',
+                    'Content-Disposition': attachmentDisposition(filename),
+                    'Cache-Control': 'private, no-store',
+                },
+            });
+        }
+
         const pdf = renderReportCardPdf(data);
         return new NextResponse(new Uint8Array(pdf), {
             status: 200,
             headers: {
                 'Content-Type': 'application/pdf',
-                'Content-Disposition': attachmentDisposition(reportCardPdfFilename(data)),
+                'Content-Disposition': attachmentDisposition(filename),
                 'Content-Length': String(pdf.byteLength),
                 'Cache-Control': 'private, no-store',
             },

@@ -661,6 +661,9 @@ async function fetchExamSnapshot(
             COUNT(sr.id)::int AS "resultCount",
             COUNT(erh.id)::int AS "lockedResultCount"
          FROM exam_schedules es
+         INNER JOIN exams e
+            ON e.id = es.exam_id
+           AND e.tenant_id = $1
          LEFT JOIN student_results sr
             ON sr.exam_schedule_id = es.id
            AND sr.tenant_id = $1
@@ -698,6 +701,9 @@ async function lockMissingExamResultHashes(
          FROM student_results sr
          INNER JOIN exam_schedules es
             ON es.id = sr.exam_schedule_id
+         INNER JOIN exams e
+            ON e.id = es.exam_id
+           AND e.tenant_id = sr.tenant_id
          LEFT JOIN exam_result_hashes erh
             ON erh.result_id = sr.id
            AND erh.tenant_id = sr.tenant_id
@@ -786,6 +792,16 @@ function assertRoleChangeAllowed(user: UserSnapshot, targetRole: AuthorizationRo
     }
     if (user.role === 'PLATFORM_ADMIN') {
         throw new WorkflowAdoptionExecutionError('Tenant role changes cannot modify PLATFORM_ADMIN users.', 403);
+    }
+    if (
+        (targetRole === 'SUPER_ADMIN' || user.role === 'SUPER_ADMIN') &&
+        actor.role !== 'SUPER_ADMIN' &&
+        actor.role !== 'PLATFORM_ADMIN'
+    ) {
+        throw new WorkflowAdoptionExecutionError(
+            'Only SUPER_ADMIN or PLATFORM_ADMIN can assign or modify SUPER_ADMIN roles.',
+            403,
+        );
     }
     if (user.id === actor.userId) {
         throw new WorkflowAdoptionExecutionError('Users cannot change their own role through approval execution.', 403);

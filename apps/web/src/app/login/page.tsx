@@ -32,7 +32,6 @@ export default function LoginPage() {
     const [error, setError] = useState<string | null>(null);
     const [schoolCode, setSchoolCode] = useState('');
     const [loginMode, setLoginMode] = useState<'school' | 'platform'>('school');
-    const [authTab, setAuthTab] = useState<'password' | 'otp'>('password');
     const [mfaRequired, setMfaRequired] = useState(false);
 
     async function handleSubmit(formData: FormData) {
@@ -199,105 +198,50 @@ export default function LoginPage() {
 
                                     {loginMode === 'school' && <Separator className="my-4" />}
 
-                                    {/* Auth Tabs */}
-                                    <div className="w-full">
-                                        <div className="grid w-full grid-cols-2 rounded-lg bg-muted p-1 text-muted-foreground">
-                                            <button
-                                                type="button"
-                                                onClick={() => setAuthTab('password')}
-                                                className={`inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all ${authTab === 'password' ? 'bg-background text-foreground shadow-sm' : 'hover:bg-muted/80'}`}
-                                            >
-                                                Password
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setAuthTab('otp')}
-                                                className={`inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all ${authTab === 'otp' ? 'bg-background text-foreground shadow-sm' : 'hover:bg-muted/80'}`}
-                                            >
-                                                OTP
-                                            </button>
+                                    {/* Credentials */}
+                                    <div className="space-y-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="email">Email</Label>
+                                            <Input
+                                                id="email"
+                                                name="email"
+                                                type="email"
+                                                placeholder={loginMode === 'platform' ? 'founder@scholarmind.com' : 'you@school.edu'}
+                                                required
+                                                autoComplete="email"
+                                                aria-invalid={error ? 'true' : 'false'}
+                                                data-testid="email-input"
+                                            />
                                         </div>
-
-                                        {/* Password Tab */}
-                                        {authTab === 'password' && (
-                                            <div className="space-y-4 mt-4 animate-in fade-in slide-in-from-bottom-1 duration-300">
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="email">Email</Label>
-                                                    <Input
-                                                        id="email"
-                                                        name="email"
-                                                        type="email"
-                                                        placeholder={loginMode === 'platform' ? 'founder@scholarmind.com' : 'you@school.edu'}
-                                                        required
-                                                        autoComplete="email"
-                                                        aria-invalid={error ? 'true' : 'false'}
-                                                        data-testid="email-input"
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center justify-between">
-                                                        <Label htmlFor="password">Password</Label>
-                                                        <a href="/forgot-password" className="text-xs font-medium text-primary hover:underline">
-                                                            Forgot password?
-                                                        </a>
-                                                    </div>
-                                                    <Input
-                                                        id="password"
-                                                        name="password"
-                                                        type="password"
-                                                        placeholder="••••••••"
-                                                        required
-                                                        autoComplete="current-password"
-                                                        aria-invalid={error ? 'true' : 'false'}
-                                                        data-testid="password-input"
-                                                    />
-                                                </div>
-                                                {mfaRequired && (
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="mfaCode">Authenticator code</Label>
-                                                        <Input
-                                                            id="mfaCode"
-                                                            name="mfaCode"
-                                                            type="text"
-                                                            inputMode="numeric"
-                                                            autoComplete="one-time-code"
-                                                            maxLength={6}
-                                                            placeholder="123456"
-                                                            required
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* OTP Tab */}
-                                        {authTab === 'otp' && (
-                                            <div className="space-y-4 mt-4 animate-in fade-in slide-in-from-bottom-1 duration-300">
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="otp-email">Email or Phone</Label>
-                                                    <Input
-                                                        id="otp-email"
-                                                        name="otpEmail"
-                                                        type="text"
-                                                        placeholder="you@school.edu or +91 98765..."
-                                                    />
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <Input
-                                                        id="otp"
-                                                        name="otp"
-                                                        type="text"
-                                                        placeholder="Enter OTP"
-                                                        maxLength={6}
-                                                        className="flex-1"
-                                                    />
-                                                    <Button type="button" variant="outline" className="shrink-0">
-                                                        Send OTP
-                                                    </Button>
-                                                </div>
-                                                <p className="text-xs text-muted-foreground">
-                                                    OTP will be sent to your registered email or phone
-                                                </p>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="password">Password</Label>
+                                            <Input
+                                                id="password"
+                                                name="password"
+                                                type="password"
+                                                placeholder="••••••••"
+                                                required
+                                                autoComplete="current-password"
+                                                aria-invalid={error ? 'true' : 'false'}
+                                                data-testid="password-input"
+                                            />
+                                            <p className="text-xs text-muted-foreground">
+                                                Forgot your password? Contact your school administrator to reset your credentials.
+                                            </p>
+                                        </div>
+                                        {mfaRequired && (
+                                            <div className="space-y-2">
+                                                <Label htmlFor="mfaCode">Authenticator code</Label>
+                                                <Input
+                                                    id="mfaCode"
+                                                    name="mfaCode"
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    autoComplete="one-time-code"
+                                                    maxLength={6}
+                                                    placeholder="123456"
+                                                    required
+                                                />
                                             </div>
                                         )}
                                     </div>
@@ -327,10 +271,6 @@ export default function LoginPage() {
                                 <p className="text-xs text-center text-muted-foreground">
                                     {APP_TAGLINE}
                                 </p>
-                                <div className="flex gap-4 text-xs text-muted-foreground">
-                                    <a href="/privacy" className="hover:underline">Privacy Policy</a>
-                                    <a href="/terms" className="hover:underline">Terms of Service</a>
-                                </div>
                             </CardFooter>
                         </Card>
                     </div>

@@ -264,7 +264,7 @@ export const AUTHORIZATION_ROLE_PERMISSIONS = {
     ],
 
     TEACHER: [
-        ...COMMON_STAFF_READ_PERMISSIONS,
+        ...COMMON_STAFF_READ_PERMISSIONS.filter((entry) => entry.permission !== 'students:read'),
         grant('profile:read', 'own'),
         grant('timetable:read', 'assigned'),
         grant('substitution:read', 'assigned'),

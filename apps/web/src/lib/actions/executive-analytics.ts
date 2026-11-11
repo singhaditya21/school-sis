@@ -1,6 +1,4 @@
-'use server';
-
-import { sql } from '@/lib/db';
+import { runWithTenantContext, sql } from '@/lib/db';
 
 export interface ExecutiveFinancialMetrics {
   /** Rupees. Sum of billed invoices that are still expected to be collected. */
@@ -26,35 +24,37 @@ export interface ExecutiveFinancialMetrics {
  * status-based count silently under-reports whenever the job runner is behind.
  */
 export async function getExecutiveFinancialMetrics(tenantId: string): Promise<ExecutiveFinancialMetrics> {
-  const [totalsRows, overdueRows] = await Promise.all([
-    sql<{ expected: string; collected: string }>`
-      SELECT
-        COALESCE(SUM(total_amount), 0) AS expected,
-        COALESCE(SUM(paid_amount), 0)  AS collected
-      FROM invoices
-      WHERE tenant_id = ${tenantId}
-        AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
-    `.rows(),
-    sql<{ overdue_balance: string; defaulter_count: string }>`
-      SELECT
-        COALESCE(SUM(total_amount - paid_amount), 0) AS overdue_balance,
-        COUNT(DISTINCT student_id)                   AS defaulter_count
-      FROM invoices
-      WHERE tenant_id = ${tenantId}
-        AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
-        AND due_date < CURRENT_DATE
-        AND total_amount > paid_amount
-    `.rows(),
-  ]);
+  return runWithTenantContext(tenantId, async () => {
+    const [totalsRows, overdueRows] = await Promise.all([
+      sql<{ expected: string; collected: string }>`
+        SELECT
+          COALESCE(SUM(total_amount), 0) AS expected,
+          COALESCE(SUM(paid_amount), 0)  AS collected
+        FROM invoices
+        WHERE tenant_id = ${tenantId}
+          AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
+      `.rows(),
+      sql<{ overdue_balance: string; defaulter_count: string }>`
+        SELECT
+          COALESCE(SUM(total_amount - paid_amount), 0) AS overdue_balance,
+          COUNT(DISTINCT student_id)                   AS defaulter_count
+        FROM invoices
+        WHERE tenant_id = ${tenantId}
+          AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
+          AND due_date < CURRENT_DATE
+          AND total_amount > paid_amount
+      `.rows(),
+    ]);
 
-  const expected = Number(totalsRows[0].expected);
-  const collected = Number(totalsRows[0].collected);
+    const expected = Number(totalsRows[0].expected);
+    const collected = Number(totalsRows[0].collected);
 
-  return {
-    totalExpectedFees: expected,
-    totalCollectedFees: collected,
-    collectionDeficit: expected - collected,
-    overdueBalance: Number(overdueRows[0].overdue_balance),
-    defaulterCount: Number(overdueRows[0].defaulter_count),
-  };
+    return {
+      totalExpectedFees: expected,
+      totalCollectedFees: collected,
+      collectionDeficit: expected - collected,
+      overdueBalance: Number(overdueRows[0].overdue_balance),
+      defaulterCount: Number(overdueRows[0].defaulter_count),
+    };
+  });
 }

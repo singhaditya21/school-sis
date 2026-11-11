@@ -107,6 +107,6 @@ export async function safeAction<T>(
         return { success: true, data };
     } catch (err: unknown) {
         console.error('[Action Error]', err);
-        return { success: false, error: (err as { message?: string }).message || 'An unexpected error occurred' };
+        return { success: false, error: 'An unexpected error occurred.' };
     }
 }

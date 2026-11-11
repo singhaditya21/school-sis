@@ -10,7 +10,14 @@ export default function LandingPage() {
                 <div className="absolute top-[20%] right-[-10%] w-[40%] h-[40%] rounded-full bg-fuchsia-900/30 blur-[150px] animate-pulse" style={{ animationDuration: '10s', animationDelay: '2s' }}></div>
                 <div className="absolute bottom-[-20%] left-[20%] w-[60%] h-[60%] rounded-full bg-cyan-900/20 blur-[150px] animate-pulse" style={{ animationDuration: '12s', animationDelay: '4s' }}></div>
                 {/* CSS Grid Pattern Overlay */}
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/black-scales.png')] opacity-20 mix-blend-overlay"></div>
+                <div
+                    className="absolute inset-0 opacity-20"
+                    style={{
+                        backgroundImage:
+                            'radial-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px)',
+                        backgroundSize: '24px 24px',
+                    }}
+                ></div>
             </div>
 
             {/* HERO SECTION */}

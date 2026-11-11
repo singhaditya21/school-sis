@@ -47,7 +47,16 @@ export async function readTenantAiUsage(context: AiToolContext): Promise<Omit<Ai
         context,
         `SELECT COALESCE(SUM(tokens_used), 0)::text AS tokens, COUNT(*)::text AS requests
          FROM agent_audit_logs
-         WHERE tenant_id = $1 AND created_at >= date_trunc('day', now())
+         WHERE tenant_id = $1
+           AND created_at >= date_trunc('day', now())
+           AND (
+               tokens_used > 0
+               OR COALESCE(response, '') NOT IN (
+                   'outcome:refused_no_tools',
+                   'outcome:refused_budget',
+                   'outcome:unavailable_no_provider'
+               )
+           )
          LIMIT 1`,
     );
     const tokensUsedToday = Number(rows[0]?.tokens ?? 0);

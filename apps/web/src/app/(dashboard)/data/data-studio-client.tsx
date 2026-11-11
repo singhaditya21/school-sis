@@ -15,6 +15,7 @@ import {
     ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { sanitizeCsvValue } from '@/lib/utils/csv-sanitize';
 import {
     deleteRecord,
     saveObjectLayout,
@@ -131,16 +132,9 @@ export default function DataStudioClient({
 
     const handleStudioExportCsv = () => {
         if (!activeObject) return;
-        const escapeCell = (val: unknown): string => {
-            const raw = val == null ? '' : String(val);
-            if (/[",\r\n]/.test(raw)) {
-                return `"${raw.replace(/"/g, '""')}"`;
-            }
-            return raw;
-        };
-        const headerLine = fields.map(f => escapeCell(f.name)).join(',');
+        const headerLine = fields.map(f => sanitizeCsvValue(f.name)).join(',');
         const bodyLines = visibleRecords.map(rec =>
-            fields.map(f => escapeCell(rec[f.name])).join(','),
+            fields.map(f => sanitizeCsvValue(rec[f.name])).join(','),
         );
         const csvContent = [headerLine, ...bodyLines].join('\n');
         if (typeof window !== 'undefined') {

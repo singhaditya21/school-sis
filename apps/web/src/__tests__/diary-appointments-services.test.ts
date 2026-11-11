@@ -68,5 +68,28 @@ describe('Diary and Appointments Services', () => {
             await expect(getAppointments()).rejects.toThrow('Unauthorized');
             expect(pool.query).not.toHaveBeenCalled();
         });
+
+        it('scopes PARENT and TEACHER sessions via auth.session.role to their own with_user_id', async () => {
+            const mockTenantId = 'tenant-123';
+            const mockUserId = 'parent-user-42';
+            (requireAuth as jest.Mock).mockResolvedValue({
+                tenantId: mockTenantId,
+                userId: mockUserId,
+                session: {
+                    userId: mockUserId,
+                    tenantId: mockTenantId,
+                    role: 'PARENT',
+                    email: 'parent@example.edu',
+                },
+            });
+            (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+
+            await getAppointments();
+
+            expect(pool.query).toHaveBeenCalledWith(
+                expect.stringContaining('a.with_user_id = $2'),
+                [mockTenantId, mockUserId],
+            );
+        });
     });
 });

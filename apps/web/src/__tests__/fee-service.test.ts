@@ -124,13 +124,13 @@ describe('safeAction', () => {
         expect(result).toEqual({ success: true, data: 42 });
     });
 
-    it('catches thrown errors', async () => {
+    it('catches thrown errors without leaking internal messages', async () => {
         const result = await safeAction(async () => {
             throw new Error('DB connection failed');
         });
         expect(result.success).toBe(false);
         if (!result.success) {
-            expect(result.error).toBe('DB connection failed');
+            expect(result.error).toBe('An unexpected error occurred.');
         }
     });
 

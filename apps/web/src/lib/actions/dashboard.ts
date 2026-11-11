@@ -2,6 +2,7 @@
 
 import { sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { logger } from '@/lib/observability/logger';
 
 export interface DashboardStats {
     totalStudents: number;
@@ -26,7 +27,7 @@ export interface TenantInfo {
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-    const { tenantId } = await requireAuth();
+    const { tenantId } = await requireAuth('dashboard:read');
 
     // Run all aggregate queries in parallel
     const [
@@ -105,7 +106,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 }
 
 export async function getTenantInfo(): Promise<TenantInfo> {
-    const { tenantId } = await requireAuth();
+    const { tenantId } = await requireAuth('dashboard:read');
 
     const [tenant, yearRow] = await Promise.all([
         sql<{ name: string; code: string }>`SELECT name, code FROM tenants WHERE id = ${tenantId} LIMIT 1`.maybeOne(),
@@ -128,7 +129,8 @@ export interface ActivityLogItem {
 }
 
 export async function getRecentActivity(limit_num: number = 10): Promise<ActivityLogItem[]> {
-    const { tenantId } = await requireAuth();
+    const { tenantId } = await requireAuth('dashboard:read');
+    const safeLimit = Math.max(1, Math.min(50, Math.floor(Number(limit_num) || 10)));
 
     try {
         const rows = await sql<{
@@ -151,10 +153,10 @@ export async function getRecentActivity(limit_num: number = 10): Promise<Activit
                 u.last_name as "userLastName", 
                 u.role as "userRole"
             FROM audit_logs a
-            LEFT JOIN users u ON a.user_id = u.id
+            LEFT JOIN users u ON a.user_id = u.id AND u.tenant_id = a.tenant_id
             WHERE a.tenant_id = ${tenantId}
             ORDER BY a.created_at DESC
-            LIMIT ${limit_num}
+            LIMIT ${safeLimit}
         `;
 
         return rows.map((log) => {
@@ -184,7 +186,11 @@ export async function getRecentActivity(limit_num: number = 10): Promise<Activit
             };
         });
     } catch (e) {
-        console.error("Failed fetching recent activity:", e);
+        logger.error('dashboard.recent_activity_failed', 'Failed fetching recent activity', {
+            source: 'dashboard-action',
+            tenantId,
+            metadata: { error: e instanceof Error ? e.message : String(e) },
+        });
         return [];
     }
 }

@@ -113,6 +113,13 @@
       "when": 1789045200000,
       "tag": "0015_secure_phase4_passport_data",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789128000000,
+      "tag": "0016_tenant_indexes_and_integrity",
+      "breakpoints": true
     }
   ]
 }

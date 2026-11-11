@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { pool } from '@/lib/db';
 import { decryptFieldTolerant } from '@/lib/encryption';
+import { sendWebhookRequest } from '@/lib/integrations/webhook-security';
 import {
   enqueueNotification,
   processDueNotifications,
@@ -109,17 +110,15 @@ export async function routeMarketingLead(payload: Record<string, unknown>): Prom
     const signature = webhookSecret
       ? createHmac('sha256', webhookSecret).update(body).digest('hex')
       : null;
-    const response = await fetch(parsedUrl, {
-      method: 'POST',
+    const response = await sendWebhookRequest(
+      parsedUrl.toString(),
       body,
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(10_000),
-      headers: {
+      {
         'content-type': 'application/json',
         ...(signature ? { 'x-scholarmind-signature': `sha256=${signature}` } : {}),
       },
-    });
+      10_000,
+    );
     if (!response.ok) {
       throw new Error(`CRM webhook returned HTTP ${response.status}.`);
     }
@@ -163,12 +162,15 @@ export const tasks: Record<string, TaskHandler> = {
 
     if (parentRes.rowCount > 0 && parentRes.rows[0].fcm_token) {
       const fcmToken = parentRes.rows[0].fcm_token;
+      const scannedAtIso = Number.isNaN(new Date(String(timestamp)).getTime())
+        ? String(timestamp)
+        : new Date(String(timestamp)).toISOString();
       const notification = await enqueueNotification({
         tenantId,
         channel: 'PUSH',
         recipient: fcmToken,
         subject: 'Student Checked In',
-        body: `Your child was scanned in via ${hardwareType} at ${new Date(String(timestamp)).toLocaleTimeString()}.`,
+        body: `Your child was scanned in via ${hardwareType} at ${scannedAtIso}.`,
         payload: { type: 'ATTENDANCE_ALERT', studentId, tenantId },
         idempotencyKey: `attendance:${studentId}:${timestamp}:push`,
       });

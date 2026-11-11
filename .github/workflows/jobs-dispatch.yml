@@ -16,8 +16,13 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
+      job_limit:
+        description: Background jobs to claim in this run (1-500)
+        required: false
+        default: "25"
+        type: string
       notification_limit:
-        description: Notifications to drain in this run (1-100)
+        description: Notifications to drain in this run (1-500)
         required: false
         default: "25"
         type: string
@@ -40,9 +45,18 @@ jobs:
         env:
           PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
           JOB_DISPATCH_SECRET: ${{ secrets.JOB_DISPATCH_SECRET }}
+          JOB_LIMIT: ${{ inputs.job_limit || '25' }}
           NOTIFICATION_LIMIT: ${{ inputs.notification_limit || '25' }}
         run: |
           set -euo pipefail
+
+          for limit_var in JOB_LIMIT NOTIFICATION_LIMIT; do
+            limit_val="${!limit_var}"
+            if ! [[ "$limit_val" =~ ^[0-9]+$ ]] || [ "$limit_val" -lt 1 ] || [ "$limit_val" -gt 500 ]; then
+              echo "::error::${limit_var} must be an integer between 1 and 500." >&2
+              exit 1
+            fi
+          done
 
           if [ -z "${PRODUCTION_URL:-}" ] || [ -z "${JOB_DISPATCH_SECRET:-}" ]; then
             {
@@ -64,6 +78,11 @@ jobs:
             exit 0
           fi
 
+          payload="$(jq -nc \
+            --argjson jobLimit "$JOB_LIMIT" \
+            --argjson notificationLimit "$NOTIFICATION_LIMIT" \
+            '{jobLimit: $jobLimit, notificationLimit: $notificationLimit}')"
+
           response="$(mktemp)"
           status="$(
             curl --silent --show-error --fail-with-body \
@@ -73,7 +92,7 @@ jobs:
               -X POST "${PRODUCTION_URL%/}/api/jobs/dispatch" \
               -H "Authorization: Bearer ${JOB_DISPATCH_SECRET}" \
               -H 'Content-Type: application/json' \
-              -d "{\"notificationLimit\": ${NOTIFICATION_LIMIT}}"
+              -d "$payload"
           )" || {
             echo "Dispatch failed with HTTP ${status:-000}:" >&2
             cat "$response" >&2

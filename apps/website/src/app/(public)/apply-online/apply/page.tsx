@@ -2,221 +2,326 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { ArrowLeft, ArrowRight, CheckCircle2, Eye, Lock, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-const grades = [
-    'Nursery', 'LKG', 'UKG',
-    'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5',
-    'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10',
-    'Class 11 Science', 'Class 11 Commerce', 'Class 12 Science', 'Class 12 Commerce'
+type SyntheticApplicationProfile = {
+    id: string;
+    label: string;
+    applicationRef: string;
+    studentName: string;
+    dob: string;
+    gender: string;
+    grade: string;
+    previousSchool: string;
+    parentName: string;
+    relation: string;
+    email: string;
+    phone: string;
+    address: string;
+    registrationFee: string;
+    documents: string[];
+};
+
+const SYNTHETIC_PROFILES: SyntheticApplicationProfile[] = [
+    {
+        id: 'profile-a',
+        label: 'Sample A · Aarav Sharma (Class 6)',
+        applicationRef: 'GWD-SANDBOX-2026-0104',
+        studentName: 'Aarav Sharma (Synthetic Sample)',
+        dob: '2015-04-14',
+        gender: 'Male',
+        grade: 'Class 6',
+        previousSchool: 'Horizon Demo Public School (Sample)',
+        parentName: 'Meera Sharma (Synthetic Guardian)',
+        relation: 'Mother',
+        email: 'meera.sharma.demo@example.invalid',
+        phone: '+91 00000 00104 (Synthetic)',
+        address: 'Flat 402, Sample Enclave, Demo Layout, Bengaluru 560001',
+        registrationFee: '₹500 (Simulated — No Charge)',
+        documents: [
+            'Birth Certificate (sample_birth_cert_demo.pdf — verified format)',
+            'Previous Academic Report Card (sample_grade5_transcript.pdf)',
+        ],
+    },
+    {
+        id: 'profile-b',
+        label: 'Sample B · Diya Nair (Class 11 Science)',
+        applicationRef: 'GWD-SANDBOX-2026-0219',
+        studentName: 'Diya Nair (Synthetic Sample)',
+        dob: '2010-09-22',
+        gender: 'Female',
+        grade: 'Class 11 Science',
+        previousSchool: 'oakridge-sample-academy.invalid (Sample)',
+        parentName: 'Raghav Nair (Synthetic Guardian)',
+        relation: 'Father',
+        email: 'raghav.nair.demo@example.invalid',
+        phone: '+91 00000 00219 (Synthetic)',
+        address: '18 Synthetic Avenue, Sandbox Nagar, Kochi 682001',
+        registrationFee: '₹500 (Simulated — No Charge)',
+        documents: [
+            'Class 10 Board Marksheet (sample_class10_marks.pdf — verified format)',
+            'Transfer Certificate Draft (sample_tc_preview.pdf)',
+        ],
+    },
 ];
 
-export default function ApplyPage() {
-    const [step, setStep] = useState(1);
-    const [formData, setFormData] = useState({
-        studentName: '',
-        dob: '',
-        gender: '',
-        grade: '',
-        parentName: '',
-        relation: '',
-        email: '',
-        phone: '',
-        address: '',
-        previousSchool: '',
-        documents: [] as string[],
-    });
-    const [submitted, setSubmitted] = useState(false);
+function ReadOnlyField({
+    label,
+    value,
+}: {
+    label: string;
+    value: string;
+}) {
+    return (
+        <div>
+            <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-semibold text-slate-700">{label}</label>
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
+                    <Lock size={11} />
+                    Synthetic Read-Only
+                </span>
+            </div>
+            <input
+                type="text"
+                value={value}
+                readOnly
+                aria-readonly="true"
+                tabIndex={-1}
+                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl bg-slate-100/90 text-slate-700 font-medium text-sm cursor-not-allowed select-none"
+            />
+        </div>
+    );
+}
 
-    const handleChange = (field: string, value: string) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
+export default function ApplySandboxStepThroughPage() {
+    const [selectedProfileId, setSelectedProfileId] = useState<string>(SYNTHETIC_PROFILES[0].id);
+    const [step, setStep] = useState<number>(1);
+    const [completedPreview, setCompletedPreview] = useState<boolean>(false);
+
+    const profile =
+        SYNTHETIC_PROFILES.find((item) => item.id === selectedProfileId) ?? SYNTHETIC_PROFILES[0];
+
+    const handleResetPreview = () => {
+        setCompletedPreview(false);
+        setStep(1);
     };
 
-    // This form has no backend: online admission-application intake is not built.
-    // It previously fabricated a confirmation ID and showed "received
-    // successfully" while discarding everything the applicant typed — a parent
-    // would leave believing they had applied. Until a real intake exists, be
-    // honest: nothing is submitted, and the applicant is directed to a real
-    // channel rather than shown a false confirmation.
-    const handleSubmit = () => {
-        setSubmitted(true);
-    };
-
-    if (submitted) {
+    if (completedPreview) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-amber-50 to-blue-50 flex items-center justify-center p-6">
-                <Card className="max-w-lg w-full text-center">
-                    <CardContent className="pt-8 pb-8">
-                        <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <span className="text-4xl">📩</span>
-                        </div>
-                        <h1 className="text-2xl font-bold text-amber-800 mb-2">
-                            Online applications aren&apos;t open yet
-                        </h1>
-                        <p className="text-gray-600 mb-6">
-                            This form is not connected to admissions, so nothing you entered has
-                            been submitted. To apply, please contact the school&apos;s admissions
-                            office directly by phone or email — they will take your details and
-                            confirm the next steps.
-                        </p>
-                        <Link href="/admissions" className="text-blue-600 hover:underline">
-                            ← Back to Admissions Page
-                        </Link>
-                    </CardContent>
-                </Card>
+            <div className="min-h-screen bg-slate-50 pt-28 pb-20 px-4 sm:px-6">
+                <div className="max-w-2xl mx-auto">
+                    <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-amber-950">
+                        <Eye size={15} />
+                        Interactive Product Preview — Synthetic Demo Data Only
+                    </div>
+
+                    <Card className="border-slate-200 shadow-lg rounded-3xl overflow-hidden">
+                        <CardContent className="pt-10 pb-10 px-8 text-center space-y-6">
+                            <div className="w-16 h-16 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto">
+                                <CheckCircle2 size={34} />
+                            </div>
+
+                            <div className="space-y-2">
+                                <p className="text-xs font-bold uppercase tracking-widest text-indigo-600">
+                                    Sandbox Walkthrough Complete · {profile.applicationRef}
+                                </p>
+                                <h1 className="text-2xl md:text-3xl font-black text-slate-900">
+                                    Previewed Experience Cloud Handoff
+                                </h1>
+                                <p className="text-slate-600 text-sm md:text-base max-w-xl mx-auto leading-relaxed">
+                                    No network request or personal record was created because this public route runs strictly on read-only synthetic sample data — nothing you entered has been submitted or stored. In a live school deployment, completing Step 3 performs:
+                                </p>
+                            </div>
+
+                            <div className="text-left bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3 text-sm text-slate-700">
+                                <p>
+                                    <strong>1. Tenant-Isolated Intake:</strong> Persists the application under the campus&apos;s PostgreSQL row-level-security policy.
+                                </p>
+                                <p>
+                                    <strong>2. Admissions Review Queue:</strong> Places <em>{profile.studentName}</em> ({profile.grade}) into the counsellor verification workspace.
+                                </p>
+                                <p>
+                                    <strong>3. Transactional Outbox Receipt:</strong> Queues an idempotent confirmation notice to the guardian contact once fee reconciliation is verified.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                                <Link
+                                    href="/book-demo"
+                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors"
+                                >
+                                    Book a Live Pilot Walkthrough
+                                    <ArrowRight size={16} />
+                                </Link>
+                                <button
+                                    type="button"
+                                    onClick={handleResetPreview}
+                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 border border-slate-300 bg-white text-slate-700 rounded-xl font-semibold text-sm hover:bg-slate-50 transition-colors"
+                                >
+                                    <RotateCcw size={15} />
+                                    Replay Step-Through
+                                </button>
+                                <Link
+                                    href="/apply-online"
+                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-5 py-3 text-indigo-600 hover:text-indigo-700 font-semibold text-sm"
+                                >
+                                    <ArrowLeft size={15} />
+                                    Back to Admissions Preview
+                                </Link>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 py-12 px-6">
+        <div className="min-h-screen bg-slate-50 pt-28 pb-20 px-4 sm:px-6">
             <div className="max-w-2xl mx-auto">
-                {/* Header */}
-                <div className="text-center mb-8">
-                    <Link href="/admissions" className="text-blue-600 hover:underline text-sm">
-                        ← Back to Admissions
+                {/* Navigation & Mandatory Sandbox Badge */}
+                <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <Link
+                        href="/apply-online"
+                        className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 font-bold text-sm"
+                    >
+                        <ArrowLeft size={16} />
+                        Back to Admissions Preview
                     </Link>
-                    <h1 className="text-3xl font-bold mt-4">Admission Application</h1>
-                    <p className="text-gray-600">Academic Year 2026-27</p>
+                    <Link
+                        href="/book-demo"
+                        className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 font-semibold text-xs"
+                    >
+                        Want a live tenant demo? Book assessment →
+                    </Link>
                 </div>
 
-                {/* Progress */}
+                <div
+                    role="region"
+                    aria-label="Synthetic demo data notice"
+                    className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm"
+                >
+                    <div className="inline-flex items-center gap-2 rounded-full bg-amber-200/80 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-amber-950 mb-2">
+                        <Eye size={14} />
+                        Interactive Product Preview — Synthetic Demo Data Only
+                    </div>
+                    <p className="text-xs sm:text-sm text-amber-900 leading-relaxed">
+                        To protect student and family privacy, free-text PII entry is disabled on this public marketing preview. Select a pre-filled synthetic applicant below and step through all stages of the ScholarMind Experience Cloud admission flow.
+                    </p>
+                </div>
+
+                {/* Synthetic Sample Switcher */}
+                <div className="mb-6 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                        Choose Synthetic Sample Applicant
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {SYNTHETIC_PROFILES.map((item) => {
+                            const active = item.id === profile.id;
+                            return (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => setSelectedProfileId(item.id)}
+                                    className={`text-left px-4 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                                        active
+                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                                    }`}
+                                >
+                                    {item.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Header */}
+                <div className="text-center mb-6">
+                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900">
+                        Experience Cloud Admission Flow
+                    </h1>
+                    <p className="text-sm text-slate-500 mt-1">
+                        Sample Reference: <span className="font-mono font-semibold text-slate-700">{profile.applicationRef}</span>
+                    </p>
+                </div>
+
+                {/* Interactive Step Indicator */}
                 <div className="flex items-center justify-center gap-2 mb-8">
-                    {[1, 2, 3].map(s => (
-                        <div key={s} className="flex items-center gap-2">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${step >= s ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
-                                }`}>
-                                {s}
-                            </div>
-                            {s < 3 && <div className={`w-12 h-1 ${step > s ? 'bg-blue-600' : 'bg-gray-200'}`} />}
+                    {[
+                        { num: 1, label: 'Student' },
+                        { num: 2, label: 'Guardian' },
+                        { num: 3, label: 'Review' },
+                    ].map((s) => (
+                        <div key={s.num} className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setStep(s.num)}
+                                className={`px-3.5 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-colors ${
+                                    step === s.num
+                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        : step > s.num
+                                          ? 'bg-indigo-100 text-indigo-800'
+                                          : 'bg-slate-200 text-slate-600'
+                                }`}
+                            >
+                                <span>{s.num}</span>
+                                <span>{s.label}</span>
+                            </button>
+                            {s.num < 3 && (
+                                <div className={`w-8 sm:w-12 h-1 rounded ${step > s.num ? 'bg-indigo-600' : 'bg-slate-200'}`} />
+                            )}
                         </div>
                     ))}
                 </div>
 
-                <Card>
+                <Card className="border-slate-200 shadow-md rounded-3xl">
                     <CardHeader>
-                        <CardTitle>
-                            {step === 1 && 'Student Information'}
-                            {step === 2 && 'Parent/Guardian Details'}
-                            {step === 3 && 'Review & Submit'}
+                        <CardTitle className="text-xl font-extrabold text-slate-900">
+                            {step === 1 && 'Step 1 of 3 · Synthetic Student Information'}
+                            {step === 2 && 'Step 2 of 3 · Synthetic Parent / Guardian Details'}
+                            {step === 3 && 'Step 3 of 3 · Checklist & Fee Schedule Review'}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {step === 1 && (
                             <>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Student Full Name *</label>
-                                    <input
-                                        type="text"
-                                        value={formData.studentName}
-                                        onChange={(e) => handleChange('studentName', e.target.value)}
-                                        className="w-full px-4 py-2 border rounded-lg"
-                                        placeholder="Enter full name"
-                                    />
+                                <ReadOnlyField label="Student Full Name" value={profile.studentName} />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <ReadOnlyField label="Date of Birth" value={profile.dob} />
+                                    <ReadOnlyField label="Gender" value={profile.gender} />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Date of Birth *</label>
-                                        <input
-                                            type="date"
-                                            value={formData.dob}
-                                            onChange={(e) => handleChange('dob', e.target.value)}
-                                            className="w-full px-4 py-2 border rounded-lg"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Gender *</label>
-                                        <select
-                                            value={formData.gender}
-                                            onChange={(e) => handleChange('gender', e.target.value)}
-                                            className="w-full px-4 py-2 border rounded-lg"
-                                        >
-                                            <option value="">Select</option>
-                                            <option value="Male">Male</option>
-                                            <option value="Female">Female</option>
-                                            <option value="Other">Other</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Applying for Grade *</label>
-                                    <select
-                                        value={formData.grade}
-                                        onChange={(e) => handleChange('grade', e.target.value)}
-                                        className="w-full px-4 py-2 border rounded-lg"
-                                    >
-                                        <option value="">Select grade</option>
-                                        {grades.map(g => <option key={g} value={g}>{g}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Previous School (if any)</label>
-                                    <input
-                                        type="text"
-                                        value={formData.previousSchool}
-                                        onChange={(e) => handleChange('previousSchool', e.target.value)}
-                                        className="w-full px-4 py-2 border rounded-lg"
-                                        placeholder="School name"
-                                    />
-                                </div>
+                                <ReadOnlyField label="Applying for Grade" value={profile.grade} />
+                                <ReadOnlyField label="Previous Institution" value={profile.previousSchool} />
                             </>
                         )}
 
                         {step === 2 && (
                             <>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Parent/Guardian Name *</label>
-                                    <input
-                                        type="text"
-                                        value={formData.parentName}
-                                        onChange={(e) => handleChange('parentName', e.target.value)}
-                                        className="w-full px-4 py-2 border rounded-lg"
-                                        placeholder="Full name"
-                                    />
+                                <ReadOnlyField label="Parent / Guardian Name" value={profile.parentName} />
+                                <ReadOnlyField label="Relation to Applicant" value={profile.relation} />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <ReadOnlyField label="Guardian Email (Reserved .invalid)" value={profile.email} />
+                                    <ReadOnlyField label="Guardian Phone" value={profile.phone} />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Relation *</label>
-                                    <select
-                                        value={formData.relation}
-                                        onChange={(e) => handleChange('relation', e.target.value)}
-                                        className="w-full px-4 py-2 border rounded-lg"
-                                    >
-                                        <option value="">Select</option>
-                                        <option value="Father">Father</option>
-                                        <option value="Mother">Mother</option>
-                                        <option value="Guardian">Guardian</option>
-                                    </select>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Email *</label>
-                                        <input
-                                            type="email"
-                                            value={formData.email}
-                                            onChange={(e) => handleChange('email', e.target.value)}
-                                            className="w-full px-4 py-2 border rounded-lg"
-                                            placeholder="email@example.com"
-                                        />
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="block text-sm font-semibold text-slate-700">
+                                            Residential Address
+                                        </label>
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
+                                            <Lock size={11} />
+                                            Synthetic Read-Only
+                                        </span>
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Phone *</label>
-                                        <input
-                                            type="tel"
-                                            value={formData.phone}
-                                            onChange={(e) => handleChange('phone', e.target.value)}
-                                            className="w-full px-4 py-2 border rounded-lg"
-                                            placeholder="10-digit mobile"
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Address *</label>
                                     <textarea
-                                        value={formData.address}
-                                        onChange={(e) => handleChange('address', e.target.value)}
-                                        className="w-full px-4 py-2 border rounded-lg"
-                                        rows={3}
-                                        placeholder="Complete address"
+                                        value={profile.address}
+                                        readOnly
+                                        aria-readonly="true"
+                                        tabIndex={-1}
+                                        rows={2}
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl bg-slate-100/90 text-slate-700 font-medium text-sm cursor-not-allowed select-none"
                                     />
                                 </div>
                             </>
@@ -224,48 +329,77 @@ export default function ApplyPage() {
 
                         {step === 3 && (
                             <div className="space-y-4">
-                                <div className="bg-gray-50 p-4 rounded-lg">
-                                    <h4 className="font-semibold mb-2">Student Details</h4>
-                                    <p><strong>Name:</strong> {formData.studentName}</p>
-                                    <p><strong>DOB:</strong> {formData.dob}</p>
-                                    <p><strong>Gender:</strong> {formData.gender}</p>
-                                    <p><strong>Applying for:</strong> {formData.grade}</p>
+                                <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-sm space-y-1.5">
+                                    <h4 className="font-bold text-slate-900 mb-2">Synthetic Student Summary</h4>
+                                    <p><span className="text-slate-500">Name:</span> <strong>{profile.studentName}</strong></p>
+                                    <p><span className="text-slate-500">Date of Birth:</span> {profile.dob}</p>
+                                    <p><span className="text-slate-500">Grade Band:</span> {profile.grade}</p>
+                                    <p><span className="text-slate-500">Prior School:</span> {profile.previousSchool}</p>
                                 </div>
-                                <div className="bg-gray-50 p-4 rounded-lg">
-                                    <h4 className="font-semibold mb-2">Parent Details</h4>
-                                    <p><strong>Name:</strong> {formData.parentName} ({formData.relation})</p>
-                                    <p><strong>Email:</strong> {formData.email}</p>
-                                    <p><strong>Phone:</strong> {formData.phone}</p>
+
+                                <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-sm space-y-1.5">
+                                    <h4 className="font-bold text-slate-900 mb-2">Synthetic Guardian Summary</h4>
+                                    <p><span className="text-slate-500">Guardian:</span> <strong>{profile.parentName}</strong> ({profile.relation})</p>
+                                    <p><span className="text-slate-500">Email:</span> {profile.email}</p>
+                                    <p><span className="text-slate-500">Phone:</span> {profile.phone}</p>
                                 </div>
-                                <div className="bg-yellow-50 p-4 rounded-lg text-sm">
-                                    <p className="font-medium text-yellow-800">📋 Registration Fee: ₹500</p>
-                                    <p className="text-yellow-700">You will be redirected to payment after submission.</p>
+
+                                <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-sm">
+                                    <h4 className="font-bold text-slate-900 mb-2">Simulated Document Checklist</h4>
+                                    <ul className="space-y-1.5 text-slate-700">
+                                        {profile.documents.map((doc) => (
+                                            <li key={doc} className="flex items-center gap-2 text-xs sm:text-sm">
+                                                <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                                                <span>{doc}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+
+                                <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl text-sm">
+                                    <p className="font-bold text-indigo-950">
+                                        Registration Fee Preview: {profile.registrationFee}
+                                    </p>
+                                    <p className="text-indigo-800 text-xs mt-1">
+                                        In production tenants with payment reconciliation configured, applicants transition to invoice-backed checkout; in this public preview, clicking below displays the staff queue handoff summary.
+                                    </p>
                                 </div>
                             </div>
                         )}
 
-                        <div className="flex justify-between pt-4">
-                            {step > 1 && (
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                            {step > 1 ? (
                                 <button
+                                    type="button"
                                     onClick={() => setStep(step - 1)}
-                                    className="px-6 py-2 border rounded-lg hover:bg-gray-50"
+                                    className="px-5 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
                                 >
-                                    ← Back
+                                    ← Previous Step
                                 </button>
+                            ) : (
+                                <Link
+                                    href="/apply-online"
+                                    className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:text-slate-900"
+                                >
+                                    ← Overview
+                                </Link>
                             )}
+
                             {step < 3 ? (
                                 <button
+                                    type="button"
                                     onClick={() => setStep(step + 1)}
-                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 ml-auto"
+                                    className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors ml-auto"
                                 >
-                                    Next →
+                                    Next Step →
                                 </button>
                             ) : (
                                 <button
-                                    onClick={handleSubmit}
-                                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 ml-auto"
+                                    type="button"
+                                    onClick={() => setCompletedPreview(true)}
+                                    className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors ml-auto"
                                 >
-                                    Submit Application
+                                    Preview Sandbox Completion →
                                 </button>
                             )}
                         </div>

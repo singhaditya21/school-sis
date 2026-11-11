@@ -40,8 +40,34 @@ export type RefundProviderPaymentInput = {
     amountMinor: number;
     currency: string;
     reason: string;
+    idempotencyKey?: string;
+    connectedAccountId?: string;
+    stripeAccount?: string;
     metadata?: Record<string, string>;
 };
+
+export function buildRefundIdempotencyKey(input: {
+    paymentId: string;
+    approvalRequestId?: string;
+    amountMinor: number;
+}): string {
+    return `refund:${input.paymentId}:${input.approvalRequestId || input.amountMinor}`;
+}
+
+function resolveRefundIdempotencyKey(input: RefundProviderPaymentInput): string {
+    if (input.idempotencyKey) return input.idempotencyKey;
+    return buildRefundIdempotencyKey({
+        paymentId: input.metadata?.paymentId || input.providerPaymentId,
+        approvalRequestId: input.metadata?.approvalRequestId,
+        amountMinor: input.amountMinor,
+    });
+}
+
+function toRazorpayRefundReceipt(idempotencyKey: string): string {
+    if (idempotencyKey.length <= 40) return idempotencyKey;
+    const digest = crypto.createHash('sha256').update(idempotencyKey).digest('hex').slice(0, 35);
+    return `rfnd_${digest}`;
+}
 
 function isBuildPhase(): boolean {
     return process.env.npm_lifecycle_event === 'build'
@@ -133,6 +159,7 @@ export class RazorpayGateway {
     }
 
     async refundPayment(input: RefundProviderPaymentInput): Promise<ProviderRefund> {
+        const idempotencyKey = resolveRefundIdempotencyKey(input);
         const response = await fetch(`${this.baseUrl}/payments/${encodeURIComponent(input.providerPaymentId)}/refund`, {
             method: 'POST',
             headers: {
@@ -141,8 +168,10 @@ export class RazorpayGateway {
             },
             body: JSON.stringify({
                 amount: input.amountMinor,
+                receipt: toRazorpayRefundReceipt(idempotencyKey),
                 notes: {
                     reason: input.reason,
+                    idempotencyKey,
                     ...(input.metadata ?? {}),
                 },
             }),
@@ -261,21 +290,29 @@ export class StripeGateway {
             provider: this.provider,
             providerOrderId: session.id,
             amountMinor: session.amount_total || 0,
-            currency: (session.currency || 'USD').toUpperCase(),
+            currency: (session.currency || 'INR').toUpperCase(),
             status: session.status || 'open',
             checkoutUrl: session.url,
         };
     }
 
     async refundPayment(input: RefundProviderPaymentInput): Promise<ProviderRefund> {
-        const refund = await this.stripe.refunds.create({
-            payment_intent: input.providerPaymentId,
-            amount: input.amountMinor,
-            metadata: {
-                reason: input.reason,
-                ...(input.metadata ?? {}),
+        const idempotencyKey = resolveRefundIdempotencyKey(input);
+        const stripeAccount = input.stripeAccount || input.connectedAccountId || input.metadata?.stripeConnectAccountId || undefined;
+        const refund = await this.stripe.refunds.create(
+            {
+                payment_intent: input.providerPaymentId,
+                amount: input.amountMinor,
+                metadata: {
+                    reason: input.reason,
+                    ...(input.metadata ?? {}),
+                },
             },
-        });
+            {
+                idempotencyKey,
+                ...(stripeAccount ? { stripeAccount } : {}),
+            },
+        );
 
         return {
             provider: this.provider,

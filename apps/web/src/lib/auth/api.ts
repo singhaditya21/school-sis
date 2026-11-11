@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
+import { isMfaEnrollmentEnforced } from '@/lib/auth/identity';
+import { isMFARequired } from '@/lib/auth/mfa';
 import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 
 export type ApiAuthContext = {
@@ -44,6 +46,19 @@ export async function requireApiAuth(allowedRoles?: readonly string[]): Promise<
         return {
             ok: false,
             response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+        };
+    }
+
+    const mfaUnverified =
+        (Boolean(session.mfaRequired) || (isMfaEnrollmentEnforced() && isMFARequired(session.role))) &&
+        !session.mfaVerified;
+    if (mfaUnverified) {
+        return {
+            ok: false,
+            response: NextResponse.json(
+                { error: 'Two-factor authentication setup is required.', code: 'MFA_SETUP_REQUIRED' },
+                { status: 403 },
+            ),
         };
     }
 

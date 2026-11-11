@@ -1,48 +1,60 @@
 import React from 'react';
-import { pool } from '@/lib/db';
+import { runWithTenantContext, sql } from '@/lib/db';
 import { Search, Plus, Filter, MoreVertical } from 'lucide-react';
 import { redirect } from "next/navigation";
-import { getSession } from '@/lib/auth/session';
+import { requireAuth } from '@/lib/auth/middleware';
 import { isTenantStaffRole } from '@/lib/auth/page-access';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
+import { logger } from '@/lib/observability/logger';
 
 // Force dynamic rendering since we are fetching from the live database
 export const dynamic = 'force-dynamic';
 
+type StudentDirectoryRow = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  admission_number: string;
+  status: string;
+  grade_name: string | null;
+  section_name: string | null;
+};
+
 export default async function StudentDirectoryPage() {
-  const session = await getSession();
+  const auth = await requireAuth();
+  const role = auth.session.role as UserRole;
 
-  if (!session.isLoggedIn) {
-    redirect('/login');
-  }
-
-  if (!isTenantStaffRole(session.role) || !session.tenantId) {
+  if (!isTenantStaffRole(role) || !auth.tenantId || !hasPermission(role, 'students:read')) {
     redirect('/unauthorized');
   }
 
-  const tenantId = session.tenantId;
+  const tenantId = auth.tenantId;
 
-  let students = [];
+  let students: StudentDirectoryRow[] = [];
   try {
-    const res = await pool.query(
-      `SELECT 
-        s.id, 
-        s.first_name, 
-        s.last_name, 
-        s.admission_number, 
-        s.status,
-        g.name as grade_name,
-        sec.name as section_name
-      FROM students s
-      LEFT JOIN grades g ON s.grade_id = g.id
-      LEFT JOIN sections sec ON s.section_id = sec.id
-      WHERE s.tenant_id = $1
-      ORDER BY s.first_name ASC
-      LIMIT 100`,
-      [tenantId]
+    students = await runWithTenantContext(tenantId, async () =>
+      sql<StudentDirectoryRow>`
+        SELECT 
+          s.id, 
+          s.first_name, 
+          s.last_name, 
+          s.admission_number, 
+          s.status,
+          g.name as grade_name,
+          sec.name as section_name
+        FROM students s
+        LEFT JOIN grades g ON s.grade_id = g.id AND g.tenant_id = s.tenant_id
+        LEFT JOIN sections sec ON s.section_id = sec.id AND sec.tenant_id = s.tenant_id
+        WHERE s.tenant_id = ${tenantId}
+        ORDER BY s.first_name ASC
+        LIMIT 100
+      `.rows(),
     );
-    students = res.rows;
   } catch (error) {
-    console.error("Failed to fetch students:", error);
+    logger.error('students.directory_load_failed', 'Failed to fetch students', {
+      tenantId,
+      metadata: { error: error instanceof Error ? error.message : String(error) },
+    });
     // Ignore error in UI for now, students array remains empty
   }
 

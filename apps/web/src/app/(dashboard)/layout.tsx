@@ -4,11 +4,11 @@ import {
   Users, 
   Database, 
   Store, 
-  Settings,
+  LogOut,
   GraduationCap
 } from 'lucide-react';
 
-import { pool } from "@/lib/db";
+import { runWithTenantContext, sql } from "@/lib/db";
 import { getSession } from '@/lib/auth/session';
 import { isTenantStaffRole } from '@/lib/auth/page-access';
 import { redirect } from 'next/navigation';
@@ -19,7 +19,7 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const session = await getSession();
-  let schoolName = "Springfield High School";
+  let schoolName = "School Workspace";
 
   if (!session.isLoggedIn) {
     redirect('/login');
@@ -31,12 +31,11 @@ export default async function DashboardLayout({
 
   if (session.tenantId) {
     try {
-      const res = await pool.query(
-        "SELECT name FROM tenants WHERE id = $1 LIMIT 1",
-        [session.tenantId]
+      const rows = await runWithTenantContext(session.tenantId, async () =>
+        sql<{ name: string }>`SELECT name FROM tenants WHERE id = ${session.tenantId} LIMIT 1`
       );
-      if (res.rowCount > 0) {
-        schoolName = res.rows[0].name;
+      if (rows[0]?.name) {
+        schoolName = rows[0].name;
       }
     } catch (e) {
       console.error("Failed to resolve tenant name dynamically:", e);
@@ -75,10 +74,15 @@ export default async function DashboardLayout({
         </nav>
 
         <div className="p-4 border-t border-slate-800">
-          <button className="flex items-center w-full px-4 py-2 text-muted-foreground hover:text-white transition-colors">
-            <Settings className="w-5 h-5 mr-3" />
-            <span>Settings</span>
-          </button>
+          <form action="/api/logout" method="POST">
+            <button
+              type="submit"
+              className="flex items-center w-full px-4 py-2 text-muted-foreground hover:text-white transition-colors rounded-lg hover:bg-slate-800"
+            >
+              <LogOut className="w-5 h-5 mr-3" />
+              <span>Sign Out</span>
+            </button>
+          </form>
         </div>
       </aside>
 
@@ -88,7 +92,14 @@ export default async function DashboardLayout({
           <h1 className="text-xl font-semibold text-foreground">{schoolName}</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">Admin Portal</span>
-            <div className="w-8 h-8 rounded-full bg-blue-100 border border-blue-200"></div>
+            <form action="/api/logout" method="POST">
+              <button
+                type="submit"
+                className="px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg border border-border transition-colors"
+              >
+                Sign Out
+              </button>
+            </form>
           </div>
         </header>
         <div className="p-8">

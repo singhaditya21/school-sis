@@ -58,4 +58,58 @@ describe('API access policy', () => {
 
         expect(missingGuards).toEqual([]);
     });
+
+    it('enforces auth, signature, or rate-limit guards on every exported HTTP method handler', () => {
+        const methodDeclRe =
+            /export\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD)\s*\(/g;
+        const approvedMethodGuards = [
+            'requireApiAuth',
+            'requireApiPermission',
+            'requireApiRole',
+            'requireBearerServiceAuth',
+            'authenticateIntegrationRequest',
+            'authenticateScimRequest',
+            'getSession',
+            'logoutAction',
+            'consumeRateLimit',
+            'handleOneRosterGet',
+            'handleOidcLogin',
+            'handleLtiLaunch',
+            'verifyTwilioSignature',
+            'verifyMsg91Token',
+            'stripe-signature',
+            'x-hub-signature-256',
+            'verifyToken',
+            'WHATSAPP_VERIFY_TOKEN',
+            'verifyWhatsAppHandshake',
+            'x-razorpay-signature',
+            'x-scholarmind-webhook-token',
+            'INBOUND_WEBHOOK_SECRET',
+        ];
+
+        const unguardedMethods: string[] = [];
+
+        for (const file of routeFiles) {
+            const route = routeFromApiFile(file);
+            const policy = findApiAccessPolicy(route);
+            if (!policy || policy.boundary === 'public') continue;
+
+            const source = fs.readFileSync(file, 'utf8');
+            const matches = [...source.matchAll(methodDeclRe)];
+
+            for (let idx = 0; idx < matches.length; idx++) {
+                const method = matches[idx][1];
+                const start = matches[idx].index ?? 0;
+                const end = idx + 1 < matches.length ? (matches[idx + 1].index ?? source.length) : source.length;
+                const methodBody = source.slice(start, end);
+
+                const hasGuard = approvedMethodGuards.some((marker) => methodBody.includes(marker));
+                if (!hasGuard) {
+                    unguardedMethods.push(`${method} ${route}`);
+                }
+            }
+        }
+
+        expect(unguardedMethods).toEqual([]);
+    });
 });

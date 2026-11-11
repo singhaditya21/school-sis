@@ -74,6 +74,7 @@ const ADMIN_PAGE_PREFIXES = [
     '/marketplace',
     '/messages',
     '/onboarding',
+    '/pricing',
     '/procurement',
     '/quiz',
     '/receipts',

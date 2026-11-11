@@ -46,7 +46,12 @@ export async function getSession() {
     if (!session.isLoggedIn) {
         resetSessionData(session);
     } else if (isSessionDataExpired(session)) {
-        session.destroy();
+        try {
+            session.destroy();
+        } catch {
+            // Next.js Server Component renders cannot mutate response cookies;
+            // resetSessionData still clears the in-memory session for this request.
+        }
         resetSessionData(session);
     } else {
         session.lastSeenAt = new Date().toISOString();

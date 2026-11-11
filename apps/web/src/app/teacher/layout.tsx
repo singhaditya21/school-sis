@@ -43,7 +43,7 @@ export default async function TeacherLayout({
                     </div>
                 </nav>
 
-                <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-muted">
+                <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-muted space-y-3">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-accent rounded-full flex items-center justify-center">
                             <span className="text-accent-foreground font-semibold">
@@ -55,20 +55,38 @@ export default async function TeacherLayout({
                             <p className="text-xs text-muted-foreground">Teacher</p>
                         </div>
                     </div>
+                    <form action="/api/logout" method="POST">
+                        <button
+                            type="submit"
+                            className="w-full px-3 py-2 text-xs font-medium text-foreground hover:bg-card rounded-lg border border-border transition-colors"
+                        >
+                            Sign Out
+                        </button>
+                    </form>
                 </div>
             </aside>
 
             {/* Mobile Header */}
             <header className="lg:hidden bg-card/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
                 <div className="px-4 py-3">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center gap-2">
                         <div className="flex items-center gap-2">
                             <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-lg flex items-center justify-center">
                                 <span className="text-white text-lg">👨‍🏫</span>
                             </div>
                             <h1 className="text-lg font-bold text-foreground">Teacher Portal</h1>
                         </div>
-                        <div className="text-sm text-foreground">{session.email}</div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground truncate max-w-[140px]">{session.email}</span>
+                            <form action="/api/logout" method="POST">
+                                <button
+                                    type="submit"
+                                    className="px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted rounded-md border border-border transition-colors"
+                                >
+                                    Sign Out
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </header>

@@ -1,19 +1,42 @@
 'use server';
 
 import { sql } from '@/lib/db';
-import { headers } from 'next/headers';
-import { requireAuth } from '@/lib/auth/middleware';
+import { requireAuth, requireRole } from '@/lib/auth/middleware';
 import {
     createPaymentOrderRecord,
     findInvoiceForPayment,
     getPaymentOrderByIdempotency,
+    isPayableInvoiceStatus,
     outstandingMinor,
 } from '@/lib/payments/ledger';
 import { getStripeClient } from '@/lib/payments/providers';
 
+type MiddlewareUserRole = Parameters<typeof requireRole>[number];
+
+const CONNECT_ADMIN_ROLES = [
+    'PLATFORM_ADMIN',
+    'SUPER_ADMIN',
+    'SCHOOL_ADMIN',
+] as unknown as readonly MiddlewareUserRole[];
+
+function resolveTrustedOrigin(): string {
+    const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+    if (configured) {
+        const parsed = new URL(configured);
+        if (process.env.NODE_ENV === 'production' && parsed.protocol !== 'https:') {
+            throw new Error('NEXT_PUBLIC_APP_URL must use HTTPS in production.');
+        }
+        return parsed.origin;
+    }
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('NEXT_PUBLIC_APP_URL must be configured in production.');
+    }
+    return 'http://localhost:3000';
+}
+
 export async function createCheckoutSession(invoiceId: string) {
     const { tenantId, userId, session: authSession } = await requireAuth();
-    
+
     const invoice = await findInvoiceForPayment(
         invoiceId,
         tenantId,
@@ -25,8 +48,8 @@ export async function createCheckoutSession(invoiceId: string) {
         throw new Error('Invoice not found');
     }
 
-    if (invoice.status === 'PAID') {
-        throw new Error('Invoice is already paid');
+    if (!isPayableInvoiceStatus(invoice.status)) {
+        throw new Error(`Invoice with status ${invoice.status} cannot accept payments`);
     }
 
     // Get tenant's Stripe Connect Account ID
@@ -37,22 +60,21 @@ export async function createCheckoutSession(invoiceId: string) {
         throw new Error('School has not configured payment processing yet.');
     }
     const stripeAccountId = tenantRows[0].stripe_connect_account_id;
-    const amountInCents = outstandingMinor(invoice);
-    if (amountInCents <= 0) {
+    const amountInPaise = outstandingMinor(invoice);
+    if (amountInPaise <= 0) {
         throw new Error('Invoice has no outstanding balance.');
     }
-    
-    const headersList = await headers();
-    const origin = headersList.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+    const origin = resolveTrustedOrigin();
     const stripe = getStripeClient();
-    const existingOrder = await getPaymentOrderByIdempotency(tenantId, 'STRIPE', invoice.id, amountInCents, 'INR');
+    const existingOrder = await getPaymentOrderByIdempotency(tenantId, 'STRIPE', invoice.id, amountInPaise, 'INR');
     if (existingOrder?.providerOrderId) {
         const existingSession = await stripe.checkout.sessions.retrieve(
             existingOrder.providerOrderId,
             {},
             { stripeAccount: stripeAccountId },
         );
-        if (existingSession.url) {
+        if (existingSession.status === 'open' && existingSession.url) {
             return { url: existingSession.url };
         }
     }
@@ -66,7 +88,7 @@ export async function createCheckoutSession(invoiceId: string) {
                     product_data: {
                         name: `Invoice #${invoice.invoiceNumber}`,
                     },
-                    unit_amount: amountInCents,
+                    unit_amount: amountInPaise,
                 },
                 quantity: 1,
             },
@@ -81,7 +103,7 @@ export async function createCheckoutSession(invoiceId: string) {
             requestedBy: userId,
         },
     }, { stripeAccount: stripeAccountId });
-    
+
     if (!checkoutSession.url) {
         throw new Error('Failed to create Stripe session');
     }
@@ -90,8 +112,8 @@ export async function createCheckoutSession(invoiceId: string) {
         tenantId,
         invoice,
         provider: 'STRIPE',
-        amountMinor: checkoutSession.amount_total || amountInCents,
-        currency: (checkoutSession.currency || 'INR').toUpperCase(),
+        amountMinor: checkoutSession.amount_total || amountInPaise,
+        currency: 'INR',
         providerOrderId: checkoutSession.id,
         createdBy: userId,
         metadata: {
@@ -100,13 +122,16 @@ export async function createCheckoutSession(invoiceId: string) {
             source: 'parent_server_action',
         },
     });
-    
+
     return { url: checkoutSession.url };
 }
 
 export async function createStripeConnectAccount() {
-    const { tenantId } = await requireAuth();
-    
+    const { tenantId, session } = await requireRole(...CONNECT_ADMIN_ROLES);
+    if (!(CONNECT_ADMIN_ROLES as readonly string[]).includes(session.role)) {
+        throw new Error('Forbidden: Administrator role required to configure Stripe Connect.');
+    }
+
     const rows = await sql<{ stripe_connect_account_id: string | null }>`
         SELECT stripe_connect_account_id FROM tenants WHERE id = ${tenantId}
     `;
@@ -121,8 +146,7 @@ export async function createStripeConnectAccount() {
         `;
     }
 
-    const headersList = await headers();
-    const origin = headersList.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const origin = resolveTrustedOrigin();
 
     const stripe = getStripeClient();
     const accountLink = await stripe.accountLinks.create({

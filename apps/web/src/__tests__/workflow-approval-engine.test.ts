@@ -139,6 +139,7 @@ describe('Workflow approval engine architecture', () => {
 
     it('blocks self-approval, duplicate reviews, and ineligible reviewer roles', () => {
         const request = createRefundApproval();
+        const reviewNow = new Date('2026-07-02T01:00:00.000Z');
         const eligibleRequesterRequest = createWorkflowApprovalRequest({
             id: 'approval-self-review-1',
             policyId: 'payments.refund',
@@ -152,46 +153,53 @@ describe('Workflow approval engine architecture', () => {
             now: CREATED_AT,
         });
 
-        expect(canActorReviewWorkflowApproval(request, FINANCE_LEAD)).toBe(true);
-        expect(canActorReviewWorkflowApproval(eligibleRequesterRequest, FINANCE_LEAD)).toBe(false);
-        expect(canActorReviewWorkflowApproval(request, TEACHER)).toBe(false);
+        expect(canActorReviewWorkflowApproval(request, FINANCE_LEAD, reviewNow)).toBe(true);
+        expect(canActorReviewWorkflowApproval(eligibleRequesterRequest, FINANCE_LEAD, reviewNow)).toBe(false);
+        expect(canActorReviewWorkflowApproval(request, TEACHER, reviewNow)).toBe(false);
 
         expect(() => reviewWorkflowApprovalRequest(eligibleRequesterRequest, {
             actor: FINANCE_LEAD,
             decision: 'APPROVED',
             reason: 'Trying to approve own request.',
+            now: reviewNow,
         })).toThrow('Requester cannot approve');
 
         expect(() => reviewWorkflowApprovalRequest(request, {
             actor: TEACHER,
             decision: 'APPROVED',
             reason: 'Not allowed.',
+            now: reviewNow,
         })).toThrow('is not eligible');
 
         const reviewed = reviewWorkflowApprovalRequest(request, {
             actor: FINANCE_LEAD,
             decision: 'APPROVED',
             reason: 'Approved once.',
+            now: reviewNow,
         });
 
         expect(() => reviewWorkflowApprovalRequest(reviewed, {
             actor: FINANCE_LEAD,
             decision: 'APPROVED',
             reason: 'Approved twice.',
+            now: reviewNow,
         })).toThrow('already APPROVED');
     });
 
     it('requires review reasons for high-risk policies', () => {
         const request = createRefundApproval();
+        const reviewNow = new Date('2026-07-02T01:00:00.000Z');
 
         expect(() => reviewWorkflowApprovalRequest(request, {
             actor: FINANCE_LEAD,
             decision: 'APPROVED',
+            now: reviewNow,
         })).toThrow('reason is required');
 
         expect(() => reviewWorkflowApprovalRequest(request, {
             actor: FINANCE_LEAD,
             decision: 'REJECTED',
+            now: reviewNow,
         })).toThrow('reason is required');
     });
 
@@ -216,7 +224,7 @@ describe('Workflow approval engine architecture', () => {
             toStatus: 'ESCALATED',
             reason: 'SLA breach',
         });
-        expect(canActorReviewWorkflowApproval(escalated, SUPER_ADMIN)).toBe(true);
+        expect(canActorReviewWorkflowApproval(escalated, SUPER_ADMIN, new Date('2026-07-02T04:02:00.000Z'))).toBe(true);
     });
 
     it('expires requests after the expiry window and projects queue metadata', () => {

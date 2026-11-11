@@ -3,10 +3,15 @@
 import { cookies } from 'next/headers';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, type SessionData } from '@/lib/auth/session';
+import { isSessionDataExpired } from '@/lib/auth/session-options';
+import { consumeRateLimit } from '@/lib/auth/rate-limit';
+import { runWithTenantContext } from '@/lib/db';
+import { logger } from '@/lib/observability/logger';
 import {
     activateMFA,
     generateMFAEnrollment,
     isMFARequired,
+    redeemBackupCode,
 } from '@/lib/auth/mfa';
 
 /**
@@ -53,18 +58,27 @@ async function currentSession() {
 export async function beginMfaEnrollment(): Promise<BeginMfaEnrollmentResult> {
     const session = await currentSession();
 
-    if (!session.isLoggedIn || !session.userId || !session.tenantId) {
+    if (!session.isLoggedIn || !session.userId || !session.tenantId || isSessionDataExpired(session)) {
         return { success: false, error: 'Sign in before setting up two-factor authentication.' };
     }
     if (session.mfaVerified) {
         return { success: false, error: 'Two-factor authentication is already active on this account.' };
     }
 
+    const rateLimitError = await consumeRateLimit(session.userId, {
+        scope: 'mfa_enroll_begin',
+        maxAttempts: 5,
+        degradedMaxAttempts: 2,
+        endpointClass: 'login',
+        message: 'Too many MFA enrollment requests. Please wait a few minutes and try again.',
+    });
+    if (rateLimitError) {
+        return { success: false, error: rateLimitError };
+    }
+
     try {
-        const enrollment = await generateMFAEnrollment(
-            session.userId,
-            session.tenantId,
-            session.email,
+        const enrollment = await runWithTenantContext(session.tenantId, () =>
+            generateMFAEnrollment(session.userId, session.tenantId, session.email),
         );
         return {
             success: true,
@@ -73,8 +87,17 @@ export async function beginMfaEnrollment(): Promise<BeginMfaEnrollmentResult> {
             backupCodes: enrollment.backupCodes,
         };
     } catch (error) {
-        console.error('[MFA_ENROLLMENT_BEGIN]', error);
-        return { success: false, error: 'Could not start two-factor setup. Please try again.' };
+        logger.error('mfa.enrollment_begin_failed', 'Failed to begin MFA enrollment', {
+            source: 'mfa-action',
+            actorUserId: session.userId,
+            tenantId: session.tenantId,
+            metadata: { error: error instanceof Error ? error.message : String(error) },
+        });
+        const message =
+            error instanceof Error && error.message.includes('already active')
+                ? error.message
+                : 'Could not start two-factor setup. Please try again.';
+        return { success: false, error: message };
     }
 }
 
@@ -90,7 +113,7 @@ export async function completeMfaEnrollment(
 ): Promise<CompleteMfaEnrollmentResult> {
     const session = await currentSession();
 
-    if (!session.isLoggedIn || !session.userId || !session.tenantId) {
+    if (!session.isLoggedIn || !session.userId || !session.tenantId || isSessionDataExpired(session)) {
         return { success: false, error: 'Sign in before setting up two-factor authentication.' };
     }
 
@@ -100,11 +123,22 @@ export async function completeMfaEnrollment(
         return { success: false, error: 'Enter the 6-digit code from your authenticator app.' };
     }
 
+    const rateLimitError = await consumeRateLimit(session.userId, {
+        scope: 'mfa_enroll_verify',
+        maxAttempts: 8,
+        degradedMaxAttempts: 3,
+        endpointClass: 'login',
+        message: 'Too many verification attempts. Please wait 15 minutes and try again.',
+    });
+    if (rateLimitError) {
+        return { success: false, error: rateLimitError };
+    }
+
     try {
-        const activated = await activateMFA(session.userId, session.tenantId, code);
+        const activated = await runWithTenantContext(session.tenantId, () =>
+            activateMFA(session.userId, session.tenantId, code),
+        );
         if (!activated.success) {
-            // Prefer the library's own message — it distinguishes "enrolment never
-            // started" and "already active" from a simply wrong code.
             return {
                 success: false,
                 error:
@@ -119,7 +153,47 @@ export async function completeMfaEnrollment(
 
         return { success: true };
     } catch (error) {
-        console.error('[MFA_ENROLLMENT_COMPLETE]', error);
+        logger.error('mfa.enrollment_complete_failed', 'Failed to complete MFA enrollment', {
+            source: 'mfa-action',
+            actorUserId: session.userId,
+            tenantId: session.tenantId,
+            metadata: { error: error instanceof Error ? error.message : String(error) },
+        });
         return { success: false, error: 'Could not complete two-factor setup. Please try again.' };
     }
+}
+
+export async function verifyMfaBackupCodeAction(
+    rawCode: string,
+): Promise<{ success: boolean; codesRemaining?: number; error?: string }> {
+    const session = await currentSession();
+    if (!session.isLoggedIn || !session.userId || !session.tenantId || isSessionDataExpired(session)) {
+        return { success: false, error: 'Sign in before verifying a backup code.' };
+    }
+
+    const rateLimitError = await consumeRateLimit(session.userId, {
+        scope: 'mfa_backup_redeem',
+        maxAttempts: 5,
+        degradedMaxAttempts: 1,
+        endpointClass: 'login',
+        message: 'Too many backup code attempts. Please try again later.',
+    });
+    if (rateLimitError) {
+        return { success: false, error: rateLimitError };
+    }
+
+    const normalized = String(rawCode || '').trim().replace(/[\s-]+/g, '').toUpperCase();
+    if (!/^[0-9A-F]{10}$/.test(normalized)) {
+        return { success: false, error: 'Enter a valid 10-character backup code.' };
+    }
+
+    const result = await runWithTenantContext(session.tenantId, () =>
+        redeemBackupCode(session.userId, session.tenantId, normalized),
+    );
+    if (result.success) {
+        session.mfaVerified = true;
+        session.mfaRequired = isMFARequired(session.role);
+        await session.save();
+    }
+    return result;
 }

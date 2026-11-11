@@ -166,6 +166,12 @@ export function normalizeValidationRules(value: unknown): MetadataValidationRule
     if (input.pattern != null && input.pattern !== '') {
         const pattern = String(input.pattern);
         if (pattern.length > 250) throw new Error('Validation pattern is too long.');
+        if (
+            /\([^)]*[+*][^)]*\)[+*?{]/.test(pattern) ||
+            /([+*])\1/.test(pattern)
+        ) {
+            throw new Error('Validation pattern contains unsafe nested quantifiers.');
+        }
         new RegExp(pattern);
         rules.pattern = pattern;
     }
@@ -703,8 +709,23 @@ function coerceMetadataValue(field: RuntimeMetadataField, value: unknown): unkno
     if (rules.maxLength != null && text.length > rules.maxLength) {
         throw new Error(`${field.label} must be at most ${rules.maxLength} characters.`);
     }
-    if (rules.pattern && !new RegExp(rules.pattern).test(text)) {
-        throw new Error(`${field.label} is not in the expected format.`);
+    if (rules.pattern) {
+        if (
+            rules.pattern.length > 256 ||
+            /\([^)]*[+*][^)]*\)[+*?{]/.test(rules.pattern) ||
+            /([+*])\1/.test(rules.pattern)
+        ) {
+            throw new Error(`${field.label} validation pattern is unsafe or exceeds 256 characters.`);
+        }
+        let compiledPattern: RegExp;
+        try {
+            compiledPattern = new RegExp(rules.pattern);
+        } catch {
+            throw new Error(`${field.label} validation pattern is invalid.`);
+        }
+        if (!compiledPattern.test(text.slice(0, 4096))) {
+            throw new Error(`${field.label} is not in the expected format.`);
+        }
     }
 
     return text;
@@ -976,17 +997,39 @@ export function computeRecordSlaStatus(params: {
  * `metadata.google.internal`), or private RFC1918 / internal networks (`10.x`, `172.16-31.x`,
  * `192.168.x`, `.local`, `.internal`).
  */
+function isReservedOrPrivateIpv4Octets(octets: number[]): boolean {
+    if (octets.length !== 4 || octets.some((o) => !Number.isInteger(o) || o < 0 || o > 255)) {
+        return true;
+    }
+    const [a, b, c] = octets;
+    if (a === 0 || a === 10 || a === 127) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true; // RFC 6598 CGNAT
+    if (a === 169 && b === 254) return true; // Link-local / cloud metadata
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 0 && (c === 0 || c === 2)) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 198 && (b === 18 || b === 19)) return true;
+    if (a === 198 && b === 51 && c === 100) return true;
+    if (a === 203 && b === 0 && c === 113) return true;
+    if (a >= 224) return true; // Multicast & reserved
+    return false;
+}
+
 export function isSafeWebhookDestinationUrl(rawUrl: string): boolean {
     try {
         const parsed = new URL(String(rawUrl || '').trim());
         if (parsed.protocol !== 'https:') return false;
+        if (parsed.username || parsed.password) return false;
 
         const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
         if (!host) return false;
 
         if (
             host === 'localhost' ||
+            host === '::' ||
             host === '::1' ||
+            host === '0:0:0:0:0:0:0:0' ||
+            host === '0:0:0:0:0:0:0:1' ||
             host === '0.0.0.0' ||
             host === 'metadata.google.internal' ||
             host.endsWith('.local') ||
@@ -996,27 +1039,35 @@ export function isSafeWebhookDestinationUrl(rawUrl: string): boolean {
             return false;
         }
 
-        // IPv4 literal checks for loopback, link-local / cloud metadata, and RFC1918 ranges
+        // IPv4 literal checks for loopback, link-local / cloud metadata, CGNAT, and RFC1918 ranges
         const ipv4Match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
         if (ipv4Match) {
             const octets = ipv4Match.slice(1, 5).map(Number);
-            if (octets.some((o) => o < 0 || o > 255)) return false;
-            const [a, b] = octets;
-            if (a === 0 || a === 10 || a === 127) return false;
-            if (a === 169 && b === 254) return false;
-            if (a === 172 && b >= 16 && b <= 31) return false;
-            if (a === 192 && b === 168) return false;
+            if (isReservedOrPrivateIpv4Octets(octets)) return false;
         }
 
-        // IPv6 loopback / unique-local / link-local checks
+        // IPv4-mapped IPv6 in dotted form (e.g. ::ffff:127.0.0.1)
+        const mappedDotted = /^::ffff:(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/i.exec(host);
+        if (mappedDotted) {
+            const octets = mappedDotted.slice(1, 5).map(Number);
+            if (isReservedOrPrivateIpv4Octets(octets)) return false;
+        }
+
+        // IPv4-mapped IPv6 in WHATWG URL hex-normalized form (e.g. ::ffff:7f00:1 or ::ffff:a9fe:a9fe)
+        const mappedHex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(host);
+        if (mappedHex) {
+            const hi = parseInt(mappedHex[1], 16);
+            const lo = parseInt(mappedHex[2], 16);
+            const octets = [(hi >> 8) & 0xff, hi & 0xff, (lo >> 8) & 0xff, lo & 0xff];
+            if (isReservedOrPrivateIpv4Octets(octets)) return false;
+        }
+
+        // IPv6 unique-local (fc00::/7), link-local (fe80::/10), multicast (ff00::/8), documentation (2001:db8::/32)
         if (
-            host.startsWith('fe80:') ||
-            host.startsWith('fc00:') ||
-            host.startsWith('fd00:') ||
-            host.startsWith('::ffff:127.') ||
-            host.startsWith('::ffff:10.') ||
-            host.startsWith('::ffff:169.254.') ||
-            host.startsWith('::ffff:192.168.')
+            /^(?:fc|fd)[0-9a-f]{2}:/i.test(host) ||
+            /^fe[89ab][0-9a-f]:/i.test(host) ||
+            /^ff[0-9a-f]{2}:/i.test(host) ||
+            host.startsWith('2001:db8:')
         ) {
             return false;
         }
@@ -1258,16 +1309,106 @@ function escapeHtml(raw: string): string {
         .replace(/'/g, '&#39;');
 }
 
+const SHA256_K = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+];
+
+function rotr32(value: number, shift: number): number {
+    return (value >>> shift) | (value << (32 - shift));
+}
+
+function sha256Bytes(data: Uint8Array): Uint8Array {
+    let h0 = 0x6a09e667;
+    let h1 = 0xbb67ae85;
+    let h2 = 0x3c6ef372;
+    let h3 = 0xa54ff53a;
+    let h4 = 0x510e527f;
+    let h5 = 0x9b05688c;
+    let h6 = 0x1f83d9ab;
+    let h7 = 0x5be0cd19;
+
+    const bitLen = data.length * 8;
+    const paddedLen = Math.ceil((data.length + 9) / 64) * 64;
+    const padded = new Uint8Array(paddedLen);
+    padded.set(data);
+    padded[data.length] = 0x80;
+    const view = new DataView(padded.buffer);
+    view.setUint32(paddedLen - 8, Math.floor(bitLen / 0x100000000), false);
+    view.setUint32(paddedLen - 4, bitLen >>> 0, false);
+
+    const w = new Int32Array(64);
+    for (let offset = 0; offset < paddedLen; offset += 64) {
+        for (let i = 0; i < 16; i++) {
+            w[i] = view.getInt32(offset + i * 4, false);
+        }
+        for (let i = 16; i < 64; i++) {
+            const s0 = rotr32(w[i - 15], 7) ^ rotr32(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+            const s1 = rotr32(w[i - 2], 17) ^ rotr32(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+            w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+        }
+        let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
+        for (let i = 0; i < 64; i++) {
+            const S1 = rotr32(e, 6) ^ rotr32(e, 11) ^ rotr32(e, 25);
+            const ch = (e & f) ^ (~e & g);
+            const temp1 = (h + S1 + ch + SHA256_K[i] + w[i]) | 0;
+            const S0 = rotr32(a, 2) ^ rotr32(a, 13) ^ rotr32(a, 22);
+            const maj = (a & b) ^ (a & c) ^ (b & c);
+            const temp2 = (S0 + maj) | 0;
+            h = g; g = f; f = e; e = (d + temp1) | 0;
+            d = c; c = b; b = a; a = (temp1 + temp2) | 0;
+        }
+        h0 = (h0 + a) | 0; h1 = (h1 + b) | 0; h2 = (h2 + c) | 0; h3 = (h3 + d) | 0;
+        h4 = (h4 + e) | 0; h5 = (h5 + f) | 0; h6 = (h6 + g) | 0; h7 = (h7 + h) | 0;
+    }
+
+    const out = new Uint8Array(32);
+    const outView = new DataView(out.buffer);
+    [h0, h1, h2, h3, h4, h5, h6, h7].forEach((word, idx) => outView.setInt32(idx * 4, word, false));
+    return out;
+}
+
+function hmacSha256Hex(keyStr: string, messageStr: string): string {
+    const encoder = new TextEncoder();
+    let keyBytes: Uint8Array = encoder.encode(keyStr);
+    if (keyBytes.length > 64) keyBytes = sha256Bytes(keyBytes);
+    const blockKey = new Uint8Array(64);
+    blockKey.set(keyBytes);
+    const oKeyPad = new Uint8Array(64);
+    const iKeyPad = new Uint8Array(64);
+    for (let i = 0; i < 64; i++) {
+        oKeyPad[i] = blockKey[i] ^ 0x5c;
+        iKeyPad[i] = blockKey[i] ^ 0x36;
+    }
+    const msgBytes = encoder.encode(messageStr);
+    const inner = new Uint8Array(64 + msgBytes.length);
+    inner.set(iKeyPad);
+    inner.set(msgBytes, 64);
+    const innerDigest = sha256Bytes(inner);
+    const outer = new Uint8Array(64 + 32);
+    outer.set(oKeyPad);
+    outer.set(innerDigest, 64);
+    return Array.from(sha256Bytes(outer))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+
 /**
  * Renders a declarative Document / Certificate Merge Template (`MetadataDocumentTemplate`)
  * against a record payload, substituting `{{field_api_name}}` and system tokens (`{{RECORD_ID}}`,
- * `{{ISSUED_DATE}}`, `{{OBJECT_NAME}}`) with HTML-escaped values and computing a deterministic
- * verification code.
+ * `{{ISSUED_DATE}}`, `{{OBJECT_NAME}}`) with HTML-escaped values and computing a cryptographic
+ * HMAC-SHA256 verification code.
  */
 export function renderMetadataDocumentTemplate(
     template: MetadataDocumentTemplate,
     record: Record<string, unknown>,
-    context: { objectName?: string; recordId?: string; issuedDate?: string } = {},
+    context: { objectName?: string; recordId?: string; issuedDate?: string; signingKey?: string } = {},
 ): {
     renderedBody: string;
     verificationCode: string;
@@ -1292,14 +1433,15 @@ export function renderMetadataDocumentTemplate(
         (_match, tokenKey: string) => tokenLookup(tokenKey),
     );
 
-    // Deterministic verification code from recordId + template.id + issuedDate
-    const seed = `${recordId}:${template.id}:${issuedDate}`;
-    let hash = 2166136261;
-    for (let i = 0; i < seed.length; i++) {
-        hash ^= seed.charCodeAt(i);
-        hash = Math.imul(hash, 16777619);
-    }
-    const hexSuffix = (hash >>> 0).toString(16).toUpperCase().padStart(8, '0');
+    // Cryptographic HMAC-SHA256 verification tag from recordId + template.id + issuedDate + renderedBody
+    const seed = `${recordId}:${template.id}:${issuedDate}:${renderedBody}`;
+    const envSigningKey =
+        context.signingKey ||
+        (typeof process !== 'undefined'
+            ? process.env?.DOCUMENT_VERIFICATION_SECRET || process.env?.WEBHOOK_SIGNING_SECRET
+            : undefined) ||
+        'scholarmind:docgen:v1';
+    const hexSuffix = hmacSha256Hex(envSigningKey, seed).slice(0, 8).toUpperCase();
     const verificationCode = `SM-DOC-${issuedDate.slice(0, 4)}-${hexSuffix}`;
 
     const paragraphsHtml = renderedBody

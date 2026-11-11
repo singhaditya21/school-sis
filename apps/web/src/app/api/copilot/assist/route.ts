@@ -9,10 +9,11 @@
  * a webhook — reuses the same registry, the same tenant guard, the same approval
  * path and the same ledger instead of growing a second copilot.
  */
-import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireApiAuth } from '@/lib/auth/api';
+import { consumeRateLimit } from '@/lib/auth/rate-limit';
+import { requestContextFrom } from '@/lib/observability/logger';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
 import type { AuthorizationRole } from '@school-sis/api';
 import {
@@ -60,7 +61,7 @@ function contextFrom(auth: { tenantId: string; userId: string; role: string }, r
         tenantId: auth.tenantId,
         userId: auth.userId,
         role: auth.role as AuthorizationRole,
-        requestId: request.headers.get('x-request-id') || crypto.randomUUID(),
+        requestId: requestContextFrom(request).requestId,
     };
 }
 
@@ -108,6 +109,15 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     const auth = await requireApiAuth();
     if (auth.ok === false) return auth.response;
+
+    const limitError = await consumeRateLimit(`${auth.context.tenantId}:${auth.context.userId}`, {
+        scope: 'ai_copilot_assist',
+        maxAttempts: 20,
+        degradedMaxAttempts: 1,
+        endpointClass: 'ai',
+        message: 'Too many assistant requests in a short window. Try again in a minute.',
+    });
+    if (limitError) return NextResponse.json({ error: limitError }, { status: 429 });
 
     const json = await readTenantScopedJson(request, auth.context.tenantId);
     if (json.ok === false) return json.response;

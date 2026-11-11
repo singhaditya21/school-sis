@@ -187,8 +187,14 @@ export async function proxy(request: NextRequest) {
         ? ['ATTENDANCE', 'FEES', 'COMMUNICATION', 'AI_AGENTS', 'HIGHER_ED', 'COACHING', 'INTERNATIONAL', 'MULTI_CAMPUS', 'ENTERPRISE']
         : (session.activeModules || ['ATTENDANCE', 'FEES']); 
     
-    // Group HQ Command Center (Super Admin Only + Multi-Campus Tier)
-    if (pathname.startsWith('/hq')) {
+    // Multi-Campus Tenant Command Routes (Super Admin / Platform Admin + Multi-Campus Tier)
+    // Note: `/hq` itself is founder-only (`PLATFORM_ADMIN`) and already gated via `getPageAccessPolicy`.
+    if (
+        pathname === '/hq-overview'
+        || pathname.startsWith('/hq-overview/')
+        || pathname === '/hq-policies'
+        || pathname.startsWith('/hq-policies/')
+    ) {
         if (session.role !== 'SUPER_ADMIN' && session.role !== 'PLATFORM_ADMIN') {
             return respond(NextResponse.redirect(new URL('/unauthorized', request.url)));
         }
@@ -212,8 +218,8 @@ export async function proxy(request: NextRequest) {
         return respond(NextResponse.redirect(new URL('/upgrade?feature=international', request.url)));
     }
 
-    // AI Agents Paywall
-    if (pathname.startsWith('/chat') && !activeModules.includes('AI_AGENTS') && session.subscriptionTier === 'CORE') {
+    // AI Agents Paywall — fail closed to CORE when subscriptionTier is missing/null
+    if (pathname.startsWith('/chat') && !activeModules.includes('AI_AGENTS') && (!session.subscriptionTier || session.subscriptionTier === 'CORE')) {
         return respond(NextResponse.redirect(new URL('/upgrade?feature=ai', request.url)));
     }
 
@@ -228,8 +234,8 @@ export const config = {
          * - _next/static (static files)
          * - _next/image (image optimization files)
          * - favicon.ico (favicon file)
-         * - public files
+         * - public files and explicit static asset extensions
          */
-        '/((?!api|_next/static|_next/image|favicon.ico|.*\\..*|public).*)',
+        '/((?!api|_next/static|_next/image|favicon.ico|public|.*\\.(?:ico|png|jpg|jpeg|gif|svg|webp|avif|css|js|mjs|map|woff|woff2|ttf|eot|otf|txt|xml|webmanifest|json)$).*)',
     ],
 };

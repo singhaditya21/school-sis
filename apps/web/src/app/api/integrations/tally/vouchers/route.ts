@@ -47,11 +47,15 @@ export async function POST(request: NextRequest) {
         if (json.ok === false) return json.response;
 
         const fromDate = typeof json.data.fromDate === 'string'
-            ? json.data.fromDate
+            ? json.data.fromDate.trim()
             : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const toDate = typeof json.data.toDate === 'string'
-            ? json.data.toDate
+            ? json.data.toDate.trim()
             : new Date().toISOString().slice(0, 10);
+
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+            return integrationJson({ error: 'fromDate and toDate must use YYYY-MM-DD format' }, { status: 400 });
+        }
 
         const { rows: payments } = await pool.query(`
             SELECT
@@ -68,7 +72,7 @@ export async function POST(request: NextRequest) {
             WHERE p.tenant_id = $1
               AND p.status = 'COMPLETED'
               AND p.paid_at >= $2::date
-              AND p.paid_at <= $3::date
+              AND p.paid_at < ($3::date + INTERVAL '1 day')
             ORDER BY p.paid_at ASC
         `, [tenantId, fromDate, toDate]);
 

@@ -1,14 +1,43 @@
 'use client';
 
 import Link from 'next/link';
-import { Database, Server, AppWindow, Cpu, ShieldAlert, ArrowLeft, Terminal, X, Boxes, Network, FileCode2 } from 'lucide-react';
+import { Database, Server, AppWindow, Cpu, ShieldAlert, ArrowLeft, Terminal, X, Network } from 'lucide-react';
 import { useEffect, useState } from 'react';
+
+type AccentColor = 'cyan' | 'emerald' | 'yellow' | 'rose' | 'indigo' | 'fuchsia';
+
+const ACCENT_STYLES: Record<AccentColor, { glow: string; badge: string }> = {
+    cyan: {
+        glow: 'bg-cyan-500',
+        badge: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
+    },
+    emerald: {
+        glow: 'bg-emerald-500',
+        badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+    },
+    yellow: {
+        glow: 'bg-yellow-500',
+        badge: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+    },
+    rose: {
+        glow: 'bg-rose-500',
+        badge: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+    },
+    indigo: {
+        glow: 'bg-indigo-500',
+        badge: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30',
+    },
+    fuchsia: {
+        glow: 'bg-fuchsia-500',
+        badge: 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/30',
+    },
+};
 
 type TechSpec = {
     id: string;
     title: string;
     badge: string;
-    iconColor: string;
+    iconColor: AccentColor;
     terminalText: string;
     features: string[];
     description: string;
@@ -127,7 +156,14 @@ export default function ArchitectureDeepDive() {
                 <div className="absolute top-[10%] left-[20%] w-[30%] h-[30%] rounded-full bg-indigo-900/30 blur-[150px] animate-pulse" style={{ animationDuration: '6s' }}></div>
                 <div className="absolute top-[40%] right-[10%] w-[40%] h-[40%] rounded-full bg-cyan-900/20 blur-[150px] animate-pulse" style={{ animationDuration: '8s', animationDelay: '2s' }}></div>
                 <div className="absolute bottom-[-10%] left-[30%] w-[50%] h-[50%] rounded-full bg-fuchsia-900/20 blur-[150px] animate-pulse" style={{ animationDuration: '10s', animationDelay: '4s' }}></div>
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/black-scales.png')] opacity-[0.07] mix-blend-overlay"></div>
+                <div
+                    className="absolute inset-0 opacity-15"
+                    style={{
+                        backgroundImage:
+                            'radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px)',
+                        backgroundSize: '24px 24px',
+                    }}
+                ></div>
             </div>
 
             {/* HEADER */}
@@ -293,7 +329,14 @@ export default function ArchitectureDeepDive() {
                             {/* Left Panel: The Pseudo-Terminal */}
                             <div className="w-full md:w-1/2 bg-[#050505] p-8 border-r border-[#222] flex flex-col font-mono text-sm text-green-400 shadow-inner overflow-hidden relative">
                                 {/* Decorative Terminal Background Grid */}
-                                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/black-scales.png')] opacity-[0.03]"></div>
+                                <div
+                                    className="absolute inset-0 opacity-10"
+                                    style={{
+                                        backgroundImage:
+                                            'radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px)',
+                                        backgroundSize: '20px 20px',
+                                    }}
+                                ></div>
                                 
                                 <div className="flex items-center gap-3 text-slate-500 mb-6 border-b border-[#222] pb-3 uppercase tracking-widest font-bold"><Terminal size={18}/> SYSTEM_LOGS.OUT</div>
                                 
@@ -308,9 +351,9 @@ export default function ArchitectureDeepDive() {
                             {/* Right Panel: The Marketing Pitch Matrix */}
                             <div className="w-full md:w-1/2 p-10 md:p-14 flex flex-col justify-center bg-black/40 relative overflow-y-auto">
                                 {/* Glow Accent relative to iconColor */}
-                                <div className={`absolute top-10 right-10 w-80 h-80 blur-[120px] rounded-full pointer-events-none opacity-20 bg-${selectedSpec.iconColor}-500`}></div>
+                                <div className={`absolute top-10 right-10 w-80 h-80 blur-[120px] rounded-full pointer-events-none opacity-20 ${ACCENT_STYLES[selectedSpec.iconColor].glow}`}></div>
 
-                                <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold font-mono tracking-widest mb-6 w-fit bg-${selectedSpec.iconColor}-500/10 text-${selectedSpec.iconColor}-400 border border-${selectedSpec.iconColor}-500/30 uppercase`}>
+                                <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold font-mono tracking-widest mb-6 w-fit border uppercase ${ACCENT_STYLES[selectedSpec.iconColor].badge}`}>
                                     {selectedSpec.badge}
                                 </span>
 

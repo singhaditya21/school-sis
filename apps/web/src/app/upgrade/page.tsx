@@ -12,7 +12,7 @@ function UpgradeContent() {
         university: "Higher Education & Degrees",
         coaching: "Coaching Batches & Test Series",
         international: "International Visas & Placements",
-        ai: "ScholarMind AI Agents (Pro Tier)",
+        ai: "Governed School Assistant & Report Copilot",
         premium: "Premium Modules"
     };
 
@@ -35,32 +35,32 @@ function UpgradeContent() {
                 </div>
                 
                 <h1 className="text-4xl font-extrabold text-foreground mb-4 tracking-tight">
-                    Upgrade to Unlock {featureMap[feature]}
+                    Upgrade to Unlock {featureMap[feature] || featureMap.premium}
                 </h1>
                 
                 <p className="text-lg text-muted-foreground mb-10 leading-relaxed">
-                    This module is restricted to the <strong>AI Pro</strong> and <strong>Enterprise</strong> subscription tiers. 
-                    Upgrade your school's plan to access advanced multi-campus management, 
-                    AI reasoning agents, and extensive integrations.
+                    This module is available on <strong>Growth</strong> and <strong>Enterprise</strong> school plans.
+                    Contact your account representative to enable governed assistant tools, multi-campus administration,
+                    or specialized institutional modules for your school.
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10 text-left">
                     <div className="p-6 bg-muted rounded-2xl border border-border">
-                        <h3 className="font-semibold text-foreground mb-2">AI Pro Tier</h3>
-                        <p className="text-sm text-muted-foreground mb-4">$18 / student / year</p>
+                        <h3 className="font-semibold text-foreground mb-2">Growth Plan</h3>
+                        <p className="text-sm text-muted-foreground mb-4">Annual institutional licensing</p>
                         <ul className="text-sm space-y-2 text-foreground">
-                            <li>✓ All 26 AI Agents</li>
-                            <li>✓ Event-driven PG Vector Sync</li>
-                            <li>✓ Chatbot Guardrails</li>
+                            <li>✓ Governed School Assistant &amp; BI Copilot</li>
+                            <li>✓ Human-approved workflow controls</li>
+                            <li>✓ Per-tenant daily usage budgets &amp; audit logs</li>
                         </ul>
                     </div>
                     <div className="p-6 bg-accent rounded-2xl border border-primary/30 ring-2 ring-ring ring-offset-2">
-                        <h3 className="font-semibold text-accent-foreground mb-2">Enterprise Tier</h3>
-                        <p className="text-sm text-primary mb-4">$30 / student / year</p>
+                        <h3 className="font-semibold text-accent-foreground mb-2">Enterprise Plan</h3>
+                        <p className="text-sm text-primary mb-4">Custom multi-campus licensing</p>
                         <ul className="text-sm space-y-2 text-accent-foreground">
-                            <li>✓ Multi-Campus Super Admin</li>
-                            <li>✓ Higher Ed & Coaching Branches</li>
-                            <li>✓ International Placements</li>
+                            <li>✓ Multi-Campus Group Overview &amp; Policies</li>
+                            <li>✓ Higher Ed &amp; Coaching Institutional Modules</li>
+                            <li>✓ Enterprise SSO, SCIM &amp; Webhook Integrations</li>
                         </ul>
                     </div>
                 </div>

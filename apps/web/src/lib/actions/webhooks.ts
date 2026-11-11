@@ -1,5 +1,3 @@
-'use server';
-
 import { sql } from '@/lib/db';
 import { recordIntegrationAudit } from '@/lib/integrations/api-platform';
 import { mockWebhookDeliveryIsEnabled } from '@/lib/integrations/runtime-mode';
@@ -12,26 +10,45 @@ export async function deliverWebhook(
     requestHeaders: Record<string, string>,
     timeoutMs: number,
     maxAttempts = 4,
+    tenantId?: string,
 ) {
     if (mockWebhookDeliveryIsEnabled()) {
         const mockBody = JSON.stringify({ mocked: true, targetUrl: url, accepted: true });
-        const delivery = await sql<{
-            tenantId: string;
-            event: string;
-            eventId: string;
-            subscriptionId: string;
-        }>`
-            UPDATE webhook_deliveries
-            SET status = 'SUCCESS',
-                response_code = 202,
-                response_body = ${mockBody},
-                attempts = attempts + 1,
-                last_attempt_at = NOW(),
-                next_retry_at = NULL,
-                error = NULL
-            WHERE id = ${deliveryId}
-            RETURNING tenant_id AS "tenantId", event, event_id AS "eventId", subscription_id AS "subscriptionId"
-        `.maybeOne();
+        const delivery = tenantId
+            ? await sql<{
+                  tenantId: string;
+                  event: string;
+                  eventId: string;
+                  subscriptionId: string;
+              }>`
+                UPDATE webhook_deliveries
+                SET status = 'SUCCESS',
+                    response_code = 202,
+                    response_body = ${mockBody},
+                    attempts = attempts + 1,
+                    last_attempt_at = NOW(),
+                    next_retry_at = NULL,
+                    error = NULL
+                WHERE id = ${deliveryId} AND tenant_id = ${tenantId}
+                RETURNING tenant_id AS "tenantId", event, event_id AS "eventId", subscription_id AS "subscriptionId"
+            `.maybeOne()
+            : await sql<{
+                  tenantId: string;
+                  event: string;
+                  eventId: string;
+                  subscriptionId: string;
+              }>`
+                UPDATE webhook_deliveries
+                SET status = 'SUCCESS',
+                    response_code = 202,
+                    response_body = ${mockBody},
+                    attempts = attempts + 1,
+                    last_attempt_at = NOW(),
+                    next_retry_at = NULL,
+                    error = NULL
+                WHERE id = ${deliveryId}
+                RETURNING tenant_id AS "tenantId", event, event_id AS "eventId", subscription_id AS "subscriptionId"
+            `.maybeOne();
 
         if (delivery) {
             await recordIntegrationAudit({
@@ -77,6 +94,7 @@ export async function deliverWebhook(
                 END,
                 error = CASE WHEN ${isOk}::boolean THEN NULL ELSE ${errorText} END
             WHERE id = ${deliveryId}
+              AND (${tenantId ?? null}::uuid IS NULL OR tenant_id = ${tenantId ?? null}::uuid)
         `.execute();
     } catch (err) {
         const message = err instanceof Error ? err.message : 'Webhook delivery failed';
@@ -94,6 +112,7 @@ export async function deliverWebhook(
                 END,
                 error = ${message}
             WHERE id = ${deliveryId}
+              AND (${tenantId ?? null}::uuid IS NULL OR tenant_id = ${tenantId ?? null}::uuid)
         `.execute();
     }
 }

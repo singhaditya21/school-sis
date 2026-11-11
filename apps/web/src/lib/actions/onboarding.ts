@@ -3,10 +3,12 @@
 import { pool, sql, sqlFor, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { hash } from 'bcryptjs';
 import { encryptEmail, encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, SessionData } from '@/lib/auth/session';
+import { establishSession } from '@/lib/auth/identity';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
+import { logger } from '@/lib/observability/logger';
 
 type OnboardingInput = {
     schoolName: string;
@@ -51,6 +53,29 @@ function normalizeOnboardingInput(formData: FormData): { ok: true; data: Onboard
 }
 
 async function enforceOnboardingRateLimits(input: OnboardingInput): Promise<string | null> {
+    let clientIp: string | null = null;
+    try {
+        const hdrs = await headers();
+        const forwarded =
+            hdrs.get('x-vercel-forwarded-for') ||
+            hdrs.get('x-real-ip') ||
+            hdrs.get('x-forwarded-for');
+        clientIp = forwarded?.split(',')[0]?.trim() || null;
+    } catch {
+        clientIp = null;
+    }
+
+    if (clientIp) {
+        const ipLimit = await consumeRateLimit(clientIp, {
+            scope: 'onboarding_ip',
+            maxAttempts: 5,
+            degradedMaxAttempts: 2,
+            endpointClass: 'public-write',
+            message: 'Too many workspace creation attempts from this network. Please try again later.',
+        });
+        if (ipLimit) return ipLimit;
+    }
+
     return await consumeRateLimit(input.email, {
         scope: 'onboarding_email',
         maxAttempts: 3,
@@ -114,6 +139,7 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
         // company for checkout to bill against.
         const client = await pool.connect();
         const q = sqlFor(client);
+        let companyId = '';
         let tenant: { id: string };
         let adminUser: { id: string; role: string; email: string; firstName: string; lastName: string };
         try {
@@ -124,10 +150,11 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
                 VALUES (${schoolName}, ${'INCOMPLETE'})
                 RETURNING id
             `;
+            companyId = companyRows[0].id;
 
             const tenantRows = await q<{ id: string }>`
                 INSERT INTO tenants (company_id, name, code, domain, email, is_active)
-                VALUES (${companyRows[0].id}, ${schoolName}, ${domain}, ${domainUrl}, ${email}, ${false})
+                VALUES (${companyId}, ${schoolName}, ${domain}, ${domainUrl}, ${email}, ${false})
                 RETURNING id
             `;
             tenant = tenantRows[0];
@@ -148,22 +175,31 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
             client.release();
         }
 
-        // Automatically log them in immediately so the checkout API route succeeds
+        // Automatically log them in via establishSession so session expiry, tenant code,
+        // and MFA enrollment gates are uniformly initialized.
         const c = await cookies();
         const session = await getIronSession<SessionData>(c, sessionOptions);
-        
-        session.isLoggedIn = true;
-        session.userId = adminUser.id;
-        session.tenantId = tenant.id;
-        session.role = adminUser.role;
-        session.email = adminUser.email;
-        session.displayName = `${adminUser.firstName} ${adminUser.lastName}`;
-        
+        establishSession(session, {
+            userId: adminUser.id,
+            tenantId: tenant.id,
+            tenantCode: domain,
+            tenantDomain: domainUrl,
+            role: adminUser.role,
+            email: adminUser.email,
+            provider: 'password',
+            displayName: `${adminUser.firstName} ${adminUser.lastName}`,
+            companyId,
+            mfaEnabled: false,
+            mfaVerified: false,
+        });
         await session.save();
 
         return { success: true, tenantId: tenant.id };
     } catch (error: unknown) {
-        console.error('[ONBOARDING_ERROR]', error);
-        return { error: (error as { message?: string }).message || 'Failed to create workspace database. Please try again later.' };
+        logger.error('onboarding.setup_failed', 'Workspace provisioning failed', {
+            source: 'onboarding-action',
+            metadata: { error: error instanceof Error ? error.message : String(error) },
+        });
+        return { error: 'Failed to create workspace database. Please try again later.' };
     }
 }

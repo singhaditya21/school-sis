@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool, } from '@/lib/db';
+import { runWithTenantContext, sql } from '@/lib/db';
 import { requireApiPermission } from '@/lib/auth/api';
+import { sanitizeCsvValue } from '@/lib/utils/csv-sanitize';
+import { logger } from '@/lib/observability/logger';
 import {
     requireApprovedWorkflowApprovalOrRequest,
     toWorkflowApprovalSummary,
@@ -64,58 +66,74 @@ export async function GET(request: NextRequest) {
             }, { status: 202 });
         }
 
-        // Get school info
-        const { rows: [school] } = await pool.query(
-            `SELECT *, udise_code AS "udiseCode", affiliation_board AS "affiliationBoard" FROM tenants WHERE id = $1 LIMIT 1`,
-            [tenantId]
-        );
+        const { school, studentData, totalTeachers } = await runWithTenantContext(tenantId, async () => {
+            const schoolRows = await sql<{
+                code: string | null;
+                name: string | null;
+                state: string | null;
+                city: string | null;
+                udiseCode: string | null;
+                affiliationBoard: string | null;
+            }>`
+                SELECT code,
+                       name,
+                       state,
+                       city,
+                       udise_code AS "udiseCode",
+                       affiliation_board AS "affiliationBoard"
+                FROM tenants
+                WHERE id = ${tenantId}
+                LIMIT 1
+            `;
+
+            const gradeRows = await sql<Record<string, unknown>>`
+                SELECT
+                    g.name AS grade_name,
+                    g.numeric_value AS grade_number,
+                    COUNT(*) FILTER (WHERE s.gender = 'MALE') AS boys,
+                    COUNT(*) FILTER (WHERE s.gender = 'FEMALE') AS girls,
+                    COUNT(*) FILTER (WHERE s.category = 'SC') AS sc_count,
+                    COUNT(*) FILTER (WHERE s.category = 'ST') AS st_count,
+                    COUNT(*) FILTER (WHERE s.category = 'OBC') AS obc_count,
+                    COUNT(*) FILTER (WHERE s.category = 'GENERAL') AS general_count,
+                    COUNT(*) AS total
+                FROM students s
+                JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = ${tenantId}
+                JOIN grades g ON g.id = sec.grade_id AND g.tenant_id = ${tenantId}
+                WHERE s.tenant_id = ${tenantId} AND s.status = 'ACTIVE'
+                GROUP BY g.name, g.numeric_value, g.display_order
+                ORDER BY g.display_order ASC
+            `;
+
+            const teacherRows = await sql<{ total_teachers: string | number }>`
+                SELECT COUNT(*) AS total_teachers
+                FROM users
+                WHERE tenant_id = ${tenantId} AND role = 'TEACHER' AND is_active = true
+            `;
+
+            return {
+                school: schoolRows[0] ?? null,
+                studentData: gradeRows,
+                totalTeachers: teacherRows[0]?.total_teachers ?? 0,
+            };
+        });
+
         if (!school) {
             return NextResponse.json({ error: 'School not found' }, { status: 404 });
         }
 
-        // Get student counts by grade and gender
-        const { rows: studentData } = await pool.query(`
-            SELECT
-                g.name AS grade_name,
-                g.numeric_value AS grade_number,
-                COUNT(*) FILTER (WHERE s.gender = 'MALE') AS boys,
-                COUNT(*) FILTER (WHERE s.gender = 'FEMALE') AS girls,
-                COUNT(*) FILTER (WHERE s.category = 'SC') AS sc_count,
-                COUNT(*) FILTER (WHERE s.category = 'ST') AS st_count,
-                COUNT(*) FILTER (WHERE s.category = 'OBC') AS obc_count,
-                COUNT(*) FILTER (WHERE s.category = 'GENERAL') AS general_count,
-                COUNT(*) AS total
-            FROM students s
-            JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = $1
-            JOIN grades g ON g.id = sec.grade_id AND g.tenant_id = $1
-            WHERE s.tenant_id = $1 AND s.status = 'ACTIVE'
-            GROUP BY g.name, g.numeric_value, g.display_order
-            ORDER BY g.display_order ASC
-        `, [tenantId]);
-
-        // Get teacher count
-        const { rows: [teacherData] } = await pool.query(`
-            SELECT COUNT(*) AS total_teachers
-            FROM users
-            WHERE tenant_id = $1 AND role = 'TEACHER' AND is_active = true
-        `, [tenantId]);
-
-        // Build CSV
-        const rows: string[] = [];
-
-        // Header row
-        rows.push([
+        const headers = [
             'UDISE Code', 'School Name', 'State', 'District', 'Affiliation Board',
             'Grade', 'Boys', 'Girls', 'Total',
             'SC', 'ST', 'OBC', 'General',
-            'Total Teachers'
-        ].join(','));
+            'Total Teachers',
+        ];
+        const rows: string[] = [headers.map(h => sanitizeCsvValue(h)).join(',')];
 
-        // Data rows
-        for (const row of studentData as Array<Record<string, unknown>>) {
+        for (const row of studentData) {
             rows.push([
                 school.udiseCode || '',
-                `"${school.name}"`,
+                school.name || '',
                 school.state || '',
                 school.city || '',
                 school.affiliationBoard || '',
@@ -127,23 +145,27 @@ export async function GET(request: NextRequest) {
                 row.st_count,
                 row.obc_count,
                 row.general_count,
-                (teacherData as Record<string, unknown>)?.total_teachers || 0,
-            ].join(','));
+                totalTeachers,
+            ].map(cell => sanitizeCsvValue(cell)).join(','));
         }
 
         const csv = rows.join('\n');
+        const safeCode = String(school.code || 'school').replace(/[^a-zA-Z0-9_-]/g, '_') || 'school';
 
         return new NextResponse(csv, {
             headers: {
-                'Content-Type': 'text/csv',
-                'Content-Disposition': `attachment; filename="udise_plus_${school.code}_${new Date().toISOString().slice(0, 10)}.csv"`,
+                'Content-Type': 'text/csv; charset=utf-8',
+                'Content-Disposition': `attachment; filename="udise_plus_${safeCode}_${new Date().toISOString().slice(0, 10)}.csv"`,
             },
         });
     } catch (error: unknown) {
         if (error instanceof WorkflowApprovalError) {
             return NextResponse.json({ error: error.message }, { status: error.status });
         }
-        console.error('[UDISE+ Export] Error:', (error as Error).message);
+        logger.error('udise_export.failed', 'UDISE+ export failed', {
+            tenantId,
+            metadata: { error: error instanceof Error ? error.message : String(error) },
+        });
         return NextResponse.json({ error: 'Failed to generate UDISE+ export' }, { status: 500 });
     }
 }

@@ -18,15 +18,6 @@ const METHOD_LABELS: Record<string, string> = {
     ONLINE: 'Online',
 };
 
-const PRINT_STYLES = `
-@page { margin: 14mm; }
-@media print {
-    header, aside[data-testid="sidebar"] { display: none !important; }
-    main { padding: 0 !important; }
-    body { background: #fff !important; }
-}
-`;
-
 function methodLabel(method: string): string {
     return METHOD_LABELS[method] ?? method;
 }
@@ -105,9 +96,7 @@ export default async function ReceiptDetailPage({ params }: { params: Promise<{ 
     const className = [receipt.gradeName, receipt.sectionName].filter(Boolean).join(' · ');
 
     return (
-        <div className="max-w-3xl mx-auto space-y-4">
-            <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
-
+        <div className="max-w-3xl mx-auto space-y-4 print:max-w-none print:m-0 print:p-0 print:bg-white">
             <div className="flex items-center justify-between print:hidden">
                 <Link href="/receipts" className="text-sm text-primary hover:underline">
                     ← Payment ledger

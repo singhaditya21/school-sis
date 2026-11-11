@@ -31,6 +31,8 @@ export type RecordSreIncidentInput = ObservabilityContext & {
   description?: string | null;
 };
 
+const REQUEST_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+
 const SENSITIVE_KEYS = new Set([
   'authorization',
   'cookie',
@@ -41,6 +43,12 @@ const SENSITIVE_KEYS = new Set([
   'apiKey',
   'privateKey',
   'session',
+  'aadhaar',
+  'apaar',
+  'mfa_code',
+  'mfaCode',
+  'backup_code',
+  'backupCode',
 ]);
 
 function sanitizeValue(value: unknown, depth = 0): unknown {
@@ -63,8 +71,10 @@ function sanitizeValue(value: unknown, depth = 0): unknown {
 
 export function requestContextFrom(request: Request): Pick<ObservabilityContext, 'requestId' | 'traceId'> {
   const traceparent = request.headers.get('traceparent');
+  const rawRequestId = request.headers.get('x-request-id')?.trim() ?? '';
+  const requestId = REQUEST_ID_RE.test(rawRequestId) ? rawRequestId : crypto.randomUUID();
   return {
-    requestId: request.headers.get('x-request-id') || crypto.randomUUID(),
+    requestId,
     traceId: traceparent?.split('-')[1] || request.headers.get('x-trace-id') || null,
   };
 }

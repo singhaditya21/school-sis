@@ -108,6 +108,7 @@ export async function POST(request: Request) {
             requestHeaders,
             row.timeoutMs || 10_000,
             Math.max(1, Number(row.retryCount) + 1),
+            auth.context.tenantId,
         );
     }
 

@@ -307,21 +307,26 @@ export async function getTenantContextHealth(): Promise<TenantContextHealth> {
 
 export async function getMigrationHealth(): Promise<MigrationHealth> {
   try {
-    const tableResult = await pool.query<{ migrationTable: string | null }>(
-      `SELECT to_regclass('drizzle.__drizzle_migrations')::text AS "migrationTable"`,
-    );
-    if (!tableResult.rows[0]?.migrationTable) {
-      return evaluateMigrationLedger(EXPECTED_DATABASE_MIGRATIONS, null);
-    }
+    return await runWithRlsBypass(
+      RLS_BYPASS_JUSTIFICATIONS.OPERATIONAL_SNAPSHOT,
+      async () => {
+        const tableResult = await pool.query<{ migrationTable: string | null }>(
+          `SELECT to_regclass('drizzle.__drizzle_migrations')::text AS "migrationTable"`,
+        );
+        if (!tableResult.rows[0]?.migrationTable) {
+          return evaluateMigrationLedger(EXPECTED_DATABASE_MIGRATIONS, null);
+        }
 
-    const ledger = await pool.query<{ hash: string; createdAt: string }>(
-      `SELECT hash, created_at::text AS "createdAt"
-       FROM drizzle.__drizzle_migrations
-       ORDER BY created_at ASC, id ASC`,
-    );
-    return evaluateMigrationLedger(
-      EXPECTED_DATABASE_MIGRATIONS,
-      ledger.rows satisfies AppliedMigration[],
+        const ledger = await pool.query<{ hash: string; createdAt: string }>(
+          `SELECT hash, created_at::text AS "createdAt"
+           FROM drizzle.__drizzle_migrations
+           ORDER BY created_at ASC, id ASC`,
+        );
+        return evaluateMigrationLedger(
+          EXPECTED_DATABASE_MIGRATIONS,
+          ledger.rows satisfies AppliedMigration[],
+        );
+      },
     );
   } catch {
     return migrationCheckFailure(EXPECTED_DATABASE_MIGRATIONS);

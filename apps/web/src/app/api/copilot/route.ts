@@ -17,8 +17,11 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { generateText, stepCountIs, tool } from 'ai';
 import { z } from 'zod';
 import { NextResponse } from 'next/server';
+import type { AuthorizationRole } from '@school-sis/api';
+import { checkAiBudget, recordAiTurn, type AiToolContext } from '@/lib/ai';
 import { requireApiAuth } from '@/lib/auth/api';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
+import { logger, requestContextFrom } from '@/lib/observability/logger';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
 import {
     COPILOT_ROLES,
@@ -60,6 +63,7 @@ export interface CopilotResponseBody {
 }
 
 export async function POST(req: Request) {
+    const started = Date.now();
     const auth = await requireApiAuth(COPILOT_ROLES);
     if (auth.ok === false) return auth.response;
 
@@ -72,17 +76,6 @@ export async function POST(req: Request) {
     });
     if (limitError) return NextResponse.json({ error: limitError }, { status: 429 });
 
-    const apiKey = process.env.CEREBRAS_API_KEY;
-    if (!apiKey) {
-        return NextResponse.json(
-            {
-                error:
-                    'No model provider is configured for this deployment, so the copilot cannot draft a report. Set CEREBRAS_API_KEY to enable it.',
-            },
-            { status: 503 },
-        );
-    }
-
     const json = await readTenantScopedJson(req, auth.context.tenantId);
     if (json.ok === false) return json.response;
 
@@ -91,14 +84,76 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Describe the report you want in a sentence.' }, { status: 400 });
     }
 
+    const aiContext: AiToolContext = {
+        tenantId: auth.context.tenantId,
+        userId: auth.context.userId,
+        role: auth.context.role as AuthorizationRole,
+        requestId: requestContextFrom(req).requestId,
+    };
+
     const datasets = listCopilotDatasets(auth.context);
     if (datasets.length === 0) {
+        await recordAiTurn({
+            tenantId: aiContext.tenantId,
+            requestId: aiContext.requestId,
+            userId: aiContext.userId,
+            role: aiContext.role,
+            question: parsed.data.prompt,
+            outcome: 'refused_no_tools',
+            toolRuns: [],
+            toolCallShapes: [],
+            tokensUsed: 0,
+            latencyMs: Date.now() - started,
+        });
         return NextResponse.json(
             {
                 error:
                     'The BI catalog grants your role no runnable dataset, so there is nothing the copilot can draft a report over.',
             },
             { status: 409 },
+        );
+    }
+
+    const budget = await checkAiBudget(aiContext);
+    if (!budget.allowed) {
+        await recordAiTurn({
+            tenantId: aiContext.tenantId,
+            requestId: aiContext.requestId,
+            userId: aiContext.userId,
+            role: aiContext.role,
+            question: parsed.data.prompt,
+            outcome: 'refused_budget',
+            toolRuns: [],
+            toolCallShapes: [],
+            tokensUsed: 0,
+            latencyMs: Date.now() - started,
+        });
+        return NextResponse.json(
+            { error: budget.reason ?? 'The assistant budget for this school is exhausted for today.' },
+            { status: 429 },
+        );
+    }
+
+    const apiKey = process.env.CEREBRAS_API_KEY;
+    if (!apiKey) {
+        await recordAiTurn({
+            tenantId: aiContext.tenantId,
+            requestId: aiContext.requestId,
+            userId: aiContext.userId,
+            role: aiContext.role,
+            question: parsed.data.prompt,
+            outcome: 'unavailable_no_provider',
+            toolRuns: [],
+            toolCallShapes: [],
+            tokensUsed: 0,
+            latencyMs: Date.now() - started,
+        });
+        return NextResponse.json(
+            {
+                error:
+                    'No model provider is configured for this deployment, so the copilot cannot draft a report. Set CEREBRAS_API_KEY to enable it.',
+            },
+            { status: 503 },
         );
     }
 
@@ -120,12 +175,15 @@ export async function POST(req: Request) {
 
     let accepted: CopilotReportDraft | null = null;
     let rejection: string | null = null;
+    let tokensUsed = 0;
+    const toolCallShapes: { toolName: string; argumentKeys: string[] }[] = [];
 
     try {
-        await generateText({
+        const result = await generateText({
             model: cerebras(process.env.CEREBRAS_MODEL || 'llama3.1-8b'),
             system: systemPrompt,
             prompt: parsed.data.prompt,
+            maxOutputTokens: 1024,
             stopWhen: stepCountIs(2),
             tools: {
                 proposeReport: tool({
@@ -133,6 +191,10 @@ export async function POST(req: Request) {
                         'Propose one report configuration built from catalog ids. The server validates every id before anything is shown to the user.',
                     inputSchema: ProposalSchema,
                     execute: async (proposal) => {
+                        toolCallShapes.push({
+                            toolName: 'copilot.propose_report',
+                            argumentKeys: Object.keys(proposal ?? {}).sort(),
+                        });
                         const validation = validateProposal(datasets, proposal);
                         if (validation.ok === false) {
                             rejection = validation.reason;
@@ -145,8 +207,29 @@ export async function POST(req: Request) {
                 }),
             },
         });
+        tokensUsed =
+            result.usage?.totalTokens ??
+            (result.usage?.inputTokens ?? 0) + (result.usage?.outputTokens ?? 0);
     } catch (error) {
-        console.error('[Copilot] Model request failed:', error);
+        logger.error('ai.copilot_failed', 'Copilot model request failed', {
+            tenantId: aiContext.tenantId,
+            requestId: aiContext.requestId,
+            actorUserId: aiContext.userId,
+            source: 'ai',
+            metadata: { error: error instanceof Error ? error.message : String(error) },
+        });
+        await recordAiTurn({
+            tenantId: aiContext.tenantId,
+            requestId: aiContext.requestId,
+            userId: aiContext.userId,
+            role: aiContext.role,
+            question: parsed.data.prompt,
+            outcome: 'provider_error',
+            toolRuns: [],
+            toolCallShapes,
+            tokensUsed: 0,
+            latencyMs: Date.now() - started,
+        });
         return NextResponse.json(
             { error: 'The model provider did not return a usable response. Nothing was drafted.' },
             { status: 502 },
@@ -155,6 +238,18 @@ export async function POST(req: Request) {
 
     const draft: CopilotReportDraft | null = accepted;
     if (!draft) {
+        await recordAiTurn({
+            tenantId: aiContext.tenantId,
+            requestId: aiContext.requestId,
+            userId: aiContext.userId,
+            role: aiContext.role,
+            question: parsed.data.prompt,
+            outcome: 'refused_no_grounding',
+            toolRuns: [],
+            toolCallShapes,
+            tokensUsed,
+            latencyMs: Date.now() - started,
+        });
         return NextResponse.json(
             {
                 error:
@@ -164,6 +259,19 @@ export async function POST(req: Request) {
             { status: 422 },
         );
     }
+
+    await recordAiTurn({
+        tenantId: aiContext.tenantId,
+        requestId: aiContext.requestId,
+        userId: aiContext.userId,
+        role: aiContext.role,
+        question: parsed.data.prompt,
+        outcome: 'answered',
+        toolRuns: [],
+        toolCallShapes,
+        tokensUsed,
+        latencyMs: Date.now() - started,
+    });
 
     const body: CopilotResponseBody = {
         ok: true,

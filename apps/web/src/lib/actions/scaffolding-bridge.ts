@@ -1,8 +1,8 @@
 'use server';
 
-import { pool } from '@/lib/db';
-import { getSession } from '@/lib/auth/session';
+import { requireAuth } from '@/lib/auth/middleware';
 
-async function tid() { const s = await getSession(); return s.tenantId; }
-
-export async function getTenantId(): Promise<string> { return tid(); }
+export async function getTenantId(): Promise<string> {
+    const { tenantId } = await requireAuth();
+    return tenantId;
+}

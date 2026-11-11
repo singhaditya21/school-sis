@@ -151,7 +151,10 @@ async function updateScimUser(
         assignments.push(`${column} = $${values.length}`);
     }
 
-    if (updates.email !== undefined) setColumn('email_enc', encryptEmail(updates.email));
+    if (updates.email !== undefined) {
+        assignments.push('email = NULL');
+        setColumn('email_enc', encryptEmail(updates.email));
+    }
     if (updates.firstName !== undefined) setColumn('first_name', updates.firstName);
     if (updates.lastName !== undefined) setColumn('last_name', updates.lastName);
     if (updates.role !== undefined) setColumn('role', updates.role);
@@ -166,7 +169,9 @@ async function updateScimUser(
     const { rows } = await pool.query<ScimUserRow>(
         `UPDATE users
          SET ${assignments.join(', ')}, updated_at = NOW()
-         WHERE tenant_id = $${tenantParam} AND id = $${idParam}
+         WHERE tenant_id = $${tenantParam}
+           AND id = $${idParam}
+           AND role NOT IN ('PLATFORM_ADMIN', 'SUPER_ADMIN')
          RETURNING
             id,
             COALESCE(email_enc, email) AS "email",

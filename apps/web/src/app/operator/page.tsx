@@ -19,10 +19,25 @@ export default async function OperatorPage() {
     }
 
     return (
-        <OperatorConsoleClient
-            initialScope={session.role === 'PLATFORM_ADMIN' ? 'PLATFORM' : 'TENANT'}
-            role={session.role}
-            tenantId={session.tenantId}
-        />
+        <div className="min-h-screen bg-background">
+            <div className="border-b border-border bg-card px-6 py-2.5 flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">
+                    Signed in as {session.email} ({session.role})
+                </span>
+                <form action="/api/logout" method="POST">
+                    <button
+                        type="submit"
+                        className="px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted rounded-lg border border-border transition-colors"
+                    >
+                        Sign Out
+                    </button>
+                </form>
+            </div>
+            <OperatorConsoleClient
+                initialScope={session.role === 'PLATFORM_ADMIN' ? 'PLATFORM' : 'TENANT'}
+                role={session.role}
+                tenantId={session.tenantId}
+            />
+        </div>
     );
 }
