@@ -80,8 +80,8 @@ test.describe('ScholarMind — Smoke Tests', () => {
         await expect(page.locator('#schoolCode')).toBeVisible();
         await page.getByRole('button', { name: /Platform Admin/i }).click();
         await expect(page.locator('#schoolCode')).toHaveCount(0);
-        await page.getByRole('button', { name: 'OTP', exact: true }).click();
-        await expect(page.locator('#otp')).toBeVisible();
+        await page.getByRole('button', { name: /School Staff/i }).click();
+        await expect(page.locator('#schoolCode')).toBeVisible();
 
         await page.waitForTimeout(250);
         const browserViolations = await page.evaluate(() => (
