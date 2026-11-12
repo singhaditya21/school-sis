@@ -361,7 +361,7 @@ export const tasks: Record<string, TaskHandler> = {
            FROM users
           WHERE tenant_id = $1
             AND is_active = true
-            AND role IN ('SCHOOL_ADMIN', 'PRINCIPAL', 'COUNSELLOR')
+            AND role IN ('SCHOOL_ADMIN', 'PRINCIPAL', 'ADMISSION_COUNSELOR', 'STUDENT_SUCCESS_COUNSELOR')
           ORDER BY created_at ASC
           LIMIT 1`,
         [tenantId],
