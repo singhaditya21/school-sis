@@ -271,10 +271,10 @@ describe('Security Hardening: Scoped RBAC, Gate Passes, AI PII Redaction, Admiss
             });
             mockSql.mockResolvedValueOnce([
                 {
-                    parentName: 'Rohan <script>alert(1)</script>',
+                    parentName: 'Rohan <script>window.alert(1)</script>',
                     childFirstName: 'Diya"><a href="https://evil.example">Verify</a>',
                     childLastName: 'Verma',
-                    applyingForGrade: 'Grade 4 <img src=x onerror=alert(2)>',
+                    applyingForGrade: 'Grade 4 <img src=x onerror=window.alert(2)>',
                     notes: ' Urgent ',
                     parentEmail: 'rohan.verma@example.org',
                 },
@@ -290,7 +290,7 @@ describe('Security Hardening: Scoped RBAC, Gate Passes, AI PII Redaction, Admiss
             expect(sentPayload.html).not.toContain('<script>');
             expect(sentPayload.html).not.toContain('<a href="https://evil.example">');
             expect(sentPayload.html).not.toContain('<img src=x');
-            expect(sentPayload.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+            expect(sentPayload.html).toContain('&lt;script&gt;window.alert(1)&lt;/script&gt;');
             expect(sentPayload.html).toContain('&lt;a href=&quot;https://evil.example&quot;&gt;');
         });
 

@@ -18,6 +18,16 @@ const MULTI_CAMPUS_EXECUTIVE_ROLES = new Set<string>([
   'GROUP_EXECUTIVE',
 ]);
 
+const CAMPUS_EXECUTIVE_ROLES = new Set<string>([
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'GROUP_EXECUTIVE',
+  'SCHOOL_ADMIN',
+  'PRINCIPAL',
+  'FINANCE_LEAD',
+  'ACCOUNTANT',
+]);
+
 // Executive fee position, Multi-Campus Trust Rollup & drag-and-drop dashboard builder.
 
 export default async function ExecutiveDashboardPage() {
@@ -26,17 +36,19 @@ export default async function ExecutiveDashboardPage() {
   const fullSession = await getSession();
   const demoMode =
     isDemoSession(fullSession) || (await isDemoTenantId(auth.tenantId));
-  const allowedInExecutive =
+  const canViewMultiCampusRollup =
     MULTI_CAMPUS_EXECUTIVE_ROLES.has(role) ||
     (demoMode && (role === UserRole.FINANCE_LEAD || role === UserRole.SCHOOL_ADMIN));
 
-  if (!isTenantStaffRole(role) || !auth.tenantId || !allowedInExecutive) {
+  if (!isTenantStaffRole(role) || !auth.tenantId || !CAMPUS_EXECUTIVE_ROLES.has(role)) {
     redirect('/unauthorized');
   }
 
   const [metrics, groupRollup, allObjects] = await Promise.all([
     getExecutiveFinancialMetrics(auth.tenantId),
-    getMultiCampusGroupRollup(auth.tenantId),
+    canViewMultiCampusRollup
+      ? getMultiCampusGroupRollup(auth.tenantId)
+      : Promise.resolve(undefined),
     getAllMetadataObjects().catch(() => []),
   ]);
 

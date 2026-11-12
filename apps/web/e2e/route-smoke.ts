@@ -210,12 +210,12 @@ async function signIn(page: Page, email: string, landingPath: string, covers?: s
     ]);
 }
 
-async function signInAndEnrollAdmin(page: Page): Promise<void> {
-    await signIn(page, ADMIN_USER.email, '/mfa/setup', ADMIN_USER.covers);
+async function signInAndEnrollMfaUser(page: Page, user: SmokeUser): Promise<void> {
+    await signIn(page, user.email, '/mfa/setup', user.covers);
     await check(page.locator('[data-testid="mfa-qr"]')).toBeVisible();
 
     const secret = (await page.locator('[data-testid="mfa-secret"]').innerText()).trim();
-    check(secret, 'administrator MFA enrolment must expose a valid TOTP secret').toMatch(
+    check(secret, `${user.role} MFA enrolment must expose a valid TOTP secret`).toMatch(
         /^[A-Z2-7]{16,}$/,
     );
 
@@ -270,7 +270,7 @@ export function registerRouteSmokeTests(): void {
         test.beforeAll(async ({ browser }: { browser: Browser }) => {
             await provisionSmokeUsers();
             page = await browser.newPage();
-            await signIn(page, FINANCE_USER.email, '/dashboard', FINANCE_USER.covers);
+            await signInAndEnrollMfaUser(page, FINANCE_USER);
         });
 
         test.afterAll(async () => {
@@ -785,7 +785,7 @@ export function registerRouteSmokeTests(): void {
             await provisionSmokeUsers();
             context = await browser.newContext();
             page = await context.newPage();
-            await signInAndEnrollAdmin(page);
+            await signInAndEnrollMfaUser(page, ADMIN_USER);
         });
 
         test.afterAll(async () => {

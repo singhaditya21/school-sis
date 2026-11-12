@@ -375,8 +375,8 @@ export interface AdmissionLeadsRow {
     childDob: Date | null;
     applyingForGrade: string;
     parentName: string;
-    parentEmail: string;
-    parentPhone: string;
+    parentEmail: string | null;
+    parentPhone: string | null;
     source: LeadSource;
     stage: PipelineStage;
     assignedTo: string | null;
@@ -386,6 +386,8 @@ export interface AdmissionLeadsRow {
     updatedAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    parentEmailEnc: string | null;
+    parentPhoneEnc: string | null;
 }
 export interface AdmissionLeadsInsert {
     id?: string;
@@ -395,8 +397,8 @@ export interface AdmissionLeadsInsert {
     childDob?: Date | null;
     applyingForGrade: string;
     parentName: string;
-    parentEmail: string;
-    parentPhone: string;
+    parentEmail?: string | null;
+    parentPhone?: string | null;
     source?: LeadSource;
     stage?: PipelineStage;
     assignedTo?: string | null;
@@ -406,6 +408,8 @@ export interface AdmissionLeadsInsert {
     updatedAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    parentEmailEnc?: string | null;
+    parentPhoneEnc?: string | null;
 }
 export const admissionLeads = {
     $name: "admission_leads" as const,
@@ -427,6 +431,8 @@ export const admissionLeads = {
     updatedAt: column("admission_leads", "updated_at"),
     ownerId: column("admission_leads", "owner_id"),
     groupId: column("admission_leads", "group_id"),
+    parentEmailEnc: column("admission_leads", "parent_email_enc"),
+    parentPhoneEnc: column("admission_leads", "parent_phone_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── agent_approvals ─────────────────────────────
@@ -1650,6 +1656,7 @@ export interface CompaniesRow {
     createdAt: Date;
     updatedAt: Date;
     ownerId: string | null;
+    pendingCheckoutMeta: unknown | null;
 }
 export interface CompaniesInsert {
     id?: string;
@@ -1668,6 +1675,7 @@ export interface CompaniesInsert {
     createdAt?: Date;
     updatedAt?: Date;
     ownerId?: string | null;
+    pendingCheckoutMeta?: unknown | null;
 }
 export const companies = {
     $name: "companies" as const,
@@ -1687,6 +1695,7 @@ export const companies = {
     createdAt: column("companies", "created_at"),
     updatedAt: column("companies", "updated_at"),
     ownerId: column("companies", "owner_id"),
+    pendingCheckoutMeta: column("companies", "pending_checkout_meta"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── concessions ─────────────────────────────────
@@ -5265,6 +5274,7 @@ export interface PaymentsRow {
     createdAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    idempotencyKey: string | null;
 }
 export interface PaymentsInsert {
     id?: string;
@@ -5283,6 +5293,7 @@ export interface PaymentsInsert {
     createdAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    idempotencyKey?: string | null;
 }
 export const payments = {
     $name: "payments" as const,
@@ -5302,6 +5313,7 @@ export const payments = {
     createdAt: column("payments", "created_at"),
     ownerId: column("payments", "owner_id"),
     groupId: column("payments", "group_id"),
+    idempotencyKey: column("payments", "idempotency_key"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── periods ─────────────────────────────────────
@@ -5981,6 +5993,8 @@ export interface StaffProfilesRow {
     ownerId: string | null;
     groupId: string | null;
     aadhaarNumberEnc: string | null;
+    panNumberEnc: string | null;
+    bankAccountEnc: string | null;
 }
 export interface StaffProfilesInsert {
     id?: string;
@@ -6019,6 +6033,8 @@ export interface StaffProfilesInsert {
     ownerId?: string | null;
     groupId?: string | null;
     aadhaarNumberEnc?: string | null;
+    panNumberEnc?: string | null;
+    bankAccountEnc?: string | null;
 }
 export const staffProfiles = {
     $name: "staff_profiles" as const,
@@ -6058,6 +6074,8 @@ export const staffProfiles = {
     ownerId: column("staff_profiles", "owner_id"),
     groupId: column("staff_profiles", "group_id"),
     aadhaarNumberEnc: column("staff_profiles", "aadhaar_number_enc"),
+    panNumberEnc: column("staff_profiles", "pan_number_enc"),
+    bankAccountEnc: column("staff_profiles", "bank_account_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── stock_alerts ────────────────────────────────
@@ -6594,6 +6612,9 @@ export interface TenantsRow {
     createdAt: Date;
     updatedAt: Date;
     ownerId: string | null;
+    sessionVersion: number;
+    isDemo: boolean;
+    emailEnc: string | null;
 }
 export interface TenantsInsert {
     id?: string;
@@ -6618,6 +6639,9 @@ export interface TenantsInsert {
     createdAt?: Date;
     updatedAt?: Date;
     ownerId?: string | null;
+    sessionVersion?: number;
+    isDemo?: boolean;
+    emailEnc?: string | null;
 }
 export const tenants = {
     $name: "tenants" as const,
@@ -6643,6 +6667,9 @@ export const tenants = {
     createdAt: column("tenants", "created_at"),
     updatedAt: column("tenants", "updated_at"),
     ownerId: column("tenants", "owner_id"),
+    sessionVersion: column("tenants", "session_version"),
+    isDemo: column("tenants", "is_demo"),
+    emailEnc: column("tenants", "email_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── terms ───────────────────────────────────────
@@ -6886,6 +6913,8 @@ export interface UsersRow {
     ownerId: string | null;
     groupId: string | null;
     emailEnc: string | null;
+    sessionVersion: number;
+    phoneEnc: string | null;
 }
 export interface UsersInsert {
     id?: string;
@@ -6908,6 +6937,8 @@ export interface UsersInsert {
     ownerId?: string | null;
     groupId?: string | null;
     emailEnc?: string | null;
+    sessionVersion?: number;
+    phoneEnc?: string | null;
 }
 export const users = {
     $name: "users" as const,
@@ -6931,6 +6962,8 @@ export const users = {
     ownerId: column("users", "owner_id"),
     groupId: column("users", "group_id"),
     emailEnc: column("users", "email_enc"),
+    sessionVersion: column("users", "session_version"),
+    phoneEnc: column("users", "phone_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── vehicle_maintenance_logs ────────────────────
