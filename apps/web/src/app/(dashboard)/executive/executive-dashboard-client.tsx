@@ -396,7 +396,7 @@ export function ExecutiveDashboardClient({
                                 {formatCurrency(groupRollup.groupOverdueBalance)}
                             </p>
                             <p className="text-xs text-muted-foreground mt-0.5">
-                                {groupRollup.groupDefaulterCount} students carrying overdue balances
+                                {groupRollup.groupDefaulterCount} scholars carrying past-due arrears
                             </p>
                         </div>
 
