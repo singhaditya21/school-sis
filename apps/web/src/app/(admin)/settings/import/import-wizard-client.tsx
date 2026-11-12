@@ -4,9 +4,11 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
+    aiAssistLegacyColumnMappingAction,
     commitLegacyImportAction,
     previewLegacyImportAction,
     rollbackLegacyImportBatchAction,
+    type AiLegacyMappingResult,
     type LegacyImportBatchItem,
     type LegacyImportCommitResult,
     type LegacyImportPreviewResult,
@@ -72,6 +74,7 @@ export function LegacyImportWizardClient({
     const [mapping, setMapping] = useState<ColumnMapping>({});
     const [defaultDueDate, setDefaultDueDate] = useState('2026-12-31');
     const [preview, setPreview] = useState<LegacyImportPreviewResult | null>(null);
+    const [aiInsights, setAiInsights] = useState<AiLegacyMappingResult | null>(null);
     const [commitResult, setCommitResult] = useState<LegacyImportCommitResult | null>(null);
     const [batches, setBatches] = useState<LegacyImportBatchItem[]>(initialBatches);
     const [confirmRollbackId, setConfirmRollbackId] = useState<string | null>(null);
@@ -80,10 +83,30 @@ export function LegacyImportWizardClient({
     function applyRawSpreadsheet(nextText: string) {
         setCsvText(nextText);
         setPreview(null);
+        setAiInsights(null);
         setCommitResult(null);
         const parsed = parseDelimitedSpreadsheet(nextText);
         setHeaders(parsed.headers);
         setMapping(autoMapLegacyColumns(parsed.headers));
+    }
+
+    function handleAiAutoMap() {
+        startTransition(async () => {
+            const res = await aiAssistLegacyColumnMappingAction({
+                csvText,
+                sourceErp,
+            });
+            if (!res.ok) {
+                toast.error(res.error || 'AI column mapping failed.');
+                return;
+            }
+            if (res.mapping) {
+                setMapping(res.mapping);
+            }
+            setAiInsights(res);
+            setPreview(null);
+            toast.success('Columns auto-mapped and spreadsheet anomalies audited.');
+        });
     }
 
     function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -284,17 +307,50 @@ export function LegacyImportWizardClient({
                                     Verify or adjust how your legacy spreadsheet columns map into ScholarMind&apos;s encrypted student &amp; fee schema.
                                 </CardDescription>
                             </div>
-                            <Button
-                                type="button"
-                                data-testid="run-import-dry-run"
-                                disabled={isPending}
-                                onClick={handleRunDryRun}
-                            >
-                                {isPending ? 'Validating rows…' : 'Run Dry-Run Validation →'}
-                            </Button>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    data-testid="ai-assist-column-map"
+                                    disabled={isPending}
+                                    onClick={handleAiAutoMap}
+                                >
+                                    ✨ AI Auto-Map &amp; Anomaly Audit
+                                </Button>
+                                <Button
+                                    type="button"
+                                    data-testid="run-import-dry-run"
+                                    disabled={isPending}
+                                    onClick={handleRunDryRun}
+                                >
+                                    {isPending ? 'Validating rows…' : 'Run Dry-Run Validation →'}
+                                </Button>
+                            </div>
                         </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-5">
+                        {aiInsights?.ok && (
+                            <div
+                                data-testid="ai-mapping-insights"
+                                className="rounded-xl border border-primary/30 bg-muted/50 p-4 space-y-2.5"
+                            >
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="text-xs font-semibold text-foreground">
+                                        {aiInsights.summary}
+                                    </p>
+                                    <Badge variant="outline" className="text-[11px]">
+                                        PII-Masked · {aiInsights.engine}
+                                    </Badge>
+                                </div>
+                                {aiInsights.warnings && aiInsights.warnings.length > 0 && (
+                                    <ul className="space-y-1 text-xs text-muted-foreground list-disc pl-4">
+                                        {aiInsights.warnings.map((w, idx) => (
+                                            <li key={idx}>{w}</li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        )}
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             {MAPPABLE_FIELDS.map((field) => (
                                 <div key={field.key} className="space-y-1">

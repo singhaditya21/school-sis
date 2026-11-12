@@ -486,3 +486,284 @@ export function normalizeLegacyRow(
         errors,
     };
 }
+
+export const ALL_TARGET_FIELD_KEYS: readonly TargetFieldKey[] = [
+    'admissionNumber',
+    'firstName',
+    'lastName',
+    'fullName',
+    'dateOfBirth',
+    'gender',
+    'gradeName',
+    'sectionName',
+    'rollNumber',
+    'bloodGroup',
+    'guardianName',
+    'guardianRelation',
+    'guardianPhone',
+    'guardianEmail',
+    'city',
+    'state',
+    'pincode',
+    'openingFeeBalance',
+    'feeDescription',
+];
+
+const FUZZY_SUBSTRING_HINTS: Array<{ target: TargetFieldKey; pattern: RegExp }> = [
+    { target: 'admissionNumber', pattern: /(?:adm|enrol|scholar|gr_no|grno|reg_?no|uid|pravesh)/i },
+    { target: 'fullName', pattern: /(?:pupil|student.*name|chhatra|vidyarthi|candidate|ward_name)/i },
+    { target: 'dateOfBirth', pattern: /(?:birth|dob|janam|bday)/i },
+    { target: 'gradeName', pattern: /(?:class|grade|std|kaksha|batch|course)/i },
+    { target: 'sectionName', pattern: /(?:section|division|varg|stream)/i },
+    { target: 'guardianName', pattern: /(?:father|mother|parent|guardian|pita|mata|abhibhavak)/i },
+    { target: 'guardianPhone', pattern: /(?:mobile|whatsapp|contact|cell|sms|phone|sampark)/i },
+    { target: 'guardianEmail', pattern: /(?:mail)/i },
+    { target: 'openingFeeBalance', pattern: /(?:arrear|balance|due|bakaya|pending|outstanding|carryforward)/i },
+    { target: 'feeDescription', pattern: /(?:remark|narrat|note|particular)/i },
+    { target: 'pincode', pattern: /(?:pin|postal|zip)/i },
+];
+
+/**
+ * Masks PII inside sample cell values into structural descriptors so an external LLM
+ * can understand column formats (dates, 10-digit phones, ₹ amounts, classes) without
+ * ever receiving student/guardian names, phone numbers, emails, or ID numbers.
+ */
+export function maskCellShapeForAi(rawCell: string): string {
+    const trimmed = rawCell.trim();
+    if (!trimmed) return '';
+
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+        return '[EMAIL_ADDRESS]';
+    }
+    const digitsOnly = trimmed.replace(/\D/g, '');
+    if (digitsOnly.length === 12 && /^[2-9]\d{11}$/.test(digitsOnly)) {
+        return '[REDACTED_12_DIGIT_ID]';
+    }
+    if (digitsOnly.length >= 10 && digitsOnly.length <= 15 && /^[\d+\s().-]+$/.test(trimmed)) {
+        return '[10_DIGIT_MOBILE]';
+    }
+    if (/^\d{6}$/.test(trimmed)) {
+        return '411001';
+    }
+    if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}$/.test(trimmed)) {
+        return '15/06/2014';
+    }
+    if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(trimmed)) {
+        return '2014-06-15';
+    }
+    if (/^(?:m|f|male|female|boy|girl|other)$/i.test(trimmed)) {
+        return trimmed;
+    }
+    if (VALID_BLOOD_GROUPS.has(trimmed.toUpperCase())) {
+        return trimmed.toUpperCase();
+    }
+    if (/(?:grade|class|std|nursery|lkg|ukg|xi|xii)/i.test(trimmed)) {
+        return trimmed.slice(0, 24);
+    }
+    if (/^[₹$]?\s*\d[\d,.]*(?:\s*(?:dr|cr)\.?)?$/i.test(trimmed)) {
+        return trimmed.slice(0, 20);
+    }
+    if (/^[A-Za-z]{1,6}[-/]\d{2,6}(?:[-/]\d{1,6})?$/.test(trimmed)) {
+        return 'ADM-2026-001';
+    }
+    // Generic text (e.g. person name or remark) -> preserve word count shape without real names
+    const wordCount = trimmed.split(/\s+/).length;
+    return wordCount >= 2 ? '[TWO_WORD_TEXT]' : '[TEXT_TOKEN]';
+}
+
+export function buildPiiMaskedSampleForAi(
+    headers: string[],
+    rows: Array<Record<string, string>>,
+    maxRows = 3,
+): Array<Record<string, string>> {
+    return rows.slice(0, maxRows).map((row) => {
+        const masked: Record<string, string> = {};
+        for (const h of headers) {
+            masked[h] = maskCellShapeForAi(row[h] ?? '');
+        }
+        return masked;
+    });
+}
+
+/**
+ * Enhances alias mapping by inspecting fuzzy substrings and sample cell shapes
+ * across up to 8 rows for columns that did not match exact aliases.
+ */
+export function inferColumnsFromSampleCells(
+    headers: string[],
+    rows: Array<Record<string, string>>,
+    baseMapping?: ColumnMapping,
+): ColumnMapping {
+    const resolved: ColumnMapping = {
+        ...autoMapLegacyColumns(headers),
+        ...(baseMapping || {}),
+    };
+    const usedHeaders = new Set<string>(Object.values(resolved).filter((v): v is string => Boolean(v)));
+    const sampleSlice = rows.slice(0, 8);
+
+    // Pass 1: Fuzzy header substring matching for unmapped target fields
+    for (const { target, pattern } of FUZZY_SUBSTRING_HINTS) {
+        if (resolved[target]) continue;
+        // Skip fullName if firstName is already mapped
+        if (target === 'fullName' && resolved.firstName) continue;
+        const candidate = headers.find((h) => !usedHeaders.has(h) && pattern.test(normalizeHeaderToken(h)));
+        if (candidate) {
+            resolved[target] = candidate;
+            usedHeaders.add(candidate);
+        }
+    }
+
+    // Pass 2: Cell-value pattern detection on remaining unmapped headers
+    for (const header of headers) {
+        if (usedHeaders.has(header)) continue;
+        const values = sampleSlice.map((r) => (r[header] ?? '').trim()).filter(Boolean);
+        if (values.length === 0) continue;
+
+        if (!resolved.guardianEmail && values.every((v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))) {
+            resolved.guardianEmail = header;
+            usedHeaders.add(header);
+            continue;
+        }
+        if (
+            !resolved.guardianPhone &&
+            values.every((v) => {
+                const d = v.replace(/\D/g, '');
+                return d.length >= 10 && d.length <= 13 && /^[\d+\s().-]+$/.test(v);
+            })
+        ) {
+            resolved.guardianPhone = header;
+            usedHeaders.add(header);
+            continue;
+        }
+        if (!resolved.dateOfBirth && values.every((v) => normalizeLegacyDate(v) !== null)) {
+            resolved.dateOfBirth = header;
+            usedHeaders.add(header);
+            continue;
+        }
+        if (
+            !resolved.gradeName &&
+            values.every((v) => /^(?:grade|class|std|nursery|kg|lkg|ukg|\d{1,2}\s*[-/]\s*[A-Za-z])/i.test(v))
+        ) {
+            resolved.gradeName = header;
+            usedHeaders.add(header);
+            continue;
+        }
+    }
+
+    return resolved;
+}
+
+export interface SpreadsheetAnomalyReport {
+    summary: string;
+    warnings: string[];
+    unmappedHeaders: string[];
+}
+
+export function analyzeSpreadsheetAnomalies(
+    headers: string[],
+    rows: Array<Record<string, string>>,
+    mapping: ColumnMapping,
+): SpreadsheetAnomalyReport {
+    const warnings: string[] = [];
+    const mappedHeaderSet = new Set(Object.values(mapping).filter((v): v is string => Boolean(v)));
+    const unmappedHeaders = headers.filter((h) => !mappedHeaderSet.has(h));
+
+    if (!mapping.admissionNumber) {
+        warnings.push('Admission / Enrollment Number column is not mapped yet — select the unique student ID column before dry-run.');
+    }
+    if (!mapping.fullName && !mapping.firstName) {
+        warnings.push('Student Name column is not mapped yet — map either Student Full Name or Student First Name.');
+    }
+    if (!mapping.gradeName) {
+        warnings.push('Class / Grade column is not mapped yet — required to assign academic cohorts.');
+    }
+
+    // Check date format mix
+    if (mapping.dateOfBirth) {
+        let dmyCount = 0;
+        let isoCount = 0;
+        let invalidDobCount = 0;
+        for (const row of rows) {
+            const raw = (row[mapping.dateOfBirth] ?? '').trim();
+            if (!raw) continue;
+            if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}$/.test(raw)) dmyCount += 1;
+            else if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(raw)) isoCount += 1;
+            if (!normalizeLegacyDate(raw)) invalidDobCount += 1;
+        }
+        if (dmyCount > 0 && isoCount > 0) {
+            warnings.push(
+                `Mixed date formats detected in "${mapping.dateOfBirth}" (${dmyCount} DD/MM/YYYY and ${isoCount} YYYY-MM-DD rows) — ScholarMind will normalize both automatically.`,
+            );
+        }
+        if (invalidDobCount > 0) {
+            warnings.push(
+                `${invalidDobCount} row(s) have unrecognizable birth dates in "${mapping.dateOfBirth}" — inspect them in Dry-Run preview.`,
+            );
+        }
+    }
+
+    // Check combined Class + Section & sibling phone sharing & missing phones
+    if (mapping.gradeName && !mapping.sectionName) {
+        const combinedCount = rows.filter((r) =>
+            /^.+?\s*[-/]\s*[A-Za-z0-9]{1,4}$/.test((r[mapping.gradeName!] ?? '').trim()),
+        ).length;
+        if (combinedCount > 0) {
+            warnings.push(
+                `Combined Class-Section values detected in "${mapping.gradeName}" (${combinedCount} rows like "Grade 7 - A") — sections will be split automatically.`,
+            );
+        }
+    }
+
+    if (mapping.guardianPhone) {
+        const phones = new Map<string, number>();
+        let missingPhones = 0;
+        for (const row of rows) {
+            const digits = (row[mapping.guardianPhone] ?? '').replace(/\D/g, '');
+            if (!digits) {
+                missingPhones += 1;
+            } else if (digits.length >= 10) {
+                const key = digits.slice(-10);
+                phones.set(key, (phones.get(key) || 0) + 1);
+            }
+        }
+        const siblingGroups = [...phones.values()].filter((c) => c > 1).length;
+        if (siblingGroups > 0) {
+            warnings.push(
+                `${siblingGroups} shared sibling parent mobile number(s) found — siblings will be linked cleanly under unified AES-256 encrypted guardian records.`,
+            );
+        }
+        if (missingPhones > 0) {
+            warnings.push(
+                `${missingPhones} row(s) have blank parent mobile numbers — students will import, but WhatsApp UPI fee links require guardian phones.`,
+            );
+        }
+    }
+
+    if (mapping.openingFeeBalance) {
+        let withArrears = 0;
+        let totalArrears = 0;
+        for (const row of rows) {
+            const parsed = parseFeeAmount(row[mapping.openingFeeBalance] ?? '');
+            if (parsed.ok && parsed.value > 0) {
+                withArrears += 1;
+                totalArrears += parsed.value;
+            }
+        }
+        if (withArrears > 0) {
+            warnings.push(
+                `${withArrears} student(s) carry opening fee arrears totaling ₹${Math.round(totalArrears).toLocaleString('en-IN')} — opening invoices will be created atomically on commit.`,
+            );
+        }
+    }
+
+    const mappedCount = Object.values(mapping).filter(Boolean).length;
+    const summary = `Mapped ${mappedCount} of ${headers.length} columns across ${rows.length} student row(s)${
+        unmappedHeaders.length > 0 ? ` (${unmappedHeaders.length} auxiliary column(s) left unmapped)` : ''
+    }.`;
+
+    return {
+        summary,
+        warnings,
+        unmappedHeaders,
+    };
+}

@@ -29,6 +29,10 @@ export default async function LeadsPage() {
             school_name   AS "schoolName",
             student_capacity AS "studentCapacity",
             pain_points   AS "painPoints",
+            source_url    AS "sourceUrl",
+            utm_source    AS "utmSource",
+            utm_medium    AS "utmMedium",
+            utm_campaign  AS "utmCampaign",
             status,
             created_at    AS "createdAt"
          FROM marketing_leads

@@ -95,12 +95,18 @@ export default function GlobalNavbar() {
                     </Link>
 
                     {/* Desktop Links */}
-                    <div className="hidden md:flex items-center space-x-8">
+                    <div className="hidden md:flex items-center space-x-7">
                         <Link href="/solutions/ai-agents" className={desktopLinkClass}>
                             Governed AI
                         </Link>
                         <Link href="/pricing" className={desktopLinkClass}>
                             Pricing
+                        </Link>
+                        <Link href="/guides" className={desktopLinkClass}>
+                            Playbooks
+                        </Link>
+                        <Link href="/tools/dpdp-readiness" className={desktopLinkClass}>
+                            DPDP Check
                         </Link>
                         <Link href="/apply-online" className={desktopLinkClass}>
                             Admissions Portal
@@ -166,6 +172,20 @@ export default function GlobalNavbar() {
                         className="text-slate-700 font-medium px-4 py-2 hover:bg-parchment/60 rounded-lg"
                     >
                         Pricing
+                    </Link>
+                    <Link
+                        href="/guides"
+                        onClick={() => setMobileOpen(false)}
+                        className="text-slate-700 font-medium px-4 py-2 hover:bg-parchment/60 rounded-lg"
+                    >
+                        Playbooks &amp; Migrations
+                    </Link>
+                    <Link
+                        href="/tools/dpdp-readiness"
+                        onClick={() => setMobileOpen(false)}
+                        className="text-slate-700 font-medium px-4 py-2 hover:bg-parchment/60 rounded-lg"
+                    >
+                        2-Min DPDP Readiness Check
                     </Link>
                     <Link
                         href="/apply-online"

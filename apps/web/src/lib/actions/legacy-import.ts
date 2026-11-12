@@ -9,12 +9,21 @@ import { hasPermission, type UserRole } from '@/lib/rbac/permissions';
 import { isDemoSession, isDemoTenantId } from '@/lib/tenant/demo-guard';
 import { encryptEmail, encryptPhone } from '@/lib/encryption';
 import {
+    ALL_TARGET_FIELD_KEYS,
+    analyzeSpreadsheetAnomalies,
     autoMapLegacyColumns,
+    buildPiiMaskedSampleForAi,
+    inferColumnsFromSampleCells,
     normalizeLegacyRow,
     parseDelimitedSpreadsheet,
     type ColumnMapping,
     type LegacyErpPreset,
+    type TargetFieldKey,
 } from '@/lib/import/legacy-erp-parser';
+import { createAiModel } from '@/lib/ai/runtime';
+import { resolveAiProviderChain } from '@/lib/ai/provider';
+import { redactPiiForExternalLlm } from '@/lib/ai/telemetry';
+import { generateText } from 'ai';
 import { logger } from '@/lib/observability/logger';
 
 const MAX_IMPORT_ROWS = 2000;
@@ -778,4 +787,138 @@ export async function rollbackLegacyImportBatchAction(batchId: string): Promise<
         });
         return { ok: false, error: 'Unable to roll back import batch.' };
     }
+}
+
+export interface AiLegacyMappingResult {
+    ok: boolean;
+    error?: string;
+    mapping?: ColumnMapping;
+    summary?: string;
+    warnings?: string[];
+    unmappedHeaders?: string[];
+    engine?: string;
+}
+
+export async function aiAssistLegacyColumnMappingAction(input: {
+    csvText: string;
+    sourceErp?: LegacyErpPreset;
+}): Promise<AiLegacyMappingResult> {
+    const { tenantId, userId } = await requireAuth('students:write');
+
+    const rateLimitError = await consumeRateLimit(`${tenantId}:${userId}`, {
+        scope: 'legacy-import-ai-map',
+        maxAttempts: 15,
+        degradedMaxAttempts: 5,
+        endpointClass: 'ai',
+        message: 'Too many AI mapping requests. Please wait a minute before trying again.',
+    });
+    if (rateLimitError) {
+        return { ok: false, error: rateLimitError };
+    }
+
+    const raw = (input.csvText || '').trim();
+    if (!raw) {
+        return { ok: false, error: 'Upload or paste spreadsheet rows first.' };
+    }
+    if (Buffer.byteLength(raw, 'utf8') > 5 * 1024 * 1024) {
+        return { ok: false, error: 'CSV payload exceeds 5 MB batch limit.' };
+    }
+
+    const parsed = parseDelimitedSpreadsheet(raw);
+    if (parsed.headers.length === 0 || parsed.rows.length === 0) {
+        return { ok: false, error: 'No spreadsheet headers or data rows detected.' };
+    }
+
+    let mergedMapping: ColumnMapping = inferColumnsFromSampleCells(parsed.headers, parsed.rows);
+    let aiNotes: string[] = [];
+    let engineLabel = 'deterministic_schema_inspector';
+
+    const providerChain = resolveAiProviderChain();
+    if (providerChain.configured && providerChain.chain) {
+        const maskedSamples = buildPiiMaskedSampleForAi(parsed.headers, parsed.rows, 3);
+        const validHeaderSet = new Set(parsed.headers);
+        const validTargetSet = new Set<string>(ALL_TARGET_FIELD_KEYS);
+
+        const promptPayload = redactPiiForExternalLlm(
+            JSON.stringify({
+                sourceErpHint: input.sourceErp || 'AUTO',
+                headers: parsed.headers,
+                maskedSampleRows: maskedSamples,
+                allowedTargetFields: ALL_TARGET_FIELD_KEYS,
+            }),
+        );
+
+        for (const providerCfg of providerChain.chain) {
+            try {
+                const { text } = await generateText({
+                    model: createAiModel(providerCfg),
+                    temperature: 0,
+                    maxOutputTokens: 600,
+                    system: [
+                        'You map school ERP CSV column headers into ScholarMind TargetFieldKey names.',
+                        'Return ONLY valid JSON with shape: {"mapping": {"<TargetFieldKey>": "<ExactCSVHeader>"}, "notes": ["short plain-English migration note"]}.',
+                        'Only use keys from allowedTargetFields and exact header strings from headers. Never invent headers or student data.',
+                    ].join(' '),
+                    prompt: promptPayload,
+                });
+
+                const jsonMatch = text.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const parsedJson = JSON.parse(jsonMatch[0]) as {
+                        mapping?: Record<string, unknown>;
+                        notes?: unknown[];
+                    };
+                    if (parsedJson.mapping && typeof parsedJson.mapping === 'object') {
+                        const validatedAiMap: ColumnMapping = {};
+                        for (const [k, v] of Object.entries(parsedJson.mapping)) {
+                            if (
+                                validTargetSet.has(k) &&
+                                typeof v === 'string' &&
+                                validHeaderSet.has(v)
+                            ) {
+                                validatedAiMap[k as TargetFieldKey] = v;
+                            }
+                        }
+                        mergedMapping = {
+                            ...validatedAiMap,
+                            ...mergedMapping,
+                        };
+                    }
+                    if (Array.isArray(parsedJson.notes)) {
+                        aiNotes = parsedJson.notes
+                            .filter((n): n is string => typeof n === 'string' && n.trim().length > 0)
+                            .map((n) => n.trim().slice(0, 220))
+                            .slice(0, 3);
+                    }
+                    engineLabel = `governed_ai:${providerCfg.source}`;
+                    break;
+                }
+            } catch (err) {
+                logger.warn('import.ai_mapper_provider_fallback', 'AI column mapper fell back to next provider', {
+                    tenantId,
+                    metadata: {
+                        provider: providerCfg.source,
+                        error: err instanceof Error ? err.message : String(err),
+                    },
+                });
+            }
+        }
+    }
+
+    const anomalyReport = analyzeSpreadsheetAnomalies(parsed.headers, parsed.rows, mergedMapping);
+    const combinedWarnings = [...anomalyReport.warnings];
+    for (const note of aiNotes) {
+        if (!combinedWarnings.includes(note)) {
+            combinedWarnings.push(note);
+        }
+    }
+
+    return {
+        ok: true,
+        mapping: mergedMapping,
+        summary: anomalyReport.summary,
+        warnings: combinedWarnings,
+        unmappedHeaders: anomalyReport.unmappedHeaders,
+        engine: engineLabel,
+    };
 }

@@ -10,6 +10,7 @@ import {
     CheckCircle2,
 } from 'lucide-react';
 import { resolveAppUrl } from '@/lib/app-url';
+import ROICalculator from '@/components/public/ROICalculator';
 
 export default function LandingPage() {
     const appUrl = resolveAppUrl();
@@ -192,6 +193,51 @@ export default function LandingPage() {
                                 </p>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* INTERACTIVE FEE LEAKAGE & DPDP DIAGNOSTIC SECTION */}
+            <section id="roi-diagnostic" className="relative z-10 pb-24 md:pb-28">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+                    <ROICalculator />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <Link
+                            href="/tools/dpdp-readiness"
+                            className="group bg-white rounded-2xl border border-slate-200 p-6 flex items-center justify-between gap-4 hover:border-brass/60 transition-all shadow-2xs"
+                        >
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-widest text-brass">
+                                    Free 2-Minute Boardroom Check
+                                </p>
+                                <h3 className="text-lg font-extrabold text-oxford mt-1">
+                                    Benchmark DPDP Act 2023 Section 9 Child-Data Readiness
+                                </h3>
+                            </div>
+                            <ArrowRight
+                                size={20}
+                                className="text-oxford shrink-0 group-hover:translate-x-1 transition-transform"
+                            />
+                        </Link>
+
+                        <Link
+                            href="/guides"
+                            className="group bg-parchment/65 rounded-2xl border border-brass/35 p-6 flex items-center justify-between gap-4 hover:bg-parchment transition-all shadow-2xs"
+                        >
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-widest text-oxford">
+                                    22 Institutional Playbooks
+                                </p>
+                                <h3 className="text-lg font-extrabold text-oxford mt-1">
+                                    Tally Prime XML Sync &amp; 48-Hour ERP Migration Guides
+                                </h3>
+                            </div>
+                            <ArrowRight
+                                size={20}
+                                className="text-oxford shrink-0 group-hover:translate-x-1 transition-transform"
+                            />
+                        </Link>
                     </div>
                 </div>
             </section>

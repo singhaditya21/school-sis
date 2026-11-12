@@ -14,6 +14,7 @@ import {
     updateLeadStatusAction,
     type ProvisionLeadTenantResult,
 } from './actions';
+import { scoreInboundLead, type LeadPriority } from '@/lib/marketing/lead-scorer';
 
 export interface StatusAggregate {
     status: string;
@@ -28,8 +29,18 @@ export interface Lead {
     schoolName: string;
     studentCapacity: number;
     painPoints: string | null;
+    sourceUrl?: string | null;
+    utmSource?: string | null;
+    utmMedium?: string | null;
+    utmCampaign?: string | null;
     status: string;
     createdAt: string | Date;
+}
+
+function priorityClasses(priority: LeadPriority): string {
+    if (priority === 'HOT') return 'bg-success/15 text-success border-success/30';
+    if (priority === 'WARM') return 'bg-warning/15 text-warning border-warning/30';
+    return 'bg-muted text-muted-foreground border-border';
 }
 
 const STAGES = [
@@ -56,6 +67,23 @@ export default function LeadsClient({
     const [isPending, startTransition] = useTransition();
     const [provisioned, setProvisioned] = useState<ProvisionLeadTenantResult | null>(null);
     const [copied, setCopied] = useState(false);
+    const [copiedReplyId, setCopiedReplyId] = useState<string | null>(null);
+
+    const scoredLeads = useMemo(
+        () =>
+            leads.map((lead) => ({
+                lead,
+                triage: scoreInboundLead(lead),
+            })),
+        [leads],
+    );
+
+    const copyDeskReply = async (leadId: string, replyText: string, schoolName: string) => {
+        await navigator.clipboard.writeText(replyText);
+        setCopiedReplyId(leadId);
+        toast.success(`Copied tailored Institutional Desk reply for ${schoolName}.`);
+        setTimeout(() => setCopiedReplyId((prev) => (prev === leadId ? null : prev)), 2500);
+    };
 
     const funnelData = useMemo(
         () => STAGES.map((stage) => ({
@@ -258,6 +286,7 @@ export default function LeadsClient({
                             <tr>
                                 <th className="px-6 py-4 font-semibold">Received</th>
                                 <th className="px-6 py-4 font-semibold">School</th>
+                                <th className="px-6 py-4 font-semibold">ICP &amp; Fit</th>
                                 <th className="px-6 py-4 font-semibold">Contact</th>
                                 <th className="px-6 py-4 font-semibold text-right">Seats</th>
                                 <th className="px-6 py-4 font-semibold">Stage</th>
@@ -265,23 +294,38 @@ export default function LeadsClient({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/60">
-                            {leads.length === 0 && (
+                            {scoredLeads.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
+                                    <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
                                         No inbound leads yet.
                                     </td>
                                 </tr>
                             )}
-                            {leads.map((lead) => (
+                            {scoredLeads.map(({ lead, triage }) => (
                                 <tr key={lead.id} className="hover:bg-slate-900/50 transition-colors align-top">
                                     <td className="px-6 py-4 text-xs text-muted-foreground whitespace-nowrap">
                                         {format(new Date(lead.createdAt), 'd MMM yyyy')}
                                     </td>
                                     <td className="px-6 py-4">
                                         <p className="font-semibold text-white">{lead.schoolName}</p>
+                                        <span className="inline-block mt-1 rounded border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
+                                            {triage.sourceLabel}
+                                        </span>
                                         {lead.painPoints && (
-                                            <p className="text-xs text-muted-foreground mt-1 max-w-sm">{lead.painPoints}</p>
+                                            <p className="text-xs text-muted-foreground mt-1.5 max-w-sm">{lead.painPoints}</p>
                                         )}
+                                    </td>
+                                    <td className="px-6 py-4 text-xs space-y-1.5 whitespace-nowrap">
+                                        <div className="flex items-center gap-1.5">
+                                            <span
+                                                className={`px-2 py-0.5 rounded border font-semibold ${priorityClasses(triage.priority)}`}
+                                            >
+                                                {triage.priority} · {triage.score}
+                                            </span>
+                                        </div>
+                                        <span className="inline-block rounded bg-primary/15 text-primary border border-primary/30 px-2 py-0.5 text-[11px] font-semibold">
+                                            {triage.recommendedTier}
+                                        </span>
                                     </td>
                                     <td className="px-6 py-4 text-xs">
                                         <span className="flex items-center gap-2 text-slate-300">
@@ -300,6 +344,25 @@ export default function LeadsClient({
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center justify-end gap-2 flex-wrap">
+                                            <button
+                                                type="button"
+                                                data-testid={`copy-lead-reply-${lead.id}`}
+                                                onClick={() =>
+                                                    copyDeskReply(
+                                                        lead.id,
+                                                        triage.tailoredOutreachPlainText,
+                                                        lead.schoolName,
+                                                    )
+                                                }
+                                                className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground border border-border bg-muted/30 hover:bg-muted/60 rounded-md px-2.5 py-1.5 whitespace-nowrap"
+                                            >
+                                                {copiedReplyId === lead.id ? (
+                                                    <Check className="w-3.5 h-3.5 text-success" />
+                                                ) : (
+                                                    <Copy className="w-3.5 h-3.5" />
+                                                )}
+                                                {copiedReplyId === lead.id ? 'Copied' : 'Copy Reply'}
+                                            </button>
                                             {lead.status !== 'CLOSED' && (
                                                 <button
                                                     type="button"

@@ -2,6 +2,8 @@ import { createHmac } from 'node:crypto';
 import { sql, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import { encryptEmail } from '@/lib/encryption';
 import type { LeadIntake } from '@/lib/marketing/lead-intake';
+import { scoreInboundLead } from '@/lib/marketing/lead-scorer';
+import { emailAvailability, getEmailProvider } from '@/lib/providers/email';
 import { logger } from '@/lib/observability/logger';
 
 type LeadRequestContext = {
@@ -66,13 +68,73 @@ export async function captureLeadAction(input: LeadIntake, context: LeadRequestC
 
         const lead = rows[0];
         if (!lead) throw new Error('Lead transaction returned no record.');
+
+        const triage = scoreInboundLead(input);
+
         logger.info('lead_capture.accepted', 'Lead captured and queued for CRM routing', {
             source: 'lead-capture',
             entityType: 'marketing_lead',
             entityId: lead.leadId,
-            metadata: { jobId: lead.jobId, consentVersion: input.consentVersion },
+            metadata: {
+                jobId: lead.jobId,
+                consentVersion: input.consentVersion,
+                icpScore: triage.score,
+                priority: triage.priority,
+                recommendedTier: triage.recommendedTier,
+                sourceLabel: triage.sourceLabel,
+            },
         });
-        return { success: true, leadId: lead.leadId };
+
+        // Instant self-serve sandbox concierge dispatch when EMAIL_PROVIDER is configured
+        if (emailAvailability().available) {
+            try {
+                const emailRes = await getEmailProvider().send({
+                    to: input.contactEmail,
+                    subject: triage.tailoredOutreachSubject,
+                    html: triage.conciergeAutoResponderHtml,
+                });
+                logger.info(
+                    emailRes.success
+                        ? 'lead_capture.concierge_dispatched'
+                        : 'lead_capture.concierge_delivery_failed',
+                    emailRes.success
+                        ? 'Dispatched instant sandbox concierge response'
+                        : 'Concierge email provider reported delivery failure',
+                    {
+                        source: 'lead-capture',
+                        entityType: 'marketing_lead',
+                        entityId: lead.leadId,
+                        metadata: {
+                            priority: triage.priority,
+                            recommendedTier: triage.recommendedTier,
+                        },
+                    },
+                );
+            } catch (conciergeErr) {
+                logger.warn(
+                    'lead_capture.concierge_exception',
+                    'Non-blocking exception sending lead concierge email',
+                    {
+                        source: 'lead-capture',
+                        entityType: 'marketing_lead',
+                        entityId: lead.leadId,
+                        metadata: {
+                            error:
+                                conciergeErr instanceof Error
+                                    ? conciergeErr.message
+                                    : String(conciergeErr),
+                        },
+                    },
+                );
+            }
+        }
+
+        return {
+            success: true,
+            leadId: lead.leadId,
+            priority: triage.priority,
+            recommendedTier: triage.recommendedTier,
+        };
     } catch (error) {
         logger.error('lead_capture.persistence_failed', 'Lead capture persistence failed', {
             source: 'lead-capture',
