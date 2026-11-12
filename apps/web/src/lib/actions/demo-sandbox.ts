@@ -667,6 +667,230 @@ async function ensureDemoSchoolDataSeeded(
                 }
             }
         }
+
+        // 5. Ensure realistic Admission Leads for AI Admissions Propensity Scoring & Kanban Copilot
+        const leadCheck = await q<{ count: number }>`
+            SELECT count(*)::int AS count FROM admission_leads WHERE tenant_id = ${tenantId}
+        `.one();
+
+        if ((leadCheck?.count ?? 0) === 0) {
+            await q`
+                INSERT INTO admission_leads (
+                    id, tenant_id, child_first_name, child_last_name, child_dob,
+                    applying_for_grade, parent_name, parent_email, parent_phone,
+                    source, stage, notes, previous_school, assigned_to
+                ) VALUES
+                    (
+                        ${crypto.randomUUID()}, ${tenantId}, 'Reyansh', 'Malhotra', '2014-03-18',
+                        'Grade 6', 'Siddharth Malhotra', 'siddharth.malhotra.demo@example.org', '+919811445566',
+                        'REFERRAL', 'OFFERED', 'Sibling alumni referral; STEM scholarship interest; ready to confirm seat deposit.', 'Vasant Valley Junior School', ${usersByRole.REGISTRAR.id}
+                    ),
+                    (
+                        ${crypto.randomUUID()}, ${tenantId}, 'Myra', 'Chatterjee', '2012-07-09',
+                        'Grade 8', 'Anirban Chatterjee', 'anirban.chatterjee.demo@example.org', '+919818776655',
+                        'WALK_IN', 'INTERVIEW_SCHEDULED', 'Campus tour completed; parents requested transport route details for South Delhi.', 'Modern School Junior Wing', ${usersByRole.REGISTRAR.id}
+                    ),
+                    (
+                        ${crypto.randomUUID()}, ${tenantId}, 'Advait', 'Kulkarni', '2010-10-25',
+                        'Grade 10', 'Prashant Kulkarni', 'prashant.kulkarni.demo@example.org', '+919820334455',
+                        'WEBSITE', 'DOCUMENTS_PENDING', ${'Inter-city relocation scholar; Class 9 CBSE transcript uploaded, birth certificate pending.'}, 'Symbiosis Secondary School', ${usersByRole.REGISTRAR.id}
+                    ),
+                    (
+                        ${crypto.randomUUID()}, ${tenantId}, 'Saanvi', 'Bhatia', '2014-09-12',
+                        'Grade 6', 'Nidhi Bhatia', 'nidhi.bhatia.demo@example.org', '+919871223399',
+                        'SOCIAL_MEDIA', 'CONTACTED', 'Requested CBSE holistic report card sample and fee structure on WhatsApp.', 'Heritage Experiential Prep', ${null}
+                    ),
+                    (
+                        ${crypto.randomUUID()}, ${tenantId}, 'Ishaan', 'Goswami', '2012-01-30',
+                        'Grade 8', 'Rajeev Goswami', 'rajeev.goswami.demo@example.org', '+919899001122',
+                        'ADVERTISEMENT', 'NEW', 'Initial website inquiry for 2026-27 mid-year lateral entry.', ${null}, ${null}
+                    )
+            `.execute();
+        }
+    });
+}
+
+async function ensureDemoSisterCampusSeeded(companyId: string): Promise<void> {
+    if (!companyId) return;
+
+    const sisterCode = 'DEMO-CAMPUS-SOUTH';
+    let sisterTenantId = '';
+
+    await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.TENANT_PROVISIONING, async () => {
+        const existing = await sql<{ id: string }>`
+            SELECT id FROM tenants WHERE upper(code) = ${sisterCode} LIMIT 1
+        `;
+        if (existing[0]?.id) {
+            sisterTenantId = existing[0].id;
+            await sql`
+                UPDATE tenants
+                SET company_id = ${companyId}, is_active = true, updated_at = NOW()
+                WHERE id = ${sisterTenantId}
+            `;
+        } else {
+            const inserted = await sql<{ id: string }>`
+                INSERT INTO tenants (company_id, name, code, domain, email, city, state, affiliation_board, is_active)
+                VALUES (
+                    ${companyId},
+                    ${'ScholarMind Junior Wing — Vasant Vihar'},
+                    ${sisterCode},
+                    ${'demo-south.scholarmind.app'},
+                    ${'south.wing@scholarmind.app'},
+                    ${'New Delhi'},
+                    ${'Delhi'},
+                    ${'ICSE'},
+                    ${true}
+                )
+                RETURNING id
+            `;
+            sisterTenantId = inserted[0].id;
+        }
+    });
+
+    if (!sisterTenantId) return;
+
+    await withTenant(sisterTenantId, async (client) => {
+        const q = sqlFor(client);
+        const stCount = await q<{ count: number }>`
+            SELECT count(*)::int AS count FROM students WHERE tenant_id = ${sisterTenantId}
+        `.one();
+
+        if ((stCount?.count ?? 0) > 0) return;
+
+        const yearRow = await q<{ id: string }>`
+            INSERT INTO academic_years (tenant_id, name, start_date, end_date, is_current)
+            VALUES (${sisterTenantId}, '2026-27', '2026-04-01', '2027-03-31', true)
+            RETURNING id
+        `.one();
+
+        const grade3 = await q<{ id: string }>`
+            INSERT INTO grades (tenant_id, name, numeric_value, display_order)
+            VALUES (${sisterTenantId}, 'Grade 3', 3, 1)
+            RETURNING id
+        `.one();
+        const grade5 = await q<{ id: string }>`
+            INSERT INTO grades (tenant_id, name, numeric_value, display_order)
+            VALUES (${sisterTenantId}, 'Grade 5', 5, 2)
+            RETURNING id
+        `.one();
+
+        const sec3A = await q<{ id: string }>`
+            INSERT INTO sections (tenant_id, grade_id, academic_year_id, name, capacity)
+            VALUES (${sisterTenantId}, ${grade3.id}, ${yearRow.id}, 'A', 32)
+            RETURNING id
+        `.one();
+        const sec5A = await q<{ id: string }>`
+            INSERT INTO sections (tenant_id, grade_id, academic_year_id, name, capacity)
+            VALUES (${sisterTenantId}, ${grade5.id}, ${yearRow.id}, 'A', 32)
+            RETURNING id
+        `.one();
+
+        const rohan = await q<{ id: string }>`
+            INSERT INTO students (
+                tenant_id, admission_number, first_name, last_name, date_of_birth, gender,
+                blood_group, grade_id, section_id, roll_number, admission_date, city, state, pincode, status
+            ) VALUES (
+                ${sisterTenantId}, 'ADM-SOUTH-201', 'Rohan', 'Verma', '2017-04-11', 'MALE',
+                'O+', ${grade3.id}, ${sec3A.id}, 1, '2026-04-01', 'New Delhi', 'Delhi', '110057', 'ACTIVE'
+            )
+            RETURNING id
+        `.one();
+        const meera = await q<{ id: string }>`
+            INSERT INTO students (
+                tenant_id, admission_number, first_name, last_name, date_of_birth, gender,
+                blood_group, grade_id, section_id, roll_number, admission_date, city, state, pincode, status
+            ) VALUES (
+                ${sisterTenantId}, 'ADM-SOUTH-202', 'Meera', 'Menon', '2015-09-03', 'FEMALE',
+                'A+', ${grade5.id}, ${sec5A.id}, 2, '2026-04-01', 'New Delhi', 'Delhi', '110057', 'ACTIVE'
+            )
+            RETURNING id
+        `.one();
+        const vivaan = await q<{ id: string }>`
+            INSERT INTO students (
+                tenant_id, admission_number, first_name, last_name, date_of_birth, gender,
+                blood_group, grade_id, section_id, roll_number, admission_date, city, state, pincode, status
+            ) VALUES (
+                ${sisterTenantId}, 'ADM-SOUTH-203', 'Vivaan', 'Kapoor', '2015-12-19', 'MALE',
+                'B+', ${grade5.id}, ${sec5A.id}, 3, '2026-04-01', 'New Delhi', 'Delhi', '110057', 'ACTIVE'
+            )
+            RETURNING id
+        `.one();
+
+        const feePlan = await q<{ id: string }>`
+            INSERT INTO fee_plans (tenant_id, academic_year_id, name, description, is_active)
+            VALUES (
+                ${sisterTenantId},
+                ${yearRow.id},
+                'ICSE Junior Wing Composite Plan 2026-27',
+                'Foundational literacy, Montessori studio, and tuition schedule',
+                true
+            )
+            RETURNING id
+        `.one();
+
+        const itemsJson = JSON.stringify([
+            { name: 'ICSE Junior Composite Tuition', amount: '19500.00', frequency: 'QUARTERLY', isOptional: false },
+        ]);
+
+        await q`
+            INSERT INTO invoices (
+                tenant_id, student_id, fee_plan_id, invoice_number, total_amount, paid_amount,
+                due_date, status, description, line_items
+            ) VALUES
+                (
+                    ${sisterTenantId}, ${rohan.id}, ${feePlan.id}, 'INV-SOUTH-2026-001', '19500.00', '19500.00',
+                    '2026-05-10', 'PAID', 'Q1 Junior Wing Composite Fee', ${itemsJson}::jsonb
+                ),
+                (
+                    ${sisterTenantId}, ${meera.id}, ${feePlan.id}, 'INV-SOUTH-2026-002', '19500.00', '19500.00',
+                    '2026-05-10', 'PAID', 'Q1 Junior Wing Composite Fee', ${itemsJson}::jsonb
+                ),
+                (
+                    ${sisterTenantId}, ${vivaan.id}, ${feePlan.id}, 'INV-SOUTH-2026-003', '19500.00', '12000.00',
+                    '2026-09-15', 'PARTIAL', 'Q2 Junior Wing Composite Fee', ${itemsJson}::jsonb
+                )
+        `.execute();
+
+        const now = new Date();
+        const yr = now.getUTCFullYear();
+        const mo = String(now.getUTCMonth() + 1).padStart(2, '0');
+        const maxDay = Math.min(Math.max(now.getUTCDate(), 5), 10);
+        for (const [stId, secId] of [
+            [rohan.id, sec3A.id],
+            [meera.id, sec5A.id],
+            [vivaan.id, sec5A.id],
+        ] as const) {
+            for (let day = 1; day <= maxDay; day++) {
+                const dateStr = `${yr}-${mo}-${String(day).padStart(2, '0')}`;
+                await q`
+                    INSERT INTO attendance_records (id, tenant_id, student_id, section_id, date, status)
+                    VALUES (${crypto.randomUUID()}, ${sisterTenantId}, ${stId}, ${secId}, ${dateStr}, 'PRESENT')
+                `.execute();
+            }
+        }
+
+        await q`
+            INSERT INTO admission_leads (
+                id, tenant_id, child_first_name, child_last_name, child_dob,
+                applying_for_grade, parent_name, parent_email, parent_phone,
+                source, stage, previous_school
+            ) VALUES
+                (
+                    ${crypto.randomUUID()}, ${sisterTenantId}, 'Kiara', 'Sengupta', '2018-06-14',
+                    'Grade 3', 'Debashish Sengupta', 'debashish.sengupta.demo@example.org', '+919811908070',
+                    'REFERRAL', 'OFFERED', 'Step By Step Nursery'
+                ),
+                (
+                    ${crypto.randomUUID()}, ${sisterTenantId}, 'Zorawar', 'Gill', '2016-02-08',
+                    'Grade 5', 'Manpreet Gill', 'manpreet.gill.demo@example.org', '+919810405060',
+                    'WALK_IN', 'INTERVIEW_SCHEDULED', 'Shri Ram Early Years'
+                ),
+                (
+                    ${crypto.randomUUID()}, ${sisterTenantId}, 'Tara', 'Bajaj', '2018-11-21',
+                    'Grade 3', 'Rohan Bajaj', 'rohan.bajaj.demo@example.org', '+919811302010',
+                    'WEBSITE', 'ENROLLED', 'Magic Years Montessori'
+                )
+        `.execute();
     });
 }
 
@@ -687,7 +911,10 @@ export async function launchDemoSandboxAction(personaKey: DemoPersonaKey): Promi
         }
 
         const { companyId, tenantId, tenantDomain, usersByRole } = await ensureDemoTenantAndUsers();
-        await ensureDemoSchoolDataSeeded(tenantId, usersByRole);
+        await Promise.all([
+            ensureDemoSchoolDataSeeded(tenantId, usersByRole),
+            ensureDemoSisterCampusSeeded(companyId),
+        ]);
 
         const targetUser = usersByRole[personaKey];
         const cookieStore = await cookies();

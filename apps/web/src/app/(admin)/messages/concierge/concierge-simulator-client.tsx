@@ -4,12 +4,15 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
     CheckCheck,
+    Copy,
     ExternalLink,
     MessageSquare,
     Send,
+    Server,
     ShieldCheck,
     Smartphone,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -193,10 +196,10 @@ export function ConciergeSimulatorClient({
                     <CardHeader className="pb-3">
                         <CardTitle className="text-base flex items-center gap-2">
                             <ShieldCheck className="h-4 w-4 text-brass" />
-                            Meta WhatsApp Cloud API Endpoint
+                            Inbound Webhook &amp; Adapter Readiness
                         </CardTitle>
                         <CardDescription>
-                            Inbound 24-hour customer-service window webhook with HMAC-SHA256 verification.
+                            Supports official Meta Cloud API or zero-cost open-source self-hosted gateways (WAHA / Evolution API).
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 text-xs">
@@ -208,7 +211,7 @@ export function ConciergeSimulatorClient({
                                 Adapter: {providerState.provider}
                             </Badge>
                             <Badge variant={providerState.webhookSecretConfigured ? 'secondary' : 'outline'}>
-                                X-Hub-Signature: {providerState.webhookSecretConfigured ? 'Active' : 'Fail-Closed'}
+                                HMAC / Secret: {providerState.webhookSecretConfigured ? 'Active' : 'Fail-Closed'}
                             </Badge>
                             <Badge variant={providerState.verifyTokenConfigured ? 'secondary' : 'outline'}>
                                 Handshake Token: {providerState.verifyTokenConfigured ? 'Set' : 'Unset'}
@@ -217,6 +220,52 @@ export function ConciergeSimulatorClient({
                         {providerState.reason && (
                             <p className="text-muted-foreground leading-relaxed">{providerState.reason}</p>
                         )}
+                    </CardContent>
+                </Card>
+
+                <Card
+                    data-testid="free-whatsapp-gateway-card"
+                    className="border-brass/40 bg-accent/30 shadow-sm"
+                >
+                    <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <CardTitle className="text-base flex items-center gap-2">
+                                <Server className="h-4 w-4 text-brass" />
+                                Zero-Cost Self-Hosted Gateway
+                            </CardTitle>
+                            <Badge
+                                variant="outline"
+                                className="border-brass/40 bg-card text-foreground text-[11px]"
+                            >
+                                ₹0 / Open-Source
+                            </Badge>
+                        </div>
+                        <CardDescription>
+                            Skip per-conversation BSP markups using <code className="font-mono">devlikeapro/waha</code> or{' '}
+                            <code className="font-mono">EvolutionAPI/evolution-api</code> in Docker.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-xs">
+                        <pre className="rounded-lg border border-border bg-card p-3 font-mono text-[11px] overflow-x-auto text-foreground leading-relaxed">
+{`WHATSAPP_PROVIDER=waha
+WAHA_BASE_URL=https://waha.school.edu.in
+WAHA_API_KEY=your_waha_key
+WHATSAPP_WEBHOOK_SECRET=your_hmac_secret`}
+                        </pre>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full gap-1.5 text-xs"
+                            onClick={() => {
+                                const cmd = `SCHOLARMIND_WEBHOOK_URL=${webhookUrl} docker compose -f docker-compose.whatsapp-free.yml up -d`;
+                                navigator.clipboard?.writeText(cmd);
+                                toast.success('Copied free WAHA Docker Compose launch command');
+                            }}
+                        >
+                            <Copy className="h-3.5 w-3.5 text-brass" />
+                            Copy Free WAHA Docker Launch Command
+                        </Button>
                     </CardContent>
                 </Card>
             </div>

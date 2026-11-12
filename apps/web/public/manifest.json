@@ -1,11 +1,18 @@
 {
-  "name": "ScholarMind",
+  "name": "ScholarMind — Institutional Operating System",
   "short_name": "ScholarMind",
-  "description": "Multi-tenant school management platform",
-  "start_url": "/",
+  "description": "Parent Fee UPI Checkout, Digital Dismissal Gate Pass, Board Report Cards, Teacher Register & Campus Command Center.",
+  "start_url": "/login",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#0e8074",
+  "background_color": "#FAF8F4",
+  "theme_color": "#162B4D",
   "orientation": "portrait",
-  "icons": []
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }

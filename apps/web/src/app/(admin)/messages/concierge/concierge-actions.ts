@@ -107,7 +107,9 @@ export async function getConciergeStudioDataAction(): Promise<{
                 provider: availability.provider,
                 available: availability.available,
                 reason: availability.reason,
-                webhookSecretConfigured: Boolean(process.env.WHATSAPP_APP_SECRET),
+                webhookSecretConfigured: Boolean(
+                    process.env.WHATSAPP_WEBHOOK_SECRET || process.env.WHATSAPP_APP_SECRET,
+                ),
                 verifyTokenConfigured: Boolean(process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN),
             },
             guardians,

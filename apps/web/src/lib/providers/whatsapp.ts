@@ -1,25 +1,29 @@
 /**
- * WhatsApp Provider — Meta WhatsApp Cloud API, with a dev-only mock.
+ * WhatsApp Provider — Meta WhatsApp Cloud API + Open-Source Self-Hosted Gateways (WAHA & Evolution API).
  *
+ * Option A — Official Meta Cloud API:
  *   WHATSAPP_PROVIDER=meta_cloud   (aliases: meta, whatsapp_cloud, cloud_api)
  *   WHATSAPP_PHONE_NUMBER_ID       the Cloud API phone number id
  *   WHATSAPP_ACCESS_TOKEN          a system-user token with whatsapp_business_messaging
  *
- * Optional:
+ * Option B — Open-Source WAHA (devlikeapro/waha — ₹0/$0 self-hosted Docker):
+ *   WHATSAPP_PROVIDER=waha         (alias: whatsapp_http_api)
+ *   WAHA_BASE_URL                  e.g. https://waha.school.edu.in or http://localhost:3000
+ *   WAHA_API_KEY                   optional X-Api-Key header configured on WAHA
+ *   WAHA_SESSION                   optional session name, default 'default'
+ *
+ * Option C — Open-Source Evolution API (EvolutionAPI/evolution-api — ₹0/$0 self-hosted):
+ *   WHATSAPP_PROVIDER=evolution    (alias: evolution_api)
+ *   EVOLUTION_BASE_URL             e.g. https://evo.school.edu.in
+ *   EVOLUTION_API_KEY              apikey header configured on Evolution API
+ *   EVOLUTION_INSTANCE             instance name, e.g. 'scholarmind-campus'
+ *
+ * Optional (Meta Cloud):
  *   WHATSAPP_API_VERSION           Graph API version, default v21.0
  *   WHATSAPP_DEFAULT_TEMPLATE      template used when a message names none
  *   WHATSAPP_DEFAULT_LANGUAGE      template language code, default 'en'
  *   WHATSAPP_ALLOW_FREEFORM=true   permit plain-text replies inside the 24-hour
  *                                  customer-service window
- *
- * India (and Meta policy generally) requires an approved template for any
- * business-initiated message, so this adapter is template-shaped by default: a
- * send with no resolvable template fails rather than posting a free-form body
- * that Meta would reject anyway.
- *
- * Delivery here means "Meta accepted the message". A WhatsApp message is only
- * genuinely DELIVERED once Meta says so on the statuses webhook, so this adapter
- * never claims more than ACCEPTED.
  */
 
 import type { ProviderResult } from './index';
@@ -45,7 +49,7 @@ import {
 
 export type WhatsAppSendOptions = {
     to: string;
-    /** Plain-text rendering of the message; used as the single body variable. */
+    /** Plain-text rendering of the message; used as the single body variable or text body. */
     body: string;
     /** The notification's `payload` jsonb, which may carry template instructions. */
     payload?: Record<string, unknown>;
@@ -57,11 +61,25 @@ export interface WhatsAppProvider {
     send(options: WhatsAppSendOptions): Promise<ProviderResult<ProviderDispatch>>;
 }
 
-/** Canonical adapter name plus the spellings a deployment might actually use. */
+/** Canonical adapter names plus the spellings a deployment might actually use. */
 export const META_CLOUD_PROVIDER_ALIASES = ['meta_cloud', 'meta', 'whatsapp_cloud', 'cloud_api'] as const;
+export const WAHA_PROVIDER_ALIASES = ['waha', 'whatsapp_http_api'] as const;
+export const EVOLUTION_PROVIDER_ALIASES = ['evolution', 'evolution_api'] as const;
 
 export function isMetaCloudProvider(provider: string): boolean {
     return (META_CLOUD_PROVIDER_ALIASES as readonly string[]).includes(provider);
+}
+
+export function isWahaProvider(provider: string): boolean {
+    return (WAHA_PROVIDER_ALIASES as readonly string[]).includes(provider);
+}
+
+export function isEvolutionProvider(provider: string): boolean {
+    return (EVOLUTION_PROVIDER_ALIASES as readonly string[]).includes(provider);
+}
+
+export function isSelfHostedWhatsAppProvider(provider: string): boolean {
+    return isWahaProvider(provider) || isEvolutionProvider(provider);
 }
 
 // ─── Template shaping ────────────────────────────────────────
@@ -234,6 +252,16 @@ export function metaCloudAvailability(env: NodeJS.ProcessEnv = process.env): Pro
     return missing.length > 0 ? providerUnavailable('meta_cloud', missing) : providerAvailable('meta_cloud');
 }
 
+export function wahaAvailability(env: NodeJS.ProcessEnv = process.env): ProviderAvailability {
+    const missing = missingEnv(['WAHA_BASE_URL'], env);
+    return missing.length > 0 ? providerUnavailable('waha', missing) : providerAvailable('waha');
+}
+
+export function evolutionAvailability(env: NodeJS.ProcessEnv = process.env): ProviderAvailability {
+    const missing = missingEnv(['EVOLUTION_BASE_URL', 'EVOLUTION_API_KEY', 'EVOLUTION_INSTANCE'], env);
+    return missing.length > 0 ? providerUnavailable('evolution', missing) : providerAvailable('evolution');
+}
+
 class MetaCloudWhatsAppProvider implements WhatsAppProvider {
     readonly provider: string;
 
@@ -337,6 +365,179 @@ class MetaCloudWhatsAppProvider implements WhatsAppProvider {
     }
 }
 
+// ─── Open-Source Self-Hosted WAHA (devlikeapro/waha) ─────────
+
+class WahaWhatsAppProvider implements WhatsAppProvider {
+    readonly provider: string;
+
+    constructor(configuredName: string) {
+        this.provider = configuredName;
+    }
+
+    availability(): ProviderAvailability {
+        const state = wahaAvailability();
+        return state.available ? providerAvailable(this.provider) : { ...state, provider: this.provider };
+    }
+
+    async send(options: WhatsAppSendOptions): Promise<ProviderResult<ProviderDispatch>> {
+        const state = this.availability();
+        if (!state.available) {
+            return { success: false, error: state.reason || 'WAHA gateway is not configured.' };
+        }
+
+        const normalized = normalizeToE164Digits(options.to);
+        if ('error' in normalized) return { success: false, error: normalized.error };
+        if (!options.body.trim()) return { success: false, error: 'WhatsApp text message has an empty body.' };
+
+        const baseUrl = (process.env.WAHA_BASE_URL || '').trim().replace(/\/+$/, '');
+        const apiKey = (process.env.WAHA_API_KEY || '').trim();
+        const session = (process.env.WAHA_SESSION || '').trim() || 'default';
+
+        try {
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (apiKey) headers['X-Api-Key'] = apiKey;
+
+            const response = await providerFetch(
+                `${baseUrl}/api/sendText`,
+                {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        session,
+                        chatId: `${normalized.digits}@c.us`,
+                        text: options.body,
+                    }),
+                },
+                resolveTimeoutMs(WHATSAPP_TIMEOUT_ENV),
+            );
+
+            if (!response.ok) {
+                const jsonObj = asRecord(response.json);
+                const detail = (jsonObj && (readString(jsonObj, 'message') || readString(jsonObj, 'error'))) || response.safeText;
+                return {
+                    success: false,
+                    error: truncateError(`WAHA gateway rejected the message (HTTP ${response.status}): ${detail}`),
+                };
+            }
+
+            const jsonObj = asRecord(response.json);
+            const keyObj = asRecord(jsonObj?.key);
+            const idObj = asRecord(jsonObj?.id);
+            const messageId =
+                (jsonObj && readString(jsonObj, 'id'))
+                || (idObj && readString(idObj, '_serialized'))
+                || (keyObj && readString(keyObj, 'id'))
+                || null;
+
+            if (!messageId) {
+                return {
+                    success: false,
+                    error: 'WAHA gateway returned 200 without a message id.',
+                };
+            }
+
+            return {
+                success: true,
+                data: {
+                    messageId,
+                    deliveryState: 'ACCEPTED',
+                    providerStatus: 'waha_accepted:text',
+                },
+            };
+        } catch (error: unknown) {
+            return {
+                success: false,
+                error: truncateError(error instanceof Error ? error.message : 'WAHA gateway send failed.'),
+            };
+        }
+    }
+}
+
+// ─── Open-Source Self-Hosted Evolution API ───────────────────
+
+class EvolutionWhatsAppProvider implements WhatsAppProvider {
+    readonly provider: string;
+
+    constructor(configuredName: string) {
+        this.provider = configuredName;
+    }
+
+    availability(): ProviderAvailability {
+        const state = evolutionAvailability();
+        return state.available ? providerAvailable(this.provider) : { ...state, provider: this.provider };
+    }
+
+    async send(options: WhatsAppSendOptions): Promise<ProviderResult<ProviderDispatch>> {
+        const state = this.availability();
+        if (!state.available) {
+            return { success: false, error: state.reason || 'Evolution API gateway is not configured.' };
+        }
+
+        const normalized = normalizeToE164Digits(options.to);
+        if ('error' in normalized) return { success: false, error: normalized.error };
+        if (!options.body.trim()) return { success: false, error: 'WhatsApp text message has an empty body.' };
+
+        const baseUrl = (process.env.EVOLUTION_BASE_URL || '').trim().replace(/\/+$/, '');
+        const apiKey = (process.env.EVOLUTION_API_KEY || '').trim();
+        const instance = (process.env.EVOLUTION_INSTANCE || '').trim();
+
+        try {
+            const response = await providerFetch(
+                `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        apikey: apiKey,
+                    },
+                    body: JSON.stringify({
+                        number: normalized.digits,
+                        text: options.body,
+                    }),
+                },
+                resolveTimeoutMs(WHATSAPP_TIMEOUT_ENV),
+            );
+
+            if (!response.ok) {
+                const jsonObj = asRecord(response.json);
+                const detail = (jsonObj && (readString(jsonObj, 'message') || readString(jsonObj, 'error'))) || response.safeText;
+                return {
+                    success: false,
+                    error: truncateError(`Evolution API rejected the message (HTTP ${response.status}): ${detail}`),
+                };
+            }
+
+            const jsonObj = asRecord(response.json);
+            const keyObj = asRecord(jsonObj?.key);
+            const messageId =
+                (keyObj && readString(keyObj, 'id'))
+                || (jsonObj && readString(jsonObj, 'id'))
+                || null;
+
+            if (!messageId) {
+                return {
+                    success: false,
+                    error: 'Evolution API returned 200 without a message id.',
+                };
+            }
+
+            return {
+                success: true,
+                data: {
+                    messageId,
+                    deliveryState: 'ACCEPTED',
+                    providerStatus: 'evolution_accepted:text',
+                },
+            };
+        } catch (error: unknown) {
+            return {
+                success: false,
+                error: truncateError(error instanceof Error ? error.message : 'Evolution API send failed.'),
+            };
+        }
+    }
+}
+
 // ─── Factory ─────────────────────────────────────────────────
 
 /** Reports whether WhatsApp can leave this deployment, without constructing anything. */
@@ -344,6 +545,14 @@ export function whatsAppAvailability(env: NodeJS.ProcessEnv = process.env): Prov
     const provider = notificationProviderForChannel('WHATSAPP', env);
     if (isMetaCloudProvider(provider)) {
         const state = metaCloudAvailability(env);
+        return state.available ? providerAvailable(provider) : { ...state, provider };
+    }
+    if (isWahaProvider(provider)) {
+        const state = wahaAvailability(env);
+        return state.available ? providerAvailable(provider) : { ...state, provider };
+    }
+    if (isEvolutionProvider(provider)) {
+        const state = evolutionAvailability(env);
         return state.available ? providerAvailable(provider) : { ...state, provider };
     }
     if (provider === 'mock') {
@@ -361,7 +570,7 @@ export function whatsAppAvailability(env: NodeJS.ProcessEnv = process.env): Prov
     return providerUnavailable(
         provider,
         ['WHATSAPP_PROVIDER'],
-        `No adapter is installed for the "${provider}" WhatsApp provider. Use WHATSAPP_PROVIDER=meta_cloud.`,
+        `No adapter is installed for the "${provider}" WhatsApp provider. Use WHATSAPP_PROVIDER=meta_cloud, waha, or evolution.`,
     );
 }
 
@@ -377,6 +586,10 @@ export function getWhatsAppProvider(): WhatsAppProvider {
         _instance = new UnavailableWhatsAppProvider(state);
     } else if (isMetaCloudProvider(provider)) {
         _instance = new MetaCloudWhatsAppProvider(provider);
+    } else if (isWahaProvider(provider)) {
+        _instance = new WahaWhatsAppProvider(provider);
+    } else if (isEvolutionProvider(provider)) {
+        _instance = new EvolutionWhatsAppProvider(provider);
     } else if (provider === 'mock') {
         _instance = new MockWhatsAppProvider();
     } else {

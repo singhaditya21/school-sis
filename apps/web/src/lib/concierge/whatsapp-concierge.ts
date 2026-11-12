@@ -32,10 +32,94 @@ export interface InboundWhatsAppMessage {
 
 export function parseInboundWhatsAppMessages(body: unknown): InboundWhatsAppMessage[] {
     if (!body || typeof body !== 'object') return [];
-    const root = body as { entry?: unknown };
-    if (!Array.isArray(root.entry)) return [];
-
     const parsed: InboundWhatsAppMessage[] = [];
+
+    // 1. Open-Source WAHA (devlikeapro/waha) Inbound Webhook:
+    //    { event: 'message', session: 'default', payload: { id, from: '9198...@c.us', fromMe: false, body: '1' } }
+    const wahaCandidate = body as {
+        event?: unknown;
+        session?: unknown;
+        payload?: {
+            id?: unknown;
+            from?: unknown;
+            fromMe?: unknown;
+            body?: unknown;
+        };
+    };
+    if (
+        (wahaCandidate.event === 'message' || wahaCandidate.event === 'message.any') &&
+        wahaCandidate.payload &&
+        typeof wahaCandidate.payload === 'object' &&
+        wahaCandidate.payload.fromMe !== true
+    ) {
+        const rawFrom = typeof wahaCandidate.payload.from === 'string' ? wahaCandidate.payload.from : '';
+        // Ignore group chats (@g.us) and status broadcasts; accept direct guardian threads (@c.us / @s.whatsapp.net / digits)
+        if (!rawFrom.endsWith('@g.us') && !rawFrom.includes('status@broadcast')) {
+            const fromDigits = rawFrom.split('@')[0]?.replace(/\D/g, '') || '';
+            const messageId =
+                typeof wahaCandidate.payload.id === 'string' && wahaCandidate.payload.id.trim()
+                    ? wahaCandidate.payload.id.trim()
+                    : `waha_${Date.now()}`;
+            const text = typeof wahaCandidate.payload.body === 'string' ? wahaCandidate.payload.body.trim() : '';
+            if (fromDigits && text) {
+                parsed.push({
+                    messageId,
+                    fromDigits,
+                    text: text.slice(0, 300),
+                    phoneNumberId: typeof wahaCandidate.session === 'string' ? wahaCandidate.session : 'waha',
+                });
+                return parsed;
+            }
+        }
+    }
+
+    // 2. Open-Source Evolution API (EvolutionAPI/evolution-api) Inbound Webhook:
+    //    { event: 'messages.upsert', instance: 'campus', data: { key: { remoteJid: '9198...@s.whatsapp.net', fromMe: false, id }, message: { conversation: '1' } } }
+    const evoCandidate = body as {
+        event?: unknown;
+        instance?: unknown;
+        data?: {
+            key?: { remoteJid?: unknown; fromMe?: unknown; id?: unknown };
+            message?: {
+                conversation?: unknown;
+                extendedTextMessage?: { text?: unknown };
+            };
+        };
+    };
+    if (
+        typeof evoCandidate.event === 'string' &&
+        evoCandidate.event.toLowerCase() === 'messages.upsert' &&
+        evoCandidate.data?.key &&
+        evoCandidate.data.key.fromMe !== true
+    ) {
+        const remoteJid = typeof evoCandidate.data.key.remoteJid === 'string' ? evoCandidate.data.key.remoteJid : '';
+        if (!remoteJid.endsWith('@g.us') && !remoteJid.includes('status@broadcast')) {
+            const fromDigits = remoteJid.split('@')[0]?.replace(/\D/g, '') || '';
+            const messageId =
+                typeof evoCandidate.data.key.id === 'string' && evoCandidate.data.key.id.trim()
+                    ? evoCandidate.data.key.id.trim()
+                    : `evo_${Date.now()}`;
+            const text =
+                typeof evoCandidate.data.message?.conversation === 'string'
+                    ? evoCandidate.data.message.conversation.trim()
+                    : typeof evoCandidate.data.message?.extendedTextMessage?.text === 'string'
+                        ? evoCandidate.data.message.extendedTextMessage.text.trim()
+                        : '';
+            if (fromDigits && text) {
+                parsed.push({
+                    messageId,
+                    fromDigits,
+                    text: text.slice(0, 300),
+                    phoneNumberId: typeof evoCandidate.instance === 'string' ? evoCandidate.instance : 'evolution',
+                });
+                return parsed;
+            }
+        }
+    }
+
+    // 3. Official Meta WhatsApp Cloud API Inbound Webhook:
+    const root = body as { entry?: unknown };
+    if (!Array.isArray(root.entry)) return parsed;
 
     for (const entry of root.entry) {
         if (!entry || typeof entry !== 'object') continue;

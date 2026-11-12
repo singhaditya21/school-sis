@@ -1,14 +1,12 @@
 /**
- * Tally ERP Sync API
+ * Institutional Accounting Sync API (TallyPrime XML, Zoho Books CSV & Open-Source ERPNext JSON)
  *
- * Exports fee collection data as Tally-compatible XML vouchers.
- * Enables automatic accounting sync between ScholarMind and Tally ERP 9/Prime.
- *
- * POST /api/integrations/tally/vouchers — export payment vouchers as Tally XML
+ * POST /api/integrations/tally/vouchers — export verified payment vouchers using
+ * the tenant's persisted custom ledger mappings in zero-cost accounting formats.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { ROLE_GROUPS } from '@/lib/auth/api';
 import {
     authenticateIntegrationRequest,
@@ -18,9 +16,25 @@ import {
     recordIntegrationAudit,
     runWithIntegrationTenant,
 } from '@/lib/integrations/api-platform';
+import {
+    buildErpNextJson,
+    buildTallyPrimeXml,
+    buildZohoBooksCsv,
+    normalizeAccountingLedgerConfig,
+    type AccountingExportFormat,
+    type AccountingPaymentRow,
+} from '@/lib/integrations/accounting-vouchers';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
+import { logger } from '@/lib/observability/logger';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
+
+function parseExportFormat(raw: unknown): AccountingExportFormat {
+    if (raw === 'zoho_csv' || raw === 'erpnext_json' || raw === 'tally_xml') {
+        return raw;
+    }
+    return 'tally_xml';
+}
 
 export async function POST(request: NextRequest) {
     const startedAt = Date.now();
@@ -34,149 +48,134 @@ export async function POST(request: NextRequest) {
     const tenantId = auth.context.tenantId;
 
     return runWithIntegrationTenant(auth.context, async () => {
+        try {
+            await ensureIntegrationConnection({
+                tenantId,
+                provider: 'TALLY',
+                scopes: ['tally:export'],
+                userId: auth.context.userId,
+            });
 
-    try {
-        await ensureIntegrationConnection({
-            tenantId,
-            provider: 'TALLY',
-            scopes: ['tally:export'],
-            userId: auth.context.userId,
-        });
+            const json = await readTenantScopedJson<Record<string, unknown>>(request, tenantId);
+            if (json.ok === false) return json.response;
 
-        const json = await readTenantScopedJson<Record<string, unknown>>(request, tenantId);
-        if (json.ok === false) return json.response;
+            const fromDate =
+                typeof json.data.fromDate === 'string'
+                    ? json.data.fromDate.trim()
+                    : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+            const toDate =
+                typeof json.data.toDate === 'string'
+                    ? json.data.toDate.trim()
+                    : new Date().toISOString().slice(0, 10);
+            const format = parseExportFormat(json.data.format);
 
-        const fromDate = typeof json.data.fromDate === 'string'
-            ? json.data.fromDate.trim()
-            : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const toDate = typeof json.data.toDate === 'string'
-            ? json.data.toDate.trim()
-            : new Date().toISOString().slice(0, 10);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+                return integrationJson(
+                    { error: 'fromDate and toDate must use YYYY-MM-DD format' },
+                    { status: 400 },
+                );
+            }
 
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
-            return integrationJson({ error: 'fromDate and toDate must use YYYY-MM-DD format' }, { status: 400 });
+            const [tenantRows, connRows, payments] = await Promise.all([
+                sql<{ name: string }>`
+                    SELECT name FROM tenants WHERE id = ${tenantId} LIMIT 1
+                `,
+                sql<{ config: unknown }>`
+                    SELECT config
+                    FROM integration_connections
+                    WHERE tenant_id = ${tenantId} AND provider = 'TALLY'
+                    LIMIT 1
+                `,
+                sql<AccountingPaymentRow>`
+                    SELECT
+                        p.id,
+                        p.amount,
+                        p.method::text AS method,
+                        p.paid_at AS "paidAt",
+                        p.transaction_id AS "providerReference",
+                        i.invoice_number AS "invoiceNumber",
+                        s.first_name || ' ' || s.last_name AS "studentName",
+                        s.admission_number AS "admissionNumber",
+                        g.name AS grade
+                    FROM payments p
+                    JOIN invoices i ON i.id = p.invoice_id AND i.tenant_id = p.tenant_id
+                    JOIN students s ON s.id = i.student_id AND s.tenant_id = p.tenant_id
+                    LEFT JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = p.tenant_id
+                    LEFT JOIN grades g ON g.id = sec.grade_id AND g.tenant_id = p.tenant_id
+                    WHERE p.tenant_id = ${tenantId}
+                      AND p.status = 'COMPLETED'
+                      AND p.paid_at >= ${fromDate}::date
+                      AND p.paid_at < (${toDate}::date + INTERVAL '1 day')
+                    ORDER BY p.paid_at ASC
+                `,
+            ]);
+
+            const ledgerConfig = normalizeAccountingLedgerConfig(
+                connRows[0]?.config,
+                tenantRows[0]?.name || 'ScholarMind Campus',
+            );
+
+            let payloadBody: string;
+            let contentType: string;
+            let filename: string;
+
+            if (format === 'zoho_csv') {
+                payloadBody = buildZohoBooksCsv(payments, ledgerConfig);
+                contentType = 'text/csv; charset=utf-8';
+                filename = `zoho_books_journals_${fromDate}_${toDate}.csv`;
+            } else if (format === 'erpnext_json') {
+                payloadBody = buildErpNextJson(payments, ledgerConfig);
+                contentType = 'application/json; charset=utf-8';
+                filename = `erpnext_journal_entries_${fromDate}_${toDate}.json`;
+            } else {
+                payloadBody = buildTallyPrimeXml(payments, ledgerConfig);
+                contentType = 'application/xml; charset=utf-8';
+                filename = `tally_vouchers_${fromDate}_${toDate}.xml`;
+            }
+
+            await recordIntegrationAudit({
+                tenantId,
+                provider: 'TALLY',
+                action: 'tally.vouchers.export',
+                status: 'SUCCESS',
+                request,
+                context: auth.context,
+                statusCode: 200,
+                durationMs: Date.now() - startedAt,
+                metadata: {
+                    fromDate,
+                    toDate,
+                    format,
+                    voucherCount: payments.length,
+                },
+            });
+
+            return new NextResponse(payloadBody, {
+                headers: {
+                    'Content-Type': contentType,
+                    'Content-Disposition': `attachment; filename="${filename}"`,
+                    'X-Voucher-Count': String(payments.length),
+                    ...integrationApiHeaders(),
+                },
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Accounting export failed';
+            await recordIntegrationAudit({
+                tenantId,
+                provider: 'TALLY',
+                action: 'tally.vouchers.export',
+                status: 'FAILED',
+                request,
+                context: auth.context,
+                statusCode: 500,
+                durationMs: Date.now() - startedAt,
+                error: message,
+            });
+            logger.error('tally.export_failed', 'Failed to export accounting vouchers', {
+                source: 'integrations',
+                metadata: { tenantId, error: message },
+            });
+            return integrationJson({ error: 'Accounting export failed' }, { status: 500 });
         }
-
-        const { rows: payments } = await pool.query(`
-            SELECT
-                p.id, p.amount, p.method, p.paid_at, p.transaction_id AS "provider_reference",
-                i.invoice_number,
-                s.first_name || ' ' || s.last_name AS student_name,
-                s.admission_number,
-                g.name AS grade
-            FROM payments p
-            JOIN invoices i ON i.id = p.invoice_id
-            JOIN students s ON s.id = i.student_id
-            LEFT JOIN sections sec ON sec.id = s.section_id
-            LEFT JOIN grades g ON g.id = sec.grade_id
-            WHERE p.tenant_id = $1
-              AND p.status = 'COMPLETED'
-              AND p.paid_at >= $2::date
-              AND p.paid_at < ($3::date + INTERVAL '1 day')
-            ORDER BY p.paid_at ASC
-        `, [tenantId, fromDate, toDate]);
-
-        // Generate Tally XML
-        const vouchers = payments.map(p => `
-    <VOUCHER VCHTYPE="Receipt" ACTION="Create">
-        <DATE>${formatTallyDate(p.paid_at)}</DATE>
-        <NARRATION>${escapeXml(`Fee Receipt - ${p.student_name} (${p.admission_number}) - Invoice #${p.invoice_number}`)}</NARRATION>
-        <VOUCHERNUMBER>${p.id.slice(0, 8)}</VOUCHERNUMBER>
-        <PARTYLEDGERNAME>${escapeXml(p.student_name)}</PARTYLEDGERNAME>
-        <ALLLEDGERENTRIES.LIST>
-            <LEDGERNAME>${escapeXml(mapPaymentMethod(p.method))}</LEDGERNAME>
-            <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
-            <AMOUNT>-${p.amount}</AMOUNT>
-        </ALLLEDGERENTRIES.LIST>
-        <ALLLEDGERENTRIES.LIST>
-            <LEDGERNAME>${escapeXml(`Fee Collections - ${p.grade || 'General'}`)}</LEDGERNAME>
-            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-            <AMOUNT>${p.amount}</AMOUNT>
-        </ALLLEDGERENTRIES.LIST>
-    </VOUCHER>`).join('\n');
-
-        const tallyXml = `<?xml version="1.0" encoding="UTF-8"?>
-<ENVELOPE>
-    <HEADER>
-        <TALLYREQUEST>Import Data</TALLYREQUEST>
-    </HEADER>
-    <BODY>
-        <IMPORTDATA>
-            <REQUESTDESC>
-                <REPORTNAME>Vouchers</REPORTNAME>
-            </REQUESTDESC>
-            <REQUESTDATA>
-                <TALLYMESSAGE xmlns:UDF="TallyUDF">
-${vouchers}
-                </TALLYMESSAGE>
-            </REQUESTDATA>
-        </IMPORTDATA>
-    </BODY>
-</ENVELOPE>`;
-
-        await recordIntegrationAudit({
-            tenantId,
-            provider: 'TALLY',
-            action: 'tally.vouchers.export',
-            status: 'SUCCESS',
-            request,
-            context: auth.context,
-            statusCode: 200,
-            durationMs: Date.now() - startedAt,
-            metadata: { fromDate, toDate, voucherCount: payments.length },
-        });
-
-        return new NextResponse(tallyXml, {
-            headers: {
-                'Content-Type': 'application/xml',
-                'Content-Disposition': `attachment; filename="tally_vouchers_${fromDate}_${toDate}.xml"`,
-                ...integrationApiHeaders(),
-            },
-        });
-    } catch (error) {
-        const message = error instanceof Error ? error.message : 'Tally export failed';
-        await recordIntegrationAudit({
-            tenantId,
-            provider: 'TALLY',
-            action: 'tally.vouchers.export',
-            status: 'FAILED',
-            request,
-            context: auth.context,
-            statusCode: 500,
-            durationMs: Date.now() - startedAt,
-            error: message,
-        });
-        console.error('[Tally Sync] Error:', message);
-        return integrationJson({ error: 'Tally export failed' }, { status: 500 });
-    }
     });
-}
-
-function formatTallyDate(date: string | Date): string {
-    const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}${month}${day}`;
-}
-
-function mapPaymentMethod(method: string): string {
-    const map: Record<string, string> = {
-        'CASH': 'Cash',
-        'CARD': 'HDFC Bank',
-        'UPI': 'UPI Collections',
-        'BANK_TRANSFER': 'Bank Collections',
-        'CHEQUE': 'Cheque Collections',
-        'ONLINE': 'Online Payments',
-    };
-    return map[method] || 'Sundry Collections';
-}
-
-function escapeXml(value: unknown): string {
-    return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
 }

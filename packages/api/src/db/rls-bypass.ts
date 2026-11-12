@@ -124,6 +124,10 @@ export const RLS_BYPASS_JUSTIFICATIONS = {
     "operations.platform-console",
     "A verified platform operator requested an explicitly cross-tenant operational console view.",
   ),
+  COMPANY_GROUP_ROLLUP: defineJustification(
+    "analytics.company-group-rollup",
+    "An authenticated institutional executive aggregates campus KPIs strictly across tenants sharing their company_id.",
+  ),
   PLATFORM_INCIDENT_READ: defineJustification(
     "operations.platform-incident-read",
     "A verified platform operator requested incidents across all tenant and platform scopes.",

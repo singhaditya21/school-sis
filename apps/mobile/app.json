@@ -1,11 +1,14 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "ScholarMind",
+    "slug": "scholarmind",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#162B4D"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.scholarmind.mobile",
@@ -19,7 +22,7 @@
       "package": "com.scholarmind.mobile",
       "usesCleartextTraffic": false,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#162B4D",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

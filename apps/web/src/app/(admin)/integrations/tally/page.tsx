@@ -1,138 +1,155 @@
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getSession } from '@/lib/auth/session';
-import { redirect } from 'next/navigation';
+import { formatCurrency } from '@/lib/utils';
 import TallyExportForm from './TallyExportForm';
-import { ArrowRightLeft, FileSpreadsheet, Server, Settings2 } from 'lucide-react';
+import { LedgerMappingEditor } from './LedgerMappingEditor';
+import { getAccountingStudioDataAction } from './tally-actions';
+import { ArrowRightLeft, BookOpenCheck, FileSpreadsheet, Server } from 'lucide-react';
+
+export const dynamic = 'force-dynamic';
 
 export default async function TallyIntegrationPage() {
-    const session = await getSession();
-    if (!session.isLoggedIn) redirect('/login');
+    const studio = await getAccountingStudioDataAction();
 
     return (
-        <div className="max-w-6xl mx-auto p-8 space-y-8">
-            <div className="flex items-center justify-between">
+        <div className="max-w-6xl mx-auto p-6 sm:p-8 space-y-8">
+            <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-3">
-                        <FileSpreadsheet className="w-8 h-8 text-green-600" />
-                        Tally ERP 9 / Prime Integration
+                        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent border border-brass/40">
+                            <FileSpreadsheet className="w-6 h-6 text-brass" />
+                        </span>
+                        TallyPrime, Zoho Books &amp; ERPNext Ledger Sync
                     </h1>
-                    <p className="text-muted-foreground mt-1">Export daily collections and accounting vouchers directly to Tally format.</p>
+                    <p className="text-muted-foreground mt-2">
+                        Zero-middleware double-entry voucher sync to TallyPrime XML, Zoho Books CSV, and open-source Frappe ERPNext JSON.
+                    </p>
                 </div>
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 px-3 py-1 uppercase tracking-widest text-xs font-bold">
-                    <span className="w-2 h-2 rounded-full bg-green-500 mr-2 inline-block animate-pulse"></span>
-                    Active Integration
+                <Badge
+                    variant="outline"
+                    className="border-brass/40 bg-accent text-accent-foreground px-3 py-1.5 uppercase tracking-widest text-xs font-bold"
+                >
+                    <span className="w-2 h-2 rounded-full bg-success mr-2 inline-block" />
+                    Zero-Cost Accounting Bridge
                 </Badge>
             </div>
 
+            {/* Live Ledger Readiness Banner */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Card className="border-border bg-card shadow-sm">
+                    <CardContent className="p-4 flex items-center justify-between">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                Settled Receipts Ready
+                            </p>
+                            <p className="text-2xl font-bold text-foreground mt-1">
+                                {studio.completedPaymentStats.count}
+                            </p>
+                        </div>
+                        <BookOpenCheck className="h-6 w-6 text-brass" />
+                    </CardContent>
+                </Card>
+
+                <Card className="border-border bg-card shadow-sm">
+                    <CardContent className="p-4 flex items-center justify-between">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                Reconciled Volume
+                            </p>
+                            <p className="text-2xl font-bold text-foreground mt-1">
+                                {formatCurrency(studio.completedPaymentStats.totalAmount)}
+                            </p>
+                        </div>
+                        <ArrowRightLeft className="h-6 w-6 text-brass" />
+                    </CardContent>
+                </Card>
+
+                <Card className="border-brass/35 bg-accent/35 shadow-sm">
+                    <CardContent className="p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Supported Targets (₹0 Add-Ons)
+                        </p>
+                        <p className="text-sm font-semibold text-foreground mt-1.5">
+                            TallyPrime XML · Zoho Books CSV · Frappe ERPNext
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            GUID-deduplicated receipt vouchers
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left Column - Actions */}
+                {/* Left Column - Export & Live Audit Sync History */}
                 <div className="lg:col-span-1 space-y-6">
                     <Card className="border border-border shadow-sm rounded-xl">
-                        <CardHeader className="bg-muted border-b border-border pb-4">
+                        <CardHeader className="bg-muted/60 border-b border-border pb-4">
                             <CardTitle className="text-lg flex items-center gap-2">
-                                <ArrowRightLeft className="w-5 h-5 text-primary" /> Sync Vouchers
+                                <ArrowRightLeft className="w-5 h-5 text-brass" /> Export Accounting Vouchers
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-6">
-                            <TallyExportForm />
+                            <TallyExportForm
+                                defaultFromDate={studio.completedPaymentStats.earliestDate}
+                                defaultToDate={studio.completedPaymentStats.latestDate}
+                                appOrigin={studio.appOrigin}
+                            />
                         </CardContent>
                     </Card>
 
-                    <Card className="border border-border shadow-sm rounded-xl">
-                        <CardHeader className="bg-muted border-b border-border pb-4">
+                    <Card
+                        data-testid="accounting-sync-history-card"
+                        className="border border-border shadow-sm rounded-xl"
+                    >
+                        <CardHeader className="bg-muted/60 border-b border-border pb-4">
                             <CardTitle className="text-lg flex items-center gap-2">
-                                <Server className="w-5 h-5 text-muted-foreground" /> Sync History
+                                <Server className="w-5 h-5 text-brass" /> Live Sync Audit Log
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
-                            <div className="divide-y divide-border">
-                                <div className="p-4 flex items-center justify-between text-sm">
-                                    <div>
-                                        <p className="font-semibold text-foreground">Yesterday's Collections</p>
-                                        <p className="text-muted-foreground text-xs">24 Vouchers • 1.2MB XML</p>
-                                    </div>
-                                    <Badge variant="secondary" className="bg-muted text-foreground">Downloaded</Badge>
+                            {studio.syncHistory.length === 0 ? (
+                                <div className="p-5 text-xs text-muted-foreground leading-relaxed">
+                                    No accounting exports recorded for this campus yet. Run an export above to log an audited batch.
                                 </div>
-                                <div className="p-4 flex items-center justify-between text-sm">
-                                    <div>
-                                        <p className="font-semibold text-foreground">Last Week Batch</p>
-                                        <p className="text-muted-foreground text-xs">156 Vouchers • 4.8MB XML</p>
-                                    </div>
-                                    <Badge variant="secondary" className="bg-muted text-foreground">Downloaded</Badge>
+                            ) : (
+                                <div className="divide-y divide-border">
+                                    {studio.syncHistory.map((item) => (
+                                        <div
+                                            key={item.id}
+                                            className="p-4 flex items-center justify-between gap-3 text-sm"
+                                        >
+                                            <div className="min-w-0">
+                                                <p className="font-semibold text-foreground truncate">
+                                                    {item.format.toUpperCase().replace('_', ' ')} ·{' '}
+                                                    {item.voucherCount} Voucher{item.voucherCount !== 1 ? 's' : ''}
+                                                </p>
+                                                <p className="text-muted-foreground text-xs">
+                                                    {item.fromDate && item.toDate
+                                                        ? `${item.fromDate} → ${item.toDate}`
+                                                        : new Date(item.createdAtIso).toLocaleDateString('en-IN')}
+                                                </p>
+                                            </div>
+                                            <Badge
+                                                variant="outline"
+                                                className={
+                                                    item.status === 'SUCCESS'
+                                                        ? 'border-success/30 bg-success-subtle text-success text-xs'
+                                                        : 'border-destructive/30 bg-destructive-subtle text-destructive text-xs'
+                                                }
+                                            >
+                                                {item.status}
+                                            </Badge>
+                                        </div>
+                                    ))}
                                 </div>
-                            </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>
 
-                {/* Right Column - Ledger Mapping Settings */}
+                {/* Right Column - Interactive Ledger Mapping Editor */}
                 <div className="lg:col-span-2">
-                    <Card className="border border-border shadow-sm rounded-xl h-full">
-                        <CardHeader className="bg-card border-b border-border pb-4 flex flex-row items-center justify-between">
-                            <div>
-                                <CardTitle className="text-xl flex items-center gap-2">
-                                    <Settings2 className="w-5 h-5 text-foreground" /> Ledger Mapping configuration
-                                </CardTitle>
-                                <CardDescription className="mt-1">
-                                    Map ScholarMind payment methods to your exact Tally Ledger names.
-                                </CardDescription>
-                            </div>
-                            <button className="text-sm font-semibold text-primary hover:text-primary/80 bg-accent px-3 py-1.5 rounded-md transition-colors">
-                                Edit Mappings
-                            </button>
-                        </CardHeader>
-                        <CardContent className="p-6">
-                            <div className="space-y-6">
-                                <div className="bg-warning-subtle border border-warning/30 rounded-lg p-4 text-sm text-warning flex gap-3">
-                                    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                    <p>Ensure the Tally Ledger names match <strong>exactly</strong> as configured in Tally (case-sensitive) to prevent import errors.</p>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-x-8 gap-y-4">
-                                    {/* Mappings List */}
-                                    <div className="space-y-1">
-                                        <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">ScholarMind System Method</label>
-                                        <div className="font-medium text-foreground py-2 border-b border-border">CASH</div>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Tally Target Ledger Name</label>
-                                        <div className="font-medium text-green-700 bg-green-50 px-3 py-2 rounded-md">Cash</div>
-                                    </div>
-
-                                    <div className="space-y-1 mt-2">
-                                        <div className="font-medium text-foreground py-2 border-b border-border">CARD</div>
-                                    </div>
-                                    <div className="space-y-1 mt-2">
-                                        <div className="font-medium text-green-700 bg-green-50 px-3 py-2 rounded-md">HDFC Bank</div>
-                                    </div>
-
-                                    <div className="space-y-1 mt-2">
-                                        <div className="font-medium text-foreground py-2 border-b border-border">UPI</div>
-                                    </div>
-                                    <div className="space-y-1 mt-2">
-                                        <div className="font-medium text-green-700 bg-green-50 px-3 py-2 rounded-md">UPI Collections</div>
-                                    </div>
-
-                                    <div className="space-y-1 mt-2">
-                                        <div className="font-medium text-foreground py-2 border-b border-border">BANK_TRANSFER</div>
-                                    </div>
-                                    <div className="space-y-1 mt-2">
-                                        <div className="font-medium text-green-700 bg-green-50 px-3 py-2 rounded-md">Bank Collections</div>
-                                    </div>
-
-                                    <div className="space-y-1 mt-2">
-                                        <div className="font-medium text-foreground py-2 border-b border-border">ONLINE_GATEWAY</div>
-                                    </div>
-                                    <div className="space-y-1 mt-2">
-                                        <div className="font-medium text-green-700 bg-green-50 px-3 py-2 rounded-md">Online Payments</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <LedgerMappingEditor initialConfig={studio.config} />
                 </div>
             </div>
         </div>

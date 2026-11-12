@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import "sonner/dist/styles.css";
@@ -15,10 +15,23 @@ const jakarta = Plus_Jakarta_Sans({
 
 export const dynamic = "force-dynamic";
 
+export const viewport: Viewport = {
+    themeColor: "#162B4D",
+};
+
 export const metadata: Metadata = {
     title: "ScholarMind",
     description: "Institutional finance control & school operating system",
     manifest: "/manifest.json",
+    appleWebApp: {
+        capable: true,
+        statusBarStyle: "default",
+        title: "ScholarMind",
+    },
+    icons: {
+        icon: "/icon.svg",
+        apple: "/icon.svg",
+    },
 };
 
 export default function RootLayout({

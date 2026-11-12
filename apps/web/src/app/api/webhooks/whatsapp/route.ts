@@ -1,6 +1,11 @@
+import crypto from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { notificationProviderForChannel } from '@/lib/integrations/runtime-mode';
-import { getWhatsAppProvider, isMetaCloudProvider } from '@/lib/providers/whatsapp';
+import {
+    getWhatsAppProvider,
+    isMetaCloudProvider,
+    isSelfHostedWhatsAppProvider,
+} from '@/lib/providers/whatsapp';
 import { recordDeliveryReceipt } from '@/lib/notifications/outbox';
 import {
     parseWhatsAppReceipts,
@@ -18,6 +23,43 @@ import { logger } from '@/lib/observability/logger';
 // before verification, and the route must run on Node (crypto + raw text).
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+function verifySelfHostedWebhookAuth(
+    rawBody: string,
+    req: NextRequest,
+    secret: string | undefined,
+): boolean {
+    if (!secret) return false;
+
+    // 1. WAHA HMAC header (`X-Webhook-Hmac` raw hex or `X-Hub-Signature-256` sha256=hex)
+    const hubSig = req.headers.get('x-hub-signature-256');
+    if (hubSig && verifyWhatsAppSignature(rawBody, hubSig, secret)) {
+        return true;
+    }
+
+    const wahaHmac = req.headers.get('x-webhook-hmac');
+    if (wahaHmac) {
+        const computedHex = crypto.createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex');
+        const normalizedProvided = wahaHmac.replace(/^sha256=/i, '');
+        const a = Buffer.from(normalizedProvided);
+        const b = Buffer.from(computedHex);
+        if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
+            return true;
+        }
+    }
+
+    // 2. Evolution API / Self-Hosted shared secret header (`X-Webhook-Secret` or `apikey`)
+    const sharedHeader = req.headers.get('x-webhook-secret') || req.headers.get('apikey');
+    if (sharedHeader) {
+        const a = Buffer.from(sharedHeader);
+        const b = Buffer.from(secret);
+        if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 /**
  * Subscription handshake. Meta calls this once with hub.mode=subscribe, the
@@ -45,19 +87,29 @@ export async function GET(req: NextRequest) {
 
 /**
  * Delivery-status callbacks AND 2-Way Verified Guardian Concierge replies.
- * Verifies the signature fail-closed, records delivery statuses, and answers
- * inbound guardian menu commands within the Meta 24-hour customer-service window.
+ * Supports both official Meta Cloud API (`WHATSAPP_PROVIDER=meta_cloud`) and
+ * zero-cost open-source self-hosted gateways (`WHATSAPP_PROVIDER=waha` / `evolution`).
  */
 export async function POST(req: NextRequest) {
     const raw = await req.text();
-
-    if (!verifyWhatsAppSignature(raw, req.headers.get('x-hub-signature-256'), process.env.WHATSAPP_APP_SECRET)) {
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
-
     const provider = notificationProviderForChannel('WHATSAPP');
-    if (!isMetaCloudProvider(provider)) {
-        return NextResponse.json({ error: 'WhatsApp is not on a Meta Cloud provider' }, { status: 400 });
+    const selfHosted = isSelfHostedWhatsAppProvider(provider);
+
+    if (selfHosted) {
+        const webhookSecret = process.env.WHATSAPP_WEBHOOK_SECRET || process.env.WHATSAPP_APP_SECRET;
+        if (!verifySelfHostedWebhookAuth(raw, req, webhookSecret)) {
+            return NextResponse.json({ error: 'Invalid webhook signature or secret' }, { status: 401 });
+        }
+    } else {
+        if (!verifyWhatsAppSignature(raw, req.headers.get('x-hub-signature-256'), process.env.WHATSAPP_APP_SECRET)) {
+            return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+        }
+        if (!isMetaCloudProvider(provider)) {
+            return NextResponse.json(
+                { error: 'WhatsApp provider is not configured for inbound webhooks' },
+                { status: 400 },
+            );
+        }
     }
 
     let body: unknown;

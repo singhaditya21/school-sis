@@ -1,5 +1,8 @@
 import React from 'react';
-import { getExecutiveFinancialMetrics } from '@/lib/actions/executive-analytics';
+import {
+  getExecutiveFinancialMetrics,
+  getMultiCampusGroupRollup,
+} from '@/lib/actions/executive-analytics';
 import { getAllMetadataObjects } from '@/lib/actions/metadata-engine';
 import { requireAuth } from '@/lib/auth/middleware';
 import { isTenantStaffRole } from '@/lib/auth/page-access';
@@ -7,7 +10,7 @@ import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 import { redirect } from 'next/navigation';
 import { ExecutiveDashboardClient } from './executive-dashboard-client';
 
-// Executive fee position & drag-and-drop dashboard builder for the School Principal / Board.
+// Executive fee position, Multi-Campus Trust Rollup & drag-and-drop dashboard builder.
 
 export default async function ExecutiveDashboardPage() {
   const auth = await requireAuth();
@@ -21,12 +24,13 @@ export default async function ExecutiveDashboardPage() {
     redirect('/unauthorized');
   }
 
-  const [metrics, allObjects] = await Promise.all([
+  const [metrics, groupRollup, allObjects] = await Promise.all([
     getExecutiveFinancialMetrics(auth.tenantId),
+    getMultiCampusGroupRollup(auth.tenantId),
     getAllMetadataObjects().catch(() => []),
   ]);
 
-  const customObjects = allObjects.map(obj => ({
+  const customObjects = allObjects.map((obj) => ({
     id: String(obj.id),
     apiName: String(obj.api_name),
     name: String(obj.plural_label || obj.label),
@@ -36,8 +40,8 @@ export default async function ExecutiveDashboardPage() {
   return (
     <ExecutiveDashboardClient
       metrics={metrics}
+      groupRollup={groupRollup}
       customObjects={customObjects}
     />
   );
 }
-

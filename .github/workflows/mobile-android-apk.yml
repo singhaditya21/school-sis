@@ -1,0 +1,68 @@
+name: Free Mobile Android APK Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: 'Production ScholarMind API Base URL'
+        required: false
+        default: 'https://school-sis-web.vercel.app'
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-apk:
+    name: Build Standalone Android APK (Zero Paid EAS Cloud Credits)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Setup Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck Expo Mobile App
+        run: pnpm --filter mobile run typecheck
+
+      - name: Prebuild Native Android Project via Expo
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_API_BASE_URL: ${{ inputs.api_base_url || 'https://school-sis-web.vercel.app' }}
+          CI: '1'
+        run: npx expo prebuild --platform android --non-interactive
+
+      - name: Assemble Release APK via Gradle
+        working-directory: apps/mobile/android
+        env:
+          EXPO_PUBLIC_API_BASE_URL: ${{ inputs.api_base_url || 'https://school-sis-web.vercel.app' }}
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Upload Direct-Download Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scholarmind-android-release-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/*.apk
+          retention-days: 30

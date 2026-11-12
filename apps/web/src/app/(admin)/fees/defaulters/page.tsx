@@ -1,7 +1,7 @@
 import { getDefaulterStats, getFeeAgeingBreakdown, getDefaulterList } from '@/lib/actions/fees';
 import DefaulterDashboard from '@/components/fees/defaulter-dashboard';
 import { requireAuth } from '@/lib/auth/middleware';
-import { pool } from '@/lib/db';
+import { sqlFor, withTenant } from '@/lib/db';
 import Link from 'next/link';
 
 /**
@@ -17,25 +17,25 @@ async function getOldestOverdueInvoiceByStudent(
 ): Promise<Record<string, string>> {
     const todayStr = new Date().toISOString().split('T')[0];
 
-    const { rows } = await pool.query(
-        `
-        SELECT DISTINCT ON (i.student_id)
-            i.student_id AS "studentId",
-            i.id AS "invoiceId"
-        FROM invoices i
-        WHERE i.tenant_id = $1
-          AND i.due_date < $2
-          AND i.status NOT IN ('PAID', 'CANCELLED', 'WAIVED')
-        ORDER BY i.student_id, i.due_date ASC, i.created_at ASC
-        `,
-        [tenantId, todayStr],
-    );
+    return withTenant(tenantId, async (client) => {
+        const q = sqlFor(client);
+        const rows = await q<{ studentId: string; invoiceId: string }>`
+            SELECT DISTINCT ON (i.student_id)
+                i.student_id AS "studentId",
+                i.id AS "invoiceId"
+            FROM invoices i
+            WHERE i.tenant_id = ${tenantId}
+              AND i.due_date < ${todayStr}::date
+              AND i.status NOT IN ('PAID', 'CANCELLED', 'WAIVED')
+            ORDER BY i.student_id, i.due_date ASC, i.created_at ASC
+        `;
 
-    const map: Record<string, string> = {};
-    for (const row of rows) {
-        map[row.studentId] = row.invoiceId;
-    }
-    return map;
+        const map: Record<string, string> = {};
+        for (const row of rows) {
+            map[row.studentId] = row.invoiceId;
+        }
+        return map;
+    });
 }
 
 export default async function DefaultersPage() {
