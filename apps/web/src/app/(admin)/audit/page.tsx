@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import { AuditLogTable, type AuditRow } from './AuditClient';
 
 export const dynamic = 'force-dynamic';
@@ -151,7 +152,7 @@ export default async function AuditPage({
                     al.ip_address,
                     al.user_agent,
                     (u.first_name || ' ' || u.last_name) AS actor_name,
-                    u.email AS actor_email,
+                    COALESCE(u.email_enc, u.email) AS actor_email,
                     u.role::text AS actor_role
              ${from}
              ORDER BY al.created_at DESC, al.id DESC
@@ -188,7 +189,7 @@ export default async function AuditPage({
         ipAddress: row.ip_address,
         userAgent: row.user_agent,
         actorName: row.actor_name,
-        actorEmail: row.actor_email,
+        actorEmail: row.actor_email == null ? null : decryptFieldTolerant(row.actor_email),
         actorRole: row.actor_role,
     }));
 

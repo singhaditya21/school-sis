@@ -2,9 +2,21 @@
 
 import { sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
-import { encryptDeterministic } from '@/lib/encryption';
+import { getSession } from '@/lib/auth/session';
+import { decryptFieldTolerant, encryptEmail, encryptPhone } from '@/lib/encryption';
+import { isDemoSession, isDemoTenantId } from '@/lib/tenant/demo-guard';
 import { randomUUID } from 'crypto';
 import { redirect } from 'next/navigation';
+
+function escapeHtml(value: string | null | undefined): string {
+    if (!value) return '';
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
 export interface AdmissionLeadItem {
     id: string;
@@ -44,8 +56,8 @@ export async function getAdmissionLeads(options?: {
         childDob: string | null;
         applyingForGrade: string;
         parentName: string;
-        parentEmail: string;
-        parentPhone: string;
+        parentEmail: string | null;
+        parentPhone: string | null;
         source: string;
         stage: string;
         notes: string | null;
@@ -63,8 +75,8 @@ export async function getAdmissionLeads(options?: {
             l.child_dob AS "childDob", 
             l.applying_for_grade AS "applyingForGrade", 
             l.parent_name AS "parentName", 
-            l.parent_email AS "parentEmail", 
-            l.parent_phone AS "parentPhone", 
+            COALESCE(l.parent_email_enc, l.parent_email) AS "parentEmail", 
+            COALESCE(l.parent_phone_enc, l.parent_phone) AS "parentPhone", 
             l.source, 
             l.stage, 
             l.notes, 
@@ -73,7 +85,7 @@ export async function getAdmissionLeads(options?: {
             u.last_name AS "assignedLastName", 
             l.created_at AS "createdAt"
         FROM admission_leads l
-        LEFT JOIN users u ON l.assigned_to = u.id
+        LEFT JOIN users u ON l.assigned_to = u.id AND u.tenant_id = l.tenant_id
         WHERE l.tenant_id = ${tenantId} ${stageFilter}
         ORDER BY l.created_at DESC
         LIMIT ${limit}
@@ -87,8 +99,8 @@ export async function getAdmissionLeads(options?: {
             childDob: r.childDob,
             applyingForGrade: r.applyingForGrade,
             parentName: r.parentName,
-            parentEmail: r.parentEmail,
-            parentPhone: r.parentPhone,
+            parentEmail: r.parentEmail ? decryptFieldTolerant(r.parentEmail) : '',
+            parentPhone: r.parentPhone ? decryptFieldTolerant(r.parentPhone) : '',
             source: r.source,
             stage: r.stage,
             notes: r.notes,
@@ -141,9 +153,44 @@ export async function createLead(formData: FormData): Promise<void> {
         throw new Error('Missing required fields');
     }
 
+    const parentEmailEnc = encryptEmail(parentEmail);
+    const parentPhoneEnc = encryptPhone(parentPhone);
+
     await sql`
-        INSERT INTO admission_leads (id, tenant_id, child_first_name, child_last_name, child_dob, applying_for_grade, parent_name, parent_email, parent_phone, source, stage, notes, previous_school)
-        VALUES (${randomUUID()}, ${tenantId}, ${childFirstName}, ${childLastName}, ${childDob || null}, ${applyingForGrade}, ${parentName}, ${parentEmail}, ${parentPhone}, ${source}, ${'NEW'}, ${notes || null}, ${previousSchool || null})
+        INSERT INTO admission_leads (
+            id,
+            tenant_id,
+            child_first_name,
+            child_last_name,
+            child_dob,
+            applying_for_grade,
+            parent_name,
+            parent_email,
+            parent_phone,
+            parent_email_enc,
+            parent_phone_enc,
+            source,
+            stage,
+            notes,
+            previous_school
+        )
+        VALUES (
+            ${randomUUID()},
+            ${tenantId},
+            ${childFirstName},
+            ${childLastName},
+            ${childDob || null},
+            ${applyingForGrade},
+            ${parentName},
+            ${null},
+            ${null},
+            ${parentEmailEnc},
+            ${parentPhoneEnc},
+            ${source},
+            ${'NEW'},
+            ${notes || null},
+            ${previousSchool || null}
+        )
     `;
 
     redirect('/admissions');
@@ -159,8 +206,8 @@ export async function getLeadById(leadId: string): Promise<AdmissionLeadItem | n
         childDob: string | null;
         applyingForGrade: string;
         parentName: string;
-        parentEmail: string;
-        parentPhone: string;
+        parentEmail: string | null;
+        parentPhone: string | null;
         source: string;
         stage: string;
         notes: string | null;
@@ -176,8 +223,8 @@ export async function getLeadById(leadId: string): Promise<AdmissionLeadItem | n
             l.child_dob AS "childDob", 
             l.applying_for_grade AS "applyingForGrade", 
             l.parent_name AS "parentName", 
-            l.parent_email AS "parentEmail", 
-            l.parent_phone AS "parentPhone", 
+            COALESCE(l.parent_email_enc, l.parent_email) AS "parentEmail", 
+            COALESCE(l.parent_phone_enc, l.parent_phone) AS "parentPhone", 
             l.source, 
             l.stage, 
             l.notes, 
@@ -186,7 +233,7 @@ export async function getLeadById(leadId: string): Promise<AdmissionLeadItem | n
             u.last_name AS "assignedLastName", 
             l.created_at AS "createdAt"
         FROM admission_leads l
-        LEFT JOIN users u ON l.assigned_to = u.id
+        LEFT JOIN users u ON l.assigned_to = u.id AND u.tenant_id = l.tenant_id
         WHERE l.id = ${leadId} AND l.tenant_id = ${tenantId}
     `;
 
@@ -200,8 +247,8 @@ export async function getLeadById(leadId: string): Promise<AdmissionLeadItem | n
         childDob: row.childDob,
         applyingForGrade: row.applyingForGrade,
         parentName: row.parentName,
-        parentEmail: row.parentEmail,
-        parentPhone: row.parentPhone,
+        parentEmail: row.parentEmail ? decryptFieldTolerant(row.parentEmail) : '',
+        parentPhone: row.parentPhone ? decryptFieldTolerant(row.parentPhone) : '',
         source: row.source,
         stage: row.stage,
         notes: row.notes,
@@ -225,10 +272,17 @@ export async function convertLeadToStudent(
         childDob: string | null;
         stage: string;
         parentName: string;
-        parentPhone: string;
-        parentEmail: string;
+        parentPhone: string | null;
+        parentEmail: string | null;
     }>`
-        SELECT id, child_first_name AS "childFirstName", child_last_name AS "childLastName", child_dob AS "childDob", stage, parent_name AS "parentName", parent_phone AS "parentPhone", parent_email AS "parentEmail"
+        SELECT id,
+               child_first_name AS "childFirstName",
+               child_last_name AS "childLastName",
+               child_dob AS "childDob",
+               stage,
+               parent_name AS "parentName",
+               COALESCE(parent_phone_enc, parent_phone) AS "parentPhone",
+               COALESCE(parent_email_enc, parent_email) AS "parentEmail"
         FROM admission_leads
         WHERE id = ${leadId} AND tenant_id = ${tenantId}
     `;
@@ -236,6 +290,22 @@ export async function convertLeadToStudent(
     if (!leadRows.length) return { success: false, error: 'Lead not found' };
     const lead = leadRows[0];
     if (lead.stage === 'ENROLLED') return { success: false, error: 'Lead already enrolled' };
+
+    const gradeRows = await sql<{ id: string }>`
+        SELECT id FROM grades WHERE id = ${gradeId} AND tenant_id = ${tenantId}
+    `;
+    if (!gradeRows.length) {
+        return { success: false, error: 'Grade not found or unauthorized' };
+    }
+
+    if (sectionId) {
+        const sectionRows = await sql<{ id: string }>`
+            SELECT id FROM sections WHERE id = ${sectionId} AND tenant_id = ${tenantId}
+        `;
+        if (!sectionRows.length) {
+            return { success: false, error: 'Section not found or unauthorized' };
+        }
+    }
 
     const admissionNumber = `ADM-${Date.now().toString(36).toUpperCase()}`;
     const studentId = randomUUID();
@@ -248,16 +318,28 @@ export async function convertLeadToStudent(
 
     const [parentFirstName, ...lastParts] = lead.parentName.split(' ');
     const parentLastName = lastParts.join(' ') || lead.parentName;
+    const decryptedPhone = lead.parentPhone ? decryptFieldTolerant(lead.parentPhone) : '';
+    const decryptedEmail = lead.parentEmail ? decryptFieldTolerant(lead.parentEmail) : '';
 
     await sql`
         INSERT INTO guardians (id, tenant_id, student_id, first_name, last_name, relation, phone_enc, email_enc, is_primary)
-        VALUES (${randomUUID()}, ${tenantId}, ${studentId}, ${parentFirstName}, ${parentLastName}, ${'PARENT'}, ${encryptDeterministic(lead.parentPhone, 'guardians.phone')}, ${encryptDeterministic(lead.parentEmail, 'guardians.email')}, ${true})
+        VALUES (
+            ${randomUUID()},
+            ${tenantId},
+            ${studentId},
+            ${parentFirstName},
+            ${parentLastName},
+            ${'PARENT'},
+            ${decryptedPhone ? encryptPhone(decryptedPhone) : null},
+            ${decryptedEmail ? encryptEmail(decryptedEmail) : null},
+            ${true}
+        )
     `;
 
     await sql`
         UPDATE admission_leads
         SET stage = 'ENROLLED', updated_at = NOW()
-        WHERE id = ${leadId}
+        WHERE id = ${leadId} AND tenant_id = ${tenantId}
     `;
 
     return { success: true, studentId };
@@ -330,7 +412,15 @@ export async function scoreLead(leadId: string): Promise<{
         previousSchool: string | null;
         createdAt: Date;
     }>`
-        SELECT source, stage, child_first_name AS "childFirstName", child_last_name AS "childLastName", child_dob AS "childDob", parent_email AS "parentEmail", parent_phone AS "parentPhone", previous_school AS "previousSchool", created_at AS "createdAt"
+        SELECT source,
+               stage,
+               child_first_name AS "childFirstName",
+               child_last_name AS "childLastName",
+               child_dob AS "childDob",
+               COALESCE(parent_email_enc, parent_email) AS "parentEmail",
+               COALESCE(parent_phone_enc, parent_phone) AS "parentPhone",
+               previous_school AS "previousSchool",
+               created_at AS "createdAt"
         FROM admission_leads
         WHERE id = ${leadId} AND tenant_id = ${tenantId}
     `;
@@ -374,10 +464,17 @@ export async function triggerStageNotification(leadId: string, newStage: string)
     const leadRows = await sql<{
         parentName: string;
         childFirstName: string;
+        childLastName: string | null;
         applyingForGrade: string;
+        notes: string | null;
         parentEmail: string | null;
     }>`
-        SELECT parent_name AS "parentName", child_first_name AS "childFirstName", applying_for_grade AS "applyingForGrade", parent_email AS "parentEmail"
+        SELECT parent_name AS "parentName",
+               child_first_name AS "childFirstName",
+               child_last_name AS "childLastName",
+               applying_for_grade AS "applyingForGrade",
+               notes,
+               COALESCE(parent_email_enc, parent_email) AS "parentEmail"
         FROM admission_leads
         WHERE id = ${leadId} AND tenant_id = ${tenantId}
     `;
@@ -385,36 +482,57 @@ export async function triggerStageNotification(leadId: string, newStage: string)
     if (!leadRows.length) return { success: false, error: 'Lead not found' };
     const lead = leadRows[0];
 
+    const safeParentName = escapeHtml(lead.parentName);
+    const safeChildFirstName = escapeHtml(lead.childFirstName);
+    const safeChildLastName = escapeHtml(lead.childLastName);
+    const safeApplyingForGrade = escapeHtml(lead.applyingForGrade);
+    const safeStage = escapeHtml(newStage);
+    const safeNotes = escapeHtml(lead.notes);
+    void safeChildLastName;
+    void safeStage;
+    void safeNotes;
+
     const stageMessages: Record<string, { subject: string; body: string }> = {
         CONTACTED: {
             subject: 'Thank you for your interest in ScholarMind',
-            body: `<p>Dear ${lead.parentName},</p><p>Thank you for your interest in enrolling ${lead.childFirstName}. Our admissions team will be in touch shortly.</p>`,
+            body: `<p>Dear ${safeParentName},</p><p>Thank you for your interest in enrolling ${safeChildFirstName}. Our admissions team will be in touch shortly.</p>`,
         },
         FORM_SUBMITTED: {
             subject: 'Application Received',
-            body: `<p>Dear ${lead.parentName},</p><p>We have received the application for ${lead.childFirstName} for ${lead.applyingForGrade}. Our team will review it and get back to you.</p>`,
+            body: `<p>Dear ${safeParentName},</p><p>We have received the application for ${safeChildFirstName} for ${safeApplyingForGrade}. Our team will review it and get back to you.</p>`,
         },
         INTERVIEW_SCHEDULED: {
             subject: 'Interview Scheduled',
-            body: `<p>Dear ${lead.parentName},</p><p>An interview has been scheduled for ${lead.childFirstName}. Please check your portal for details.</p>`,
+            body: `<p>Dear ${safeParentName},</p><p>An interview has been scheduled for ${safeChildFirstName}. Please check your portal for details.</p>`,
         },
         OFFERED: {
             subject: 'Admission Offer',
-            body: `<p>Dear ${lead.parentName},</p><p>We are pleased to offer admission to ${lead.childFirstName} for ${lead.applyingForGrade}. Please log in to accept.</p>`,
+            body: `<p>Dear ${safeParentName},</p><p>We are pleased to offer admission to ${safeChildFirstName} for ${safeApplyingForGrade}. Please log in to accept.</p>`,
         },
         REJECTED: {
             subject: 'Application Update',
-            body: `<p>Dear ${lead.parentName},</p><p>Thank you for considering us. Unfortunately, we are unable to offer a seat at this time. We wish ${lead.childFirstName} the best.</p>`,
+            body: `<p>Dear ${safeParentName},</p><p>Thank you for considering us. Unfortunately, we are unable to offer a seat at this time. We wish ${safeChildFirstName} the best.</p>`,
         },
     };
 
+    const decryptedEmail = lead.parentEmail ? decryptFieldTolerant(lead.parentEmail).trim() : '';
     const template = stageMessages[newStage];
-    if (!template || !lead.parentEmail) return { success: true, sent: false };
+    if (!template || !decryptedEmail) return { success: true, sent: false };
+
+    let fullSession: Awaited<ReturnType<typeof getSession>> = null;
+    try {
+        fullSession = await getSession();
+    } catch {
+        fullSession = null;
+    }
+    if (isDemoSession(fullSession) || (await isDemoTenantId(tenantId))) {
+        return { success: true, sent: true, simulated: true };
+    }
 
     const { getEmailProvider } = await import('@/lib/providers/email');
     const emailProvider = getEmailProvider();
     const result = await emailProvider.send({
-        to: lead.parentEmail,
+        to: decryptedEmail,
         subject: template.subject,
         html: template.body,
     });

@@ -50,12 +50,13 @@ function isScope(value: string | undefined): value is AuthorizationScope {
 export function grant(permission: string, scope: AuthorizationScope = 'tenant', description?: string): PermissionGrant {
     const [resource, action, requestedScope] = permission.split(':');
     const hasExplicitScope = isScope(requestedScope);
+    const effectiveScope = hasExplicitScope ? requestedScope : scope;
 
     return {
         permission: hasExplicitScope ? `${resource}:${action}` : permission,
-        scope: hasExplicitScope ? requestedScope : scope,
+        scope: effectiveScope,
         description,
-        requiresExplicitScope: hasExplicitScope,
+        requiresExplicitScope: hasExplicitScope || effectiveScope === 'own',
     };
 }
 
@@ -337,9 +338,9 @@ export const AUTHORIZATION_ROLE_PERMISSIONS = {
     ],
 
     PARENT: [
-        grant('dashboard:read', 'own'),
+        grant('dashboard:read:own'),
         grant('profile:read:own'),
-        grant('parent:read', 'own'),
+        grant('parent:read:own'),
         grant('student:read:own'),
         grant('students:read:own'),
         grant('guardians:read:own'),
@@ -363,7 +364,7 @@ export const AUTHORIZATION_ROLE_PERMISSIONS = {
     ],
 
     STUDENT: [
-        grant('dashboard:read', 'own'),
+        grant('dashboard:read:own'),
         grant('profile:read:own'),
         grant('student:read:own'),
         grant('students:read:own'),

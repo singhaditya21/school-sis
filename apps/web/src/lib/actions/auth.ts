@@ -12,11 +12,14 @@ import { establishSession } from '@/lib/auth/identity';
 import { encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 import { logger } from '@/lib/observability/logger';
 import {
+    canonicalizeEmailIdentity,
     isPermanentPlatformAdminEmail,
     normalizeWorkspaceCode,
     PLATFORM_ALL_MODULES,
     PLATFORM_HQ_TENANT_CODE,
 } from '@/lib/auth/platform-owner';
+import { extractTrustedClientIp } from '@/lib/security/client-ip';
+import { isDemoTenantCode } from '@/lib/tenant/demo-guard';
 
 /**
  * Login action — production-ready authentication.
@@ -37,18 +40,25 @@ const loginSchema = z.object({
 
 const DUMMY_PASSWORD_HASH = '$2a$12$rtRIcbN90xzIGNYbZ/balew0SMhGjd38LHz8rS9D5jEx4QEvSpLEO';
 
-async function resolveLoginClientIp(): Promise<string | null> {
+async function resolveLoginClientIp(): Promise<string> {
     try {
-        const hdrs = await headers();
-        const forwarded =
-            hdrs.get('x-vercel-forwarded-for') ||
-            hdrs.get('x-real-ip') ||
-            hdrs.get('x-forwarded-for');
-        const ip = forwarded?.split(',')[0]?.trim();
-        return ip || null;
+        return extractTrustedClientIp(await headers());
     } catch {
-        return null;
+        return 'unknown-ip';
     }
+}
+
+async function consumeAccountFailureBucket(
+    tenantBucket: string,
+    canonicalEmail: string,
+): Promise<string | null> {
+    return consumeRateLimit(`${tenantBucket}:${canonicalEmail}`, {
+        scope: 'auth:login:account-fail',
+        maxAttempts: 15,
+        degradedMaxAttempts: 5,
+        endpointClass: 'login',
+        message: 'Too many failed login attempts for this account. Please try again later.',
+    });
 }
 
 function displayNameFor(user: { firstName?: string | null; lastName?: string | null; email: string }): string {
@@ -76,23 +86,31 @@ async function loginActionV2WithBypass(formData: FormData) {
         };
     }
 
-    // Consume before any account lookup or password work. Successful authentication
-    // clears the bucket; every rejected authentication attempt remains counted.
+    // Pre-auth rate limit enforces per-IP and per-(IP, tenant, email) buckets so an
+    // unauthenticated attacker from one IP cannot lock out a victim's global account.
     const normalizedEmailInput = email.trim().toLowerCase();
+    const canonicalEmail = canonicalizeEmailIdentity(normalizedEmailInput);
+    const loginMode = formData.get('loginMode') as string | null;
+    const isPlatformAdmin =
+        loginMode === 'platform' || isPermanentPlatformAdminEmail(normalizedEmailInput);
+    const tenantRateBucket = isPlatformAdmin
+        ? PLATFORM_HQ_TENANT_CODE
+        : normalizeWorkspaceCode(schoolCode) || 'MISSING_CODE';
+
     const clientIp = await resolveLoginClientIp();
-    if (clientIp) {
-        const ipRateError = await consumeRateLimit(clientIp, {
-            scope: 'login_ip',
-            maxAttempts: 25,
-            degradedMaxAttempts: 5,
-            endpointClass: 'login',
-            message: 'Too many login attempts from this network. Please try again later.',
-        });
-        if (ipRateError) {
-            return { error: ipRateError };
-        }
+    const ipRateError = await consumeRateLimit(clientIp, {
+        scope: 'auth:login:ip',
+        maxAttempts: 25,
+        degradedMaxAttempts: 5,
+        endpointClass: 'login',
+        message: 'Too many login attempts from this network. Please try again later.',
+    });
+    if (ipRateError) {
+        return { error: ipRateError };
     }
-    const rateLimitError = await consumeLoginRateLimit(normalizedEmailInput);
+
+    const ipAccountKey = `${clientIp}:${tenantRateBucket}:${canonicalEmail}`;
+    const rateLimitError = await consumeLoginRateLimit(ipAccountKey);
     if (rateLimitError) {
         return { error: rateLimitError };
     }
@@ -100,17 +118,18 @@ async function loginActionV2WithBypass(formData: FormData) {
     let redirectPath = '';
 
     try {
-        const loginMode = formData.get('loginMode') as string | null;
-
         // Permanent Platform Admin (`singhaditya21@gmail.com`) always routes to HQ
         // platform authentication, even when submitted from the default login view.
-        const isPlatformAdmin =
-            loginMode === 'platform' || isPermanentPlatformAdminEmail(normalizedEmailInput);
-
         if (isPlatformAdmin) {
-            const normalizedEmail = normalizedEmailInput;
-            if (!isPermanentPlatformAdminEmail(normalizedEmail)) {
+            if (!isPermanentPlatformAdminEmail(normalizedEmailInput)) {
                 await compare(password, DUMMY_PASSWORD_HASH);
+                const failLimitError = await consumeAccountFailureBucket(
+                    PLATFORM_HQ_TENANT_CODE,
+                    canonicalEmail,
+                );
+                if (failLimitError) {
+                    return { error: failLimitError };
+                }
                 return { error: 'Invalid email or password' };
             }
 
@@ -119,6 +138,7 @@ async function loginActionV2WithBypass(formData: FormData) {
                 tenantId: string;
                 tenantCode: string | null;
                 tenantDomain: string | null;
+                tenantSessionVersion?: number | null;
                 email: string;
                 passwordHash: string;
                 role: string;
@@ -126,22 +146,25 @@ async function loginActionV2WithBypass(formData: FormData) {
                 firstName: string | null;
                 lastName: string | null;
                 mfaEnabled: boolean | null;
+                sessionVersion?: number | null;
             }>`
                 SELECT
                     u.id,
                     u.tenant_id as "tenantId",
                     t.code as "tenantCode",
                     t.domain as "tenantDomain",
+                    t.session_version as "tenantSessionVersion",
                     COALESCE(u.email_enc, u.email) AS "email",
                     u.password_hash as "passwordHash",
                     u.role,
                     u.is_active as "isActive",
                     u.first_name as "firstName",
                     u.last_name as "lastName",
-                    u.mfa_enabled as "mfaEnabled"
+                    u.mfa_enabled as "mfaEnabled",
+                    u.session_version as "sessionVersion"
                 FROM users u
                 INNER JOIN tenants t ON t.id = u.tenant_id
-                WHERE (u.email_enc = ANY(${encryptEmailCandidates(normalizedEmail)}::text[]) OR lower(u.email) = ${normalizedEmail})
+                WHERE (u.email_enc = ANY(${encryptEmailCandidates(canonicalEmail)}::text[]) OR lower(u.email) = ${canonicalEmail})
                   AND upper(t.code) = ${PLATFORM_HQ_TENANT_CODE}
                   AND t.is_active = true
                   AND u.role = 'PLATFORM_ADMIN'
@@ -151,6 +174,13 @@ async function loginActionV2WithBypass(formData: FormData) {
 
             const passwordValid = await compare(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
             if (!user || !user.isActive || user.role !== 'PLATFORM_ADMIN' || !passwordValid) {
+                const failLimitError = await consumeAccountFailureBucket(
+                    PLATFORM_HQ_TENANT_CODE,
+                    canonicalEmail,
+                );
+                if (failLimitError) {
+                    return { error: failLimitError };
+                }
                 return { error: 'Invalid email or password' };
             }
             user.email = user.email == null ? user.email : decryptFieldTolerant(user.email);
@@ -161,6 +191,13 @@ async function loginActionV2WithBypass(formData: FormData) {
                 }
                 const mfaResult = await verifyMFACode(user.id, user.tenantId, mfaCode);
                 if (!mfaResult.success) {
+                    const failLimitError = await consumeAccountFailureBucket(
+                        PLATFORM_HQ_TENANT_CODE,
+                        canonicalEmail,
+                    );
+                    if (failLimitError) {
+                        return { error: failLimitError };
+                    }
                     return { error: mfaResult.error || 'Invalid MFA code', mfaRequired: true };
                 }
             }
@@ -172,7 +209,7 @@ async function loginActionV2WithBypass(formData: FormData) {
             // not born through /setup's own auto-login: enrolment needs a session,
             // and login refused to grant one, so the account could never be used.
 
-            await clearRateLimit(normalizedEmailInput);
+            await clearRateLimit(ipAccountKey);
             const session = await getSession();
             establishSession(session, {
                 userId: user.id,
@@ -188,6 +225,9 @@ async function loginActionV2WithBypass(formData: FormData) {
                 mfaEnabled: Boolean(user.mfaEnabled),
                 mfaVerified: Boolean(user.mfaEnabled),
             });
+            session.sessionVersion = user.sessionVersion ?? 1;
+            session.tenantSessionVersion = user.tenantSessionVersion ?? 1;
+            session.isDemoSandbox = false;
             await session.save();
 
             await sql`
@@ -214,14 +254,24 @@ async function loginActionV2WithBypass(formData: FormData) {
                 tenantCode: string | null;
                 tenantDomain: string | null;
                 tenantIsActive: boolean;
+                tenantSessionVersion?: number | null;
+                tenantIsDemo?: boolean | null;
                 companyId: string | null;
                 companyIsActive: boolean | null;
                 subscriptionTier: 'CORE' | 'AI_PRO' | 'ENTERPRISE' | null;
                 activeModules: string[] | null;
             }>`
                 SELECT 
-                    t.id as "tenantId", t.code as "tenantCode", t.domain as "tenantDomain", t.is_active as "tenantIsActive",
-                    c.id as "companyId", c.is_active as "companyIsActive", c.subscription_tier as "subscriptionTier", c.active_modules as "activeModules"
+                    t.id as "tenantId",
+                    t.code as "tenantCode",
+                    t.domain as "tenantDomain",
+                    t.is_active as "tenantIsActive",
+                    t.session_version as "tenantSessionVersion",
+                    t.is_demo as "tenantIsDemo",
+                    c.id as "companyId",
+                    c.is_active as "companyIsActive",
+                    c.subscription_tier as "subscriptionTier",
+                    c.active_modules as "activeModules"
                 FROM tenants t
                 LEFT JOIN companies c ON t.company_id = c.id
                 WHERE upper(t.code) = ${normalizedSchoolCode} LIMIT 1
@@ -246,6 +296,7 @@ async function loginActionV2WithBypass(formData: FormData) {
                 lastName: string | null;
                 isActive: boolean;
                 mfaEnabled: boolean | null;
+                sessionVersion?: number | null;
             }>`
                 SELECT
                     id,
@@ -255,20 +306,31 @@ async function loginActionV2WithBypass(formData: FormData) {
                     first_name as "firstName",
                     last_name as "lastName",
                     is_active as "isActive",
-                    mfa_enabled as "mfaEnabled"
+                    mfa_enabled as "mfaEnabled",
+                    session_version as "sessionVersion"
                 FROM users
-                WHERE (email_enc = ANY(${encryptEmailCandidates(normalizedEmailInput)}::text[]) OR email = ${normalizedEmailInput}) AND tenant_id = ${tenantRecord.tenantId} LIMIT 1
+                WHERE (email_enc = ANY(${encryptEmailCandidates(normalizedEmailInput)}::text[]) OR lower(email) = ${normalizedEmailInput}) AND tenant_id = ${tenantRecord.tenantId} LIMIT 1
             `;
             const user = userRows[0];
 
             const passwordValid = await compare(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
             if (!user || !passwordValid) {
-                return { error: 'Invalid email or password' };
-            }
-            if (user.role === 'PLATFORM_ADMIN' && tenantRecord.tenantCode !== 'HQ') {
+                const failLimitError = await consumeAccountFailureBucket(
+                    normalizedSchoolCode,
+                    canonicalEmail,
+                );
+                if (failLimitError) {
+                    return { error: failLimitError };
+                }
                 return { error: 'Invalid email or password' };
             }
             user.email = user.email == null ? user.email : decryptFieldTolerant(user.email);
+            if (
+                (user.role === 'PLATFORM_ADMIN' && tenantRecord.tenantCode !== 'HQ') ||
+                isPermanentPlatformAdminEmail(user.email)
+            ) {
+                return { error: 'Invalid email or password' };
+            }
 
             if (!user.isActive) {
                 return { error: 'Your account has been deactivated. Contact your school admin.' };
@@ -280,6 +342,13 @@ async function loginActionV2WithBypass(formData: FormData) {
                 }
                 const mfaResult = await verifyMFACode(user.id, tenantRecord.tenantId, mfaCode);
                 if (!mfaResult.success) {
+                    const failLimitError = await consumeAccountFailureBucket(
+                        normalizedSchoolCode,
+                        canonicalEmail,
+                    );
+                    if (failLimitError) {
+                        return { error: failLimitError };
+                    }
                     return { error: mfaResult.error || 'Invalid MFA code', mfaRequired: true };
                 }
             }
@@ -292,7 +361,7 @@ async function loginActionV2WithBypass(formData: FormData) {
             // and login refused to grant one, so the account could never be used.
 
             // Create session — clear rate limit on success
-            await clearRateLimit(normalizedEmailInput);
+            await clearRateLimit(ipAccountKey);
             const session = await getSession();
             establishSession(session, {
                 userId: user.id,
@@ -309,7 +378,16 @@ async function loginActionV2WithBypass(formData: FormData) {
                 mfaEnabled: Boolean(user.mfaEnabled),
                 mfaVerified: Boolean(user.mfaEnabled),
             });
-            
+            const demoSandbox =
+                Boolean(tenantRecord.tenantIsDemo) || isDemoTenantCode(tenantRecord.tenantCode);
+            session.sessionVersion = user.sessionVersion ?? 1;
+            session.tenantSessionVersion = tenantRecord.tenantSessionVersion ?? 1;
+            session.isDemoSandbox = demoSandbox;
+            if (demoSandbox && !user.mfaEnabled) {
+                session.mfaRequired = false;
+                session.mfaVerified = false;
+            }
+
             await session.save();
 
             // Update last login

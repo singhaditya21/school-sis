@@ -373,7 +373,9 @@ export function decryptField(value: string): string {
 /** Read encrypted values during rollout while preserving not-yet-backfilled plaintext. */
 export function decryptFieldTolerant(value: string | null | undefined): string {
     if (!value) return '';
-    return value.startsWith(`${DETERMINISTIC_V1_PREFIX}:`) || value.startsWith(`${DETERMINISTIC_V2_PREFIX}:`)
+    return value.startsWith(`${DETERMINISTIC_V1_PREFIX}:`) ||
+        value.startsWith(`${DETERMINISTIC_V2_PREFIX}:`) ||
+        value.startsWith(`${RANDOM_V2_PREFIX}:`)
         ? decrypt(value)
         : value;
 }

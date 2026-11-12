@@ -6,6 +6,7 @@ import {
     computeBoardGrade,
     verifyReportCardVerificationToken,
 } from '@/lib/academics/board-grading';
+import { evaluateStudentReportCardGovernance } from '@/lib/academics/report-card-policy';
 import { deriveShortVerificationCode } from '@/lib/security/gate-pass-token';
 import { VerificationQrSeal } from '@/components/security/verification-qr-seal';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +16,20 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = {
     title: 'Verify Official Academic Transcript | ScholarMind',
+    robots: { index: false, follow: false, nocache: true },
 };
+
+function maskMinorStudentName(firstName: string, lastName: string): string {
+    const cleanFirst = firstName.trim();
+    const cleanLast = lastName.trim();
+    return cleanLast ? `${cleanFirst} ${cleanLast.charAt(0).toUpperCase()}.` : cleanFirst;
+}
+
+function maskAdmissionNumber(admissionNumber: string): string {
+    const clean = admissionNumber.trim();
+    if (clean.length <= 4) return '••••';
+    return `${clean.slice(0, 2)}••••${clean.slice(-2)}`;
+}
 
 export default async function VerifyReportCardPage({
     params,
@@ -89,6 +103,7 @@ export default async function VerifyReportCardPage({
             WHERE s.id = ${verified.studentId}
               AND s.tenant_id = ${verified.tenantId}
               AND e.status = 'PUBLISHED'
+              AND COALESCE(s.custom_data->>'erased', 'false') <> 'true'
             LIMIT 1
         `.maybeOne();
 
@@ -144,6 +159,40 @@ export default async function VerifyReportCardPage({
     const { header, rows } = transcript;
     const preset = BOARD_PRESETS[verified.board];
     const sealCode = deriveShortVerificationCode(token, 'RC');
+    const maskedStudentName = maskMinorStudentName(header.firstName, header.lastName);
+    const maskedAdmission = maskAdmissionNumber(header.admissionNumber);
+
+    const governance = await evaluateStudentReportCardGovernance(
+        verified.tenantId,
+        verified.studentId,
+    );
+    if (governance.feeHold.active) {
+        return (
+            <main className="min-h-screen flex items-center justify-center bg-background p-6">
+                <Card className="w-full max-w-xl border-brass/40 shadow-lg overflow-hidden">
+                    <div className="h-1.5 w-full bg-brass" />
+                    <CardHeader className="space-y-2">
+                        <div className="flex items-center gap-2 text-primary">
+                            <ShieldAlert className="h-5 w-5 text-brass" />
+                            <Badge variant="outline">Fee Governance Hold ({sealCode})</Badge>
+                        </div>
+                        <CardTitle className="text-2xl">{header.schoolName}</CardTitle>
+                        <CardDescription>
+                            This transcript seal is authentic, but detailed academic marks for {maskedStudentName} ({maskedAdmission}) are currently withheld pending fee clearance per institutional policy.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Link
+                            href="/login"
+                            className="inline-flex w-full items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
+                        >
+                            Sign in to Parent Portal to Clear Dues →
+                        </Link>
+                    </CardContent>
+                </Card>
+            </main>
+        );
+    }
 
     let totalScored = 0;
     let totalMax = 0;
@@ -195,10 +244,10 @@ export default async function VerifyReportCardPage({
                                 Candidate &amp; Assessment
                             </p>
                             <p className="text-lg font-bold text-foreground">
-                                {header.firstName} {header.lastName}
+                                {maskedStudentName}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                                Admission <span className="font-mono font-semibold text-foreground">{header.admissionNumber}</span>
+                                Admission <span className="font-mono font-semibold text-foreground">{maskedAdmission}</span>
                                 {' · '}
                                 {[header.gradeName, header.sectionName].filter(Boolean).join('-')}
                                 {' · '}

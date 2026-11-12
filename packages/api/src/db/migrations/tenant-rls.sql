@@ -123,7 +123,7 @@ DECLARE
     v2_eligible boolean;
 BEGIN
     IF tenant_text IS NULL
-       OR tenant_text !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+       OR tenant_text !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
        OR key_id_text IS NULL
        OR key_id_text !~ '^[a-z0-9][a-z0-9._-]{0,31}$'
        OR audience_text IS NULL
@@ -164,11 +164,13 @@ BEGIN
 
     -- v2 first: only when owner AND group are well-formed lowercase UUIDs. A
     -- malformed owner/group must not deny an otherwise-valid v1 context, so on
-    -- ineligibility we fall through to v1 rather than returning NULL.
+    -- ineligibility we fall through to v1 rather than returning NULL. When
+    -- well-formed owner AND group ARE provided, v2 signature MUST match; failing
+    -- closed prevents falling through to v1 with unsigned owner/group GUCs set.
     v2_eligible := owner_text IS NOT NULL
-        AND owner_text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+        AND owner_text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
         AND group_text IS NOT NULL
-        AND group_text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+        AND group_text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
     IF v2_eligible THEN
         expected_signature := public.hmac(
             convert_to(
@@ -189,6 +191,7 @@ BEGIN
         IF app_private.constant_time_equal_32(expected_signature, provided_signature) THEN
             RETURN tenant_value;
         END IF;
+        RETURN NULL;
     END IF;
 
     -- v1 fallback: byte-identical to the original payload (transaction_text is the
@@ -238,7 +241,7 @@ BEGIN
 
     rollout_phase := app_private.tenant_context_enforcement_phase();
 
-    IF rollout_phase >= 2 OR current_user <> 'school_sis_runtime' THEN
+    IF rollout_phase IS DISTINCT FROM 1 OR current_user <> 'school_sis_runtime' THEN
         RETURN NULL;
     END IF;
 
@@ -248,7 +251,7 @@ BEGIN
     -- advance the database to phase 2 (strict signatures only).
     legacy_tenant := NULLIF(current_setting('app.current_tenant', true), '');
     IF legacy_tenant IS NULL
-       OR legacy_tenant !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+       OR legacy_tenant !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
     THEN
         RETURN NULL;
     END IF;

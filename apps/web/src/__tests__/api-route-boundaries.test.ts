@@ -45,7 +45,7 @@ describe('API route boundary contracts', () => {
             headers: bearer(process.env.CRON_SECRET),
         }));
         expect(ok.status).toBe(200);
-        expect(dispatchDueJobs).toHaveBeenCalledWith({ queue: 'default', limit: 10 });
+        expect(dispatchDueJobs).toHaveBeenCalledWith({ queue: undefined, limit: 10 });
         expect(processDueNotifications).toHaveBeenCalledWith(25);
     });
 

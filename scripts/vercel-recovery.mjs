@@ -63,6 +63,25 @@ function usage() {
   ].join("\n");
 }
 
+export const COMMIT_SHA_RE = /^[0-9a-f]{40}$/i;
+export const DEPLOYMENT_TARGET_RE = /^(?:dpl_[A-Za-z0-9]+|https:\/\/[A-Za-z0-9.-]+)$/;
+
+export function assertValidCommitSha(value, flagName = "--sha") {
+  if (typeof value !== "string" || !COMMIT_SHA_RE.test(value)) {
+    throw new Error(`${flagName} must be a 40-character hexadecimal commit SHA.`);
+  }
+  return value;
+}
+
+export function assertValidDeploymentTarget(value, flagName = "--deployment") {
+  if (typeof value !== "string" || !DEPLOYMENT_TARGET_RE.test(value)) {
+    throw new Error(
+      `${flagName} must be a dpl_ deployment identifier or https:// hostname.`,
+    );
+  }
+  return value;
+}
+
 export function parseArgs(argv, env = process.env) {
   const [command, ...rest] = argv;
   if (!COMMANDS.has(command)) {
@@ -89,7 +108,16 @@ export function parseArgs(argv, env = process.env) {
   let productionHost = "";
   if (productionUrl) {
     try {
-      productionHost = new URL(productionUrl).hostname;
+      const parsed = new URL(productionUrl);
+      if (
+        (parsed.protocol !== "https:" && parsed.protocol !== "http:") ||
+        parsed.username ||
+        parsed.password ||
+        !/^[A-Za-z0-9.-]+$/.test(parsed.hostname)
+      ) {
+        throw new Error("invalid");
+      }
+      productionHost = parsed.hostname;
     } catch {
       // Deliberately not rethrowing the original: a URL parse error carries the
       // offending string on err.input, and this value has held credentials in
@@ -98,6 +126,43 @@ export function parseArgs(argv, env = process.env) {
     }
   }
   if (!productionHost) throw new Error("--production-url is required.");
+
+  const team = values.get("team") ?? "";
+  if (team && !/^[A-Za-z0-9_.-]+$/.test(team)) {
+    throw new Error("--team contains invalid characters.");
+  }
+
+  const project = values.get("project") ?? "";
+  if (project && !/^[A-Za-z0-9_.-]+$/.test(project)) {
+    throw new Error("--project contains invalid characters.");
+  }
+
+  const deployment = values.get("deployment") ?? "";
+  if (deployment) {
+    assertValidDeploymentTarget(deployment, "--deployment");
+  }
+
+  const candidate = values.get("candidate") ?? "";
+  if (candidate) {
+    assertValidDeploymentTarget(candidate, "--candidate");
+  }
+
+  const prior = values.get("prior") ?? "";
+  if (prior) {
+    assertValidDeploymentTarget(prior, "--prior");
+  }
+
+  const sha = values.get("sha") ?? "";
+  if (sha) {
+    if (!/^[0-9a-f]+$/i.test(sha) || (command !== "capture" && !COMMIT_SHA_RE.test(sha))) {
+      throw new Error("--sha must be a 40-character hexadecimal commit SHA.");
+    }
+  }
+
+  const runId = values.get("run-id") ?? "";
+  if (runId && !/^[0-9]+$/.test(runId)) {
+    throw new Error("--run-id must be numeric.");
+  }
 
   const positive = (key, fallback) => {
     const raw = values.get(key);
@@ -112,15 +177,15 @@ export function parseArgs(argv, env = process.env) {
   return {
     command,
     token,
-    team: values.get("team") ?? "",
-    project: values.get("project") ?? "",
+    team,
+    project,
     productionUrl,
     productionHost,
-    deployment: values.get("deployment") ?? "",
-    candidate: values.get("candidate") ?? "",
-    prior: values.get("prior") ?? "",
-    sha: values.get("sha") ?? "",
-    runId: values.get("run-id") ?? "",
+    deployment,
+    candidate,
+    prior,
+    sha,
+    runId,
     attempts: positive("attempts", 30),
     delayMs: positive("delay-ms", 10_000),
     retries: positive("retries", 3),
@@ -521,20 +586,25 @@ export async function report(options, fetchImpl, log = console) {
     verdict = "production is on the deployment captured before this release";
   }
 
-  const commit = deployment.meta?.githubCommitSha ?? "";
+  const rawCommit =
+    typeof deployment.meta?.githubCommitSha === "string"
+      ? deployment.meta.githubCommitSha.trim()
+      : "";
+  const commit = COMMIT_SHA_RE.test(rawCommit) ? rawCommit : "";
+  const safeId = /^dpl_[A-Za-z0-9]+$/.test(String(id)) ? String(id) : "";
   const lines = [
     `${options.productionHost} is serving:`,
     `  deployment        : ${id}`,
     `  url               : ${deployment.url ?? "<none>"}`,
     `  readyState        : ${deployment.readyState ?? "<none>"}`,
-    `  commit            : ${deployment.meta?.githubCommitSha ?? "<none>"}`,
+    `  commit            : ${commit || "<none>"}`,
     `  this release built: ${options.candidate || "<no candidate>"}${options.sha ? ` from ${options.sha}` : ""}`,
     `  captured rollback : ${options.prior || "<none captured>"}`,
     `  => ${verdict}.`,
   ];
   // The commit is emitted so the step that follows can ask whether the database
   // is ahead of it. After a rollback that is the one fact nobody was stating.
-  return { known: true, id, commit, verdict, lines };
+  return { known: true, id: safeId || id, safeId, commit, verdict, lines };
 }
 
 // ─── CLI ────────────────────────────────────────────────────────────────────
@@ -606,7 +676,7 @@ async function main() {
     console.log(text);
     await writeSummary(text);
     await writeOutputs({
-      live_deployment: result.id ?? "",
+      live_deployment: result.safeId ?? "",
       live_commit: result.commit ?? "",
     });
   }

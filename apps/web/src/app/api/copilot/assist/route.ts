@@ -12,8 +12,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireApiAuth } from '@/lib/auth/api';
+import { getSession } from '@/lib/auth/session';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
 import { requestContextFrom } from '@/lib/observability/logger';
+import { isDemoSession, isDemoTenantId } from '@/lib/tenant/demo-guard';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
 import type { AuthorizationRole } from '@school-sis/api';
 import {
@@ -24,6 +26,7 @@ import {
     type AiToolContext,
     type AiTurnResult,
 } from '@/lib/ai';
+import { redactPiiForExternalLlm } from '@/lib/ai/telemetry';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -97,9 +100,18 @@ export async function GET(request: Request) {
         usage = null;
     }
 
+    let sessionForDemo: Awaited<ReturnType<typeof getSession>> | null = null;
+    try {
+        sessionForDemo = await getSession();
+    } catch {
+        sessionForDemo = null;
+    }
+    const demoMode =
+        isDemoSession(sessionForDemo) || (await isDemoTenantId(auth.context.tenantId));
+
     const body: AssistantCapabilities = {
-        providerConfigured: provider.configured,
-        providerMessage: provider.configured ? null : provider.reason,
+        providerConfigured: demoMode ? true : provider.configured,
+        providerMessage: demoMode || provider.configured ? null : provider.reason,
         tools: describeTools(auth.context.role),
         usage,
     };
@@ -127,10 +139,19 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Ask a question in a sentence.' }, { status: 400 });
     }
 
+    let sessionForDemo: Awaited<ReturnType<typeof getSession>> | null = null;
+    try {
+        sessionForDemo = await getSession();
+    } catch {
+        sessionForDemo = null;
+    }
+    const forceDemoSandbox = isDemoSession(sessionForDemo);
+
     const result = await runAssistantTurn(
         aiToolRegistry,
-        parsed.data.question,
+        redactPiiForExternalLlm(parsed.data.question),
         contextFrom(auth.context, request),
+        { forceDemoSandbox },
     );
 
     const status = result.ok

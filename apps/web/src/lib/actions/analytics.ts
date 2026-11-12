@@ -2,9 +2,21 @@
 
 import { sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 
-async function tid(permission = 'dashboard:read') {
-    const { tenantId } = await requireAuth(permission);
+async function tid(permission: 'reports:read' | 'fees:read' = 'reports:read') {
+    if (permission === 'fees:read') {
+        const { tenantId, session } = await requireAuth();
+        const role = session.role as UserRole;
+        if (
+            !hasPermission(role, 'reports:read') &&
+            !(hasPermission(role, 'fees:read') && (hasPermission(role, 'reports:finance') || hasPermission(role, 'reports:fees')))
+        ) {
+            throw new Error('Forbidden: Insufficient permissions (reports:read)');
+        }
+        return tenantId;
+    }
+    const { tenantId } = await requireAuth('reports:read');
     return tenantId;
 }
 
@@ -23,11 +35,11 @@ export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
         exam_avg: string | number | null;
     }>`
         SELECT
-            (SELECT COUNT(*) FROM students WHERE tenant_id=${tenantId} AND status='ACTIVE') AS students,
+            (SELECT COUNT(*) FROM students s WHERE s.tenant_id=${tenantId} AND s.status='ACTIVE' AND COALESCE(s.custom_data->>'erased', 'false') <> 'true') AS students,
             (SELECT COALESCE(SUM(amount),0) FROM payments WHERE tenant_id=${tenantId} AND status='COMPLETED') AS collected,
             (SELECT COALESCE(SUM(total_amount - paid_amount),0) FROM invoices WHERE tenant_id=${tenantId} AND status IN('PENDING','OVERDUE')) AS pending,
             (SELECT ROUND(COUNT(*) FILTER(WHERE status='PRESENT')::numeric / NULLIF(COUNT(*),0) * 100, 1) FROM attendance_records WHERE tenant_id=${tenantId} AND date >= CURRENT_DATE - 30) AS attendance,
-            (SELECT ROUND(AVG(marks_obtained::numeric / NULLIF(es.max_marks,0) * 100), 1) FROM student_results er JOIN exam_schedules es ON es.id=er.exam_schedule_id JOIN exams e ON e.id=es.exam_id WHERE e.tenant_id=${tenantId}) AS exam_avg
+            (SELECT ROUND(AVG(marks_obtained::numeric / NULLIF(es.max_marks,0) * 100), 1) FROM student_results er JOIN exam_schedules es ON es.id=er.exam_schedule_id JOIN exams e ON e.id=es.exam_id JOIN students s ON s.id=er.student_id WHERE e.tenant_id=${tenantId} AND e.status = 'PUBLISHED' AND COALESCE(s.custom_data->>'erased', 'false') <> 'true') AS exam_avg
     `.maybeOne();
     return {
         totalStudents: Number(s?.students || 0),
@@ -79,6 +91,8 @@ export async function getClassWiseSummary() {
         LEFT JOIN sections sec ON sec.id = s.section_id
         LEFT JOIN grades g ON g.id = sec.grade_id
         WHERE e.tenant_id=${tenantId}
+          AND e.status = 'PUBLISHED'
+          AND COALESCE(s.custom_data->>'erased', 'false') <> 'true'
         GROUP BY g.name, g.display_order ORDER BY g.display_order
     `;
     return rows.map((r) => ({ label: r.label || 'N/A', value: Number(r.value || 0) }));
@@ -97,6 +111,8 @@ export async function getTopPerformers() {
         LEFT JOIN sections sec ON sec.id = s.section_id
         LEFT JOIN grades g ON g.id = sec.grade_id
         WHERE e.tenant_id=${tenantId}
+          AND e.status = 'PUBLISHED'
+          AND COALESCE(s.custom_data->>'erased', 'false') <> 'true'
         GROUP BY s.id, s.first_name, s.last_name, g.name
         ORDER BY percentage DESC LIMIT 10
     `;
@@ -144,7 +160,10 @@ export async function getSubjectPerformance() {
         JOIN exam_schedules es ON es.id = er.exam_schedule_id
         JOIN subjects sub ON sub.id = es.subject_id
         JOIN exams e ON e.id = es.exam_id
+        JOIN students s ON s.id = er.student_id
         WHERE e.tenant_id=${tenantId}
+          AND e.status = 'PUBLISHED'
+          AND COALESCE(s.custom_data->>'erased', 'false') <> 'true'
         GROUP BY sub.name ORDER BY value DESC
     `;
     return rows.map((r) => ({ label: r.label, value: Number(r.value || 0) }));
@@ -168,6 +187,8 @@ export async function getExamClassPerformance() {
         LEFT JOIN sections sec ON sec.id = s.section_id
         LEFT JOIN grades g ON g.id = sec.grade_id
         WHERE e.tenant_id=${tenantId}
+          AND e.status = 'PUBLISHED'
+          AND COALESCE(s.custom_data->>'erased', 'false') <> 'true'
         GROUP BY g.name, sec.name, g.display_order
         ORDER BY g.display_order, sec.name
     `;

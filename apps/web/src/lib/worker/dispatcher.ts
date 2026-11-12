@@ -6,6 +6,7 @@ type BackgroundJobRow = {
   id: string;
   tenantId: string | null;
   scope: 'TENANT' | 'PLATFORM';
+  queue: string;
   taskName: string;
   payload: Record<string, unknown>;
   attempts: number;
@@ -31,59 +32,108 @@ export type DispatchJobsResult = {
   }>;
 };
 
-function backoffForAttempt(attempt: number): string {
-  const minutes = Math.min(120, Math.max(1, attempt * attempt * 2));
-  return `${minutes} minutes`;
+function backoffMinutesForAttempt(attempt: number): number {
+  return Math.min(120, Math.max(1, attempt * attempt * 2));
 }
 
 const STALE_JOB_LEASE_ERROR = 'Job lease expired after worker crash or timeout';
 
-async function claimDueJobs(options: Required<DispatchJobsOptions>): Promise<BackgroundJobRow[]> {
+type NormalizedDispatchOptions = {
+  limit: number;
+  queue?: string;
+  workerId: string;
+};
+
+async function claimDueJobs(options: NormalizedDispatchOptions): Promise<BackgroundJobRow[]> {
   const client = await pool.connect();
   const q = sqlFor(client);
   try {
     await q`BEGIN`;
-    await q`
-      UPDATE background_jobs
-      SET status = 'FAILED',
-          last_error = ${STALE_JOB_LEASE_ERROR},
-          locked_at = NULL,
-          locked_by = NULL,
-          updated_at = NOW()
-      WHERE queue = ${options.queue}
-        AND status = 'RUNNING'
-        AND locked_at < NOW() - INTERVAL '15 minutes'
-        AND attempts >= max_attempts
-    `;
+    if (options.queue) {
+      await q`
+        UPDATE background_jobs
+        SET status = 'FAILED',
+            last_error = ${STALE_JOB_LEASE_ERROR},
+            locked_at = NULL,
+            locked_by = NULL,
+            updated_at = NOW()
+        WHERE queue = ${options.queue}
+          AND status = 'RUNNING'
+          AND locked_at < NOW() - INTERVAL '15 minutes'
+          AND attempts >= max_attempts
+      `;
+    } else {
+      await q`
+        UPDATE background_jobs
+        SET status = 'FAILED',
+            last_error = ${STALE_JOB_LEASE_ERROR},
+            locked_at = NULL,
+            locked_by = NULL,
+            updated_at = NOW()
+        WHERE status = 'RUNNING'
+          AND locked_at < NOW() - INTERVAL '15 minutes'
+          AND attempts >= max_attempts
+      `;
+    }
 
-    const rows = await q<BackgroundJobRow>`
-      WITH next_jobs AS (
-          SELECT id
-          FROM background_jobs
-          WHERE queue = ${options.queue}
-            AND (
-              (status IN ('QUEUED', 'SCHEDULED', 'FAILED') AND available_at <= NOW())
-              OR (status = 'RUNNING' AND locked_at < NOW() - INTERVAL '15 minutes')
-            )
-            AND attempts < max_attempts
-          ORDER BY priority DESC, available_at ASC, created_at ASC
-          FOR UPDATE SKIP LOCKED
-          LIMIT ${options.limit}
-      )
-      UPDATE background_jobs bj
-      SET status = 'RUNNING',
-          locked_at = NOW(),
-          locked_by = ${options.workerId},
-          updated_at = NOW()
-      WHERE bj.id IN (SELECT id FROM next_jobs)
-      RETURNING bj.id,
-                bj.tenant_id AS "tenantId",
-                bj.scope,
-                bj.task_name AS "taskName",
-                bj.payload,
-                bj.attempts,
-                bj.max_attempts AS "maxAttempts"
-    `;
+    const rows = options.queue
+      ? await q<BackgroundJobRow>`
+          WITH next_jobs AS (
+              SELECT id
+              FROM background_jobs
+              WHERE queue = ${options.queue}
+                AND (
+                  (status IN ('QUEUED', 'SCHEDULED', 'FAILED') AND available_at <= NOW())
+                  OR (status = 'RUNNING' AND locked_at < NOW() - INTERVAL '15 minutes')
+                )
+                AND attempts < max_attempts
+              ORDER BY priority DESC, available_at ASC, created_at ASC
+              FOR UPDATE SKIP LOCKED
+              LIMIT ${options.limit}
+          )
+          UPDATE background_jobs bj
+          SET status = 'RUNNING',
+              locked_at = NOW(),
+              locked_by = ${options.workerId},
+              updated_at = NOW()
+          WHERE bj.id IN (SELECT id FROM next_jobs)
+          RETURNING bj.id,
+                    bj.tenant_id AS "tenantId",
+                    bj.scope,
+                    bj.queue,
+                    bj.task_name AS "taskName",
+                    bj.payload,
+                    bj.attempts,
+                    bj.max_attempts AS "maxAttempts"
+        `
+      : await q<BackgroundJobRow>`
+          WITH next_jobs AS (
+              SELECT id
+              FROM background_jobs
+              WHERE (
+                  (status IN ('QUEUED', 'SCHEDULED', 'FAILED') AND available_at <= NOW())
+                  OR (status = 'RUNNING' AND locked_at < NOW() - INTERVAL '15 minutes')
+                )
+                AND attempts < max_attempts
+              ORDER BY priority DESC, available_at ASC, created_at ASC
+              FOR UPDATE SKIP LOCKED
+              LIMIT ${options.limit}
+          )
+          UPDATE background_jobs bj
+          SET status = 'RUNNING',
+              locked_at = NOW(),
+              locked_by = ${options.workerId},
+              updated_at = NOW()
+          WHERE bj.id IN (SELECT id FROM next_jobs)
+          RETURNING bj.id,
+                    bj.tenant_id AS "tenantId",
+                    bj.scope,
+                    bj.queue,
+                    bj.task_name AS "taskName",
+                    bj.payload,
+                    bj.attempts,
+                    bj.max_attempts AS "maxAttempts"
+        `;
     await q`COMMIT`;
     return rows;
   } catch (error) {
@@ -146,6 +196,7 @@ async function markJobSucceeded(job: BackgroundJobRow, attemptNumber: number, re
 
 async function markJobFailed(job: BackgroundJobRow, attemptNumber: number, error: string) {
   const deadLetter = attemptNumber >= job.maxAttempts;
+  const backoffMinutes = backoffMinutesForAttempt(attemptNumber);
   await pool.query(
     `UPDATE background_jobs
      SET status = $1,
@@ -154,13 +205,13 @@ async function markJobFailed(job: BackgroundJobRow, attemptNumber: number, error
          locked_at = NULL,
          locked_by = NULL,
          available_at = CASE
-            WHEN $1 = 'FAILED' THEN NOW() + INTERVAL '${backoffForAttempt(attemptNumber)}'
+            WHEN $1 = 'FAILED' THEN NOW() + make_interval(mins => $5::int)
             ELSE available_at
          END,
          completed_at = CASE WHEN $1 = 'DEAD_LETTER' THEN NOW() ELSE completed_at END,
          updated_at = NOW()
      WHERE id = $4`,
-    [deadLetter ? 'DEAD_LETTER' : 'FAILED', attemptNumber, error, job.id],
+    [deadLetter ? 'DEAD_LETTER' : 'FAILED', attemptNumber, error, job.id, backoffMinutes],
   );
 }
 
@@ -174,16 +225,24 @@ async function executeJob(job: BackgroundJobRow): Promise<unknown> {
     if (!job.tenantId) {
       throw new Error('Tenant job is missing tenantId.');
     }
-    return runWithTenantContext(job.tenantId, () => handler(job.payload));
+    const payloadWithTenant =
+      typeof job.payload?.tenantId === 'string' && job.payload.tenantId.trim().length > 0
+        ? job.payload
+        : { ...job.payload, tenantId: job.tenantId };
+    return runWithTenantContext(job.tenantId, () => handler(payloadWithTenant));
   }
 
   return runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.JOB_DISPATCH, () => handler(job.payload));
 }
 
 export async function dispatchDueJobs(options: DispatchJobsOptions = {}): Promise<DispatchJobsResult> {
-  const normalized = {
-    limit: Math.max(1, Math.min(options.limit ?? 10, 100)),
-    queue: options.queue || 'default',
+  const normalizedQueue =
+    typeof options.queue === 'string' && options.queue.trim().length > 0
+      ? options.queue.trim()
+      : undefined;
+  const normalized: NormalizedDispatchOptions = {
+    limit: Math.max(1, Math.min(options.limit ?? 10, 500)),
+    queue: normalizedQueue,
     workerId: options.workerId || `worker-${process.env.APP_REGION || 'local'}-${process.pid}`,
   };
 
@@ -241,7 +300,7 @@ export async function dispatchDueJobs(options: DispatchJobsOptions = {}): Promis
             taskName: job.taskName,
             attemptNumber,
             maxAttempts: job.maxAttempts,
-            queue: normalized.queue,
+            queue: job.queue || normalized.queue || 'all',
           },
         });
         result.deadLettered += 1;

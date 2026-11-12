@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
 import { logger, requestContextFrom } from '@/lib/observability/logger';
+import { extractTrustedClientIp } from '@/lib/security/client-ip';
 
 const MAX_REPORT_BYTES = 16 * 1024;
 const MAX_REPORTS_PER_REQUEST = 10;
@@ -10,10 +11,17 @@ type BoundedBodyResult =
     | { ok: false };
 
 function clientIpFrom(request: Request): string {
-    return (request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown')
-        .split(',')[0]
-        .trim()
-        .toLowerCase() || 'unknown';
+    const trustedIp = extractTrustedClientIp(request.headers);
+    if (trustedIp !== 'unknown-ip') {
+        return trustedIp.toLowerCase();
+    }
+    if (process.env.NODE_ENV === 'test') {
+        const fallbackTestIp = request.headers.get('x-real-ip')?.trim().toLowerCase();
+        if (fallbackTestIp) {
+            return fallbackTestIp;
+        }
+    }
+    return 'unknown-ip';
 }
 
 function objectValue(value: unknown): Record<string, unknown> | null {

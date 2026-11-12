@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { claimSingleUseToken } from '@/lib/auth/rate-limit';
 import { notificationProviderForChannel } from '@/lib/integrations/runtime-mode';
 import {
     getWhatsAppProvider,
@@ -13,10 +14,12 @@ import {
     verifyWhatsAppSignature,
 } from '@/lib/notifications/receipts';
 import {
-    locateGuardianTenantByPhone,
     parseInboundWhatsAppMessages,
-    resolveConciergeReplyForTenant,
+    processInboundConciergeMessage,
+    resolveInboundWhatsAppTenant,
 } from '@/lib/concierge/whatsapp-concierge';
+import { resolveTrustedAppOrigin } from '@/lib/security/client-ip';
+import { isDemoTenantId } from '@/lib/tenant/demo-guard';
 import { logger } from '@/lib/observability/logger';
 
 // The provider signs the raw body, so the body must never be cached or reparsed
@@ -28,19 +31,21 @@ function verifySelfHostedWebhookAuth(
     rawBody: string,
     req: NextRequest,
     secret: string | undefined,
+    provider: string,
 ): boolean {
-    if (!secret) return false;
+    if (!secret || secret.trim().length < 16) return false;
+    const cleanSecret = secret.trim();
 
-    // 1. WAHA HMAC header (`X-Webhook-Hmac` raw hex or `X-Hub-Signature-256` sha256=hex)
+    // 1. WAHA / Meta-compatible HMAC-SHA256 (`X-Webhook-Hmac`, `X-Webhook-Hmac-Sha256`, or `X-Hub-Signature-256`)
     const hubSig = req.headers.get('x-hub-signature-256');
-    if (hubSig && verifyWhatsAppSignature(rawBody, hubSig, secret)) {
+    if (hubSig && verifyWhatsAppSignature(rawBody, hubSig, cleanSecret)) {
         return true;
     }
 
-    const wahaHmac = req.headers.get('x-webhook-hmac');
+    const wahaHmac = req.headers.get('x-webhook-hmac') || req.headers.get('x-webhook-hmac-sha256');
     if (wahaHmac) {
-        const computedHex = crypto.createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex');
-        const normalizedProvided = wahaHmac.replace(/^sha256=/i, '');
+        const computedHex = crypto.createHmac('sha256', cleanSecret).update(rawBody, 'utf8').digest('hex');
+        const normalizedProvided = wahaHmac.trim().replace(/^sha256=/i, '');
         const a = Buffer.from(normalizedProvided);
         const b = Buffer.from(computedHex);
         if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
@@ -48,11 +53,16 @@ function verifySelfHostedWebhookAuth(
         }
     }
 
-    // 2. Evolution API / Self-Hosted shared secret header (`X-Webhook-Secret` or `apikey`)
+    // When `WHATSAPP_PROVIDER=waha`, strictly require valid HMAC-SHA256 (never downgrade to static header)
+    if (provider === 'waha') {
+        return false;
+    }
+
+    // 2. Evolution API shared webhook secret header (`X-Webhook-Secret` or `apikey`)
     const sharedHeader = req.headers.get('x-webhook-secret') || req.headers.get('apikey');
     if (sharedHeader) {
-        const a = Buffer.from(sharedHeader);
-        const b = Buffer.from(secret);
+        const a = Buffer.from(sharedHeader.trim());
+        const b = Buffer.from(cleanSecret);
         if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
             return true;
         }
@@ -96,8 +106,8 @@ export async function POST(req: NextRequest) {
     const selfHosted = isSelfHostedWhatsAppProvider(provider);
 
     if (selfHosted) {
-        const webhookSecret = process.env.WHATSAPP_WEBHOOK_SECRET || process.env.WHATSAPP_APP_SECRET;
-        if (!verifySelfHostedWebhookAuth(raw, req, webhookSecret)) {
+        const webhookSecret = process.env.WHATSAPP_WEBHOOK_SECRET;
+        if (!verifySelfHostedWebhookAuth(raw, req, webhookSecret, provider)) {
             return NextResponse.json({ error: 'Invalid webhook signature or secret' }, { status: 401 });
         }
     } else {
@@ -148,18 +158,48 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ received: receipts.length, matched });
     }
 
-    const appOrigin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
+    const appOrigin = resolveTrustedAppOrigin(req.nextUrl.origin);
+    const hintTenantId = req.nextUrl.searchParams.get('tenantId') || req.headers.get('x-tenant-id');
     let conciergeReplied = 0;
 
     for (const inbound of inboundMessages) {
         try {
-            const located = await locateGuardianTenantByPhone(inbound.fromDigits);
-            if (!located) continue;
+            const freshMessage = await claimSingleUseToken(inbound.messageId, 'whatsapp-inbound-msg');
+            if (!freshMessage) {
+                continue;
+            }
 
-            const reply = await resolveConciergeReplyForTenant({
-                tenantId: located.tenantId,
-                fromPhone: inbound.fromDigits,
+            const routing = await resolveInboundWhatsAppTenant({
+                phoneNumberId: inbound.phoneNumberId,
+                hintTenantId,
+                fromDigits: inbound.fromDigits,
                 rawText: inbound.text,
+            });
+
+            if (routing.status === 'NOT_FOUND') {
+                continue;
+            }
+
+            if (routing.status === 'AMBIGUOUS') {
+                const disambiguationDispatch = await getWhatsAppProvider().send({
+                    to: inbound.fromDigits,
+                    body: routing.replyText,
+                    payload: { whatsapp: { messageType: 'text' } },
+                });
+                if (disambiguationDispatch.success) {
+                    conciergeReplied += 1;
+                }
+                continue;
+            }
+
+            if (await isDemoTenantId(routing.tenantId)) {
+                continue;
+            }
+
+            const reply = await processInboundConciergeMessage({
+                tenantId: routing.tenantId,
+                fromPhone: inbound.fromDigits,
+                rawText: routing.normalizedText,
                 appOrigin,
             });
             if (!reply || !reply.ok) continue;

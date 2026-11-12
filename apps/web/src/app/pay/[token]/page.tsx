@@ -12,6 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = {
     title: 'Secure School Fee Payment | ScholarMind',
+    robots: { index: false, follow: false, nocache: true },
 };
 
 function formatInr(amountMinor: number): string {
@@ -101,6 +102,7 @@ export default async function PublicInvoicePaymentLinkPage({
             JOIN tenants t ON t.id = i.tenant_id
             WHERE i.id = ${verified.invoiceId}
               AND i.tenant_id = ${verified.tenantId}
+              AND COALESCE(s.custom_data->>'erased', 'false') <> 'true'
             LIMIT 1
         `.maybeOne();
     });

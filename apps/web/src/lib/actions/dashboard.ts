@@ -3,6 +3,7 @@
 import { sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { logger } from '@/lib/observability/logger';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 
 export interface DashboardStats {
     totalStudents: number;
@@ -27,7 +28,10 @@ export interface TenantInfo {
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-    const { tenantId } = await requireAuth('dashboard:read');
+    const { tenantId, session } = await requireAuth('dashboard:read');
+    const role = session.role as UserRole;
+    const canViewFinancials =
+        hasPermission(role, 'fees:read') || hasPermission(role, 'reports:read');
 
     // Run all aggregate queries in parallel
     const [
@@ -49,29 +53,33 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         // Collected and expected come from invoices — SUM(paid_amount) and
         // SUM(total_amount) — matching getExecutiveFinancialMetrics, so the
         // dashboard cannot contradict /executive or /fees.
-        sql<{ expected: string; collected: string }>`
-            SELECT COALESCE(SUM(total_amount), 0) AS expected,
-                   COALESCE(SUM(paid_amount), 0)  AS collected
-            FROM invoices
-            WHERE tenant_id = ${tenantId} AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
-        `.one(),
+        canViewFinancials
+            ? sql<{ expected: string; collected: string }>`
+                SELECT COALESCE(SUM(total_amount), 0) AS expected,
+                       COALESCE(SUM(paid_amount), 0)  AS collected
+                FROM invoices
+                WHERE tenant_id = ${tenantId} AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
+            `.one()
+            : Promise.resolve(null),
         sql<{ count: string }>`SELECT count(*) FROM admission_leads WHERE tenant_id = ${tenantId} AND stage = 'NEW'`.one(),
         // Nothing ever stamps the OVERDUE invoice status; filtering on it
         // matched zero rows, so the dashboard showed ₹0 overdue and a 100%
         // collection rate while /fees showed the real defaulters one click
         // away. Derive overdue the way every other fee readout does: past
         // due, and still owing.
-        sql<{ overdue_amount: string; overdue_count: string; defaulter_count: string }>`
-            SELECT
-                COALESCE(SUM(total_amount - paid_amount), 0) as overdue_amount,
-                count(*) as overdue_count,
-                count(DISTINCT student_id) as defaulter_count
-            FROM invoices
-            WHERE tenant_id = ${tenantId}
-              AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
-              AND due_date < CURRENT_DATE
-              AND total_amount > paid_amount
-        `.one(),
+        canViewFinancials
+            ? sql<{ overdue_amount: string; overdue_count: string; defaulter_count: string }>`
+                SELECT
+                    COALESCE(SUM(total_amount - paid_amount), 0) as overdue_amount,
+                    count(*) as overdue_count,
+                    count(DISTINCT student_id) as defaulter_count
+                FROM invoices
+                WHERE tenant_id = ${tenantId}
+                  AND status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')
+                  AND due_date < CURRENT_DATE
+                  AND total_amount > paid_amount
+            `.one()
+            : Promise.resolve(null),
         sql<{ blocked_count: string }>`
             SELECT (
                 (SELECT count(*) FROM consents WHERE tenant_id = ${tenantId} AND is_opted_in = false) +
@@ -129,7 +137,10 @@ export interface ActivityLogItem {
 }
 
 export async function getRecentActivity(limit_num: number = 10): Promise<ActivityLogItem[]> {
-    const { tenantId } = await requireAuth('dashboard:read');
+    const { tenantId, session } = await requireAuth('dashboard:read');
+    if (!hasPermission(session.role as UserRole, 'audit:read')) {
+        return [];
+    }
     const safeLimit = Math.max(1, Math.min(50, Math.floor(Number(limit_num) || 10)));
 
     try {

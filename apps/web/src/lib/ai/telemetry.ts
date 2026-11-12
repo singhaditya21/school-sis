@@ -40,11 +40,34 @@ export interface AiTurnLogInput {
     latencyMs: number;
 }
 
+/**
+ * Scrubs Indian Aadhaar numbers, PAN numbers, email addresses, and 10+ digit
+ * phone numbers BEFORE any prompt or context string leaves for an external LLM.
+ */
+export function redactPiiForExternalLlm(text: string): string {
+    if (!text) return '';
+    return text
+        .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[REDACTED_EMAIL]')
+        .replace(/\b[A-Za-z]{5}[0-9]{4}[A-Za-z]\b/g, '[REDACTED_PAN]')
+        .replace(/(?<!\d)[2-9]\d{3}[\s-]?\d{4}[\s-]?\d{4}(?!\d)/g, '[REDACTED_AADHAAR]')
+        .replace(/\+?\d[\d\s().-]{8,}\d/g, (match) => {
+            const digits = match.replace(/\D/g, '');
+            if (digits.length === 12 && /^[2-9]\d{11}$/.test(digits) && !match.trim().startsWith('+')) {
+                return '[REDACTED_AADHAAR]';
+            }
+            if (digits.length >= 10 && digits.length <= 15) {
+                return '[REDACTED_PHONE]';
+            }
+            return match;
+        });
+}
+
 /** Masks anything that looks like an identifier or contact number. */
 export function redactQuestion(question: string): string {
     return question
+        .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[email]')
+        .replace(/\b[A-Za-z]{5}[0-9]{4}[A-Za-z]\b/g, '[pan]')
         .replace(/\b\d[\d\s-]{4,}\d\b/g, '[number]')
-        .replace(/\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g, '[email]')
         .slice(0, 1000);
 }
 

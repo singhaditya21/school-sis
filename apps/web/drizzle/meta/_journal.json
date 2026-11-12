@@ -120,6 +120,13 @@
       "when": 1789128000000,
       "tag": "0016_tenant_indexes_and_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789214400000,
+      "tag": "0017_security_hardening_and_revocation",
+      "breakpoints": true
     }
   ]
 }

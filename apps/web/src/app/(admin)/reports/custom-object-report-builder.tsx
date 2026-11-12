@@ -31,6 +31,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import type { RollupAggregateFunction } from '@/lib/metadata/platform';
+import { sanitizeCsvValue } from '@/lib/utils/csv-sanitize';
 import {
     runCustomObjectBiReport,
     type CustomObjectReportCatalogEntry,
@@ -100,9 +101,9 @@ export function CustomObjectReportBuilder({
 
     const handleExportCsv = () => {
         if (columns.length === 0) return;
-        const headers = columns.map(c => c.label).join(',');
+        const headers = columns.map(c => sanitizeCsvValue(c.label)).join(',');
         const body = rows
-            .map(r => columns.map(c => String(r[c.label] ?? '')).join(','))
+            .map(r => columns.map(c => sanitizeCsvValue(r[c.label] ?? '')).join(','))
             .join('\n');
         const csv = `${headers}\n${body}`;
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

@@ -78,12 +78,19 @@ jobs:
             exit 0
           fi
 
+          if ! [[ "$PRODUCTION_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/.*)?$ ]]; then
+            echo "::error::PRODUCTION_URL must be an https:// URL." >&2
+            exit 1
+          fi
+
           payload="$(jq -nc \
             --argjson jobLimit "$JOB_LIMIT" \
             --argjson notificationLimit "$NOTIFICATION_LIMIT" \
             '{jobLimit: $jobLimit, notificationLimit: $notificationLimit}')"
 
+          umask 077
           response="$(mktemp)"
+          trap 'rm -f "$response"' EXIT
           status="$(
             curl --silent --show-error --fail-with-body \
               --max-time 120 \

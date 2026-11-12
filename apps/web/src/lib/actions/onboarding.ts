@@ -14,6 +14,7 @@ import {
     normalizeWorkspaceCode,
 } from '@/lib/auth/platform-owner';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
+import { extractTrustedClientIp } from '@/lib/security/client-ip';
 import { logger } from '@/lib/observability/logger';
 
 type OnboardingInput = {
@@ -65,28 +66,21 @@ function normalizeOnboardingInput(formData: FormData): { ok: true; data: Onboard
 }
 
 async function enforceOnboardingRateLimits(input: OnboardingInput): Promise<string | null> {
-    let clientIp: string | null = null;
+    let clientIp = 'unknown-ip';
     try {
-        const hdrs = await headers();
-        const forwarded =
-            hdrs.get('x-vercel-forwarded-for') ||
-            hdrs.get('x-real-ip') ||
-            hdrs.get('x-forwarded-for');
-        clientIp = forwarded?.split(',')[0]?.trim() || null;
+        clientIp = extractTrustedClientIp(await headers());
     } catch {
-        clientIp = null;
+        clientIp = 'unknown-ip';
     }
 
-    if (clientIp) {
-        const ipLimit = await consumeRateLimit(clientIp, {
-            scope: 'onboarding_ip',
-            maxAttempts: 5,
-            degradedMaxAttempts: 2,
-            endpointClass: 'public-write',
-            message: 'Too many workspace creation attempts from this network. Please try again later.',
-        });
-        if (ipLimit) return ipLimit;
-    }
+    const ipLimit = await consumeRateLimit(clientIp, {
+        scope: 'onboarding_ip',
+        maxAttempts: 5,
+        degradedMaxAttempts: 2,
+        endpointClass: 'public-write',
+        message: 'Too many workspace creation attempts from this network. Please try again later.',
+    });
+    if (ipLimit) return ipLimit;
 
     return await consumeRateLimit(input.email, {
         scope: 'onboarding_email',
@@ -148,8 +142,15 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
         const client = await pool.connect();
         const q = sqlFor(client);
         let companyId = '';
-        let tenant: { id: string };
-        let adminUser: { id: string; role: string; email: string; firstName: string; lastName: string };
+        let tenant: { id: string; tenantSessionVersion?: number };
+        let adminUser: {
+            id: string;
+            role: string;
+            email: string;
+            firstName: string;
+            lastName: string;
+            sessionVersion?: number;
+        };
         try {
             await q`BEGIN`;
 
@@ -160,17 +161,24 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
             `;
             companyId = companyRows[0].id;
 
-            const tenantRows = await q<{ id: string }>`
+            const tenantRows = await q<{ id: string; tenantSessionVersion?: number }>`
                 INSERT INTO tenants (company_id, name, code, domain, email, is_active)
                 VALUES (${companyId}, ${schoolName}, ${tenantCode}, ${domainUrl}, ${email}, ${true})
-                RETURNING id
+                RETURNING id, session_version AS "tenantSessionVersion"
             `;
             tenant = tenantRows[0];
 
-            const adminUserRows = await q<{ id: string; role: string; email: string; firstName: string; lastName: string }>`
+            const adminUserRows = await q<{
+                id: string;
+                role: string;
+                email: string;
+                firstName: string;
+                lastName: string;
+                sessionVersion?: number;
+            }>`
                 INSERT INTO users (tenant_id, email_enc, password_hash, first_name, last_name, role, is_active)
                 VALUES (${tenant.id}, ${encryptEmail(email)}, ${passwordHash}, ${firstName}, ${lastName}, ${'SUPER_ADMIN'}, ${true})
-                RETURNING id, COALESCE(email_enc, email) AS email, first_name AS "firstName", last_name AS "lastName", role
+                RETURNING id, COALESCE(email_enc, email) AS email, first_name AS "firstName", last_name AS "lastName", role, session_version AS "sessionVersion"
             `;
             adminUser = adminUserRows[0];
             adminUser.email = adminUser.email == null ? adminUser.email : decryptFieldTolerant(adminUser.email);
@@ -202,6 +210,9 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
             mfaEnabled: false,
             mfaVerified: false,
         });
+        session.sessionVersion = adminUser.sessionVersion ?? 1;
+        session.tenantSessionVersion = tenant.tenantSessionVersion ?? 1;
+        session.isDemoSandbox = false;
         await session.save();
 
         return { success: true, tenantId: tenant.id, tenantCode };

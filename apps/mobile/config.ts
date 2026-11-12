@@ -107,3 +107,36 @@ export function requireBackendUrl(): string {
   }
   return config.BACKEND_URL;
 }
+
+/**
+ * Resolves a backend-relative URL path strictly against `BACKEND_URL` and enforces
+ * both `https:` transport and exact origin pinning before passing to `Linking.openURL`.
+ */
+export function resolveSafeBackendUrl(targetPath: string): string {
+  const backendUrl = requireBackendUrl();
+  const trimmed = targetPath.trim();
+  if (!trimmed || !trimmed.startsWith('/') || trimmed.startsWith('//') || trimmed.includes('\\')) {
+    throw new Error('Refusing to open untrusted external link path.');
+  }
+
+  let expectedOriginUrl: URL;
+  let parsed: URL;
+  try {
+    expectedOriginUrl = new URL(backendUrl);
+    parsed = new URL(trimmed, `${expectedOriginUrl.origin}/`);
+  } catch {
+    throw new Error('Refusing to open malformed link target.');
+  }
+
+  if (parsed.protocol !== 'https:') {
+    throw new Error('Refusing to open non-HTTPS external link.');
+  }
+  if (parsed.origin !== expectedOriginUrl.origin) {
+    throw new Error('Refusing to open link outside configured ScholarMind origin.');
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error('Refusing to open link with embedded credentials.');
+  }
+
+  return parsed.toString();
+}

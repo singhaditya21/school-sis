@@ -1,11 +1,17 @@
 # Zero-Cost Self-Hosted WhatsApp Gateway for ScholarMind (devlikeapro/waha)
 #
 # Replaces paid WhatsApp BSP per-conversation markups with an open-source HTTP gateway.
-# Run on any ₹0 Oracle Cloud Always-Free VM, school server, or local machine:
+# Run on any ₹0 Oracle Cloud Always-Free VM, school server, or local machine behind an
+# authenticated TLS reverse proxy (Caddy/Cloudflare Tunnel/Nginx):
 #
 #   WHATSAPP_WEBHOOK_SECRET=your_random_32_char_secret \
 #   WAHA_API_KEY=your_waha_api_key \
+#   WAHA_DASHBOARD_PASSWORD=your_dashboard_password \
 #   docker compose -f docker-compose.whatsapp-free.yml up -d
+#
+# Production supply-chain note: pin the exact immutable image digest alongside the
+# version tag (`devlikeapro/waha:2026.2.2@sha256:<digest>`) before deploying on a
+# shared or internet-reachable host.
 #
 # Then set these environment variables on your ScholarMind Web deployment:
 #   WHATSAPP_PROVIDER=waha
@@ -15,18 +21,26 @@
 
 services:
   waha:
-    image: devlikeapro/waha:latest
+    # Pin immutable @sha256:<digest> in production deployments; never use unpinned floating tags.
+    image: devlikeapro/waha:2026.2.2
     container_name: scholarmind-whatsapp-gateway
     restart: unless-stopped
     ports:
-      - '3005:3000'
+      - '127.0.0.1:3005:3000'
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    cpus: 1.0
     environment:
       WHATSAPP_DEFAULT_ENGINE: WEBJS
-      WAHA_API_KEY: ${WAHA_API_KEY:-change_me_waha_api_key}
+      WAHA_API_KEY: ${WAHA_API_KEY:?WAHA_API_KEY must be set}
+      WAHA_DASHBOARD_PASSWORD: ${WAHA_DASHBOARD_PASSWORD:?WAHA_DASHBOARD_PASSWORD must be set}
       WHATSAPP_START_SESSION: default
       WHATSAPP_HOOK_URL: ${SCHOLARMIND_WEBHOOK_URL:-https://school-sis-web.vercel.app/api/webhooks/whatsapp}
       WHATSAPP_HOOK_EVENTS: message
-      WHATSAPP_HOOK_HMAC_KEY: ${WHATSAPP_WEBHOOK_SECRET:-change_me_webhook_hmac_secret}
+      WHATSAPP_HOOK_HMAC_KEY: ${WHATSAPP_WEBHOOK_SECRET:?WHATSAPP_WEBHOOK_SECRET must be set}
     volumes:
       - waha_sessions:/app/.sessions
 

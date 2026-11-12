@@ -3,7 +3,7 @@ import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext
 import { isValidTenantId } from '@/lib/tenant/isolation';
 
 export type ObservabilitySeverity = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
-export type SreIncidentSeverity = 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
+export type SreIncidentSeverity = 'INFO' | 'WARNING' | 'ERROR' | 'HIGH' | 'CRITICAL';
 export type ObservabilityScope = 'TENANT' | 'PLATFORM';
 
 export type ObservabilityContext = {
@@ -210,5 +210,73 @@ export async function recordSreIncident(input: RecordSreIncidentInput): Promise<
       source: 'observability',
       metadata: { error: error instanceof Error ? error.message : String(error), fingerprint: input.fingerprint },
     });
+  }
+
+  if (input.severity === 'CRITICAL' || input.severity === 'HIGH') {
+    dispatchSreIncidentWebhookAlert({
+      tenantId,
+      scope,
+      severity: input.severity,
+      source: input.source,
+      fingerprint: input.fingerprint,
+      title: input.title,
+      description: input.description || null,
+      metadata: sanitizeValue(input.metadata || {}),
+    });
+  }
+}
+
+function dispatchSreIncidentWebhookAlert(incident: {
+  tenantId: string | null;
+  scope: ObservabilityScope;
+  severity: SreIncidentSeverity;
+  source: string;
+  fingerprint: string;
+  title: string;
+  description: string | null;
+  metadata: unknown;
+}): void {
+  const rawWebhookUrl = process.env.SRE_ALERT_WEBHOOK_URL?.trim();
+  if (!rawWebhookUrl) return;
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(rawWebhookUrl);
+  } catch {
+    return;
+  }
+
+  if (process.env.NODE_ENV === 'production' && parsedUrl.protocol !== 'https:') {
+    return;
+  }
+  if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
+    return;
+  }
+
+  const sanitizedBody = JSON.stringify({
+    event: 'sre.incident.alert',
+    timestamp: new Date().toISOString(),
+    severity: incident.severity,
+    scope: incident.scope,
+    tenantId: incident.tenantId,
+    source: incident.source,
+    fingerprint: incident.fingerprint,
+    title: sanitizeValue(incident.title),
+    description: sanitizeValue(incident.description),
+    metadata: incident.metadata,
+  });
+
+  try {
+    void Promise.resolve(
+      fetch(parsedUrl.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: sanitizedBody,
+        redirect: 'error',
+        signal: AbortSignal.timeout(4_000),
+      }),
+    ).catch(() => undefined);
+  } catch {
+    // Non-blocking alert hook: never propagate transport or timer errors to callers.
   }
 }

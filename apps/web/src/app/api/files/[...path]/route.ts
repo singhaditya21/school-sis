@@ -1,7 +1,9 @@
-import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { requireApiAuth, ROLE_GROUPS } from '@/lib/auth/api';
+import { pool } from '@/lib/db';
+import { requireApiAuth } from '@/lib/auth/api';
 import { canAccessStudentDocument } from '@/lib/auth/document-access';
+import { hasPermission, type UserRole } from '@/lib/rbac/permissions';
+import { createPresignedObjectUrl } from '@/lib/storage/s3-config';
 import { validateTenantStorageKey } from '@/lib/tenant/isolation';
 
 export const dynamic = 'force-dynamic';
@@ -11,153 +13,9 @@ const EXTENDED_STORAGE_FOLDERS = new Set(['logos', 'homework']);
 const STAFF_ONLY_FOLDERS = new Set(['exports', 'reports', 'general']);
 const INLINE_SAFE_IMAGE_EXT_RE = /\.(png|jpe?g|webp|gif)$/i;
 
-type PresignConfig = {
-    accessKeyId: string;
-    secretAccessKey: string;
-    sessionToken?: string;
-    bucket: string;
-    region: string;
-    host: string;
-    canonicalKeyPrefix: string;
-};
-
-function strictEncode(value: string): string {
-    return encodeURIComponent(value).replace(/[!'()*]/g, (char) =>
-        `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
-    );
-}
-
-function encodeKey(key: string): string {
-    return key.split('/').map(strictEncode).join('/');
-}
-
-function hashHex(value: string): string {
-    return crypto.createHash('sha256').update(value).digest('hex');
-}
-
-function hmac(key: Buffer | string, value: string): Buffer {
-    return crypto.createHmac('sha256', key).update(value).digest();
-}
-
-function getSigningKey(secretAccessKey: string, dateStampValue: string, region: string): Buffer {
-    const dateKey = hmac(`AWS4${secretAccessKey}`, dateStampValue);
-    const regionKey = hmac(dateKey, region);
-    const serviceKey = hmac(regionKey, 's3');
-    return hmac(serviceKey, 'aws4_request');
-}
-
-function amzTimestamp(date: Date): string {
-    return date.toISOString().replace(/[:-]|\.\d{3}/g, '');
-}
-
-function dateStamp(date: Date): string {
-    return amzTimestamp(date).slice(0, 8);
-}
-
-function canonicalQuery(params: Array<[string, string]>): string {
-    return params
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, value]) => `${strictEncode(key)}=${strictEncode(value)}`)
-        .join('&');
-}
-
-function getPresignConfig(): PresignConfig | null {
-    const awsBucket = process.env.AWS_S3_BUCKET;
-    const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
-    const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-
-    if (awsBucket && awsAccessKeyId && awsSecretAccessKey) {
-        const region = process.env.AWS_REGION || 'us-east-1';
-        return {
-            accessKeyId: awsAccessKeyId,
-            secretAccessKey: awsSecretAccessKey,
-            sessionToken: process.env.AWS_SESSION_TOKEN,
-            bucket: awsBucket,
-            region,
-            host: `${awsBucket}.s3.${region}.amazonaws.com`,
-            canonicalKeyPrefix: '',
-        };
-    }
-
-    const r2AccountId = process.env.R2_ACCOUNT_ID;
-    const r2AccessKeyId = process.env.R2_ACCESS_KEY_ID;
-    const r2SecretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-    const r2Bucket = process.env.R2_BUCKET_NAME;
-
-    if (r2AccountId && r2AccessKeyId && r2SecretAccessKey && r2Bucket) {
-        return {
-            accessKeyId: r2AccessKeyId,
-            secretAccessKey: r2SecretAccessKey,
-            bucket: r2Bucket,
-            region: 'auto',
-            host: `${r2AccountId}.r2.cloudflarestorage.com`,
-            canonicalKeyPrefix: `/${strictEncode(r2Bucket)}`,
-        };
-    }
-
-    return null;
-}
-
 function isInlineSafeImageKey(key: string): boolean {
     const filename = key.split('/').pop() || '';
     return INLINE_SAFE_IMAGE_EXT_RE.test(filename);
-}
-
-function createSignedGetUrl(
-    key: string,
-    expiresSeconds: number,
-    options?: { responseContentDisposition?: string },
-): string {
-    const config = getPresignConfig();
-    if (!config) {
-        throw new Error('Storage signing is not configured');
-    }
-
-    const now = new Date();
-    const amzDate = amzTimestamp(now);
-    const scopeDate = dateStamp(now);
-    const credentialScope = `${scopeDate}/${config.region}/s3/aws4_request`;
-    const canonicalUri = `${config.canonicalKeyPrefix}/${encodeKey(key)}`;
-    const params: Array<[string, string]> = [
-        ['X-Amz-Algorithm', 'AWS4-HMAC-SHA256'],
-        ['X-Amz-Credential', `${config.accessKeyId}/${credentialScope}`],
-        ['X-Amz-Date', amzDate],
-        ['X-Amz-Expires', String(expiresSeconds)],
-        ['X-Amz-SignedHeaders', 'host'],
-    ];
-
-    if (config.sessionToken) {
-        params.push(['X-Amz-Security-Token', config.sessionToken]);
-    }
-
-    if (options?.responseContentDisposition) {
-        params.push(['response-content-disposition', options.responseContentDisposition]);
-    }
-
-    const canonicalRequest = [
-        'GET',
-        canonicalUri,
-        canonicalQuery(params),
-        `host:${config.host}\n`,
-        'host',
-        'UNSIGNED-PAYLOAD',
-    ].join('\n');
-
-    const stringToSign = [
-        'AWS4-HMAC-SHA256',
-        amzDate,
-        credentialScope,
-        hashHex(canonicalRequest),
-    ].join('\n');
-
-    const signature = crypto
-        .createHmac('sha256', getSigningKey(config.secretAccessKey, scopeDate, config.region))
-        .update(stringToSign)
-        .digest('hex');
-
-    params.push(['X-Amz-Signature', signature]);
-
-    return `https://${config.host}${canonicalUri}?${canonicalQuery(params)}`;
 }
 
 function validateExtendedTenantStorageKey(pathParts: string[], tenantId: string): string {
@@ -168,6 +26,70 @@ function validateExtendedTenantStorageKey(pathParts: string[], tenantId: string)
         return [validatedSegments[0], pathParts[1], ...validatedSegments.slice(2)].join('/');
     }
     return validateTenantStorageKey(pathParts.join('/'), tenantId);
+}
+
+function hasFolderReadPermission(role: UserRole, folder: string): boolean {
+    switch (folder) {
+        case 'avatars':
+        case 'logos':
+            return true;
+        case 'invoices':
+            return hasPermission(role, 'fees:read') || hasPermission(role, 'invoices:read');
+        case 'certificates':
+        case 'id-cards':
+            return (
+                hasPermission(role, 'certificate:read') ||
+                hasPermission(role, 'credentials:read') ||
+                hasPermission(role, 'students:read')
+            );
+        case 'reports':
+        case 'exports':
+            return hasPermission(role, 'reports:read');
+        case 'homework':
+            return hasPermission(role, 'homework:read') || hasPermission(role, 'documents:read');
+        case 'documents':
+        case 'attachments':
+        case 'general':
+            return hasPermission(role, 'documents:read');
+        default:
+            return false;
+    }
+}
+
+async function resolveReferencedStudentId(
+    tenantId: string,
+    key: string,
+    candidateSegment: string,
+    explicitStudentId: string | null,
+): Promise<{ ok: true; studentId: string | null } | { ok: false; response: NextResponse }> {
+    if (explicitStudentId) {
+        const trimmed = explicitStudentId.trim();
+        if (!UUID_RE.test(trimmed)) {
+            return {
+                ok: false,
+                response: NextResponse.json({ error: 'Invalid studentId' }, { status: 400 }),
+            };
+        }
+        return { ok: true, studentId: trimmed };
+    }
+
+    if (candidateSegment && UUID_RE.test(candidateSegment)) {
+        return { ok: true, studentId: candidateSegment };
+    }
+
+    try {
+        const lookup = await pool.query<{ studentId: string }>(
+            `SELECT student_id AS "studentId"
+               FROM student_documents
+              WHERE tenant_id = $1
+                AND (file_url = $2 OR file_url LIKE $3)
+              LIMIT 1`,
+            [tenantId, `/api/files/${key}`, `%/${key}`],
+        );
+        return { ok: true, studentId: lookup?.rows?.[0]?.studentId ?? null };
+    } catch {
+        return { ok: true, studentId: null };
+    }
 }
 
 export async function GET(
@@ -193,16 +115,17 @@ export async function GET(
     const segments = key.split('/');
     const folder = segments[1] || '';
     const remainder = segments.slice(2);
+    const candidateStudentId = remainder[0] || '';
+    const explicitStudentId = request.nextUrl.searchParams.get('studentId');
 
-    const isParentOrStudent = auth.context.role === 'PARENT' || auth.context.role === 'STUDENT';
-    const isStaffOrAdmin = (ROLE_GROUPS.staff as readonly string[]).includes(auth.context.role);
+    const role = auth.context.role as UserRole;
+    const isParentOrStudent = role === 'PARENT' || role === 'STUDENT';
 
     if (isParentOrStudent) {
         if (STAFF_ONLY_FOLDERS.has(folder)) {
             return NextResponse.json({ error: 'Forbidden file path.' }, { status: 403 });
         }
-        if (folder !== 'logos') {
-            const candidateStudentId = remainder[0] || '';
+        if (folder !== 'logos' && folder !== 'avatars') {
             if (remainder.length < 2 || !UUID_RE.test(candidateStudentId)) {
                 return NextResponse.json({ error: 'Forbidden file path.' }, { status: 403 });
             }
@@ -211,14 +134,61 @@ export async function GET(
                 userId: auth.context.userId,
                 role: auth.context.role,
                 studentId: candidateStudentId,
-                staffPermission: 'students:read',
+                staffPermission: folder === 'invoices' ? 'fees:read' : 'students:read',
             });
             if (!allowed) {
                 return NextResponse.json({ error: 'Forbidden file path.' }, { status: 403 });
             }
         }
-    } else if (!isStaffOrAdmin) {
-        return NextResponse.json({ error: 'Forbidden file path.' }, { status: 403 });
+    } else if (folder !== 'logos' && folder !== 'avatars') {
+        const teacherScopedStudentDoc =
+            role === 'TEACHER' &&
+            (folder === 'documents' || folder === 'attachments') &&
+            Boolean(UUID_RE.test(candidateStudentId) || explicitStudentId);
+
+        if (!hasFolderReadPermission(role, folder) && !teacherScopedStudentDoc) {
+            return NextResponse.json({ error: 'Forbidden file path.' }, { status: 403 });
+        }
+
+        const shouldCheckStudentAccess =
+            folder === 'documents' ||
+            folder === 'attachments' ||
+            folder === 'general' ||
+            folder === 'homework' ||
+            role === 'TEACHER' ||
+            Boolean(explicitStudentId);
+
+        if (shouldCheckStudentAccess) {
+            const refResult = await resolveReferencedStudentId(
+                auth.context.tenantId,
+                key,
+                candidateStudentId,
+                explicitStudentId,
+            );
+            if (refResult.ok === false) {
+                return refResult.response;
+            }
+            if (refResult.studentId) {
+                const staffPermission =
+                    folder === 'homework'
+                        ? 'homework:read'
+                        : role === 'TEACHER'
+                            ? 'students:read'
+                            : 'documents:read';
+                const allowed = await canAccessStudentDocument({
+                    tenantId: auth.context.tenantId,
+                    userId: auth.context.userId,
+                    role: auth.context.role,
+                    studentId: refResult.studentId,
+                    staffPermission,
+                });
+                if (!allowed) {
+                    return NextResponse.json({ error: 'Forbidden file path.' }, { status: 403 });
+                }
+            } else if (role === 'TEACHER' && (folder === 'certificates' || folder === 'id-cards' || folder === 'documents' || folder === 'attachments')) {
+                return NextResponse.json({ error: 'Forbidden file path.' }, { status: 403 });
+            }
+        }
     }
 
     const requestedExpires = Number(request.nextUrl.searchParams.get('expires') || 300);
@@ -227,7 +197,11 @@ export async function GET(
 
     let signedUrl: string;
     try {
-        signedUrl = createSignedGetUrl(key, expiresSeconds, { responseContentDisposition });
+        signedUrl = createPresignedObjectUrl(key, {
+            method: 'GET',
+            expiresSeconds,
+            responseContentDisposition,
+        });
     } catch (error: unknown) {
         return NextResponse.json({ error: (error as { message?: string }).message || 'Storage is not configured' }, { status: 503 });
     }

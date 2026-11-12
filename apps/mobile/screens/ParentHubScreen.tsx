@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -9,7 +9,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { config, requireBackendUrl } from '../config';
+import { config, requireBackendUrl, resolveSafeBackendUrl } from '../config';
+import {
+  buildMobileRequestInit,
+  extractBearerToken,
+  getMobileSession,
+  setMobileSession,
+  subscribeMobileSession,
+} from '../lib/secure-session';
 
 interface ParentChildSummary {
   id: string;
@@ -74,26 +81,34 @@ interface ParentWorkspaceResponse {
 }
 
 export function ParentHubScreen() {
-  const [schoolCode, setSchoolCode] = useState('DEMO-CAMPUS');
-  const [email, setEmail] = useState('');
+  const initialSession = getMobileSession();
+  const [schoolCode, setSchoolCode] = useState(initialSession.schoolCode || 'DEMO-CAMPUS');
+  const [email, setEmail] = useState(initialSession.email || '');
   const [password, setPassword] = useState('');
-  const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
+  const [signedInEmail, setSignedInEmail] = useState<string | null>(initialSession.email);
   const [workspace, setWorkspace] = useState<ParentWorkspaceResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(config.BACKEND_CONFIG_ERROR);
   const [leaveReason, setLeaveReason] = useState('');
   const [leaveFeedback, setLeaveFeedback] = useState<string | null>(null);
 
-  const loadWorkspace = useCallback(async (childId?: string) => {
+  useEffect(() => {
+    return subscribeMobileSession((next) => {
+      setSignedInEmail(next.email);
+      if (next.schoolCode) setSchoolCode(next.schoolCode);
+    });
+  }, []);
+
+  const loadWorkspace = useCallback(async (childId?: string, tokenOverride?: string | null) => {
     setLoading(true);
     setErrorMessage(null);
     try {
       const base = requireBackendUrl();
       const query = childId ? `?childId=${encodeURIComponent(childId)}` : '';
-      const res = await fetch(`${base}/api/mobile/workspace${query}`, {
-        method: 'GET',
-        credentials: 'include',
-      });
+      const res = await fetch(
+        `${base}/api/mobile/workspace${query}`,
+        buildMobileRequestInit({ method: 'GET' }, tokenOverride),
+      );
       const json = (await res.json()) as ParentWorkspaceResponse & { error?: string };
       if (!res.ok) {
         setErrorMessage(json.error || `Failed to load workspace (HTTP ${res.status}).`);
@@ -112,25 +127,40 @@ export function ParentHubScreen() {
     setErrorMessage(null);
     try {
       const base = requireBackendUrl();
-      const res = await fetch(`${base}/api/auth/token`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          schoolCode: schoolCode.trim().toUpperCase(),
-          email: email.trim().toLowerCase(),
-          password,
-        }),
-      });
-      const json = (await res.json()) as { email?: string; error?: string };
+      const normalizedSchoolCode = schoolCode.trim().toUpperCase();
+      const normalizedEmail = email.trim().toLowerCase();
+      const res = await fetch(
+        `${base}/api/auth/token`,
+        buildMobileRequestInit(
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              schoolCode: normalizedSchoolCode,
+              email: normalizedEmail,
+              password,
+            }),
+          },
+          null,
+        ),
+      );
+      const json = (await res.json()) as Record<string, unknown> & { email?: string; error?: string };
       if (!res.ok) {
         setErrorMessage(json.error || 'Unable to sign in. Verify school code and credentials.');
         setLoading(false);
         return;
       }
-      setSignedInEmail(json.email || email.trim());
+      const issuedToken = extractBearerToken(json);
+      const resolvedEmail = typeof json.email === 'string' && json.email ? json.email : normalizedEmail;
+      setMobileSession({
+        bearerToken: issuedToken,
+        email: resolvedEmail,
+        schoolCode: normalizedSchoolCode,
+        authenticated: true,
+      });
+      setSignedInEmail(resolvedEmail);
       setPassword('');
-      await loadWorkspace();
+      await loadWorkspace(undefined, issuedToken);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Unable to reach ScholarMind server.');
       setLoading(false);
@@ -139,8 +169,8 @@ export function ParentHubScreen() {
 
   const handleOpenPayLink = useCallback(async (payPath: string) => {
     try {
-      const base = requireBackendUrl();
-      await Linking.openURL(`${base}${payPath}`);
+      const safeTargetUrl = resolveSafeBackendUrl(payPath);
+      await Linking.openURL(safeTargetUrl);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Could not launch payment link.');
     }
@@ -155,17 +185,19 @@ export function ParentHubScreen() {
     try {
       const base = requireBackendUrl();
       const todayIso = new Date().toISOString().slice(0, 10);
-      const res = await fetch(`${base}/api/mobile/workspace`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'SUBMIT_PARENT_LEAVE_NOTE',
-          studentId: workspace.selectedChild.id,
-          leaveDate: todayIso,
-          reason: leaveReason.trim(),
+      const res = await fetch(
+        `${base}/api/mobile/workspace`,
+        buildMobileRequestInit({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'SUBMIT_PARENT_LEAVE_NOTE',
+            studentId: workspace.selectedChild.id,
+            leaveDate: todayIso,
+            reason: leaveReason.trim(),
+          }),
         }),
-      });
+      );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
         setLeaveFeedback(json.error || 'Could not submit leave note.');
@@ -232,7 +264,7 @@ export function ParentHubScreen() {
             )}
           </Pressable>
           <Pressable onPress={() => loadWorkspace()} style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>Refresh Active Cookie Session</Text>
+            <Text style={styles.secondaryButtonText}>Refresh Active Session</Text>
           </Pressable>
         </View>
       ) : null}

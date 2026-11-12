@@ -6,8 +6,8 @@ export function sanitizeCsvValue(value: unknown): string {
     if (value === null || value === undefined) return '';
     let text = String(value);
     if (
-        /^[=+\-@\t\r]/.test(text) &&
-        !/^-\d+(?:\.\d+)?$/.test(text)
+        /^(?:[\t\r\n]|[\s\u0000-\u001f]*[=+\-@|])/.test(text) &&
+        !/^\s*-\d+(?:\.\d+)?$/.test(text)
     ) {
         text = `'${text}`;
     }

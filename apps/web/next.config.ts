@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 import { createRequire } from "module";
 import { dirname } from "path";
-import { securityHeaders } from "./src/lib/security/headers";
+import {
+    apiSecurityHeaders,
+    bearerUrlNoReferrerHeaders,
+    securityHeaders,
+} from "./src/lib/security/headers";
 
 const nodeRequire = createRequire(import.meta.url);
 const moduleRoot = (specifier: string) => dirname(nodeRequire.resolve(specifier));
@@ -28,7 +32,7 @@ const nextConfig: NextConfig = {
     },
     experimental: {
         serverActions: {
-            bodySizeLimit: '10mb',
+            bodySizeLimit: '6mb',
         },
     },
     async headers() {
@@ -45,7 +49,22 @@ const nextConfig: NextConfig = {
             {
                 // Apply security headers to all routes
                 source: '/(.*)',
-                headers: securityHeaders,
+                headers: [...securityHeaders],
+            },
+            {
+                // Prevent bearer payment tokens in /pay/* URLs from leaking via Referer
+                source: '/pay/:path*',
+                headers: [...bearerUrlNoReferrerHeaders],
+            },
+            {
+                // Prevent signed certificate/gate-pass tokens in /verify/* URLs from leaking via Referer
+                source: '/verify/:path*',
+                headers: [...bearerUrlNoReferrerHeaders],
+            },
+            {
+                // Enforce strict non-document CSP on all JSON/API endpoints
+                source: '/api/:path*',
+                headers: [...apiSecurityHeaders],
             },
         ];
     },

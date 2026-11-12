@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getIronSession } from 'iron-session';
 import {
+    isRoleMfaRequired,
     isSessionDataExpired,
-    MFA_REQUIRED_ROLE_NAMES,
     sessionOptions,
     type SessionData,
 } from './lib/auth/session-options';
@@ -20,7 +20,6 @@ import {
     createCspNonce,
 } from './lib/security/headers';
 
-const MFA_REQUIRED_ROLES = new Set<string>(MFA_REQUIRED_ROLE_NAMES);
 const MFA_ENROLLMENT_PATH = '/mfa/setup';
 const RESERVED_TENANT_HOSTS = new Set(['localhost', '127.0.0.1', '::1', 'www']);
 
@@ -161,8 +160,12 @@ export async function proxy(request: NextRequest) {
         return respond(NextResponse.redirect(loginUrl));
     }
 
-    const productionMfaRequired = process.env.NODE_ENV === 'production' && MFA_REQUIRED_ROLES.has(session.role);
-    if ((session.mfaRequired || productionMfaRequired) && !session.mfaVerified && MFA_REQUIRED_ROLES.has(session.role)) {
+    const roleRequiresMfa = isRoleMfaRequired(session.role, {
+        isDemoSandbox: session.isDemoSandbox,
+        tenantCode: session.tenantCode,
+    });
+    const productionMfaRequired = process.env.NODE_ENV === 'production' && roleRequiresMfa;
+    if (!session.isDemoSandbox && (session.mfaRequired || productionMfaRequired) && !session.mfaVerified) {
         // The enrolment route is the one place an unverified administrator is
         // allowed to reach, because it is the only route that can resolve this
         // state. Bouncing it to /login too is what made onboarding a dead end: a

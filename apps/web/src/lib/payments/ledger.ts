@@ -12,6 +12,9 @@ type InvoiceForPayment = {
     paidAmount: string | null;
     dueDate?: string | Date | null;
     status: string;
+    tenantCode?: string | null;
+    tenantIsDemo?: boolean | null;
+    stripeConnectAccountId?: string | null;
 };
 
 export type PaymentOrderRow = {
@@ -72,6 +75,7 @@ export type ManualPaymentInput = {
     reference?: string;
     chequeNumber?: string;
     bankName?: string;
+    idempotencyKey?: string;
     metadata?: Record<string, unknown>;
 };
 
@@ -79,6 +83,7 @@ export type ManualPaymentResult = {
     paymentId: string;
     receiptId: string;
     receiptNumber: string;
+    duplicate?: boolean;
 };
 
 const DECIMAL_SCALE = 100;
@@ -190,8 +195,12 @@ export async function findInvoiceForPayment(
             i.total_amount AS "totalAmount",
             i.paid_amount AS "paidAmount",
             i.due_date AS "dueDate",
-            i.status
+            i.status,
+            t.code AS "tenantCode",
+            t.is_demo AS "tenantIsDemo",
+            t.stripe_connect_account_id AS "stripeConnectAccountId"
          FROM invoices i
+         LEFT JOIN tenants t ON t.id = i.tenant_id
          WHERE i.id = $1
            AND i.tenant_id = $2
            ${actorScopeClause}
@@ -444,7 +453,7 @@ export async function getPaymentOrderByProviderOrderAnyTenant(
 
 export async function completeProviderPayment(
     input: CompleteProviderPaymentInput,
-): Promise<{ paymentId: string; alreadyProcessed: boolean; reconciliationRequired?: boolean }> {
+): Promise<{ paymentId: string; alreadyProcessed: boolean; duplicate?: boolean; reconciliationRequired?: boolean }> {
     const normalizedCurrency = (input.currency || '').trim().toUpperCase();
     if (normalizedCurrency !== 'INR') {
         throw new Error(`Unsupported settlement currency '${normalizedCurrency}'; only INR is accepted.`);
@@ -457,29 +466,6 @@ export async function completeProviderPayment(
 
     return runWithTenantContext(input.tenantId, () =>
         withClientTransaction(async (client) => {
-            const duplicate = await client.query<{ id: string }>(
-                `SELECT id
-                 FROM payments
-                 WHERE tenant_id = $1
-                   AND (transaction_id = $2 OR razorpay_payment_id = $2)
-                 LIMIT 1`,
-                [input.tenantId, input.providerPaymentId],
-            );
-            if (duplicate.rows[0]) {
-                await insertMoneyAudit(client, {
-                    tenantId: input.tenantId,
-                    invoiceId: input.invoiceId,
-                    paymentId: duplicate.rows[0].id,
-                    providerEventId: input.providerEventId,
-                    provider: input.provider,
-                    action: 'PAYMENT_DUPLICATE_IGNORED',
-                    amount,
-                    currency: normalizedCurrency,
-                    metadata: input.metadata,
-                });
-                return { paymentId: duplicate.rows[0].id, alreadyProcessed: true };
-            }
-
             let matchedOrder: PaymentOrderRow | undefined;
             if (input.providerOrderId) {
                 const orderResult = await client.query<PaymentOrderRow>(
@@ -493,17 +479,20 @@ export async function completeProviderPayment(
                     [input.tenantId, input.provider, input.providerOrderId],
                 );
                 matchedOrder = orderResult.rows[0];
-                if (matchedOrder) {
-                    if ((matchedOrder.currency || '').toUpperCase() !== normalizedCurrency) {
-                        throw new Error('Provider payment currency does not match payment order currency.');
-                    }
-                    if (Number(matchedOrder.amountMinor) !== input.amountMinor) {
-                        throw new Error('Provider payment amount does not match payment order amount.');
-                    }
-                    if (matchedOrder.invoiceId !== input.invoiceId) {
-                        throw new Error('Provider payment invoice does not match payment order invoice.');
-                    }
-                }
+            }
+
+            if (!matchedOrder) {
+                throw new Error('Provider payment order is not registered for this tenant');
+            }
+
+            if ((matchedOrder.currency || '').toUpperCase() !== normalizedCurrency) {
+                throw new Error('Provider payment currency does not match payment order currency.');
+            }
+            if (Number(matchedOrder.amountMinor) !== input.amountMinor) {
+                throw new Error('Provider payment amount does not match payment order amount.');
+            }
+            if (matchedOrder.invoiceId !== input.invoiceId) {
+                throw new Error('Provider payment invoice does not match payment order invoice.');
             }
 
             const invoiceResult = await client.query<InvoiceForPayment>(
@@ -524,6 +513,47 @@ export async function completeProviderPayment(
             const invoice = invoiceResult.rows[0];
             if (!invoice) {
                 throw new Error('Invoice not found for provider payment.');
+            }
+
+            const duplicate = await client.query<{ id: string }>(
+                `SELECT id
+                 FROM payments
+                 WHERE tenant_id = $1
+                   AND (transaction_id = $2 OR razorpay_payment_id = $2)
+                 LIMIT 1`,
+                [input.tenantId, input.providerPaymentId],
+            );
+            if (matchedOrder.status === 'PAID' || duplicate.rows[0]) {
+                let settledPaymentId = duplicate.rows[0]?.id;
+                if (!settledPaymentId && matchedOrder.providerPaymentId) {
+                    const orderPayment = await client.query<{ id: string }>(
+                        `SELECT id
+                         FROM payments
+                         WHERE tenant_id = $1
+                           AND (transaction_id = $2 OR razorpay_payment_id = $2)
+                         LIMIT 1`,
+                        [input.tenantId, matchedOrder.providerPaymentId],
+                    );
+                    settledPaymentId = orderPayment.rows[0]?.id;
+                }
+
+                await insertMoneyAudit(client, {
+                    tenantId: input.tenantId,
+                    invoiceId: input.invoiceId,
+                    paymentId: settledPaymentId,
+                    paymentOrderId: matchedOrder.id,
+                    providerEventId: input.providerEventId,
+                    provider: input.provider,
+                    action: 'PAYMENT_DUPLICATE_IGNORED',
+                    amount,
+                    currency: normalizedCurrency,
+                    metadata: input.metadata,
+                });
+                return {
+                    paymentId: settledPaymentId || matchedOrder.providerPaymentId || matchedOrder.id,
+                    alreadyProcessed: true,
+                    duplicate: true,
+                };
             }
 
             if (invoice.status === 'DRAFT') {
@@ -550,32 +580,61 @@ export async function completeProviderPayment(
                     : {}),
             };
 
-            const paymentResult = await client.query<{ id: string }>(
-                `INSERT INTO payments (
-                    tenant_id,
-                    invoice_id,
-                    student_id,
-                    amount,
-                    method,
-                    status,
-                    transaction_id,
-                    razorpay_payment_id,
-                    notes,
-                    paid_at,
-                    created_at
-                 )
-                 VALUES ($1, $2, $3, $4, 'ONLINE', 'COMPLETED', $5, $6, $7, NOW(), NOW())
-                 RETURNING id`,
-                [
-                    input.tenantId,
-                    invoice.id,
-                    invoice.studentId,
-                    amount,
-                    input.providerPaymentId,
-                    input.provider === 'RAZORPAY' ? input.providerPaymentId : null,
-                    JSON.stringify(paymentNotesPayload),
-                ],
-            );
+            const idempotencyKey = `${input.provider}:${input.providerPaymentId}`.slice(0, 160);
+
+            await client.query('SAVEPOINT sp_insert_provider_payment');
+            let paymentId: string;
+            try {
+                const paymentResult = await client.query<{ id: string }>(
+                    `INSERT INTO payments (
+                        tenant_id,
+                        invoice_id,
+                        student_id,
+                        amount,
+                        method,
+                        status,
+                        transaction_id,
+                        razorpay_payment_id,
+                        idempotency_key,
+                        notes,
+                        paid_at,
+                        created_at
+                     )
+                     VALUES ($1, $2, $3, $4, 'ONLINE', 'COMPLETED', $5, $6, $7, $8, NOW(), NOW())
+                     RETURNING id`,
+                    [
+                        input.tenantId,
+                        invoice.id,
+                        invoice.studentId,
+                        amount,
+                        input.providerPaymentId,
+                        input.provider === 'RAZORPAY' ? input.providerPaymentId : null,
+                        idempotencyKey,
+                        JSON.stringify(paymentNotesPayload),
+                    ],
+                );
+                paymentId = paymentResult.rows[0].id;
+                await client.query('RELEASE SAVEPOINT sp_insert_provider_payment');
+            } catch (insertError) {
+                if (isUniqueViolation(insertError)) {
+                    await client.query('ROLLBACK TO SAVEPOINT sp_insert_provider_payment');
+                    const winner = await client.query<{ id: string }>(
+                        `SELECT id
+                         FROM payments
+                         WHERE tenant_id = $1
+                           AND (transaction_id = $2 OR razorpay_payment_id = $2 OR idempotency_key = $3)
+                         LIMIT 1`,
+                        [input.tenantId, input.providerPaymentId, idempotencyKey],
+                    );
+                    const winnerId = winner.rows[0]?.id || matchedOrder.providerPaymentId || matchedOrder.id;
+                    return {
+                        paymentId: winnerId,
+                        alreadyProcessed: true,
+                        duplicate: true,
+                    };
+                }
+                throw insertError;
+            }
 
             if (!isTerminalInvoice) {
                 const totalMinor = minorFromAmount(Number(invoice.totalAmount));
@@ -596,33 +655,31 @@ export async function completeProviderPayment(
                 );
             }
 
-            let paymentOrderId = matchedOrder?.id;
-            if (input.providerOrderId) {
-                const orderUpdate = await client.query<{ id: string }>(
-                    `UPDATE payment_orders
-                     SET status = 'PAID',
-                         provider_payment_id = $1,
-                         updated_at = NOW()
-                     WHERE tenant_id = $2
-                       AND provider = $3
-                       AND provider_order_id = $4
-                     RETURNING id`,
-                    [input.providerPaymentId, input.tenantId, input.provider, input.providerOrderId],
-                );
-                paymentOrderId = orderUpdate.rows[0]?.id ?? paymentOrderId;
-            }
+            let paymentOrderId = matchedOrder.id;
+            const orderUpdate = await client.query<{ id: string }>(
+                `UPDATE payment_orders
+                 SET status = 'PAID',
+                     provider_payment_id = $1,
+                     updated_at = NOW()
+                 WHERE tenant_id = $2
+                   AND provider = $3
+                   AND provider_order_id = $4
+                 RETURNING id`,
+                [input.providerPaymentId, input.tenantId, input.provider, input.providerOrderId],
+            );
+            paymentOrderId = orderUpdate.rows[0]?.id ?? paymentOrderId;
 
             const receiptNumber = `RCP-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
             await client.query(
                 `INSERT INTO receipts (tenant_id, payment_id, receipt_number)
                  VALUES ($1, $2, $3)`,
-                [input.tenantId, paymentResult.rows[0].id, receiptNumber],
+                [input.tenantId, paymentId, receiptNumber],
             );
 
             await insertMoneyAudit(client, {
                 tenantId: input.tenantId,
                 invoiceId: invoice.id,
-                paymentId: paymentResult.rows[0].id,
+                paymentId,
                 paymentOrderId,
                 actorUserId: input.actorUserId,
                 providerEventId: input.providerEventId,
@@ -642,8 +699,9 @@ export async function completeProviderPayment(
             });
 
             return {
-                paymentId: paymentResult.rows[0].id,
+                paymentId,
                 alreadyProcessed: false,
+                duplicate: false,
                 ...(isTerminalInvoice ? { reconciliationRequired: true } : {}),
             };
         }),
@@ -651,6 +709,8 @@ export async function completeProviderPayment(
 }
 
 export async function recordManualPayment(input: ManualPaymentInput): Promise<ManualPaymentResult> {
+    const normalizedIdempotencyKey = input.idempotencyKey?.trim().slice(0, 160) || null;
+
     return runWithTenantContext(input.tenantId, () =>
         withClientTransaction(async (client) => {
             const invoiceResult = await client.query<InvoiceForPayment>(
@@ -671,6 +731,32 @@ export async function recordManualPayment(input: ManualPaymentInput): Promise<Ma
             const invoice = invoiceResult.rows[0];
             if (!invoice) throw new Error('Invoice not found');
 
+            if (normalizedIdempotencyKey) {
+                const existing = await client.query<{
+                    paymentId: string;
+                    receiptId: string | null;
+                    receiptNumber: string | null;
+                }>(
+                    `SELECT
+                        p.id AS "paymentId",
+                        r.id AS "receiptId",
+                        r.receipt_number AS "receiptNumber"
+                     FROM payments p
+                     LEFT JOIN receipts r ON r.payment_id = p.id AND r.tenant_id = p.tenant_id
+                     WHERE p.tenant_id = $1 AND p.idempotency_key = $2
+                     LIMIT 1`,
+                    [input.tenantId, normalizedIdempotencyKey],
+                );
+                if (existing.rows[0]) {
+                    return {
+                        paymentId: existing.rows[0].paymentId,
+                        receiptId: existing.rows[0].receiptId || '',
+                        receiptNumber: existing.rows[0].receiptNumber || '',
+                        duplicate: true,
+                    };
+                }
+            }
+
             if (!isPayableInvoiceStatus(invoice.status)) {
                 throw new Error(`Invoice with status ${invoice.status} cannot accept manual payments.`);
             }
@@ -681,22 +767,89 @@ export async function recordManualPayment(input: ManualPaymentInput): Promise<Ma
                 throw new Error('Payment amount exceeds invoice balance.');
             }
 
-            const paymentResult = await client.query<{ id: string }>(
-                `INSERT INTO payments (tenant_id, invoice_id, student_id, amount, method, status, transaction_id, cheque_number, bank_name, notes)
-                 VALUES ($1, $2, $3, $4, $5, 'COMPLETED', $6, $7, $8, $9)
-                 RETURNING id`,
-                [
-                    input.tenantId,
-                    invoice.id,
-                    invoice.studentId,
-                    input.amount.toFixed(2),
-                    input.method,
-                    input.reference || null,
-                    input.chequeNumber || null,
-                    input.bankName || null,
-                    JSON.stringify(input.metadata || {}),
-                ],
-            );
+            let paymentId: string;
+            if (normalizedIdempotencyKey) {
+                await client.query('SAVEPOINT sp_insert_manual_payment');
+                try {
+                    const paymentResult = await client.query<{ id: string }>(
+                        `INSERT INTO payments (
+                            tenant_id,
+                            invoice_id,
+                            student_id,
+                            amount,
+                            method,
+                            status,
+                            transaction_id,
+                            cheque_number,
+                            bank_name,
+                            idempotency_key,
+                            notes
+                         )
+                         VALUES ($1, $2, $3, $4, $5, 'COMPLETED', $6, $7, $8, $9, $10)
+                         RETURNING id`,
+                        [
+                            input.tenantId,
+                            invoice.id,
+                            invoice.studentId,
+                            input.amount.toFixed(2),
+                            input.method,
+                            input.reference || null,
+                            input.chequeNumber || null,
+                            input.bankName || null,
+                            normalizedIdempotencyKey,
+                            JSON.stringify(input.metadata || {}),
+                        ],
+                    );
+                    paymentId = paymentResult.rows[0].id;
+                    await client.query('RELEASE SAVEPOINT sp_insert_manual_payment');
+                } catch (insertError) {
+                    if (isUniqueViolation(insertError)) {
+                        await client.query('ROLLBACK TO SAVEPOINT sp_insert_manual_payment');
+                        const winner = await client.query<{
+                            paymentId: string;
+                            receiptId: string | null;
+                            receiptNumber: string | null;
+                        }>(
+                            `SELECT
+                                p.id AS "paymentId",
+                                r.id AS "receiptId",
+                                r.receipt_number AS "receiptNumber"
+                             FROM payments p
+                             LEFT JOIN receipts r ON r.payment_id = p.id AND r.tenant_id = p.tenant_id
+                             WHERE p.tenant_id = $1 AND p.idempotency_key = $2
+                             LIMIT 1`,
+                            [input.tenantId, normalizedIdempotencyKey],
+                        );
+                        if (winner.rows[0]) {
+                            return {
+                                paymentId: winner.rows[0].paymentId,
+                                receiptId: winner.rows[0].receiptId || '',
+                                receiptNumber: winner.rows[0].receiptNumber || '',
+                                duplicate: true,
+                            };
+                        }
+                    }
+                    throw insertError;
+                }
+            } else {
+                const paymentResult = await client.query<{ id: string }>(
+                    `INSERT INTO payments (tenant_id, invoice_id, student_id, amount, method, status, transaction_id, cheque_number, bank_name, notes)
+                     VALUES ($1, $2, $3, $4, $5, 'COMPLETED', $6, $7, $8, $9)
+                     RETURNING id`,
+                    [
+                        input.tenantId,
+                        invoice.id,
+                        invoice.studentId,
+                        input.amount.toFixed(2),
+                        input.method,
+                        input.reference || null,
+                        input.chequeNumber || null,
+                        input.bankName || null,
+                        JSON.stringify(input.metadata || {}),
+                    ],
+                );
+                paymentId = paymentResult.rows[0].id;
+            }
 
             const totalMinor = minorFromAmount(Number(invoice.totalAmount));
             const newPaidMinor = Math.min(totalMinor, minorFromAmount(Number(invoice.paidAmount || 0)) + amountMinor);
@@ -720,13 +873,13 @@ export async function recordManualPayment(input: ManualPaymentInput): Promise<Ma
                 `INSERT INTO receipts (tenant_id, payment_id, receipt_number)
                  VALUES ($1, $2, $3)
                  RETURNING id`,
-                [input.tenantId, paymentResult.rows[0].id, receiptNumber],
+                [input.tenantId, paymentId, receiptNumber],
             );
 
             await insertMoneyAudit(client, {
                 tenantId: input.tenantId,
                 invoiceId: invoice.id,
-                paymentId: paymentResult.rows[0].id,
+                paymentId,
                 actorUserId: input.actorUserId,
                 provider: 'MANUAL',
                 action: 'MANUAL_PAYMENT_RECORDED',
@@ -736,9 +889,10 @@ export async function recordManualPayment(input: ManualPaymentInput): Promise<Ma
             });
 
             return {
-                paymentId: paymentResult.rows[0].id,
+                paymentId,
                 receiptId: receiptResult.rows[0].id,
                 receiptNumber,
+                duplicate: false,
             };
         }),
     );

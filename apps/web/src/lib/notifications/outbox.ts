@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext, sqlFor } from '@/lib/db';
 import type { QueryResult } from 'pg';
 import { getEmailProvider } from '@/lib/providers/email';
@@ -7,6 +8,7 @@ import { getWhatsAppProvider } from '@/lib/providers/whatsapp';
 import type { ProviderResult } from '@/lib/providers';
 import type { ProviderDispatch } from '@/lib/providers/transport';
 import { enqueueTenantJob } from '@/lib/worker/client';
+import { isDemoTenantId } from '@/lib/tenant/demo-guard';
 import { isValidTenantId } from '@/lib/tenant/isolation';
 import { logger, recordSreIncident } from '@/lib/observability/logger';
 import { notificationProviderForChannel } from '@/lib/integrations/runtime-mode';
@@ -117,9 +119,8 @@ function assertChannelCanDispatch(channel: NotificationChannel, provider: string
   }
 }
 
-function backoffForAttempt(attempt: number): string {
-  const minutes = Math.min(60, Math.max(1, attempt * attempt * 2));
-  return `${minutes} minutes`;
+function backoffMinutesForAttempt(attempt: number): number {
+  return Math.min(60, Math.max(1, attempt * attempt * 2));
 }
 
 function messageIdFromPayload(payload: Record<string, unknown>): string | null {
@@ -323,6 +324,16 @@ function toSendResult(provider: string, result: ProviderResult<ProviderDispatch>
  * `processNotification` commits its attempt claim before calling this.
  */
 async function sendViaProvider(row: NotificationRow): Promise<ProviderSendResult> {
+  if (row.provider === 'demo-sandbox' || (await isDemoTenantId(row.tenantId))) {
+    return {
+      success: true,
+      provider: 'demo-sandbox',
+      providerMessageId: `demo_sim_${row.id}`,
+      status: 'SENT',
+      metadata: { simulated: true, demoSandbox: true },
+    };
+  }
+
   const provider = providerForChannel(row.channel);
   const readiness = describeChannelReadiness(row.channel);
 
@@ -406,12 +417,77 @@ export async function enqueueNotification(
 
   const explicitScheduledFor = input.scheduledFor ? scheduledDate(input.scheduledFor) : null;
   const scheduledFor = explicitScheduledFor ?? new Date();
-  const provider = providerForChannel(input.channel);
-  assertChannelCanDispatch(input.channel, provider);
+  const demoTenant = await isDemoTenantId(input.tenantId);
+  const provider = demoTenant ? 'demo-sandbox' : providerForChannel(input.channel);
+  if (!demoTenant) {
+    assertChannelCanDispatch(input.channel, provider);
+  }
 
   return runWithTenantContext(input.tenantId, async () => {
     const existing = await findExistingNotification(input.tenantId, input.idempotencyKey);
     if (existing) return existing;
+
+    if (demoTenant) {
+      const simulatedMessageId = `demo_sim_${randomUUID()}`;
+      let notificationId: string;
+      try {
+        const { rows } = await pool.query(
+          `INSERT INTO notification_outbox (
+              tenant_id, channel, status, provider, provider_message_id, recipient, recipient_user_id, subject, body,
+              template_id, payload, idempotency_key, scheduled_for, next_attempt_at, sent_at, max_attempts, created_by
+           )
+           VALUES ($1, $2, 'SENT', 'demo-sandbox', $3, $4, $5, $6, $7, $8, $9::jsonb, $10, COALESCE($11::timestamptz, NOW()), NULL, NOW(), $12, $13)
+           RETURNING id`,
+          [
+            input.tenantId,
+            input.channel,
+            simulatedMessageId,
+            input.recipient.trim(),
+            input.recipientUserId || null,
+            input.subject || null,
+            input.body,
+            input.templateId || null,
+            JSON.stringify({ ...(input.payload || {}), demoSandbox: true }),
+            input.idempotencyKey || null,
+            explicitScheduledFor,
+            input.maxAttempts ?? 3,
+            input.createdBy || null,
+          ],
+        );
+        notificationId = rows[0].id;
+      } catch (error: unknown) {
+        if ((error as { code?: string } | null)?.code === '23505' && input.idempotencyKey) {
+          const dup = await findExistingNotification(input.tenantId, input.idempotencyKey);
+          if (dup) return dup;
+        }
+        throw error;
+      }
+
+      await recordDeliveryEvent({
+        tenantId: input.tenantId,
+        notificationId,
+        jobId: null,
+        status: 'SENT',
+        provider: 'demo-sandbox',
+        providerMessageId: simulatedMessageId,
+        metadata: { simulated: true, demoSandbox: true },
+      });
+
+      await updateLinkedMessage({
+        tenantId: input.tenantId,
+        payload: input.payload || {},
+        status: 'SENT',
+        providerMessageId: simulatedMessageId,
+        metadata: { notificationId, provider: 'demo-sandbox', status: 'SENT', simulated: true },
+      });
+
+      return {
+        notificationId,
+        jobId: null,
+        status: 'SENT',
+        existing: false,
+      };
+    }
 
     let notificationId: string;
     try {
@@ -583,7 +659,7 @@ export async function processNotification(notificationId: string, tenantId: stri
       const finalStatus = result.success ? (result.status || 'SENT') : 'FAILED';
       const terminalFailure = !result.success && attemptNumber >= row.maxAttempts;
       const storedStatus = terminalFailure ? 'DEAD_LETTER' : finalStatus;
-      const nextAttemptSql = result.success ? 'NULL' : `NOW() + INTERVAL '${backoffForAttempt(attemptNumber)}'`;
+      const backoffMins = result.success ? null : backoffMinutesForAttempt(attemptNumber);
 
       // $1 is referenced both as an assignment target and inside a text comparison;
       // spelling it `$1::text` at every site keeps Postgres from deducing two
@@ -594,7 +670,7 @@ export async function processNotification(notificationId: string, tenantId: stri
              provider = $2,
              provider_message_id = COALESCE($3, provider_message_id),
              last_error = $4,
-             next_attempt_at = COALESCE(${nextAttemptSql}, next_attempt_at),
+             next_attempt_at = CASE WHEN $7::int IS NULL THEN next_attempt_at ELSE NOW() + make_interval(mins => $7::int) END,
              sent_at = CASE WHEN $1::text IN ('SENT', 'DELIVERED') THEN COALESCE(sent_at, NOW()) ELSE sent_at END,
              updated_at = NOW()
          WHERE tenant_id = $5 AND id = $6`,
@@ -605,6 +681,7 @@ export async function processNotification(notificationId: string, tenantId: stri
           result.error || null,
           tenantId,
           notificationId,
+          backoffMins,
         ],
       );
 
@@ -654,15 +731,16 @@ export async function processNotification(notificationId: string, tenantId: stri
       const message = error instanceof Error ? error.message : 'Notification delivery failed';
       const terminalFailure = attemptNumber >= row.maxAttempts;
       const storedStatus: NotificationStatus = terminalFailure ? 'DEAD_LETTER' : 'FAILED';
+      const backoffMins = backoffMinutesForAttempt(attemptNumber);
 
       await pool.query(
         `UPDATE notification_outbox
          SET status = $1,
              last_error = $2,
-             next_attempt_at = NOW() + INTERVAL '${backoffForAttempt(attemptNumber)}',
+             next_attempt_at = NOW() + make_interval(mins => $5::int),
              updated_at = NOW()
          WHERE tenant_id = $3 AND id = $4`,
-        [storedStatus, message, tenantId, notificationId],
+        [storedStatus, message, tenantId, notificationId, backoffMins],
       );
 
       await recordDeliveryEvent({
@@ -707,6 +785,8 @@ export async function processNotification(notificationId: string, tenantId: stri
     }
   });
 }
+
+export const deliverNotification = processNotification;
 
 export async function processDueNotifications(limit = 25): Promise<{
   processed: number;

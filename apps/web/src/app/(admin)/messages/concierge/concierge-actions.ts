@@ -1,17 +1,37 @@
 'use server';
 
-import { headers } from 'next/headers';
 import { sqlFor, withTenant } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { getSession } from '@/lib/auth/session';
 import { decryptFieldTolerant } from '@/lib/encryption';
 import { maskPhoneNumber } from '@/lib/payments/payment-links';
 import { whatsAppAvailability } from '@/lib/providers/whatsapp';
+import { resolveTrustedAppOrigin } from '@/lib/security/client-ip';
+import { isDemoSession, isDemoTenantId } from '@/lib/tenant/demo-guard';
 import {
-    resolveConciergeReplyForTenant,
+    processInboundConciergeMessage,
     type ConciergeReplyResult,
 } from '@/lib/concierge/whatsapp-concierge';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CONCIERGE_STUDIO_ROLES = new Set<string>([
+    'PLATFORM_ADMIN',
+    'SUPER_ADMIN',
+    'SCHOOL_ADMIN',
+    'PRINCIPAL',
+]);
+
+async function assertConciergeStudioAccess(tenantId: string, role: string): Promise<void> {
+    if (CONCIERGE_STUDIO_ROLES.has(role)) {
+        return;
+    }
+    const fullSession = await getSession();
+    const demoMode = isDemoSession(fullSession) || (await isDemoTenantId(tenantId));
+    if (demoMode && (role === 'FINANCE_LEAD' || role === 'REGISTRAR')) {
+        return;
+    }
+    throw new Error('Forbidden: Concierge Studio is restricted to campus administrators and principals.');
+}
 
 export interface ConciergeGuardianOption {
     studentId: string;
@@ -35,11 +55,9 @@ export async function getConciergeStudioDataAction(): Promise<{
     };
     guardians: ConciergeGuardianOption[];
 }> {
-    const { tenantId } = await requireAuth('messaging:read');
-    const hdrs = await headers();
-    const host = hdrs.get('x-forwarded-host') || hdrs.get('host') || 'school-sis-web.vercel.app';
-    const proto = hdrs.get('x-forwarded-proto') || 'https';
-    const origin = (process.env.NEXT_PUBLIC_APP_URL || `${proto}://${host}`).replace(/\/+$/, '');
+    const { tenantId, session } = await requireAuth('messaging:read');
+    await assertConciergeStudioAccess(tenantId, session.role);
+    const origin = resolveTrustedAppOrigin();
 
     const availability = whatsAppAvailability();
 
@@ -76,6 +94,7 @@ export async function getConciergeStudioDataAction(): Promise<{
             JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = gd.tenant_id
             WHERE gd.tenant_id = ${tenantId}
               AND s.status = 'ACTIVE'
+              AND COALESCE(s.custom_data->>'erased', 'false') <> 'true'
             ORDER BY gd.user_id IS NOT NULL DESC, gd.is_primary DESC, s.first_name ASC
             LIMIT 25
         `;
@@ -122,24 +141,23 @@ export async function simulateConciergeMessageAction(input: {
     guardianUserId?: string | null;
     rawText: string;
 }): Promise<{ reply?: ConciergeReplyResult; error?: string }> {
-    const { tenantId } = await requireAuth('messaging:read');
+    const { tenantId, session } = await requireAuth('messaging:read');
+    await assertConciergeStudioAccess(tenantId, session.role);
 
     if (!UUID_RE.test(input.studentId)) {
         return { error: 'Select a valid campus guardian to test.' };
     }
 
-    const hdrs = await headers();
-    const host = hdrs.get('x-forwarded-host') || hdrs.get('host') || 'school-sis-web.vercel.app';
-    const proto = hdrs.get('x-forwarded-proto') || 'https';
-    const origin = (process.env.NEXT_PUBLIC_APP_URL || `${proto}://${host}`).replace(/\/+$/, '');
+    const origin = resolveTrustedAppOrigin();
 
-    const reply = await resolveConciergeReplyForTenant({
+    const reply = await processInboundConciergeMessage({
         tenantId,
         rawText: input.rawText.slice(0, 200),
         appOrigin: origin,
         guardianUserId:
             input.guardianUserId && UUID_RE.test(input.guardianUserId) ? input.guardianUserId : null,
         guardianStudentId: input.studentId,
+        simulatorPreviewOnly: true,
     });
 
     if (!reply) {
@@ -147,4 +165,18 @@ export async function simulateConciergeMessageAction(input: {
     }
 
     return { reply };
+}
+
+export async function getConciergeStudioSnapshotAction() {
+    await requireAuth('messaging:read');
+    return getConciergeStudioDataAction();
+}
+
+export async function simulateConciergeReplyAction(input: {
+    studentId: string;
+    guardianUserId?: string | null;
+    rawText: string;
+}) {
+    await requireAuth('messaging:read');
+    return simulateConciergeMessageAction(input);
 }

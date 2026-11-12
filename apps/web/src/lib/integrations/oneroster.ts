@@ -1,5 +1,6 @@
 import { pool } from '@/lib/db';
 import { ROLE_GROUPS } from '@/lib/auth/api';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import {
     authenticateIntegrationRequest,
     ensureIntegrationConnection,
@@ -75,20 +76,21 @@ export async function handleOneRosterGet(request: Request, { params }: RouteCont
 
             case 'users': {
                 const { rows: users } = await pool.query(
-                    `SELECT id,
-                            is_active AS "isActive",
-                            first_name AS "firstName",
-                            last_name AS "lastName",
-                            email,
-                            role
-                     FROM users
-                     WHERE tenant_id = $1`,
+                    `SELECT u.id,
+                            u.is_active AS "isActive",
+                            u.first_name AS "firstName",
+                            u.last_name AS "lastName",
+                            COALESCE(u.email_enc, u.email) AS email_raw,
+                            u.role
+                     FROM users u
+                     WHERE u.tenant_id = $1`,
                     [tenantId],
                 );
                 const { rows: students } = await pool.query(
                     `SELECT id, status, first_name AS "firstName", last_name AS "lastName"
                      FROM students
-                     WHERE tenant_id = $1`,
+                     WHERE tenant_id = $1
+                       AND COALESCE(custom_data->>'erased', 'false') <> 'true'`,
                     [tenantId],
                 );
 
@@ -97,7 +99,7 @@ export async function handleOneRosterGet(request: Request, { params }: RouteCont
                     status: user.isActive ? 'active' : 'tobedeleted',
                     givenName: user.firstName,
                     familyName: user.lastName,
-                    email: user.email,
+                    email: user.email_raw ? decryptFieldTolerant(user.email_raw) : '',
                     role: mapRole(user.role),
                     orgs: [{ sourcedId: tenantId }],
                 }));

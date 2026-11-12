@@ -1,4 +1,8 @@
 import type { SessionOptions } from 'iron-session';
+import {
+    DEMO_SANDBOX_SOUTH_TENANT_CODE,
+    DEMO_SANDBOX_TENANT_CODE,
+} from './platform-owner';
 
 export type SessionData = {
     userId: string;
@@ -19,6 +23,9 @@ export type SessionData = {
     activeModules?: string[];
     mfaRequired?: boolean;
     mfaVerified?: boolean;
+    sessionVersion?: number;
+    tenantSessionVersion?: number;
+    isDemoSandbox?: boolean;
     ssoState?: {
         value: string;
         provider: string;
@@ -45,10 +52,32 @@ export type SessionData = {
 export const MFA_REQUIRED_ROLE_NAMES = [
     'PLATFORM_ADMIN',
     'SUPER_ADMIN',
+    'GROUP_EXECUTIVE',
     'SCHOOL_ADMIN',
     'PRINCIPAL',
+    'FINANCE_LEAD',
     'ACCOUNTANT',
 ] as const;
+
+const MFA_REQUIRED_ROLE_SET = new Set<string>(MFA_REQUIRED_ROLE_NAMES);
+const DEMO_SANDBOX_CODE_SET = new Set<string>([
+    DEMO_SANDBOX_TENANT_CODE,
+    DEMO_SANDBOX_SOUTH_TENANT_CODE,
+]);
+
+export function isRoleMfaRequired(
+    role: string,
+    options?: { isDemoSandbox?: boolean; tenantCode?: string | null },
+): boolean {
+    if (options?.isDemoSandbox === true) {
+        return false;
+    }
+    const normalizedTenantCode = options?.tenantCode?.trim().toUpperCase();
+    if (normalizedTenantCode && DEMO_SANDBOX_CODE_SET.has(normalizedTenantCode)) {
+        return false;
+    }
+    return MFA_REQUIRED_ROLE_SET.has(role);
+}
 
 export function isSessionDataExpired(session: Pick<SessionData, 'expiresAt' | 'impersonation'>): boolean {
     const now = Date.now();
@@ -82,7 +111,7 @@ export const sessionOptions: SessionOptions = {
     cookieOptions: {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production' && !process.env.PLAYWRIGHT_TEST,
-        maxAge: 60 * 60 * 24 * 7,
+        maxAge: 60 * 60 * 12,
         sameSite: 'lax',
     },
 };

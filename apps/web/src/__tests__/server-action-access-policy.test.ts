@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import ts from 'typescript';
 
 const SRC_DIR = path.join(process.cwd(), 'src');
 
@@ -10,12 +11,74 @@ const SRC_DIR = path.join(process.cwd(), 'src');
  */
 const PUBLIC_RATE_LIMITED_SERVER_ACTIONS = new Set([
     'lib/actions/auth.ts::loginAction',
+    'lib/actions/auth.ts::loginActionV2',
     'lib/actions/onboarding.ts::setupSchoolWorkspace',
     'lib/actions/demo-sandbox.ts::launchDemoSandboxAction',
     'lib/actions/metadata-engine.ts::getPublicPortalIntakeSchema',
     'lib/actions/metadata-engine.ts::submitPublicPortalIntakeRecord',
     'lib/actions/metadata-engine.ts::lookupPublicPortalRecordStatus',
 ]);
+
+/**
+ * Explicit allowlist of user-agnostic self-session or tenant-bootstrap `'use server'`
+ * exports permitted to call bare 0-argument `requireAuth()` / `getSession()` / `currentSession()`
+ * without a secondary role or permission check.
+ *
+ * Every tenant-mutating or domain-specific server action MUST pass an explicit
+ * permission (`requireAuth('domain:action')`), call a role-scoped guard (`requireRole`,
+ * `requireSchoolAdmin`, `hasPermission`, etc.), or delegate to an FLS/OLS-enforcing helper.
+ */
+const BARE_SESSION_AUTH_ALLOWLIST = new Set([
+    // Self-session authentication & MFA lifecycle
+    'lib/actions/auth.ts::logoutAction',
+    'lib/actions/mfa.ts::beginMfaEnrollment',
+    'lib/actions/mfa.ts::completeMfaEnrollment',
+    'lib/actions/mfa.ts::verifyMfaBackupCodeAction',
+    'lib/actions/mfa.ts::disableMfaAction',
+    'lib/actions/platform.ts::returnToHQAction',
+    'lib/actions/platform.ts::fetchActiveBroadcasts',
+    // Tenant-scoped read/bootstrap helpers available to any authenticated tenant member under RLS
+    'lib/actions/scaffolding-bridge.ts::getTenantId',
+    'lib/actions/payments.ts::getOnlinePaymentCapabilities',
+    'lib/actions/queries.ts::getSectionInfo',
+    'lib/actions/queries.ts::getAcademicYears',
+    'lib/actions/metadata-engine.ts::getAllMetadataObjects',
+    'lib/actions/metadata-engine.ts::logRecordQuickActivity',
+]);
+
+const SECONDARY_AUTHORIZATION_MARKERS = [
+    'hasPermission(',
+    'requireRole(',
+    'assertRole(',
+    'requirePlatformAdmin(',
+    'requireFounderSession(',
+    'requireParentContext(',
+    'requireTeacherContext(',
+    'requireSchoolAdmin(',
+    'requireAdmissionsAccess(',
+    'requireStaffAccess(',
+    'requireTenantAuth(',
+    'requireAnalyticsAccess(',
+    'requireUsersAccess(',
+    'requireUserAdmin(',
+    'assertGuardianOfStudent(',
+    'getObjectMetadata(',
+    'queryRecords(',
+    'updateRecordFieldValue(',
+    'updateAssetCondition(',
+    'restockConsumable(',
+    'resolveChild(',
+    'session.role',
+    'auth.role',
+    'authSession.role',
+    'userRole',
+    'ROLE_GROUPS',
+    'ADMIN_ROLES',
+    'STAFF_ROLES',
+    'FINANCE_ROLES',
+    'CONNECT_ADMIN_ROLES',
+    'INVOICE_PAYER_ROLES',
+];
 
 /**
  * Server-only internal modules that must NEVER carry `'use server'` (Audit C-01).
@@ -130,5 +193,91 @@ describe('Server Action access policy (Audit C-01 / H-13)', () => {
 
         expect(unthrottledPublic).toEqual([]);
         expect(unguarded).toEqual([]);
+    });
+
+    it('flags bare 0-argument requireAuth() or session lookups without secondary RBAC unless allowlisted (LOW-07)', () => {
+        const bareRequireAuthViolations: string[] = [];
+
+        for (const absPath of sourceFiles) {
+            const source = fs.readFileSync(absPath, 'utf8');
+            if (!/^\s*['"]use server['"]\s*;?/m.test(source)) continue;
+
+            const relPath = path.relative(SRC_DIR, absPath).replaceAll(path.sep, '/');
+            const sf = ts.createSourceFile(
+                absPath,
+                source,
+                ts.ScriptTarget.Latest,
+                true,
+                absPath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+            );
+
+            const firstStmt = sf.statements[0];
+            const isModuleUseServer =
+                Boolean(firstStmt) &&
+                ts.isExpressionStatement(firstStmt) &&
+                ts.isStringLiteral(firstStmt.expression) &&
+                firstStmt.expression.text === 'use server';
+            if (!isModuleUseServer) continue;
+
+            for (const stmt of sf.statements) {
+                if (!ts.isFunctionDeclaration(stmt) || !stmt.name || !stmt.body) continue;
+                const modifiers = ts.canHaveModifiers(stmt) ? ts.getModifiers(stmt) : undefined;
+                const isExported = Boolean(
+                    modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword),
+                );
+                const isAsync = Boolean(
+                    modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword),
+                );
+                if (!isExported || !isAsync) continue;
+
+                const fnName = stmt.name.text;
+                const actionKey = `${relPath}::${fnName}`;
+                if (
+                    PUBLIC_RATE_LIMITED_SERVER_ACTIONS.has(actionKey) ||
+                    BARE_SESSION_AUTH_ALLOWLIST.has(actionKey)
+                ) {
+                    continue;
+                }
+
+                let callsBareZeroArgRequireAuth = false;
+                let callsScopedRequireAuth = false;
+                let callsBareSessionLookup = false;
+
+                const visit = (node: ts.Node) => {
+                    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+                        const callee = node.expression.text;
+                        if (callee === 'requireAuth') {
+                            if (node.arguments.length === 0) {
+                                callsBareZeroArgRequireAuth = true;
+                            } else {
+                                callsScopedRequireAuth = true;
+                            }
+                        } else if (callee === 'getSession' || callee === 'currentSession') {
+                            callsBareSessionLookup = true;
+                        }
+                    }
+                    ts.forEachChild(node, visit);
+                };
+                visit(stmt.body);
+
+                if (!callsBareZeroArgRequireAuth && !callsBareSessionLookup) {
+                    continue;
+                }
+                if (callsScopedRequireAuth) {
+                    continue;
+                }
+
+                const fnText = stmt.body.getText(sf);
+                const hasSecondaryCheck = SECONDARY_AUTHORIZATION_MARKERS.some((marker) =>
+                    fnText.includes(marker),
+                );
+
+                if (!hasSecondaryCheck) {
+                    bareRequireAuthViolations.push(actionKey);
+                }
+            }
+        }
+
+        expect(bareRequireAuthViolations).toEqual([]);
     });
 });

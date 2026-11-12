@@ -316,8 +316,13 @@ function isValidCalendarDate(year: number, month: number, day: number): boolean 
     );
 }
 
+function stripLeadingFormulaChars(value: string): string {
+    return value.replace(/^(?:[\t\r\n]|[\s\u0000-\u001f]*[=+\-@|])+/, '').trim();
+}
+
 function splitPersonName(fullName: string): { firstName: string; lastName: string } {
-    const parts = fullName.trim().split(/\s+/).filter(Boolean);
+    const cleaned = stripLeadingFormulaChars(fullName);
+    const parts = cleaned.split(/\s+/).map(stripLeadingFormulaChars).filter(Boolean);
     if (parts.length === 0) return { firstName: '', lastName: '' };
     if (parts.length === 1) return { firstName: parts[0], lastName: '-' };
     return {
@@ -398,8 +403,8 @@ export function normalizeLegacyRow(
         errors.push('Admission Number exceeds 50 characters');
     }
 
-    let firstName = getVal('firstName');
-    let lastName = getVal('lastName');
+    let firstName = stripLeadingFormulaChars(getVal('firstName'));
+    let lastName = stripLeadingFormulaChars(getVal('lastName'));
     if (!firstName) {
         const split = splitPersonName(getVal('fullName'));
         firstName = split.firstName;

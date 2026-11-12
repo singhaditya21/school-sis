@@ -2,10 +2,45 @@
 
 import { sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { getSession } from '@/lib/auth/session';
 import { getSmsProvider } from '@/lib/providers/sms';
 import { getEmailProvider } from '@/lib/providers/email';
 import { pusher } from '@/lib/pusher';
 import { decryptFieldTolerant } from '@/lib/encryption';
+import { isDemoSession, isDemoTenantId } from '@/lib/tenant/demo-guard';
+
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+async function getTeacherAssignedSectionIds(tenantId: string, userId: string): Promise<string[]> {
+    const rows = await sql<{ id: string }>`
+        SELECT sec.id
+        FROM sections sec
+        LEFT JOIN staff_profiles sp ON sp.user_id = ${userId} AND sp.tenant_id = ${tenantId}
+        WHERE sec.tenant_id = ${tenantId}
+          AND (
+              sec.class_teacher_id = ${userId}
+              OR (sp.id IS NOT NULL AND sec.class_teacher_id = sp.id)
+              OR EXISTS (
+                  SELECT 1
+                  FROM timetable_entries te
+                  WHERE te.tenant_id = ${tenantId}
+                    AND te.section_id = sec.id
+                    AND (
+                        te.teacher_id = ${userId}
+                        OR (sp.id IS NOT NULL AND te.teacher_id = sp.id)
+                    )
+              )
+          )
+    `;
+    return rows.map((r) => r.id);
+}
 
 export interface ClassAttendanceSummary {
     gradeName: string;
@@ -25,10 +60,15 @@ export interface AttendanceWeeklyStats {
 }
 
 export async function getClassAttendanceSummary(date?: string): Promise<ClassAttendanceSummary[]> {
-    const { tenantId } = await requireAuth('attendance:read');
+    const { tenantId, userId, session } = await requireAuth('attendance:read');
     const targetDate = date || new Date().toISOString().split('T')[0];
 
-    const sectionRows = await sql<{
+    let teacherAllowed: Set<string> | null = null;
+    if (session.role === 'TEACHER') {
+        teacherAllowed = new Set(await getTeacherAssignedSectionIds(tenantId, userId));
+    }
+
+    const allSectionRows = await sql<{
         sectionId: string;
         sectionName: string;
         gradeId: string;
@@ -41,6 +81,9 @@ export async function getClassAttendanceSummary(date?: string): Promise<ClassAtt
         WHERE s.tenant_id = ${tenantId}
         ORDER BY g.display_order ASC, s.name ASC
     `;
+    const sectionRows = teacherAllowed
+        ? allSectionRows.filter((s) => teacherAllowed.has(s.sectionId))
+        : allSectionRows;
 
     const result: ClassAttendanceSummary[] = [];
 
@@ -48,7 +91,10 @@ export async function getClassAttendanceSummary(date?: string): Promise<ClassAtt
         const studentCountRow = await sql<{ count: string }>`
             SELECT COUNT(*) AS count
             FROM students
-            WHERE section_id = ${sec.sectionId} AND tenant_id = ${tenantId} AND status = 'ACTIVE'
+            WHERE section_id = ${sec.sectionId}
+              AND tenant_id = ${tenantId}
+              AND status = 'ACTIVE'
+              AND COALESCE(custom_data->>'erased', 'false') <> 'true'
         `.one();
 
         const attendanceRows = await sql<{ status: string; count: string }>`
@@ -117,9 +163,14 @@ export async function getAttendanceReport(
     startDate: string,
     endDate: string,
 ): Promise<AttendanceReportRow[]> {
-    const { tenantId } = await requireAuth('attendance:read');
+    const { tenantId, userId, session } = await requireAuth('attendance:read');
 
-    const sectionRows = await sql<{
+    let teacherAllowed: Set<string> | null = null;
+    if (session.role === 'TEACHER') {
+        teacherAllowed = new Set(await getTeacherAssignedSectionIds(tenantId, userId));
+    }
+
+    const allSectionRows = await sql<{
         sectionId: string;
         sectionName: string;
         gradeName: string;
@@ -131,6 +182,9 @@ export async function getAttendanceReport(
         WHERE s.tenant_id = ${tenantId}
         ORDER BY g.display_order ASC, s.name ASC
     `;
+    const sectionRows = teacherAllowed
+        ? allSectionRows.filter((s) => teacherAllowed.has(s.sectionId))
+        : allSectionRows;
 
     const report: AttendanceReportRow[] = [];
 
@@ -138,7 +192,10 @@ export async function getAttendanceReport(
         const studentCountRow = await sql<{ count: string }>`
             SELECT COUNT(*) AS count
             FROM students
-            WHERE section_id = ${sec.sectionId} AND tenant_id = ${tenantId} AND status = 'ACTIVE'
+            WHERE section_id = ${sec.sectionId}
+              AND tenant_id = ${tenantId}
+              AND status = 'ACTIVE'
+              AND COALESCE(custom_data->>'erased', 'false') <> 'true'
         `.one();
 
         const statusRows = await sql<{ status: string; count: string }>`
@@ -180,17 +237,52 @@ export async function getAttendanceReport(
     return report;
 }
 
-export async function notifyAbsentParents(date?: string): Promise<{ sent: number; failed: number; errors: string[] }> {
-    const { tenantId } = await requireAuth('attendance:write');
+export async function notifyAbsentParents(
+    date?: string,
+    sectionId?: string,
+): Promise<{ sent: number; failed: number; errors: string[] }> {
+    const { tenantId, userId, session } = await requireAuth('attendance:write');
     const targetDate = date || new Date().toISOString().split('T')[0];
 
-    const absentRows = await sql<{ recordId: string; studentId: string }>`
-        SELECT id AS "recordId", student_id AS "studentId"
+    let allowedTeacherSections: Set<string> | null = null;
+    if (session.role === 'TEACHER') {
+        const assignedIds = await getTeacherAssignedSectionIds(tenantId, userId);
+        if (assignedIds.length === 0) {
+            throw new Error('Unauthorized: Teacher is not assigned to any class section.');
+        }
+        allowedTeacherSections = new Set(assignedIds);
+        if (sectionId && !allowedTeacherSections.has(sectionId)) {
+            throw new Error('Unauthorized: Teacher is not assigned to the target class section.');
+        }
+    }
+
+    const sectionFilter = sectionId ? sql`AND section_id = ${sectionId}` : sql``;
+
+    const rawAbsentRows = await sql<{ recordId: string; studentId: string; sectionId: string }>`
+        SELECT id AS "recordId", student_id AS "studentId", section_id AS "sectionId"
         FROM attendance_records
-        WHERE tenant_id = ${tenantId} AND date = ${targetDate} AND status = 'ABSENT' AND is_notified = false
+        WHERE tenant_id = ${tenantId}
+          AND date = ${targetDate}
+          AND status = 'ABSENT'
+          AND is_notified = false
+          ${sectionFilter}
     `;
 
+    const absentRows = allowedTeacherSections
+        ? rawAbsentRows.filter((r) => allowedTeacherSections.has(r.sectionId))
+        : rawAbsentRows;
+
     if (absentRows.length === 0) return { sent: 0, failed: 0, errors: [] };
+
+    let fullSession: Awaited<ReturnType<typeof getSession>> = null;
+    try {
+        fullSession = await getSession();
+    } catch {
+        fullSession = null;
+    }
+    if (isDemoSession(fullSession) || (await isDemoTenantId(tenantId))) {
+        return { sent: absentRows.length, failed: 0, errors: [] };
+    }
 
     let sent = 0;
     let failed = 0;
@@ -202,6 +294,8 @@ export async function notifyAbsentParents(date?: string): Promise<{ sent: number
                 SELECT first_name AS "firstName", last_name AS "lastName"
                 FROM students
                 WHERE id = ${row.studentId}
+                  AND tenant_id = ${tenantId}
+                  AND COALESCE(custom_data->>'erased', 'false') <> 'true'
             `.maybeOne();
 
             const rawGuardian = await sql<{ firstName: string; phone: string | null; email: string | null }>`
@@ -209,7 +303,9 @@ export async function notifyAbsentParents(date?: string): Promise<{ sent: number
                        COALESCE(phone_enc, phone) AS "phone",
                        COALESCE(email_enc, email) AS "email"
                 FROM guardians
-                WHERE student_id = ${row.studentId} AND is_primary = true
+                WHERE student_id = ${row.studentId}
+                  AND tenant_id = ${tenantId}
+                  AND is_primary = true
             `.maybeOne();
 
             if (!rawGuardian || !student) {
@@ -243,7 +339,7 @@ export async function notifyAbsentParents(date?: string): Promise<{ sent: number
                 const emailResult = await getEmailProvider().send({
                     to: guardian.email,
                     subject: `Absence Alert - ${studentName}`,
-                    html: `<p>Dear ${guardian.firstName},</p><p>${studentName} was marked <strong>absent</strong> on ${dateFormatted}.</p><p>If this is incorrect, please contact the school office.</p><p style="color:#888;font-size:12px">ScholarMind Automated Notification</p>`,
+                    html: `<p>Dear ${escapeHtml(guardian.firstName)},</p><p>${escapeHtml(studentName)} was marked <strong>absent</strong> on ${escapeHtml(dateFormatted)}.</p><p>If this is incorrect, please contact the school office.</p><p style="color:#888;font-size:12px">ScholarMind Automated Notification</p>`,
                 });
                 if (emailResult.success) delivered++;
                 else errors.push(`Email for ${row.studentId}: ${emailResult.error || 'provider rejected delivery'}`);

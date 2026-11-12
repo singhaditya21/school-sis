@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { sanitizeCsvValue } from '@/lib/utils/csv-sanitize';
 
 /**
  * Audit log table.
@@ -65,23 +66,24 @@ function changedKeys(
 }
 
 function toCsv(rows: AuditRow[]): string {
-    const escape = (value: string | null): string => `"${(value ?? '').replace(/"/g, '""')}"`;
     const header = [
         'Timestamp (ISO)', 'Action', 'Entity type', 'Entity id',
         'Actor', 'Actor email', 'Actor role', 'Description', 'IP address', 'User agent',
-    ].join(',');
+    ]
+        .map((col) => sanitizeCsvValue(col))
+        .join(',');
     const body = rows.map((row) =>
         [
-            escape(row.createdAt),
-            escape(row.action),
-            escape(row.entityType),
-            escape(row.entityId),
-            escape(row.actorName),
-            escape(row.actorEmail),
-            escape(row.actorRole),
-            escape(row.description),
-            escape(row.ipAddress),
-            escape(row.userAgent),
+            sanitizeCsvValue(row.createdAt),
+            sanitizeCsvValue(row.action),
+            sanitizeCsvValue(row.entityType),
+            sanitizeCsvValue(row.entityId),
+            sanitizeCsvValue(row.actorName),
+            sanitizeCsvValue(row.actorEmail),
+            sanitizeCsvValue(row.actorRole),
+            sanitizeCsvValue(row.description),
+            sanitizeCsvValue(row.ipAddress),
+            sanitizeCsvValue(row.userAgent),
         ].join(','),
     );
     return [header, ...body].join('\n');

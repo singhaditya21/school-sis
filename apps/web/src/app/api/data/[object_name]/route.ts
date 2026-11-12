@@ -10,8 +10,11 @@ import {
   type MetadataDataType,
 } from '@/lib/metadata/platform';
 import {
+  canWriteMetadataField,
   checkWritableMetadataPayload,
   filterReadableMetadataFields,
+  isProtectedLedgerOrIdentityTable,
+  isProtectedLegacyPlaintextColumn,
   type RuntimeMetadataFieldWithPermissions,
 } from '@/lib/metadata/access-control';
 import { logAudit } from '@/lib/audit';
@@ -20,6 +23,12 @@ import { logger } from '@/lib/observability/logger';
 type RouteContext = {
   params: Promise<{ object_name: string }>;
 };
+
+type ApiMetadataField = RuntimeMetadataFieldWithPermissions & {
+  isCustom?: boolean;
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function clampInt(raw: string | null, fallback: number, min: number, max: number): number {
   if (!raw) return fallback;
@@ -45,12 +54,13 @@ async function fetchMetadataObject(objectName: string, tenantId: string) {
   `;
 }
 
-async function fetchMetadataFields(objectId: string): Promise<RuntimeMetadataFieldWithPermissions[]> {
-  return sql<RuntimeMetadataFieldWithPermissions>`
+async function fetchMetadataFields(objectId: string): Promise<ApiMetadataField[]> {
+  return sql<ApiMetadataField>`
     SELECT f.id,
            f.label,
            f.api_name as "apiName",
            f.data_type as "dataType",
+           COALESCE(f.is_custom, false) as "isCustom",
            f.is_required as "isRequired",
            f.picklist_options as "picklistOptions",
            f.validation_rules as "validationRules",
@@ -72,6 +82,7 @@ async function fetchMetadataFields(objectId: string): Promise<RuntimeMetadataFie
              f.label,
              f.api_name,
              f.data_type,
+             f.is_custom,
              f.is_required,
              f.picklist_options,
              f.validation_rules,
@@ -107,11 +118,23 @@ export async function GET(
         return NextResponse.json({ error: `Object '${objectName}' not found.` }, { status: 404 });
       }
       const objectDef = objRows[0];
+      if (objectDef.tableName === 'platform_audit_logs') {
+        return NextResponse.json(
+          { error: `Object '${objectName}' cannot be queried via generic metadata API.` },
+          { status: 403 },
+        );
+      }
       const objectId = objectDef.id;
-      const readableFields = filterReadableMetadataFields(
-        await fetchMetadataFields(objectId),
-        auth.context.role,
+      const isEavStorage =
+        objectDef.isCustom || !objectDef.tableName || objectDef.tableName === 'metadata_records';
+      const candidateFields = (await fetchMetadataFields(objectId)).filter(
+        (field) =>
+          isEavStorage || Boolean(field.isCustom) || !isProtectedLegacyPlaintextColumn(field.apiName),
       );
+      const readableFields = filterReadableMetadataFields(
+        candidateFields,
+        auth.context.role,
+      ) as ApiMetadataField[];
 
       const clientFields = readableFields.map(({ permissions: _permissions, ...rest }) => rest);
 
@@ -119,8 +142,6 @@ export async function GET(
         return NextResponse.json({ data: [], fields: [], pagination: { limit, offset } });
       }
 
-      const isEavStorage =
-        objectDef.isCustom || !objectDef.tableName || objectDef.tableName === 'metadata_records';
       let data: Record<string, unknown>[] = [];
 
       if (isEavStorage) {
@@ -186,7 +207,10 @@ export async function GET(
               ? (row.custom_data as Record<string, unknown>)
               : {};
           for (const field of readableFields) {
-            if (Object.prototype.hasOwnProperty.call(row, field.apiName)) {
+            if (!field.isCustom && isProtectedLegacyPlaintextColumn(field.apiName)) {
+              continue;
+            }
+            if (!field.isCustom && Object.prototype.hasOwnProperty.call(row, field.apiName)) {
               projected[field.apiName] = row[field.apiName];
             } else if (Object.prototype.hasOwnProperty.call(customBag, field.apiName)) {
               projected[field.apiName] = customBag[field.apiName];
@@ -258,6 +282,14 @@ export async function POST(
         return NextResponse.json({ error: `Object '${objectName}' not found.` }, { status: 404 });
       }
       const objectDef = objRows[0];
+      if (isProtectedLedgerOrIdentityTable(objectDef.tableName)) {
+        return NextResponse.json(
+          {
+            error: `Direct record creation on protected ledger/identity table '${objectDef.tableName}' is blocked. Use governed finance or IAM workflows.`,
+          },
+          { status: 403 },
+        );
+      }
       const isEavStorage =
         objectDef.isCustom || !objectDef.tableName || objectDef.tableName === 'metadata_records';
       if (!isEavStorage) {
@@ -335,6 +367,363 @@ export async function POST(
     });
   } catch (error) {
     logger.error('metadata_api.post_failed', 'Dynamic Data POST Error', {
+      metadata: { error: error instanceof Error ? error.message : String(error) },
+    });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+async function handleUpdateRequest(
+  req: Request,
+  { params }: RouteContext,
+  preverifiedAuth?: Extract<Awaited<ReturnType<typeof requireApiPermission>>, { ok: true }>,
+) {
+  try {
+    const auth = preverifiedAuth ?? (await requireApiPermission('metadata:write'));
+    if (auth.ok === false) return auth.response;
+
+    const { object_name: objectName } = await params;
+    const tenantId = auth.context.tenantId;
+    assertSafeMetadataIdentifier(objectName, 'object API name');
+
+    const json = await readTenantScopedJson<Record<string, unknown>>(req, tenantId);
+    if (json.ok === false) return json.response;
+    const body = stripTenantFields(json.data);
+
+    const searchParams = new URL(req.url).searchParams;
+    const rawId = searchParams.get('id') || (typeof body.id === 'string' ? body.id : '');
+    if (!UUID_RE.test(rawId)) {
+      return NextResponse.json({ error: 'Valid record id (UUID) is required.' }, { status: 400 });
+    }
+    const recordId = rawId;
+
+    return await runWithTenantContext(tenantId, async () => {
+      const objRows = await fetchMetadataObject(objectName, tenantId);
+      if (objRows.length === 0) {
+        return NextResponse.json({ error: `Object '${objectName}' not found.` }, { status: 404 });
+      }
+      const objectDef = objRows[0];
+      const isEavStorage =
+        objectDef.isCustom || !objectDef.tableName || objectDef.tableName === 'metadata_records';
+      const allFields = await fetchMetadataFields(objectDef.id);
+      const nonVirtualFields = allFields.filter(
+        (f) =>
+          f.validationRules?.fieldSubType !== 'FORMULA' &&
+          f.validationRules?.fieldSubType !== 'ROLLUP_SUMMARY',
+      );
+
+      const sanitizedBody: Record<string, unknown> = { ...body };
+      delete sanitizedBody.id;
+      for (const f of allFields) {
+        if (
+          f.validationRules?.fieldSubType === 'FORMULA' ||
+          f.validationRules?.fieldSubType === 'ROLLUP_SUMMARY'
+        ) {
+          delete sanitizedBody[f.apiName];
+        }
+      }
+
+      if (!isEavStorage) {
+        for (const key of Object.keys(sanitizedBody)) {
+          if (isProtectedLegacyPlaintextColumn(key)) {
+            return NextResponse.json(
+              {
+                error: `Direct writes to protected legacy plaintext column '${key}' are blocked.`,
+              },
+              { status: 403 },
+            );
+          }
+        }
+
+        const customFields = nonVirtualFields.filter((f) => Boolean(f.isCustom));
+        const customFieldMap = new Map(customFields.map((f) => [f.apiName, f]));
+        const disallowedStandardKeys = Object.keys(sanitizedBody).filter(
+          (key) => !customFieldMap.has(key),
+        );
+
+        if (disallowedStandardKeys.length > 0) {
+          if (isProtectedLedgerOrIdentityTable(objectDef.tableName)) {
+            return NextResponse.json(
+              {
+                error: `Direct standard-column updates on protected ledger/identity table '${objectDef.tableName}' are blocked (${disallowedStandardKeys.join(', ')}). Only custom_data fields may be updated, or use governed finance/IAM workflows.`,
+              },
+              { status: 403 },
+            );
+          }
+          return NextResponse.json(
+            {
+              error: `Direct standard-column updates on '${objectDef.tableName}' must go through its domain API; only custom_data fields may be updated here.`,
+            },
+            { status: 403 },
+          );
+        }
+
+        if (objectDef.tableName === 'audit_logs' || objectDef.tableName === 'platform_audit_logs') {
+          return NextResponse.json(
+            { error: `Audit log table '${objectDef.tableName}' is append-only and immutable.` },
+            { status: 403 },
+          );
+        }
+
+        const writeAccess = checkWritableMetadataPayload(
+          customFields,
+          auth.context.role,
+          sanitizedBody,
+        );
+        if (writeAccess.ok === false) {
+          return NextResponse.json(
+            {
+              error: 'Forbidden',
+              details: {
+                deniedFields: writeAccess.deniedFields,
+                blockedRequiredFields: writeAccess.blockedRequiredFields,
+              },
+            },
+            { status: 403 },
+          );
+        }
+
+        const validated = validateMetadataRecordPayload(customFields, sanitizedBody, {
+          requireAll: false,
+        });
+        if (validated.ok === false) {
+          return NextResponse.json(
+            { error: 'Validation failed', details: validated.errors },
+            { status: 400 },
+          );
+        }
+
+        const tableIdent = identifier(objectDef.tableName);
+        const updatedRows = await sql<{ id: string }>`
+          UPDATE ${tableIdent}
+          SET custom_data = COALESCE(custom_data, '{}'::jsonb) || ${JSON.stringify(validated.data)}::jsonb,
+              updated_at = NOW()
+          WHERE id = ${recordId}
+            AND tenant_id = ${tenantId}
+          RETURNING id
+        `;
+        if (updatedRows.length === 0) {
+          return NextResponse.json({ error: 'Record not found.' }, { status: 404 });
+        }
+
+        await logAudit({
+          tenantId,
+          userId: auth.context.userId,
+          action: 'UPDATE',
+          entityType: objectName,
+          entityId: recordId,
+          description: `Updated custom_data fields on '${objectName}'`,
+          afterState: { fields: Object.keys(validated.data) },
+        });
+
+        return NextResponse.json({ success: true, recordId });
+      }
+
+      const writeAccess = checkWritableMetadataPayload(
+        nonVirtualFields,
+        auth.context.role,
+        sanitizedBody,
+      );
+      if (writeAccess.ok === false) {
+        return NextResponse.json(
+          {
+            error: 'Forbidden',
+            details: {
+              deniedFields: writeAccess.deniedFields,
+              blockedRequiredFields: writeAccess.blockedRequiredFields,
+            },
+          },
+          { status: 403 },
+        );
+      }
+
+      const validated = validateMetadataRecordPayload(nonVirtualFields, sanitizedBody, {
+        requireAll: false,
+      });
+      if (validated.ok === false) {
+        return NextResponse.json(
+          { error: 'Validation failed', details: validated.errors },
+          { status: 400 },
+        );
+      }
+
+      const fieldByApiName = new Map(nonVirtualFields.map((field) => [field.apiName, field]));
+      const found = await withTenant(tenantId, async (tx) => {
+        const q = sqlFor(tx);
+        const existing = await q<{ id: string }>`
+          SELECT id
+          FROM metadata_records
+          WHERE id = ${recordId}
+            AND tenant_id = ${tenantId}
+            AND object_id = ${objectDef.id}
+          FOR UPDATE
+        `;
+        if (existing.length === 0) return false;
+
+        for (const [key, value] of Object.entries(validated.data)) {
+          const field = fieldByApiName.get(key);
+          if (!field) continue;
+          const valCol = identifier(eavValueColumnForType(field.dataType as MetadataDataType));
+          await q`
+            DELETE FROM metadata_values
+            WHERE record_id = ${recordId}
+              AND field_id = ${field.id}
+          `.execute();
+          if (value != null) {
+            await q`
+              INSERT INTO metadata_values (id, record_id, field_id, ${valCol})
+              VALUES (gen_random_uuid(), ${recordId}, ${field.id}, ${value})
+            `.execute();
+          }
+        }
+
+        await q`
+          UPDATE metadata_records
+          SET updated_at = NOW()
+          WHERE id = ${recordId}
+            AND tenant_id = ${tenantId}
+        `.execute();
+
+        return true;
+      });
+
+      if (!found) {
+        return NextResponse.json({ error: 'Record not found.' }, { status: 404 });
+      }
+
+      await logAudit({
+        tenantId,
+        userId: auth.context.userId,
+        action: 'UPDATE',
+        entityType: objectName,
+        entityId: recordId,
+        description: `Updated record in object '${objectName}'`,
+        afterState: { fields: Object.keys(validated.data) },
+      });
+
+      return NextResponse.json({ success: true, recordId });
+    });
+  } catch (error) {
+    logger.error('metadata_api.update_failed', 'Dynamic Data UPDATE Error', {
+      metadata: { error: error instanceof Error ? error.message : String(error) },
+    });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+export async function PUT(req: Request, ctx: RouteContext) {
+  const auth = await requireApiPermission('metadata:write');
+  if (auth.ok === false) return auth.response;
+  return handleUpdateRequest(req, ctx, auth);
+}
+
+export async function PATCH(req: Request, ctx: RouteContext) {
+  const auth = await requireApiPermission('metadata:write');
+  if (auth.ok === false) return auth.response;
+  return handleUpdateRequest(req, ctx, auth);
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: RouteContext,
+) {
+  try {
+    const auth = await requireApiPermission('metadata:delete');
+    if (auth.ok === false) return auth.response;
+
+    const { object_name: objectName } = await params;
+    const tenantId = auth.context.tenantId;
+    assertSafeMetadataIdentifier(objectName, 'object API name');
+
+    return await runWithTenantContext(tenantId, async () => {
+      const objRows = await fetchMetadataObject(objectName, tenantId);
+      if (objRows.length === 0) {
+        return NextResponse.json({ error: `Object '${objectName}' not found.` }, { status: 404 });
+      }
+      const objectDef = objRows[0];
+      if (isProtectedLedgerOrIdentityTable(objectDef.tableName)) {
+        return NextResponse.json(
+          {
+            error: `Record deletion on protected ledger/identity table '${objectDef.tableName}' is blocked. Use governed finance or IAM workflows.`,
+          },
+          { status: 403 },
+        );
+      }
+
+      const isEavStorage =
+        objectDef.isCustom || !objectDef.tableName || objectDef.tableName === 'metadata_records';
+      if (!isEavStorage) {
+        return NextResponse.json(
+          {
+            error: `Standard domain records on '${objectDef.tableName}' cannot be deleted via generic metadata API; use the domain lifecycle workflow.`,
+          },
+          { status: 403 },
+        );
+      }
+
+      const searchParams = new URL(req.url).searchParams;
+      let recordId = searchParams.get('id') || '';
+      if (!recordId) {
+        try {
+          const json = await readTenantScopedJson<Record<string, unknown>>(req, tenantId);
+          if (json.ok && typeof json.data.id === 'string') {
+            recordId = json.data.id;
+          }
+        } catch {
+          // No body provided
+        }
+      }
+      if (!UUID_RE.test(recordId)) {
+        return NextResponse.json({ error: 'Valid record id (UUID) is required.' }, { status: 400 });
+      }
+
+      const fields = await fetchMetadataFields(objectDef.id);
+      const writableFields = fields.filter((f) => canWriteMetadataField(auth.context.role, f));
+      if (writableFields.length === 0) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+
+      const deleted = await withTenant(tenantId, async (tx) => {
+        const q = sqlFor(tx);
+        await q`
+          DELETE FROM metadata_values
+          WHERE record_id = ${recordId}
+            AND record_id IN (
+              SELECT id
+              FROM metadata_records
+              WHERE id = ${recordId}
+                AND object_id = ${objectDef.id}
+                AND tenant_id = ${tenantId}
+            )
+        `.execute();
+        const removedRows = await q<{ id: string }>`
+          DELETE FROM metadata_records
+          WHERE id = ${recordId}
+            AND object_id = ${objectDef.id}
+            AND tenant_id = ${tenantId}
+          RETURNING id
+        `;
+        return removedRows.length > 0;
+      });
+
+      if (!deleted) {
+        return NextResponse.json({ error: 'Record not found.' }, { status: 404 });
+      }
+
+      await logAudit({
+        tenantId,
+        userId: auth.context.userId,
+        action: 'DELETE',
+        entityType: objectName,
+        entityId: recordId,
+        description: `Deleted record in object '${objectName}'`,
+        afterState: { deletedRecordId: recordId },
+      });
+
+      return NextResponse.json({ success: true, recordId });
+    });
+  } catch (error) {
+    logger.error('metadata_api.delete_failed', 'Dynamic Data DELETE Error', {
       metadata: { error: error instanceof Error ? error.message : String(error) },
     });
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

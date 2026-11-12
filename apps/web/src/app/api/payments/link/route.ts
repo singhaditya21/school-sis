@@ -17,6 +17,8 @@ import {
     resolveRazorpayRouteAccountId,
 } from '@/lib/payments/providers';
 import { logger } from '@/lib/observability/logger';
+import { extractTrustedClientIp } from '@/lib/security/client-ip';
+import { isDemoTenantCode, isDemoTenantId } from '@/lib/tenant/demo-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,17 +36,9 @@ const LinkPaymentActionSchema = z.discriminatedUnion('action', [
     }),
 ]);
 
-function extractClientIp(req: NextRequest): string {
-    const forwarded =
-        req.headers.get('x-vercel-forwarded-for') ||
-        req.headers.get('x-real-ip') ||
-        req.headers.get('x-forwarded-for');
-    return forwarded?.split(',')[0]?.trim() || 'unknown';
-}
-
 export async function POST(request: NextRequest) {
     try {
-        const clientIp = extractClientIp(request);
+        const clientIp = extractTrustedClientIp(request.headers);
         const rateLimitMsg = await consumeRateLimit(clientIp, {
             scope: 'whatsapp_pay_link_ip',
             maxAttempts: 30,
@@ -75,6 +69,13 @@ export async function POST(request: NextRequest) {
 
         const { tenantId, invoiceId } = verifiedToken;
 
+        if (await isDemoTenantId(tenantId)) {
+            return NextResponse.json(
+                { error: 'Live payment gateway checkout is disabled in the public demo sandbox.' },
+                { status: 403 },
+            );
+        }
+
         if (!isRazorpayConfigured()) {
             return NextResponse.json(
                 {
@@ -97,6 +98,8 @@ export async function POST(request: NextRequest) {
                 dueDate: string | Date | null;
                 status: string;
                 schoolName: string;
+                tenantCode: string;
+                tenantIsDemo: boolean | null;
             }>`
                 SELECT
                     i.id,
@@ -107,7 +110,9 @@ export async function POST(request: NextRequest) {
                     i.paid_amount AS "paidAmount",
                     i.due_date AS "dueDate",
                     i.status,
-                    t.name AS "schoolName"
+                    t.name AS "schoolName",
+                    t.code AS "tenantCode",
+                    t.is_demo AS "tenantIsDemo"
                 FROM invoices i
                 JOIN tenants t ON t.id = i.tenant_id
                 WHERE i.id = ${invoiceId}
@@ -118,6 +123,13 @@ export async function POST(request: NextRequest) {
 
         if (!invoiceRow) {
             return NextResponse.json({ success: false, error: 'Invoice not found.' }, { status: 404 });
+        }
+
+        if (Boolean(invoiceRow.tenantIsDemo) || isDemoTenantCode(invoiceRow.tenantCode)) {
+            return NextResponse.json(
+                { error: 'Live payment gateway checkout is disabled in the public demo sandbox.' },
+                { status: 403 },
+            );
         }
 
         if (parsed.data.action === 'create_order') {

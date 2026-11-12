@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
 import { z } from 'zod';
 import { pool } from '@/lib/db';
+import {
+    isPermanentPlatformAdminEmail,
+    PLATFORM_HQ_TENANT_CODE,
+} from '@/lib/auth/platform-owner';
 import { encryptEmail, encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 import { recordIntegrationAudit, runWithIntegrationTenant } from '@/lib/integrations/api-platform';
 import {
@@ -146,6 +150,20 @@ export async function POST(request: Request) {
     const email = primaryEmailFromScimPayload(payload);
     if (!email || !z.string().email().safeParse(email).success) {
         return scimError('A valid userName or primary email is required.', 400);
+    }
+
+    if (isPermanentPlatformAdminEmail(email)) {
+        const tenantCheck = await pool.query<{ code: string }>(
+            `SELECT code FROM tenants WHERE id = $1 LIMIT 1`,
+            [auth.tenantId],
+        );
+        if ((tenantCheck.rows[0]?.code || '').toUpperCase() !== PLATFORM_HQ_TENANT_CODE) {
+            return scimError(
+                'This email address is reserved for ScholarMind Platform Administration.',
+                403,
+                'mutability',
+            );
+        }
     }
 
     const roleResult = parseScimRole(payload.roles, 'TEACHER');

@@ -87,7 +87,7 @@ describe('Full Codebase Audit Remediation — Auth, RBAC, LCNC, Webhooks & CSV (
                 { student_name: 'Aarav' },
                 { objectName: 'Admissions', recordId: '22222222-2222-4222-8222-222222222222' },
             );
-            expect(renderedA.verificationCode).toMatch(/^SM-DOC-\d{4}-[0-9A-F]{8}$/);
+            expect(renderedA.verificationCode).toMatch(/^SM-DOC-\d{4}-[0-9A-F]{32}$/);
             expect(renderedA.verificationCode).not.toBe(renderedB.verificationCode);
         });
     });

@@ -140,7 +140,8 @@ export async function getChildOverview(studentId?: string | null): Promise<Paren
                 COUNT(*) FILTER (WHERE i.status <> 'PAID' AND i.due_date < CURRENT_DATE) AS "overdueCount"
          FROM invoices i
          WHERE i.tenant_id = $1 AND i.student_id = $2 AND ${GUARDIAN_GUARD}
-           AND i.status <> 'PAID'`,
+           AND i.status <> 'PAID'
+           AND i.status NOT IN ('CANCELLED', 'WAIVED', 'DRAFT')`,
         args,
     );
 

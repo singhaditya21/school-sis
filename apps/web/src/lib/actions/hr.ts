@@ -1,10 +1,18 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { hash } from 'bcryptjs';
 import { pool, sql, sqlFor } from '@/lib/db';
-import { encryptEmail, decryptFieldTolerant } from '@/lib/encryption';
+import {
+    decryptFieldTolerant,
+    encrypt,
+    encryptEmail,
+    encryptIdNumber,
+    encryptPhone,
+} from '@/lib/encryption';
+import { isPermanentPlatformAdminEmail } from '@/lib/auth/platform-owner';
 import { requireAuth } from '@/lib/auth/middleware';
-import { randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 
 /** Flat result shape — Next.js erases union narrowing across the 'use server' boundary. */
 export interface HRActionResult {
@@ -71,7 +79,7 @@ export async function getStaffList(departmentFilter?: string): Promise<StaffList
             u.first_name AS "firstName",
             u.last_name AS "lastName",
             COALESCE(u.email_enc, u.email) AS "email",
-            u.phone,
+            COALESCE(u.phone_enc, u.phone) AS "phone",
             sd.name AS "departmentName",
             d.name AS "designationName",
             sp.status,
@@ -86,7 +94,11 @@ export async function getStaffList(departmentFilter?: string): Promise<StaffList
         WHERE sp.tenant_id = ${tenantId} ${deptClause}
         ORDER BY u.first_name ASC
     `;
-    return rows.map((r) => ({ ...r, email: r.email == null ? '' : decryptFieldTolerant(r.email) }));
+    return rows.map((r) => ({
+        ...r,
+        email: r.email == null ? '' : decryptFieldTolerant(r.email),
+        phone: r.phone == null ? null : decryptFieldTolerant(r.phone),
+    }));
 }
 
 // ─── Staff Detail ────────────────────────────────────────────
@@ -136,7 +148,7 @@ export async function getStaffById(staffId: string): Promise<StaffDetail | null>
             u.first_name AS "firstName",
             u.last_name AS "lastName",
             COALESCE(u.email_enc, u.email) AS "email",
-            u.phone,
+            COALESCE(u.phone_enc, u.phone) AS "phone",
             u.avatar_url AS "avatarUrl",
             sd.name AS "departmentName",
             d.name AS "designationName",
@@ -155,8 +167,8 @@ export async function getStaffById(staffId: string): Promise<StaffDetail | null>
             sp.salary_tax AS "salaryTax",
             sp.salary_gross AS "salaryGross",
             sp.salary_net AS "salaryNet",
-            sp.pan_number AS "panNumber",
-            sp.bank_account AS "bankAccount",
+            COALESCE(sp.pan_number_enc, sp.pan_number) AS "panNumber",
+            COALESCE(sp.bank_account_enc, sp.bank_account) AS "bankAccount",
             sp.bank_name AS "bankName",
             sp.address,
             sp.emergency_contact AS "emergencyContact",
@@ -168,7 +180,16 @@ export async function getStaffById(staffId: string): Promise<StaffDetail | null>
         WHERE sp.id = ${staffId} AND sp.tenant_id = ${tenantId}
     `;
     const staff = rows[0];
-    return staff ? { ...staff, email: staff.email == null ? '' : decryptFieldTolerant(staff.email) } : null;
+    return staff
+        ? {
+              ...staff,
+              email: staff.email == null ? '' : decryptFieldTolerant(staff.email),
+              phone: staff.phone == null ? null : decryptFieldTolerant(staff.phone),
+              panNumber: staff.panNumber == null ? null : decryptFieldTolerant(staff.panNumber),
+              bankAccount:
+                  staff.bankAccount == null ? null : decryptFieldTolerant(staff.bankAccount),
+          }
+        : null;
 }
 
 // ─── HR Stats ────────────────────────────────────────────────
@@ -229,8 +250,11 @@ export async function createStaff(formData: FormData): Promise<CreateStaffResult
 
     const firstName = formData.get('firstName') as string;
     const lastName = formData.get('lastName') as string;
-    const email = formData.get('email') as string;
-    const phone = formData.get('phone') as string;
+    const email = (formData.get('email') as string | null)?.trim() || '';
+    const phone = (formData.get('phone') as string | null)?.trim() || '';
+    const panNumber = (formData.get('panNumber') as string | null)?.trim() || '';
+    const bankAccount = (formData.get('bankAccount') as string | null)?.trim() || '';
+    const bankName = (formData.get('bankName') as string | null)?.trim() || null;
     const employeeId = formData.get('employeeId') as string;
     const departmentId = formData.get('departmentId') as string || null;
     const designationId = formData.get('designationId') as string || null;
@@ -240,6 +264,13 @@ export async function createStaff(formData: FormData): Promise<CreateStaffResult
 
     if (!firstName || !lastName || !email || !employeeId || !joiningDate) {
         return { success: false, error: 'First name, last name, email, employee ID and joining date are all required.' };
+    }
+
+    if (isPermanentPlatformAdminEmail(email)) {
+        return {
+            success: false,
+            error: 'This email address is reserved for ScholarMind Platform Administration.',
+        };
     }
 
     if (departmentId && !isUuid(departmentId)) {
@@ -253,6 +284,11 @@ export async function createStaff(formData: FormData): Promise<CreateStaffResult
         return { success: false, error: 'Invalid employment type.' };
     }
 
+    const phoneEnc = phone ? encryptPhone(phone) : null;
+    const panNumberEnc = panNumber ? encryptIdNumber(panNumber) : null;
+    const bankAccountEnc = bankAccount ? encrypt(bankAccount) : null;
+    const lockedPasswordHash = await hash(randomBytes(24).toString('base64url'), 12);
+
     const userId = randomUUID();
     const staffId = randomUUID();
     const client = await pool.connect();
@@ -260,15 +296,20 @@ export async function createStaff(formData: FormData): Promise<CreateStaffResult
     try {
         await q`BEGIN`;
         await q`
-            INSERT INTO users (id, tenant_id, email_enc, password_hash, first_name, last_name, role, phone)
-            VALUES (${userId}, ${tenantId}, ${encryptEmail(email)}, ${'$temp$'}, ${firstName}, ${lastName}, ${'TEACHER'}, ${phone})
+            INSERT INTO users (id, tenant_id, email_enc, password_hash, first_name, last_name, role, phone, phone_enc)
+            VALUES (${userId}, ${tenantId}, ${encryptEmail(email)}, ${lockedPasswordHash}, ${firstName}, ${lastName}, ${'TEACHER'}, ${null}, ${phoneEnc})
         `;
 
         await q`
             INSERT INTO staff_profiles (
                 id, tenant_id, user_id, employee_id, department_id, designation_id,
-                employment_type, joining_date, salary_basic
-            ) VALUES (${staffId}, ${tenantId}, ${userId}, ${employeeId}, ${departmentId}, ${designationId}, ${employmentType}, ${joiningDate}, ${salaryBasic})
+                employment_type, joining_date, salary_basic,
+                pan_number, pan_number_enc, bank_account, bank_account_enc, bank_name
+            ) VALUES (
+                ${staffId}, ${tenantId}, ${userId}, ${employeeId}, ${departmentId}, ${designationId},
+                ${employmentType}, ${joiningDate}, ${salaryBasic},
+                ${null}, ${panNumberEnc}, ${null}, ${bankAccountEnc}, ${bankName}
+            )
         `;
         await q`COMMIT`;
     } catch (err: unknown) {

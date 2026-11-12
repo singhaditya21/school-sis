@@ -85,6 +85,34 @@ export async function createExam(formData: FormData): Promise<void> {
 
 // ─── Add Exam Schedule ───────────────────────────────────────
 
+async function assertTeacherAssignedToGrade(tenantId: string, userId: string, gradeId: string): Promise<void> {
+    const assigned = await sql<{ id: string }>`
+        SELECT sec.id
+        FROM sections sec
+        LEFT JOIN staff_profiles sp ON sp.user_id = ${userId} AND sp.tenant_id = ${tenantId}
+        WHERE sec.tenant_id = ${tenantId}
+          AND sec.grade_id = ${gradeId}
+          AND (
+              sec.class_teacher_id = ${userId}
+              OR (sp.id IS NOT NULL AND sec.class_teacher_id = sp.id)
+              OR EXISTS (
+                  SELECT 1
+                  FROM timetable_entries te
+                  WHERE te.tenant_id = ${tenantId}
+                    AND te.section_id = sec.id
+                    AND (
+                        te.teacher_id = ${userId}
+                        OR (sp.id IS NOT NULL AND te.teacher_id = sp.id)
+                    )
+              )
+          )
+        LIMIT 1
+    `;
+    if (assigned.length === 0) {
+        throw new Error('Unauthorized: Teacher is not assigned to this class or grade.');
+    }
+}
+
 export async function addExamSchedule(data: {
     examId: string;
     gradeId: string;
@@ -96,7 +124,11 @@ export async function addExamSchedule(data: {
     passingMarks: number;
     roomNumber?: string;
 }) {
-    const { tenantId } = await requireAuth('exams:write');
+    const { tenantId, userId, session } = await requireAuth('exams:write');
+
+    if (session.role === 'TEACHER') {
+        await assertTeacherAssignedToGrade(tenantId, userId, data.gradeId);
+    }
 
     // Verify exam belongs to tenant
     const examCheck = await sql<{ id: string }>`
@@ -165,11 +197,11 @@ export async function saveMarks(
     examScheduleId: string,
     marks: { studentId: string; marksObtained: number | null; isAbsent: boolean; remarks?: string }[],
 ) {
-    const { tenantId, userId } = await requireAuth('exams:write');
+    const { tenantId, userId, session } = await requireAuth('exams:write');
 
     // Verify schedule belongs to tenant via its exam and exam is not published
-    const scheduleRows = await sql<{ maxMarks: string; examStatus: string }>`
-        SELECT es.max_marks AS "maxMarks", e.status AS "examStatus"
+    const scheduleRows = await sql<{ maxMarks: string; gradeId: string; examStatus: string }>`
+        SELECT es.max_marks AS "maxMarks", es.grade_id AS "gradeId", e.status AS "examStatus"
         FROM exam_schedules es
         INNER JOIN exams e ON es.exam_id = e.id
         WHERE es.id = ${examScheduleId} AND e.tenant_id = ${tenantId}
@@ -182,9 +214,56 @@ export async function saveMarks(
     if (schedule.examStatus === 'PUBLISHED') {
         throw new Error('Cannot modify marks after exam results have been published.');
     }
+
+    if (session.role === 'TEACHER') {
+        await assertTeacherAssignedToGrade(tenantId, userId, schedule.gradeId);
+    }
+
     const maxMarks = Number(schedule?.maxMarks || 100);
 
     for (const entry of marks) {
+        if (session.role === 'TEACHER') {
+            const studentScopeCheck = await sql<{ id: string }>`
+                SELECT s.id
+                FROM students s
+                INNER JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = s.tenant_id
+                LEFT JOIN staff_profiles sp ON sp.user_id = ${userId} AND sp.tenant_id = ${tenantId}
+                WHERE s.id = ${entry.studentId}
+                  AND s.tenant_id = ${tenantId}
+                  AND COALESCE(s.custom_data->>'erased', 'false') <> 'true'
+                  AND (
+                      sec.class_teacher_id = ${userId}
+                      OR (sp.id IS NOT NULL AND sec.class_teacher_id = sp.id)
+                      OR EXISTS (
+                          SELECT 1
+                          FROM timetable_entries te
+                          WHERE te.tenant_id = ${tenantId}
+                            AND te.section_id = s.section_id
+                            AND (
+                                te.teacher_id = ${userId}
+                                OR (sp.id IS NOT NULL AND te.teacher_id = sp.id)
+                            )
+                      )
+                  )
+                LIMIT 1
+            `;
+            if (studentScopeCheck.length === 0) {
+                throw new Error('Unauthorized: Teachers can only enter marks for students in their assigned classes.');
+            }
+        } else {
+            const tenantStudentCheck = await sql<{ id: string }>`
+                SELECT id
+                FROM students
+                WHERE id = ${entry.studentId}
+                  AND tenant_id = ${tenantId}
+                  AND COALESCE(custom_data->>'erased', 'false') <> 'true'
+                LIMIT 1
+            `;
+            if (tenantStudentCheck.length === 0) {
+                throw new Error('Student not found or unauthorized');
+            }
+        }
+
         if (!entry.isAbsent && entry.marksObtained !== null) {
             if (!Number.isFinite(entry.marksObtained) || entry.marksObtained < 0 || entry.marksObtained > maxMarks) {
                 throw new Error(`Marks obtained must be between 0 and ${maxMarks}.`);
@@ -256,10 +335,32 @@ export async function saveMarks(
 
 // ─── Exam Verification & Compliance ──────────────────────────
 
-export async function verifyExamResults(resultIds: string[]) {
-    const { tenantId, userId } = await requireAuth('exams:write');
-    
+async function verifyResultRowsForReviewer(
+    tenantId: string,
+    userId: string,
+    resultIds: string[],
+): Promise<number> {
+    let lockedCount = 0;
+
     for (const resultId of resultIds) {
+        const checkRows = await sql<{
+            entered_by: string | null;
+            already_locked: boolean;
+        }>`
+            SELECT sr.entered_by,
+                   EXISTS (
+                       SELECT 1 FROM exam_result_hashes erh
+                       WHERE erh.result_id = sr.id AND erh.tenant_id = ${tenantId}
+                   ) AS already_locked
+            FROM student_results sr
+            WHERE sr.id = ${resultId} AND sr.tenant_id = ${tenantId}
+        `;
+        const meta = checkRows[0];
+        if (!meta || meta.already_locked) continue;
+        if (meta.entered_by && meta.entered_by === userId) {
+            throw new Error('Maker-checker policy violation: You cannot verify marks that you entered yourself.');
+        }
+
         const rows = await sql<{
             student_id: string;
             exam_schedule_id: string;
@@ -269,33 +370,83 @@ export async function verifyExamResults(resultIds: string[]) {
         }>`
             SELECT student_id, exam_schedule_id, marks_obtained, grade, is_absent
             FROM student_results
-            WHERE id = ${resultId} AND tenant_id = ${tenantId}
+            WHERE id = ${resultId}
+              AND tenant_id = ${tenantId}
+              AND entered_by IS DISTINCT FROM ${userId}
         `;
-        
+
         const result = rows[0];
         if (!result) continue;
-        
+
         const payload = JSON.stringify({
             studentId: result.student_id,
             examScheduleId: result.exam_schedule_id,
             marksObtained: result.marks_obtained,
             grade: result.grade,
-            isAbsent: result.is_absent
+            isAbsent: result.is_absent,
         });
         const hash = createHash('sha256').update(payload).digest('hex');
-        
+
         await sql`
             INSERT INTO exam_result_hashes (
                 id, tenant_id, result_id, hash, locked_at, locked_by
             ) VALUES (${randomUUID()}, ${tenantId}, ${resultId}, ${hash}, NOW(), ${userId})
         `;
+        lockedCount += 1;
     }
-    
-    return { success: true };
+
+    return lockedCount;
+}
+
+export async function verifyExamResults(resultIds: string[]) {
+    const { tenantId, userId } = await requireAuth('exams:review');
+    const verified = await verifyResultRowsForReviewer(tenantId, userId, resultIds);
+    return { success: true, verified };
+}
+
+export async function verifyExamResult(resultId: string) {
+    const { tenantId, userId } = await requireAuth('exams:review');
+    const verified = await verifyResultRowsForReviewer(tenantId, userId, [resultId]);
+    return { success: true, verified };
+}
+
+export async function verifySubjectMarks(examScheduleId: string) {
+    const { tenantId, userId } = await requireAuth('exams:review');
+
+    const selfEntered = await sql<{ id: string }>`
+        SELECT sr.id
+        FROM student_results sr
+        LEFT JOIN exam_result_hashes erh ON erh.result_id = sr.id AND erh.tenant_id = ${tenantId}
+        WHERE sr.exam_schedule_id = ${examScheduleId}
+          AND sr.tenant_id = ${tenantId}
+          AND erh.id IS NULL
+          AND sr.entered_by = ${userId}
+        LIMIT 1
+    `;
+    if (selfEntered.length > 0) {
+        throw new Error('Maker-checker policy violation: You cannot verify marks that you entered yourself.');
+    }
+
+    const eligibleRows = await sql<{ id: string }>`
+        SELECT sr.id
+        FROM student_results sr
+        LEFT JOIN exam_result_hashes erh ON erh.result_id = sr.id AND erh.tenant_id = ${tenantId}
+        WHERE sr.exam_schedule_id = ${examScheduleId}
+          AND sr.tenant_id = ${tenantId}
+          AND erh.id IS NULL
+          AND sr.entered_by IS DISTINCT FROM ${userId}
+    `;
+
+    const verified = await verifyResultRowsForReviewer(
+        tenantId,
+        userId,
+        eligibleRows.map((r) => r.id),
+    );
+    return { success: true, verified };
 }
 
 export async function rejectExamResults(resultIds: string[]) {
-    const { tenantId, userId } = await requireAuth('exams:write');
+    const { tenantId, userId } = await requireAuth('exams:review');
     for (const resultId of resultIds) {
         const lockCheck = await sql<{ examStatus: string; isLocked: boolean }>`
             SELECT e.status AS "examStatus",
@@ -324,5 +475,50 @@ export async function rejectExamResults(resultIds: string[]) {
             description: 'Rejected exam result during verification for re-entry',
         });
     }
+    return { success: true };
+}
+
+export async function publishExamResults(examId: string) {
+    const { tenantId, userId } = await requireAuth('exams:publish');
+
+    const examRows = await sql<{ id: string; unverifiedCount: string }>`
+        SELECT e.id,
+               (
+                   SELECT COUNT(*)
+                   FROM student_results sr
+                   INNER JOIN exam_schedules es ON es.id = sr.exam_schedule_id
+                   LEFT JOIN exam_result_hashes erh ON erh.result_id = sr.id AND erh.tenant_id = e.tenant_id
+                   WHERE es.exam_id = e.id
+                     AND sr.tenant_id = e.tenant_id
+                     AND erh.id IS NULL
+               ) AS "unverifiedCount"
+        FROM exams e
+        WHERE e.id = ${examId} AND e.tenant_id = ${tenantId}
+    `;
+
+    const exam = examRows[0];
+    if (!exam) {
+        throw new Error('Exam not found or unauthorized');
+    }
+    if (Number(exam.unverifiedCount || 0) > 0) {
+        throw new Error('Cannot publish exam results while unverified marks remain.');
+    }
+
+    await sql`
+        UPDATE exams
+        SET status = 'PUBLISHED',
+            updated_at = NOW()
+        WHERE id = ${examId} AND tenant_id = ${tenantId}
+    `;
+
+    await logAudit({
+        tenantId,
+        userId,
+        action: 'UPDATE',
+        entityType: 'exam_publication',
+        entityId: examId,
+        description: 'Published verified exam results',
+    });
+
     return { success: true };
 }

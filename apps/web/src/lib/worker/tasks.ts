@@ -253,6 +253,212 @@ export const tasks: Record<string, TaskHandler> = {
 
   'route-marketing-lead': routeMarketingLead,
 
+  'BI_SCHEDULED_REPORT': async (payload) => {
+    const tenantId = getTenantIdFromJobPayload(payload);
+    const reportId = stringValue(payload, 'reportId');
+    const reportName = optionalStringValue(payload, 'name') || 'Scheduled BI Report';
+    const datasetId = optionalStringValue(payload, 'datasetId') || 'general';
+    const scheduleFrequency = (optionalStringValue(payload, 'scheduleFrequency') || 'NONE').toUpperCase();
+    const recipientEmail = optionalStringValue(payload, 'recipientEmail');
+
+    if (scheduleFrequency === 'NONE' || !recipientEmail) {
+      return {
+        skipped: true,
+        reportId,
+        reason: !recipientEmail ? 'missing_recipient' : 'schedule_disabled',
+      };
+    }
+
+    const metricIds = Array.isArray(payload.metricIds)
+      ? payload.metricIds.filter((item): item is string => typeof item === 'string')
+      : [];
+    const dimensionIds = Array.isArray(payload.dimensionIds)
+      ? payload.dimensionIds.filter((item): item is string => typeof item === 'string')
+      : [];
+    const windowDate = new Date().toISOString().slice(0, 10);
+
+    const notification = await enqueueNotification({
+      tenantId,
+      channel: 'EMAIL',
+      recipient: recipientEmail,
+      subject: `Scheduled BI Report: ${reportName}`,
+      body: [
+        `Your ${scheduleFrequency.toLowerCase()} BI report "${reportName}" is ready.`,
+        `Dataset: ${datasetId}`,
+        metricIds.length > 0 ? `Metrics: ${metricIds.join(', ')}` : null,
+        dimensionIds.length > 0 ? `Dimensions: ${dimensionIds.join(', ')}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      payload: {
+        type: 'BI_SCHEDULED_REPORT',
+        tenantId,
+        reportId,
+        datasetId,
+        metricIds,
+        dimensionIds,
+        scheduleFrequency,
+      },
+      idempotencyKey: `bi-report:${tenantId}:${reportId}:${windowDate}`,
+    });
+
+    if (
+      scheduleFrequency === 'DAILY' ||
+      scheduleFrequency === 'WEEKLY' ||
+      scheduleFrequency === 'MONTHLY'
+    ) {
+      const intervalDays =
+        scheduleFrequency === 'DAILY' ? 1 : scheduleFrequency === 'WEEKLY' ? 7 : 30;
+      await pool.query(
+        `INSERT INTO background_jobs (
+            tenant_id, scope, queue, task_name, status, priority, payload,
+            idempotency_key, scheduled_for, available_at, max_attempts
+         )
+         VALUES (
+            $1,
+            'TENANT',
+            'default',
+            'BI_SCHEDULED_REPORT',
+            'SCHEDULED',
+            0,
+            $2::jsonb,
+            $3,
+            NOW() + make_interval(days => $4::int),
+            NOW() + make_interval(days => $4::int),
+            3
+         )
+         ON CONFLICT DO NOTHING`,
+        [
+          tenantId,
+          JSON.stringify({ ...payload, tenantId }),
+          `bi-report-next:${tenantId}:${reportId}:${windowDate}`,
+          intervalDays,
+        ],
+      );
+    }
+
+    return {
+      delivered: true,
+      reportId,
+      queuedNotificationId: notification.notificationId,
+      scheduleFrequency,
+    };
+  },
+
+  'workflow.follow_up_task': async (payload) => {
+    const tenantId = getTenantIdFromJobPayload(payload);
+    const title = stringValue(payload, 'title');
+    const workflowId = optionalStringValue(payload, 'workflowId');
+    const appointmentId = optionalStringValue(payload, 'appointmentId');
+    const objectName = optionalStringValue(payload, 'objectName');
+    const recordId = optionalStringValue(payload, 'recordId');
+    const dueDate = optionalStringValue(payload, 'dueDate');
+
+    let recipientEmail = optionalStringValue(payload, 'recipientEmail');
+    if (!recipientEmail) {
+      const adminRes = await pool.query<{ email: string | null; emailEnc: string | null }>(
+        `SELECT email, email_enc AS "emailEnc"
+           FROM users
+          WHERE tenant_id = $1
+            AND is_active = true
+            AND role IN ('SCHOOL_ADMIN', 'PRINCIPAL', 'COUNSELLOR')
+          ORDER BY created_at ASC
+          LIMIT 1`,
+        [tenantId],
+      );
+      const adminRow = adminRes.rows[0];
+      if (adminRow) {
+        const decrypted = decryptFieldTolerant(adminRow.emailEnc || adminRow.email);
+        recipientEmail = typeof decrypted === 'string' && decrypted.trim().length > 0 ? decrypted.trim() : null;
+      }
+    }
+
+    let queuedNotificationId: string | null = null;
+    if (recipientEmail) {
+      const notification = await enqueueNotification({
+        tenantId,
+        channel: 'EMAIL',
+        recipient: recipientEmail,
+        subject: `Workflow Follow-Up: ${title}`,
+        body: `Follow-up task "${title}"${dueDate ? ` is scheduled for ${dueDate}` : ''}${
+          objectName ? ` (${objectName}${recordId ? ` #${recordId}` : ''})` : ''
+        }.`,
+        payload: {
+          type: 'WORKFLOW_FOLLOW_UP_TASK',
+          tenantId,
+          workflowId,
+          appointmentId,
+          objectName,
+          recordId,
+          dueDate,
+        },
+        idempotencyKey: `workflow-follow-up:${tenantId}:${appointmentId || workflowId || title}:${recordId || 'record'}`,
+      });
+      queuedNotificationId = notification.notificationId;
+    } else {
+      logger.info('worker.workflow_follow_up_recorded', 'Workflow follow-up task processed without email recipient', {
+        tenantId,
+        source: 'worker',
+        entityType: objectName || 'workflow',
+        entityId: appointmentId || recordId || workflowId || undefined,
+      });
+    }
+
+    return {
+      processed: true,
+      tenantId,
+      workflowId,
+      appointmentId,
+      objectName,
+      recordId,
+      title,
+      dueDate,
+      queuedNotificationId,
+    };
+  },
+
+  'webhook.dispatch': async (payload) => {
+    const tenantId = getTenantIdFromJobPayload(payload);
+    const targetUrl = stringValue(payload, 'url');
+    const workflowId = optionalStringValue(payload, 'workflowId');
+    const rawMethod = (optionalStringValue(payload, 'method') || 'POST').toUpperCase();
+    const method: 'POST' | 'PUT' = rawMethod === 'PUT' ? 'PUT' : 'POST';
+    const serializedBody =
+      typeof payload.body === 'string'
+        ? payload.body
+        : JSON.stringify(payload.body ?? {});
+
+    const signingSecret = process.env.WEBHOOK_SIGNING_SECRET?.trim() || '';
+    const signature =
+      signingSecret.length >= 16
+        ? createHmac('sha256', signingSecret).update(serializedBody).digest('hex')
+        : null;
+
+    const response = await sendWebhookRequest(
+      targetUrl,
+      serializedBody,
+      {
+        'content-type': 'application/json',
+        'x-school-sis-tenant-id': tenantId,
+        ...(workflowId ? { 'x-school-sis-workflow-id': workflowId } : {}),
+        ...(signature ? { 'x-scholarmind-signature': `sha256=${signature}` } : {}),
+      },
+      10_000,
+      method,
+    );
+
+    if (!response.ok) {
+      throw new Error(`Webhook dispatch returned HTTP ${response.status}.`);
+    }
+
+    return {
+      delivered: true,
+      tenantId,
+      workflowId,
+      status: response.status,
+    };
+  },
+
   'agent-incident-triage': async () => {
     throw new Error('Agent incident triage is disabled until a live agent worker is configured.');
   },

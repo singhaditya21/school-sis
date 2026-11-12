@@ -25,6 +25,6 @@ export async function POST(request: NextRequest) {
         );
     } catch (error: unknown) {
         console.error('[API/payments] Error:', error);
-        return NextResponse.json({ error: (error as { message?: string }).message || 'Internal error' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to process payment request.' }, { status: 500 });
     }
 }

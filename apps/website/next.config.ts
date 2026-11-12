@@ -1,26 +1,8 @@
 import type { NextConfig } from "next";
 
 const isDevelopment = process.env.NODE_ENV === "development";
-const scriptSources = [
-  "'self'",
-  "'unsafe-inline'",
-  ...(isDevelopment ? ["'unsafe-eval'"] : []),
-  "https://challenges.cloudflare.com",
-].join(" ");
 
-const CONTENT_SECURITY_POLICY = [
-  "default-src 'self'",
-  `script-src ${scriptSources}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
-  "frame-src https://challenges.cloudflare.com",
-  "connect-src 'self' https://challenges.cloudflare.com",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-].join("; ");
+const API_CONTENT_SECURITY_POLICY = "default-src 'none'; frame-ancestors 'none'";
 
 const SECURITY_HEADERS = [
   {
@@ -47,10 +29,6 @@ const SECURITY_HEADERS = [
         },
       ]
     : []),
-  {
-    key: "Content-Security-Policy",
-    value: CONTENT_SECURITY_POLICY,
-  },
 ];
 
 const nextConfig: NextConfig = {
@@ -58,8 +36,19 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // Per-request cryptographic nonce Content-Security-Policy for HTML routes
+        // is attached dynamically in src/proxy.ts without 'unsafe-inline' in script-src.
         source: "/(.*)",
         headers: SECURITY_HEADERS,
+      },
+      {
+        source: "/api/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: API_CONTENT_SECURITY_POLICY,
+          },
+        ],
       },
     ];
   },

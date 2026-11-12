@@ -3,15 +3,17 @@
 import { cookies } from 'next/headers';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, type SessionData } from '@/lib/auth/session';
-import { isSessionDataExpired } from '@/lib/auth/session-options';
+import { isRoleMfaRequired, isSessionDataExpired } from '@/lib/auth/session-options';
+import { evictUserSessionCache, isSessionStateActive } from '@/lib/auth/session-revocation';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
 import { runWithTenantContext } from '@/lib/db';
 import { logger } from '@/lib/observability/logger';
 import {
     activateMFA,
+    disableMFA,
     generateMFAEnrollment,
-    isMFARequired,
     redeemBackupCode,
+    verifyMFACode,
 } from '@/lib/auth/mfa';
 
 /**
@@ -59,7 +61,13 @@ async function currentSession() {
 export async function beginMfaEnrollment(): Promise<BeginMfaEnrollmentResult> {
     const session = await currentSession();
 
-    if (!session.isLoggedIn || !session.userId || !session.tenantId || isSessionDataExpired(session)) {
+    if (
+        !session.isLoggedIn ||
+        !session.userId ||
+        !session.tenantId ||
+        isSessionDataExpired(session) ||
+        !(await isSessionStateActive(session))
+    ) {
         return { success: false, error: 'Sign in before setting up two-factor authentication.' };
     }
     if (session.mfaVerified) {
@@ -114,7 +122,13 @@ export async function completeMfaEnrollment(
 ): Promise<CompleteMfaEnrollmentResult> {
     const session = await currentSession();
 
-    if (!session.isLoggedIn || !session.userId || !session.tenantId || isSessionDataExpired(session)) {
+    if (
+        !session.isLoggedIn ||
+        !session.userId ||
+        !session.tenantId ||
+        isSessionDataExpired(session) ||
+        !(await isSessionStateActive(session))
+    ) {
         return { success: false, error: 'Sign in before setting up two-factor authentication.' };
     }
 
@@ -149,7 +163,10 @@ export async function completeMfaEnrollment(
         }
 
         session.mfaVerified = true;
-        session.mfaRequired = isMFARequired(session.role);
+        session.mfaRequired = isRoleMfaRequired(session.role, {
+            isDemoSandbox: session.isDemoSandbox,
+            tenantCode: session.tenantCode,
+        });
         await session.save();
 
         const nextPath = session.role === 'PLATFORM_ADMIN' ? '/hq' : '/pricing';
@@ -169,7 +186,13 @@ export async function verifyMfaBackupCodeAction(
     rawCode: string,
 ): Promise<{ success: boolean; codesRemaining?: number; error?: string }> {
     const session = await currentSession();
-    if (!session.isLoggedIn || !session.userId || !session.tenantId || isSessionDataExpired(session)) {
+    if (
+        !session.isLoggedIn ||
+        !session.userId ||
+        !session.tenantId ||
+        isSessionDataExpired(session) ||
+        !(await isSessionStateActive(session))
+    ) {
         return { success: false, error: 'Sign in before verifying a backup code.' };
     }
 
@@ -194,8 +217,62 @@ export async function verifyMfaBackupCodeAction(
     );
     if (result.success) {
         session.mfaVerified = true;
-        session.mfaRequired = isMFARequired(session.role);
+        session.mfaRequired = isRoleMfaRequired(session.role, {
+            isDemoSandbox: session.isDemoSandbox,
+            tenantCode: session.tenantCode,
+        });
         await session.save();
     }
     return result;
+}
+
+export async function disableMfaAction(
+    verificationCode: string,
+): Promise<{ success: boolean; error?: string }> {
+    const session = await currentSession();
+    if (
+        !session.isLoggedIn ||
+        !session.userId ||
+        !session.tenantId ||
+        isSessionDataExpired(session) ||
+        !(await isSessionStateActive(session))
+    ) {
+        return { success: false, error: 'Sign in before managing two-factor authentication.' };
+    }
+
+    if (
+        isRoleMfaRequired(session.role, {
+            isDemoSandbox: session.isDemoSandbox,
+            tenantCode: session.tenantCode,
+        })
+    ) {
+        return {
+            success: false,
+            error: 'Two-factor authentication is mandatory for your role and cannot be disabled.',
+        };
+    }
+
+    const rateLimitError = await consumeRateLimit(session.userId, {
+        scope: 'mfa_disable',
+        maxAttempts: 5,
+        degradedMaxAttempts: 1,
+        endpointClass: 'login',
+        message: 'Too many MFA disable attempts. Please try again later.',
+    });
+    if (rateLimitError) {
+        return { success: false, error: rateLimitError };
+    }
+
+    const verified = await runWithTenantContext(session.tenantId, () =>
+        verifyMFACode(session.userId, session.tenantId, String(verificationCode || '')),
+    );
+    if (!verified.success) {
+        return { success: false, error: verified.error || 'Invalid verification code.' };
+    }
+
+    const { userId, tenantId } = session;
+    await disableMFA(userId, tenantId);
+    evictUserSessionCache(tenantId, userId);
+    session.destroy();
+    return { success: true };
 }

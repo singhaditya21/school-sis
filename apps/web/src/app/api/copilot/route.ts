@@ -19,9 +19,12 @@ import { z } from 'zod';
 import { NextResponse } from 'next/server';
 import type { AuthorizationRole } from '@school-sis/api';
 import { checkAiBudget, recordAiTurn, type AiToolContext } from '@/lib/ai';
+import { redactPiiForExternalLlm } from '@/lib/ai/telemetry';
 import { requireApiAuth } from '@/lib/auth/api';
+import { getSession } from '@/lib/auth/session';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
 import { logger, requestContextFrom } from '@/lib/observability/logger';
+import { isDemoSession, isDemoTenantId } from '@/lib/tenant/demo-guard';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
 import {
     COPILOT_ROLES,
@@ -134,6 +137,75 @@ export async function POST(req: Request) {
         );
     }
 
+    const sanitizedPrompt = redactPiiForExternalLlm(parsed.data.prompt);
+
+    let sessionForDemo: Awaited<ReturnType<typeof getSession>> | null = null;
+    try {
+        sessionForDemo = await getSession();
+    } catch {
+        sessionForDemo = null;
+    }
+    const demoMode =
+        isDemoSession(sessionForDemo) || (await isDemoTenantId(auth.context.tenantId));
+
+    if (demoMode) {
+        const promptLower = sanitizedPrompt.toLowerCase();
+        const words = promptLower.split(/[^a-z0-9]+/).filter((w) => w.length >= 3);
+        const ranked = datasets
+            .map((ds) => {
+                const hay = `${ds.id} ${ds.label} ${ds.description} ${ds.metrics.map((m) => `${m.id} ${m.label}`).join(' ')}`.toLowerCase();
+                let score = 0;
+                for (const w of words) {
+                    if (hay.includes(w)) score += 1;
+                }
+                return { ds, score };
+            })
+            .sort((a, b) => b.score - a.score);
+
+        const chosen = ranked[0]?.ds ?? datasets[0];
+        const matchedMetrics = chosen.metrics
+            .filter((m) => words.some((w) => `${m.id} ${m.label}`.toLowerCase().includes(w)))
+            .map((m) => m.id);
+        const metricIds = matchedMetrics.length > 0 ? matchedMetrics.slice(0, 3) : [chosen.metrics[0].id];
+        const matchedDims = chosen.dimensions
+            .filter((d) => words.some((w) => `${d.id} ${d.label}`.toLowerCase().includes(w)))
+            .map((d) => d.id)
+            .slice(0, 2);
+
+        const validation = validateProposal(datasets, {
+            datasetId: chosen.id,
+            metricIds,
+            dimensionIds: matchedDims.length > 0 ? matchedDims : undefined,
+        });
+        if (validation.ok) {
+            await recordAiTurn({
+                tenantId: aiContext.tenantId,
+                requestId: aiContext.requestId,
+                userId: aiContext.userId,
+                role: aiContext.role,
+                question: sanitizedPrompt,
+                outcome: 'answered',
+                toolRuns: [],
+                toolCallShapes: [
+                    {
+                        toolName: 'copilot.propose_report',
+                        argumentKeys: ['datasetId', 'metricIds'],
+                    },
+                ],
+                tokensUsed: 0,
+                latencyMs: Date.now() - started,
+            });
+            return NextResponse.json(
+                {
+                    ok: true,
+                    summary: summariseDraft(validation.draft),
+                    draft: validation.draft,
+                } satisfies CopilotResponseBody,
+                { headers: { 'Cache-Control': 'no-store' } },
+            );
+        }
+    }
+
     const apiKey = process.env.CEREBRAS_API_KEY;
     if (!apiKey) {
         await recordAiTurn({
@@ -182,7 +254,7 @@ export async function POST(req: Request) {
         const result = await generateText({
             model: cerebras(process.env.CEREBRAS_MODEL || 'llama3.1-8b'),
             system: systemPrompt,
-            prompt: parsed.data.prompt,
+            prompt: sanitizedPrompt,
             maxOutputTokens: 1024,
             stopWhen: stepCountIs(2),
             tools: {

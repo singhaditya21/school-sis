@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
 import { requireApiAuth } from '@/lib/auth/api';
+import { isDemoSession } from '@/lib/tenant/demo-guard';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
 import {
     getRazorpayGateway,
@@ -62,6 +63,16 @@ export async function POST(req: NextRequest) {
         }
 
         const session = await getSession();
+        if (
+            isDemoSession(auth.context as { isDemoSandbox?: boolean; tenantCode?: string | null }) ||
+            isDemoSession(session as { isDemoSandbox?: boolean; tenantCode?: string | null })
+        ) {
+            return NextResponse.json(
+                { error: 'Live payment gateway checkout is disabled in the public demo sandbox.' },
+                { status: 403 },
+            );
+        }
+
         if (!session.companyId) {
             return NextResponse.json({ error: 'Company context is required' }, { status: 400 });
         }
@@ -106,12 +117,29 @@ export async function POST(req: NextRequest) {
 
         // Fetch the company from the DB
         const { rows: [company] } = await pool.query(
-            `SELECT *, stripe_customer_id AS "stripeCustomerId" FROM companies WHERE id = $1`,
+            `SELECT
+                c.*,
+                c.stripe_customer_id AS "stripeCustomerId",
+                EXISTS (
+                    SELECT 1
+                    FROM tenants dt
+                    WHERE dt.company_id = c.id
+                      AND (dt.is_demo = true OR UPPER(dt.code) IN ('DEMO-CAMPUS', 'DEMO-CAMPUS-SOUTH'))
+                ) AS "isDemoCompany"
+             FROM companies c
+             WHERE c.id = $1`,
             [session.companyId],
         );
 
         if (!company) {
             return NextResponse.json({ error: 'Company not found' }, { status: 404 });
+        }
+
+        if (company.isDemoCompany === true) {
+            return NextResponse.json(
+                { error: 'Live payment gateway checkout is disabled in the public demo sandbox.' },
+                { status: 403 },
+            );
         }
 
         // Prefer Razorpay UPI/NetBanking/GST checkout for INR when Stripe price IDs are absent
@@ -121,21 +149,41 @@ export async function POST(req: NextRequest) {
             });
             const annualGrossInr = estimate.totalWithGstInr * 12;
             const amountMinor = annualGrossInr * 100;
+            const referenceId = `saas_${String(company.id).slice(0, 12)}_${Date.now().toString(36)}`;
 
             const gateway = getRazorpayGateway();
             const link = await gateway.createPaymentLink({
                 amountMinor,
                 currency: 'INR',
-                referenceId: `saas_${company.id.slice(0, 12)}_${Date.now().toString(36)}`,
+                referenceId,
                 description: `ScholarMind ${planType} Annual Subscription (incl. 18% GST · SAC ${SAAS_SAC_CODE})`,
                 callbackUrl: `${appBaseUrl}/setup/success`,
                 notes: {
                     companyId: String(company.id),
+                    referenceId,
                     planType,
                     sacCode: SAAS_SAC_CODE,
                     ...(normalizedGstin ? { gstin: normalizedGstin } : {}),
                 },
             });
+
+            await pool.query(
+                `UPDATE companies
+                 SET pending_checkout_meta = $1::jsonb,
+                     updated_at = NOW()
+                 WHERE id = $2`,
+                [
+                    JSON.stringify({
+                        linkId: link.providerOrderId,
+                        referenceId,
+                        planType,
+                        amountMinor,
+                        currency: 'INR',
+                        gstin: normalizedGstin || null,
+                    }),
+                    company.id,
+                ],
+            );
 
             return NextResponse.json({
                 provider: 'RAZORPAY',
@@ -191,7 +239,7 @@ export async function POST(req: NextRequest) {
     } catch (error) {
         console.error('[STRIPE_CHECKOUT_ERROR]', error);
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Internal Server Error' },
+            { error: 'Unable to initialize subscription checkout.' },
             { status: 500 },
         );
     }

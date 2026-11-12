@@ -4,6 +4,9 @@ import { randomUUID } from 'crypto';
 import { revalidatePath } from 'next/cache';
 import { sqlFor, withTenant } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { consumeRateLimit } from '@/lib/auth/rate-limit';
+import { hasPermission, type UserRole } from '@/lib/rbac/permissions';
+import { isDemoSession, isDemoTenantId } from '@/lib/tenant/demo-guard';
 import { encryptEmail, encryptPhone } from '@/lib/encryption';
 import {
     autoMapLegacyColumns,
@@ -79,7 +82,7 @@ export async function previewLegacyImportAction(input: {
     if (!raw) {
         return { ok: false, error: 'Upload or paste a CSV / Excel export first.' };
     }
-    if (raw.length > 5 * 1024 * 1024) {
+    if (Buffer.byteLength(raw, 'utf8') > 5 * 1024 * 1024) {
         return { ok: false, error: 'CSV payload exceeds 5 MB batch limit.' };
     }
 
@@ -198,11 +201,14 @@ export async function commitLegacyImportAction(input: {
     sourceErp?: LegacyErpPreset;
     defaultDueDate?: string;
 }): Promise<LegacyImportCommitResult> {
-    const { tenantId, userId } = await requireAuth('students:write');
+    const { tenantId, userId, session } = await requireAuth('students:write');
 
     const raw = (input.csvText || '').trim();
     if (!raw) {
         return { ok: false, error: 'No CSV content provided.' };
+    }
+    if (Buffer.byteLength(raw, 'utf8') > 5 * 1024 * 1024) {
+        return { ok: false, error: 'CSV payload exceeds 5 MB batch limit.' };
     }
 
     const parsed = parseDelimitedSpreadsheet(raw);
@@ -214,6 +220,42 @@ export async function commitLegacyImportAction(input: {
         ...autoMapLegacyColumns(parsed.headers),
         ...(input.mapping || {}),
     };
+
+    const preNormalizedValidRows = parsed.rows
+        .map((r, idx) => normalizeLegacyRow(r, resolvedMapping, idx + 2))
+        .filter((r) => r.errors.length === 0);
+
+    if (
+        preNormalizedValidRows.some((r) => r.openingFeeBalance > 0) &&
+        !hasPermission(session.role as UserRole, 'fees:write')
+    ) {
+        return {
+            ok: false,
+            error: 'Forbidden: importing opening fee balances requires fees:write permission.',
+        };
+    }
+
+    if (
+        isDemoSession(session as { isDemoSandbox?: boolean; tenantCode?: string | null }) ||
+        (await isDemoTenantId(tenantId))
+    ) {
+        if (preNormalizedValidRows.length > 25) {
+            return {
+                ok: false,
+                error: 'Demo sandbox ERP imports are capped at 25 valid rows per batch.',
+            };
+        }
+        const rateLimitError = await consumeRateLimit(`${tenantId}:${userId}`, {
+            scope: 'legacy-import-demo-commit',
+            maxAttempts: 5,
+            degradedMaxAttempts: 5,
+            endpointClass: 'authenticated-internal',
+            message: 'Demo sandbox import rate limit exceeded (max 5 commits per 15 minutes).',
+        });
+        if (rateLimitError) {
+            return { ok: false, error: rateLimitError };
+        }
+    }
 
     const sourceErp = input.sourceErp || 'AUTO';
     const dueDate =
@@ -577,7 +619,7 @@ export async function rollbackLegacyImportBatchAction(batchId: string): Promise<
     removedInvoices?: number;
     error?: string;
 }> {
-    const { tenantId, userId } = await requireAuth('students:write');
+    const { tenantId, userId, session } = await requireAuth('students:write');
 
     if (!UUID_RE.test(batchId)) {
         return { ok: false, error: 'Invalid import batch identifier.' };
@@ -586,6 +628,39 @@ export async function rollbackLegacyImportBatchAction(batchId: string): Promise<
     try {
         const result = await withTenant(tenantId, async (client) => {
             const q = sqlFor(client);
+
+            const batchStudents = await q<{ id: string }>`
+                SELECT id
+                FROM students
+                WHERE tenant_id = ${tenantId}
+                  AND custom_data->>'importBatchId' = ${batchId}
+            `;
+            const batchInvoices = await q<{ id: string }>`
+                SELECT id
+                FROM invoices
+                WHERE tenant_id = ${tenantId}
+                  AND custom_data->>'importBatchId' = ${batchId}
+            `;
+
+            const batchStudentIds = batchStudents.map((r) => r.id);
+            const batchInvoiceIds = batchInvoices.map((r) => r.id);
+
+            if (batchStudentIds.length === 0 && batchInvoiceIds.length === 0) {
+                return {
+                    ok: false as const,
+                    error: 'Import batch not found or already rolled back.',
+                };
+            }
+
+            if (
+                batchInvoiceIds.length > 0 &&
+                !hasPermission(session.role as UserRole, 'fees:write')
+            ) {
+                return {
+                    ok: false as const,
+                    error: 'Forbidden: rolling back an import batch containing invoices requires fees:write permission.',
+                };
+            }
 
             // Guard: refuse rollback if live payments have already been recorded on batch invoices
             const paidCountRow = await q<{ count: number }>`
@@ -601,6 +676,43 @@ export async function rollbackLegacyImportBatchAction(batchId: string): Promise<
                     ok: false as const,
                     error: 'Cannot roll back a batch after payments have been collected against its opening invoices.',
                 };
+            }
+
+            if (batchStudentIds.length > 0) {
+                const postImportDeps = await q<{
+                    extraInvoices: number;
+                    payments: number;
+                    concessions: number;
+                    attendance: number;
+                    results: number;
+                    certificates: number;
+                    documents: number;
+                }>`
+                    SELECT
+                        (SELECT count(*)::int FROM invoices WHERE tenant_id = ${tenantId} AND student_id = ANY(${batchStudentIds}::uuid[]) AND COALESCE(custom_data->>'importBatchId', '') <> ${batchId}) AS "extraInvoices",
+                        (SELECT count(*)::int FROM payments WHERE tenant_id = ${tenantId} AND student_id = ANY(${batchStudentIds}::uuid[])) AS payments,
+                        (SELECT count(*)::int FROM concessions WHERE tenant_id = ${tenantId} AND student_id = ANY(${batchStudentIds}::uuid[])) AS concessions,
+                        (SELECT count(*)::int FROM attendance_records WHERE tenant_id = ${tenantId} AND student_id = ANY(${batchStudentIds}::uuid[])) AS attendance,
+                        (SELECT count(*)::int FROM student_results WHERE tenant_id = ${tenantId} AND student_id = ANY(${batchStudentIds}::uuid[])) AS results,
+                        (SELECT count(*)::int FROM issued_certificates WHERE tenant_id = ${tenantId} AND student_id = ANY(${batchStudentIds}::uuid[])) AS certificates,
+                        (SELECT count(*)::int FROM student_documents WHERE tenant_id = ${tenantId} AND student_id = ANY(${batchStudentIds}::uuid[])) AS documents
+                `.one();
+
+                const totalDependentRecords =
+                    (postImportDeps?.extraInvoices ?? 0) +
+                    (postImportDeps?.payments ?? 0) +
+                    (postImportDeps?.concessions ?? 0) +
+                    (postImportDeps?.attendance ?? 0) +
+                    (postImportDeps?.results ?? 0) +
+                    (postImportDeps?.certificates ?? 0) +
+                    (postImportDeps?.documents ?? 0);
+
+                if (totalDependentRecords > 0) {
+                    return {
+                        ok: false as const,
+                        error: 'Cannot roll back this import batch because post-import academic, document, or financial records already exist for one or more imported students.',
+                    };
+                }
             }
 
             const deletedInvoices = await q<{ id: string }>`

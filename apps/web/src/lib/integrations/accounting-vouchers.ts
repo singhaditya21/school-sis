@@ -7,6 +7,8 @@
  *  3. Frappe ERPNext Open-Source JSON (`erpnext_json`) — `frappe/erpnext` ₹0/$0 open-source accounting ERP
  */
 
+import { sanitizeCsvValue } from '@/lib/utils/csv-sanitize';
+
 export type AccountingExportFormat = 'tally_xml' | 'zoho_csv' | 'erpnext_json';
 
 export type PaymentLedgerMethodKey =
@@ -125,13 +127,7 @@ export function escapeXml(value: unknown): string {
 }
 
 function escapeCsvCell(value: unknown): string {
-    const raw = String(value ?? '');
-    // Neutralize spreadsheet formula injection characters when leading
-    const safe = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
-    if (/[",\n\r]/.test(safe)) {
-        return `"${safe.replace(/"/g, '""')}"`;
-    }
-    return safe;
+    return sanitizeCsvValue(value);
 }
 
 /**

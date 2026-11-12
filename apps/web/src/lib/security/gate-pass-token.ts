@@ -76,9 +76,35 @@ export function signGatePassToken(input: {
     return `${GATE_PASS_VERSION}.${payloadB64}.${mac}`;
 }
 
+export interface VerifyGatePassOptions {
+    timeZone?: string;
+    expectedDate?: string | null;
+    allowDateMismatch?: boolean;
+}
+
+export function getCurrentCampusDateIso(
+    timeZone = 'Asia/Kolkata',
+    nowMs = Date.now(),
+): string {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(new Date(nowMs));
+    const year = parts.find((p) => p.type === 'year')?.value;
+    const month = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+    if (year && month && day) {
+        return `${year}-${month}-${day}`;
+    }
+    return new Date(nowMs).toISOString().slice(0, 10);
+}
+
 export function verifyGatePassToken(
     token: string | null | undefined,
     nowMs = Date.now(),
+    options?: VerifyGatePassOptions,
 ):
     | {
           ok: true;
@@ -147,6 +173,19 @@ export function verifyGatePassToken(
     const nowSec = Math.floor(nowMs / 1000);
     if (parsed.exp <= nowSec) {
         return { ok: false, reason: 'This dismissal gate pass has expired. Generate a fresh daily pass from the Parent Portal.' };
+    }
+
+    if (!options?.allowDateMismatch) {
+        const expectedDate =
+            options?.expectedDate !== undefined
+                ? options.expectedDate
+                : getCurrentCampusDateIso(options?.timeZone);
+        if (expectedDate && parsed.dt !== expectedDate) {
+            return {
+                ok: false,
+                reason: `This dismissal gate pass was issued for ${parsed.dt} and is valid only for ${expectedDate}. Generate a fresh pass for today.`,
+            };
+        }
     }
 
     return {

@@ -20,6 +20,7 @@
     },
     "android": {
       "package": "com.scholarmind.mobile",
+      "allowBackup": false,
       "usesCleartextTraffic": false,
       "adaptiveIcon": {
         "backgroundColor": "#162B4D",

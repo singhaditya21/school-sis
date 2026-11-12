@@ -8,6 +8,8 @@ import {
     getPaymentOrderByIdempotency,
     isPayableInvoiceStatus,
     outstandingMinor,
+    recordManualPayment,
+    type ManualPaymentResult,
 } from '@/lib/payments/ledger';
 import {
     getStripeClient,
@@ -22,6 +24,8 @@ import {
 } from '@/lib/payments/payment-links';
 import { decryptFieldTolerant } from '@/lib/encryption';
 import { formatCurrencyPrecise } from '@/lib/format/currency';
+import { resolveTrustedAppOrigin } from '@/lib/security/client-ip';
+import { isDemoSession, isDemoTenantCode, isDemoTenantId } from '@/lib/tenant/demo-guard';
 
 type MiddlewareUserRole = Parameters<typeof requireRole>[number];
 
@@ -31,23 +35,29 @@ const CONNECT_ADMIN_ROLES = [
     'SCHOOL_ADMIN',
 ] as unknown as readonly MiddlewareUserRole[];
 
+const INVOICE_PAYER_ROLES = new Set([
+    'PARENT',
+    'FINANCE_LEAD',
+    'ACCOUNTANT',
+    'SCHOOL_ADMIN',
+    'SUPER_ADMIN',
+    'PLATFORM_ADMIN',
+]);
+
 function resolveTrustedOrigin(): string {
-    const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
-    if (configured) {
-        const parsed = new URL(configured);
-        if (process.env.NODE_ENV === 'production' && parsed.protocol !== 'https:') {
-            throw new Error('NEXT_PUBLIC_APP_URL must use HTTPS in production.');
-        }
-        return parsed.origin;
-    }
-    if (process.env.NODE_ENV === 'production') {
-        throw new Error('NEXT_PUBLIC_APP_URL must be configured in production.');
-    }
-    return 'http://localhost:3000';
+    return resolveTrustedAppOrigin('http://localhost:3000');
 }
 
 export async function createCheckoutSession(invoiceId: string) {
     const { tenantId, userId, session: authSession } = await requireAuth();
+
+    if (!INVOICE_PAYER_ROLES.has(authSession.role)) {
+        throw new Error('Forbidden: Your role cannot initiate online invoice payments.');
+    }
+
+    if (isDemoSession(authSession as { isDemoSandbox?: boolean; tenantCode?: string | null })) {
+        throw new Error('Live payment gateway checkout is disabled in the public demo sandbox.');
+    }
 
     const invoice = await findInvoiceForPayment(
         invoiceId,
@@ -60,6 +70,14 @@ export async function createCheckoutSession(invoiceId: string) {
         throw new Error('Invoice not found');
     }
 
+    if (
+        Boolean(invoice.tenantIsDemo) ||
+        isDemoTenantCode(invoice.tenantCode) ||
+        (invoice.tenantCode === undefined && (await isDemoTenantId(tenantId)))
+    ) {
+        throw new Error('Live payment gateway checkout is disabled in the public demo sandbox.');
+    }
+
     if (!isPayableInvoiceStatus(invoice.status)) {
         throw new Error(`Invoice with status ${invoice.status} cannot accept payments`);
     }
@@ -68,10 +86,14 @@ export async function createCheckoutSession(invoiceId: string) {
     const tenantRows = await sql<{ stripe_connect_account_id: string | null }>`
         SELECT stripe_connect_account_id FROM tenants WHERE id = ${tenantId}
     `;
-    if (tenantRows.length === 0 || !tenantRows[0].stripe_connect_account_id) {
+    const stripeAccountId = (
+        tenantRows[0]?.stripe_connect_account_id ||
+        invoice.stripeConnectAccountId ||
+        ''
+    ).trim() || undefined;
+    if (!stripeAccountId && !isStripeConfigured()) {
         throw new Error('School has not configured payment processing yet.');
     }
-    const stripeAccountId = tenantRows[0].stripe_connect_account_id;
     const amountInPaise = outstandingMinor(invoice);
     if (amountInPaise <= 0) {
         throw new Error('Invoice has no outstanding balance.');
@@ -81,18 +103,20 @@ export async function createCheckoutSession(invoiceId: string) {
     const stripe = getStripeClient();
     const existingOrder = await getPaymentOrderByIdempotency(tenantId, 'STRIPE', invoice.id, amountInPaise, 'INR');
     if (existingOrder?.providerOrderId) {
-        const existingSession = await stripe.checkout.sessions.retrieve(
-            existingOrder.providerOrderId,
-            {},
-            { stripeAccount: stripeAccountId },
-        );
+        const existingSession = stripeAccountId
+            ? await stripe.checkout.sessions.retrieve(
+                  existingOrder.providerOrderId,
+                  {},
+                  { stripeAccount: stripeAccountId },
+              )
+            : await stripe.checkout.sessions.retrieve(existingOrder.providerOrderId);
         if (existingSession.status === 'open' && existingSession.url) {
             return { url: existingSession.url };
         }
     }
 
-    const checkoutSession = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
+    const sessionPayload = {
+        payment_method_types: ['card' as const],
         line_items: [
             {
                 price_data: {
@@ -105,7 +129,7 @@ export async function createCheckoutSession(invoiceId: string) {
                 quantity: 1,
             },
         ],
-        mode: 'payment',
+        mode: 'payment' as const,
         success_url: `${origin}/my-fees?success=true`,
         cancel_url: `${origin}/my-fees?canceled=true`,
         metadata: {
@@ -114,7 +138,10 @@ export async function createCheckoutSession(invoiceId: string) {
             studentId: invoice.studentId,
             requestedBy: userId,
         },
-    }, { stripeAccount: stripeAccountId });
+    };
+    const checkoutSession = stripeAccountId
+        ? await stripe.checkout.sessions.create(sessionPayload, { stripeAccount: stripeAccountId })
+        : await stripe.checkout.sessions.create(sessionPayload);
 
     if (!checkoutSession.url) {
         throw new Error('Failed to create Stripe session');
@@ -129,13 +156,38 @@ export async function createCheckoutSession(invoiceId: string) {
         providerOrderId: checkoutSession.id,
         createdBy: userId,
         metadata: {
-            stripeConnectAccountId: stripeAccountId,
+            ...(stripeAccountId ? { stripeConnectAccountId: stripeAccountId } : {}),
             checkoutUrl: checkoutSession.url,
             source: 'parent_server_action',
         },
     });
 
     return { url: checkoutSession.url };
+}
+
+export async function recordManualPaymentAction(input: {
+    invoiceId: string;
+    amount: number;
+    method: string;
+    reference?: string;
+    chequeNumber?: string;
+    bankName?: string;
+    idempotencyKey?: string;
+    metadata?: Record<string, unknown>;
+}): Promise<ManualPaymentResult> {
+    const { tenantId, userId } = await requireAuth('payments:create');
+    return recordManualPayment({
+        tenantId,
+        invoiceId: input.invoiceId,
+        amount: input.amount,
+        method: input.method,
+        actorUserId: userId,
+        reference: input.reference,
+        chequeNumber: input.chequeNumber,
+        bankName: input.bankName,
+        idempotencyKey: input.idempotencyKey,
+        metadata: input.metadata,
+    });
 }
 
 export async function createStripeConnectAccount() {

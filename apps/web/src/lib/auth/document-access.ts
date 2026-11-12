@@ -20,8 +20,36 @@ export async function canAccessStudentDocument(input: {
     studentId: string;
     staffPermission: string;
 }): Promise<boolean> {
-    // Staff route: an explicit permission over the whole tenant.
-    if (hasPermission(input.role as UserRole, input.staffPermission)) {
+    // Staff route: TEACHER is restricted to students in their assigned sections/classes;
+    // other authorized staff roles hold tenant-scoped document permission.
+    if (input.role === 'TEACHER') {
+        if (hasPermission(input.role as UserRole, input.staffPermission)) {
+            const teacherAssigned = await pool.query(
+                `SELECT 1
+                   FROM students s
+                   LEFT JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = s.tenant_id
+                   LEFT JOIN staff_profiles sp ON sp.tenant_id = s.tenant_id AND sp.user_id = $3
+                  WHERE s.tenant_id = $1
+                    AND s.id = $2
+                    AND (
+                      sec.class_teacher_id = $3
+                      OR (sp.id IS NOT NULL AND sec.class_teacher_id = sp.id)
+                      OR EXISTS (
+                        SELECT 1
+                          FROM timetable_entries te
+                         WHERE te.tenant_id = s.tenant_id
+                           AND te.section_id = s.section_id
+                           AND (te.teacher_id = $3 OR (sp.id IS NOT NULL AND te.teacher_id = sp.id))
+                      )
+                    )
+                  LIMIT 1`,
+                [input.tenantId, input.studentId, input.userId],
+            );
+            if ((teacherAssigned.rowCount ?? teacherAssigned.rows?.length ?? 0) > 0) {
+                return true;
+            }
+        }
+    } else if (hasPermission(input.role as UserRole, input.staffPermission)) {
         return true;
     }
 
@@ -33,7 +61,7 @@ export async function canAccessStudentDocument(input: {
           LIMIT 1`,
         [input.tenantId, input.studentId, input.userId],
     );
-    if ((guardian.rowCount ?? 0) > 0) return true;
+    if ((guardian.rowCount ?? guardian.rows?.length ?? 0) > 0) return true;
 
     // A student may read their own documents.
     const self = await pool.query(
@@ -43,5 +71,5 @@ export async function canAccessStudentDocument(input: {
           LIMIT 1`,
         [input.tenantId, input.studentId, input.userId],
     );
-    return (self.rowCount ?? 0) > 0;
+    return (self.rowCount ?? self.rows?.length ?? 0) > 0;
 }

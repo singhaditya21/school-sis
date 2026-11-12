@@ -12,10 +12,6 @@ import {
     Check,
 } from 'lucide-react';
 import { loginActionV2 } from '@/lib/actions/auth';
-import {
-    isPermanentPlatformAdminEmail,
-    PERMANENT_PLATFORM_ADMIN_EMAIL,
-} from '@/lib/auth/platform-owner';
 import { ScholarMindCrest } from '@/components/brand/ScholarMindCrest';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -239,12 +235,11 @@ export default function LoginPage() {
                                                 placeholder="e.g. DPSN or DEMO-CAMPUS"
                                                 value={schoolCode}
                                                 onChange={(e) => setSchoolCode(e.target.value.toUpperCase())}
-                                                required
                                                 className="uppercase font-mono"
                                                 aria-describedby="schoolCode-hint"
                                             />
                                             <p id="schoolCode-hint" className="text-xs text-muted-foreground">
-                                                Provided by your institution registrar or onboarding email
+                                                Provided by your institution registrar or onboarding email (leave blank for HQ)
                                             </p>
                                         </div>
                                     )}
@@ -261,19 +256,10 @@ export default function LoginPage() {
                                                 value={email}
                                                 placeholder={
                                                     loginMode === 'platform'
-                                                        ? PERMANENT_PLATFORM_ADMIN_EMAIL
+                                                        ? 'admin@scholarmind.app'
                                                         : 'you@school.edu.in'
                                                 }
-                                                onChange={(e) => {
-                                                    const nextEmail = e.target.value;
-                                                    setEmail(nextEmail);
-                                                    if (
-                                                        isPermanentPlatformAdminEmail(nextEmail) &&
-                                                        loginMode !== 'platform'
-                                                    ) {
-                                                        setLoginMode('platform');
-                                                    }
-                                                }}
+                                                onChange={(e) => setEmail(e.target.value)}
                                                 required
                                                 autoComplete="email"
                                                 aria-invalid={error ? 'true' : 'false'}
@@ -319,7 +305,7 @@ export default function LoginPage() {
                                     <div className="flex items-center space-x-2">
                                         <Checkbox id="remember" name="remember" />
                                         <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
-                                            Remember me for 30 days
+                                            Keep session active (up to 12 hours)
                                         </Label>
                                     </div>
 

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireApiAuth } from '@/lib/auth/api';
+import { getSession } from '@/lib/auth/session';
+import { isDemoSession, isDemoTenantCode } from '@/lib/tenant/demo-guard';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
 import {
     createPaymentOrderRecord,
@@ -23,7 +25,6 @@ export async function POST(request: NextRequest) {
     try {
         const auth = await requireApiAuth([
             'PARENT',
-            'STUDENT',
             'FINANCE_LEAD',
             'ACCOUNTANT',
             'SCHOOL_ADMIN',
@@ -31,6 +32,17 @@ export async function POST(request: NextRequest) {
             'PLATFORM_ADMIN',
         ]);
         if (auth.ok === false) return auth.response;
+
+        const liveSession = await getSession().catch(() => null);
+        if (
+            isDemoSession(auth.context as { isDemoSandbox?: boolean; tenantCode?: string | null }) ||
+            isDemoSession(liveSession)
+        ) {
+            return NextResponse.json(
+                { error: 'Live payment gateway checkout is disabled in the public demo sandbox.' },
+                { status: 403 },
+            );
+        }
 
         const json = await readTenantScopedJson(request, auth.context.tenantId);
         if (json.ok === false) return json.response;
@@ -50,6 +62,13 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, error: 'Invoice not found' }, { status: 404 });
         }
 
+        if (Boolean(invoice.tenantIsDemo) || isDemoTenantCode(invoice.tenantCode)) {
+            return NextResponse.json(
+                { error: 'Live payment gateway checkout is disabled in the public demo sandbox.' },
+                { status: 403 },
+            );
+        }
+
         if (!isPayableInvoiceStatus(invoice.status)) {
             return NextResponse.json(
                 { success: false, error: `Invoice with status ${invoice.status} cannot accept payments` },
@@ -61,6 +80,16 @@ export async function POST(request: NextRequest) {
         const amountInPaise = parsed.data.amountInPaise ?? outstandingInPaise;
         if (amountInPaise <= 0 || amountInPaise > outstandingInPaise) {
             return NextResponse.json({ success: false, error: 'Invalid payment amount' }, { status: 400 });
+        }
+
+        if (auth.context.role === 'PARENT' && amountInPaise < outstandingInPaise) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: 'Parents must pay the full remaining invoice balance unless an installment order is created by finance staff.',
+                },
+                { status: 400 },
+            );
         }
 
         const existingOrder = await getPaymentOrderByIdempotency(
@@ -137,7 +166,7 @@ export async function POST(request: NextRequest) {
             },
         });
     } catch (error) {
-        const message = error instanceof Error ? error.message : 'Payment order creation failed';
-        return NextResponse.json({ success: false, error: message }, { status: 500 });
+        console.error('[Payment Orders] Error:', error instanceof Error ? error.message : error);
+        return NextResponse.json({ success: false, error: 'Payment order creation failed.' }, { status: 500 });
     }
 }

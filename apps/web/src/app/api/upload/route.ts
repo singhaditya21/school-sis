@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireApiAuth, ROLE_GROUPS } from '@/lib/auth/api';
 import { canAccessStudentDocument } from '@/lib/auth/document-access';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
+import { getSession } from '@/lib/auth/session';
+import { getObjectStorageUploadClient } from '@/lib/storage/s3-config';
+import { isDemoSession, isDemoTenantId } from '@/lib/tenant/demo-guard';
 import {
     createTenantStorageKey,
     normalizeStorageFolder,
     readTenantScopedFormData,
 } from '@/lib/tenant/isolation';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,67 +28,6 @@ const ALLOWED_MIME_TYPES = new Set([
 const EXTENDED_FOLDERS = new Set(['logos', 'homework']);
 const PARENT_STUDENT_UPLOAD_FOLDERS = new Set(['documents', 'homework']);
 const INLINE_SAFE_IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-
-type StorageUploadConfig = {
-    client: S3Client;
-    bucket: string;
-};
-
-let cachedStorageConfig: { cacheKey: string; config: StorageUploadConfig } | null = null;
-
-function getStorageUploadConfig(): StorageUploadConfig | null {
-    const r2AccountId = process.env.R2_ACCOUNT_ID;
-    const r2AccessKeyId = process.env.R2_ACCESS_KEY_ID;
-    const r2SecretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-    const r2Bucket = process.env.R2_BUCKET_NAME;
-
-    if (r2AccountId && r2AccessKeyId && r2SecretAccessKey && r2Bucket) {
-        const cacheKey = `r2:${r2AccountId}:${r2Bucket}:${r2AccessKeyId}`;
-        if (cachedStorageConfig?.cacheKey === cacheKey) {
-            return cachedStorageConfig.config;
-        }
-        const config: StorageUploadConfig = {
-            bucket: r2Bucket,
-            client: new S3Client({
-                region: 'auto',
-                endpoint: `https://${r2AccountId}.r2.cloudflarestorage.com`,
-                credentials: {
-                    accessKeyId: r2AccessKeyId,
-                    secretAccessKey: r2SecretAccessKey,
-                },
-                forcePathStyle: true,
-            }),
-        };
-        cachedStorageConfig = { cacheKey, config };
-        return config;
-    }
-
-    const awsBucket = process.env.AWS_S3_BUCKET;
-    const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
-    const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-
-    if (awsBucket && awsAccessKeyId && awsSecretAccessKey) {
-        const region = process.env.AWS_REGION || 'us-east-1';
-        const cacheKey = `s3:${region}:${awsBucket}:${awsAccessKeyId}`;
-        if (cachedStorageConfig?.cacheKey === cacheKey) {
-            return cachedStorageConfig.config;
-        }
-        const config: StorageUploadConfig = {
-            bucket: awsBucket,
-            client: new S3Client({
-                region,
-                credentials: {
-                    accessKeyId: awsAccessKeyId,
-                    secretAccessKey: awsSecretAccessKey,
-                },
-            }),
-        };
-        cachedStorageConfig = { cacheKey, config };
-        return config;
-    }
-
-    return null;
-}
 
 function matchesFileMagicBytes(bytes: Uint8Array, mimeType: string): boolean {
     switch (mimeType) {
@@ -190,6 +132,21 @@ export async function POST(request: NextRequest) {
         const auth = await requireApiAuth();
         if (auth.ok === false) return auth.response;
 
+        const form = await readTenantScopedFormData(request, auth.context.tenantId);
+        if (form.ok === false) return form.response;
+
+        const liveSession = await getSession().catch(() => null);
+        if (
+            isDemoSession(auth.context as { isDemoSandbox?: boolean; tenantCode?: string | null }) ||
+            isDemoSession(liveSession) ||
+            (await isDemoTenantId(auth.context.tenantId))
+        ) {
+            return NextResponse.json(
+                { error: 'File uploads and bulk CSV mutations are disabled in the public demo sandbox.' },
+                { status: 403 },
+            );
+        }
+
         const rateLimitError = await consumeRateLimit(`${auth.context.tenantId}:${auth.context.userId}`, {
             scope: 'file-upload',
             maxAttempts: 20,
@@ -201,13 +158,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: rateLimitError }, { status: 429 });
         }
 
-        const storage = getStorageUploadConfig();
+        const storage = getObjectStorageUploadClient();
         if (!storage) {
             return NextResponse.json({ error: 'Storage is not configured' }, { status: 503 });
         }
-
-        const form = await readTenantScopedFormData(request, auth.context.tenantId);
-        if (form.ok === false) return form.response;
 
         const formData = form.data;
         const file = formData.get('file') as File | null;
@@ -336,6 +290,6 @@ export async function POST(request: NextRequest) {
         });
     } catch (error: unknown) {
         console.error('[API/upload] Error:', error);
-        return NextResponse.json({ error: (error as { message?: string }).message }, { status: 500 });
+        return NextResponse.json({ error: 'File upload failed.' }, { status: 500 });
     }
 }

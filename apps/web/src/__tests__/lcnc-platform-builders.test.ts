@@ -693,7 +693,7 @@ describe('LCNC & Drag-and-Drop Platform Builders', () => {
         expect(rendered.renderedBody).toBe(
             'Dear Aarav Sharma, your application (#ABCDEF12) for Coaching Inquiry is ENROLLED as of 2026-10-21.',
         );
-        expect(rendered.verificationCode).toMatch(/^SM-DOC-2026-[0-9A-F]{8}$/);
+        expect(rendered.verificationCode).toMatch(/^SM-DOC-2026-[0-9A-F]{32}$/);
         expect(rendered.htmlDocument).toContain('Official Offer of Admission');
         expect(rendered.htmlDocument).toContain(rendered.verificationCode);
 

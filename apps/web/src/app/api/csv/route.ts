@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runWithTenantContext, sql } from '@/lib/db';
 import { requireApiPermission } from '@/lib/auth/api';
+import { consumeRateLimit } from '@/lib/auth/rate-limit';
+import { getSession } from '@/lib/auth/session';
+import { isDemoSession, isDemoTenantId } from '@/lib/tenant/demo-guard';
 import { parse } from 'csv-parse/sync';
 import { getLimit } from '@/lib/config/limits';
 import { sanitizeCsvValue } from '@/lib/utils/csv-sanitize';
@@ -141,6 +144,29 @@ export async function POST(request: NextRequest) {
     const auth = await requireApiPermission('students:write');
     if (auth.ok === false) return auth.response;
     const tenantId = auth.context.tenantId;
+
+    const liveSession = await getSession().catch(() => null);
+    if (
+        isDemoSession(auth.context as { isDemoSandbox?: boolean; tenantCode?: string | null }) ||
+        isDemoSession(liveSession) ||
+        (await isDemoTenantId(tenantId))
+    ) {
+        return NextResponse.json(
+            { error: 'File uploads and bulk CSV mutations are disabled in the public demo sandbox.' },
+            { status: 403 },
+        );
+    }
+
+    const rateLimitError = await consumeRateLimit(`${tenantId}:${auth.context.userId}`, {
+        scope: 'csv-import',
+        maxAttempts: 10,
+        degradedMaxAttempts: 2,
+        endpointClass: 'authenticated-internal',
+        message: 'Too many CSV import requests. Please try again later.',
+    });
+    if (rateLimitError) {
+        return NextResponse.json({ error: rateLimitError }, { status: 429 });
+    }
 
     try {
         const formData = await request.formData();

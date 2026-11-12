@@ -25,6 +25,22 @@ export const securityHeaders = [
     },
 ] as const;
 
+export const bearerUrlNoReferrerHeaders = [
+    {
+        key: 'Referrer-Policy',
+        value: 'no-referrer',
+    },
+] as const;
+
+export const API_CONTENT_SECURITY_POLICY = "default-src 'none'; frame-ancestors 'none'";
+
+export const apiSecurityHeaders = [
+    {
+        key: 'Content-Security-Policy',
+        value: API_CONTENT_SECURITY_POLICY,
+    },
+] as const;
+
 export const CONTENT_SECURITY_POLICY_HEADER = 'Content-Security-Policy';
 export const CONTENT_SECURITY_POLICY_REPORT_ONLY_HEADER = 'Content-Security-Policy-Report-Only';
 export const CSP_REPORT_ENDPOINT = '/api/security/csp-report';

@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { pool } from '@/lib/db';
+import {
+    isPermanentPlatformAdminEmail,
+    PLATFORM_HQ_TENANT_CODE,
+} from '@/lib/auth/platform-owner';
+import { evictUserSessionCache } from '@/lib/auth/session-revocation';
 import { encryptEmail, encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 import { recordIntegrationAudit, runWithIntegrationTenant } from '@/lib/integrations/api-platform';
 import {
@@ -162,6 +167,12 @@ async function updateScimUser(
 
     if (assignments.length === 0) return getScimUserById(tenantId, id);
 
+    const shouldBumpSessionVersion =
+        updates.isActive === false || updates.role !== undefined;
+    if (shouldBumpSessionVersion) {
+        assignments.push('session_version = session_version + 1');
+    }
+
     values.push(tenantId, id);
     const tenantParam = values.length - 1;
     const idParam = values.length;
@@ -185,6 +196,9 @@ async function updateScimUser(
     );
 
     const updatedRow = rows[0];
+    if (updatedRow && shouldBumpSessionVersion) {
+        evictUserSessionCache(tenantId, id);
+    }
     return updatedRow ? { ...updatedRow, email: updatedRow.email == null ? updatedRow.email : decryptFieldTolerant(updatedRow.email) } : null;
 }
 
@@ -244,6 +258,20 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
     if (updateResult.updates.email && !z.string().email().safeParse(updateResult.updates.email).success) {
         return scimError('Email is invalid.', 400);
+    }
+
+    if (updateResult.updates.email && isPermanentPlatformAdminEmail(updateResult.updates.email)) {
+        const tenantCheck = await pool.query<{ code: string }>(
+            `SELECT code FROM tenants WHERE id = $1 LIMIT 1`,
+            [auth.tenantId],
+        );
+        if ((tenantCheck.rows[0]?.code || '').toUpperCase() !== PLATFORM_HQ_TENANT_CODE) {
+            return scimError(
+                'This email address is reserved for ScholarMind Platform Administration.',
+                403,
+                'mutability',
+            );
+        }
     }
 
     if (updateResult.updates.email) {

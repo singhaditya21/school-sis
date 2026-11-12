@@ -15,7 +15,7 @@ const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverif
 
 export type TurnstileResult = {
   ok: boolean;
-  reason?: 'skipped' | 'missing_token' | 'rejected' | 'error';
+  reason?: 'skipped' | 'unconfigured' | 'missing_token' | 'rejected' | 'error';
 };
 
 export async function verifyTurnstileToken(
@@ -23,7 +23,16 @@ export async function verifyTurnstileToken(
   opts: { secret?: string; remoteIp?: string; fetchImpl?: typeof fetch; timeoutMs?: number } = {},
 ): Promise<TurnstileResult> {
   const secret = opts.secret ?? process.env.TURNSTILE_SECRET_KEY;
-  if (!secret) return { ok: true, reason: 'skipped' };
+  if (!secret) {
+    const failClosedInProduction =
+      process.env.NODE_ENV === 'production' &&
+      !process.env.PLAYWRIGHT_TEST &&
+      process.env.ALLOW_UNPROTECTED_PUBLIC_FORMS !== 'true';
+    if (failClosedInProduction) {
+      return { ok: false, reason: 'unconfigured' };
+    }
+    return { ok: true, reason: 'skipped' };
+  }
 
   const response = typeof token === 'string' ? token.trim() : '';
   if (!response) return { ok: false, reason: 'missing_token' };

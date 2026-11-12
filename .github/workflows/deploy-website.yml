@@ -339,7 +339,11 @@ jobs:
           for (let attempt = 1; attempt <= 18; attempt += 1) {
             try {
               const healthRes = await fetch(`${base}/api/health`, {
-                headers: { ...headers, Accept: 'application/json' },
+                headers: {
+                  ...headers,
+                  Accept: 'application/json',
+                  'x-release-expect-sha': expectedSha,
+                },
                 redirect: 'manual',
                 signal: AbortSignal.timeout(15_000),
               });
@@ -350,8 +354,8 @@ jobs:
               if (
                 health?.status !== 'ok' ||
                 health?.service !== 'school-sis-website' ||
-                String(health?.commit || '').toLowerCase() !== expectedSha ||
-                health?.region !== 'sin1'
+                health?.commitMatched !== true ||
+                health?.regionMatched !== true
               ) {
                 throw new Error(`Unexpected website health payload: ${JSON.stringify(health)}`);
               }
@@ -408,7 +412,11 @@ jobs:
           for (let attempt = 1; attempt <= 18; attempt += 1) {
             try {
               const healthRes = await fetch(`${base}/api/health`, {
-                headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+                headers: {
+                  Accept: 'application/json',
+                  'Cache-Control': 'no-cache',
+                  'x-release-expect-sha': expectedSha,
+                },
                 redirect: 'manual',
                 signal: AbortSignal.timeout(15_000),
               });
@@ -419,8 +427,8 @@ jobs:
               if (
                 health?.status !== 'ok' ||
                 health?.service !== 'school-sis-website' ||
-                String(health?.commit || '').toLowerCase() !== expectedSha ||
-                health?.region !== 'sin1'
+                health?.commitMatched !== true ||
+                health?.regionMatched !== true
               ) {
                 throw new Error(`Unexpected canonical health payload: ${JSON.stringify(health)}`);
               }

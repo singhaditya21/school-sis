@@ -23,6 +23,14 @@ import {
   View,
 } from 'react-native';
 import { config, requireBackendUrl } from '../config';
+import {
+  buildMobileRequestInit,
+  clearMobileSession,
+  extractBearerToken,
+  getMobileSession,
+  setMobileSession,
+  subscribeMobileSession,
+} from '../lib/secure-session';
 
 export interface MobileMetadataObject {
   id: string;
@@ -54,14 +62,8 @@ export interface MobileMetadataField {
 
 type DraftFieldValue = string | boolean;
 
-function authHeaders(token: string | null, extraHeaders?: Record<string, string>): Record<string, string> {
-  return {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...extraHeaders,
-  };
-}
-
 export function MetadataExplorerScreen() {
+  const initialSession = getMobileSession();
   const [objects, setObjects] = useState<MobileMetadataObject[]>([]);
   const [selectedObject, setSelectedObject] = useState<string>('');
   const [fields, setFields] = useState<MobileMetadataField[]>([]);
@@ -72,15 +74,25 @@ export function MetadataExplorerScreen() {
   );
   const [showCreateForm, setShowCreateForm] = useState<boolean>(false);
   const [draftValues, setDraftValues] = useState<Record<string, DraftFieldValue>>({});
-  const [schoolCode, setSchoolCode] = useState<string>('GWD');
-  const [email, setEmail] = useState<string>('');
+  const [schoolCode, setSchoolCode] = useState<string>(initialSession.schoolCode || 'GWD');
+  const [email, setEmail] = useState<string>(initialSession.email || '');
   const [password, setPassword] = useState<string>('');
   const [mfaCode, setMfaCode] = useState<string>('');
-  const [bearerToken, setBearerToken] = useState<string | null>(null);
-  const [signedInUser, setSignedInUser] = useState<string | null>(null);
+  const [bearerToken, setBearerToken] = useState<string | null>(initialSession.bearerToken);
+  const [signedInUser, setSignedInUser] = useState<string | null>(
+    initialSession.displayName || initialSession.email,
+  );
 
   const selectedObjectRef = useRef<string>('');
   selectedObjectRef.current = selectedObject;
+
+  useEffect(() => {
+    return subscribeMobileSession((next) => {
+      setBearerToken(next.bearerToken);
+      setSignedInUser(next.displayName || next.email);
+      if (next.schoolCode) setSchoolCode(next.schoolCode);
+    });
+  }, []);
 
   const isAuthenticated = Boolean(signedInUser || bearerToken || objects.length > 0);
 
@@ -91,10 +103,10 @@ export function MetadataExplorerScreen() {
       try {
         const backendUrl = requireBackendUrl();
         const activeToken = tokenOverride !== undefined ? tokenOverride : bearerToken;
-        const res = await fetch(`${backendUrl}/api/data`, {
-          headers: authHeaders(activeToken),
-          credentials: 'include',
-        });
+        const res = await fetch(
+          `${backendUrl}/api/data`,
+          buildMobileRequestInit({ method: 'GET' }, activeToken),
+        );
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           setErrorMessage(
@@ -130,10 +142,7 @@ export function MetadataExplorerScreen() {
         const activeToken = tokenOverride !== undefined ? tokenOverride : bearerToken;
         const res = await fetch(
           `${backendUrl}/api/data/${encodeURIComponent(objectApiName)}`,
-          {
-            headers: authHeaders(activeToken),
-            credentials: 'include',
-          },
+          buildMobileRequestInit({ method: 'GET' }, activeToken),
         );
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -187,35 +196,47 @@ export function MetadataExplorerScreen() {
         requestBody.mfaCode = trimmedMfa;
       }
 
-      const res = await fetch(`${backendUrl}/api/auth/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(requestBody),
-      });
-      const body = await res.json().catch(() => ({}));
+      const res = await fetch(
+        `${backendUrl}/api/auth/token`,
+        buildMobileRequestInit(
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+          },
+          null,
+        ),
+      );
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown> & {
+        error?: string;
+        displayName?: string;
+        email?: string;
+        user?: { displayName?: string; email?: string };
+      };
       if (!res.ok) {
         setErrorMessage(body.error || 'Sign-in failed.');
         return;
       }
 
-      const issuedToken =
-        typeof body.token === 'string' && body.token.length > 0
-          ? body.token
-          : typeof body.accessToken === 'string' && body.accessToken.length > 0
-            ? body.accessToken
-            : null;
+      const issuedToken = extractBearerToken(body);
+      const resolvedDisplayName =
+        body.user?.displayName ||
+        body.displayName ||
+        body.user?.email ||
+        body.email ||
+        email.trim();
 
+      setMobileSession({
+        bearerToken: issuedToken,
+        email: body.user?.email || body.email || email.trim(),
+        displayName: resolvedDisplayName,
+        schoolCode: schoolCode.trim(),
+        authenticated: true,
+      });
       setBearerToken(issuedToken);
       setPassword('');
       setMfaCode('');
-      setSignedInUser(
-        body.user?.displayName ||
-          body.displayName ||
-          body.user?.email ||
-          body.email ||
-          email.trim(),
-      );
+      setSignedInUser(resolvedDisplayName);
       await loadObjects(issuedToken);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Network error during sign-in.');
@@ -226,6 +247,7 @@ export function MetadataExplorerScreen() {
 
   const handleSignOut = async () => {
     const tokenToRevoke = bearerToken;
+    clearMobileSession();
     setBearerToken(null);
     setSignedInUser(null);
     setObjects([]);
@@ -239,11 +261,10 @@ export function MetadataExplorerScreen() {
     setErrorMessage(config.BACKEND_CONFIG_ERROR);
 
     if (config.BACKEND_URL) {
-      await fetch(`${config.BACKEND_URL}/api/auth/logout`, {
-        method: 'POST',
-        headers: authHeaders(tokenToRevoke),
-        credentials: 'include',
-      }).catch(() => {});
+      await fetch(
+        `${config.BACKEND_URL}/api/auth/logout`,
+        buildMobileRequestInit({ method: 'POST' }, tokenToRevoke),
+      ).catch(() => {});
     }
   };
 
@@ -296,12 +317,14 @@ export function MetadataExplorerScreen() {
       const backendUrl = requireBackendUrl();
       const res = await fetch(
         `${backendUrl}/api/data/${encodeURIComponent(selectedObject)}`,
-        {
-          method: 'POST',
-          headers: authHeaders(bearerToken, { 'Content-Type': 'application/json' }),
-          credentials: 'include',
-          body: JSON.stringify(serializedPayload),
-        },
+        buildMobileRequestInit(
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(serializedPayload),
+          },
+          bearerToken,
+        ),
       );
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {

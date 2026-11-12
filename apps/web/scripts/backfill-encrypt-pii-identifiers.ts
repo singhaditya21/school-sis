@@ -15,9 +15,11 @@
 import { Pool } from "pg";
 import { resolveDatabaseConnectionOptions } from "../../../packages/api/src/db/ssl";
 import {
+  decryptFieldTolerant,
   encryptIdNumber,
   encryptDeterministic,
   encryptEmail,
+  encryptPhone,
 } from "@/lib/encryption";
 
 const connectionString =
@@ -75,20 +77,31 @@ const TARGETS = [
     table: "guardians",
     plain: "phone",
     enc: "phone_enc",
-    encrypt: (value: string) => encryptDeterministic(value, "guardians.phone"),
+    encrypt: encryptPhone,
   },
   {
     table: "guardians",
     plain: "email",
     enc: "email_enc",
-    encrypt: (value: string) => encryptDeterministic(value, "guardians.email"),
+    encrypt: encryptEmail,
   },
   {
     table: "guardians",
     plain: "alternate_phone",
     enc: "alternate_phone_enc",
-    encrypt: (value: string) =>
-      encryptDeterministic(value, "guardians.alternate-phone"),
+    encrypt: encryptPhone,
+  },
+  {
+    table: "admission_leads",
+    plain: "parent_email",
+    enc: "parent_email_enc",
+    encrypt: encryptEmail,
+  },
+  {
+    table: "admission_leads",
+    plain: "parent_phone",
+    enc: "parent_phone_enc",
+    encrypt: encryptPhone,
   },
   // alumni email keeps a case-insensitive uniqueness check → encryptEmail (normalising).
   {
@@ -170,15 +183,65 @@ async function backfill(target: (typeof TARGETS)[number]): Promise<number> {
   return migrated;
 }
 
+const PURPOSE_UNIFICATION_TARGETS = [
+  {
+    label: "guardians.phone_enc (guardians.phone -> phone)",
+    selectSql: `SELECT id, phone_enc AS value FROM guardians WHERE phone_enc LIKE 'det.v2:%:guardians.phone:%' LIMIT $1`,
+    updateSql: `UPDATE guardians SET phone_enc = $1 WHERE id = $2`,
+    reencrypt: encryptPhone,
+  },
+  {
+    label: "guardians.email_enc (guardians.email -> email)",
+    selectSql: `SELECT id, email_enc AS value FROM guardians WHERE email_enc LIKE 'det.v2:%:guardians.email:%' LIMIT $1`,
+    updateSql: `UPDATE guardians SET email_enc = $1 WHERE id = $2`,
+    reencrypt: encryptEmail,
+  },
+  {
+    label: "guardians.alternate_phone_enc (guardians.alternate-phone -> phone)",
+    selectSql: `SELECT id, alternate_phone_enc AS value FROM guardians WHERE alternate_phone_enc LIKE 'det.v2:%:guardians.alternate-phone:%' LIMIT $1`,
+    updateSql: `UPDATE guardians SET alternate_phone_enc = $1 WHERE id = $2`,
+    reencrypt: encryptPhone,
+  },
+] as const;
+
+async function reencryptLegacyGuardianPurposes(): Promise<number> {
+  let updated = 0;
+  for (const target of PURPOSE_UNIFICATION_TARGETS) {
+    let targetUpdated = 0;
+    for (;;) {
+      const { rows } = await pool.query<{ id: string; value: string }>(
+        target.selectSql,
+        [BATCH],
+      );
+      if (rows.length === 0) break;
+      for (const row of rows) {
+        const plain = decryptFieldTolerant(String(row.value));
+        if (!plain || plain.startsWith("det.")) {
+          throw new Error(
+            `Unable to decrypt legacy deterministic ciphertext for ${target.label} row ${row.id}`,
+          );
+        }
+        await pool.query(target.updateSql, [target.reencrypt(plain), row.id]);
+        targetUpdated += 1;
+        updated += 1;
+      }
+      console.info(`  … ${target.label}: ${targetUpdated} re-encrypted so far`);
+    }
+    console.info(`✓ ${target.label}: ${targetUpdated} row(s) unified`);
+  }
+  return updated;
+}
+
 async function main(): Promise<void> {
-  console.info("🔐 Backfilling encrypted national identifiers…");
+  console.info("🔐 Backfilling encrypted national & contact identifiers…");
   let total = 0;
   for (const target of TARGETS) {
     const n = await backfill(target);
     console.info(`✓ ${target.table}.${target.plain}: ${n} value(s) encrypted`);
     total += n;
   }
-  console.info(`Done — ${total} value(s) encrypted.`);
+  const unified = await reencryptLegacyGuardianPurposes();
+  console.info(`Done — ${total} value(s) encrypted, ${unified} legacy purpose row(s) unified.`);
   await pool.end();
 }
 

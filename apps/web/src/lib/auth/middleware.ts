@@ -1,6 +1,8 @@
 import { getSession } from '@/lib/auth/session';
 import { isMfaEnrollmentEnforced } from '@/lib/auth/identity';
-import { isMFARequired } from '@/lib/auth/mfa';
+import { isRoleMfaRequired } from '@/lib/auth/session-options';
+import { assertActiveSessionState } from '@/lib/auth/session-revocation';
+import { isDemoSession } from '@/lib/tenant/demo-guard';
 import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 import { redirect } from 'next/navigation';
 
@@ -34,8 +36,24 @@ export async function requireAuth(permission?: string): Promise<AuthContext> {
         redirect('/login');
     }
 
+    try {
+        await assertActiveSessionState(session);
+    } catch {
+        try {
+            session.destroy();
+        } catch {
+            // Next.js Server Component render contexts cannot mutate cookies.
+        }
+        redirect('/login');
+    }
+
+    const roleRequiresMfa = isRoleMfaRequired(session.role, {
+        isDemoSandbox: session.isDemoSandbox,
+        tenantCode: session.tenantCode,
+    });
     if (
-        (Boolean(session.mfaRequired) || (isMfaEnrollmentEnforced() && isMFARequired(session.role))) &&
+        !isDemoSession(session) &&
+        (Boolean(session.mfaRequired) || (isMfaEnrollmentEnforced() && roleRequiresMfa)) &&
         !session.mfaVerified
     ) {
         redirect('/mfa/setup');

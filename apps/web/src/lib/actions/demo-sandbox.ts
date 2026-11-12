@@ -19,6 +19,8 @@ import {
 import { establishSession } from '@/lib/auth/identity';
 import { sessionOptions, type SessionData } from '@/lib/auth/session';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
+import { extractTrustedClientIp } from '@/lib/security/client-ip';
+import { isPublicDemoSandboxEnabled } from '@/lib/tenant/demo-guard';
 import {
     decryptFieldTolerant,
     encryptEmail,
@@ -75,19 +77,12 @@ const DEMO_PERSONAS: Record<DemoPersonaKey, PersonaConfig> = {
 };
 
 async function enforceDemoRateLimit(): Promise<string | null> {
-    let clientIp: string | null = null;
+    let clientIp = 'unknown-ip';
     try {
-        const hdrs = await headers();
-        const forwarded =
-            hdrs.get('x-vercel-forwarded-for') ||
-            hdrs.get('x-real-ip') ||
-            hdrs.get('x-forwarded-for');
-        clientIp = forwarded?.split(',')[0]?.trim() || null;
+        clientIp = extractTrustedClientIp(await headers());
     } catch {
-        clientIp = null;
+        clientIp = 'unknown-ip';
     }
-
-    if (!clientIp) return null;
 
     return consumeRateLimit(clientIp, {
         scope: 'demo_sandbox_ip',
@@ -102,12 +97,27 @@ async function ensureDemoTenantAndUsers(): Promise<{
     companyId: string;
     tenantId: string;
     tenantDomain: string;
-    usersByRole: Record<DemoPersonaKey, { id: string; email: string; displayName: string }>;
+    tenantSessionVersion: number;
+    usersByRole: Record<
+        DemoPersonaKey,
+        { id: string; email: string; displayName: string; sessionVersion: number }
+    >;
 }> {
     return runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.TENANT_PROVISIONING, async () => {
         const domainUrl = 'demo-campus.scholarmind.app';
-        const existingTenant = await sql<{ id: string; companyId: string | null; domain: string | null }>`
-            SELECT id, company_id AS "companyId", domain
+        const existingTenant = await sql<{
+            id: string;
+            companyId: string | null;
+            domain: string | null;
+            tenantSessionVersion: number | null;
+            isDemo: boolean | null;
+        }>`
+            SELECT
+                id,
+                company_id AS "companyId",
+                domain,
+                session_version AS "tenantSessionVersion",
+                is_demo AS "isDemo"
             FROM tenants
             WHERE upper(code) = ${DEMO_SANDBOX_TENANT_CODE}
             LIMIT 1
@@ -115,6 +125,7 @@ async function ensureDemoTenantAndUsers(): Promise<{
 
         let companyId = existingTenant[0]?.companyId || '';
         let tenantId = existingTenant[0]?.id || '';
+        let tenantSessionVersion = existingTenant[0]?.tenantSessionVersion ?? 1;
 
         if (!tenantId) {
             const companyRows = await sql<{ id: string }>`
@@ -130,8 +141,8 @@ async function ensureDemoTenantAndUsers(): Promise<{
             `;
             companyId = companyRows[0].id;
 
-            const tenantRows = await sql<{ id: string }>`
-                INSERT INTO tenants (company_id, name, code, domain, email, city, state, affiliation_board, is_active)
+            const tenantRows = await sql<{ id: string; tenantSessionVersion: number }>`
+                INSERT INTO tenants (company_id, name, code, domain, email, city, state, affiliation_board, is_active, is_demo)
                 VALUES (
                     ${companyId},
                     ${DEMO_SANDBOX_COMPANY_NAME},
@@ -141,11 +152,13 @@ async function ensureDemoTenantAndUsers(): Promise<{
                     ${'New Delhi'},
                     ${'Delhi'},
                     ${'CBSE'},
+                    ${true},
                     ${true}
                 )
-                RETURNING id
+                RETURNING id, session_version AS "tenantSessionVersion"
             `;
             tenantId = tenantRows[0].id;
+            tenantSessionVersion = tenantRows[0].tenantSessionVersion ?? 1;
         } else if (!companyId) {
             const companyRows = await sql<{ id: string }>`
                 INSERT INTO companies (name, subscription_tier, billing_status, active_modules, is_active)
@@ -161,13 +174,22 @@ async function ensureDemoTenantAndUsers(): Promise<{
             companyId = companyRows[0].id;
             await sql`
                 UPDATE tenants
-                SET company_id = ${companyId}, is_active = ${true}, updated_at = NOW()
+                SET company_id = ${companyId}, is_active = ${true}, is_demo = ${true}, updated_at = NOW()
+                WHERE id = ${tenantId}
+            `;
+        } else if (!existingTenant[0]?.isDemo) {
+            await sql`
+                UPDATE tenants
+                SET is_demo = ${true}, updated_at = NOW()
                 WHERE id = ${tenantId}
             `;
         }
 
         const lockedPasswordHash = await hash(crypto.randomBytes(24).toString('hex'), 10);
-        const usersByRole = {} as Record<DemoPersonaKey, { id: string; email: string; displayName: string }>;
+        const usersByRole = {} as Record<
+            DemoPersonaKey,
+            { id: string; email: string; displayName: string; sessionVersion: number }
+        >;
 
         for (const persona of Object.values(DEMO_PERSONAS)) {
             const existingUsers = await sql<{
@@ -175,12 +197,14 @@ async function ensureDemoTenantAndUsers(): Promise<{
                 email: string | null;
                 firstName: string;
                 lastName: string;
+                sessionVersion: number | null;
             }>`
                 SELECT
                     id,
                     COALESCE(email_enc, email) AS email,
                     first_name AS "firstName",
-                    last_name AS "lastName"
+                    last_name AS "lastName",
+                    session_version AS "sessionVersion"
                 FROM users
                 WHERE tenant_id = ${tenantId}
                   AND (email_enc = ANY(${encryptEmailCandidates(persona.email)}::text[]) OR lower(email) = lower(${persona.email}))
@@ -193,11 +217,12 @@ async function ensureDemoTenantAndUsers(): Promise<{
                     id: u.id,
                     email: u.email ? decryptFieldTolerant(u.email) : persona.email,
                     displayName: `${u.firstName} ${u.lastName}`,
+                    sessionVersion: u.sessionVersion ?? 1,
                 };
                 continue;
             }
 
-            const inserted = await sql<{ id: string }>`
+            const inserted = await sql<{ id: string; sessionVersion: number }>`
                 INSERT INTO users (tenant_id, email_enc, password_hash, first_name, last_name, role, is_active)
                 VALUES (
                     ${tenantId},
@@ -208,13 +233,14 @@ async function ensureDemoTenantAndUsers(): Promise<{
                     ${persona.role},
                     ${true}
                 )
-                RETURNING id
+                RETURNING id, session_version AS "sessionVersion"
             `;
 
             usersByRole[persona.key] = {
                 id: inserted[0].id,
                 email: persona.email,
                 displayName: `${persona.firstName} ${persona.lastName}`,
+                sessionVersion: inserted[0].sessionVersion ?? 1,
             };
         }
 
@@ -222,6 +248,7 @@ async function ensureDemoTenantAndUsers(): Promise<{
             companyId,
             tenantId,
             tenantDomain: existingTenant[0]?.domain || domainUrl,
+            tenantSessionVersion,
             usersByRole,
         };
     });
@@ -229,7 +256,10 @@ async function ensureDemoTenantAndUsers(): Promise<{
 
 async function ensureDemoSchoolDataSeeded(
     tenantId: string,
-    usersByRole: Record<DemoPersonaKey, { id: string; email: string; displayName: string }>,
+    usersByRole: Record<
+        DemoPersonaKey,
+        { id: string; email: string; displayName: string; sessionVersion: number }
+    >,
 ): Promise<void> {
     let paidInvoiceToSettle: string | null = null;
 
@@ -725,12 +755,12 @@ async function ensureDemoSisterCampusSeeded(companyId: string): Promise<void> {
             sisterTenantId = existing[0].id;
             await sql`
                 UPDATE tenants
-                SET company_id = ${companyId}, is_active = true, updated_at = NOW()
+                SET company_id = ${companyId}, is_active = true, is_demo = true, updated_at = NOW()
                 WHERE id = ${sisterTenantId}
             `;
         } else {
             const inserted = await sql<{ id: string }>`
-                INSERT INTO tenants (company_id, name, code, domain, email, city, state, affiliation_board, is_active)
+                INSERT INTO tenants (company_id, name, code, domain, email, city, state, affiliation_board, is_active, is_demo)
                 VALUES (
                     ${companyId},
                     ${'ScholarMind Junior Wing — Vasant Vihar'},
@@ -740,6 +770,7 @@ async function ensureDemoSisterCampusSeeded(companyId: string): Promise<void> {
                     ${'New Delhi'},
                     ${'Delhi'},
                     ${'ICSE'},
+                    ${true},
                     ${true}
                 )
                 RETURNING id
@@ -928,6 +959,13 @@ export async function launchDemoSandboxAction(personaKey: DemoPersonaKey): Promi
     redirectTo?: string;
     error?: string;
 }> {
+    if (!isPublicDemoSandboxEnabled()) {
+        return {
+            success: false,
+            error: 'Public interactive sandbox is disabled in this environment.',
+        };
+    }
+
     const persona = DEMO_PERSONAS[personaKey];
     if (!persona) {
         return { error: 'Select a valid demo role to launch.' };
@@ -939,7 +977,8 @@ export async function launchDemoSandboxAction(personaKey: DemoPersonaKey): Promi
             return { error: rateError };
         }
 
-        const { companyId, tenantId, tenantDomain, usersByRole } = await ensureDemoTenantAndUsers();
+        const { companyId, tenantId, tenantDomain, tenantSessionVersion, usersByRole } =
+            await ensureDemoTenantAndUsers();
         await Promise.all([
             ensureDemoSchoolDataSeeded(tenantId, usersByRole),
             ensureDemoSisterCampusSeeded(companyId),
@@ -964,6 +1003,11 @@ export async function launchDemoSandboxAction(personaKey: DemoPersonaKey): Promi
             mfaEnabled: false,
             mfaVerified: false,
         });
+        session.isDemoSandbox = true;
+        session.mfaRequired = false;
+        session.mfaVerified = false;
+        session.sessionVersion = targetUser.sessionVersion ?? 1;
+        session.tenantSessionVersion = tenantSessionVersion ?? 1;
         await session.save();
 
         return {

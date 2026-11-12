@@ -11,6 +11,7 @@ export const PERMANENT_PLATFORM_ADMIN_EMAIL = 'singhaditya21@gmail.com';
 export const PLATFORM_HQ_TENANT_CODE = 'HQ';
 export const PLATFORM_HQ_COMPANY_NAME = 'ScholarMind HQ';
 export const DEMO_SANDBOX_TENANT_CODE = 'DEMO-CAMPUS';
+export const DEMO_SANDBOX_SOUTH_TENANT_CODE = 'DEMO-CAMPUS-SOUTH';
 export const DEMO_SANDBOX_COMPANY_NAME = 'Delhi Heritage Public School (Sandbox)';
 
 export const CORE_DEFAULT_MODULES = [
@@ -64,12 +65,38 @@ export const RESERVED_WORKSPACE_CODES = new Set([
     'SUPPORT',
     'DEMO',
     'DEMO-CAMPUS',
+    'DEMO-CAMPUS-SOUTH',
     'SANDBOX',
 ]);
 
+export function canonicalizeEmailIdentity(email: string | null | undefined): string {
+    if (!email) return '';
+    const normalized = email.trim().toLowerCase();
+    const atIndex = normalized.indexOf('@');
+    if (atIndex <= 0 || atIndex !== normalized.lastIndexOf('@')) {
+        return normalized;
+    }
+
+    let localPart = normalized.slice(0, atIndex);
+    let domainPart = normalized.slice(atIndex + 1);
+    if (domainPart === 'gmail.com' || domainPart === 'googlemail.com') {
+        const plusIndex = localPart.indexOf('+');
+        if (plusIndex !== -1) {
+            localPart = localPart.slice(0, plusIndex);
+        }
+        localPart = localPart.replace(/\./g, '');
+        domainPart = 'gmail.com';
+    }
+
+    if (!localPart || !domainPart) {
+        return normalized;
+    }
+    return `${localPart}@${domainPart}`;
+}
+
 export function isPermanentPlatformAdminEmail(email: string | null | undefined): boolean {
     if (!email) return false;
-    return email.trim().toLowerCase() === PERMANENT_PLATFORM_ADMIN_EMAIL;
+    return canonicalizeEmailIdentity(email) === PERMANENT_PLATFORM_ADMIN_EMAIL;
 }
 
 export function normalizeWorkspaceCode(value: string | null | undefined): string {

@@ -1435,13 +1435,26 @@ export function renderMetadataDocumentTemplate(
 
     // Cryptographic HMAC-SHA256 verification tag from recordId + template.id + issuedDate + renderedBody
     const seed = `${recordId}:${template.id}:${issuedDate}:${renderedBody}`;
-    const envSigningKey =
+    const configuredSecret = (
         context.signingKey ||
         (typeof process !== 'undefined'
-            ? process.env?.DOCUMENT_VERIFICATION_SECRET || process.env?.WEBHOOK_SIGNING_SECRET
+            ? process.env?.DOCUMENT_STAMP_SECRET ||
+              process.env?.SESSION_SECRET ||
+              process.env?.DOCUMENT_VERIFICATION_SECRET
             : undefined) ||
-        'scholarmind:docgen:v1';
-    const hexSuffix = hmacSha256Hex(envSigningKey, seed).slice(0, 8).toUpperCase();
+        ''
+    ).trim();
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production' && configuredSecret.length < 32) {
+        throw new Error(
+            'DOCUMENT_STAMP_SECRET or SESSION_SECRET must be configured with at least 32 characters in production.',
+        );
+    }
+    const baseKeyMaterial =
+        configuredSecret.length >= 32
+            ? configuredSecret
+            : configuredSecret || 'dev-test-ephemeral-document-stamp-key-32-chars-minimum';
+    const domainSeparatedKey = hmacSha256Hex(baseKeyMaterial, 'domain:document-stamp:v2');
+    const hexSuffix = hmacSha256Hex(domainSeparatedKey, seed).slice(0, 32).toUpperCase();
     const verificationCode = `SM-DOC-${issuedDate.slice(0, 4)}-${hexSuffix}`;
 
     const paragraphsHtml = renderedBody

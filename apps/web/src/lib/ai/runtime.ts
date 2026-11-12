@@ -21,8 +21,9 @@ import { executeAiTool } from './executor';
 import { toModelToolName } from './model-names';
 import { resolveAiProviderChain, type AiProviderConfig } from './provider';
 import { describeToolsForModel, type AiToolRegistry } from './registry';
-import { recordAiTurn, type AiTurnOutcome } from './telemetry';
+import { recordAiTurn, redactPiiForExternalLlm, type AiTurnOutcome } from './telemetry';
 import type { AiTool, AiToolContext, AiToolRun } from './types';
+import { isDemoTenantId } from '@/lib/tenant/demo-guard';
 import { logger } from '@/lib/observability/logger';
 
 export function createAiModel(config: AiProviderConfig) {
@@ -76,12 +77,33 @@ function systemPrompt(tools: readonly AiTool<never>[]): string {
     ].join('\n');
 }
 
+function pickDemoReadTool(tools: readonly AiTool<never>[], question: string): AiTool<never> | null {
+    const readTools = tools.filter((t) => t.kind === 'read');
+    if (readTools.length === 0) return null;
+    const lowered = question.toLowerCase();
+    const scored = readTools.map((t) => {
+        const hay = `${t.name} ${t.title} ${t.description}`.toLowerCase();
+        let score = 0;
+        for (const word of lowered.split(/[^a-z0-9]+/).filter((w) => w.length >= 3)) {
+            if (hay.includes(word)) score += 1;
+        }
+        return { tool: t, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0]?.tool ?? readTools[0];
+}
+
 export async function runAssistantTurn(
     registry: AiToolRegistry,
     question: string,
     context: AiToolContext,
+    options?: { forceDemoSandbox?: boolean },
 ): Promise<AiTurnResult> {
     const started = Date.now();
+    const sanitizedQuestion =
+        typeof redactPiiForExternalLlm === 'function'
+            ? redactPiiForExternalLlm(question)
+            : question;
     const availableTools = registry.forRole(context.role);
 
     const emptyUsage = {
@@ -99,7 +121,7 @@ export async function runAssistantTurn(
             requestId: context.requestId,
             userId: context.userId,
             role: context.role,
-            question,
+            question: sanitizedQuestion,
             outcome: 'refused_no_tools',
             toolRuns: [],
             toolCallShapes: [],
@@ -116,7 +138,7 @@ export async function runAssistantTurn(
             requestId: context.requestId,
             userId: context.userId,
             role: context.role,
-            question,
+            question: sanitizedQuestion,
             outcome: 'refused_budget',
             toolRuns: [],
             toolCallShapes: [],
@@ -129,6 +151,46 @@ export async function runAssistantTurn(
             message: budget.reason ?? 'The assistant budget for this school is exhausted for today.',
             toolRuns: [],
             usage: budgetUsage(budget, 0, Date.now() - started),
+        };
+    }
+
+    const demoMode = options?.forceDemoSandbox === true || (await isDemoTenantId(context.tenantId));
+    if (demoMode) {
+        const chosenTool = pickDemoReadTool(availableTools, sanitizedQuestion);
+        const demoToolRuns: AiToolRun[] = [];
+        const demoShapes: { toolName: string; argumentKeys: string[] }[] = [];
+        if (chosenTool) {
+            demoShapes.push({ toolName: chosenTool.name, argumentKeys: [] });
+            const execution = await executeAiTool(registry, chosenTool.name, {}, context);
+            demoToolRuns.push(execution.run);
+        }
+        const latencyMs = Date.now() - started;
+        const readRun = demoToolRuns.find(
+            (r): r is Extract<AiToolRun, { status: 'read' }> => r.status === 'read',
+        );
+        const message = readRun
+            ? `Grounded campus summary (${chosenTool?.title ?? readRun.toolName}): retrieved ${readRun.output.rows.length} live sandbox record(s) for this campus.`
+            : 'Demo sandbox assistant verified your campus permissions. Ask about fee collections, attendance registers, or admission pipeline metrics.';
+
+        await recordAiTurn({
+            tenantId: context.tenantId,
+            requestId: context.requestId,
+            userId: context.userId,
+            role: context.role,
+            question: sanitizedQuestion,
+            outcome: 'answered',
+            toolRuns: demoToolRuns,
+            toolCallShapes: demoShapes,
+            tokensUsed: 0,
+            latencyMs,
+        });
+        return {
+            ok: true,
+            outcome: 'answered',
+            message,
+            toolRuns: demoToolRuns,
+            provider: { source: 'CEREBRAS_API_KEY', fallbacks: 0 },
+            usage: budgetUsage(budget, 0, latencyMs),
         };
     }
 
@@ -193,7 +255,7 @@ export async function runAssistantTurn(
             const result = await generateText({
                 model: createAiModel(config),
                 system: systemPrompt(availableTools),
-                prompt: question,
+                prompt: sanitizedQuestion,
                 maxOutputTokens: 1024,
                 tools: modelTools,
                 stopWhen: stepCountIs(4),

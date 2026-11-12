@@ -27,7 +27,10 @@ export async function POST(request: NextRequest) {
         }
 
         const payload = JSON.parse(rawBody);
-        const result = await handleRazorpayWebhookPayload(payload);
+        const result = await handleRazorpayWebhookPayload(payload, {
+            rawBody,
+            headers: request.headers,
+        });
         return NextResponse.json({ received: true, provider: 'RAZORPAY', duplicate: result.duplicate });
     } catch (error) {
         logger.error('payment.webhook_failed', 'Payment webhook handler failed', {

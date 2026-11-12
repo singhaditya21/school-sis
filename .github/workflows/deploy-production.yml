@@ -1094,8 +1094,18 @@ jobs:
           TENANT_CONTEXT_SIGNING_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
           TENANT_CONTEXT_SIGNING_SECRET: ${{ secrets.TENANT_CONTEXT_SIGNING_SECRET }}
           TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
+          GITHUB_COMMIT_ORG: ${{ github.repository_owner }}
+          GITHUB_COMMIT_REPO: ${{ github.event.repository.name }}
         run: |
           set -euo pipefail
+          if ! [[ "$TARGET_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "Refusing candidate deploy: TARGET_SHA must be a 40-char commit SHA." >&2
+            exit 1
+          fi
+          if ! [[ "$GITHUB_COMMIT_ORG" =~ ^[A-Za-z0-9_.-]+$ ]] || ! [[ "$GITHUB_COMMIT_REPO" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+            echo "Refusing candidate deploy: repository owner or name is malformed." >&2
+            exit 1
+          fi
           deployment_json="$RUNNER_TEMP/vercel-production-candidate.json"
           pii_environment=(--env PII_ENCRYPTION_KEY)
           if [ -n "${PII_ENCRYPTION_PREVIOUS_KEY:-}" ]; then
@@ -1114,8 +1124,8 @@ jobs:
             --meta "githubCommitRef=main" \
             --meta "gitCommitSha=$TARGET_SHA" \
             --meta "githubCommitSha=$TARGET_SHA" \
-            --meta "githubCommitOrg=${{ github.repository_owner }}" \
-            --meta "githubCommitRepo=${{ github.event.repository.name }}" \
+            --meta "githubCommitOrg=$GITHUB_COMMIT_ORG" \
+            --meta "githubCommitRepo=$GITHUB_COMMIT_REPO" \
             --meta "githubRunId=$GITHUB_RUN_ID" \
             --env METRICS_TOKEN \
             --env TENANT_CONTEXT_AUDIENCE \
@@ -1130,6 +1140,10 @@ jobs:
             https://*) ;;
             *) candidate_url="https://$candidate_url" ;;
           esac
+          if ! [[ "$candidate_id" =~ ^dpl_[A-Za-z0-9]+$ ]] || ! [[ "$candidate_url" =~ ^https://[A-Za-z0-9.-]+$ ]]; then
+            echo "Refusing candidate output: Vercel returned malformed candidate id or url." >&2
+            exit 1
+          fi
           echo "candidate_url=$candidate_url" >> "$GITHUB_OUTPUT"
           echo "candidate_id=$candidate_id" >> "$GITHUB_OUTPUT"
 
@@ -1153,6 +1167,10 @@ jobs:
           CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
         run: |
           set -euo pipefail
+          if ! [[ "$TARGET_SHA" =~ ^[0-9a-fA-F]{40}$ ]] || ! [[ "$CANDIDATE_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]; then
+            echo "Refusing promotion: TARGET_SHA or CANDIDATE_ID is malformed." >&2
+            exit 1
+          fi
           node scripts/verify-production-release-provenance.mjs \
             --repository "$GITHUB_REPOSITORY" \
             --sha "$TARGET_SHA" \
@@ -1179,6 +1197,10 @@ jobs:
           CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
         run: |
           set -euo pipefail
+          if ! [[ "$CANDIDATE_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]; then
+            echo "Refusing canonical bind check: CANDIDATE_ID is malformed." >&2
+            exit 1
+          fi
           inspection="$RUNNER_TEMP/vercel-canonical-after-promotion.json"
           pnpm exec vercel inspect "$PRODUCTION_URL" --json --token="$VERCEL_TOKEN" >"$inspection"
           canonical_id="$(jq -er '(.id // .deployment.id) | select(type == "string" and length > 0)' "$inspection")"
@@ -1193,13 +1215,25 @@ jobs:
           DATABASE_SSL_MODE: verify-full
           TENANT_CONTEXT_SIGNING_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
           TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
-        run: >-
-          pnpm --filter @school-sis/web exec tsx
-          scripts/mark-tenant-context-runtime.ts
-          --sha "$TARGET_SHA"
-          --deployment-id "${{ steps.candidate.outputs.candidate_id }}"
-          --attested-key-id "${{ steps.canonical_verify.outputs.verified_tenant_context_key_id }}"
-          --attested-audience "${{ steps.canonical_verify.outputs.verified_tenant_context_audience }}"
+          CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
+          ATTESTED_KEY_ID: ${{ steps.canonical_verify.outputs.verified_tenant_context_key_id }}
+          ATTESTED_AUDIENCE: ${{ steps.canonical_verify.outputs.verified_tenant_context_audience }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$TARGET_SHA" =~ ^[0-9a-fA-F]{40}$ ]] || ! [[ "$CANDIDATE_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]; then
+            echo "Refusing signing-runtime record: TARGET_SHA or CANDIDATE_ID is malformed." >&2
+            exit 1
+          fi
+          if ! [[ "$ATTESTED_KEY_ID" =~ ^[a-z0-9][a-z0-9._-]{0,31}$ ]] || ! [[ "$ATTESTED_AUDIENCE" =~ ^[A-Za-z0-9._:/-]+$ ]]; then
+            echo "Refusing signing-runtime record: attested key id or audience is malformed." >&2
+            exit 1
+          fi
+          pnpm --filter @school-sis/web exec tsx \
+            scripts/mark-tenant-context-runtime.ts \
+            --sha "$TARGET_SHA" \
+            --deployment-id "$CANDIDATE_ID" \
+            --attested-key-id "$ATTESTED_KEY_ID" \
+            --attested-audience "$ATTESTED_AUDIENCE"
 
       # Roll back only while production is UNPROVEN.
       #
@@ -1250,14 +1284,19 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           RECOVERY_CHECKPOINT_ID: ${{ steps.checkpoint.outputs.checkpoint_id }}
+          PRIOR_ID: ${{ steps.prior.outputs.prior_id }}
         run: |
           set -euo pipefail
+          if ! [[ "$PRIOR_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]; then
+            echo "Refusing rollback: PRIOR_ID is malformed." >&2
+            exit 1
+          fi
           echo "Production is unproven; rolling Vercel back. Neon recovery branch $RECOVERY_CHECKPOINT_ID is retained for manual database recovery." >&2
           node scripts/vercel-recovery.mjs rollback \
             --team "$VERCEL_ORG_ID" \
             --project "$VERCEL_PROJECT_ID" \
             --production-url "$PRODUCTION_URL" \
-            --deployment "${{ steps.prior.outputs.prior_id }}"
+            --deployment "$PRIOR_ID"
 
       - name: Verify rollback restored the captured deployment
         if: >-
@@ -1267,11 +1306,17 @@ jobs:
           steps.promote.outputs.attempted == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: >-
-          node scripts/vercel-recovery.mjs verify-rollback
-          --team "$VERCEL_ORG_ID"
-          --production-url "$PRODUCTION_URL"
-          --deployment "${{ steps.prior.outputs.prior_id }}"
+          PRIOR_ID: ${{ steps.prior.outputs.prior_id }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$PRIOR_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]; then
+            echo "Refusing rollback verification: PRIOR_ID is malformed." >&2
+            exit 1
+          fi
+          node scripts/vercel-recovery.mjs verify-rollback \
+            --team "$VERCEL_ORG_ID" \
+            --production-url "$PRODUCTION_URL" \
+            --deployment "$PRIOR_ID"
 
       - name: Delete an unpromoted or rolled-back production candidate
         if: >-
@@ -1352,13 +1397,36 @@ jobs:
         continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: >-
-          node scripts/vercel-recovery.mjs report
-          --team "$VERCEL_ORG_ID"
-          --production-url "$PRODUCTION_URL"
-          --candidate "${{ steps.candidate.outputs.candidate_id }}"
-          --prior "${{ steps.prior.outputs.prior_id }}"
-          --sha "$TARGET_SHA"
+          CANDIDATE_ID: ${{ steps.candidate.outputs.candidate_id }}
+          PRIOR_ID: ${{ steps.prior.outputs.prior_id }}
+        run: |
+          set -euo pipefail
+          candidate_arg=""
+          if [ -n "${CANDIDATE_ID:-}" ]; then
+            if ! [[ "$CANDIDATE_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]; then
+              echo "Ignoring malformed CANDIDATE_ID during status report." >&2
+            else
+              candidate_arg="$CANDIDATE_ID"
+            fi
+          fi
+          prior_arg=""
+          if [ -n "${PRIOR_ID:-}" ]; then
+            if ! [[ "$PRIOR_ID" =~ ^dpl_[A-Za-z0-9]+$ ]]; then
+              echo "Ignoring malformed PRIOR_ID during status report." >&2
+            else
+              prior_arg="$PRIOR_ID"
+            fi
+          fi
+          sha_arg=""
+          if [ -n "${TARGET_SHA:-}" ] && [[ "$TARGET_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            sha_arg="$TARGET_SHA"
+          fi
+          node scripts/vercel-recovery.mjs report \
+            --team "$VERCEL_ORG_ID" \
+            --production-url "$PRODUCTION_URL" \
+            --candidate "$candidate_arg" \
+            --prior "$prior_arg" \
+            --sha "$sha_arg"
 
       # Say what the database is AHEAD of, when the code has been rolled back.
       #
@@ -1376,7 +1444,21 @@ jobs:
         env:
           DIRECT_URL: ${{ secrets.NEON_PRODUCTION_DIRECT_URL }}
           DATABASE_SSL_MODE: verify-full
-        run: >-
-          node apps/web/scripts/report-database-drift.mjs
-          --live-sha "${{ steps.live.outputs.live_commit }}"
-          --attempted-sha "$TARGET_SHA"
+          LIVE_COMMIT_SHA: ${{ steps.live.outputs.live_commit }}
+        run: |
+          set -euo pipefail
+          if [ -z "${LIVE_COMMIT_SHA:-}" ]; then
+            echo "Live production commit was not reported; skipping database drift check."
+            exit 0
+          fi
+          if ! [[ "$LIVE_COMMIT_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "Refusing database drift check: LIVE_COMMIT_SHA is malformed." >&2
+            exit 1
+          fi
+          if ! [[ "${TARGET_SHA:-}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "Refusing database drift check: TARGET_SHA is malformed." >&2
+            exit 1
+          fi
+          node apps/web/scripts/report-database-drift.mjs \
+            --live-sha "$LIVE_COMMIT_SHA" \
+            --attempted-sha "$TARGET_SHA"

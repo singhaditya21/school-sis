@@ -35,6 +35,9 @@ function resetSessionData(session: SessionData): void {
     session.activeModules = undefined;
     session.mfaRequired = false;
     session.mfaVerified = false;
+    session.sessionVersion = undefined;
+    session.tenantSessionVersion = undefined;
+    session.isDemoSandbox = undefined;
     session.ssoState = undefined;
     session.impersonation = undefined;
     session.ltiLaunch = undefined;

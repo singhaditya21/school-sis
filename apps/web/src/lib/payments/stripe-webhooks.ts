@@ -13,6 +13,7 @@ function safeStripePayload(event: Stripe.Event): Record<string, unknown> {
     return {
         id: event.id,
         type: event.type,
+        account: event.account || null,
         created: event.created,
         livemode: event.livemode,
     };
@@ -21,11 +22,28 @@ function safeStripePayload(event: Stripe.Event): Record<string, unknown> {
 async function handleInvoiceCheckoutCompleted(
     session: Stripe.Checkout.Session,
     providerEventId: string,
+    eventAccount?: string,
 ): Promise<void> {
     const invoiceId = session.metadata?.invoiceId;
     const tenantId = session.metadata?.tenantId;
     if (!invoiceId || !tenantId) {
         throw new Error('Invoice checkout session is missing invoiceId or tenantId metadata.');
+    }
+
+    const tenantLookup = (await runWithRlsBypass(
+        RLS_BYPASS_JUSTIFICATIONS.PROVIDER_PAYMENT_LOOKUP,
+        () =>
+            pool.query<{ stripeConnectAccountId: string | null }>(
+                `SELECT stripe_connect_account_id AS "stripeConnectAccountId"
+                 FROM tenants
+                 WHERE id = $1
+                 LIMIT 1`,
+                [tenantId],
+            ),
+    )) as { rows?: Array<{ stripeConnectAccountId?: string | null }> } | undefined;
+    const expectedConnectAccount = tenantLookup?.rows?.[0]?.stripeConnectAccountId?.trim() || null;
+    if (expectedConnectAccount && (eventAccount?.trim() || null) !== expectedConnectAccount) {
+        throw new Error('Stripe webhook account does not match tenant Stripe Connect account.');
     }
 
     await completeProviderPayment({
@@ -39,6 +57,7 @@ async function handleInvoiceCheckoutCompleted(
         providerEventId,
         metadata: {
             checkoutSessionId: session.id,
+            stripeAccount: eventAccount || undefined,
             customer: typeof session.customer === 'string' ? session.customer : undefined,
         },
     });
@@ -144,7 +163,7 @@ export async function handleStripeWebhookEvent(event: Stripe.Event): Promise<{ d
                     break;
                 }
                 if (session.metadata?.invoiceId) {
-                    await handleInvoiceCheckoutCompleted(session, providerEvent.event.id);
+                    await handleInvoiceCheckoutCompleted(session, providerEvent.event.id, event.account);
                 } else {
                     await handleSubscriptionCheckoutCompleted(session);
                 }

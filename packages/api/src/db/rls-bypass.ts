@@ -140,6 +140,22 @@ export const RLS_BYPASS_JUSTIFICATIONS = {
     "operations.platform-job-inspection",
     "A verified platform operator is inspecting a job and linked records across tenant scopes.",
   ),
+  SESSION_REVOCATION_CHECK: defineJustification(
+    "auth.session-revocation-check",
+    "Authenticated session enforcement validates active user and tenant session_version before executing requests.",
+  ),
+  WHATSAPP_INBOUND_ROUTING: defineJustification(
+    "concierge.whatsapp-inbound-routing",
+    "A verified inbound WhatsApp webhook resolves the tenant channel binding before entering tenant database context.",
+  ),
+  RAZORPAY_SUBSCRIPTION_UPDATE: defineJustification(
+    "payments.razorpay-subscription",
+    "A verified Razorpay webhook updates platform company billing state by pre-registered SaaS checkout reference.",
+  ),
+  DEMO_TENANT_LOOKUP: defineJustification(
+    "security.demo-tenant-lookup",
+    "Demo sandbox guard resolves immutable tenant demo status to isolate external messaging, payment, and storage side effects.",
+  ),
   TEST_CONTEXT_NESTING: defineJustification(
     "test.context-nesting",
     "The database context unit test verifies bypass nesting and outer tenant restoration.",

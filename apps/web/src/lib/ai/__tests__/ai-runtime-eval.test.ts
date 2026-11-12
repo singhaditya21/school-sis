@@ -43,6 +43,7 @@ jest.mock('../budget', () => ({
 jest.mock('../telemetry', () => ({
     recordAiTurn: jest.fn(),
     redactQuestion: (question: string) => question,
+    redactPiiForExternalLlm: (question: string) => question,
     AI_AGENT_NAME: 'assistant',
 }));
 jest.mock('@/lib/observability/logger', () => ({

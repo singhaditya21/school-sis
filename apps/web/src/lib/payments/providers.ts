@@ -42,6 +42,7 @@ export type CreateStripeCheckoutInput = CreateProviderOrderInput & {
     title: string;
     successUrl: string;
     cancelUrl: string;
+    stripeAccount?: string;
 };
 
 export type ProviderRefund = {
@@ -346,7 +347,7 @@ export class StripeGateway {
     }
 
     async createCheckoutSession(input: CreateStripeCheckoutInput): Promise<ProviderOrder> {
-        const session = await this.stripe.checkout.sessions.create({
+        const sessionPayload: Stripe.Checkout.SessionCreateParams = {
             payment_method_types: ['card'],
             line_items: [
                 {
@@ -366,7 +367,10 @@ export class StripeGateway {
             cancel_url: input.cancelUrl,
             metadata: input.notes,
             client_reference_id: input.notes.studentId,
-        });
+        };
+        const session = input.stripeAccount
+            ? await this.stripe.checkout.sessions.create(sessionPayload, { stripeAccount: input.stripeAccount })
+            : await this.stripe.checkout.sessions.create(sessionPayload);
 
         return {
             provider: this.provider,
@@ -378,8 +382,10 @@ export class StripeGateway {
         };
     }
 
-    async retrieveCheckoutSession(sessionId: string): Promise<ProviderOrder> {
-        const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+    async retrieveCheckoutSession(sessionId: string, stripeAccount?: string): Promise<ProviderOrder> {
+        const session = stripeAccount
+            ? await this.stripe.checkout.sessions.retrieve(sessionId, {}, { stripeAccount })
+            : await this.stripe.checkout.sessions.retrieve(sessionId);
         return {
             provider: this.provider,
             providerOrderId: session.id,

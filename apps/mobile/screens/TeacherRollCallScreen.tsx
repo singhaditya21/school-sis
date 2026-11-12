@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,8 +9,16 @@ import {
   View,
 } from 'react-native';
 import { config, requireBackendUrl } from '../config';
-
-type RollCallStatus = 'PRESENT' | 'ABSENT' | 'LATE';
+import {
+  appendOfflineAttendanceBatch,
+  buildMobileRequestInit,
+  getOfflineAttendanceQueueSnapshot,
+  hydrateOfflineAttendanceQueue,
+  saveOfflineAttendanceQueue,
+  subscribeOfflineAttendanceQueue,
+  type QueuedAttendanceBatch,
+  type RollCallStatus,
+} from '../lib/secure-session';
 
 interface SectionOption {
   id: string;
@@ -27,24 +35,27 @@ interface RosterStudent {
   todayStatus: string | null;
 }
 
-interface QueuedBatch {
-  id: string;
-  sectionId: string;
-  sectionLabel: string;
-  date: string;
-  entries: { studentId: string; status: RollCallStatus }[];
-  queuedAt: string;
-}
-
 export function TeacherRollCallScreen() {
   const [sections, setSections] = useState<SectionOption[]>([]);
   const [selectedSection, setSelectedSection] = useState<SectionOption | null>(null);
   const [roster, setRoster] = useState<RosterStudent[]>([]);
   const [draftStatuses, setDraftStatuses] = useState<Record<string, RollCallStatus>>({});
   const [offlineMode, setOfflineMode] = useState(false);
-  const [offlineQueue, setOfflineQueue] = useState<QueuedBatch[]>([]);
+  const [offlineQueue, setOfflineQueue] = useState<QueuedAttendanceBatch[]>(() =>
+    getOfflineAttendanceQueueSnapshot(),
+  );
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(config.BACKEND_CONFIG_ERROR);
+
+  useEffect(() => {
+    const unsubscribe = subscribeOfflineAttendanceQueue((nextQueue) => {
+      setOfflineQueue(nextQueue);
+    });
+    void hydrateOfflineAttendanceQueue().then((hydrated) => {
+      setOfflineQueue(hydrated);
+    });
+    return unsubscribe;
+  }, []);
 
   const loadRoster = useCallback(async (sectionId?: string) => {
     setLoading(true);
@@ -52,10 +63,10 @@ export function TeacherRollCallScreen() {
     try {
       const base = requireBackendUrl();
       const query = sectionId ? `?sectionId=${encodeURIComponent(sectionId)}` : '';
-      const res = await fetch(`${base}/api/mobile/workspace${query}`, {
-        method: 'GET',
-        credentials: 'include',
-      });
+      const res = await fetch(
+        `${base}/api/mobile/workspace${query}`,
+        buildMobileRequestInit({ method: 'GET' }),
+      );
       const json = (await res.json()) as {
         mode?: string;
         sections?: SectionOption[];
@@ -117,38 +128,41 @@ export function TeacherRollCallScreen() {
       status: draftStatuses[s.studentId] || 'PRESENT',
     }));
 
-    const enqueueLocally = (reason: string) => {
-      const batch: QueuedBatch = {
+    const enqueueLocally = async (reason: string) => {
+      const batch: QueuedAttendanceBatch = {
         id: `${selectedSection.id}-${Date.now()}`,
         sectionId: selectedSection.id,
         sectionLabel: `${selectedSection.gradeName}-${selectedSection.sectionName}`,
         date: todayIso,
         entries,
-        queuedAt: new Date().toLocaleTimeString(),
+        queuedAt: new Date().toISOString(),
       };
-      setOfflineQueue((prev) => [...prev, batch]);
+      const persisted = await appendOfflineAttendanceBatch(batch);
+      setOfflineQueue(persisted);
       setStatusMessage(`${reason} Saved ${entries.length} marks in Offline Sync Queue.`);
     };
 
     if (offlineMode) {
-      enqueueLocally('Offline Classroom Mode active.');
+      await enqueueLocally('Offline Classroom Mode active.');
       return;
     }
 
     setLoading(true);
     try {
       const base = requireBackendUrl();
-      const res = await fetch(`${base}/api/mobile/workspace`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'SYNC_ATTENDANCE',
-          sectionId: selectedSection.id,
-          date: todayIso,
-          entries,
+      const res = await fetch(
+        `${base}/api/mobile/workspace`,
+        buildMobileRequestInit({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'SYNC_ATTENDANCE',
+            sectionId: selectedSection.id,
+            date: todayIso,
+            entries,
+          }),
         }),
-      });
+      );
       const json = (await res.json()) as { ok?: boolean; savedCount?: number; error?: string };
       if (!res.ok || !json.ok) {
         setStatusMessage(json.error || 'Could not sync attendance register.');
@@ -156,7 +170,7 @@ export function TeacherRollCallScreen() {
       }
       setStatusMessage(`Synced ${json.savedCount ?? entries.length} student attendance marks to campus ledger.`);
     } catch {
-      enqueueLocally('Wi-Fi unreachable.');
+      await enqueueLocally('Wi-Fi unreachable.');
     } finally {
       setLoading(false);
     }
@@ -166,24 +180,26 @@ export function TeacherRollCallScreen() {
     if (offlineQueue.length === 0) return;
     setLoading(true);
     setStatusMessage(null);
-    const remaining: QueuedBatch[] = [];
+    const remaining: QueuedAttendanceBatch[] = [];
     let syncedBatches = 0;
 
     try {
       const base = requireBackendUrl();
       for (const batch of offlineQueue) {
         try {
-          const res = await fetch(`${base}/api/mobile/workspace`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'SYNC_ATTENDANCE',
-              sectionId: batch.sectionId,
-              date: batch.date,
-              entries: batch.entries,
+          const res = await fetch(
+            `${base}/api/mobile/workspace`,
+            buildMobileRequestInit({
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'SYNC_ATTENDANCE',
+                sectionId: batch.sectionId,
+                date: batch.date,
+                entries: batch.entries,
+              }),
             }),
-          });
+          );
           if (res.ok) {
             syncedBatches += 1;
           } else {
@@ -193,11 +209,12 @@ export function TeacherRollCallScreen() {
           remaining.push(batch);
         }
       }
-      setOfflineQueue(remaining);
+      const persisted = await saveOfflineAttendanceQueue(remaining);
+      setOfflineQueue(persisted);
       setStatusMessage(
-        remaining.length === 0
+        persisted.length === 0
           ? `All ${syncedBatches} queued classroom batch(es) synced cleanly.`
-          : `Synced ${syncedBatches} batch(es); ${remaining.length} still awaiting connectivity.`,
+          : `Synced ${syncedBatches} batch(es); ${persisted.length} still awaiting connectivity.`,
       );
     } finally {
       setLoading(false);

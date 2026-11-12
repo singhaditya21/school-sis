@@ -3,6 +3,7 @@ import { CheckCircle2, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { sqlFor, withTenant } from '@/lib/db';
 import {
     deriveShortVerificationCode,
+    getCurrentCampusDateIso,
     verifyGatePassToken,
 } from '@/lib/security/gate-pass-token';
 import { VerificationQrSeal } from '@/components/security/verification-qr-seal';
@@ -13,6 +14,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = {
     title: 'Verify Campus Dismissal Gate Pass | ScholarMind',
+    robots: { index: false, follow: false, nocache: true },
 };
 
 function maskName(firstName: string, lastName: string): string {
@@ -21,15 +23,22 @@ function maskName(firstName: string, lastName: string): string {
     return last ? `${first} ${last.charAt(0).toUpperCase()}.` : first;
 }
 
+function maskAdmissionNumber(admissionNumber: string): string {
+    const clean = admissionNumber.trim();
+    if (clean.length <= 4) return '••••';
+    return `${clean.slice(0, 2)}••••${clean.slice(-2)}`;
+}
+
 export default async function VerifyGatePassPage({
     params,
 }: {
     params: Promise<{ token: string }>;
 }) {
     const { token } = await params;
-    const verified = verifyGatePassToken(token);
+    const todayCampusIso = getCurrentCampusDateIso();
+    const verified = verifyGatePassToken(token, Date.now(), { expectedDate: todayCampusIso });
 
-    if (verified.ok === false) {
+    if (verified.ok === false || verified.validDate !== todayCampusIso) {
         return (
             <main className="min-h-screen flex items-center justify-center bg-background p-6">
                 <Card className="w-full max-w-lg border-destructive/30 shadow-lg overflow-hidden">
@@ -40,7 +49,11 @@ export default async function VerifyGatePassPage({
                             <Badge variant="destructive">Do Not Release — Invalid Pass</Badge>
                         </div>
                         <CardTitle className="text-2xl">Gate Pass Verification Failed</CardTitle>
-                        <CardDescription>{verified.reason}</CardDescription>
+                        <CardDescription>
+                            {verified.ok === false
+                                ? verified.reason
+                                : 'This dismissal gate pass is only valid on its issued campus date.'}
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Link
@@ -91,12 +104,15 @@ export default async function VerifyGatePassPage({
                 ) AS "routeName"
             FROM students s
             JOIN guardians gd ON gd.student_id = s.id AND gd.tenant_id = s.tenant_id
+            LEFT JOIN users u ON u.id = gd.user_id AND u.tenant_id = gd.tenant_id
             JOIN tenants t ON t.id = s.tenant_id
             LEFT JOIN grades g ON g.id = s.grade_id AND g.tenant_id = s.tenant_id
             LEFT JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = s.tenant_id
             WHERE s.id = ${verified.studentId}
               AND gd.user_id = ${verified.guardianUserId}
               AND s.tenant_id = ${verified.tenantId}
+              AND (gd.user_id IS NULL OR u.is_active = true)
+              AND COALESCE(s.custom_data->>'erased', 'false') <> 'true'
             LIMIT 1
         `.maybeOne();
     });
@@ -177,7 +193,7 @@ export default async function VerifyGatePassPage({
                         <div className="flex justify-between">
                             <dt className="text-muted-foreground">Class &amp; Admission</dt>
                             <dd className="font-mono text-foreground">
-                                {[record.gradeName, record.sectionName].filter(Boolean).join('-')} · {record.admissionNumber}
+                                {[record.gradeName, record.sectionName].filter(Boolean).join('-')} · {maskAdmissionNumber(record.admissionNumber)}
                             </dd>
                         </div>
                         <div className="flex justify-between">

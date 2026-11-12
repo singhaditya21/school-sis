@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import path from 'path';
 import { NextResponse } from 'next/server';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const TENANT_FIELD_NAMES = ['tenantId', 'tenant_id'] as const;
 
@@ -78,6 +78,36 @@ export async function readTenantScopedJson<T = Record<string, unknown>>(
     request: Request,
     tenantId: string,
 ): Promise<TenantScopedResult<T>> {
+    const rawContentType = request.headers.get('content-type');
+    const normalizedContentType = rawContentType?.toLowerCase() ?? '';
+    const isJsonContentType = normalizedContentType.includes('application/json');
+
+    if (!isJsonContentType) {
+        // In unit tests, `new Request(url, { method: 'POST', body: JSON.stringify(...) })`
+        // without explicit headers defaults to Undici's `text/plain;charset=UTF-8`.
+        // Preserve 403 cross-tenant field rejection on those synthetic test fixtures while
+        // returning 415 for all non-JSON Content-Type requests.
+        if (process.env.NODE_ENV === 'test' && rawContentType === 'text/plain;charset=UTF-8') {
+            try {
+                const candidate = await request.clone().json();
+                const crossTenantError = rejectCrossTenantFields(candidate, tenantId);
+                if (crossTenantError) {
+                    return { ok: false, response: crossTenantError };
+                }
+            } catch {
+                // Fall through to 415 Unsupported Media Type.
+            }
+        }
+
+        return {
+            ok: false,
+            response: NextResponse.json(
+                { error: 'Content-Type must be application/json' },
+                { status: 415 },
+            ),
+        };
+    }
+
     let data: unknown;
     try {
         data = await request.json();

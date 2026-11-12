@@ -112,6 +112,7 @@ export async function getVerificationOverview(
          LEFT JOIN exam_result_hashes erh ON erh.result_id = sr.id AND erh.tenant_id = sr.tenant_id
          WHERE sr.tenant_id = $1
            AND erh.id IS NULL
+           AND COALESCE(st.custom_data->>'erased', 'false') <> 'true'
            AND ($2::uuid IS NULL OR e.id = $2::uuid)
          ORDER BY sr.created_at ASC, st.first_name ASC
          LIMIT ${ROW_LIMIT + 1}`,
@@ -156,19 +157,41 @@ export interface VerificationActionResult {
 /** Locks the given results by writing their hash. Already-locked ids are ignored. */
 export async function lockResults(resultIds: string[]): Promise<VerificationActionResult> {
     try {
-        const { tenantId } = await requireAuth('exams:write');
+        const { tenantId, userId } = await requireAuth('exams:review');
 
         const ids = (resultIds ?? []).filter(isUuid);
         if (ids.length === 0) {
             return { success: false, error: 'Nothing selected.', affected: 0 };
         }
 
+        const selfEnteredRes = await pool.query(
+            `SELECT sr.id
+             FROM student_results sr
+             LEFT JOIN exam_result_hashes erh ON erh.result_id = sr.id AND erh.tenant_id = sr.tenant_id
+             WHERE sr.tenant_id = $1
+               AND sr.id = ANY($2::uuid[])
+               AND erh.id IS NULL
+               AND sr.entered_by = $3
+             LIMIT 1`,
+            [tenantId, ids, userId],
+        );
+        if (selfEnteredRes.rows.length > 0) {
+            return {
+                success: false,
+                error: 'Maker-checker policy: you cannot verify marks that you entered yourself.',
+                affected: 0,
+            };
+        }
+
         const { rows } = await pool.query(
             `SELECT sr.id
              FROM student_results sr
              LEFT JOIN exam_result_hashes erh ON erh.result_id = sr.id AND erh.tenant_id = sr.tenant_id
-             WHERE sr.tenant_id = $1 AND sr.id = ANY($2::uuid[]) AND erh.id IS NULL`,
-            [tenantId, ids],
+             WHERE sr.tenant_id = $1
+               AND sr.id = ANY($2::uuid[])
+               AND erh.id IS NULL
+               AND sr.entered_by IS DISTINCT FROM $3`,
+            [tenantId, ids, userId],
         );
         const unlocked = rows.map((r) => r.id);
 
@@ -184,13 +207,67 @@ export async function lockResults(resultIds: string[]): Promise<VerificationActi
     }
 }
 
+export async function verifyExamResult(resultId: string): Promise<VerificationActionResult> {
+    await requireAuth('exams:review');
+    return lockResults([resultId]);
+}
+
+export async function verifySubjectMarks(examScheduleId: string): Promise<VerificationActionResult> {
+    try {
+        const { tenantId, userId } = await requireAuth('exams:review');
+        if (!isUuid(examScheduleId)) {
+            return { success: false, error: 'Invalid exam schedule identifier.', affected: 0 };
+        }
+
+        const selfEnteredRes = await pool.query(
+            `SELECT sr.id
+             FROM student_results sr
+             LEFT JOIN exam_result_hashes erh ON erh.result_id = sr.id AND erh.tenant_id = sr.tenant_id
+             WHERE sr.tenant_id = $1
+               AND sr.exam_schedule_id = $2
+               AND erh.id IS NULL
+               AND sr.entered_by = $3
+             LIMIT 1`,
+            [tenantId, examScheduleId, userId],
+        );
+        if (selfEnteredRes.rows.length > 0) {
+            return {
+                success: false,
+                error: 'Maker-checker policy: you cannot verify marks that you entered yourself.',
+                affected: 0,
+            };
+        }
+
+        const { rows } = await pool.query(
+            `SELECT sr.id
+             FROM student_results sr
+             LEFT JOIN exam_result_hashes erh ON erh.result_id = sr.id AND erh.tenant_id = sr.tenant_id
+             WHERE sr.tenant_id = $1
+               AND sr.exam_schedule_id = $2
+               AND erh.id IS NULL
+               AND sr.entered_by IS DISTINCT FROM $3`,
+            [tenantId, examScheduleId, userId],
+        );
+        const ids = rows.map((r) => r.id);
+        if (ids.length === 0) {
+            return { success: false, error: 'No pending marks eligible for verification.', affected: 0 };
+        }
+
+        await verifyExamResults(ids);
+        return { success: true, affected: ids.length };
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to verify subject marks.';
+        return { success: false, error: message, affected: 0 };
+    }
+}
+
 /**
  * Rejection deletes the result rows so the teacher has to re-enter them.
  * Locked (already verified) results are never deleted.
  */
 export async function discardResults(resultIds: string[]): Promise<VerificationActionResult> {
     try {
-        const { tenantId } = await requireAuth('exams:write');
+        const { tenantId } = await requireAuth('exams:review');
 
         const ids = (resultIds ?? []).filter(isUuid);
         if (ids.length === 0) {

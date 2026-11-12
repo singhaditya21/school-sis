@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireApiAuth } from '@/lib/auth/api';
+import { getSession } from '@/lib/auth/session';
+import { resolveTrustedAppOrigin } from '@/lib/security/client-ip';
+import { isDemoSession, isDemoTenantCode } from '@/lib/tenant/demo-guard';
 import { readTenantScopedJson } from '@/lib/tenant/isolation';
 import {
     createPaymentOrderRecord,
@@ -21,26 +24,29 @@ const StripeCheckoutSchema = z.object({
     title: z.string().trim().max(255).optional(),
 });
 
-function resolveTrustedAppUrl(request: Request): string {
-    const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
-    if (configured) {
-        const parsed = new URL(configured);
-        if (process.env.NODE_ENV === 'production' && parsed.protocol !== 'https:') {
-            throw new Error('NEXT_PUBLIC_APP_URL must use HTTPS in production');
-        }
-        return parsed.origin;
-    }
-    if (process.env.NODE_ENV === 'production') {
-        throw new Error('NEXT_PUBLIC_APP_URL must be configured in production');
-    }
-    return new URL(request.url).origin;
-}
-
 export async function POST(req: Request) {
-    const auth = await requireApiAuth(['PARENT', 'ACCOUNTANT', 'SCHOOL_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN']);
+    const auth = await requireApiAuth([
+        'PARENT',
+        'FINANCE_LEAD',
+        'ACCOUNTANT',
+        'SCHOOL_ADMIN',
+        'SUPER_ADMIN',
+        'PLATFORM_ADMIN',
+    ]);
     if (auth.ok === false) return auth.response;
 
     try {
+        const liveSession = await getSession().catch(() => null);
+        if (
+            isDemoSession(auth.context as { isDemoSandbox?: boolean; tenantCode?: string | null }) ||
+            isDemoSession(liveSession)
+        ) {
+            return NextResponse.json(
+                { error: 'Live payment gateway checkout is disabled in the public demo sandbox.' },
+                { status: 403 },
+            );
+        }
+
         const json = await readTenantScopedJson<Record<string, unknown>>(req, auth.context.tenantId);
         if (json.ok === false) return json.response;
 
@@ -59,6 +65,13 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
         }
 
+        if (Boolean(invoice.tenantIsDemo) || isDemoTenantCode(invoice.tenantCode)) {
+            return NextResponse.json(
+                { error: 'Live payment gateway checkout is disabled in the public demo sandbox.' },
+                { status: 403 },
+            );
+        }
+
         if (!isPayableInvoiceStatus(invoice.status)) {
             return NextResponse.json(
                 { error: `Invoice with status ${invoice.status} cannot accept payments` },
@@ -72,6 +85,16 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Invalid payment amount' }, { status: 400 });
         }
 
+        if (auth.context.role === 'PARENT' && requestedAmount < outstanding) {
+            return NextResponse.json(
+                {
+                    error: 'Parents must pay the full remaining invoice balance unless an installment order is created by finance staff.',
+                },
+                { status: 400 },
+            );
+        }
+
+        const stripeAccountId = invoice.stripeConnectAccountId?.trim() || undefined;
         const currency = 'INR' as const;
         const gateway = getStripeGateway();
         const existingOrder = await getPaymentOrderByIdempotency(
@@ -82,7 +105,7 @@ export async function POST(req: Request) {
             currency,
         );
         if (existingOrder?.providerOrderId) {
-            const session = await gateway.retrieveCheckoutSession(existingOrder.providerOrderId);
+            const session = await gateway.retrieveCheckoutSession(existingOrder.providerOrderId, stripeAccountId);
             if (session.status === 'open' && session.checkoutUrl) {
                 return NextResponse.json({
                     url: session.checkoutUrl,
@@ -92,7 +115,7 @@ export async function POST(req: Request) {
             }
         }
 
-        const baseUrl = resolveTrustedAppUrl(req);
+        const baseUrl = resolveTrustedAppOrigin(req.url);
         const session = await gateway.createCheckoutSession({
             amountMinor: requestedAmount,
             currency,
@@ -100,6 +123,7 @@ export async function POST(req: Request) {
             title: parsed.data.title || 'ScholarMind Fee Payment',
             successUrl: `${baseUrl}/parent/fees?status=success`,
             cancelUrl: `${baseUrl}/parent/fees?status=canceled`,
+            stripeAccount: stripeAccountId,
             notes: {
                 invoiceId: invoice.id,
                 tenantId: auth.context.tenantId,
@@ -119,6 +143,7 @@ export async function POST(req: Request) {
             metadata: {
                 title: parsed.data.title || 'ScholarMind Fee Payment',
                 checkoutUrl: session.checkoutUrl,
+                ...(stripeAccountId ? { stripeConnectAccountId: stripeAccountId } : {}),
             },
         });
 

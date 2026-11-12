@@ -337,11 +337,11 @@ export const API_ROUTES: readonly ApiRouteDoc[] = [
     },
     {
         path: '/api/data/[object_name]',
-        methods: ['GET', 'POST'],
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
         group: 'Metadata',
-        summary: 'Read or create records of a metadata-defined object.',
+        summary: 'Read, create, update, or delete records of a metadata-defined object (protected ledger/identity tables restricted).',
         auth: 'session-permission',
-        permission: 'metadata:read (GET) / metadata:create (POST)',
+        permission: 'metadata:read (GET) / metadata:create (POST) / metadata:update (PUT, PATCH) / metadata:delete (DELETE)',
     },
 
     // ---- Approvals & agents ---------------------------------------------------

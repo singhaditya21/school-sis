@@ -7,15 +7,24 @@ export async function register() {
     } = await import('@/lib/db');
     const { getSession } = await import('./lib/auth/session');
     const { isMfaEnrollmentEnforced } = await import('./lib/auth/identity');
-    const { isMFARequired } = await import('./lib/auth/mfa');
+    const { isRoleMfaRequired } = await import('./lib/auth/session-options');
+    const { isSessionStateActive } = await import('./lib/auth/session-revocation');
 
     registerDbRlsContextResolver(async () => {
       const session = await getSession();
       if (!session.isLoggedIn || !session.userId) return undefined;
+      const roleRequiresMfa = isRoleMfaRequired(session.role, {
+        isDemoSandbox: session.isDemoSandbox,
+        tenantCode: session.tenantCode,
+      });
       if (
-        (Boolean(session.mfaRequired) || (isMfaEnrollmentEnforced() && isMFARequired(session.role))) &&
+        !session.isDemoSandbox &&
+        (Boolean(session.mfaRequired) || (isMfaEnrollmentEnforced() && roleRequiresMfa)) &&
         !session.mfaVerified
       ) {
+        return undefined;
+      }
+      if (!(await isSessionStateActive(session))) {
         return undefined;
       }
       if (session.role === 'PLATFORM_ADMIN') {

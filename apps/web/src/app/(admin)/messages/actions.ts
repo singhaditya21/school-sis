@@ -21,7 +21,10 @@
 import { revalidatePath } from 'next/cache';
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { getSession } from '@/lib/auth/session';
+import { consumeRateLimit } from '@/lib/auth/rate-limit';
 import { decryptFieldTolerant } from '@/lib/encryption';
+import { isDemoSession, isDemoTenantId } from '@/lib/tenant/demo-guard';
 import {
     enqueueNotification,
     providerForChannel,
@@ -379,6 +382,34 @@ export async function listOutboxNotifications(limit = 200): Promise<OutboxRow[]>
     }));
 }
 
+const EMAIL_RECIPIENT_RE =
+    /^[^\s@<>]{1,64}@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
+
+function normalizeRecipientForMatch(channel: MessageChannel, raw: string): string | null {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+
+    if (channel === 'EMAIL') {
+        if (trimmed.length > 254 || !EMAIL_RECIPIENT_RE.test(trimmed)) {
+            return null;
+        }
+        return trimmed.toLowerCase();
+    }
+
+    const compact = trimmed.replace(/[\s().-]/g, '');
+    const digitsOnly = compact.startsWith('+') ? compact.slice(1) : compact;
+    if (!/^\d{10,15}$/.test(digitsOnly)) {
+        return null;
+    }
+    if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) {
+        return digitsOnly.slice(2);
+    }
+    if (digitsOnly.length === 11 && digitsOnly.startsWith('0')) {
+        return digitsOnly.slice(1);
+    }
+    return digitsOnly;
+}
+
 // ─── Recipient directory ─────────────────────────────────────────────────────
 /**
  * Primary guardians of active students, optionally narrowed to one grade.
@@ -386,13 +417,35 @@ export async function listOutboxNotifications(limit = 200): Promise<OutboxRow[]>
  * address list anywhere in this module.
  */
 export async function listGuardianRecipients(gradeId?: string): Promise<RecipientOption[]> {
-    const { tenantId } = await requireAuth('messaging:read');
+    const { tenantId, userId, session } = await requireAuth('messaging:read');
 
     const params: unknown[] = [tenantId];
     let gradeClause = '';
     if (gradeId) {
         params.push(gradeId);
         gradeClause = ` AND s.grade_id = $${params.length}`;
+    }
+
+    let teacherJoin = '';
+    let teacherClause = '';
+    if (session.role === 'TEACHER') {
+        params.push(userId);
+        const teacherParamIdx = params.length;
+        teacherJoin = ` LEFT JOIN staff_profiles sp ON sp.user_id = $${teacherParamIdx} AND sp.tenant_id = g.tenant_id`;
+        teacherClause = ` AND s.section_id IS NOT NULL AND (
+            sec.class_teacher_id = $${teacherParamIdx}
+            OR (sp.id IS NOT NULL AND sec.class_teacher_id = sp.id)
+            OR EXISTS (
+                SELECT 1
+                FROM timetable_entries te
+                WHERE te.tenant_id = g.tenant_id
+                  AND te.section_id = s.section_id
+                  AND (
+                      te.teacher_id = $${teacherParamIdx}
+                      OR (sp.id IS NOT NULL AND te.teacher_id = sp.id)
+                  )
+            )
+        )`;
     }
 
     const { rows } = await pool.query(
@@ -407,11 +460,12 @@ export async function listGuardianRecipients(gradeId?: string): Promise<Recipien
            FROM guardians g
            JOIN students s   ON s.id = g.student_id  AND s.tenant_id = g.tenant_id
            LEFT JOIN grades gr   ON gr.id = s.grade_id   AND gr.tenant_id = s.tenant_id
-           LEFT JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = s.tenant_id
+           LEFT JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = s.tenant_id${teacherJoin}
           WHERE g.tenant_id = $1
             AND s.status = 'ACTIVE'
+            AND COALESCE(s.custom_data->>'erased', 'false') <> 'true'
             AND g.is_primary = true
-            AND (COALESCE(g.email_enc, g.email) IS NOT NULL OR COALESCE(g.phone_enc, g.phone) IS NOT NULL)${gradeClause}
+            AND (COALESCE(g.email_enc, g.email) IS NOT NULL OR COALESCE(g.phone_enc, g.phone) IS NOT NULL)${gradeClause}${teacherClause}
           ORDER BY gr.display_order NULLS LAST, sec.name, s.first_name
           LIMIT 500`,
         params,
@@ -451,7 +505,18 @@ export async function queueMessageBatch(input: {
     body: string;
     templateId?: string;
 }): Promise<QueueResult> {
-    const { tenantId, userId } = await requireAuth('messaging:write');
+    const { tenantId, userId, session } = await requireAuth('messaging:write');
+
+    const rateError = await consumeRateLimit(`${tenantId}:${userId}`, {
+        scope: 'messages_queue_batch',
+        maxAttempts: 10,
+        degradedMaxAttempts: 2,
+        endpointClass: 'authenticated-internal',
+        message: 'Message batch rate limit reached (10 batches per 15 minutes). Please wait before sending more.',
+    });
+    if (rateError) {
+        return { success: false, error: rateError, queued: 0, rejected: 0 };
+    }
 
     const channel = normaliseChannel(input.channel);
     if (!channel) {
@@ -460,6 +525,9 @@ export async function queueMessageBatch(input: {
 
     const body = input.body.trim();
     if (!body) return { success: false, error: 'Message body is required.', queued: 0, rejected: 0 };
+    if (body.length > 4000) {
+        return { success: false, error: 'Message body cannot exceed 4,000 characters.', queued: 0, rejected: 0 };
+    }
 
     const subject = (input.subject || '').trim();
     if (channel === 'EMAIL' && !subject) {
@@ -475,6 +543,81 @@ export async function queueMessageBatch(input: {
             success: false,
             error: 'A single batch is limited to 100 recipients.',
             queued: 0,
+            rejected: 0,
+        };
+    }
+
+    const invalidRecipients = recipients.filter((r) => normalizeRecipientForMatch(channel, r) === null);
+    if (invalidRecipients.length > 0) {
+        return {
+            success: false,
+            error: `Invalid ${channel === 'EMAIL' ? 'email address' : 'phone number'} format for ${invalidRecipients.length} recipient(s).`,
+            queued: 0,
+            rejected: invalidRecipients.length,
+        };
+    }
+
+    if (session.role === 'TEACHER') {
+        const { rows: allowedRows } = await pool.query<{ email: string | null; phone: string | null }>(
+            `SELECT COALESCE(g.email_enc, g.email) AS email,
+                    COALESCE(g.phone_enc, g.phone) AS phone
+               FROM guardians g
+               JOIN students s ON s.id = g.student_id AND s.tenant_id = g.tenant_id
+               JOIN sections sec ON sec.id = s.section_id AND sec.tenant_id = s.tenant_id
+               LEFT JOIN staff_profiles sp ON sp.user_id = $2 AND sp.tenant_id = $1
+              WHERE g.tenant_id = $1
+                AND s.status = 'ACTIVE'
+                AND COALESCE(s.custom_data->>'erased', 'false') <> 'true'
+                AND (
+                    sec.class_teacher_id = $2
+                    OR (sp.id IS NOT NULL AND sec.class_teacher_id = sp.id)
+                    OR EXISTS (
+                        SELECT 1
+                        FROM timetable_entries te
+                        WHERE te.tenant_id = $1
+                          AND te.section_id = s.section_id
+                          AND (
+                              te.teacher_id = $2
+                              OR (sp.id IS NOT NULL AND te.teacher_id = sp.id)
+                          )
+                    )
+                )`,
+            [tenantId, userId],
+        );
+
+        const allowedTargets = new Set<string>();
+        for (const r of allowedRows) {
+            const rawVal = channel === 'EMAIL' ? r.email : r.phone;
+            const dec = rawVal ? decryptFieldTolerant(rawVal) : '';
+            const norm = dec ? normalizeRecipientForMatch(channel, dec) : null;
+            if (norm) allowedTargets.add(norm);
+        }
+
+        const unauthorized = recipients.filter((r) => {
+            const norm = normalizeRecipientForMatch(channel, r);
+            return !norm || !allowedTargets.has(norm);
+        });
+        if (unauthorized.length > 0) {
+            return {
+                success: false,
+                error: 'Teachers may only message verified guardians of students in their assigned classes.',
+                queued: 0,
+                rejected: unauthorized.length,
+            };
+        }
+    }
+
+    let fullSession: Awaited<ReturnType<typeof getSession>> = null;
+    try {
+        fullSession = await getSession();
+    } catch {
+        fullSession = null;
+    }
+    if (isDemoSession(fullSession) || (await isDemoTenantId(tenantId))) {
+        return {
+            success: true,
+            batchId: 'demo-sandbox-simulated-batch',
+            queued: recipients.length,
             rejected: 0,
         };
     }

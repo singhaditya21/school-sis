@@ -4,6 +4,8 @@ import {
   runWithTenantContext,
   sql,
 } from '@/lib/db';
+import { getSession } from '@/lib/auth/session';
+import { isDemoSession, isDemoTenantId } from '@/lib/tenant/demo-guard';
 
 export interface ExecutiveFinancialMetrics {
   /** Rupees. Sum of billed invoices that are still expected to be collected. */
@@ -119,11 +121,40 @@ export function classifyCampusHealth(input: {
   return 'HEALTHY';
 }
 
+const MULTI_CAMPUS_EXECUTIVE_ROLES = new Set<string>([
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'GROUP_EXECUTIVE',
+]);
+
+async function assertMultiCampusRollupAccess(tenantId: string): Promise<void> {
+  const session = await getSession();
+  if (!session.isLoggedIn || !session.userId || !session.tenantId) {
+    throw new Error('Unauthorized: Not logged in');
+  }
+  const role = session.role;
+  if (role !== 'PLATFORM_ADMIN' && session.tenantId !== tenantId) {
+    throw new Error('Forbidden: Cross-tenant executive rollup is not permitted.');
+  }
+  if (MULTI_CAMPUS_EXECUTIVE_ROLES.has(role)) {
+    return;
+  }
+  const demoMode = isDemoSession(session) || (await isDemoTenantId(tenantId));
+  if (demoMode && (role === 'FINANCE_LEAD' || role === 'SCHOOL_ADMIN')) {
+    return;
+  }
+  throw new Error(
+    'Forbidden: Multi-campus group rollup is restricted to Group Executives and Super Administrators.',
+  );
+}
+
 /**
  * Aggregates institutional KPIs across all active campuses belonging strictly to
  * the caller's `company_id` (school group / educational trust).
  */
 export async function getMultiCampusGroupRollup(tenantId: string): Promise<MultiCampusGroupRollup> {
+  await assertMultiCampusRollupAccess(tenantId);
+
   const anchor = await runWithRlsBypass(
     RLS_BYPASS_JUSTIFICATIONS.COMPANY_GROUP_ROLLUP,
     async () => {

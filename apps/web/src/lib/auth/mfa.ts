@@ -21,19 +21,16 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { encrypt, decrypt } from '@/lib/encryption';
 import { claimSingleUseToken } from '@/lib/auth/rate-limit';
+import { pool, runWithTenantContext } from '@/lib/db';
 import { tenantScope, eq } from '@school-sis/api/src/data';
 import { users } from '@school-sis/api/src/db/generated/tables';
+import { isRoleMfaRequired, MFA_REQUIRED_ROLE_NAMES } from './session-options';
+import { evictUserSessionCache } from './session-revocation';
 
 // ─── Constants ───────────────────────────────────────────────
 
 /** Roles for which MFA is mandatory. */
-export const MFA_REQUIRED_ROLES = new Set([
-    'PLATFORM_ADMIN',
-    'SUPER_ADMIN',
-    'SCHOOL_ADMIN',
-    'PRINCIPAL',
-    'ACCOUNTANT',
-]);
+export const MFA_REQUIRED_ROLES = new Set<string>(MFA_REQUIRED_ROLE_NAMES);
 
 const BACKUP_CODE_COUNT = 10;
 const BCRYPT_ROUNDS = 12;
@@ -135,6 +132,9 @@ export async function activateMFA(
 
     const secret = decrypt(user.mfaSecret);
     const normalizedCode = totpCode.trim().replace(/\s+/g, '');
+    if (!/^\d{6}$/.test(normalizedCode)) {
+        return { success: false, error: 'Enter the 6-digit code from your authenticator app.' };
+    }
     const isValid = authenticator.verify({ token: normalizedCode, secret });
 
     if (!isValid) {
@@ -218,17 +218,27 @@ export async function redeemBackupCode(
     const scope = tenantScope(tenantId);
     const user = await scope
         .from(users)
-        .select<{ mfaBackupCodes: string[] | null }>({ mfaBackupCodes: users.mfaBackupCodes })
+        .select<{ mfaEnabled: boolean | null; mfaBackupCodes: string[] | null }>({
+            mfaEnabled: users.mfaEnabled,
+            mfaBackupCodes: users.mfaBackupCodes,
+        })
         .where(eq(users.id, userId))
         .first();
 
-    const storedCodes = user?.mfaBackupCodes ?? [];
+    if (!user || user.mfaEnabled !== true) {
+        return {
+            success: false,
+            error: 'Two-factor authentication must be active before a backup code can be redeemed.',
+        };
+    }
+
+    const storedCodes = user.mfaBackupCodes ?? [];
     if (storedCodes.length === 0) {
         return { success: false, error: 'No backup codes available.' };
     }
 
     // Find matching hashed code
-    const normalised = rawCode.trim().toUpperCase();
+    const normalised = rawCode.trim().replace(/[\s-]+/g, '').toUpperCase();
     const matchIndex = (
         await Promise.all(storedCodes.map(hash => bcrypt.compare(normalised, hash)))
     ).findIndex(Boolean);
@@ -248,29 +258,36 @@ export async function redeemBackupCode(
 
 /**
  * Disable MFA for a user (e.g. initiated via admin override or account recovery).
- * Requires a verified TOTP code or a valid backup code before disabling.
+ * Bumps `users.session_version` and evicts cached session state so active sessions re-authenticate.
  */
 export async function disableMFA(
     userId: string,
     tenantId: string,
 ): Promise<void> {
-    await tenantScope(tenantId).update(
-        users,
-        {
-            mfaEnabled: false,
-            mfaSecret: null,
-            mfaBackupCodes: null,
-        },
-        eq(users.id, userId),
-    );
+    await runWithTenantContext(tenantId, async () => {
+        await pool.query(
+            `UPDATE users
+             SET mfa_enabled = false,
+                 mfa_secret = NULL,
+                 mfa_backup_codes = NULL,
+                 session_version = session_version + 1,
+                 updated_at = NOW()
+             WHERE id = $1 AND tenant_id = $2`,
+            [userId, tenantId],
+        );
+    });
+    evictUserSessionCache(tenantId, userId);
 }
 
 // ─── Middleware-level enforcement helper ──────────────────────
 
 /**
  * Returns true if the given role requires MFA to be active.
- * Used in proxy.ts to block access until MFA is enrolled.
+ * Used in proxy.ts, API routes, and Server Actions to block access until MFA is enrolled.
  */
-export function isMFARequired(role: string): boolean {
-    return MFA_REQUIRED_ROLES.has(role);
+export function isMFARequired(
+    role: string,
+    options?: { isDemoSandbox?: boolean; tenantCode?: string | null },
+): boolean {
+    return isRoleMfaRequired(role, options);
 }

@@ -2,9 +2,14 @@
 
 import { runWithTenantContext, sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 
 export async function getTenantHQPoliciesAction() {
-    const { tenantId } = await requireAuth('dashboard:read');
+    const { tenantId, session } = await requireAuth();
+    const role = session.role as UserRole;
+    if (!hasPermission(role, 'policy:read') && !hasPermission(role, 'settings:read')) {
+        throw new Error('Forbidden: Insufficient permissions (policy:read)');
+    }
     return runWithTenantContext(tenantId, async () => {
         // Find the HQ Group this tenant belongs to
         const hierarchyRows = await sql<{

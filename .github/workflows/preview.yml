@@ -1254,8 +1254,22 @@ jobs:
           EXPECTED_TENANT_CONTEXT_KEY_ID: ${{ vars.TENANT_CONTEXT_SIGNING_KEY_ID }}
           EXPECTED_TENANT_CONTEXT_AUDIENCE: ${{ env.TENANT_CONTEXT_AUDIENCE }}
           EXPECTED_VERCEL_REGION: iad1
+          GITHUB_COMMIT_ORG: ${{ github.repository_owner }}
+          GITHUB_COMMIT_REPO: ${{ github.event.repository.name }}
         run: |
           set -euo pipefail
+          if ! [[ "$TARGET_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "Refusing preview deploy: TARGET_SHA must be a 40-char commit SHA." >&2
+            exit 1
+          fi
+          if ! [[ "$GITHUB_COMMIT_ORG" =~ ^[A-Za-z0-9_.-]+$ ]] || ! [[ "$GITHUB_COMMIT_REPO" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+            echo "Refusing preview deploy: repository owner or name is malformed." >&2
+            exit 1
+          fi
+          if ! [[ "$PREVIEW_PR_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "Refusing preview deploy: PREVIEW_PR_NUMBER is malformed." >&2
+            exit 1
+          fi
           deployment_json="$RUNNER_TEMP/vercel-preview-deployment.json"
           pnpm exec vercel deploy \
             --prebuilt \
@@ -1269,9 +1283,9 @@ jobs:
             --meta "githubCommitRef=$PR_HEAD_REF" \
             --meta "gitCommitSha=$TARGET_SHA" \
             --meta "githubCommitSha=$TARGET_SHA" \
-            --meta "githubCommitOrg=${{ github.repository_owner }}" \
-            --meta "githubCommitRepo=${{ github.event.repository.name }}" \
-            --meta "githubPrId=${{ github.event.pull_request.number }}" \
+            --meta "githubCommitOrg=$GITHUB_COMMIT_ORG" \
+            --meta "githubCommitRepo=$GITHUB_COMMIT_REPO" \
+            --meta "githubPrId=$PREVIEW_PR_NUMBER" \
             --meta "schoolSisPreview=1" \
             --env DATABASE_URL \
             --env PLATFORM_DATABASE_URL \
@@ -1297,6 +1311,10 @@ jobs:
             https://*) ;;
             *) deployment_url="https://$deployment_url" ;;
           esac
+          if ! [[ "$deployment_id" =~ ^dpl_[A-Za-z0-9]+$ ]] || ! [[ "$deployment_url" =~ ^https://[A-Za-z0-9.-]+$ ]]; then
+            echo "Refusing preview alias assignment: deployment id or url is malformed." >&2
+            exit 1
+          fi
           node scripts/assign-vercel-preview-alias.mjs \
             --deployment-id "$deployment_id" \
             --deployment-url "$deployment_url" \
@@ -1322,6 +1340,14 @@ jobs:
           PREVIEW_DEPLOYMENT_ID: ${{ steps.deploy.outputs.deployment_id }}
         run: |
           set -euo pipefail
+          if ! [[ "$PREVIEW_DEPLOYMENT_ID" =~ ^dpl_[A-Za-z0-9]+$ ]] || ! [[ "$PREVIEW_URL" =~ ^https://[A-Za-z0-9.-]+$ ]]; then
+            echo "Refusing preview comment: PREVIEW_DEPLOYMENT_ID or PREVIEW_URL is malformed." >&2
+            exit 1
+          fi
+          if ! [[ "$PREVIEW_PR_NUMBER" =~ ^[0-9]+$ ]] || ! [[ "$TARGET_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "Refusing preview comment: PREVIEW_PR_NUMBER or TARGET_SHA is malformed." >&2
+            exit 1
+          fi
           marker='<!-- school-sis-vercel-preview -->'
           body="${marker}
           <!-- school-sis-vercel-deployment:${PREVIEW_DEPLOYMENT_ID} -->
@@ -1330,14 +1356,18 @@ jobs:
           Commit: \`${TARGET_SHA}\`
           Database: isolated schema-only Neon branch \`${PREVIEW_BRANCH_NAME}\`"
           comment_id="$(gh api \
-            "repos/${GITHUB_REPOSITORY}/issues/${{ github.event.pull_request.number }}/comments?per_page=100" \
+            "repos/${GITHUB_REPOSITORY}/issues/${PREVIEW_PR_NUMBER}/comments?per_page=100" \
             --jq 'map(select(.body | contains("<!-- school-sis-vercel-preview -->")))[0].id // empty')"
           if [ -n "$comment_id" ]; then
+            if ! [[ "$comment_id" =~ ^[0-9]+$ ]]; then
+              echo "Refusing preview comment update: comment_id is malformed." >&2
+              exit 1
+            fi
             gh api --method PATCH \
               "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" \
               -f body="$body" >/dev/null
           else
             gh api --method POST \
-              "repos/${GITHUB_REPOSITORY}/issues/${{ github.event.pull_request.number }}/comments" \
+              "repos/${GITHUB_REPOSITORY}/issues/${PREVIEW_PR_NUMBER}/comments" \
               -f body="$body" >/dev/null
           fi

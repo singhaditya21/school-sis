@@ -1,11 +1,12 @@
-
-
-import { getSession } from '@/lib/auth/session';
 import { logoutAction } from '@/lib/actions/auth';
-import { redirect } from 'next/navigation';
+import { assertSameOriginMutation } from '@/lib/security/client-ip';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-export async function POST() {
+export async function POST(request: Request) {
+    const csrfError = assertSameOriginMutation(request);
+    if (csrfError) {
+        return csrfError;
+    }
     await logoutAction();
 }

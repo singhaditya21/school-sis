@@ -3,7 +3,7 @@
 import { pool, runWithTenantContext, sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { hasPermission, type UserRole } from '@/lib/rbac/permissions';
-import { encryptEmailCandidates } from '@/lib/encryption';
+import { encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
 import { sanitizeCsvValue } from '@/lib/utils/csv-sanitize';
 import { logger } from '@/lib/observability/logger';
 import {
@@ -357,7 +357,35 @@ export async function saveCustomReportDefinition(input: {
         }
 
         const scheduleFrequency = input.scheduleFrequency || 'NONE';
-        const rawRecipient = String(input.recipientEmail || session.email || '').trim().toLowerCase();
+        let fallbackSessionEmail = String(session.email || '')
+            .trim()
+            .toLowerCase();
+        if (fallbackSessionEmail) {
+            fallbackSessionEmail = decryptFieldTolerant(fallbackSessionEmail)
+                .trim()
+                .toLowerCase();
+        }
+        if (!fallbackSessionEmail && !input.recipientEmail) {
+            const actorRows = await runWithTenantContext(tenantId, async () =>
+                sql<{ actor_email: string | null }>`
+                    SELECT COALESCE(u.email_enc, u.email) AS actor_email
+                    FROM users u
+                    WHERE u.id = ${userId}
+                      AND u.tenant_id = ${tenantId}
+                    LIMIT 1
+                `.rows(),
+            );
+            if (actorRows[0]?.actor_email) {
+                fallbackSessionEmail = decryptFieldTolerant(actorRows[0].actor_email)
+                    .trim()
+                    .toLowerCase();
+            }
+        }
+
+        const rawRecipient = String(input.recipientEmail || fallbackSessionEmail || '')
+            .trim()
+            .toLowerCase();
+        let resolvedRecipient = rawRecipient;
 
         if (scheduleFrequency !== 'NONE') {
             if (!hasPermission(session.role as UserRole, 'reports:export')) {
@@ -373,19 +401,18 @@ export async function saveCustomReportDefinition(input: {
                 };
             }
 
-            const sessionEmail = String(session.email || '').trim().toLowerCase();
-            if (rawRecipient !== sessionEmail) {
+            if (rawRecipient !== fallbackSessionEmail) {
                 const candidateHashes = encryptEmailCandidates(rawRecipient);
                 const recipientLookup = [rawRecipient, ...candidateHashes];
                 const memberRows = await runWithTenantContext(tenantId, async () =>
-                    sql<{ id: string }>`
-                        SELECT id
-                        FROM users
-                        WHERE tenant_id = ${tenantId}
-                          AND is_active = true
+                    sql<{ id: string; actor_email: string | null }>`
+                        SELECT u.id, COALESCE(u.email_enc, u.email) AS actor_email
+                        FROM users u
+                        WHERE u.tenant_id = ${tenantId}
+                          AND u.is_active = true
                           AND (
-                            LOWER(email) = ${rawRecipient}
-                            OR email = ANY(${recipientLookup}::text[])
+                            LOWER(COALESCE(u.email_enc, u.email)) = ${rawRecipient}
+                            OR COALESCE(u.email_enc, u.email) = ANY(${recipientLookup}::text[])
                           )
                         LIMIT 1
                     `.rows(),
@@ -396,10 +423,16 @@ export async function saveCustomReportDefinition(input: {
                         error: 'Scheduled BI reports can only be delivered to active members of this tenant.',
                     };
                 }
+                if (memberRows[0]?.actor_email) {
+                    resolvedRecipient =
+                        decryptFieldTolerant(memberRows[0].actor_email)
+                            .trim()
+                            .toLowerCase() || rawRecipient;
+                }
             }
         }
 
-        const recipientEmail = rawRecipient || String(session.email || '').trim();
+        const recipientEmail = resolvedRecipient || fallbackSessionEmail;
 
         const reportPayload = {
             auditEvent: 'BI_REPORT_SAVED',

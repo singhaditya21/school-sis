@@ -28,6 +28,7 @@ import { unstable_cache, revalidateTag } from 'next/cache';
 import { hash } from 'bcryptjs';
 import crypto from 'crypto';
 import { encryptEmail } from '@/lib/encryption';
+import { isPermanentPlatformAdminEmail } from '@/lib/auth/platform-owner';
 import {
     requireApprovedWorkflowApprovalOrRequest,
     toWorkflowApprovalSummary,
@@ -40,7 +41,6 @@ import {
     evaluateMetadataRollupSummary,
     isSafeWebhookDestinationUrl,
     isVirtualMetadataField,
-    mapInboundWebhookPayloadToRecord,
     normalizeMetadataFieldInput,
     quoteIdentifier,
     redactSensitiveWorkflowPayload,
@@ -62,6 +62,8 @@ import {
     canWriteMetadataField,
     checkWritableMetadataPayload,
     filterReadableMetadataFields,
+    isProtectedLedgerOrIdentityTable,
+    isProtectedLegacyPlaintextColumn,
     type MetadataFieldPermission,
     type RuntimeMetadataFieldWithPermissions,
 } from '@/lib/metadata/access-control';
@@ -235,6 +237,21 @@ function toClientField(field: MetadataField): MetadataField {
     return rest as MetadataField;
 }
 
+function isPortalEnabledForLayouts(layouts: readonly MetadataLayout[]): boolean {
+    const formLayout = layouts.find(l => l.layoutType === 'FORM');
+    const rawSchema = (formLayout?.schema || {}) as Record<string, unknown>;
+    const rawPortal = (rawSchema.portalConfig || {}) as { enabled?: boolean };
+    return Boolean(rawPortal.enabled);
+}
+
+function filterProtectedStandardFields(
+    objectDef: MetadataObject,
+    fields: MetadataField[],
+): MetadataField[] {
+    if (resolveMetadataStorageMode(objectDef) === 'EAV') return fields;
+    return fields.filter(f => f.isCustom || !isProtectedLegacyPlaintextColumn(f.apiName));
+}
+
 /**
  * Fetches the object definition, the fields the caller's role may READ, and the
  * layout schemas.
@@ -252,19 +269,29 @@ export async function getObjectMetadata(apiName: string): Promise<{
     const { tenantId, session } = await requireAuth();
     const { objectDef, fields, layouts } = await loadObjectMetadata(apiName, tenantId);
 
+    if (!isTenantStaffRole(session.role) && !isPortalEnabledForLayouts(layouts)) {
+        throw new Error('Forbidden: object is not enabled for portal access.');
+    }
+
+    const safeFields = filterProtectedStandardFields(objectDef, fields);
     const readable = filterReadableMetadataFields(
-        fields as RuntimeMetadataFieldWithPermissions[],
+        safeFields as RuntimeMetadataFieldWithPermissions[],
         session.role,
     ) as unknown as MetadataField[];
+    const isProtectedTable =
+        resolveMetadataStorageMode(objectDef) !== 'EAV' &&
+        isProtectedLedgerOrIdentityTable(objectDef.tableName);
 
     return {
         objectDef,
         fields: readable.map(field => ({
             ...toClientField(field),
-            canWrite: canWriteMetadataField(
-                session.role,
-                field as unknown as RuntimeMetadataFieldWithPermissions,
-            ),
+            canWrite:
+                (!isProtectedTable || field.isCustom) &&
+                canWriteMetadataField(
+                    session.role,
+                    field as unknown as RuntimeMetadataFieldWithPermissions,
+                ),
         })),
         layouts,
         storageMode: resolveMetadataStorageMode(objectDef),
@@ -398,6 +425,7 @@ async function applyCalculatedFields(
     records: Record<string, unknown>[],
     readableFields: MetadataField[],
     tenantId: string,
+    callerRole: string,
 ): Promise<Record<string, unknown>[]> {
     if (records.length === 0) return records;
 
@@ -415,19 +443,41 @@ async function applyCalculatedFields(
     if (rollupFields.length === 0 && formulaFields.length === 0) return records;
 
     const childRowsByObject = new Map<string, Record<string, unknown>[]>();
+    const readableChildFieldsByObject = new Map<string, Set<string>>();
     for (const rf of rollupFields) {
         const childObjApi = rf.validationRules!.rollupChildObject!;
         if (childRowsByObject.has(childObjApi)) continue;
         try {
-            const { objectDef: childObj, fields: childFields } = await loadObjectMetadata(
-                childObjApi,
-                tenantId,
+            const {
+                objectDef: childObj,
+                fields: childFields,
+                layouts: childLayouts,
+            } = await loadObjectMetadata(childObjApi, tenantId);
+            if (!isTenantStaffRole(callerRole) && !isPortalEnabledForLayouts(childLayouts)) {
+                childRowsByObject.set(childObjApi, []);
+                readableChildFieldsByObject.set(childObjApi, new Set());
+                continue;
+            }
+            const safeChildFields = filterProtectedStandardFields(
+                childObj,
+                childFields.filter(f => !isVirtualMetadataField(f)),
             );
-            const activeChildFields = childFields.filter(f => !isVirtualMetadataField(f));
+            const readableChildFields = filterReadableMetadataFields(
+                safeChildFields as RuntimeMetadataFieldWithPermissions[],
+                callerRole,
+            ) as unknown as MetadataField[];
+            const readableChildFieldSet = new Set(readableChildFields.map(f => f.apiName));
+            readableChildFieldsByObject.set(childObjApi, readableChildFieldSet);
+
+            if (readableChildFields.length === 0 || childObj.tableName === 'platform_audit_logs') {
+                childRowsByObject.set(childObjApi, []);
+                continue;
+            }
+
             if (resolveMetadataStorageMode(childObj) === 'EAV') {
                 const rows = await queryEavRecords(
                     childObj,
-                    activeChildFields,
+                    readableChildFields,
                     tenantId,
                     null,
                     500,
@@ -435,14 +485,36 @@ async function applyCalculatedFields(
                 );
                 childRowsByObject.set(childObjApi, rows);
             } else {
-                const tableIdent = identifier(childObj.tableName);
-                const rows = await sql<Record<string, unknown>>`
-                    SELECT * FROM ${tableIdent} WHERE tenant_id = ${tenantId} LIMIT 500
-                `;
-                childRowsByObject.set(childObjApi, rows);
+                const stdCols = readableChildFields
+                    .filter(f => !f.isCustom)
+                    .map(f => quoteIdentifier(f.apiName));
+                const customNames = new Set(
+                    readableChildFields.filter(f => f.isCustom).map(f => f.apiName),
+                );
+                const selectCols = [quoteIdentifier('id'), ...stdCols];
+                if (customNames.size > 0) {
+                    selectCols.push(quoteIdentifier('custom_data'));
+                }
+                const tableName = quoteIdentifier(childObj.tableName);
+                const { rows } = await pool.query(
+                    `SELECT ${selectCols.join(', ')} FROM ${tableName} WHERE tenant_id = $1 LIMIT 500`,
+                    [tenantId],
+                );
+                const projectedChildRows = rows.map(row => {
+                    const { custom_data, ...rest } = row;
+                    const projected: Record<string, unknown> = { ...rest };
+                    if (custom_data && typeof custom_data === 'object') {
+                        for (const [k, v] of Object.entries(custom_data as Record<string, unknown>)) {
+                            if (customNames.has(k)) projected[k] = v;
+                        }
+                    }
+                    return projected;
+                });
+                childRowsByObject.set(childObjApi, projectedChildRows);
             }
         } catch {
             childRowsByObject.set(childObjApi, []);
+            readableChildFieldsByObject.set(childObjApi, new Set());
         }
     }
 
@@ -454,6 +526,15 @@ async function applyCalculatedFields(
             const fkField = rf.validationRules!.rollupForeignKeyField!;
             const aggregate = rf.validationRules!.rollupAggregate ?? 'COUNT';
             const targetField = rf.validationRules!.rollupTargetField;
+            const readableChildSet = readableChildFieldsByObject.get(childObjApi);
+            if (
+                !readableChildSet ||
+                !readableChildSet.has(fkField) ||
+                (aggregate !== 'COUNT' && (!targetField || !readableChildSet.has(targetField)))
+            ) {
+                next[rf.apiName] = 0;
+                continue;
+            }
             const allChildRows = childRowsByObject.get(childObjApi) ?? [];
             const matchingChildren = parentId
                 ? allChildRows.filter(row => String(row[fkField] ?? '') === parentId)
@@ -481,10 +562,18 @@ async function applyCalculatedFields(
  */
 export async function queryRecords(apiName: string, filters: Record<string, unknown> = {}, limit = 50, offset = 0) {
     const { tenantId, session } = await requireAuth();
-    const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
+    const { objectDef, fields, layouts } = await loadObjectMetadata(apiName, tenantId);
 
+    if (objectDef.tableName === 'platform_audit_logs') {
+        throw new Error('Forbidden: platform_audit_logs cannot be queried via generic metadata engine.');
+    }
+    if (!isTenantStaffRole(session.role) && !isPortalEnabledForLayouts(layouts)) {
+        throw new Error('Forbidden: object is not enabled for portal access.');
+    }
+
+    const safeFields = filterProtectedStandardFields(objectDef, fields);
     const readableFields = filterReadableMetadataFields(
-        fields as RuntimeMetadataFieldWithPermissions[],
+        safeFields as RuntimeMetadataFieldWithPermissions[],
         session.role,
     ) as unknown as MetadataField[];
     if (readableFields.length === 0) return [];
@@ -495,11 +584,13 @@ export async function queryRecords(apiName: string, filters: Record<string, unkn
 
     if (resolveMetadataStorageMode(objectDef) === 'EAV') {
         const eavRecords = await queryEavRecords(objectDef, readableFields, tenantId, recordId, safeLimit, safeOffset);
-        return applyCalculatedFields(eavRecords, readableFields, tenantId);
+        return applyCalculatedFields(eavRecords, readableFields, tenantId, session.role);
     }
 
     // Build standard SELECT columns
-    const standardFields = readableFields.filter(f => !f.isCustom).map(f => quoteIdentifier(f.apiName));
+    const standardFields = readableFields
+        .filter(f => !f.isCustom && !isProtectedLegacyPlaintextColumn(f.apiName))
+        .map(f => quoteIdentifier(f.apiName));
     // Determine if we need to fetch custom_data
     const readableCustomFieldNames = new Set(readableFields.filter(f => f.isCustom).map(f => f.apiName));
     const tableName = quoteIdentifier(objectDef.tableName);
@@ -528,6 +619,7 @@ export async function queryRecords(apiName: string, filters: Record<string, unkn
         const { custom_data, ...rest } = row;
         const serializedRest: Record<string, unknown> = {};
         for (const [key, val] of Object.entries(rest)) {
+            if (isProtectedLegacyPlaintextColumn(key)) continue;
             if (val instanceof Date) {
                 serializedRest[key] = val.toISOString().split('T')[0];
             } else {
@@ -541,7 +633,7 @@ export async function queryRecords(apiName: string, filters: Record<string, unkn
         return serializedRest;
     });
 
-    return applyCalculatedFields(projected, readableFields, tenantId);
+    return applyCalculatedFields(projected, readableFields, tenantId, session.role);
 }
 
 /**
@@ -734,27 +826,46 @@ async function upsertEavRecord(
 export async function upsertRecord(apiName: string, data: Record<string, unknown>, id?: string): Promise<UpsertRecordResult> {
     try {
         const { tenantId, session } = await requireAuth();
+        if (!isTenantStaffRole(session.role)) {
+            return {
+                success: false,
+                error: 'Forbidden: staff access is required to create or update records.',
+            };
+        }
         const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
 
         // Strip virtual FORMULA / ROLLUP_SUMMARY fields so they are never treated as writable/required inputs
         const persistedFields = fields.filter(f => !isVirtualMetadataField(f));
 
-        // Field-level write permissions, identical to /api/data/[object_name].
-        const submitted = pickKnownMetadataFields(persistedFields, data);
-        const writeAccess = checkWritableMetadataPayload(
-            persistedFields as RuntimeMetadataFieldWithPermissions[],
-            session.role,
-            submitted,
+        // Enforce object-level write permission at the very top BEFORE any pre-validation side effects.
+        const hasAnyObjectWriteGrant = persistedFields.some(f =>
+            canWriteMetadataField(
+                session.role,
+                f as unknown as RuntimeMetadataFieldWithPermissions,
+            ),
         );
-        if (writeAccess.ok === false) {
-            const denied = [...new Set([...writeAccess.deniedFields, ...writeAccess.blockedRequiredFields])];
+        if (!hasAnyObjectWriteGrant) {
             return {
                 success: false,
-                error: `You do not have permission to write: ${denied.join(', ')}.`,
+                error: 'Forbidden: you do not have permission to write records on this object.',
             };
         }
 
         if (resolveMetadataStorageMode(objectDef) === 'EAV') {
+            const submitted = pickKnownMetadataFields(persistedFields, data);
+            const writeAccess = checkWritableMetadataPayload(
+                persistedFields as RuntimeMetadataFieldWithPermissions[],
+                session.role,
+                submitted,
+            );
+            if (writeAccess.ok === false) {
+                const denied = [...new Set([...writeAccess.deniedFields, ...writeAccess.blockedRequiredFields])];
+                return {
+                    success: false,
+                    error: `You do not have permission to write: ${denied.join(', ')}.`,
+                };
+            }
+
             const validated = validateMetadataRecordPayload(persistedFields, submitted, { requireAll: !id });
             if (validated.ok === false) {
                 return { success: false, error: validated.errors.join(' ') };
@@ -783,9 +894,80 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
             redirect(`/app/${apiName}`);
         }
 
-        const standardFields = persistedFields.filter(f => !f.isCustom);
+        if (objectDef.tableName === 'audit_logs' || objectDef.tableName === 'platform_audit_logs') {
+            return {
+                success: false,
+                error: `Audit log table '${objectDef.tableName}' is append-only and immutable.`,
+            };
+        }
+
+        const isProtectedTable = isProtectedLedgerOrIdentityTable(objectDef.tableName);
+        if (isProtectedTable && !id) {
+            return {
+                success: false,
+                error: `Direct record creation on protected ledger/identity table '${objectDef.tableName}' is blocked. Use governed finance or IAM workflows.`,
+            };
+        }
+
         const customFields = persistedFields.filter(f => f.isCustom);
-        
+        const customFieldNames = new Set(customFields.map(f => f.apiName));
+        const standardFields = persistedFields.filter(
+            f => !f.isCustom && !isProtectedLegacyPlaintextColumn(f.apiName),
+        );
+
+        const rawStaffEmail =
+            !id && apiName === 'staff' && typeof data.email === 'string'
+                ? data.email.trim()
+                : '';
+
+        if (rawStaffEmail && isPermanentPlatformAdminEmail(rawStaffEmail)) {
+            return {
+                success: false,
+                error: 'Reserved platform owner email cannot be provisioned as tenant staff.',
+            };
+        }
+
+        for (const [key, value] of Object.entries(data)) {
+            if (PROTECTED_DATA_FIELDS.has(key)) continue;
+            if (isProtectedTable && !customFieldNames.has(key)) {
+                return {
+                    success: false,
+                    error: `Direct standard-column updates on protected ledger/identity table '${objectDef.tableName}' are blocked ('${key}'). Only custom_data fields may be updated; use governed finance or IAM workflows.`,
+                };
+            }
+            if (
+                !customFieldNames.has(key) &&
+                isProtectedLegacyPlaintextColumn(key) &&
+                value !== undefined &&
+                value !== null &&
+                value !== '' &&
+                !(!id && apiName === 'staff' && key === 'email')
+            ) {
+                return {
+                    success: false,
+                    error: `Direct writes to protected legacy plaintext column '${key}' are blocked.`,
+                };
+            }
+        }
+
+        const writableSchemaFields = isProtectedTable
+            ? customFields
+            : [...standardFields, ...customFields];
+
+        const submitted = pickKnownMetadataFields(writableSchemaFields, data);
+        const writeAccess = checkWritableMetadataPayload(
+            writableSchemaFields as RuntimeMetadataFieldWithPermissions[],
+            session.role,
+            submitted,
+        );
+        if (writeAccess.ok === false) {
+            const denied = [...new Set([...writeAccess.deniedFields, ...writeAccess.blockedRequiredFields])];
+            return {
+                success: false,
+                error: `You do not have permission to write: ${denied.join(', ')}.`,
+            };
+        }
+
         // Separate data into standard columns and custom_data
         const standardData: Record<string, unknown> = {};
         const customData: Record<string, unknown> = {};
@@ -795,11 +977,15 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
                 // Tenant ownership is derived from the authenticated session only.
                 continue;
             }
-            if (standardFields.some(f => f.apiName === key)) {
+            if (!isProtectedTable && standardFields.some(f => f.apiName === key)) {
                 standardData[key] = value === '' ? null : value;
             } else if (customFields.some(f => f.apiName === key)) {
                 customData[key] = value;
             }
+        }
+
+        if (typeof standardData.gender === 'string' && standardData.gender) {
+            standardData.gender = standardData.gender.toUpperCase();
         }
 
         if (!id) {
@@ -808,7 +994,7 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
                     standardData.date_of_birth = '2010-01-01';
                 }
                 if (!standardData.gender) {
-                    standardData.gender = 'Other';
+                    standardData.gender = 'OTHER';
                 }
                 if (!standardData.grade_id) {
                     const gradeRows = await sql<{ id: string }>`
@@ -838,75 +1024,49 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
                 if (!standardData.joining_date) {
                     standardData.joining_date = new Date().toISOString().split('T')[0];
                 }
-                // Create a user account for the staff member
-                // A fabricated fallback identity for a staff row imported without an
-                // email. Deliberately on the RFC 2606 `.invalid` domain so it can
-                // never resolve, be mistaken for a real address, or carry the
-                // demo school domain into a real tenant's user table.
-                const importedEmail = typeof standardData.email === 'string' && standardData.email.includes('@')
-                    ? standardData.email
-                    : `${standardData.employee_id || 'staff_' + Math.random().toString(36).substring(2, 11)}@imported.invalid`;
-                const email = importedEmail;
+                const preStaffValidation = validateMetadataRecordPayload(
+                    writableSchemaFields.filter(f => f.apiName !== 'user_id'),
+                    { ...standardData, ...customData },
+                    { requireAll: true },
+                );
+                if (preStaffValidation.ok === false) {
+                    return { success: false, error: preStaffValidation.errors.join(' ') };
+                }
+
+                // Create a user account for the staff member after permission + platform-owner + payload checks pass.
+                const importedEmail =
+                    rawStaffEmail && rawStaffEmail.includes('@')
+                        ? rawStaffEmail
+                        : `${standardData.employee_id || 'staff_' + Math.random().toString(36).substring(2, 11)}@imported.invalid`;
+                if (isPermanentPlatformAdminEmail(importedEmail)) {
+                    return {
+                        success: false,
+                        error: 'Reserved platform owner email cannot be provisioned as tenant staff.',
+                    };
+                }
                 const passwordHash = await hash(crypto.randomBytes(18).toString('base64url'), 12);
                 const firstName = String(customData.first_name || 'Staff');
                 const lastName = String(customData.last_name || 'Member');
                 const userRows = await sql<{ id: string }>`
                     INSERT INTO users (tenant_id, email_enc, password_hash, role, first_name, last_name)
-                    VALUES (${tenantId}, ${encryptEmail(email)}, ${passwordHash}, 'TEACHER', ${firstName}, ${lastName})
+                    VALUES (${tenantId}, ${encryptEmail(importedEmail)}, ${passwordHash}, 'TEACHER', ${firstName}, ${lastName})
                     RETURNING id
                 `;
                 standardData.user_id = userRows[0].id;
             }
-
-            if (apiName === 'invoice') {
-                if (!standardData.invoice_number) {
-                    standardData.invoice_number = `INV-2026-${Math.floor(Math.random() * 1000000)}`;
-                }
-                if (!standardData.due_date) {
-                    standardData.due_date = '2026-06-30';
-                }
-                if (!standardData.status) {
-                    standardData.status = 'PENDING';
-                }
-                if (!standardData.paid_amount) {
-                    standardData.paid_amount = '0.00';
-                }
-                if (!standardData.student_id || typeof standardData.student_id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(standardData.student_id)) {
-                    const studentRows = await sql<{ id: string }>`
-                        SELECT id FROM students WHERE tenant_id = ${tenantId} LIMIT 1
-                    `;
-                    if (studentRows.length > 0) standardData.student_id = studentRows[0].id;
-                } else {
-                    const studentCheck = await sql<{ ok: number }>`
-                        SELECT 1 AS ok FROM students WHERE id = ${String(standardData.student_id)} AND tenant_id = ${tenantId} LIMIT 1
-                    `;
-                    if (studentCheck.length === 0) throw new Error('Student not found for tenant');
-                }
-                if (!standardData.fee_plan_id) {
-                    const feePlanRows = await sql<{ id: string }>`
-                        SELECT id FROM fee_plans WHERE tenant_id = ${tenantId} LIMIT 1
-                    `;
-                    if (feePlanRows.length > 0) standardData.fee_plan_id = feePlanRows[0].id;
-                } else {
-                    const feePlanCheck = await sql<{ ok: number }>`
-                        SELECT 1 AS ok FROM fee_plans WHERE id = ${String(standardData.fee_plan_id)} AND tenant_id = ${tenantId} LIMIT 1
-                    `;
-                    if (feePlanCheck.length === 0) throw new Error('Fee plan not found for tenant');
-                }
-            }
         }
 
-        if (typeof standardData.gender === 'string' && standardData.gender) {
-            standardData.gender = standardData.gender.toUpperCase();
-        }
-
-        const validated = validateMetadataRecordPayload(persistedFields, { ...standardData, ...customData }, { requireAll: !id });
+        const validated = validateMetadataRecordPayload(
+            writableSchemaFields,
+            { ...standardData, ...customData },
+            { requireAll: !id && !isProtectedTable },
+        );
         if (validated.ok === false) {
             return { success: false, error: validated.errors.join(' ') };
         }
 
         for (const field of standardFields) {
-            if (Object.prototype.hasOwnProperty.call(validated.data, field.apiName)) {
+            if (!isProtectedTable && Object.prototype.hasOwnProperty.call(validated.data, field.apiName)) {
                 standardData[field.apiName] = validated.data[field.apiName];
             }
         }
@@ -1005,7 +1165,31 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
  * Fetches all metadata objects for the Object Manager
  */
 export async function getAllMetadataObjects() {
-    const { tenantId } = await requireAuth();
+    const { tenantId, session } = await requireAuth();
+    if (!isTenantStaffRole(session.role)) {
+        return sql<Record<string, unknown>>`
+            SELECT *
+            FROM (
+                SELECT DISTINCT ON (api_name) *
+                FROM metadata_objects
+                WHERE status = 'PUBLISHED'
+                  AND (
+                    tenant_id = ${tenantId}
+                    OR (tenant_id IS NULL AND COALESCE(is_custom, false) = false)
+                  )
+                ORDER BY api_name, CASE WHEN tenant_id = ${tenantId} THEN 0 ELSE 1 END, created_at DESC
+            ) resolved_objects
+            WHERE EXISTS (
+                SELECT 1
+                FROM metadata_layouts ml
+                WHERE ml.object_id = resolved_objects.id
+                  AND ml.layout_type = 'FORM'
+                  AND ml.is_default = true
+                  AND COALESCE((ml.schema->'portalConfig'->>'enabled')::boolean, false) = true
+            )
+            ORDER BY name ASC
+        `;
+    }
     return sql<Record<string, unknown>>`
         SELECT *
         FROM (
@@ -1840,11 +2024,38 @@ export async function updateRecordFieldValue(
 ): Promise<{ success: boolean; error?: string }> {
     try {
         const { tenantId, session } = await requireAuth();
+        if (!isTenantStaffRole(session.role)) {
+            return {
+                success: false,
+                error: 'Forbidden: staff access is required to update records.',
+            };
+        }
         const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
 
         const targetField = fields.find(f => f.apiName === fieldApiName);
         if (!targetField) {
             return { success: false, error: `Unknown field: ${fieldApiName}` };
+        }
+
+        if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
+            if (objectDef.tableName === 'audit_logs' || objectDef.tableName === 'platform_audit_logs') {
+                return {
+                    success: false,
+                    error: `Audit log table '${objectDef.tableName}' is append-only and immutable.`,
+                };
+            }
+            if (!targetField.isCustom && isProtectedLedgerOrIdentityTable(objectDef.tableName)) {
+                return {
+                    success: false,
+                    error: `Direct standard-column updates on protected ledger/identity table '${objectDef.tableName}' are blocked. Use governed finance or IAM workflows.`,
+                };
+            }
+            if (!targetField.isCustom && isProtectedLegacyPlaintextColumn(fieldApiName)) {
+                return {
+                    success: false,
+                    error: `Direct writes to protected legacy plaintext column '${fieldApiName}' are blocked.`,
+                };
+            }
         }
 
         const canWrite = canWriteMetadataField(
@@ -1921,6 +2132,12 @@ export async function deleteRecord(
             return { success: false, error: 'Forbidden: staff access is required to delete records.' };
         }
         const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
+        if (isProtectedLedgerOrIdentityTable(objectDef.tableName)) {
+            return {
+                success: false,
+                error: `Record deletion on protected ledger/identity table '${objectDef.tableName}' is blocked. Use governed finance or IAM workflows.`,
+            };
+        }
         if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
             return {
                 success: false,
@@ -2009,13 +2226,33 @@ export async function bulkImportRecords(
         }
 
         const { tenantId, session } = await requireAuth();
+        if (!isTenantStaffRole(session.role)) {
+            return {
+                success: false,
+                importedCount: 0,
+                errors: ['Forbidden: staff access is required for bulk import.'],
+            };
+        }
         const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
+        const isEav = resolveMetadataStorageMode(objectDef) === 'EAV';
+        if (!isEav && isProtectedLedgerOrIdentityTable(objectDef.tableName)) {
+            return {
+                success: false,
+                importedCount: 0,
+                errors: [
+                    `Bulk import into protected ledger/identity table '${objectDef.tableName}' is blocked. Use governed finance or IAM workflows.`,
+                ],
+            };
+        }
+
         const writableFields = fields.filter(
             f =>
                 canWriteMetadataField(
                     session.role,
                     f as unknown as RuntimeMetadataFieldWithPermissions,
-                ) && !isVirtualMetadataField(f),
+                ) &&
+                !isVirtualMetadataField(f) &&
+                (isEav || f.isCustom || !isProtectedLegacyPlaintextColumn(f.apiName)),
         );
 
         if (writableFields.length === 0) {
@@ -2239,7 +2476,16 @@ async function executeSingleWorkflowActionInternal(params: {
                             );
                         } else {
                             const tableIdent = identifier(objectDef.tableName);
-                            if (targetField.isCustom) {
+                            if (
+                                objectDef.tableName === 'audit_logs' ||
+                                objectDef.tableName === 'platform_audit_logs'
+                            ) {
+                                actionDetails = {
+                                    runner: 'FIELD_UPDATE',
+                                    field: targetFieldApi,
+                                    blockedProtectedColumn: true,
+                                };
+                            } else if (targetField.isCustom) {
                                 await sql`
                                     UPDATE ${tableIdent}
                                     SET custom_data = COALESCE(custom_data, '{}'::jsonb) || ${JSON.stringify({
@@ -2248,7 +2494,10 @@ async function executeSingleWorkflowActionInternal(params: {
                                         updated_at = CURRENT_TIMESTAMP
                                     WHERE id = ${recordId} AND tenant_id = ${tenantId}
                                 `.execute();
-                            } else {
+                            } else if (
+                                !isProtectedLedgerOrIdentityTable(objectDef.tableName) &&
+                                !isProtectedLegacyPlaintextColumn(targetFieldApi)
+                            ) {
                                 const colIdent = identifier(targetFieldApi);
                                 await sql`
                                     UPDATE ${tableIdent}
@@ -2256,6 +2505,12 @@ async function executeSingleWorkflowActionInternal(params: {
                                         updated_at = CURRENT_TIMESTAMP
                                     WHERE id = ${recordId} AND tenant_id = ${tenantId}
                                 `.execute();
+                            } else {
+                                actionDetails = {
+                                    runner: 'FIELD_UPDATE',
+                                    field: targetFieldApi,
+                                    blockedProtectedColumn: true,
+                                };
                             }
                         }
                     }
@@ -2785,28 +3040,57 @@ export async function submitRecordForApproval(
         if (!UUID_RE.test(recordId)) {
             return { success: false, error: 'Invalid record ID.' };
         }
-        const { tenantId, userId } = await requireAuth();
+        const { tenantId, userId, session } = await requireAuth();
+        if (!isTenantStaffRole(session.role)) {
+            return {
+                success: false,
+                error: 'Forbidden: staff access is required to submit records for approval.',
+            };
+        }
         const { fields } = await loadObjectMetadata(apiName, tenantId);
+        const hasObjectWriteAccess = fields.some(
+            f =>
+                !isVirtualMetadataField(f) &&
+                canWriteMetadataField(
+                    session.role,
+                    f as unknown as RuntimeMetadataFieldWithPermissions,
+                ),
+        );
+        if (!hasObjectWriteAccess) {
+            return {
+                success: false,
+                error: 'Forbidden: you do not have write permission on this object.',
+            };
+        }
+
         const approvalField = fields.find(
             f =>
                 f.apiName === 'approval_status' ||
                 (f.dataType === 'PICKLIST' && (f.picklistOptions || []).includes('SUBMITTED')),
         );
         if (approvalField) {
-            await updateRecordFieldValue(apiName, recordId, approvalField.apiName, 'SUBMITTED');
+            const res = await updateRecordFieldValue(
+                apiName,
+                recordId,
+                approvalField.apiName,
+                'SUBMITTED',
+            );
+            if (!res.success) return res;
         }
 
+        const submitterId = session.userId || userId;
         await sql`
             INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
             VALUES (
                 ${tenantId},
-                ${userId},
+                ${submitterId},
                 'UPDATE',
                 ${apiName},
                 ${recordId},
                 ${JSON.stringify({
                     auditEvent: 'RECORD_APPROVAL_REQUESTED',
                     status: 'SUBMITTED',
+                    submittedBy: submitterId,
                     comment: comment?.trim() || null,
                     submittedAt: new Date().toISOString(),
                 })}::jsonb
@@ -2847,6 +3131,7 @@ export async function decideRecordApproval(
             'PRINCIPAL',
             'VICE_PRINCIPAL',
             'HOD',
+            'FINANCE_LEAD',
             'ACCOUNTANT',
         ]);
         if (!allowedApproverRoles.has(String(session.role || '').toUpperCase())) {
@@ -2855,6 +3140,38 @@ export async function decideRecordApproval(
                 error: 'Your role does not have permission to approve or reject records.',
             };
         }
+
+        const actorUserId = session.userId || userId;
+        const priorSubmissions = await sql<{
+            user_id: string | null;
+            after_state: Record<string, unknown> | null;
+        }>`
+            SELECT user_id, after_state
+            FROM audit_logs
+            WHERE tenant_id = ${tenantId}
+              AND LOWER(entity_type) = LOWER(${apiName})
+              AND entity_id = ${recordId}
+              AND (
+                after_state->>'auditEvent' = 'RECORD_APPROVAL_REQUESTED'
+                OR action = 'CREATE'
+              )
+            ORDER BY CASE WHEN after_state->>'auditEvent' = 'RECORD_APPROVAL_REQUESTED' THEN 0 ELSE 1 END,
+                     created_at DESC
+            LIMIT 1
+        `;
+        const submitterUserId =
+            priorSubmissions[0]?.user_id ||
+            (typeof priorSubmissions[0]?.after_state?.submittedBy === 'string'
+                ? priorSubmissions[0].after_state.submittedBy
+                : null);
+
+        if (submitterUserId && submitterUserId === actorUserId) {
+            return {
+                success: false,
+                error: 'Maker-checker violation: submitter cannot approve their own record.',
+            };
+        }
+
         const { fields } = await loadObjectMetadata(apiName, tenantId);
         const approvalField = fields.find(
             f =>
@@ -2862,14 +3179,20 @@ export async function decideRecordApproval(
                 (f.dataType === 'PICKLIST' && (f.picklistOptions || []).includes(decision)),
         );
         if (approvalField) {
-            await updateRecordFieldValue(apiName, recordId, approvalField.apiName, decision);
+            const res = await updateRecordFieldValue(
+                apiName,
+                recordId,
+                approvalField.apiName,
+                decision,
+            );
+            if (!res.success) return res;
         }
 
         await sql`
             INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
             VALUES (
                 ${tenantId},
-                ${userId},
+                ${actorUserId},
                 'UPDATE',
                 ${apiName},
                 ${recordId},
@@ -3167,7 +3490,8 @@ export async function findPotentialDuplicateRecords(
 ): Promise<DuplicateMatchEntry[]> {
     try {
         if (!UUID_RE.test(recordId)) return [];
-        const { tenantId } = await requireAuth();
+        const { tenantId, session } = await requireAuth();
+        if (!isTenantStaffRole(session.role)) return [];
         const { fields } = await loadObjectMetadata(apiName, tenantId);
         const allRecords = await queryRecords(apiName, {}, 200, 0);
         const currentRecord = allRecords.find(r => String(r.id) === recordId);
@@ -3196,6 +3520,9 @@ export async function cloneMetadataRecord(
             return { success: false, error: 'Invalid source record ID.' };
         }
         const { tenantId, userId, session } = await requireAuth();
+        if (!isTenantStaffRole(session.role)) {
+            return { success: false, error: 'Forbidden: staff access is required to clone records.' };
+        }
         const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
         if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
             return { success: false, error: 'Cloning is supported on custom EAV objects.' };
@@ -3292,6 +3619,9 @@ export async function mergeMetadataRecords(
             return { success: false, error: 'Cannot merge a record with itself.' };
         }
         const { tenantId, userId, session } = await requireAuth();
+        if (!isTenantStaffRole(session.role)) {
+            return { success: false, error: 'Forbidden: staff access is required to merge records.' };
+        }
         const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
         if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
             return { success: false, error: 'Record merging is supported on custom EAV objects.' };
@@ -3413,7 +3743,32 @@ export async function logRecordQuickActivity(
         if (!subject) {
             return { success: false, error: 'Activity subject is required.' };
         }
-        const { tenantId, userId } = await requireAuth();
+        const { tenantId, userId, session } = await requireAuth();
+        if (!isTenantStaffRole(session.role)) {
+            return {
+                success: false,
+                error: 'Forbidden: staff access is required to log activities.',
+            };
+        }
+
+        const { objectDef, fields } = await loadObjectMetadata(apiName, tenantId);
+        const safeFields = filterProtectedStandardFields(objectDef, fields);
+        const readableFields = filterReadableMetadataFields(
+            safeFields as RuntimeMetadataFieldWithPermissions[],
+            session.role,
+        );
+        const hasWriteGrant = safeFields.some(f =>
+            canWriteMetadataField(
+                session.role,
+                f as unknown as RuntimeMetadataFieldWithPermissions,
+            ),
+        );
+        if (readableFields.length === 0 && !hasWriteGrant) {
+            return {
+                success: false,
+                error: 'Forbidden: you do not have access to this object.',
+            };
+        }
 
         await sql`
             INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
@@ -4653,8 +5008,26 @@ export async function generateRecordDocument(
         if (!UUID_RE.test(recordId)) {
             return { success: false, error: 'Invalid record ID.' };
         }
-        const { tenantId, userId } = await requireAuth();
-        const { objectDef, layouts } = await loadObjectMetadata(apiName, tenantId);
+        const { tenantId, userId, session } = await requireAuth();
+        const { objectDef, fields, layouts } = await loadObjectMetadata(apiName, tenantId);
+        if (!isTenantStaffRole(session.role) && !isPortalEnabledForLayouts(layouts)) {
+            return {
+                success: false,
+                error: 'Forbidden: object is not enabled for portal access.',
+            };
+        }
+        const safeFields = filterProtectedStandardFields(objectDef, fields);
+        const readableFields = filterReadableMetadataFields(
+            safeFields as RuntimeMetadataFieldWithPermissions[],
+            session.role,
+        );
+        if (readableFields.length === 0) {
+            return {
+                success: false,
+                error: 'Forbidden: you do not have permission to read this object.',
+            };
+        }
+
         const rows = await queryRecords(apiName, { id: recordId }, 1, 0);
         if (rows.length === 0) {
             return { success: false, error: 'Record not found.' };

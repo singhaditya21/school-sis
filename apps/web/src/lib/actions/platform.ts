@@ -6,8 +6,12 @@ import { encryptEmail, encryptEmailCandidates, decryptFieldTolerant } from '@/li
 import { UserRole } from '@/lib/rbac/permissions';
 import { hash } from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 import { getSession } from '@/lib/auth/session';
+import { evictTenantSessionCache } from '@/lib/auth/session-revocation';
 import { establishSession, impersonationExpiresAt, legacyImpersonationActorId } from '@/lib/auth/identity';
+import { extractTrustedClientIp } from '@/lib/security/client-ip';
+import { isDemoTenantCode } from '@/lib/tenant/demo-guard';
 import {
     CORE_DEFAULT_MODULES,
     isPermanentPlatformAdminEmail,
@@ -252,7 +256,14 @@ export async function toggleTenantStatusAction(tenantId: string, isActive: boole
         return { error: 'ScholarMind HQ cannot be suspended.' };
     }
 
-    await sql`UPDATE tenants SET is_active = ${isActive}, updated_at = NOW() WHERE id = ${tenantId}`;
+    await sql`
+        UPDATE tenants
+        SET is_active = ${isActive},
+            session_version = session_version + 1,
+            updated_at = NOW()
+        WHERE id = ${tenantId}
+    `;
+    evictTenantSessionCache(tenantId);
     
     await logPlatformAudit('TOGGLE_TENANT_STATUS', `Status changed to ${isActive}`, undefined, tenantId);
     
@@ -279,8 +290,15 @@ export async function impersonateTenantAction(tenantId: string) {
         role: string;
         firstName: string | null;
         lastName: string | null;
+        sessionVersion?: number | null;
     }>`
-        SELECT id, COALESCE(email_enc, email) AS email, role, first_name AS "firstName", last_name AS "lastName"
+        SELECT
+            id,
+            COALESCE(email_enc, email) AS email,
+            role,
+            first_name AS "firstName",
+            last_name AS "lastName",
+            session_version AS "sessionVersion"
         FROM users
         WHERE tenant_id = ${tenantId}
           AND role IN ('SUPER_ADMIN', 'SCHOOL_ADMIN')
@@ -296,6 +314,8 @@ export async function impersonateTenantAction(tenantId: string) {
     const tenantsData = await sql<{
         tenantCode: string | null;
         tenantDomain: string | null;
+        tenantSessionVersion?: number | null;
+        tenantIsDemo?: boolean | null;
         companyId: string | null;
         subscriptionTier: 'CORE' | 'AI_PRO' | 'ENTERPRISE' | null;
         activeModules: string[] | null;
@@ -303,6 +323,8 @@ export async function impersonateTenantAction(tenantId: string) {
         SELECT 
             t.code AS "tenantCode",
             t.domain AS "tenantDomain",
+            t.session_version AS "tenantSessionVersion",
+            t.is_demo AS "tenantIsDemo",
             t.company_id AS "companyId", 
             c.subscription_tier AS "subscriptionTier", 
             c.active_modules AS "activeModules" 
@@ -346,6 +368,10 @@ export async function impersonateTenantAction(tenantId: string) {
             expiresAt,
         },
     });
+    session.sessionVersion = targetAdmin.sessionVersion ?? 1;
+    session.tenantSessionVersion = targetCompany?.tenantSessionVersion ?? 1;
+    session.isDemoSandbox =
+        Boolean(targetCompany?.tenantIsDemo) || isDemoTenantCode(targetCompany?.tenantCode);
 
     await session.save();
 
@@ -366,20 +392,24 @@ export async function returnToHQAction() {
             tenantId: string;
             tenantCode: string | null;
             tenantDomain: string | null;
+            tenantSessionVersion?: number | null;
             email: string;
             firstName: string | null;
             lastName: string | null;
             mfaEnabled: boolean | null;
+            sessionVersion?: number | null;
         }>`
             SELECT
                 u.id,
                 u.tenant_id AS "tenantId",
                 t.code AS "tenantCode",
                 t.domain AS "tenantDomain",
+                t.session_version AS "tenantSessionVersion",
                 COALESCE(u.email_enc, u.email) AS "email",
                 u.first_name AS "firstName",
                 u.last_name AS "lastName",
-                u.mfa_enabled AS "mfaEnabled"
+                u.mfa_enabled AS "mfaEnabled",
+                u.session_version AS "sessionVersion"
             FROM users u
             INNER JOIN tenants t ON t.id = u.tenant_id
             WHERE u.id = ${originalUserId}
@@ -409,8 +439,11 @@ export async function returnToHQAction() {
         subscriptionTier: 'ENTERPRISE',
         activeModules: [...PLATFORM_ALL_MODULES],
         mfaEnabled: Boolean(founder.mfaEnabled),
-        mfaVerified: true,
+        mfaVerified: Boolean(founder.mfaEnabled),
     });
+    session.sessionVersion = founder.sessionVersion ?? 1;
+    session.tenantSessionVersion = founder.tenantSessionVersion ?? 1;
+    session.isDemoSandbox = false;
 
     await session.save();
     await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.PLATFORM_SESSION, () =>
@@ -497,13 +530,18 @@ export async function updateCompanySettingsAction(companyId: string, payload: {
     `;
 
     if (!hqCheck[0]?.isHq) {
-        await sql`
+        const affectedTenants = await sql<{ id: string }>`
             UPDATE tenants
             SET is_active = ${payload.isActive},
+                session_version = session_version + 1,
                 updated_at = NOW()
             WHERE company_id = ${companyId}
               AND upper(code) <> ${PLATFORM_HQ_TENANT_CODE}
+            RETURNING id
         `;
+        for (const t of affectedTenants) {
+            evictTenantSessionCache(t.id);
+        }
     }
 
     await logPlatformAudit('UPDATE_COMPANY_SETTINGS', `Updated tier to ${payload.subscriptionTier}, features toggled`, companyId);
@@ -579,10 +617,17 @@ async function logPlatformAudit(
     const actorId = explicitActorId || (session.role === 'PLATFORM_ADMIN' ? session.userId : '');
     if (!actorId) return;
 
+    let clientIp = 'unknown-ip';
+    try {
+        clientIp = extractTrustedClientIp(await headers());
+    } catch {
+        clientIp = 'unknown-ip';
+    }
+
     try {
         await sql`
             INSERT INTO platform_audit_logs (actor_id, target_company_id, target_tenant_id, action_type, metadata, ip_address) 
-            VALUES (${actorId}, ${targetCompanyId || null}, ${targetTenantId || null}, ${actionType}, ${metadata}, ${'127.0.0.1'})
+            VALUES (${actorId}, ${targetCompanyId || null}, ${targetTenantId || null}, ${actionType}, ${metadata}, ${clientIp})
         `;
     } catch (e) {
         logger.error('platform.audit_log_failed', 'Platform audit log insert failed', {

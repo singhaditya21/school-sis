@@ -1,9 +1,9 @@
 'use server';
 
-import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { sqlFor, withTenant } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { resolveTrustedAppOrigin } from '@/lib/security/client-ip';
 import { integrationRuntimeMode } from '@/lib/integrations/runtime-mode';
 import {
     normalizeAccountingLedgerConfig,
@@ -36,10 +36,7 @@ export interface AccountingStudioData {
 
 export async function getAccountingStudioDataAction(): Promise<AccountingStudioData> {
     const { tenantId } = await requireAuth('fees:read');
-    const hdrs = await headers();
-    const host = hdrs.get('x-forwarded-host') || hdrs.get('host') || 'school-sis-web.vercel.app';
-    const proto = hdrs.get('x-forwarded-proto') || 'https';
-    const appOrigin = (process.env.NEXT_PUBLIC_APP_URL || `${proto}://${host}`).replace(/\/+$/, '');
+    const appOrigin = resolveTrustedAppOrigin();
     const todayIso = new Date().toISOString().slice(0, 10);
     const thirtyDaysAgoIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 

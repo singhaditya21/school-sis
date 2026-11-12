@@ -3,7 +3,17 @@
 import { revalidatePath } from 'next/cache';
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
-import { ALL_MODULE_CODES } from './catalogue';
+import { getSession } from '@/lib/auth/session';
+import { modulesForSubscriptionTier } from '@/lib/auth/platform-owner';
+import { hasPermission, UserRole } from '@/lib/rbac/permissions';
+import { isDemoSession, isDemoTenantId } from '@/lib/tenant/demo-guard';
+import { ALL_MODULE_CODES, RECORDED_MODULES } from './catalogue';
+
+const MODULE_MUTATION_ROLES = new Set<string>([
+    'PLATFORM_ADMIN',
+    'SUPER_ADMIN',
+    'GROUP_EXECUTIVE',
+]);
 
 /**
  * Module entitlement actions.
@@ -53,7 +63,11 @@ async function loadCompany(tenantId: string) {
 }
 
 export async function getModuleEntitlements(): Promise<ModuleEntitlements> {
-    const { tenantId } = await requireAuth('settings:read');
+    const { tenantId, session } = await requireAuth();
+    const role = session.role as UserRole;
+    if (!hasPermission(role, 'settings:read') && session.role !== 'GROUP_EXECUTIVE') {
+        throw new Error('Forbidden: Insufficient permissions (settings:read)');
+    }
     const company = await loadCompany(tenantId);
 
     if (!company) {
@@ -81,7 +95,22 @@ export async function setModuleActiveAction(
     moduleCode: string,
     isActive: boolean,
 ): Promise<ToggleModuleResult> {
-    const { tenantId } = await requireAuth('settings:write');
+    const { tenantId, session } = await requireAuth();
+
+    if (!MODULE_MUTATION_ROLES.has(session.role)) {
+        return {
+            success: false,
+            error: 'Only Group Executives or Super Administrators can modify shared company module entitlements.',
+        };
+    }
+
+    const fullSession = await getSession();
+    if (isDemoSession(fullSession) || (await isDemoTenantId(tenantId))) {
+        return {
+            success: false,
+            error: 'Module entitlements are locked in the interactive demo sandbox.',
+        };
+    }
 
     if (!ALL_MODULE_CODES.includes(moduleCode)) {
         return { success: false, error: `Unknown module code "${moduleCode}".` };
@@ -93,6 +122,20 @@ export async function setModuleActiveAction(
             success: false,
             error: 'This school is not linked to a company record, so module entitlements cannot be changed here.',
         };
+    }
+
+    if (isActive) {
+        const tierModules = modulesForSubscriptionTier(company.subscriptionTier);
+        const allowedForTier = new Set<string>([
+            ...tierModules,
+            ...RECORDED_MODULES.map((mod) => mod.code),
+        ]);
+        if (!allowedForTier.has(moduleCode)) {
+            return {
+                success: false,
+                error: `Your current subscription tier (${company.subscriptionTier || 'CORE'}) does not include the "${moduleCode}" module. Upgrade your group subscription to enable it.`,
+            };
+        }
     }
 
     const { rows } = await pool.query(

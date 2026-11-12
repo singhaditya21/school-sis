@@ -3,8 +3,10 @@
 import crypto from 'node:crypto';
 import { hash } from 'bcryptjs';
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 import { pool } from '@/lib/db';
 import { requireRole } from '@/lib/auth/middleware';
+import { extractTrustedClientIp } from '@/lib/security/client-ip';
 import { UserRole } from '@/lib/rbac/permissions';
 import {
     CORE_DEFAULT_MODULES,
@@ -147,6 +149,13 @@ export async function provisionTenantFromLeadAction(input: {
         const temporaryPassword = crypto.randomBytes(14).toString('base64url');
         const passwordHash = await hash(temporaryPassword, 12);
 
+        let clientIp = 'unknown-ip';
+        try {
+            clientIp = extractTrustedClientIp(await headers());
+        } catch {
+            clientIp = 'unknown-ip';
+        }
+
         const client = await pool.connect();
         let companyId = '';
         let tenantId = '';
@@ -182,12 +191,13 @@ export async function provisionTenantFromLeadAction(input: {
 
             await client.query(
                 `INSERT INTO platform_audit_logs (actor_id, target_company_id, target_tenant_id, action_type, metadata, ip_address)
-                 VALUES ($1, $2, $3, 'PROVISION_TENANT_FROM_LEAD', $4, '127.0.0.1')`,
+                 VALUES ($1, $2, $3, 'PROVISION_TENANT_FROM_LEAD', $4, $5)`,
                 [
                     auth.userId,
                     companyId,
                     tenantId,
                     `Provisioned tenant ${schoolName} (${tenantCode}) from inbound lead ${lead.id}`,
+                    clientIp,
                 ],
             );
 

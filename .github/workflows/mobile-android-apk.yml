@@ -7,9 +7,18 @@ on:
         description: 'Production ScholarMind API Base URL'
         required: false
         default: 'https://school-sis-web.vercel.app'
+      require_signed_release:
+        description: 'Require release signing keystore secrets (fail instead of building debug APK)'
+        required: false
+        default: 'false'
+        type: string
 
 permissions:
   contents: read
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '9.15.9'
 
 jobs:
   build-android-apk:
@@ -19,27 +28,30 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
         with:
-          version: 9
+          version: ${{ env.PNPM_VERSION }}
 
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
+      - name: Setup Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 22
+          node-version: '24'
           cache: 'pnpm'
 
       - name: Setup Java 17 (Temurin)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+
+      - name: Validate toolchain contract
+        run: node scripts/check-toolchain.mjs
 
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
@@ -50,19 +62,63 @@ jobs:
       - name: Prebuild Native Android Project via Expo
         working-directory: apps/mobile
         env:
-          EXPO_PUBLIC_API_BASE_URL: ${{ inputs.api_base_url || 'https://school-sis-web.vercel.app' }}
+          EXPO_PUBLIC_BACKEND_URL: ${{ inputs.api_base_url || vars.EXPO_PUBLIC_BACKEND_URL || 'https://school-sis-web.vercel.app' }}
           CI: '1'
-        run: npx expo prebuild --platform android --non-interactive
+        run: |
+          set -euo pipefail
+          if ! [[ "$EXPO_PUBLIC_BACKEND_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/.*)?$ ]]; then
+            echo "Refusing mobile prebuild: EXPO_PUBLIC_BACKEND_URL must be a valid https:// URL." >&2
+            exit 1
+          fi
+          npx expo prebuild --platform android --non-interactive
 
-      - name: Assemble Release APK via Gradle
+      - name: Assemble Android APK via Gradle (Signed Release or Explicit Debug)
+        id: gradle_build
         working-directory: apps/mobile/android
         env:
-          EXPO_PUBLIC_API_BASE_URL: ${{ inputs.api_base_url || 'https://school-sis-web.vercel.app' }}
-        run: ./gradlew assembleRelease --no-daemon
+          EXPO_PUBLIC_BACKEND_URL: ${{ inputs.api_base_url || vars.EXPO_PUBLIC_BACKEND_URL || 'https://school-sis-web.vercel.app' }}
+          REQUIRE_SIGNED_RELEASE: ${{ inputs.require_signed_release || 'false' }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$EXPO_PUBLIC_BACKEND_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/.*)?$ ]]; then
+            echo "Refusing Gradle build: EXPO_PUBLIC_BACKEND_URL must be a valid https:// URL." >&2
+            exit 1
+          fi
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            if [ -z "${ANDROID_KEYSTORE_PASSWORD:-}" ] || [ -z "${ANDROID_KEY_ALIAS:-}" ] || [ -z "${ANDROID_KEY_PASSWORD:-}" ]; then
+              echo "ANDROID_KEYSTORE_BASE64 is set, but ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, or ANDROID_KEY_PASSWORD is missing." >&2
+              exit 1
+            fi
+            umask 077
+            keystore_file="$RUNNER_TEMP/scholarmind-release.keystore"
+            trap 'rm -f "$keystore_file"' EXIT
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_file"
+            ./gradlew assembleRelease --no-daemon \
+              "-Pandroid.injected.signing.store.file=$keystore_file" \
+              "-Pandroid.injected.signing.store.password=$ANDROID_KEYSTORE_PASSWORD" \
+              "-Pandroid.injected.signing.key.alias=$ANDROID_KEY_ALIAS" \
+              "-Pandroid.injected.signing.key.password=$ANDROID_KEY_PASSWORD"
+            echo "artifact_name=scholarmind-android-release-apk" >> "$GITHUB_OUTPUT"
+            echo "apk_path=apps/mobile/android/app/build/outputs/apk/release/*.apk" >> "$GITHUB_OUTPUT"
+          else
+            if [ "$REQUIRE_SIGNED_RELEASE" = "true" ]; then
+              echo "Refusing unsigned release build: require_signed_release is true and ANDROID_KEYSTORE_BASE64 is not configured." >&2
+              exit 1
+            fi
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not configured; building explicit assembleDebug APK instead of debug-signed release."
+            ./gradlew assembleDebug --no-daemon
+            echo "artifact_name=scholarmind-android-debug-apk" >> "$GITHUB_OUTPUT"
+            echo "apk_path=apps/mobile/android/app/build/outputs/apk/debug/*.apk" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Upload Direct-Download Android APK Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: scholarmind-android-release-apk
-          path: apps/mobile/android/app/build/outputs/apk/release/*.apk
+          name: ${{ steps.gradle_build.outputs.artifact_name }}
+          path: ${{ steps.gradle_build.outputs.apk_path }}
+          if-no-files-found: error
           retention-days: 30

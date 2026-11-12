@@ -662,7 +662,23 @@ describe('H-02, H-03 & H-04: Terminal invoice guards, webhook retry re-claim, 3-
         // 1. Late settlement on WAIVED invoice does not run UPDATE invoices
         mockClientQuery
             .mockResolvedValueOnce({}) // BEGIN
-            .mockResolvedValueOnce({ rows: [] }) // duplicate check
+            .mockResolvedValueOnce({
+                rows: [{
+                    id: 'ord-row-late-1',
+                    tenantId: TENANT_ID,
+                    invoiceId: INVOICE_ID,
+                    studentId: STUDENT_ID,
+                    provider: 'RAZORPAY',
+                    providerOrderId: 'order_late_1',
+                    providerPaymentId: null,
+                    amount: '500.00',
+                    amountMinor: 50000,
+                    currency: 'INR',
+                    status: 'CREATED',
+                    idempotencyKey: null,
+                    metadata: {},
+                }],
+            }) // SELECT payment_orders FOR UPDATE
             .mockResolvedValueOnce({
                 rows: [{
                     id: INVOICE_ID,
@@ -675,7 +691,11 @@ describe('H-02, H-03 & H-04: Terminal invoice guards, webhook retry re-claim, 3-
                     status: 'WAIVED',
                 }],
             }) // SELECT invoice FOR UPDATE
+            .mockResolvedValueOnce({ rows: [] }) // duplicate check
+            .mockResolvedValueOnce({}) // SAVEPOINT
             .mockResolvedValueOnce({ rows: [{ id: PAYMENT_ID }] }) // INSERT payment
+            .mockResolvedValueOnce({}) // RELEASE SAVEPOINT
+            .mockResolvedValueOnce({ rows: [{ id: 'ord-row-late-1' }] }) // UPDATE payment_orders
             .mockResolvedValueOnce({}) // INSERT receipt
             .mockResolvedValueOnce({}) // INSERT audit
             .mockResolvedValueOnce({}); // COMMIT
@@ -684,6 +704,7 @@ describe('H-02, H-03 & H-04: Terminal invoice guards, webhook retry re-claim, 3-
             tenantId: TENANT_ID,
             invoiceId: INVOICE_ID,
             provider: 'RAZORPAY',
+            providerOrderId: 'order_late_1',
             providerPaymentId: 'pay_late_1',
             amountMinor: 50000,
             currency: 'INR',
@@ -696,7 +717,23 @@ describe('H-02, H-03 & H-04: Terminal invoice guards, webhook retry re-claim, 3-
         mockClientQuery.mockClear();
         mockClientQuery
             .mockResolvedValueOnce({}) // BEGIN
-            .mockResolvedValueOnce({ rows: [] }) // duplicate check
+            .mockResolvedValueOnce({
+                rows: [{
+                    id: 'ord-row-partial-1',
+                    tenantId: TENANT_ID,
+                    invoiceId: INVOICE_ID,
+                    studentId: STUDENT_ID,
+                    provider: 'RAZORPAY',
+                    providerOrderId: 'order_partial_1',
+                    providerPaymentId: null,
+                    amount: '400.00',
+                    amountMinor: 40000,
+                    currency: 'INR',
+                    status: 'CREATED',
+                    idempotencyKey: null,
+                    metadata: {},
+                }],
+            }) // SELECT payment_orders FOR UPDATE
             .mockResolvedValueOnce({
                 rows: [{
                     id: INVOICE_ID,
@@ -708,9 +745,13 @@ describe('H-02, H-03 & H-04: Terminal invoice guards, webhook retry re-claim, 3-
                     dueDate: '2025-01-01',
                     status: 'PENDING',
                 }],
-            })
+            }) // SELECT invoice FOR UPDATE
+            .mockResolvedValueOnce({ rows: [] }) // duplicate check
+            .mockResolvedValueOnce({}) // SAVEPOINT
             .mockResolvedValueOnce({ rows: [{ id: PAYMENT_ID }] }) // INSERT payment
+            .mockResolvedValueOnce({}) // RELEASE SAVEPOINT
             .mockResolvedValueOnce({}) // UPDATE invoices
+            .mockResolvedValueOnce({ rows: [{ id: 'ord-row-partial-1' }] }) // UPDATE payment_orders
             .mockResolvedValueOnce({}) // INSERT receipt
             .mockResolvedValueOnce({}) // INSERT audit
             .mockResolvedValueOnce({}); // COMMIT
@@ -719,6 +760,7 @@ describe('H-02, H-03 & H-04: Terminal invoice guards, webhook retry re-claim, 3-
             tenantId: TENANT_ID,
             invoiceId: INVOICE_ID,
             provider: 'RAZORPAY',
+            providerOrderId: 'order_partial_1',
             providerPaymentId: 'pay_partial_1',
             amountMinor: 40000,
             currency: 'INR',

@@ -13,6 +13,7 @@
 import { revalidatePath } from 'next/cache';
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { logAudit } from '@/lib/audit';
 import { normalizeBoardPreset, type BoardPreset } from '@/lib/academics/board-grading';
 import {
     loadTenantReportCardPolicy,
@@ -145,6 +146,69 @@ export async function updateReportCardStudioPolicyAction(input: {
     return { ok: true, policy };
 }
 
+export async function publishReportCards(
+    examId: string,
+): Promise<{ ok: boolean; error?: string }> {
+    try {
+        const { tenantId, userId } = await requireAuth('exams:publish');
+        if (!isUuid(examId)) {
+            return { ok: false, error: 'Invalid exam identifier.' };
+        }
+
+        const checkRes = await pool.query<{ id: string; unverifiedCount: string }>(
+            `SELECT e.id,
+                    (
+                        SELECT COUNT(*)
+                        FROM student_results sr
+                        INNER JOIN exam_schedules es ON es.id = sr.exam_schedule_id
+                        LEFT JOIN exam_result_hashes erh ON erh.result_id = sr.id AND erh.tenant_id = e.tenant_id
+                        WHERE es.exam_id = e.id
+                          AND sr.tenant_id = e.tenant_id
+                          AND erh.id IS NULL
+                    ) AS "unverifiedCount"
+             FROM exams e
+             WHERE e.id = $1 AND e.tenant_id = $2`,
+            [examId, tenantId],
+        );
+
+        const exam = checkRes.rows[0];
+        if (!exam) {
+            return { ok: false, error: 'Exam not found or unauthorized.' };
+        }
+        if (Number(exam.unverifiedCount || 0) > 0) {
+            return {
+                ok: false,
+                error: 'All subject marks must be reviewed and hash-locked before publishing report cards.',
+            };
+        }
+
+        await pool.query(
+            `UPDATE exams
+                SET status = 'PUBLISHED',
+                    updated_at = NOW()
+              WHERE id = $1 AND tenant_id = $2`,
+            [examId, tenantId],
+        );
+
+        await logAudit({
+            tenantId,
+            userId,
+            action: 'UPDATE',
+            entityType: 'report_card_publication',
+            entityId: examId,
+            description: 'Published report cards for exam',
+        });
+
+        revalidatePath('/exams/report-cards');
+        return { ok: true };
+    } catch (error) {
+        return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Failed to publish report cards.',
+        };
+    }
+}
+
 // ─── Pickers ─────────────────────────────────────────────────
 
 export async function getReportCardExamOptions(): Promise<ReportCardExamOption[]> {
@@ -183,8 +247,26 @@ export async function getReportCardExamOptions(): Promise<ReportCardExamOption[]
 
 /** Classes (grade × section) that this exam actually has papers for. */
 export async function getReportCardClasses(examId: string): Promise<ReportCardClassOption[]> {
-    const { tenantId } = await requireAuth('exams:read');
+    const { tenantId, userId, session } = await requireAuth('exams:read');
     if (!isUuid(examId)) return [];
+
+    const params: unknown[] = [examId, tenantId];
+    let teacherJoin = '';
+    let teacherClause = '';
+    if (session.role === 'TEACHER') {
+        params.push(userId);
+        teacherJoin = ` LEFT JOIN staff_profiles sp ON sp.user_id = $3 AND sp.tenant_id = e.tenant_id`;
+        teacherClause = ` AND (
+            sec.class_teacher_id = $3
+            OR (sp.id IS NOT NULL AND sec.class_teacher_id = sp.id)
+            OR EXISTS (
+                SELECT 1 FROM timetable_entries te
+                WHERE te.tenant_id = e.tenant_id
+                  AND te.section_id = sec.id
+                  AND (te.teacher_id = $3 OR (sp.id IS NOT NULL AND te.teacher_id = sp.id))
+            )
+        )`;
+    }
 
     const { rows } = await pool.query(
         `SELECT g.id            AS "gradeId",
@@ -193,26 +275,30 @@ export async function getReportCardClasses(examId: string): Promise<ReportCardCl
                 sec.id          AS "sectionId",
                 sec.name        AS "sectionName",
                 (SELECT COUNT(*) FROM students st
-                  WHERE st.section_id = sec.id AND st.tenant_id = e.tenant_id AND st.status = 'ACTIVE'
+                  WHERE st.section_id = sec.id
+                    AND st.tenant_id = e.tenant_id
+                    AND st.status = 'ACTIVE'
+                    AND COALESCE(st.custom_data->>'erased', 'false') <> 'true'
                 ) AS "studentCount",
                 (SELECT COUNT(*)
                    FROM student_results sr
                    INNER JOIN exam_schedules es2 ON sr.exam_schedule_id = es2.id
-                   INNER JOIN students st2 ON sr.student_id = st2.id
+                   INNER JOIN students st2 ON sr.student_id = st2.id AND st2.tenant_id = e.tenant_id
                   WHERE es2.exam_id = e.id
                     AND sr.tenant_id = e.tenant_id
                     AND st2.section_id = sec.id
+                    AND COALESCE(st2.custom_data->>'erased', 'false') <> 'true'
                 ) AS "resultCount"
          FROM exams e
          INNER JOIN grades g ON g.tenant_id = e.tenant_id
          INNER JOIN sections sec ON sec.grade_id = g.id
                                 AND sec.tenant_id = e.tenant_id
-                                AND sec.academic_year_id = e.academic_year_id
+                                AND sec.academic_year_id = e.academic_year_id${teacherJoin}
          WHERE e.id = $1
            AND e.tenant_id = $2
-           AND EXISTS (SELECT 1 FROM exam_schedules es WHERE es.exam_id = e.id AND es.grade_id = g.id)
+           AND EXISTS (SELECT 1 FROM exam_schedules es WHERE es.exam_id = e.id AND es.grade_id = g.id)${teacherClause}
          ORDER BY g.display_order ASC, sec.name ASC`,
-        [examId, tenantId],
+        params,
     );
 
     return rows.map((r) => ({
@@ -274,8 +360,31 @@ export async function getClassReportCards(
     sectionId: string,
     examId: string,
 ): Promise<ClassReportCards | null> {
-    const { tenantId } = await requireAuth('exams:read');
+    const { tenantId, userId, session } = await requireAuth('exams:read');
     if (!isUuid(sectionId) || !isUuid(examId)) return null;
+
+    if (session.role === 'TEACHER') {
+        const teacherCheck = await pool.query(
+            `SELECT sec.id
+             FROM sections sec
+             LEFT JOIN staff_profiles sp ON sp.user_id = $2 AND sp.tenant_id = $1
+             WHERE sec.tenant_id = $1
+               AND sec.id = $3
+               AND (
+                   sec.class_teacher_id = $2
+                   OR (sp.id IS NOT NULL AND sec.class_teacher_id = sp.id)
+                   OR EXISTS (
+                       SELECT 1 FROM timetable_entries te
+                       WHERE te.tenant_id = $1
+                         AND te.section_id = sec.id
+                         AND (te.teacher_id = $2 OR (sp.id IS NOT NULL AND te.teacher_id = sp.id))
+                   )
+               )
+             LIMIT 1`,
+            [tenantId, userId, sectionId],
+        );
+        if (teacherCheck.rows.length === 0) return null;
+    }
 
     const contextRes = await pool.query(
         `SELECT e.id     AS "examId",
@@ -332,7 +441,10 @@ export async function getClassReportCards(
                 sec.name            AS "sectionName"
          FROM students st
          LEFT JOIN sections sec ON st.section_id = sec.id AND sec.tenant_id = st.tenant_id
-         WHERE st.grade_id = $1 AND st.tenant_id = $2 AND st.status = 'ACTIVE'
+         WHERE st.grade_id = $1
+           AND st.tenant_id = $2
+           AND st.status = 'ACTIVE'
+           AND COALESCE(st.custom_data->>'erased', 'false') <> 'true'
          ORDER BY sec.name ASC NULLS LAST, st.roll_number ASC NULLS LAST, st.first_name ASC`,
         [context.gradeId, tenantId],
     );

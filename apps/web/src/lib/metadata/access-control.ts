@@ -10,6 +10,48 @@ export type RuntimeMetadataFieldWithPermissions = RuntimeMetadataField & {
     permissions?: MetadataFieldPermission[] | null;
 };
 
+export const LEDGER_AND_IDENTITY_PROTECTED_TABLES: ReadonlySet<string> = new Set([
+    'invoices',
+    'payments',
+    'payment_orders',
+    'concessions',
+    'receipts',
+    'users',
+    'workflow_approval_requests',
+    'workflow_approval_reviews',
+    'audit_logs',
+    'platform_audit_logs',
+]);
+
+export const PROTECTED_LEGACY_PLAINTEXT_COLUMNS: ReadonlySet<string> = new Set([
+    'aadhaar_number',
+    'apaar_id',
+    'email',
+    'phone',
+    'alternate_phone',
+    'emergency_phone',
+    'doctor_phone',
+    'passport_number',
+    'pan_number',
+    'bank_account',
+    'parent_email',
+    'parent_phone',
+    'password_hash',
+    'mfa_secret',
+    'mfa_backup_codes',
+    'session_version',
+]);
+
+export function isProtectedLedgerOrIdentityTable(tableName: string | null | undefined): boolean {
+    if (!tableName) return false;
+    return LEDGER_AND_IDENTITY_PROTECTED_TABLES.has(tableName.trim().toLowerCase());
+}
+
+export function isProtectedLegacyPlaintextColumn(columnName: string | null | undefined): boolean {
+    if (!columnName) return false;
+    return PROTECTED_LEGACY_PLAINTEXT_COLUMNS.has(columnName.trim().toLowerCase());
+}
+
 const METADATA_FIELD_BYPASS_ROLES = new Set(['PLATFORM_ADMIN', 'SUPER_ADMIN']);
 const METADATA_FIELD_DEFAULT_ACCESS_ROLES = new Set(['PLATFORM_ADMIN', 'SUPER_ADMIN', 'SCHOOL_ADMIN']);
 

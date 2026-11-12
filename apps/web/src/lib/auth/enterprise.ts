@@ -1,12 +1,16 @@
+import crypto from 'node:crypto';
+import dns from 'node:dns/promises';
 import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
 import type { QueryResult } from 'pg';
-import { shouldRequireMfaEnrollment } from './identity';
+import { isMfaEnrollmentEnforced } from './identity';
+import { isRoleMfaRequired } from './session-options';
 import {
     isPermanentPlatformAdminEmail,
     PLATFORM_ALL_MODULES,
     PLATFORM_HQ_TENANT_CODE,
 } from './platform-owner';
 import { encryptEmailCandidates, decryptFieldTolerant } from '@/lib/encryption';
+import { isSafeWebhookDestinationUrl } from '@/lib/metadata/platform';
 
 type SSOCallbackResult =
     | {
@@ -23,6 +27,8 @@ type SSOCallbackResult =
         activeModules?: string[];
         mfaEnabled: boolean;
         mfaVerified: boolean;
+        sessionVersion: number;
+        tenantSessionVersion: number;
     }
     | {
         success: false;
@@ -30,6 +36,8 @@ type SSOCallbackResult =
     };
 
 type OidcConfig = {
+    issuer?: string;
+    jwksUri?: string;
     authorizationUrl?: string;
     tokenUrl?: string;
     userInfoUrl?: string;
@@ -50,7 +58,8 @@ type OidcTokenResponse = {
     error_description?: string;
 };
 
-type OidcUserInfo = {
+export type OidcUserInfo = {
+    iss?: string;
     sub?: string;
     email?: string;
     email_verified?: boolean;
@@ -59,6 +68,26 @@ type OidcUserInfo = {
     given_name?: string;
     family_name?: string;
     aud?: string | string[];
+    azp?: string;
+    exp?: number;
+    nbf?: number;
+    iat?: number;
+};
+
+type OidcDiscoveryDocument = {
+    issuer?: string;
+    jwks_uri?: string;
+};
+
+type JwkRecord = crypto.JsonWebKey & {
+    kid?: string;
+    use?: string;
+    alg?: string;
+    kty?: string;
+};
+
+type JwksDocument = {
+    keys?: JwkRecord[];
 };
 
 type IdentityUserRow = {
@@ -72,7 +101,9 @@ type IdentityUserRow = {
     lastName: string | null;
     isActive: boolean;
     mfaEnabled: boolean;
+    sessionVersion?: number;
     tenantIsActive: boolean;
+    tenantSessionVersion?: number;
     companyId: string | null;
     companyIsActive: boolean | null;
     subscriptionTier: string | null;
@@ -80,6 +111,15 @@ type IdentityUserRow = {
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const JWKS_CACHE_TTL_MS = 5 * 60 * 1000;
+const JWKS_CACHE_MAX_ENTRIES = 64;
+const jwksCache = new Map<string, { keys: JwkRecord[]; expiresAt: number }>();
+
+export function clearJwksCacheForTests(): void {
+    if (process.env.NODE_ENV === 'test') {
+        jwksCache.clear();
+    }
+}
 
 function providerEnv(provider: string, key: string): string | undefined {
     const normalizedProvider = provider.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_');
@@ -88,6 +128,8 @@ function providerEnv(provider: string, key: string): string | undefined {
 
 function oidcConfig(provider: string): OidcConfig {
     return {
+        issuer: providerEnv(provider, 'ISSUER'),
+        jwksUri: providerEnv(provider, 'JWKS_URI'),
         authorizationUrl: providerEnv(provider, 'AUTHORIZATION_URL'),
         tokenUrl: providerEnv(provider, 'TOKEN_URL'),
         userInfoUrl: providerEnv(provider, 'USERINFO_URL'),
@@ -101,17 +143,230 @@ function oidcConfig(provider: string): OidcConfig {
     };
 }
 
-function decodeJwtPayload(idToken: string): OidcUserInfo | null {
-    const payload = idToken.split('.')[1];
-    if (!payload) return null;
+function normalizeIssuer(value: string): string {
+    return value.trim().replace(/\/+$/, '');
+}
 
+function isPrivateOrLoopbackIp(address: string): boolean {
+    const normalized = address.trim().toLowerCase();
+    if (
+        normalized === '::1' ||
+        normalized === '::' ||
+        normalized.startsWith('fe80:') ||
+        normalized.startsWith('fc') ||
+        normalized.startsWith('fd')
+    ) {
+        return true;
+    }
+
+    const mappedPrefix = '::ffff:';
+    const ipv4Candidate = normalized.startsWith(mappedPrefix)
+        ? normalized.slice(mappedPrefix.length)
+        : normalized;
+
+    const parts = ipv4Candidate.split('.').map(Number);
+    if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
+        return false;
+    }
+    const [a, b] = parts;
+    return (
+        a === 0 ||
+        a === 10 ||
+        a === 127 ||
+        (a === 100 && b >= 64 && b <= 127) ||
+        (a === 169 && b === 254) ||
+        (a === 172 && b >= 16 && b <= 31) ||
+        (a === 192 && b === 168)
+    );
+}
+
+async function assertSafeOidcEndpoint(rawUrl: string): Promise<URL> {
+    if (!isSafeWebhookDestinationUrl(rawUrl)) {
+        throw new Error('OIDC endpoint must use a public HTTPS URL.');
+    }
+
+    const parsed = new URL(rawUrl);
+    if (process.env.NODE_ENV !== 'test') {
+        const resolved = await dns.lookup(parsed.hostname, { all: true });
+        if (resolved.length === 0 || resolved.some((entry) => isPrivateOrLoopbackIp(entry.address))) {
+            throw new Error('OIDC endpoint resolved to a non-public IP address.');
+        }
+    }
+
+    return parsed;
+}
+
+async function safeOidcFetch(url: string, init?: RequestInit): Promise<Response> {
+    await assertSafeOidcEndpoint(url);
+    return fetch(url, {
+        ...init,
+        redirect: 'error',
+    });
+}
+
+function decodeBase64UrlJson<T>(segment: string): T | null {
     try {
-        const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-        const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
-        return JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as OidcUserInfo;
+        return JSON.parse(Buffer.from(segment, 'base64url').toString('utf8')) as T;
     } catch {
         return null;
     }
+}
+
+async function resolveJwksForIssuer(issuer: string, explicitJwksUri?: string): Promise<JwkRecord[]> {
+    const normalizedIss = normalizeIssuer(issuer);
+    const cacheKey = explicitJwksUri ? `${normalizedIss}|${explicitJwksUri}` : normalizedIss;
+    const now = Date.now();
+    const cached = jwksCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+        return cached.keys;
+    }
+
+    let jwksUri = explicitJwksUri?.trim();
+    if (!jwksUri) {
+        const discoveryUrl = `${normalizedIss}/.well-known/openid-configuration`;
+        const discoveryResponse = await safeOidcFetch(discoveryUrl, {
+            headers: { accept: 'application/json' },
+        });
+        const discovery = await readJson<OidcDiscoveryDocument>(discoveryResponse);
+        if (!discoveryResponse.ok || !discovery?.jwks_uri) {
+            throw new Error('Failed to load OIDC discovery configuration.');
+        }
+        if (discovery.issuer && normalizeIssuer(discovery.issuer) !== normalizedIss) {
+            throw new Error('OIDC discovery issuer mismatch.');
+        }
+        jwksUri = discovery.jwks_uri;
+    }
+
+    const jwksResponse = await safeOidcFetch(jwksUri, {
+        headers: { accept: 'application/json' },
+    });
+    const jwks = await readJson<JwksDocument>(jwksResponse);
+    if (!jwksResponse.ok || !Array.isArray(jwks?.keys) || jwks.keys.length === 0) {
+        throw new Error('Failed to load OIDC JWKS signing keys.');
+    }
+
+    if (jwksCache.size >= JWKS_CACHE_MAX_ENTRIES) {
+        const oldest = jwksCache.keys().next().value;
+        if (oldest) jwksCache.delete(oldest);
+    }
+    jwksCache.set(cacheKey, {
+        keys: jwks.keys,
+        expiresAt: now + JWKS_CACHE_TTL_MS,
+    });
+    return jwks.keys;
+}
+
+export async function verifyOidcIdToken(
+    idToken: string,
+    options: {
+        clientId: string;
+        expectedIssuer?: string;
+        trustedEndpointOrigin?: string;
+        jwksUri?: string;
+        nowSeconds?: number;
+    },
+): Promise<OidcUserInfo> {
+    const parts = idToken.split('.');
+    if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) {
+        throw new Error('Malformed OIDC ID token.');
+    }
+
+    const header = decodeBase64UrlJson<{ alg?: string; kid?: string }>(parts[0]);
+    const payload = decodeBase64UrlJson<OidcUserInfo>(parts[1]);
+    if (!header || !payload) {
+        throw new Error('Malformed OIDC ID token JSON claims.');
+    }
+
+    if (header.alg !== 'RS256' && header.alg !== 'ES256') {
+        throw new Error(`Unsupported OIDC ID token signing algorithm: ${String(header.alg)}`);
+    }
+
+    if (!payload.iss || typeof payload.iss !== 'string') {
+        throw new Error('OIDC ID token is missing iss claim.');
+    }
+    await assertSafeOidcEndpoint(payload.iss);
+
+    if (options.expectedIssuer) {
+        if (normalizeIssuer(payload.iss) !== normalizeIssuer(options.expectedIssuer)) {
+            throw new Error('OIDC ID token issuer mismatch.');
+        }
+    } else if (options.trustedEndpointOrigin) {
+        const issuerOrigin = new URL(payload.iss).origin;
+        if (issuerOrigin !== options.trustedEndpointOrigin) {
+            throw new Error('OIDC ID token issuer origin does not match configured identity provider.');
+        }
+    } else {
+        throw new Error('OIDC issuer verification requires SSO_ISSUER or a trusted HTTPS endpoint.');
+    }
+
+    const audiences = Array.isArray(payload.aud)
+        ? payload.aud
+        : typeof payload.aud === 'string'
+            ? [payload.aud]
+            : [];
+    if (!options.clientId || !audiences.includes(options.clientId)) {
+        throw new Error('OIDC ID token audience mismatch.');
+    }
+    if (audiences.length > 1 && payload.azp && payload.azp !== options.clientId) {
+        throw new Error('OIDC ID token authorized party (azp) mismatch.');
+    }
+
+    const now = options.nowSeconds ?? Math.floor(Date.now() / 1000);
+    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp) || payload.exp <= now) {
+        throw new Error('OIDC ID token has expired.');
+    }
+    if (typeof payload.nbf === 'number' && Number.isFinite(payload.nbf) && payload.nbf > now + 60) {
+        throw new Error('OIDC ID token is not yet valid.');
+    }
+
+    const candidateJwks = (await resolveJwksForIssuer(payload.iss, options.jwksUri)).filter((jwk) => {
+        if (jwk.use && jwk.use !== 'sig') return false;
+        if (header.kid && jwk.kid && jwk.kid !== header.kid) return false;
+        if (header.alg === 'RS256' && jwk.kty !== 'RSA') return false;
+        if (header.alg === 'ES256' && jwk.kty !== 'EC') return false;
+        return true;
+    });
+
+    if (candidateJwks.length === 0) {
+        throw new Error('No matching OIDC JWK found for ID token signature verification.');
+    }
+
+    const signingInput = Buffer.from(`${parts[0]}.${parts[1]}`, 'utf8');
+    const signature = Buffer.from(parts[2], 'base64url');
+
+    let signatureVerified = false;
+    for (const jwk of candidateJwks) {
+        try {
+            const publicKey = crypto.createPublicKey({
+                key: jwk,
+                format: 'jwk',
+            });
+            const valid = header.alg === 'RS256'
+                ? crypto.verify('RSA-SHA256', signingInput, publicKey, signature)
+                : crypto.verify(
+                    'sha256',
+                    signingInput,
+                    { key: publicKey, dsaEncoding: 'ieee-p1363' },
+                    signature,
+                );
+            if (valid) {
+                signatureVerified = true;
+                break;
+            }
+        } catch {
+            // Try next matching key in rotation set.
+        }
+    }
+
+    if (!signatureVerified) {
+        throw new Error('OIDC ID token cryptographic signature verification failed.');
+    }
+
+    return payload;
+}
+
+export function clearOidcJwksCacheForTests(): void {
+    jwksCache.clear();
 }
 
 function emailFromUserInfo(userInfo: OidcUserInfo): string | null {
@@ -153,14 +408,22 @@ async function exchangeCodeForToken(
         body.set('redirect_uri', callbackRedirectUri);
     }
 
-    const response = await fetch(config.tokenUrl, {
-        method: 'POST',
-        headers: {
-            accept: 'application/json',
-            'content-type': 'application/x-www-form-urlencoded',
-        },
-        body,
-    });
+    let response: Response;
+    try {
+        response = await safeOidcFetch(config.tokenUrl, {
+            method: 'POST',
+            headers: {
+                accept: 'application/json',
+                'content-type': 'application/x-www-form-urlencoded',
+            },
+            body,
+        });
+    } catch (error) {
+        return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Enterprise SSO token endpoint rejected.',
+        };
+    }
 
     const token = await readJson<OidcTokenResponse>(response);
     if (!response.ok || !token) {
@@ -176,23 +439,73 @@ async function exchangeCodeForToken(
     return { ok: true, token };
 }
 
-async function fetchUserInfo(provider: string, token: OidcTokenResponse): Promise<OidcUserInfo | null> {
+async function fetchVerifiedUserInfo(
+    provider: string,
+    token: OidcTokenResponse,
+): Promise<{ ok: true; userInfo: OidcUserInfo } | { ok: false; error: string }> {
     const config = oidcConfig(provider);
+    if (!config.clientId) {
+        return { ok: false, error: 'Enterprise SSO client_id is not configured.' };
+    }
 
-    if (config.userInfoUrl && token.access_token) {
-        const response = await fetch(config.userInfoUrl, {
-            headers: {
-                accept: 'application/json',
-                authorization: `Bearer ${token.access_token}`,
-            },
-        });
-        if (response.ok) {
-            const userInfo = await readJson<OidcUserInfo>(response);
-            if (userInfo) return userInfo;
+    let verifiedIdTokenClaims: OidcUserInfo | null = null;
+    if (token.id_token) {
+        let trustedEndpointOrigin: string | undefined;
+        try {
+            const refUrl = config.tokenUrl || config.authorizationUrl;
+            if (refUrl) trustedEndpointOrigin = new URL(refUrl).origin;
+        } catch {
+            trustedEndpointOrigin = undefined;
+        }
+
+        try {
+            verifiedIdTokenClaims = await verifyOidcIdToken(token.id_token, {
+                clientId: config.clientId,
+                expectedIssuer: config.issuer,
+                trustedEndpointOrigin,
+                jwksUri: config.jwksUri,
+            });
+        } catch (error) {
+            return {
+                ok: false,
+                error: error instanceof Error ? error.message : 'Invalid Enterprise SSO ID token.',
+            };
         }
     }
 
-    return token.id_token ? decodeJwtPayload(token.id_token) : null;
+    if (config.userInfoUrl && token.access_token) {
+        try {
+            const response = await safeOidcFetch(config.userInfoUrl, {
+                headers: {
+                    accept: 'application/json',
+                    authorization: `Bearer ${token.access_token}`,
+                },
+            });
+            if (response.ok) {
+                const userInfo = await readJson<OidcUserInfo>(response);
+                if (userInfo) {
+                    if (verifiedIdTokenClaims?.sub && userInfo.sub && verifiedIdTokenClaims.sub !== userInfo.sub) {
+                        return { ok: false, error: 'OIDC userinfo subject does not match verified ID token.' };
+                    }
+                    return {
+                        ok: true,
+                        userInfo: verifiedIdTokenClaims ? { ...verifiedIdTokenClaims, ...userInfo } : userInfo,
+                    };
+                }
+            }
+        } catch (error) {
+            return {
+                ok: false,
+                error: error instanceof Error ? error.message : 'Enterprise SSO userinfo request failed.',
+            };
+        }
+    }
+
+    if (verifiedIdTokenClaims) {
+        return { ok: true, userInfo: verifiedIdTokenClaims };
+    }
+
+    return { ok: false, error: 'Enterprise SSO did not return verified user identity claims.' };
 }
 
 async function findExistingIdentityUser(
@@ -221,7 +534,9 @@ async function findExistingIdentityUser(
             u.last_name AS "lastName",
             u.is_active AS "isActive",
             u.mfa_enabled AS "mfaEnabled",
+            u.session_version AS "sessionVersion",
             t.is_active AS "tenantIsActive",
+            t.session_version AS "tenantSessionVersion",
             c.id AS "companyId",
             c.is_active AS "companyIsActive",
             c.subscription_tier AS "subscriptionTier",
@@ -263,6 +578,9 @@ export async function generateSSOAuthorizationUrl(
     if (!config.authorizationUrl || !config.clientId) {
         throw new Error('Enterprise SSO is not configured.');
     }
+    if (!isSafeWebhookDestinationUrl(config.authorizationUrl)) {
+        throw new Error('Enterprise SSO authorization URL must use a public HTTPS origin.');
+    }
 
     const url = new URL(config.authorizationUrl);
     url.searchParams.set('provider', provider);
@@ -291,10 +609,12 @@ export async function handleSSOCallback(
         return { success: false, error: tokenResult.error };
     }
 
-    const userInfo = await fetchUserInfo(provider, tokenResult.token);
-    if (!userInfo) {
-        return { success: false, error: 'Enterprise SSO did not return user identity claims.' };
+    const verifiedUserInfo = await fetchVerifiedUserInfo(provider, tokenResult.token);
+    if (verifiedUserInfo.ok === false) {
+        return { success: false, error: verifiedUserInfo.error };
     }
+    const { userInfo } = verifiedUserInfo;
+
     if (config.clientId && userInfo.aud) {
         const audiences = Array.isArray(userInfo.aud) ? userInfo.aud : [userInfo.aud];
         if (audiences.length > 0 && !audiences.includes(config.clientId)) {
@@ -328,9 +648,15 @@ export async function handleSSOCallback(
             return { success: false, error: 'Invalid platform administrator identity mapping.' };
         }
     }
-    const requiresMfaBackedSso = user.mfaEnabled || shouldRequireMfaEnrollment(user.role, Boolean(user.mfaEnabled));
+
+    const roleRequiresMfa = isRoleMfaRequired(user.role, { tenantCode: user.tenantCode });
+    const requiresMfaBackedSso =
+        user.mfaEnabled || (roleRequiresMfa && !user.mfaEnabled && isMfaEnrollmentEnforced());
     if (requiresMfaBackedSso && !config.assumeMfa) {
-        return { success: false, error: 'This account requires MFA-backed SSO. Enable SSO_ASSUME_MFA only after enforcing MFA at the identity provider.' };
+        return {
+            success: false,
+            error: 'This account requires MFA-backed SSO. Enable SSO_ASSUME_MFA only after enforcing MFA at the identity provider.',
+        };
     }
 
     const isHqAdmin = user.role === 'PLATFORM_ADMIN';
@@ -351,5 +677,7 @@ export async function handleSSOCallback(
             : (Array.isArray(user.activeModules) ? user.activeModules : []),
         mfaEnabled: Boolean(user.mfaEnabled),
         mfaVerified: config.assumeMfa,
+        sessionVersion: Number(user.sessionVersion ?? 1),
+        tenantSessionVersion: Number(user.tenantSessionVersion ?? 1),
     };
 }

@@ -11,9 +11,12 @@ function numberFromBody(value: unknown, fallback: number, max: number): number {
   return Math.max(1, Math.min(Math.floor(value), max));
 }
 
-async function runDispatcher(body: Record<string, unknown>) {
-  const queue = typeof body.queue === 'string' && body.queue.trim() ? body.queue.trim() : 'default';
-  const limit = numberFromBody(body.limit, 10, 100);
+async function runDispatcher(body: Record<string, unknown>, defaultJobLimit = 25) {
+  const queue =
+    typeof body.queue === 'string' && body.queue.trim().length > 0
+      ? body.queue.trim()
+      : undefined;
+  const limit = numberFromBody(body.jobLimit ?? body.limit, defaultJobLimit, 100);
   const notificationLimit = numberFromBody(body.notificationLimit, 25, 100);
   const sweepNotifications = body.sweepNotifications !== false;
 
@@ -51,5 +54,5 @@ export async function GET(request: Request) {
   });
   if (authError) return authError;
 
-  return runDispatcher({});
+  return runDispatcher({}, 10);
 }
