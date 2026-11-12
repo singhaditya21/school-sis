@@ -161,14 +161,14 @@ export function ExecutiveDashboardClient({
             case 'kpi-billed':
                 return (
                     <Card decoration="top" decorationColor="slate">
-                        <Text>Active Campus Billed</Text>
+                        <Text>Total Billed</Text>
                         <Metric>{formatCurrency(metrics.totalExpectedFees)}</Metric>
                     </Card>
                 );
             case 'kpi-collected':
                 return (
                     <Card decoration="top" decorationColor="amber">
-                        <Text>Active Campus Collected</Text>
+                        <Text>Total Collected</Text>
                         <Metric>{formatCurrency(metrics.totalCollectedFees)}</Metric>
                         <Text className="mt-2">{collectionRate.toFixed(1)}% collection rate</Text>
                     </Card>
@@ -178,7 +178,7 @@ export function ExecutiveDashboardClient({
                     <Card decoration="top" decorationColor="red">
                         <Flex alignItems="start">
                             <div>
-                                <Text>Active Campus Outstanding</Text>
+                                <Text>Outstanding</Text>
                                 <Metric>{formatCurrency(metrics.collectionDeficit)}</Metric>
                             </div>
                             {metrics.collectionDeficit > 0 && (
@@ -259,10 +259,10 @@ export function ExecutiveDashboardClient({
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <Title className="text-3xl font-bold text-foreground">
-                        Executive &amp; Multi-Campus Command Center
+                        Executive Overview
                     </Title>
                     <Text className="mt-1 text-muted-foreground">
-                        Consolidated trust treasury, campus benchmarking, and customizable board KPIs.
+                        Multi-Campus Trust Command Center, campus benchmarking, and customizable board KPIs.
                     </Text>
                 </div>
                 <div className="flex items-center gap-2">
