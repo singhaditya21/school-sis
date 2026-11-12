@@ -11,9 +11,11 @@ name: Dispatch Background Jobs
 
 on:
   schedule:
-    # Every 5 minutes is GitHub's floor. Scheduled runs can be delayed under
-    # platform load, so treat this as "within ~15 minutes", not real-time.
-    - cron: "*/5 * * * *"
+    # Run every 20 minutes during Indian waking/school hours (02:00-17:59 UTC =
+    # 07:30-23:29 IST) so Neon serverless Postgres suspends cleanly between runs
+    # and sleeps overnight (~30 CU-hrs/mo vs ~180 CU-hrs/mo on 24/7 */5), staying
+    # safely within Neon Free quota while vercel.json (0 1 * * *) sweeps at 06:30 IST.
+    - cron: "*/20 2-17 * * *"
   workflow_dispatch:
     inputs:
       job_limit:
