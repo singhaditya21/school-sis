@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { requireApiAuth } from '@/lib/auth/api';
 import { canAccessStudentDocument } from '@/lib/auth/document-access';
+import { withTenant } from '@/lib/db';
+import { evaluateStudentReportCardGovernance } from '@/lib/academics/report-card-policy';
 import { attachmentDisposition, fetchExternalPdf } from '@/lib/pdf/external';
 import {
     loadReportCardForPdf,
@@ -54,6 +56,25 @@ export async function GET(
                 { error: 'No published report card exists for this student and term.' },
                 { status: 404 },
             );
+        }
+
+        if (
+            (auth.context.role === 'PARENT' || auth.context.role === 'STUDENT') &&
+            typeof withTenant === 'function'
+        ) {
+            const governance = await evaluateStudentReportCardGovernance(
+                auth.context.tenantId,
+                studentId,
+            );
+            if (governance.feeHold.active) {
+                return NextResponse.json(
+                    {
+                        error: 'Official report card download is currently on hold pending overdue fee clearance.',
+                        feeHold: governance.feeHold,
+                    },
+                    { status: 402 },
+                );
+            }
         }
 
         const data = await loadReportCardForPdf(studentId, termId, auth.context.tenantId);

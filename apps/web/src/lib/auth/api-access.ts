@@ -183,6 +183,12 @@ export const API_ACCESS_POLICIES = [
         expectedGuardSnippets: ['requireBearerServiceAuth'],
     },
     {
+        prefix: '/api/mobile',
+        boundary: 'session',
+        description: 'Mobile companion workspace and offline roll-call sync API.',
+        expectedGuardSnippets: ['requireApiAuth'],
+    },
+    {
         prefix: '/api/notifications',
         boundary: 'session',
         description: 'Notification stream APIs.',

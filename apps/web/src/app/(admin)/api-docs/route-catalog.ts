@@ -654,6 +654,26 @@ export const API_ROUTES: readonly ApiRouteDoc[] = [
         auth: 'service-token',
     },
     {
+        path: '/api/mobile/workspace',
+        methods: ['GET', 'POST'],
+        group: 'Mobile',
+        summary:
+            'Companion mobile workspace snapshot (Parent sibling hub, UPI pay links, dismissal gate pass QR, and Teacher class register) plus offline roll-call attendance sync and guardian leave notes.',
+        auth: 'session',
+        query: [
+            {
+                name: 'childId',
+                required: false,
+                description: 'Optional ward UUID to focus when role is PARENT.',
+            },
+            {
+                name: 'sectionId',
+                required: false,
+                description: 'Optional section UUID to focus for Teacher/Admin roll-call.',
+            },
+        ],
+    },
+    {
         path: '/api/security/csp-report',
         methods: ['POST'],
         group: 'Operations',

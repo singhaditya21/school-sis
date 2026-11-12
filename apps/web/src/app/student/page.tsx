@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Award, BookOpen, CalendarCheck } from 'lucide-react';
 import { getMyOverview } from './_lib/queries';
 import { AccountNotLinked } from './_components/AccountNotLinked';
 
@@ -26,7 +27,7 @@ export default async function StudentOverviewPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-card rounded-xl border shadow-sm p-6">
+                <div className="bg-card rounded-xl border border-border shadow-sm p-6">
                     <h2 className="text-sm font-medium text-muted-foreground">Attendance to date</h2>
                     {attendanceToDate.rate === null ? (
                         <p className="mt-2 text-sm text-muted-foreground">No attendance marked yet</p>
@@ -40,36 +41,60 @@ export default async function StudentOverviewPage() {
                     )}
                 </div>
 
-                <div className="bg-card rounded-xl border shadow-sm p-6">
+                <div className="bg-card rounded-xl border border-border shadow-sm p-6">
                     <h2 className="text-sm font-medium text-muted-foreground">Published results</h2>
                     <p className="mt-2 text-3xl font-bold text-foreground">{publishedResultCount}</p>
                     <p className="text-sm text-muted-foreground">subject marks released</p>
                 </div>
 
-                <div className="bg-card rounded-xl border shadow-sm p-6">
+                <div className="bg-card rounded-xl border border-border shadow-sm p-6">
                     <h2 className="text-sm font-medium text-muted-foreground">Homework</h2>
                     <p className="mt-2 text-3xl font-bold text-foreground">{homeworkDueSoon}</p>
                     <p className="text-sm text-muted-foreground">
                         due in the next 7 days
                         {homeworkOverdueUnsubmitted > 0 && (
-                            <span className="text-red-600"> · {homeworkOverdueUnsubmitted} overdue</span>
+                            <span className="text-destructive"> · {homeworkOverdueUnsubmitted} overdue</span>
                         )}
                     </p>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Link href="/student/attendance" className="bg-card rounded-xl border shadow-sm p-4 text-center hover:shadow-md transition-shadow">
-                    <div className="text-2xl mb-1">🗓️</div>
-                    <p className="font-medium text-foreground">My attendance</p>
+                <Link
+                    href="/student/attendance"
+                    className="group bg-card rounded-xl border border-border shadow-sm p-5 flex items-center gap-3.5 hover:border-brass/40 hover:shadow-md transition-all"
+                >
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent border border-brass/30 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                        <CalendarCheck className="h-5 w-5" />
+                    </div>
+                    <div className="text-left">
+                        <p className="font-semibold text-foreground">My attendance</p>
+                        <p className="text-xs text-muted-foreground">Daily &amp; monthly register</p>
+                    </div>
                 </Link>
-                <Link href="/student/results" className="bg-card rounded-xl border shadow-sm p-4 text-center hover:shadow-md transition-shadow">
-                    <div className="text-2xl mb-1">📄</div>
-                    <p className="font-medium text-foreground">My results</p>
+                <Link
+                    href="/student/results"
+                    className="group bg-card rounded-xl border border-border shadow-sm p-5 flex items-center gap-3.5 hover:border-brass/40 hover:shadow-md transition-all"
+                >
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent border border-brass/30 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                        <Award className="h-5 w-5" />
+                    </div>
+                    <div className="text-left">
+                        <p className="font-semibold text-foreground">My results</p>
+                        <p className="text-xs text-muted-foreground">Published exam marks</p>
+                    </div>
                 </Link>
-                <Link href="/student/homework" className="bg-card rounded-xl border shadow-sm p-4 text-center hover:shadow-md transition-shadow">
-                    <div className="text-2xl mb-1">📝</div>
-                    <p className="font-medium text-foreground">My homework</p>
+                <Link
+                    href="/student/homework"
+                    className="group bg-card rounded-xl border border-border shadow-sm p-5 flex items-center gap-3.5 hover:border-brass/40 hover:shadow-md transition-all"
+                >
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent border border-brass/30 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                        <BookOpen className="h-5 w-5" />
+                    </div>
+                    <div className="text-left">
+                        <p className="font-semibold text-foreground">My homework</p>
+                        <p className="text-xs text-muted-foreground">Upcoming &amp; submitted work</p>
+                    </div>
                 </Link>
             </div>
 

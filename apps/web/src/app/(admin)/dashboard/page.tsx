@@ -81,7 +81,7 @@ export default async function DashboardPage() {
                             {tenant.slug.toUpperCase()}
                         </p>
                     </div>
-                    <Badge className={ROLE_COLORS[role] || 'bg-muted'}>
+                    <Badge className={ROLE_COLORS[role] || 'bg-accent text-accent-foreground border border-brass/30'}>
                         {ROLE_LABELS[role] || role}
                     </Badge>
                 </div>

@@ -2,7 +2,12 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getSession } from '@/lib/auth/session';
 import { formatDate } from '@/lib/utils';
-import { getReportCardClasses, getReportCardExamOptions } from '../_actions/report-cards';
+import {
+    getReportCardClasses,
+    getReportCardExamOptions,
+    getReportCardStudioPolicyAction,
+} from '../_actions/report-cards';
+import { StudioPolicyClient } from './studio-policy-client';
 
 export default async function ReportCardsPage({
     searchParams,
@@ -13,13 +18,17 @@ export default async function ReportCardsPage({
     if (!session.isLoggedIn) redirect('/login');
 
     const { examId } = await searchParams;
-    const exams = await getReportCardExamOptions();
+    const [exams, studioPolicy] = await Promise.all([
+        getReportCardExamOptions(),
+        getReportCardStudioPolicyAction(),
+    ]);
 
     if (exams.length === 0) {
         return (
             <div className="space-y-6">
                 <Header />
-                <div className="bg-card rounded-xl shadow-sm border p-8 text-center">
+                <StudioPolicyClient initialPolicy={studioPolicy} />
+                <div className="bg-card rounded-xl shadow-sm border border-border p-8 text-center">
                     <p className="font-medium text-foreground">No exams yet</p>
                     <p className="text-sm text-muted-foreground mt-1 mb-4">
                         Report cards are built from saved marks, so there is nothing to show until an
@@ -27,7 +36,7 @@ export default async function ReportCardsPage({
                     </p>
                     <Link
                         href="/exams/create"
-                        className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90"
                     >
                         Create an exam
                     </Link>
@@ -54,19 +63,21 @@ export default async function ReportCardsPage({
         <div className="space-y-6">
             <Header />
 
-            <div className="bg-card rounded-xl shadow-sm border">
-                <div className="p-4 border-b">
+            <StudioPolicyClient initialPolicy={studioPolicy} />
+
+            <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+                <div className="p-4 border-b border-border bg-muted/40">
                     <h2 className="font-semibold text-foreground">1. Choose an exam</h2>
                 </div>
-                <div className="divide-y">
+                <div className="divide-y divide-border">
                     {exams.map((exam) => {
                         const active = exam.id === selected.id;
                         return (
                             <Link
                                 key={exam.id}
                                 href={`/exams/report-cards?examId=${exam.id}`}
-                                className={`flex flex-wrap items-center justify-between gap-3 p-4 hover:bg-muted ${
-                                    active ? 'bg-blue-50/60' : ''
+                                className={`flex flex-wrap items-center justify-between gap-3 p-4 transition-colors hover:bg-muted/60 ${
+                                    active ? 'bg-accent/55' : ''
                                 }`}
                             >
                                 <div>
@@ -79,7 +90,7 @@ export default async function ReportCardsPage({
                                         )}
                                     </p>
                                     <p className="text-sm text-muted-foreground">
-                                        {exam.academicYearName} · {formatDate(exam.startDate)}
+                                        {exam.academicYearName} · {formatDate(exam.startDate)} · {exam.status}
                                     </p>
                                 </div>
                                 <p className="text-sm text-muted-foreground">
@@ -91,8 +102,8 @@ export default async function ReportCardsPage({
                 </div>
             </div>
 
-            <div className="bg-card rounded-xl shadow-sm border">
-                <div className="p-4 border-b">
+            <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+                <div className="p-4 border-b border-border bg-muted/40">
                     <h2 className="font-semibold text-foreground">
                         2. Choose a class — {selected.name}
                     </h2>
@@ -121,10 +132,11 @@ export default async function ReportCardsPage({
                                     {sections.map((cls) => (
                                         <Link
                                             key={cls.sectionId}
+                                            data-testid={`report-card-class-${gradeName.replace(/\s+/g, '-').toLowerCase()}-${cls.sectionName.toLowerCase()}`}
                                             href={`/exams/report-cards/${cls.sectionId}?examId=${selected.id}`}
-                                            className="px-3 py-2 rounded-lg border border-border hover:border-blue-300 hover:bg-accent text-sm"
+                                            className="px-3.5 py-2.5 rounded-xl border border-border hover:border-brass/45 hover:bg-accent/55 text-sm transition-colors"
                                         >
-                                            <span className="font-medium text-foreground">
+                                            <span className="font-semibold text-foreground">
                                                 {gradeName}-{cls.sectionName}
                                             </span>
                                             <span className="block text-xs text-muted-foreground">
@@ -148,10 +160,10 @@ function Header() {
             <div>
                 <h1 className="text-2xl font-bold text-foreground">Report cards</h1>
                 <p className="text-muted-foreground">
-                    Built from marks saved against each exam paper — nothing is estimated.
+                    Board-compliant scholastic &amp; holistic transcripts built from published marks, with cryptographic verification seals.
                 </p>
             </div>
-            <Link href="/exams" className="text-primary hover:underline text-sm">
+            <Link href="/exams" className="text-primary hover:underline text-sm font-medium">
                 ← Back to exams
             </Link>
         </div>

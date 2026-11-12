@@ -10,8 +10,15 @@
  * empty payload so the page can say so plainly.
  */
 
+import { revalidatePath } from 'next/cache';
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { normalizeBoardPreset, type BoardPreset } from '@/lib/academics/board-grading';
+import {
+    loadTenantReportCardPolicy,
+    saveTenantReportCardPolicy,
+    type ReportCardStudioPolicy,
+} from '@/lib/academics/report-card-policy';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -95,6 +102,47 @@ export interface ClassReportCards {
         lowestPercentage: number | null;
         clearedAllSubjects: number;
     };
+}
+
+// ─── Studio Policy & Board Presets ───────────────────────────
+
+export async function getReportCardStudioPolicyAction(): Promise<ReportCardStudioPolicy> {
+    const { tenantId } = await requireAuth('exams:read');
+    return loadTenantReportCardPolicy(tenantId);
+}
+
+export async function updateReportCardStudioPolicyAction(input: {
+    boardPreset: string;
+    holdOnOverdueFees: boolean;
+    principalName: string;
+    showCoScholastic: boolean;
+}): Promise<{ ok: boolean; policy?: ReportCardStudioPolicy; error?: string }> {
+    const { tenantId, session } = await requireAuth('exams:read');
+    const allowedRoles = new Set([
+        'PLATFORM_ADMIN',
+        'SUPER_ADMIN',
+        'SCHOOL_ADMIN',
+        'PRINCIPAL',
+        'REGISTRAR',
+    ]);
+    if (!allowedRoles.has(session.role)) {
+        return {
+            ok: false,
+            error: 'Only Principals, Registrars, or School Administrators can modify transcript governance.',
+        };
+    }
+
+    const boardPreset: BoardPreset = normalizeBoardPreset(input.boardPreset);
+    await saveTenantReportCardPolicy(tenantId, {
+        boardPreset,
+        holdOnOverdueFees: Boolean(input.holdOnOverdueFees),
+        principalName: input.principalName,
+        showCoScholastic: Boolean(input.showCoScholastic),
+    });
+
+    revalidatePath('/exams/report-cards');
+    const policy = await loadTenantReportCardPolicy(tenantId);
+    return { ok: true, policy };
 }
 
 // ─── Pickers ─────────────────────────────────────────────────

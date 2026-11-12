@@ -1,25 +1,24 @@
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
-import { CHANNEL_ICON, CHANNEL_LABEL, type ChannelAvailability, type MessageChannel } from './types';
+import { CHANNEL_LABEL, type ChannelAvailability, type MessageChannel } from './types';
 
 export function ChannelBadge({ channel }: { channel: string }) {
     const known = channel as MessageChannel;
     const label = CHANNEL_LABEL[known] ?? channel;
-    const icon = CHANNEL_ICON[known] ?? '📨';
     return (
-        <Badge variant="outline" className="font-medium">
-            <span aria-hidden="true">{icon}</span> {label}
+        <Badge variant="outline" className="border-brass/35 bg-accent/50 font-medium text-accent-foreground">
+            {label}
         </Badge>
     );
 }
 
 const STATUS_STYLES: Record<string, string> = {
     PENDING: 'bg-muted text-foreground border-border',
-    QUEUED: 'bg-amber-100 text-amber-800 border-amber-200',
-    SENT: 'bg-blue-100 text-blue-800 border-blue-200',
-    DELIVERED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    FAILED: 'bg-rose-100 text-rose-800 border-rose-200',
-    DEAD_LETTER: 'bg-rose-100 text-rose-800 border-rose-200',
+    QUEUED: 'bg-warning-subtle text-warning-subtle-foreground border-warning/30',
+    SENT: 'bg-info-subtle text-info-subtle-foreground border-info/30',
+    DELIVERED: 'bg-success-subtle text-success-subtle-foreground border-success/30',
+    FAILED: 'bg-destructive-subtle text-destructive-subtle-foreground border-destructive/30',
+    DEAD_LETTER: 'bg-destructive-subtle text-destructive-subtle-foreground border-destructive/30',
     SUPPRESSED: 'bg-muted text-muted-foreground border-border',
 };
 
@@ -48,25 +47,20 @@ export function StatTile({
 }) {
     const toneClass = {
         default: 'text-foreground',
-        warning: 'text-amber-600',
-        danger: 'text-rose-600',
+        warning: 'text-warning-subtle-foreground',
+        danger: 'text-destructive',
         muted: 'text-muted-foreground',
     }[tone];
 
     return (
-        <div className="rounded-lg border bg-card p-4">
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <div className="text-sm text-muted-foreground">{label}</div>
-            <div className={`mt-1 text-2xl font-bold ${toneClass}`}>{value}</div>
+            <div className={`mt-1 text-2xl font-bold tabular-nums ${toneClass}`}>{value}</div>
             {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
         </div>
     );
 }
 
-/**
- * The single most important honesty surface in this module: it states, from real
- * configuration, whether a channel can even accept a queued message, and that no
- * dispatcher delivers what is queued.
- */
 export function DeliveryRealityNotice({
     availability,
     dispatched,
@@ -78,7 +72,7 @@ export function DeliveryRealityNotice({
     const unconfigured = availability.filter((a) => !a.configured);
 
     return (
-        <div className="rounded-lg border border-warning/30 bg-warning-subtle p-4 text-sm text-warning-subtle-foreground">
+        <div className="rounded-xl border border-warning/30 bg-warning-subtle p-4 text-sm text-warning-subtle-foreground">
             <p className="font-semibold">Messages are queued and dispatched daily — delivery receipts are limited.</p>
             <p className="mt-1">
                 Composing writes a row to the notification outbox. A scheduled dispatcher
@@ -111,23 +105,28 @@ export function DeliveryRealityNotice({
     );
 }
 
-export function MessagesTabs({ active }: { active: 'log' | 'compose' | 'templates' | 'tracking' }) {
+export function MessagesTabs({
+    active,
+}: {
+    active: 'log' | 'compose' | 'templates' | 'tracking' | 'concierge';
+}) {
     const tabs: { key: typeof active; href: string; label: string }[] = [
         { key: 'log', href: '/messages', label: 'Message log' },
         { key: 'compose', href: '/messages/compose', label: 'Compose' },
         { key: 'templates', href: '/messages/templates', label: 'Templates' },
         { key: 'tracking', href: '/messages/tracking', label: 'Outbox' },
+        { key: 'concierge', href: '/messages/concierge', label: '2-Way WhatsApp Concierge' },
     ];
 
     return (
-        <nav className="flex flex-wrap gap-1 border-b" aria-label="Messages sections">
+        <nav className="flex flex-wrap gap-1 border-b border-border" aria-label="Messages sections">
             {tabs.map((tab) => (
                 <Link
                     key={tab.key}
                     href={tab.href}
                     className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
                         tab.key === active
-                            ? 'border-slate-900 text-foreground'
+                            ? 'border-brass text-primary font-semibold'
                             : 'border-transparent text-muted-foreground hover:text-foreground'
                     }`}
                 >

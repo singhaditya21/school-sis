@@ -442,6 +442,232 @@ async function ensureDemoSchoolDataSeeded(
             metadata: { remarks: 'Paid via Parent UPI Intent (Sandbox Seed)' },
         }).catch(() => undefined);
     }
+
+    await withTenant(tenantId, async (client) => {
+        const q = sqlFor(client);
+
+        // 1. Ensure WhatsApp consent for Demo Parent so 2-Way Concierge & reminders work immediately
+        const consentCheck = await q<{ count: number }>`
+            SELECT count(*)::int AS count
+            FROM consents
+            WHERE tenant_id = ${tenantId}
+              AND user_id = ${usersByRole.PARENT.id}
+              AND channel = 'WHATSAPP'
+        `.one();
+        if ((consentCheck?.count ?? 0) === 0) {
+            await q`
+                INSERT INTO consents (tenant_id, user_id, channel, is_opted_in, opt_in_at)
+                VALUES (${tenantId}, ${usersByRole.PARENT.id}, 'WHATSAPP', true, NOW())
+            `.execute();
+        }
+
+        // 2. Ensure published Term 1 exam + schedules + student_results for Board Report Card Studio
+        const examCheck = await q<{ count: number }>`
+            SELECT count(*)::int AS count
+            FROM exams
+            WHERE tenant_id = ${tenantId} AND status = 'PUBLISHED'
+        `.one();
+
+        const yearRow = await q<{ id: string }>`
+            SELECT id FROM academic_years WHERE tenant_id = ${tenantId} ORDER BY is_current DESC, start_date DESC LIMIT 1
+        `.maybeOne();
+
+        const studentsRows = await q<{
+            id: string;
+            admissionNumber: string;
+            gradeId: string;
+            sectionId: string;
+        }>`
+            SELECT id, admission_number AS "admissionNumber", grade_id AS "gradeId", section_id AS "sectionId"
+            FROM students
+            WHERE tenant_id = ${tenantId} AND status = 'ACTIVE'
+        `;
+
+        if ((examCheck?.count ?? 0) === 0 && yearRow?.id && studentsRows.length > 0) {
+            const subjectsRows = await q<{ id: string; code: string }>`
+                SELECT id, code FROM subjects WHERE tenant_id = ${tenantId} ORDER BY name ASC
+            `;
+            const examRow = await q<{ id: string }>`
+                INSERT INTO exams (
+                    id, tenant_id, academic_year_id, name, type, status, start_date, end_date, published_at, published_by
+                ) VALUES (
+                    ${crypto.randomUUID()},
+                    ${tenantId},
+                    ${yearRow.id},
+                    'Term 1 Assessment (2026-27)',
+                    'MID_TERM',
+                    'PUBLISHED',
+                    '2026-09-10',
+                    '2026-09-20',
+                    NOW(),
+                    ${usersByRole.REGISTRAR.id}
+                )
+                RETURNING id
+            `.one();
+
+            const distinctGrades = [...new Set(studentsRows.map((s) => s.gradeId))];
+            const scheduleByGradeSubject = new Map<string, string>();
+            const dates = ['2026-09-10', '2026-09-12', '2026-09-15', '2026-09-18'];
+
+            for (const gradeId of distinctGrades) {
+                for (let idx = 0; idx < subjectsRows.length; idx++) {
+                    const subj = subjectsRows[idx];
+                    const schedId = crypto.randomUUID();
+                    await q`
+                        INSERT INTO exam_schedules (
+                            id, exam_id, grade_id, subject_id, exam_date, start_time, end_time, max_marks, passing_marks, room_number
+                        ) VALUES (
+                            ${schedId},
+                            ${examRow.id},
+                            ${gradeId},
+                            ${subj.id},
+                            ${dates[idx % dates.length]},
+                            '09:00',
+                            '11:30',
+                            '100',
+                            '35',
+                            'Exam Hall A'
+                        )
+                    `.execute();
+                    scheduleByGradeSubject.set(`${gradeId}:${subj.code}`, schedId);
+                }
+            }
+
+            const scoreProfiles: Record<string, Record<string, { marks: number; grade: string; remark: string }>> = {
+                'ADM-DEMO-101': {
+                    MATH: { marks: 95, grade: 'A1', remark: 'Exceptional analytical clarity' },
+                    SCI: { marks: 92, grade: 'A1', remark: 'Strong STEM lab inquiry' },
+                    ENG: { marks: 89, grade: 'A2', remark: 'Articulate written expression' },
+                    SST: { marks: 94, grade: 'A1', remark: 'Thorough civic reasoning' },
+                },
+                'ADM-DEMO-102': {
+                    MATH: { marks: 87, grade: 'A2', remark: 'Consistent problem solving' },
+                    SCI: { marks: 91, grade: 'A1', remark: 'Excellent conceptual grasp' },
+                    ENG: { marks: 90, grade: 'A2', remark: 'Strong reading comprehension' },
+                    SST: { marks: 84, grade: 'A2', remark: 'Well-structured arguments' },
+                },
+                'ADM-DEMO-103': {
+                    MATH: { marks: 78, grade: 'B1', remark: 'Good progress in algebra' },
+                    SCI: { marks: 83, grade: 'A2', remark: 'Active practical participation' },
+                    ENG: { marks: 81, grade: 'A2', remark: 'Clear presentation skills' },
+                    SST: { marks: 84, grade: 'A2', remark: 'Solid historical analysis' },
+                },
+                'ADM-DEMO-104': {
+                    MATH: { marks: 96, grade: 'A1', remark: 'Top-decile quantitative rigor' },
+                    SCI: { marks: 95, grade: 'A1', remark: 'Exemplary experimental work' },
+                    ENG: { marks: 92, grade: 'A1', remark: 'Refined critical writing' },
+                    SST: { marks: 93, grade: 'A1', remark: 'Comprehensive synthesis' },
+                },
+            };
+
+            for (const st of studentsRows) {
+                const profile = scoreProfiles[st.admissionNumber];
+                if (!profile) continue;
+                for (const subj of subjectsRows) {
+                    const schedId = scheduleByGradeSubject.get(`${st.gradeId}:${subj.code}`);
+                    const entry = profile[subj.code];
+                    if (!schedId || !entry) continue;
+                    await q`
+                        INSERT INTO student_results (
+                            id, tenant_id, exam_schedule_id, student_id, marks_obtained, grade, is_absent, remarks, entered_by
+                        ) VALUES (
+                            ${crypto.randomUUID()},
+                            ${tenantId},
+                            ${schedId},
+                            ${st.id},
+                            ${String(entry.marks)},
+                            ${entry.grade},
+                            false,
+                            ${entry.remark},
+                            ${usersByRole.TEACHER.id}
+                        )
+                    `.execute();
+                }
+            }
+        }
+
+        // 3. Ensure Transport Route + Stop + Student Assignments for Parent Transport & Concierge
+        const routeCheck = await q<{ count: number }>`
+            SELECT count(*)::int AS count FROM routes WHERE tenant_id = ${tenantId}
+        `.one();
+
+        if ((routeCheck?.count ?? 0) === 0 && studentsRows.length > 0) {
+            const vehicle = await q<{ id: string }>`
+                INSERT INTO vehicles (tenant_id, vehicle_number, type, capacity, driver_name, driver_phone)
+                VALUES (${tenantId}, 'DL-01-PC-4821', 'AC Coach', 42, 'Harpreet Singh', '+919811223344')
+                RETURNING id
+            `.one();
+
+            const route = await q<{ id: string }>`
+                INSERT INTO routes (
+                    tenant_id, vehicle_id, name, description, monthly_fee, morning_departure_time, afternoon_departure_time
+                ) VALUES (
+                    ${tenantId},
+                    ${vehicle.id},
+                    'South Delhi Ring Express — Route 4',
+                    'GPS-monitored morning & dismissal corridor',
+                    '2400.00',
+                    '07:15',
+                    '14:45'
+                )
+                RETURNING id
+            `.one();
+
+            const stopHauzKhas = await q<{ id: string }>`
+                INSERT INTO stops (route_id, name, display_order, pickup_time, drop_time)
+                VALUES (${route.id}, 'Hauz Khas Enclave Gate 2', 1, '07:28', '15:15')
+                RETURNING id
+            `.one();
+
+            await q`
+                INSERT INTO stops (route_id, name, display_order, pickup_time, drop_time)
+                VALUES (${route.id}, 'ScholarMind Main Campus Gate', 2, '07:55', '14:45')
+            `.execute();
+
+            for (const st of studentsRows.filter((s) =>
+                s.admissionNumber === 'ADM-DEMO-101' || s.admissionNumber === 'ADM-DEMO-102',
+            )) {
+                await q`
+                    INSERT INTO student_transport (tenant_id, student_id, route_id, stop_id, start_date)
+                    VALUES (${tenantId}, ${st.id}, ${route.id}, ${stopHauzKhas.id}, '2026-04-01')
+                `.execute();
+            }
+        }
+
+        // 4. Ensure current-month attendance records so Parent Overview & WhatsApp Concierge show live rates
+        const now = new Date();
+        const year = now.getUTCFullYear();
+        const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+        const monthStart = `${year}-${month}-01`;
+
+        const attCheck = await q<{ count: number }>`
+            SELECT count(*)::int AS count
+            FROM attendance_records
+            WHERE tenant_id = ${tenantId} AND date >= ${monthStart}::date
+        `.one();
+
+        if ((attCheck?.count ?? 0) === 0 && studentsRows.length > 0) {
+            const maxDay = Math.min(Math.max(now.getUTCDate(), 5), 12);
+            for (const st of studentsRows) {
+                for (let day = 1; day <= maxDay; day++) {
+                    const dateStr = `${year}-${month}-${String(day).padStart(2, '0')}`;
+                    const status = day === 3 && st.admissionNumber === 'ADM-DEMO-102' ? 'LATE' : 'PRESENT';
+                    await q`
+                        INSERT INTO attendance_records (id, tenant_id, student_id, section_id, date, status, marked_by)
+                        VALUES (
+                            ${crypto.randomUUID()},
+                            ${tenantId},
+                            ${st.id},
+                            ${st.sectionId},
+                            ${dateStr},
+                            ${status},
+                            ${usersByRole.TEACHER.id}
+                        )
+                    `.execute();
+                }
+            }
+        }
+    });
 }
 
 export async function launchDemoSandboxAction(personaKey: DemoPersonaKey): Promise<{

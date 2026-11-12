@@ -5,12 +5,18 @@ export const APP_TAGLINE = 'Secure multi-tenant school management platform';
 export const ROLES = {
     PLATFORM_ADMIN: 'PLATFORM_ADMIN',
     SUPER_ADMIN: 'SUPER_ADMIN',
+    GROUP_EXECUTIVE: 'GROUP_EXECUTIVE',
     SCHOOL_ADMIN: 'SCHOOL_ADMIN',
     PRINCIPAL: 'PRINCIPAL',
+    REGISTRAR: 'REGISTRAR',
+    FINANCE_LEAD: 'FINANCE_LEAD',
     ACCOUNTANT: 'ACCOUNTANT',
     ADMISSION_COUNSELOR: 'ADMISSION_COUNSELOR',
+    STUDENT_SUCCESS_COUNSELOR: 'STUDENT_SUCCESS_COUNSELOR',
     TEACHER: 'TEACHER',
     TRANSPORT_MANAGER: 'TRANSPORT_MANAGER',
+    TRUST_OFFICER: 'TRUST_OFFICER',
+    CREDENTIAL_OFFICER: 'CREDENTIAL_OFFICER',
     PARENT: 'PARENT',
     STUDENT: 'STUDENT',
 } as const;
@@ -21,51 +27,63 @@ export type UserRole = typeof ROLES[keyof typeof ROLES];
 export const ROLE_LABELS: Record<string, string> = {
     PLATFORM_ADMIN: 'Platform Owner',
     SUPER_ADMIN: 'Super Admin',
+    GROUP_EXECUTIVE: 'Group Executive',
     SCHOOL_ADMIN: 'School Admin',
     PRINCIPAL: 'Principal',
+    REGISTRAR: 'Registrar',
+    FINANCE_LEAD: 'Finance Lead',
     ACCOUNTANT: 'Accountant',
     ADMISSION_COUNSELOR: 'Admission Counselor',
+    STUDENT_SUCCESS_COUNSELOR: 'Student Success Counselor',
     TEACHER: 'Teacher',
     TRANSPORT_MANAGER: 'Transport Manager',
+    TRUST_OFFICER: 'Trust Officer',
+    CREDENTIAL_OFFICER: 'Credential Officer',
     PARENT: 'Parent',
     STUDENT: 'Student',
 };
 
-// Role badge colors
+// Role badge colors — Oxford Navy & Heritage Brass semantic tokens
 export const ROLE_COLORS: Record<string, string> = {
-    PLATFORM_ADMIN: 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-300',
-    SUPER_ADMIN: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
-    SCHOOL_ADMIN: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-    PRINCIPAL: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300',
-    ACCOUNTANT: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
-    ADMISSION_COUNSELOR: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300',
-    TEACHER: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-300',
-    TRANSPORT_MANAGER: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
-    PARENT: 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300',
-    STUDENT: 'bg-muted text-foreground dark:bg-slate-900 dark:text-slate-300',
+    PLATFORM_ADMIN: 'bg-primary text-primary-foreground border border-brass/50',
+    SUPER_ADMIN: 'bg-primary text-primary-foreground border border-brass/40',
+    GROUP_EXECUTIVE: 'bg-primary text-primary-foreground border border-brass/40',
+    SCHOOL_ADMIN: 'bg-accent text-accent-foreground border border-brass/40',
+    PRINCIPAL: 'bg-accent text-accent-foreground border border-brass/40',
+    REGISTRAR: 'bg-accent text-accent-foreground border border-brass/35',
+    FINANCE_LEAD: 'bg-accent text-accent-foreground border border-brass/45',
+    ACCOUNTANT: 'bg-success-subtle text-success-subtle-foreground border border-success/30',
+    ADMISSION_COUNSELOR: 'bg-warning-subtle text-warning-subtle-foreground border border-warning/30',
+    STUDENT_SUCCESS_COUNSELOR: 'bg-info-subtle text-info-subtle-foreground border border-info/30',
+    TEACHER: 'bg-info-subtle text-info-subtle-foreground border border-info/30',
+    TRANSPORT_MANAGER: 'bg-accent text-accent-foreground border border-brass/30',
+    TRUST_OFFICER: 'bg-accent text-accent-foreground border border-brass/35',
+    CREDENTIAL_OFFICER: 'bg-accent text-accent-foreground border border-brass/35',
+    PARENT: 'bg-secondary text-secondary-foreground border border-border',
+    STUDENT: 'bg-muted text-foreground border border-border',
 };
 
 // Value propositions for auth page
 export const VALUE_PROPS = [
     {
-        icon: '💰',
+        icon: 'indian-rupee',
         title: 'Fee Intelligence',
-        description: 'Real-time dues tracking, automated reminders, and collection analytics',
+        description: 'Real-time dues tracking, automated WhatsApp pay links, and collection analytics',
     },
     {
-        icon: '📊',
+        icon: 'trending-up',
         title: 'Defaulter Insights',
         description: 'AI-powered risk scoring and personalized follow-up strategies',
     },
     {
-        icon: '🔐',
+        icon: 'shield-check',
         title: 'Consent-Aware',
-        description: 'GDPR-compliant messaging with guardian consent enforcement',
+        description: 'DPDP & GDPR-compliant messaging with guardian consent enforcement',
     },
     {
-        icon: '🏫',
+        icon: 'building-2',
         title: 'Multi-Tenant',
-        description: 'Complete data isolation across schools with unified platform',
+        description: 'Complete RLS data isolation across schools with unified platform governance',
     },
 ];
 

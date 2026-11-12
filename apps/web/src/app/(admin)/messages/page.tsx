@@ -62,12 +62,20 @@ export default async function MessagesPage() {
                                 Every batch composed in this tenant, newest first.
                             </p>
                         </div>
-                        <Link
-                            href="/messages/compose"
-                            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
-                        >
-                            Compose message
-                        </Link>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Link
+                                href="/messages/concierge"
+                                className="rounded-lg border border-brass/40 bg-accent px-3.5 py-2 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/80"
+                            >
+                                2-Way WhatsApp Concierge
+                            </Link>
+                            <Link
+                                href="/messages/compose"
+                                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                            >
+                                Compose message
+                            </Link>
+                        </div>
                     </div>
 
                     <div className="overflow-x-auto">

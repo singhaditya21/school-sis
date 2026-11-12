@@ -3,6 +3,18 @@
 import { revalidatePath } from 'next/cache';
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import {
+    deriveShortVerificationCode,
+    signGatePassToken,
+} from '@/lib/security/gate-pass-token';
+import {
+    signReportCardVerificationToken,
+    type BoardPreset,
+} from '@/lib/academics/board-grading';
+import {
+    evaluateStudentReportCardGovernance,
+    type ReportCardFeeHoldStatus,
+} from '@/lib/academics/report-card-policy';
 
 /**
  * Parent-portal server actions.
@@ -278,15 +290,37 @@ export interface ChildResultRow {
     isAbsent: boolean;
 }
 
+export interface ChildExamSeal {
+    verifyPath: string;
+    sealCode: string;
+    pdfPath: string;
+}
+
 export interface ChildResults {
     child: ParentChild;
     results: ChildResultRow[];
+    boardPreset: BoardPreset;
+    schoolName: string;
+    feeHold: ReportCardFeeHoldStatus;
+    examSeals: Record<string, ChildExamSeal>;
 }
 
 export async function getChildResults(studentId?: string | null): Promise<ChildResults | null> {
     const scope = await resolveChild(studentId);
     if (!scope) return null;
     const { tenantId, userId, child } = scope;
+
+    const governance = await evaluateStudentReportCardGovernance(tenantId, child.id);
+    if (governance.feeHold.active) {
+        return {
+            child,
+            results: [],
+            boardPreset: governance.policy.affiliationBoard,
+            schoolName: governance.policy.schoolName,
+            feeHold: governance.feeHold,
+            examSeals: {},
+        };
+    }
 
     const { rows } = await pool.query(
         `SELECT e.id   AS "examId",
@@ -312,15 +346,38 @@ export async function getChildResults(studentId?: string | null): Promise<ChildR
         [tenantId, child.id, userId],
     );
 
+    const mappedResults = rows.map((r: ChildResultRow) => ({
+        ...r,
+        marksObtained: r.marksObtained === null ? null : Number(r.marksObtained),
+        maxMarks: Number(r.maxMarks),
+        passingMarks: r.passingMarks === null ? null : Number(r.passingMarks),
+        percentage: r.percentage === null ? null : Number(r.percentage),
+    }));
+
+    const examSeals: Record<string, ChildExamSeal> = {};
+    for (const row of mappedResults) {
+        if (!examSeals[row.examId]) {
+            const token = signReportCardVerificationToken({
+                tenantId,
+                studentId: child.id,
+                examId: row.examId,
+                board: governance.policy.affiliationBoard,
+            });
+            examSeals[row.examId] = {
+                verifyPath: `/verify/report-card/${token}`,
+                sealCode: deriveShortVerificationCode(token, 'RC'),
+                pdfPath: `/api/report-cards/${child.id}/${row.examId}`,
+            };
+        }
+    }
+
     return {
         child,
-        results: rows.map((r: ChildResultRow) => ({
-            ...r,
-            marksObtained: r.marksObtained === null ? null : Number(r.marksObtained),
-            maxMarks: Number(r.maxMarks),
-            passingMarks: r.passingMarks === null ? null : Number(r.passingMarks),
-            percentage: r.percentage === null ? null : Number(r.percentage),
-        })),
+        results: mappedResults,
+        boardPreset: governance.policy.affiliationBoard,
+        schoolName: governance.policy.schoolName,
+        feeHold: governance.feeHold,
+        examSeals,
     };
 }
 
@@ -477,9 +534,16 @@ export interface ChildTransport {
     endDate: string | null;
 }
 
+export interface ChildGatePass {
+    token: string;
+    deskCode: string;
+    validDate: string;
+    verifyPath: string;
+}
+
 export async function getChildTransport(
     studentId?: string | null,
-): Promise<{ child: ParentChild; assignments: ChildTransport[] } | null> {
+): Promise<{ child: ParentChild; assignments: ChildTransport[]; gatePass: ChildGatePass } | null> {
     const scope = await resolveChild(studentId);
     if (!scope) return null;
     const { tenantId, userId, child } = scope;
@@ -508,6 +572,14 @@ export async function getChildTransport(
         [tenantId, child.id, userId],
     );
 
+    const validDate = new Date().toISOString().slice(0, 10);
+    const token = signGatePassToken({
+        tenantId,
+        studentId: child.id,
+        guardianUserId: userId,
+        validDate,
+    });
+
     return {
         child,
         assignments: rows.map((r: ChildTransport) => ({
@@ -515,6 +587,12 @@ export async function getChildTransport(
             monthlyFee: r.monthlyFee === null ? null : Number(r.monthlyFee),
             stopCount: Number(r.stopCount),
         })),
+        gatePass: {
+            token,
+            deskCode: deriveShortVerificationCode(token, 'GP'),
+            validDate,
+            verifyPath: `/verify/gate-pass/${token}`,
+        },
     };
 }
 
