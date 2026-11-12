@@ -16,8 +16,16 @@ function timingSafeHexMatch(leftHex: string, rightHex: string): boolean {
 
 export async function GET(request?: Request) {
     const expectedSha = request?.headers?.get('x-release-expect-sha')?.trim() || '';
-    const deployedSha = (process.env.VERCEL_GIT_COMMIT_SHA || '').trim();
-    const deployedRegion = (process.env.VERCEL_REGION || '').trim();
+    const deployedSha = (
+        process.env.VERCEL_GIT_COMMIT_SHA ||
+        process.env.GIT_COMMIT_SHA ||
+        ''
+    ).trim();
+    const deployedRegion = (
+        process.env.VERCEL_REGION ||
+        process.env.APP_REGION ||
+        ''
+    ).trim();
 
     if (expectedSha && timingSafeHexMatch(expectedSha, deployedSha)) {
         return NextResponse.json(

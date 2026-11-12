@@ -326,8 +326,33 @@ jobs:
           CANDIDATE_URL: ${{ steps.candidate.outputs.candidate_url }}
           EXPECTED_SHA: ${{ env.TARGET_SHA }}
           BYPASS_SECRET: ${{ secrets.VERCEL_WEBSITE_AUTOMATION_BYPASS_SECRET }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
+          if [ -z "${BYPASS_SECRET:-}" ]; then
+            proj_json="$RUNNER_TEMP/website-project-bypass.json"
+            curl --silent --show-error --fail --retry 3 --max-time 20 \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --header 'Accept: application/json' \
+              "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}" \
+              >"$proj_json"
+            BYPASS_SECRET="$(jq -r '(.protectionBypass // {} | to_entries | map(select(.value.scope == "automation-bypass")) | .[0].key) // empty' "$proj_json")"
+            if [ -z "$BYPASS_SECRET" ]; then
+              curl --silent --show-error --fail --retry 3 --max-time 20 \
+                --request PATCH \
+                --header "Authorization: Bearer $VERCEL_TOKEN" \
+                --header 'Content-Type: application/json' \
+                --data '{}' \
+                "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/protection-bypass?teamId=${VERCEL_ORG_ID}" \
+                >"$proj_json"
+              BYPASS_SECRET="$(jq -r '(.protectionBypass // {} | to_entries | map(select(.value.scope == "automation-bypass")) | .[0].key) // empty' "$proj_json")"
+            fi
+            rm -f "$proj_json"
+            if [ -n "$BYPASS_SECRET" ]; then
+              echo "::add-mask::$BYPASS_SECRET"
+            fi
+          fi
+          export BYPASS_SECRET
           node --input-type=module <<'NODE'
           const base = new URL(process.env.CANDIDATE_URL).origin;
           const expectedSha = (process.env.EXPECTED_SHA || '').toLowerCase();
