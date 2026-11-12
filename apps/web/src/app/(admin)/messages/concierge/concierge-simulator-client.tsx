@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
     CheckCheck,
@@ -57,6 +57,7 @@ export function ConciergeSimulatorClient({
     const [customText, setCustomText] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
+    const threadRef = useRef<HTMLDivElement | null>(null);
 
     const activeGuardian = guardians[selectedIdx] ?? null;
 
@@ -68,6 +69,12 @@ export function ConciergeSimulatorClient({
             timestamp: 'Ready',
         },
     ]);
+
+    useEffect(() => {
+        if (threadRef.current) {
+            threadRef.current.scrollTop = threadRef.current.scrollHeight;
+        }
+    }, [turns.length, isPending]);
 
     function sendCommand(rawText: string) {
         if (!activeGuardian || !rawText.trim()) return;
@@ -239,6 +246,7 @@ export function ConciergeSimulatorClient({
 
                     {/* Message Thread */}
                     <div
+                        ref={threadRef}
                         data-testid="concierge-chat-thread"
                         className="p-4 sm:p-5 space-y-3.5 bg-accent/25 min-h-[340px] max-h-[460px] overflow-y-auto"
                     >

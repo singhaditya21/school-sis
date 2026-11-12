@@ -6,6 +6,13 @@ interface VerificationQrSealProps {
     label?: string;
 }
 
+function isFinderCenter(r: number, c: number, size: number): boolean {
+    const topLeft = r >= 2 && r <= 4 && c >= 2 && c <= 4;
+    const topRight = r >= 2 && r <= 4 && c >= size - 5 && c <= size - 3;
+    const bottomLeft = r >= size - 5 && r <= size - 3 && c >= 2 && c <= 4;
+    return topLeft || topRight || bottomLeft;
+}
+
 export function VerificationQrSeal({
     seed,
     sizePx = 126,
@@ -28,7 +35,7 @@ export function VerificationQrSeal({
                 aria-label={label}
                 className="rounded-sm"
             >
-                <rect width={gridCount} height={gridCount} fill="var(--card)" />
+                <rect width={gridCount} height={gridCount} fill="#FFFFFF" />
                 {matrix.map((row, r) =>
                     row.map((active, c) =>
                         active ? (
@@ -38,7 +45,7 @@ export function VerificationQrSeal({
                                 y={r}
                                 width={1}
                                 height={1}
-                                fill="var(--primary)"
+                                fill={isFinderCenter(r, c, gridCount) ? '#AF7627' : '#162B4D'}
                             />
                         ) : null,
                     ),
