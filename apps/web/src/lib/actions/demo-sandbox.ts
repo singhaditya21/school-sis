@@ -715,6 +715,7 @@ async function ensureDemoSisterCampusSeeded(companyId: string): Promise<void> {
 
     const sisterCode = 'DEMO-CAMPUS-SOUTH';
     let sisterTenantId = '';
+    let sisterTeacherId = '';
 
     await runWithRlsBypass(RLS_BYPASS_JUSTIFICATIONS.TENANT_PROVISIONING, async () => {
         const existing = await sql<{ id: string }>`
@@ -745,9 +746,37 @@ async function ensureDemoSisterCampusSeeded(companyId: string): Promise<void> {
             `;
             sisterTenantId = inserted[0].id;
         }
+
+        const sisterTeacherEmail = 'south.teacher@scholarmind.app';
+        const existingTeacher = await sql<{ id: string }>`
+            SELECT id
+            FROM users
+            WHERE tenant_id = ${sisterTenantId}
+              AND (email_enc = ANY(${encryptEmailCandidates(sisterTeacherEmail)}::text[]) OR lower(email) = lower(${sisterTeacherEmail}))
+            LIMIT 1
+        `;
+        if (existingTeacher[0]?.id) {
+            sisterTeacherId = existingTeacher[0].id;
+        } else {
+            const lockedPasswordHash = await hash(crypto.randomBytes(24).toString('hex'), 10);
+            const insertedTeacher = await sql<{ id: string }>`
+                INSERT INTO users (tenant_id, email_enc, password_hash, first_name, last_name, role, is_active)
+                VALUES (
+                    ${sisterTenantId},
+                    ${encryptEmail(sisterTeacherEmail)},
+                    ${lockedPasswordHash},
+                    ${'Anjali'},
+                    ${'Menon'},
+                    ${'TEACHER'},
+                    ${true}
+                )
+                RETURNING id
+            `;
+            sisterTeacherId = insertedTeacher[0].id;
+        }
     });
 
-    if (!sisterTenantId) return;
+    if (!sisterTenantId || !sisterTeacherId) return;
 
     await withTenant(sisterTenantId, async (client) => {
         const q = sqlFor(client);
@@ -863,8 +892,8 @@ async function ensureDemoSisterCampusSeeded(companyId: string): Promise<void> {
             for (let day = 1; day <= maxDay; day++) {
                 const dateStr = `${yr}-${mo}-${String(day).padStart(2, '0')}`;
                 await q`
-                    INSERT INTO attendance_records (id, tenant_id, student_id, section_id, date, status)
-                    VALUES (${crypto.randomUUID()}, ${sisterTenantId}, ${stId}, ${secId}, ${dateStr}, 'PRESENT')
+                    INSERT INTO attendance_records (id, tenant_id, student_id, section_id, date, status, marked_by)
+                    VALUES (${crypto.randomUUID()}, ${sisterTenantId}, ${stId}, ${secId}, ${dateStr}, 'PRESENT', ${sisterTeacherId})
                 `.execute();
             }
         }
