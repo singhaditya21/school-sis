@@ -195,11 +195,17 @@ jobs:
           const { parse } = require('dotenv');
           const pulled = parse(readFileSync(envPath));
           const proxySecret = pulled.LEAD_CAPTURE_PROXY_SECRET || '';
-          if (proxySecret && proxySecret.length < 32) {
+          const isVercelSensitiveRedacted = proxySecret === '[SENSITIVE]';
+          if (proxySecret && !isVercelSensitiveRedacted && proxySecret.length < 32) {
             throw new Error('LEAD_CAPTURE_PROXY_SECRET in Vercel website production must be at least 32 characters.');
           }
           for (const [key, value] of Object.entries(pulled)) {
-            if (key.startsWith('NEXT_PUBLIC_') && proxySecret && value === proxySecret) {
+            if (
+              key.startsWith('NEXT_PUBLIC_') &&
+              proxySecret &&
+              !isVercelSensitiveRedacted &&
+              value === proxySecret
+            ) {
               throw new Error(`LEAD_CAPTURE_PROXY_SECRET must never be exposed in ${key}.`);
             }
           }
@@ -236,7 +242,7 @@ jobs:
           const { parse } = require('dotenv');
           const pulled = parse(readFileSync(envPath));
           const needles = [pulled.LEAD_CAPTURE_PROXY_SECRET].filter(
-            (value) => typeof value === 'string' && value.length >= 12,
+            (value) => typeof value === 'string' && value !== '[SENSITIVE]' && value.length >= 12,
           );
           if (needles.length > 0) {
             const pending = [outputCandidates[0]];
