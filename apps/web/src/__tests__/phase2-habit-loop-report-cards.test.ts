@@ -10,6 +10,7 @@ import {
 import {
     buildVerificationMatrix,
     deriveShortVerificationCode,
+    getCurrentCampusDateIso,
     signGatePassToken,
     verifyGatePassToken,
 } from '@/lib/security/gate-pass-token';
@@ -134,11 +135,12 @@ describe('Phase 2 — Digital Dismissal Gate Pass & Verification Matrix', () => 
 
     it('signs, verifies, and rejects expired or forged campus dismissal gate passes', () => {
         const now = 1_760_000_000_000;
+        const expectedCampusDate = getCurrentCampusDateIso('Asia/Kolkata', now);
         const token = signGatePassToken({
             tenantId: TENANT_ID,
             studentId: STUDENT_ID,
             guardianUserId: GUARDIAN_ID,
-            validDate: '2026-11-12',
+            validDate: expectedCampusDate,
             ttlSeconds: 3600,
             nowMs: now,
         });
@@ -149,7 +151,7 @@ describe('Phase 2 — Digital Dismissal Gate Pass & Verification Matrix', () => 
             tenantId: TENANT_ID,
             studentId: STUDENT_ID,
             guardianUserId: GUARDIAN_ID,
-            validDate: '2026-11-12',
+            validDate: expectedCampusDate,
         });
 
         const shortCode = deriveShortVerificationCode(token, 'GP');

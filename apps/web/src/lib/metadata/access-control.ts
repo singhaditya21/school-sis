@@ -60,29 +60,52 @@ function permissionsForRole(field: RuntimeMetadataFieldWithPermissions, role: st
     return permissions.find((permission) => permission.role === role) ?? null;
 }
 
-export function canReadMetadataField(role: string, field: RuntimeMetadataFieldWithPermissions): boolean {
-    if (METADATA_FIELD_BYPASS_ROLES.has(role)) return true;
+export function canReadMetadataField(
+    role: string,
+    field: RuntimeMetadataFieldWithPermissions,
+    fallbackRole?: string,
+): boolean {
+    if (METADATA_FIELD_BYPASS_ROLES.has(role) || (fallbackRole && METADATA_FIELD_BYPASS_ROLES.has(fallbackRole))) {
+        return true;
+    }
 
     const explicit = permissionsForRole(field, role);
     if (explicit) return explicit.canRead !== false;
 
-    return METADATA_FIELD_DEFAULT_ACCESS_ROLES.has(role);
+    if (fallbackRole && fallbackRole !== role) {
+        const fallbackExplicit = permissionsForRole(field, fallbackRole);
+        if (fallbackExplicit) return fallbackExplicit.canRead !== false;
+    }
+
+    return METADATA_FIELD_DEFAULT_ACCESS_ROLES.has(role) || Boolean(fallbackRole && METADATA_FIELD_DEFAULT_ACCESS_ROLES.has(fallbackRole));
 }
 
-export function canWriteMetadataField(role: string, field: RuntimeMetadataFieldWithPermissions): boolean {
-    if (METADATA_FIELD_BYPASS_ROLES.has(role)) return true;
+export function canWriteMetadataField(
+    role: string,
+    field: RuntimeMetadataFieldWithPermissions,
+    fallbackRole?: string,
+): boolean {
+    if (METADATA_FIELD_BYPASS_ROLES.has(role) || (fallbackRole && METADATA_FIELD_BYPASS_ROLES.has(fallbackRole))) {
+        return true;
+    }
 
     const explicit = permissionsForRole(field, role);
     if (explicit) return explicit.canWrite === true;
 
-    return METADATA_FIELD_DEFAULT_ACCESS_ROLES.has(role);
+    if (fallbackRole && fallbackRole !== role) {
+        const fallbackExplicit = permissionsForRole(field, fallbackRole);
+        if (fallbackExplicit) return fallbackExplicit.canWrite === true;
+    }
+
+    return METADATA_FIELD_DEFAULT_ACCESS_ROLES.has(role) || Boolean(fallbackRole && METADATA_FIELD_DEFAULT_ACCESS_ROLES.has(fallbackRole));
 }
 
 export function filterReadableMetadataFields(
     fields: readonly RuntimeMetadataFieldWithPermissions[],
     role: string,
+    fallbackRole?: string,
 ): RuntimeMetadataFieldWithPermissions[] {
-    return fields.filter((field) => canReadMetadataField(role, field));
+    return fields.filter((field) => canReadMetadataField(role, field, fallbackRole));
 }
 
 export type MetadataWriteAccessResult =
@@ -93,17 +116,18 @@ export function checkWritableMetadataPayload(
     fields: readonly RuntimeMetadataFieldWithPermissions[],
     role: string,
     payload: Record<string, unknown>,
+    fallbackRole?: string,
 ): MetadataWriteAccessResult {
     const fieldByApiName = new Map(fields.map((field) => [field.apiName, field]));
     const deniedFields = Object.keys(payload)
         .map((fieldName) => fieldByApiName.get(fieldName))
         .filter((field): field is RuntimeMetadataFieldWithPermissions => Boolean(field))
-        .filter((field) => !canWriteMetadataField(role, field))
+        .filter((field) => !canWriteMetadataField(role, field, fallbackRole))
         .map((field) => field.apiName);
 
     const blockedRequiredFields = fields
         .filter((field) => field.isRequired)
-        .filter((field) => !canWriteMetadataField(role, field))
+        .filter((field) => !canWriteMetadataField(role, field, fallbackRole))
         .map((field) => field.apiName);
 
     if (deniedFields.length > 0 || blockedRequiredFields.length > 0) {

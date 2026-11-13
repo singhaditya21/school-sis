@@ -89,5 +89,10 @@ export const EXPECTED_DATABASE_MIGRATIONS = [
     "tag": "0017_security_hardening_and_revocation",
     "createdAt": "1789214400000",
     "hash": "d8f1ec91daa80e7b98805a627d572446ad3deb7b9c49e1bb408a2dcf8a95eeaf"
+  },
+  {
+    "tag": "0018_add_lcnc_tables",
+    "createdAt": "1794509000000",
+    "hash": "20b706cf96448c7e880a036538ba53125077bb0d28ff488f21d205618624e0d8"
   }
 ] as const;

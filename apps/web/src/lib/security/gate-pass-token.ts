@@ -179,7 +179,7 @@ export function verifyGatePassToken(
         const expectedDate =
             options?.expectedDate !== undefined
                 ? options.expectedDate
-                : getCurrentCampusDateIso(options?.timeZone);
+                : getCurrentCampusDateIso(options?.timeZone, nowMs);
         if (expectedDate && parsed.dt !== expectedDate) {
             return {
                 ok: false,

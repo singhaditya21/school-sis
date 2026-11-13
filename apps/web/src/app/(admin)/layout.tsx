@@ -27,12 +27,16 @@ import {
     Blocks,
     Building2,
     UserCog,
+    Database,
+    FileBarChart2,
+    KeyRound,
     type LucideIcon,
 } from 'lucide-react';
 import { returnToHQAction } from '@/lib/actions/platform';
+import { listEnabledSidebarObjects } from '@/lib/actions/lcnc-platform';
 import PlatformBroadcastTicker from '@/components/platform/PlatformBroadcastTicker';
 import { ScholarMindCrest } from '@/components/brand/ScholarMindCrest';
-import { pool } from '@/lib/db';
+import { sql } from '@/lib/db';
 
 export default async function AdminLayout({
     children,
@@ -54,15 +58,25 @@ export default async function AdminLayout({
 
     let institutionType = 'K12';
     if (session.tenantId && session.tenantId.trim() !== '') {
-        const tenantRes = await pool.query(
-            `SELECT institution_type AS type FROM tenants WHERE id = $1 LIMIT 1`,
-            [session.tenantId],
-        );
-        const tenantRows = tenantRes.rows;
-        if (tenantRows.length > 0) {
-            institutionType = tenantRows[0].type;
+        try {
+            const tenantRows = await sql<{ type: string }>`
+                SELECT institution_type AS type FROM tenants WHERE id = ${session.tenantId} LIMIT 1
+            `;
+            if (tenantRows.length > 0 && tenantRows[0].type) {
+                institutionType = tenantRows[0].type;
+            }
+        } catch {
+            // Keep default K12 fallback
         }
     }
+
+    const sidebarObjects = await listEnabledSidebarObjects();
+
+    const canManageTenantIam =
+        session.role === 'PLATFORM_ADMIN' ||
+        session.role === 'SUPER_ADMIN' ||
+        session.role === 'GROUP_EXECUTIVE' ||
+        session.role === 'SCHOOL_ADMIN';
 
     return (
         <div className="min-h-screen bg-muted">
@@ -176,6 +190,9 @@ export default async function AdminLayout({
                         <NavLink href="/analytics" icon={BarChart3}>
                             Analytics
                         </NavLink>
+                        <NavLink href="/reports" icon={FileBarChart2}>
+                            Custom Reports
+                        </NavLink>
                         <NavLink href="/integrations/tally" icon={RefreshCw}>
                             Tally ERP Sync
                         </NavLink>
@@ -192,14 +209,41 @@ export default async function AdminLayout({
                             </div>
                         )}
 
+                        {sidebarObjects.length > 0 && (
+                            <div className="pt-3 mt-3 border-t border-border">
+                                <p className="px-3 pb-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                    Object Home Pages
+                                </p>
+                                {sidebarObjects.slice(0, 12).map(obj => (
+                                    <NavLink
+                                        key={obj.apiName}
+                                        href={`/app/${obj.apiName}`}
+                                        icon={Database}
+                                    >
+                                        {obj.name}
+                                    </NavLink>
+                                ))}
+                            </div>
+                        )}
+
                         <div className="pt-3 mt-3 border-t border-border">
                             <p className="px-3 pb-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                Governance &amp; Setup
+                                Low-Code Studio &amp; Setup
                             </p>
+                            <NavLink href="/settings/objects" icon={Sliders}>Object Manager</NavLink>
+                            {canManageTenantIam && (
+                                <>
+                                    <NavLink href="/settings/roles" icon={KeyRound}>
+                                        Roles &amp; Permissions
+                                    </NavLink>
+                                    <NavLink href="/settings/users" icon={UserCog}>
+                                        Users &amp; Access
+                                    </NavLink>
+                                </>
+                            )}
+                            <NavLink href="/automation" icon={Workflow}>Automations</NavLink>
                             <NavLink href="/settings/import" icon={Upload}>ERP Data Import</NavLink>
                             <NavLink href="/settings/payments" icon={CreditCard}>Payment Gateways</NavLink>
-                            <NavLink href="/settings/objects" icon={Sliders}>Object Manager</NavLink>
-                            <NavLink href="/automation" icon={Workflow}>Automations</NavLink>
                             <NavLink href="/settings/integrations" icon={Plug}>Integrations &amp; Outbox</NavLink>
                             <NavLink href="/marketplace" icon={Blocks}>Marketplace</NavLink>
                         </div>
@@ -212,7 +256,6 @@ export default async function AdminLayout({
                                     Group Governance
                                 </p>
                                 <NavLink href="/hq-overview" icon={Building2}>Command Center</NavLink>
-                                <NavLink href="/settings/users" icon={UserCog}>Users &amp; Roles</NavLink>
                             </div>
                         ) : null}
                     </nav>
@@ -242,7 +285,7 @@ function NavLink({
             className="group flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors"
         >
             <Icon className="w-4 h-4 text-muted-foreground group-hover:text-brass shrink-0 transition-colors" />
-            <span className="text-sm font-medium">{children}</span>
+            <span className="text-sm font-medium truncate">{children}</span>
         </Link>
     );
 }

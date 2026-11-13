@@ -24,6 +24,9 @@ export interface AdminUser {
     firstName: string;
     lastName: string;
     role: string;
+    customRoleId?: string | null;
+    customRoleName?: string | null;
+    customRoleCode?: string | null;
     active: boolean;
     createdAt: string | null;
     lastLoginAt: string | null;
@@ -138,6 +141,9 @@ type UserRow = {
     first_name: string;
     last_name: string;
     role: string;
+    custom_role_id?: string | null;
+    custom_role_name?: string | null;
+    custom_role_code?: string | null;
     is_active: boolean;
     created_at: Date | null;
     last_login_at: Date | null;
@@ -151,6 +157,9 @@ function mapRow(r: UserRow): AdminUser {
         firstName: r.first_name,
         lastName: r.last_name,
         role: r.role,
+        customRoleId: r.custom_role_id ?? null,
+        customRoleName: r.custom_role_name ?? null,
+        customRoleCode: r.custom_role_code ?? null,
         active: r.is_active,
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
         lastLoginAt: r.last_login_at ? new Date(r.last_login_at).toISOString() : null,
@@ -164,10 +173,24 @@ export async function listUsers(): Promise<Result<AdminUser[]>> {
     try {
         const rows = await runWithTenantContext(auth.tenantId, async () => {
             return sql<UserRow>`
-                SELECT id, tenant_id, COALESCE(email_enc, email) AS email, first_name, last_name, role, is_active, created_at, last_login_at
-                FROM users
-                WHERE tenant_id = ${auth.tenantId}
-                ORDER BY created_at DESC
+                SELECT u.id,
+                       u.tenant_id,
+                       COALESCE(u.email_enc, u.email) AS email,
+                       u.first_name,
+                       u.last_name,
+                       u.role,
+                       u.custom_role_id,
+                       tr.name AS custom_role_name,
+                       tr.code AS custom_role_code,
+                       u.is_active,
+                       u.created_at,
+                       u.last_login_at
+                FROM users u
+                LEFT JOIN tenant_roles tr
+                       ON tr.id = u.custom_role_id
+                      AND tr.tenant_id = u.tenant_id
+                WHERE u.tenant_id = ${auth.tenantId}
+                ORDER BY u.created_at DESC
                 LIMIT 500
             `;
         });

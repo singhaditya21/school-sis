@@ -1,12 +1,13 @@
-import { getSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { ChevronLeft, ExternalLink } from 'lucide-react';
+import { requireAuth } from '@/lib/auth/middleware';
 import { getAllMetadataObjects, getObjectMetadataById } from '@/lib/actions/metadata-engine';
+import { listTenantRolesWithPermissions } from '@/lib/actions/lcnc-platform';
 import FieldManagerClient from './field-manager';
 import ObjectLayoutBuilderClient from './layout-builder';
 import ExperiencePortalPublisherClient from './portal-publisher';
 import DocumentTemplateStudioClient from './document-template-studio';
-import Link from 'next/link';
-import { ChevronLeft, ExternalLink } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -15,26 +16,32 @@ type ObjectMetadata = Awaited<ReturnType<typeof getObjectMetadataById>>;
 
 export default async function ObjectDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = await params;
-    const session = await getSession();
-
-    if (!session.isLoggedIn || (session.role !== 'SUPER_ADMIN' && session.role !== 'PLATFORM_ADMIN')) {
-        redirect('/login');
+    let auth;
+    try {
+        auth = await requireAuth('metadata:read');
+    } catch {
+        redirect('/unauthorized');
     }
 
     let metadata: ObjectMetadata | null = null;
     let availableObjects: { api_name: string; name: string }[] = [];
+    let customRoles: { code: string; name: string }[] = [];
     let loadError: string | null = null;
 
     try {
-        const [loadedMeta, allObjs] = await Promise.all([
+        const [loadedMeta, allObjs, rolesRes] = await Promise.all([
             getObjectMetadataById(resolvedParams.id),
             getAllMetadataObjects(),
+            listTenantRolesWithPermissions().catch(() => ({ success: false, roles: [] })),
         ]);
         metadata = loadedMeta;
         availableObjects = allObjs.map(o => ({
             api_name: String(o.api_name),
             name: String(o.name),
         }));
+        customRoles = rolesRes.roles
+            .filter(r => r.isActive)
+            .map(r => ({ code: r.code, name: r.name }));
     } catch (e: unknown) {
         loadError = (e as Error).message || 'Unknown error';
     }
@@ -58,25 +65,31 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 <div>
                     <Link href="/settings/objects" className="text-primary hover:underline flex items-center text-sm mb-4">
-                        <ChevronLeft className="w-4 h-4 mr-1" /> Back to Objects
+                        <ChevronLeft className="w-4 h-4 mr-1" /> Back to Object Manager
                     </Link>
                     <h1 className="text-2xl font-bold text-foreground capitalize flex items-center gap-3">
                         {objectDef.name} Object
                         {objectDef.is_custom ? (
-                            <span className="px-2 py-1 bg-info-subtle text-info text-xs font-medium rounded uppercase tracking-wide">Custom</span>
+                            <span className="px-2 py-1 bg-success-subtle text-success text-xs font-medium rounded uppercase tracking-wide">
+                                Custom (EAV)
+                            </span>
                         ) : (
-                            <span className="px-2 py-1 bg-accent text-primary text-xs font-medium rounded uppercase tracking-wide">Standard</span>
+                            <span className="px-2 py-1 bg-accent text-primary text-xs font-medium rounded uppercase tracking-wide">
+                                System Object
+                            </span>
                         )}
                     </h1>
-                    <p className="text-muted-foreground mt-1">
-                        Manage custom fields, relational lookups, calculated formulas, role-based Field-Level Security (FLS), and drag-and-drop layouts for {objectDef.name}.
+                    <p className="text-muted-foreground mt-1 text-sm">
+                        Configure custom fields, lookups, formulas, role-based Field-Level Security
+                        (FLS), named role-scoped Forms, List layouts, and the Object Home Page KPI
+                        workspace for {objectDef.name}.
                     </p>
                 </div>
                 <Link
                     href={`/app/${objectDef.api_name}`}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
                 >
-                    Open Runtime App <ExternalLink className="w-4 h-4 text-primary" />
+                    Open Object Home <ExternalLink className="w-4 h-4 text-primary" />
                 </Link>
             </div>
 
@@ -84,6 +97,7 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
                 objectId={resolvedParams.id}
                 initialFields={fields}
                 availableObjects={availableObjects}
+                customRoles={customRoles}
             />
 
             <ObjectLayoutBuilderClient
@@ -91,6 +105,7 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
                 objectName={objectDef.name}
                 fields={fields}
                 initialLayouts={layouts ?? []}
+                customRoles={customRoles}
             />
 
             <DocumentTemplateStudioClient
@@ -100,16 +115,14 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
                 initialLayouts={layouts ?? []}
             />
 
-            {objectDef.is_custom && (
-                <ExperiencePortalPublisherClient
-                    objectId={resolvedParams.id}
-                    objectName={objectDef.name}
-                    objectApiName={String(objectDef.api_name)}
-                    tenantId={String(objectDef.tenant_id || session.tenantId || '')}
-                    fields={fields}
-                    initialLayouts={layouts ?? []}
-                />
-            )}
+            <ExperiencePortalPublisherClient
+                objectId={resolvedParams.id}
+                objectName={objectDef.name}
+                objectApiName={String(objectDef.api_name)}
+                tenantId={String(objectDef.tenant_id || auth.tenantId || '')}
+                fields={fields}
+                initialLayouts={layouts ?? []}
+            />
         </div>
     );
 }

@@ -1,12 +1,30 @@
 import { getSession } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import { queryRecords, getObjectMetadata } from '@/lib/actions/metadata-engine';
+import {
+    listObjectViewsAndCategoriesAction,
+    listReportCategoriesAndObjectReportsAction,
+} from '@/lib/actions/lcnc-platform';
+import {
+    evaluateEffectivePermission,
+    resolveEffectiveUserRoleContext,
+} from '@/lib/rbac/custom-roles';
+import {
+    listPermittedLayoutsForRole,
+    resolveLayoutForRole,
+    type HomeLayoutSchema,
+} from '@/lib/metadata/lcnc-helpers';
+import { Badge } from '@/components/ui/badge';
 import GenericListClient from './generic-list';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
-export default async function GenericObjectListPage({ params }: { params: Promise<{ object: string }> }) {
+export default async function GenericObjectListPage({
+    params,
+}: {
+    params: Promise<{ object: string }>;
+}) {
     const resolvedParams = await params;
     const session = await getSession();
 
@@ -15,59 +33,122 @@ export default async function GenericObjectListPage({ params }: { params: Promis
     }
 
     try {
-        const { objectDef, fields, layouts, storageMode, hiddenFieldCount } =
-            await getObjectMetadata(resolvedParams.object);
+        const [
+            { objectDef, fields, layouts, storageMode, hiddenFieldCount },
+            roleCtx,
+            viewsPayload,
+            reportsPayload,
+        ] = await Promise.all([
+            getObjectMetadata(resolvedParams.object),
+            resolveEffectiveUserRoleContext(
+                session.userId,
+                session.tenantId,
+                session.role,
+            ),
+            listObjectViewsAndCategoriesAction(resolvedParams.object),
+            listReportCategoriesAndObjectReportsAction(resolvedParams.object),
+        ]);
 
-        // Find the LIST layout if it exists
-        const listLayout = layouts.find(l => l.layoutType === 'LIST');
+        const listLayout = resolveLayoutForRole(
+            layouts,
+            'LIST',
+            roleCtx.effectiveRoleCode,
+            session.role,
+        );
+        const homeLayout = resolveLayoutForRole(
+            layouts,
+            'HOME',
+            roleCtx.effectiveRoleCode,
+            session.role,
+        );
+        const activeFormLayout = resolveLayoutForRole(
+            layouts,
+            'FORM',
+            roleCtx.effectiveRoleCode,
+            session.role,
+        );
+        const permittedForms = listPermittedLayoutsForRole(
+            layouts,
+            'FORM',
+            roleCtx.effectiveRoleCode,
+            session.role,
+        ).map(l => ({
+            id: l.id,
+            name: l.name || 'Default Form',
+            isDefault: Boolean(l.isDefault),
+        }));
 
-        // Field-level permissions are enforced server side; if the role can read
-        // nothing there is no table to draw, so say so rather than render an
-        // empty grid that looks like missing data.
+        const homeSchema = (homeLayout?.schema || undefined) as HomeLayoutSchema | undefined;
+
         if (fields.length === 0) {
             return (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center text-amber-800">
+                <div className="rounded-lg border border-warning/30 bg-warning-subtle p-8 text-center text-warning">
                     <h2 className="mb-2 text-xl font-bold">No readable fields</h2>
                     <p>Your role has no read access to any field on {objectDef.name}.</p>
                 </div>
             );
         }
 
-        const records = await queryRecords(resolvedParams.object, {}, 50, 0);
+        const records = await queryRecords(resolvedParams.object, {}, 200, 0);
+
+        const canCustomizeObject = evaluateEffectivePermission(roleCtx, 'metadata:publish');
+        const canManageCategories =
+            evaluateEffectivePermission(roleCtx, 'settings:write') || canCustomizeObject;
 
         return (
             <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground dark:text-white capitalize">
-                            {objectDef.name}s
-                        </h1>
-                        <p className="text-muted-foreground mt-1">
-                            Manage {objectDef.name.toLowerCase()} records in your organization.
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            <h1 className="text-2xl font-bold text-foreground capitalize">
+                                {homeSchema?.welcomeHeadline || `${objectDef.name} Home`}
+                            </h1>
+                            <Badge variant="outline" className="text-xs">
+                                {storageMode === 'EAV' ? 'Custom Object (EAV)' : 'System Object'}
+                            </Badge>
+                            {activeFormLayout?.name && (
+                                <Badge variant="outline" className="text-xs font-mono">
+                                    Form: {activeFormLayout.name}
+                                </Badge>
+                            )}
+                        </div>
+                        <p className="text-muted-foreground mt-1 text-sm">
+                            {homeSchema?.welcomeSubtitle ||
+                                `Dedicated Object Home Page — KPIs, categorized views, custom reports, and role-scoped forms for ${objectDef.name.toLowerCase()}.`}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                             {storageMode === 'EAV'
-                                ? 'Tenant-defined object — this screen is generated from metadata, not from a page route.'
-                                : 'Standard object — metadata projection over a built-in table.'}
+                                ? 'Tenant-defined object — dynamically rendered from metadata.'
+                                : 'System object — metadata projection + custom_data JSONB extension over physical table.'}
                             {hiddenFieldCount > 0
-                                ? ` ${hiddenFieldCount} field${hiddenFieldCount === 1 ? '' : 's'} hidden by field permissions.`
+                                ? ` ${hiddenFieldCount} field${hiddenFieldCount === 1 ? '' : 's'} hidden by role FLS.`
                                 : ''}
                         </p>
                     </div>
                 </div>
 
-                <GenericListClient 
+                <GenericListClient
+                    objectId={objectDef.id}
+                    objectLabel={objectDef.name}
                     objectName={resolvedParams.object}
-                    fields={fields} 
-                    records={records} 
-                    layout={listLayout?.schema}
+                    fields={fields}
+                    records={records}
+                    layout={listLayout?.schema as { columns?: string[] } | undefined}
+                    homeSchema={homeSchema}
+                    initialViewCategories={viewsPayload.categories}
+                    initialSavedViews={viewsPayload.views}
+                    initialReportCategories={reportsPayload.categories}
+                    initialObjectReports={reportsPayload.reports}
+                    permittedForms={permittedForms}
+                    canCustomizeObject={canCustomizeObject}
+                    canManageCategories={canManageCategories}
                 />
             </div>
         );
     } catch (e: unknown) {
         return (
-            <div className="p-8 text-center border rounded-lg border-red-200 bg-red-50 text-red-600">
-                <h2 className="text-xl font-bold mb-2">Error Loading Object</h2>
+            <div className="p-8 text-center border rounded-lg border-destructive/30 bg-destructive-subtle text-destructive">
+                <h2 className="text-xl font-bold mb-2">Error Loading Object Home</h2>
                 <p>{(e as Error).message}</p>
             </div>
         );

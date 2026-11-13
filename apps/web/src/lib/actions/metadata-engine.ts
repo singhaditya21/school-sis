@@ -120,7 +120,9 @@ export interface MetadataField {
 export interface MetadataLayout {
     id: string;
     objectId: string;
-    layoutType: 'FORM' | 'LIST';
+    name?: string;
+    layoutType: 'FORM' | 'LIST' | 'HOME';
+    assignedRoles?: string[];
     schema: Record<string, unknown>;
     isDefault: boolean;
 }
@@ -199,11 +201,18 @@ async function fetchObjectMetadata(apiName: string, tenantId: string) {
         ORDER BY f.created_at ASC, f.api_name ASC
     `;
 
-    // Get Layouts
+    // Get Layouts (all named & default layouts across FORM, LIST, HOME)
     const layouts = await sql<MetadataLayout>`
-        SELECT id, object_id as "objectId", layout_type as "layoutType", schema, is_default as "isDefault"
+        SELECT id,
+               object_id as "objectId",
+               COALESCE(name, 'Default Layout') as name,
+               layout_type as "layoutType",
+               COALESCE(assigned_roles, '[]'::jsonb) as "assignedRoles",
+               schema,
+               is_default as "isDefault"
         FROM metadata_layouts
-        WHERE object_id = ${objectDef.id} AND is_default = true
+        WHERE object_id = ${objectDef.id}
+        ORDER BY is_default DESC, created_at ASC
     `;
 
     return { objectDef, fields, layouts };
@@ -269,13 +278,34 @@ export async function getObjectMetadata(apiName: string): Promise<{
     const { tenantId, session } = await requireAuth();
     const { objectDef, fields, layouts } = await loadObjectMetadata(apiName, tenantId);
 
+    if (!objectDef.isCustom && UUID_RE.test(tenantId)) {
+        try {
+            const toggleRows = await sql<{ is_enabled: boolean }>`
+                SELECT is_enabled
+                FROM tenant_object_settings
+                WHERE tenant_id = ${tenantId}
+                  AND object_api_name = ${objectDef.apiName}
+                LIMIT 1
+            `;
+            if (toggleRows.length > 0 && toggleRows[0].is_enabled === false) {
+                throw new Error(`Object "${objectDef.name}" is disabled for this tenant workspace.`);
+            }
+        } catch (err) {
+            if (err instanceof Error && err.message.includes('disabled for this tenant workspace')) {
+                throw err;
+            }
+        }
+    }
+
     if (!isTenantStaffRole(session.role) && !isPortalEnabledForLayouts(layouts)) {
         throw new Error('Forbidden: object is not enabled for portal access.');
     }
 
+    const effectiveRole = session.effectiveRoleCode || session.role;
     const safeFields = filterProtectedStandardFields(objectDef, fields);
     const readable = filterReadableMetadataFields(
         safeFields as RuntimeMetadataFieldWithPermissions[],
+        effectiveRole,
         session.role,
     ) as unknown as MetadataField[];
     const isProtectedTable =
@@ -289,8 +319,9 @@ export async function getObjectMetadata(apiName: string): Promise<{
             canWrite:
                 (!isProtectedTable || field.isCustom) &&
                 canWriteMetadataField(
-                    session.role,
+                    effectiveRole,
                     field as unknown as RuntimeMetadataFieldWithPermissions,
+                    session.role,
                 ),
         })),
         layouts,
@@ -571,9 +602,11 @@ export async function queryRecords(apiName: string, filters: Record<string, unkn
         throw new Error('Forbidden: object is not enabled for portal access.');
     }
 
+    const effectiveRole = session.effectiveRoleCode || session.role;
     const safeFields = filterProtectedStandardFields(objectDef, fields);
     const readableFields = filterReadableMetadataFields(
         safeFields as RuntimeMetadataFieldWithPermissions[],
+        effectiveRole,
         session.role,
     ) as unknown as MetadataField[];
     if (readableFields.length === 0) return [];
@@ -584,7 +617,7 @@ export async function queryRecords(apiName: string, filters: Record<string, unkn
 
     if (resolveMetadataStorageMode(objectDef) === 'EAV') {
         const eavRecords = await queryEavRecords(objectDef, readableFields, tenantId, recordId, safeLimit, safeOffset);
-        return applyCalculatedFields(eavRecords, readableFields, tenantId, session.role);
+        return applyCalculatedFields(eavRecords, readableFields, tenantId, effectiveRole);
     }
 
     // Build standard SELECT columns
@@ -633,7 +666,7 @@ export async function queryRecords(apiName: string, filters: Record<string, unkn
         return serializedRest;
     });
 
-    return applyCalculatedFields(projected, readableFields, tenantId, session.role);
+    return applyCalculatedFields(projected, readableFields, tenantId, effectiveRole);
 }
 
 /**
@@ -836,12 +869,14 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
 
         // Strip virtual FORMULA / ROLLUP_SUMMARY fields so they are never treated as writable/required inputs
         const persistedFields = fields.filter(f => !isVirtualMetadataField(f));
+        const effectiveRole = session.effectiveRoleCode || session.role;
 
         // Enforce object-level write permission at the very top BEFORE any pre-validation side effects.
         const hasAnyObjectWriteGrant = persistedFields.some(f =>
             canWriteMetadataField(
-                session.role,
+                effectiveRole,
                 f as unknown as RuntimeMetadataFieldWithPermissions,
+                session.role,
             ),
         );
         if (!hasAnyObjectWriteGrant) {
@@ -855,8 +890,9 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
             const submitted = pickKnownMetadataFields(persistedFields, data);
             const writeAccess = checkWritableMetadataPayload(
                 persistedFields as RuntimeMetadataFieldWithPermissions[],
-                session.role,
+                effectiveRole,
                 submitted,
+                session.role,
             );
             if (writeAccess.ok === false) {
                 const denied = [...new Set([...writeAccess.deniedFields, ...writeAccess.blockedRequiredFields])];
@@ -957,8 +993,9 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
         const submitted = pickKnownMetadataFields(writableSchemaFields, data);
         const writeAccess = checkWritableMetadataPayload(
             writableSchemaFields as RuntimeMetadataFieldWithPermissions[],
-            session.role,
+            effectiveRole,
             submitted,
+            session.role,
         );
         if (writeAccess.ok === false) {
             const denied = [...new Set([...writeAccess.deniedFields, ...writeAccess.blockedRequiredFields])];
@@ -1593,9 +1630,16 @@ export async function getObjectMetadataById(objectId: string) {
     `;
 
     const layoutRows = await sql<MetadataLayout>`
-        SELECT id, object_id as "objectId", layout_type as "layoutType", schema, is_default as "isDefault"
+        SELECT id,
+               object_id as "objectId",
+               COALESCE(name, 'Default Layout') as name,
+               layout_type as "layoutType",
+               COALESCE(assigned_roles, '[]'::jsonb) as "assignedRoles",
+               schema,
+               is_default as "isDefault"
         FROM metadata_layouts
-        WHERE object_id = ${objectDef.id} AND is_default = true
+        WHERE object_id = ${objectDef.id}
+        ORDER BY is_default DESC, created_at ASC
     `;
 
     const mappedFields: MetadataField[] = fieldRows.map(row => ({
@@ -1614,11 +1658,13 @@ export async function getObjectMetadataById(objectId: string) {
         permissions: Array.isArray(row.permissions) ? row.permissions : [],
     } as MetadataField));
 
+    const effectiveRole = session.effectiveRoleCode || session.role;
     const canManageSchema = hasPermission(session.role as UserRole, 'metadata:publish');
     const visibleFields = canManageSchema
         ? mappedFields
         : (filterReadableMetadataFields(
               mappedFields as RuntimeMetadataFieldWithPermissions[],
+              effectiveRole,
               session.role,
           ) as unknown as MetadataField[]).map(field => toClientField(field));
 
@@ -1846,14 +1892,27 @@ export async function createCustomObject(
  */
 export async function saveObjectLayout(
     objectId: string,
-    layoutType: 'FORM' | 'LIST',
+    layoutType: 'FORM' | 'LIST' | 'HOME',
     schema: Record<string, unknown>,
-): Promise<{ success: boolean; objectId?: string; error?: string }> {
+    options?: {
+        layoutId?: string;
+        name?: string;
+        assignedRoles?: string[];
+        isDefault?: boolean;
+    },
+): Promise<{ success: boolean; objectId?: string; layoutId?: string; error?: string }> {
     try {
         const { tenantId, userId } = await requireAuth('metadata:publish');
-        if (layoutType !== 'FORM' && layoutType !== 'LIST') {
+        if (layoutType !== 'FORM' && layoutType !== 'LIST' && layoutType !== 'HOME') {
             return { success: false, error: 'Invalid layout type.' };
         }
+
+        const layoutName = (options?.name || '').trim() || `Default ${layoutType} Layout`;
+        const assignedRoles = Array.isArray(options?.assignedRoles)
+            ? options!.assignedRoles!.map(r => String(r).trim().toUpperCase()).filter(Boolean)
+            : [];
+        const isNamedOperation = Boolean(options?.layoutId || options?.name);
+        const makeDefault = options?.isDefault ?? !isNamedOperation;
 
         const client = await pool.connect();
         const q = sqlFor(client);
@@ -1861,38 +1920,82 @@ export async function saveObjectLayout(
             await q`BEGIN`.execute();
             const targetObject = await ensureTenantOwnedMetadataObject(client, objectId, tenantId, userId);
 
-            const existingRows = await q<{ schema: Record<string, unknown> }>`
-                SELECT schema
+            const existingRows = await q<{ id: string; schema: Record<string, unknown> }>`
+                SELECT id, schema
                 FROM metadata_layouts
                 WHERE object_id = ${targetObject.id}
                   AND layout_type = ${layoutType}
-                LIMIT 1
+                ORDER BY is_default DESC, created_at ASC
             `;
+            const matchedRow = options?.layoutId
+                ? existingRows.find(r => r.id === options.layoutId)
+                : !isNamedOperation
+                  ? existingRows[0]
+                  : undefined;
+
             const mergedSchema =
                 layoutType === 'FORM'
                     ? {
                           ...schema,
-                          ...(existingRows[0]?.schema?.portalConfig && !schema.portalConfig
-                              ? { portalConfig: existingRows[0].schema.portalConfig }
+                          ...(matchedRow?.schema?.portalConfig && !schema.portalConfig
+                              ? { portalConfig: matchedRow.schema.portalConfig }
                               : {}),
-                          ...(existingRows[0]?.schema?.documentTemplates && !schema.documentTemplates
-                              ? { documentTemplates: existingRows[0].schema.documentTemplates }
+                          ...(matchedRow?.schema?.documentTemplates && !schema.documentTemplates
+                              ? { documentTemplates: matchedRow.schema.documentTemplates }
                               : {}),
                       }
                     : schema;
 
-            await q`
-                DELETE FROM metadata_layouts WHERE object_id = ${targetObject.id} AND layout_type = ${layoutType}
-            `.execute();
+            if (makeDefault) {
+                await q`
+                    UPDATE metadata_layouts
+                    SET is_default = false
+                    WHERE object_id = ${targetObject.id}
+                      AND layout_type = ${layoutType}
+                `.execute();
+            }
 
-            await q`
-                INSERT INTO metadata_layouts (object_id, layout_type, schema, is_default, created_at)
-                VALUES (${targetObject.id}, ${layoutType}, ${JSON.stringify(mergedSchema)}::jsonb, true, NOW())
-            `.execute();
+            let savedLayoutId: string | undefined;
+
+            if (!isNamedOperation) {
+                await q`
+                    DELETE FROM metadata_layouts
+                    WHERE object_id = ${targetObject.id}
+                      AND layout_type = ${layoutType}
+                      AND is_default = true
+                `.execute();
+
+                const inserted = await q<{ id: string }>`
+                    INSERT INTO metadata_layouts (object_id, name, layout_type, assigned_roles, schema, is_default, created_at, updated_at)
+                    VALUES (${targetObject.id}, ${layoutName}, ${layoutType}, ${JSON.stringify(assignedRoles)}::jsonb, ${JSON.stringify(mergedSchema)}::jsonb, true, NOW(), NOW())
+                    RETURNING id
+                `;
+                savedLayoutId = inserted[0]?.id;
+            } else if (options?.layoutId && matchedRow) {
+                const updated = await q<{ id: string }>`
+                    UPDATE metadata_layouts
+                    SET name = ${layoutName},
+                        assigned_roles = ${JSON.stringify(assignedRoles)}::jsonb,
+                        schema = ${JSON.stringify(mergedSchema)}::jsonb,
+                        is_default = ${makeDefault},
+                        updated_at = NOW()
+                    WHERE id = ${matchedRow.id}
+                      AND object_id = ${targetObject.id}
+                    RETURNING id
+                `;
+                savedLayoutId = updated[0]?.id;
+            } else {
+                const inserted = await q<{ id: string }>`
+                    INSERT INTO metadata_layouts (object_id, name, layout_type, assigned_roles, schema, is_default, created_at, updated_at)
+                    VALUES (${targetObject.id}, ${layoutName}, ${layoutType}, ${JSON.stringify(assignedRoles)}::jsonb, ${JSON.stringify(mergedSchema)}::jsonb, ${makeDefault || existingRows.length === 0}, NOW(), NOW())
+                    RETURNING id
+                `;
+                savedLayoutId = inserted[0]?.id;
+            }
 
             await q`COMMIT`.execute();
             revalidateTag('metadata', 'max');
-            return { success: true, objectId: targetObject.id };
+            return { success: true, objectId: targetObject.id, layoutId: savedLayoutId };
         } catch (err) {
             await q`ROLLBACK`.execute();
             throw err;
@@ -2059,8 +2162,9 @@ export async function updateRecordFieldValue(
         }
 
         const canWrite = canWriteMetadataField(
-            session.role,
+            session.effectiveRoleCode || session.role,
             targetField as unknown as RuntimeMetadataFieldWithPermissions,
+            session.role,
         );
         if (!canWrite) {
             return { success: false, error: `You do not have permission to edit ${targetField.label}.` };
@@ -2147,8 +2251,9 @@ export async function deleteRecord(
 
         const writableFields = fields.filter(f =>
             canWriteMetadataField(
-                session.role,
+                session.effectiveRoleCode || session.role,
                 f as unknown as RuntimeMetadataFieldWithPermissions,
+                session.role,
             ),
         );
         if (writableFields.length === 0) {
@@ -2248,8 +2353,9 @@ export async function bulkImportRecords(
         const writableFields = fields.filter(
             f =>
                 canWriteMetadataField(
-                    session.role,
+                    session.effectiveRoleCode || session.role,
                     f as unknown as RuntimeMetadataFieldWithPermissions,
+                    session.role,
                 ) &&
                 !isVirtualMetadataField(f) &&
                 (isEav || f.isCustom || !isProtectedLegacyPlaintextColumn(f.apiName)),

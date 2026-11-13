@@ -131,8 +131,10 @@ export async function GET(
         (field) =>
           isEavStorage || Boolean(field.isCustom) || !isProtectedLegacyPlaintextColumn(field.apiName),
       );
+      const effectiveRole = auth.context.effectiveRoleCode || auth.context.role;
       const readableFields = filterReadableMetadataFields(
         candidateFields,
+        effectiveRole,
         auth.context.role,
       ) as ApiMetadataField[];
 
@@ -311,7 +313,12 @@ export async function POST(
         }
       }
 
-      const writeAccess = checkWritableMetadataPayload(fields, auth.context.role, sanitizedBody);
+      const writeAccess = checkWritableMetadataPayload(
+        fields,
+        auth.context.effectiveRoleCode || auth.context.role,
+        sanitizedBody,
+        auth.context.role,
+      );
       if (writeAccess.ok === false) {
         return NextResponse.json({
           error: 'Forbidden',
@@ -467,8 +474,9 @@ async function handleUpdateRequest(
 
         const writeAccess = checkWritableMetadataPayload(
           customFields,
-          auth.context.role,
+          auth.context.effectiveRoleCode || auth.context.role,
           sanitizedBody,
+          auth.context.role,
         );
         if (writeAccess.ok === false) {
           return NextResponse.json(
@@ -521,8 +529,9 @@ async function handleUpdateRequest(
 
       const writeAccess = checkWritableMetadataPayload(
         nonVirtualFields,
-        auth.context.role,
+        auth.context.effectiveRoleCode || auth.context.role,
         sanitizedBody,
+        auth.context.role,
       );
       if (writeAccess.ok === false) {
         return NextResponse.json(
@@ -678,7 +687,9 @@ export async function DELETE(
       }
 
       const fields = await fetchMetadataFields(objectDef.id);
-      const writableFields = fields.filter((f) => canWriteMetadataField(auth.context.role, f));
+      const writableFields = fields.filter((f) =>
+        canWriteMetadataField(auth.context.effectiveRoleCode || auth.context.role, f, auth.context.role),
+      );
       if (writableFields.length === 0) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }

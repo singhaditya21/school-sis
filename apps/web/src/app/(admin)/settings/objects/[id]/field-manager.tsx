@@ -29,11 +29,17 @@ export default function FieldManagerClient({
     objectId,
     initialFields,
     availableObjects = [],
+    customRoles = [],
 }: {
     objectId: string;
     initialFields: MetadataField[];
     availableObjects?: { api_name: string; name: string }[];
+    customRoles?: { code: string; name: string }[];
 }) {
+    const allRolesForFls = [
+        ...CONFIGURABLE_ROLES,
+        ...customRoles.map(cr => ({ role: cr.code, label: `${cr.name} (Custom)` })),
+    ];
     const router = useRouter();
     const [fields, setFields] = useState<MetadataField[]>(initialFields);
     const [isAdding, setIsAdding] = useState(false);
@@ -74,7 +80,7 @@ export default function FieldManagerClient({
 
     const openFlsDialog = (field: MetadataField) => {
         const map: Record<string, { canRead: boolean; canWrite: boolean }> = {};
-        for (const r of CONFIGURABLE_ROLES) {
+        for (const r of allRolesForFls) {
             const existing = field.permissions?.find(p => p.role === r.role);
             map[r.role] = existing
                 ? { canRead: Boolean(existing.canRead), canWrite: Boolean(existing.canWrite) }
@@ -691,7 +697,7 @@ export default function FieldManagerClient({
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
-                                    {CONFIGURABLE_ROLES.map(r => {
+                                    {allRolesForFls.map(r => {
                                         const grant = flsGrants[r.role] ?? {
                                             canRead: false,
                                             canWrite: false,

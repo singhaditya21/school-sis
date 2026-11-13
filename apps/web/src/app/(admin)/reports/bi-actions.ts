@@ -12,6 +12,7 @@ import {
     queryRecords,
 } from '@/lib/actions/metadata-engine';
 import type { RollupAggregateFunction } from '@/lib/metadata/platform';
+import { applyViewFilterRules, type SavedViewFilterRule } from '@/lib/metadata/lcnc-helpers';
 import {
     assertBiExportAllowed,
     getBiDataset,
@@ -313,22 +314,23 @@ export interface SavedBiReportDefinition {
     datasetId: string;
     metricIds: string[];
     dimensionIds: string[];
+    categoryId?: string | null;
+    categoryName?: string | null;
     scheduleFrequency: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
     recipientEmail?: string;
     createdAt: string;
 }
 
 /**
- * Saves a custom BI report definition (dataset, metrics, dimensions, and optional recurring
- * delivery schedule) into `audit_logs` (`BI_REPORT_SAVED`). When a recurring `scheduleFrequency`
- * (`DAILY`, `WEEKLY`, `MONTHLY`) is selected, requires `reports:export` permission and verifies
- * the recipient belongs to the current tenant before enqueuing `BI_SCHEDULED_REPORT`.
+ * Saves a custom BI report definition (dataset, metrics, dimensions, report category, and optional
+ * recurring delivery schedule) into `bi_report_definitions` plus an `audit_logs` trace.
  */
 export async function saveCustomReportDefinition(input: {
     name: string;
     datasetId: string;
     metricIds: string[];
     dimensionIds: string[];
+    categoryId?: string | null;
     scheduleFrequency?: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
     recipientEmail?: string;
 }): Promise<{ success: boolean; error?: string; report?: SavedBiReportDefinition }> {
@@ -446,18 +448,54 @@ export async function saveCustomReportDefinition(input: {
             savedAt: new Date().toISOString(),
         };
 
+        const categoryId =
+            input.categoryId && /^[0-9a-f-]{36}$/i.test(input.categoryId)
+                ? input.categoryId
+                : null;
+
         return await runWithTenantContext(tenantId, async () => {
+            const scheduleJson = {
+                scheduleFrequency,
+                recipientEmail,
+            };
             const inserted = await sql<{ id: string; created_at: Date | string }>`
-                INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, after_state)
+                INSERT INTO bi_report_definitions (
+                    tenant_id, scope, name, category_id, report_kind, dataset_key,
+                    selected_metrics, selected_dimensions, filters, date_range, schedule,
+                    status, created_by, updated_by, created_at, updated_at
+                )
+                VALUES (
+                    ${tenantId},
+                    'TENANT',
+                    ${trimmedName},
+                    ${categoryId},
+                    'STANDARD_BI',
+                    ${input.datasetId},
+                    ${input.metricIds}::text[],
+                    ${input.dimensionIds || []}::text[],
+                    '[]'::jsonb,
+                    '{}'::jsonb,
+                    ${JSON.stringify(scheduleJson)}::jsonb,
+                    'ACTIVE',
+                    ${userId},
+                    ${userId},
+                    NOW(),
+                    NOW()
+                )
+                RETURNING id, created_at
+            `;
+
+            await sql`
+                INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
                 VALUES (
                     ${tenantId},
                     ${userId},
                     'CREATE',
                     'bi_report',
+                    ${inserted[0]?.id || null},
                     ${JSON.stringify(reportPayload)}::jsonb
                 )
-                RETURNING id, created_at
-            `;
+            `.execute();
 
             if (scheduleFrequency !== 'NONE') {
                 await sql`
@@ -540,40 +578,65 @@ export async function saveCustomReportDefinition(input: {
 export async function getSavedBiReports(): Promise<SavedBiReportDefinition[]> {
     try {
         const { tenantId } = await requireAuth('reports:read');
-        const rows = await sql<{
-            id: string;
-            after_state: Record<string, unknown> | null;
-            created_at: Date | string;
-        }>`
-            SELECT id, after_state, created_at
-            FROM audit_logs
-            WHERE tenant_id = ${tenantId}
-              AND action = 'CREATE'
-              AND entity_type = 'bi_report'
-            ORDER BY created_at DESC
-            LIMIT 20
-        `;
+        return await runWithTenantContext(tenantId, async () => {
+            const rows = await sql<{
+                id: string;
+                name: string;
+                dataset_key: string;
+                selected_metrics: string[];
+                selected_dimensions: string[];
+                category_id: string | null;
+                category_name: string | null;
+                schedule: Record<string, unknown> | null;
+                created_at: Date | string;
+            }>`
+                SELECT r.id,
+                       r.name,
+                       r.dataset_key,
+                       r.selected_metrics,
+                       r.selected_dimensions,
+                       r.category_id,
+                       rc.name AS category_name,
+                       r.schedule,
+                       r.created_at
+                FROM bi_report_definitions r
+                LEFT JOIN report_categories rc
+                       ON rc.id = r.category_id
+                      AND rc.tenant_id = ${tenantId}
+                WHERE r.tenant_id = ${tenantId}
+                  AND r.status = 'ACTIVE'
+                  AND r.report_kind = 'STANDARD_BI'
+                ORDER BY r.created_at DESC
+                LIMIT 30
+            `;
 
-        return rows.map(row => {
-            const state = (row.after_state && typeof row.after_state === 'object'
-                ? row.after_state
-                : {}) as Record<string, unknown>;
-            const freq = String(state.scheduleFrequency || 'NONE').toUpperCase();
-            return {
-                id: row.id,
-                name: String(state.name || 'Saved Report'),
-                datasetId: String(state.datasetId || ''),
-                metricIds: Array.isArray(state.metricIds) ? state.metricIds.map(String) : [],
-                dimensionIds: Array.isArray(state.dimensionIds) ? state.dimensionIds.map(String) : [],
-                scheduleFrequency: (['NONE', 'DAILY', 'WEEKLY', 'MONTHLY'].includes(freq)
-                    ? freq
-                    : 'NONE') as 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY',
-                recipientEmail: state.recipientEmail ? String(state.recipientEmail) : undefined,
-                createdAt:
-                    row.created_at instanceof Date
-                        ? row.created_at.toISOString()
-                        : String(row.created_at),
-            };
+            return rows.map(row => {
+                const sched = (row.schedule && typeof row.schedule === 'object'
+                    ? row.schedule
+                    : {}) as Record<string, unknown>;
+                const freq = String(sched.scheduleFrequency || 'NONE').toUpperCase();
+                return {
+                    id: row.id,
+                    name: row.name || 'Saved Report',
+                    datasetId: row.dataset_key || '',
+                    metricIds: Array.isArray(row.selected_metrics)
+                        ? row.selected_metrics.map(String)
+                        : [],
+                    dimensionIds: Array.isArray(row.selected_dimensions)
+                        ? row.selected_dimensions.map(String)
+                        : [],
+                    categoryId: row.category_id,
+                    categoryName: row.category_name,
+                    scheduleFrequency: (['NONE', 'DAILY', 'WEEKLY', 'MONTHLY'].includes(freq)
+                        ? freq
+                        : 'NONE') as 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY',
+                    recipientEmail: sched.recipientEmail ? String(sched.recipientEmail) : undefined,
+                    createdAt:
+                        row.created_at instanceof Date
+                            ? row.created_at.toISOString()
+                            : String(row.created_at),
+                };
+            });
         });
     } catch {
         return [];
@@ -671,6 +734,7 @@ export async function runCustomObjectBiReport(input: {
     groupByField: string;
     aggregateFunction: RollupAggregateFunction;
     metricField?: string;
+    filterRules?: SavedViewFilterRule[];
 }): Promise<RunCustomObjectBiReportResult> {
     try {
         await requireAuth('reports:read');
@@ -692,7 +756,8 @@ export async function runCustomObjectBiReport(input: {
             };
         }
 
-        const records = await queryRecords(input.objectApiName, {}, 500, 0);
+        const rawRecords = await queryRecords(input.objectApiName, {}, 500, 0);
+        const records = applyViewFilterRules(rawRecords, input.filterRules || []);
         const groups = new Map<string, number[]>();
 
         for (const rec of records) {

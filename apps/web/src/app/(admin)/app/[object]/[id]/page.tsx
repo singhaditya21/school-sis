@@ -10,9 +10,15 @@ import {
     type RecordAuditTimelineEntry,
     type RelatedLookupGroup,
 } from '@/lib/actions/metadata-engine';
+import { resolveEffectiveUserRoleContext } from '@/lib/rbac/custom-roles';
+import {
+    listPermittedLayoutsForRole,
+    resolveLayoutForRole,
+} from '@/lib/metadata/lcnc-helpers';
 import type { DuplicateMatchEntry } from '@/lib/metadata/platform';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ExternalLink, Link2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ChevronLeft, ExternalLink, Link2 } from 'lucide-react';
 import GenericFormClient from './generic-form';
 import {
     RecordAuditTimelineCard,
@@ -22,8 +28,15 @@ import {
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
-export default async function GenericObjectFormPage({ params }: { params: Promise<{ object: string, id: string }> }) {
+export default async function GenericObjectFormPage({
+    params,
+    searchParams,
+}: {
+    params: Promise<{ object: string; id: string }>;
+    searchParams?: Promise<{ layoutId?: string }>;
+}) {
     const resolvedParams = await params;
+    const resolvedSearch = searchParams ? await searchParams : undefined;
     const session = await getSession();
 
     if (!session.isLoggedIn) {
@@ -31,7 +44,10 @@ export default async function GenericObjectFormPage({ params }: { params: Promis
     }
 
     try {
-        const { objectDef, fields, layouts, hiddenFieldCount } = await getObjectMetadata(resolvedParams.object);
+        const [{ objectDef, fields, layouts, hiddenFieldCount }, roleCtx] = await Promise.all([
+            getObjectMetadata(resolvedParams.object),
+            resolveEffectiveUserRoleContext(session.userId, session.tenantId, session.role),
+        ]);
 
         if (fields.length === 0) {
             return (
@@ -56,29 +72,77 @@ export default async function GenericObjectFormPage({ params }: { params: Promis
             if (records.length > 0) {
                 initialData = records[0];
             } else {
-                throw new Error("Record not found");
+                throw new Error('Record not found');
             }
             relatedGroups = loadedRelated;
             auditTimeline = loadedTimeline;
             potentialDuplicates = loadedDuplicates;
         }
 
-        // Find the FORM layout if it exists
-        const formLayout = layouts.find(l => l.layoutType === 'FORM');
+        const permittedForms = listPermittedLayoutsForRole(
+            layouts,
+            'FORM',
+            roleCtx.effectiveRoleCode,
+            session.role,
+        );
+        const formLayout = resolveLayoutForRole(
+            layouts,
+            'FORM',
+            roleCtx.effectiveRoleCode,
+            session.role,
+            resolvedSearch?.layoutId,
+        );
 
         return (
             <div className="space-y-6 max-w-4xl mx-auto">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground capitalize">
-                            {resolvedParams.id === 'new' ? `New ${objectDef.name}` : `Edit ${objectDef.name}`}
-                        </h1>
+                        <Link
+                            href={`/app/${resolvedParams.object}`}
+                            className="inline-flex items-center text-xs text-primary hover:underline mb-2"
+                        >
+                            <ChevronLeft className="w-3.5 h-3.5 mr-1" /> Back to {objectDef.name} Home
+                        </Link>
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            <h1 className="text-2xl font-bold text-foreground capitalize">
+                                {resolvedParams.id === 'new'
+                                    ? `New ${objectDef.name}`
+                                    : `Edit ${objectDef.name}`}
+                            </h1>
+                            {formLayout?.name && (
+                                <Badge variant="outline" className="text-xs font-mono">
+                                    Active Form: {formLayout.name}
+                                </Badge>
+                            )}
+                        </div>
                         {hiddenFieldCount > 0 && (
                             <p className="mt-1 text-xs text-muted-foreground">
-                                {hiddenFieldCount} field{hiddenFieldCount === 1 ? '' : 's'} hidden by field permissions.
+                                {hiddenFieldCount} field{hiddenFieldCount === 1 ? '' : 's'} hidden by role FLS.
                             </p>
                         )}
                     </div>
+
+                    {permittedForms.length > 1 && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-xs text-muted-foreground mr-1">Switch Form:</span>
+                            {permittedForms.map(frm => {
+                                const isCurrent = frm.id === formLayout?.id;
+                                return (
+                                    <Link
+                                        key={frm.id}
+                                        href={`/app/${resolvedParams.object}/${resolvedParams.id}?layoutId=${frm.id}`}
+                                        className={`rounded-full px-2.5 py-1 text-xs font-medium border transition-colors ${
+                                            isCurrent
+                                                ? 'bg-primary text-primary-foreground border-primary'
+                                                : 'bg-card text-muted-foreground border-border hover:text-foreground'
+                                        }`}
+                                    >
+                                        {frm.name || 'Default Form'}
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
 
                 {resolvedParams.id !== 'new' && (
@@ -91,7 +155,8 @@ export default async function GenericObjectFormPage({ params }: { params: Promis
                     />
                 )}
 
-                <GenericFormClient 
+                <GenericFormClient
+                    key={formLayout?.id || 'default-form'}
                     objectName={resolvedParams.object}
                     recordId={resolvedParams.id === 'new' ? undefined : resolvedParams.id}
                     fields={fields}

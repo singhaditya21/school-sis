@@ -4,6 +4,10 @@ import { isRoleMfaRequired } from '@/lib/auth/session-options';
 import { assertActiveSessionState } from '@/lib/auth/session-revocation';
 import { isDemoSession } from '@/lib/tenant/demo-guard';
 import { hasPermission, UserRole } from '@/lib/rbac/permissions';
+import {
+    evaluateEffectivePermission,
+    resolveEffectiveUserRoleContext,
+} from '@/lib/rbac/custom-roles';
 import { redirect } from 'next/navigation';
 
 /**
@@ -20,6 +24,9 @@ export interface AuthContext {
         tenantId: string;
         role: string;
         email: string;
+        effectiveRoleCode?: string;
+        customRoleId?: string | null;
+        customRoleName?: string | null;
     };
     tenantId: string;
     userId: string;
@@ -63,10 +70,19 @@ export async function requireAuth(permission?: string): Promise<AuthContext> {
         throw new Error('Session missing tenantId. This should not happen.');
     }
 
+    const roleContext = await resolveEffectiveUserRoleContext(
+        session.userId,
+        session.tenantId,
+        session.role,
+    );
+
     // Check permission if specified
     if (permission) {
         const role = session.role as UserRole;
-        if (!hasPermission(role, permission)) {
+        const allowed = roleContext.customRoleId
+            ? evaluateEffectivePermission(roleContext, permission)
+            : hasPermission(role, permission);
+        if (!allowed) {
             throw new Error(`Forbidden: insufficient permissions for ${permission}`);
         }
     }
@@ -77,6 +93,9 @@ export async function requireAuth(permission?: string): Promise<AuthContext> {
             tenantId: session.tenantId,
             role: session.role,
             email: session.email,
+            effectiveRoleCode: roleContext.effectiveRoleCode,
+            customRoleId: roleContext.customRoleId,
+            customRoleName: roleContext.customRoleName,
         },
         tenantId: session.tenantId,
         userId: session.userId,

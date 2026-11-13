@@ -8,12 +8,17 @@ import { assertActiveSessionState } from '@/lib/auth/session-revocation';
 import { isDemoSession } from '@/lib/tenant/demo-guard';
 import { assertSameOriginMutation, resolveTrustedAppOrigin } from '@/lib/security/client-ip';
 import { hasPermission, UserRole } from '@/lib/rbac/permissions';
+import {
+    evaluateEffectivePermission,
+    resolveEffectiveUserRoleContext,
+} from '@/lib/rbac/custom-roles';
 
 export type ApiAuthContext = {
     userId: string;
     tenantId: string;
     role: string;
     email: string;
+    effectiveRoleCode?: string;
 };
 
 export type ApiAuthResult =
@@ -175,14 +180,29 @@ export async function requireApiPermission(
     const auth = await requireApiAuth(undefined, request);
     if (auth.ok === false) return auth;
 
-    if (!hasPermission(auth.context.role as UserRole, permission)) {
+    const roleCtx = await resolveEffectiveUserRoleContext(
+        auth.context.userId,
+        auth.context.tenantId,
+        auth.context.role,
+    );
+    const allowed = roleCtx.customRoleId
+        ? evaluateEffectivePermission(roleCtx, permission)
+        : hasPermission(auth.context.role as UserRole, permission);
+
+    if (!allowed) {
         return {
             ok: false,
             response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
         };
     }
 
-    return auth;
+    return {
+        ok: true,
+        context: {
+            ...auth.context,
+            effectiveRoleCode: roleCtx.effectiveRoleCode,
+        },
+    };
 }
 
 export function requireServerSecret(name: string, minLength = 32): string {
