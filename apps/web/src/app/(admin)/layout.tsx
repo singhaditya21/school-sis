@@ -214,7 +214,7 @@ export default async function AdminLayout({
                                 <p className="px-3 pb-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                                     Object Home Pages
                                 </p>
-                                {sidebarObjects.slice(0, 12).map(obj => (
+                                {sidebarObjects.slice(0, 6).map(obj => (
                                     <NavLink
                                         key={obj.apiName}
                                         href={`/app/${obj.apiName}`}

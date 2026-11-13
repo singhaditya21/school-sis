@@ -47,8 +47,8 @@ describe('tenancy stage 0 — owners tier', () => {
         expect(rls).toMatch(/WHERE c\.owner_id = owners\.id[\s\S]*current_tenant_id\(\)/);
     });
 
-    it('pins the RLS catalog count to include the four new owners policies', () => {
-        expect(deployment).toContain('EXPECTED_RLS_POLICY_COUNT = 184');
+    it('pins the RLS catalog count to include the four new owners policies and LCNC tables', () => {
+        expect(deployment).toContain('EXPECTED_RLS_POLICY_COUNT = 190');
         expect(deployment).toContain('owners_tenant_isolation_select');
     });
 

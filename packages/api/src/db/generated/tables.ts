@@ -294,6 +294,7 @@ export interface AdmissionApplicationsRow {
     updatedAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    customData: unknown | null;
 }
 export interface AdmissionApplicationsInsert {
     id?: string;
@@ -306,6 +307,7 @@ export interface AdmissionApplicationsInsert {
     updatedAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    customData?: unknown | null;
 }
 export const admissionApplications = {
     $name: "admission_applications" as const,
@@ -319,6 +321,7 @@ export const admissionApplications = {
     updatedAt: column("admission_applications", "updated_at"),
     ownerId: column("admission_applications", "owner_id"),
     groupId: column("admission_applications", "group_id"),
+    customData: column("admission_applications", "custom_data"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── admission_documents ─────────────────────────
@@ -647,6 +650,8 @@ export interface AlumniProfilesRow {
     groupId: string | null;
     emailEnc: string | null;
     phoneEnc: string | null;
+    customData: unknown | null;
+    updatedAt: Date | null;
 }
 export interface AlumniProfilesInsert {
     id?: string;
@@ -667,6 +672,8 @@ export interface AlumniProfilesInsert {
     groupId?: string | null;
     emailEnc?: string | null;
     phoneEnc?: string | null;
+    customData?: unknown | null;
+    updatedAt?: Date | null;
 }
 export const alumniProfiles = {
     $name: "alumni_profiles" as const,
@@ -688,6 +695,8 @@ export const alumniProfiles = {
     groupId: column("alumni_profiles", "group_id"),
     emailEnc: column("alumni_profiles", "email_enc"),
     phoneEnc: column("alumni_profiles", "phone_enc"),
+    customData: column("alumni_profiles", "custom_data"),
+    updatedAt: column("alumni_profiles", "updated_at"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── alumni_registrations ────────────────────────
@@ -785,6 +794,7 @@ export interface AssetsRow {
     updatedAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    customData: unknown | null;
 }
 export interface AssetsInsert {
     id?: string;
@@ -805,6 +815,7 @@ export interface AssetsInsert {
     updatedAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    customData?: unknown | null;
 }
 export const assets = {
     $name: "assets" as const,
@@ -826,6 +837,7 @@ export const assets = {
     updatedAt: column("assets", "updated_at"),
     ownerId: column("assets", "owner_id"),
     groupId: column("assets", "group_id"),
+    customData: column("assets", "custom_data"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── attendance_records ──────────────────────────
@@ -843,6 +855,7 @@ export interface AttendanceRecordsRow {
     updatedAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    customData: unknown | null;
 }
 export interface AttendanceRecordsInsert {
     id?: string;
@@ -858,6 +871,7 @@ export interface AttendanceRecordsInsert {
     updatedAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    customData?: unknown | null;
 }
 export const attendanceRecords = {
     $name: "attendance_records" as const,
@@ -874,6 +888,7 @@ export const attendanceRecords = {
     updatedAt: column("attendance_records", "updated_at"),
     ownerId: column("attendance_records", "owner_id"),
     groupId: column("attendance_records", "group_id"),
+    customData: column("attendance_records", "custom_data"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── audit_logs ──────────────────────────────────
@@ -1280,6 +1295,11 @@ export interface BiReportDefinitionsRow {
     updatedAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    categoryId: string | null;
+    objectApiName: string | null;
+    reportKind: string;
+    chartType: string;
+    allowedRoles: unknown;
 }
 export interface BiReportDefinitionsInsert {
     id?: string;
@@ -1300,6 +1320,11 @@ export interface BiReportDefinitionsInsert {
     updatedAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    categoryId?: string | null;
+    objectApiName?: string | null;
+    reportKind?: string;
+    chartType?: string;
+    allowedRoles?: unknown;
 }
 export const biReportDefinitions = {
     $name: "bi_report_definitions" as const,
@@ -1321,6 +1346,11 @@ export const biReportDefinitions = {
     updatedAt: column("bi_report_definitions", "updated_at"),
     ownerId: column("bi_report_definitions", "owner_id"),
     groupId: column("bi_report_definitions", "group_id"),
+    categoryId: column("bi_report_definitions", "category_id"),
+    objectApiName: column("bi_report_definitions", "object_api_name"),
+    reportKind: column("bi_report_definitions", "report_kind"),
+    chartType: column("bi_report_definitions", "chart_type"),
+    allowedRoles: column("bi_report_definitions", "allowed_roles"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── bi_report_runs ──────────────────────────────
@@ -1509,6 +1539,7 @@ export interface BooksRow {
     updatedAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    customData: unknown | null;
 }
 export interface BooksInsert {
     id?: string;
@@ -1533,6 +1564,7 @@ export interface BooksInsert {
     updatedAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    customData?: unknown | null;
 }
 export const books = {
     $name: "books" as const,
@@ -1558,6 +1590,7 @@ export const books = {
     updatedAt: column("books", "updated_at"),
     ownerId: column("books", "owner_id"),
     groupId: column("books", "group_id"),
+    customData: column("books", "custom_data"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── certificate_templates ───────────────────────
@@ -1714,6 +1747,8 @@ export interface ConcessionsRow {
     createdAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    customData: unknown | null;
+    updatedAt: Date | null;
 }
 export interface ConcessionsInsert {
     id?: string;
@@ -1730,6 +1765,8 @@ export interface ConcessionsInsert {
     createdAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    customData?: unknown | null;
+    updatedAt?: Date | null;
 }
 export const concessions = {
     $name: "concessions" as const,
@@ -1747,6 +1784,8 @@ export const concessions = {
     createdAt: column("concessions", "created_at"),
     ownerId: column("concessions", "owner_id"),
     groupId: column("concessions", "group_id"),
+    customData: column("concessions", "custom_data"),
+    updatedAt: column("concessions", "updated_at"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── consent_forms ───────────────────────────────
@@ -2297,6 +2336,7 @@ export interface ExamsRow {
     updatedAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    customData: unknown | null;
 }
 export interface ExamsInsert {
     id?: string;
@@ -2314,6 +2354,7 @@ export interface ExamsInsert {
     updatedAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    customData?: unknown | null;
 }
 export const exams = {
     $name: "exams" as const,
@@ -2332,6 +2373,7 @@ export const exams = {
     updatedAt: column("exams", "updated_at"),
     ownerId: column("exams", "owner_id"),
     groupId: column("exams", "group_id"),
+    customData: column("exams", "custom_data"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── faculty_workload ────────────────────────────
@@ -2569,6 +2611,8 @@ export interface GradesRow {
     createdAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    customData: unknown | null;
+    updatedAt: Date | null;
 }
 export interface GradesInsert {
     id?: string;
@@ -2579,6 +2623,8 @@ export interface GradesInsert {
     createdAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    customData?: unknown | null;
+    updatedAt?: Date | null;
 }
 export const grades = {
     $name: "grades" as const,
@@ -2590,6 +2636,8 @@ export const grades = {
     createdAt: column("grades", "created_at"),
     ownerId: column("grades", "owner_id"),
     groupId: column("grades", "group_id"),
+    customData: column("grades", "custom_data"),
+    updatedAt: column("grades", "updated_at"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── grading_rubrics ─────────────────────────────
@@ -2721,6 +2769,7 @@ export interface GuardiansRow {
     emailEnc: string | null;
     phoneEnc: string | null;
     alternatePhoneEnc: string | null;
+    customData: unknown | null;
 }
 export interface GuardiansInsert {
     id?: string;
@@ -2745,6 +2794,7 @@ export interface GuardiansInsert {
     emailEnc?: string | null;
     phoneEnc?: string | null;
     alternatePhoneEnc?: string | null;
+    customData?: unknown | null;
 }
 export const guardians = {
     $name: "guardians" as const,
@@ -2770,6 +2820,7 @@ export const guardians = {
     emailEnc: column("guardians", "email_enc"),
     phoneEnc: column("guardians", "phone_enc"),
     alternatePhoneEnc: column("guardians", "alternate_phone_enc"),
+    customData: column("guardians", "custom_data"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── hardware_tokens ─────────────────────────────
@@ -2903,6 +2954,8 @@ export interface HealthRecordsRow {
     groupId: string | null;
     emergencyPhoneEnc: string | null;
     doctorPhoneEnc: string | null;
+    customData: unknown | null;
+    createdAt: Date | null;
 }
 export interface HealthRecordsInsert {
     id?: string;
@@ -2926,6 +2979,8 @@ export interface HealthRecordsInsert {
     groupId?: string | null;
     emergencyPhoneEnc?: string | null;
     doctorPhoneEnc?: string | null;
+    customData?: unknown | null;
+    createdAt?: Date | null;
 }
 export const healthRecords = {
     $name: "health_records" as const,
@@ -2950,6 +3005,8 @@ export const healthRecords = {
     groupId: column("health_records", "group_id"),
     emergencyPhoneEnc: column("health_records", "emergency_phone_enc"),
     doctorPhoneEnc: column("health_records", "doctor_phone_enc"),
+    customData: column("health_records", "custom_data"),
+    createdAt: column("health_records", "created_at"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── homework_assignments ────────────────────────
@@ -3239,6 +3296,7 @@ export interface HostelsRow {
     updatedAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    customData: unknown | null;
 }
 export interface HostelsInsert {
     id?: string;
@@ -3256,6 +3314,7 @@ export interface HostelsInsert {
     updatedAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    customData?: unknown | null;
 }
 export const hostels = {
     $name: "hostels" as const,
@@ -3274,6 +3333,7 @@ export const hostels = {
     updatedAt: column("hostels", "updated_at"),
     ownerId: column("hostels", "owner_id"),
     groupId: column("hostels", "group_id"),
+    customData: column("hostels", "custom_data"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── hq_groups ───────────────────────────────────
@@ -4337,6 +4397,9 @@ export interface MetadataLayoutsRow {
     schoolId: string | null;
     ownerId: string | null;
     groupId: string | null;
+    name: string;
+    assignedRoles: unknown;
+    updatedAt: Date | null;
 }
 export interface MetadataLayoutsInsert {
     id?: string;
@@ -4348,6 +4411,9 @@ export interface MetadataLayoutsInsert {
     schoolId?: string | null;
     ownerId?: string | null;
     groupId?: string | null;
+    name?: string;
+    assignedRoles?: unknown;
+    updatedAt?: Date | null;
 }
 export const metadataLayouts = {
     $name: "metadata_layouts" as const,
@@ -4360,6 +4426,9 @@ export const metadataLayouts = {
     schoolId: column("metadata_layouts", "school_id"),
     ownerId: column("metadata_layouts", "owner_id"),
     groupId: column("metadata_layouts", "group_id"),
+    name: column("metadata_layouts", "name"),
+    assignedRoles: column("metadata_layouts", "assigned_roles"),
+    updatedAt: column("metadata_layouts", "updated_at"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── metadata_migration_jobs ─────────────────────
@@ -4585,6 +4654,99 @@ export const metadataValues = {
     schoolId: column("metadata_values", "school_id"),
     ownerId: column("metadata_values", "owner_id"),
     groupId: column("metadata_values", "group_id"),
+} satisfies { $name: string } & Record<string, ColumnRef | string>;
+
+// ─── metadata_view_categories ────────────────────
+export interface MetadataViewCategoriesRow {
+    id: string;
+    tenantId: string;
+    objectApiName: string | null;
+    name: string;
+    description: string | null;
+    sortOrder: number;
+    createdBy: string | null;
+    createdAt: Date;
+}
+export interface MetadataViewCategoriesInsert {
+    id?: string;
+    tenantId: string;
+    objectApiName?: string | null;
+    name: string;
+    description?: string | null;
+    sortOrder?: number;
+    createdBy?: string | null;
+    createdAt?: Date;
+}
+export const metadataViewCategories = {
+    $name: "metadata_view_categories" as const,
+    id: column("metadata_view_categories", "id"),
+    tenantId: column("metadata_view_categories", "tenant_id"),
+    objectApiName: column("metadata_view_categories", "object_api_name"),
+    name: column("metadata_view_categories", "name"),
+    description: column("metadata_view_categories", "description"),
+    sortOrder: column("metadata_view_categories", "sort_order"),
+    createdBy: column("metadata_view_categories", "created_by"),
+    createdAt: column("metadata_view_categories", "created_at"),
+} satisfies { $name: string } & Record<string, ColumnRef | string>;
+
+// ─── metadata_views ──────────────────────────────
+export interface MetadataViewsRow {
+    id: string;
+    tenantId: string;
+    objectApiName: string;
+    categoryId: string | null;
+    name: string;
+    columns: unknown;
+    filterRules: unknown;
+    sortField: string | null;
+    sortDirection: string;
+    displayMode: string;
+    kanbanGroupField: string | null;
+    isDefault: boolean;
+    visibility: string;
+    allowedRoles: unknown;
+    createdBy: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+}
+export interface MetadataViewsInsert {
+    id?: string;
+    tenantId: string;
+    objectApiName: string;
+    categoryId?: string | null;
+    name: string;
+    columns?: unknown;
+    filterRules?: unknown;
+    sortField?: string | null;
+    sortDirection?: string;
+    displayMode?: string;
+    kanbanGroupField?: string | null;
+    isDefault?: boolean;
+    visibility?: string;
+    allowedRoles?: unknown;
+    createdBy?: string | null;
+    createdAt?: Date;
+    updatedAt?: Date;
+}
+export const metadataViews = {
+    $name: "metadata_views" as const,
+    id: column("metadata_views", "id"),
+    tenantId: column("metadata_views", "tenant_id"),
+    objectApiName: column("metadata_views", "object_api_name"),
+    categoryId: column("metadata_views", "category_id"),
+    name: column("metadata_views", "name"),
+    columns: column("metadata_views", "columns"),
+    filterRules: column("metadata_views", "filter_rules"),
+    sortField: column("metadata_views", "sort_field"),
+    sortDirection: column("metadata_views", "sort_direction"),
+    displayMode: column("metadata_views", "display_mode"),
+    kanbanGroupField: column("metadata_views", "kanban_group_field"),
+    isDefault: column("metadata_views", "is_default"),
+    visibility: column("metadata_views", "visibility"),
+    allowedRoles: column("metadata_views", "allowed_roles"),
+    createdBy: column("metadata_views", "created_by"),
+    createdAt: column("metadata_views", "created_at"),
+    updatedAt: column("metadata_views", "updated_at"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── metadata_workflows ──────────────────────────
@@ -5652,6 +5814,36 @@ export const receipts = {
     groupId: column("receipts", "group_id"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
+// ─── report_categories ───────────────────────────
+export interface ReportCategoriesRow {
+    id: string;
+    tenantId: string;
+    name: string;
+    description: string | null;
+    sortOrder: number;
+    createdBy: string | null;
+    createdAt: Date;
+}
+export interface ReportCategoriesInsert {
+    id?: string;
+    tenantId: string;
+    name: string;
+    description?: string | null;
+    sortOrder?: number;
+    createdBy?: string | null;
+    createdAt?: Date;
+}
+export const reportCategories = {
+    $name: "report_categories" as const,
+    id: column("report_categories", "id"),
+    tenantId: column("report_categories", "tenant_id"),
+    name: column("report_categories", "name"),
+    description: column("report_categories", "description"),
+    sortOrder: column("report_categories", "sort_order"),
+    createdBy: column("report_categories", "created_by"),
+    createdAt: column("report_categories", "created_at"),
+} satisfies { $name: string } & Record<string, ColumnRef | string>;
+
 // ─── routes ──────────────────────────────────────
 export interface RoutesRow {
     id: string;
@@ -5666,6 +5858,7 @@ export interface RoutesRow {
     updatedAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    customData: unknown | null;
 }
 export interface RoutesInsert {
     id?: string;
@@ -5680,6 +5873,7 @@ export interface RoutesInsert {
     updatedAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    customData?: unknown | null;
 }
 export const routes = {
     $name: "routes" as const,
@@ -5695,6 +5889,7 @@ export const routes = {
     updatedAt: column("routes", "updated_at"),
     ownerId: column("routes", "owner_id"),
     groupId: column("routes", "group_id"),
+    customData: column("routes", "custom_data"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── sections ────────────────────────────────────
@@ -5710,6 +5905,8 @@ export interface SectionsRow {
     createdAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    customData: unknown | null;
+    updatedAt: Date | null;
 }
 export interface SectionsInsert {
     id?: string;
@@ -5723,6 +5920,8 @@ export interface SectionsInsert {
     createdAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    customData?: unknown | null;
+    updatedAt?: Date | null;
 }
 export const sections = {
     $name: "sections" as const,
@@ -5737,6 +5936,8 @@ export const sections = {
     createdAt: column("sections", "created_at"),
     ownerId: column("sections", "owner_id"),
     groupId: column("sections", "group_id"),
+    customData: column("sections", "custom_data"),
+    updatedAt: column("sections", "updated_at"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── slo_definitions ─────────────────────────────
@@ -6482,6 +6683,8 @@ export interface SubjectsRow {
     createdAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    customData: unknown | null;
+    updatedAt: Date | null;
 }
 export interface SubjectsInsert {
     id?: string;
@@ -6493,6 +6696,8 @@ export interface SubjectsInsert {
     createdAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    customData?: unknown | null;
+    updatedAt?: Date | null;
 }
 export const subjects = {
     $name: "subjects" as const,
@@ -6505,6 +6710,8 @@ export const subjects = {
     createdAt: column("subjects", "created_at"),
     ownerId: column("subjects", "owner_id"),
     groupId: column("subjects", "group_id"),
+    customData: column("subjects", "custom_data"),
+    updatedAt: column("subjects", "updated_at"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── substitution_requests ───────────────────────
@@ -6586,6 +6793,108 @@ export const substitutions = {
     createdAt: column("substitutions", "created_at"),
     ownerId: column("substitutions", "owner_id"),
     groupId: column("substitutions", "group_id"),
+} satisfies { $name: string } & Record<string, ColumnRef | string>;
+
+// ─── tenant_object_settings ──────────────────────
+export interface TenantObjectSettingsRow {
+    id: string;
+    tenantId: string;
+    objectApiName: string;
+    isEnabled: boolean;
+    updatedBy: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+}
+export interface TenantObjectSettingsInsert {
+    id?: string;
+    tenantId: string;
+    objectApiName: string;
+    isEnabled?: boolean;
+    updatedBy?: string | null;
+    createdAt?: Date;
+    updatedAt?: Date;
+}
+export const tenantObjectSettings = {
+    $name: "tenant_object_settings" as const,
+    id: column("tenant_object_settings", "id"),
+    tenantId: column("tenant_object_settings", "tenant_id"),
+    objectApiName: column("tenant_object_settings", "object_api_name"),
+    isEnabled: column("tenant_object_settings", "is_enabled"),
+    updatedBy: column("tenant_object_settings", "updated_by"),
+    createdAt: column("tenant_object_settings", "created_at"),
+    updatedAt: column("tenant_object_settings", "updated_at"),
+} satisfies { $name: string } & Record<string, ColumnRef | string>;
+
+// ─── tenant_role_permissions ─────────────────────
+export interface TenantRolePermissionsRow {
+    id: string;
+    tenantId: string;
+    roleId: string;
+    permission: string;
+    resource: string;
+    action: string;
+    scope: string;
+    createdAt: Date;
+}
+export interface TenantRolePermissionsInsert {
+    id?: string;
+    tenantId: string;
+    roleId: string;
+    permission: string;
+    resource: string;
+    action: string;
+    scope?: string;
+    createdAt?: Date;
+}
+export const tenantRolePermissions = {
+    $name: "tenant_role_permissions" as const,
+    id: column("tenant_role_permissions", "id"),
+    tenantId: column("tenant_role_permissions", "tenant_id"),
+    roleId: column("tenant_role_permissions", "role_id"),
+    permission: column("tenant_role_permissions", "permission"),
+    resource: column("tenant_role_permissions", "resource"),
+    action: column("tenant_role_permissions", "action"),
+    scope: column("tenant_role_permissions", "scope"),
+    createdAt: column("tenant_role_permissions", "created_at"),
+} satisfies { $name: string } & Record<string, ColumnRef | string>;
+
+// ─── tenant_roles ────────────────────────────────
+export interface TenantRolesRow {
+    id: string;
+    tenantId: string;
+    code: string;
+    name: string;
+    description: string | null;
+    baseRole: string;
+    isActive: boolean;
+    createdBy: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+}
+export interface TenantRolesInsert {
+    id?: string;
+    tenantId: string;
+    code: string;
+    name: string;
+    description?: string | null;
+    baseRole?: string;
+    isActive?: boolean;
+    createdBy?: string | null;
+    createdAt?: Date;
+    updatedAt?: Date;
+}
+export const tenantRoles = {
+    $name: "tenant_roles" as const,
+    id: column("tenant_roles", "id"),
+    tenantId: column("tenant_roles", "tenant_id"),
+    code: column("tenant_roles", "code"),
+    name: column("tenant_roles", "name"),
+    description: column("tenant_roles", "description"),
+    baseRole: column("tenant_roles", "base_role"),
+    isActive: column("tenant_roles", "is_active"),
+    createdBy: column("tenant_roles", "created_by"),
+    createdAt: column("tenant_roles", "created_at"),
+    updatedAt: column("tenant_roles", "updated_at"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── tenants ─────────────────────────────────────
@@ -6915,6 +7224,7 @@ export interface UsersRow {
     emailEnc: string | null;
     sessionVersion: number;
     phoneEnc: string | null;
+    customRoleId: string | null;
 }
 export interface UsersInsert {
     id?: string;
@@ -6939,6 +7249,7 @@ export interface UsersInsert {
     emailEnc?: string | null;
     sessionVersion?: number;
     phoneEnc?: string | null;
+    customRoleId?: string | null;
 }
 export const users = {
     $name: "users" as const,
@@ -6964,6 +7275,7 @@ export const users = {
     emailEnc: column("users", "email_enc"),
     sessionVersion: column("users", "session_version"),
     phoneEnc: column("users", "phone_enc"),
+    customRoleId: column("users", "custom_role_id"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── vehicle_maintenance_logs ────────────────────
@@ -7030,6 +7342,7 @@ export interface VehiclesRow {
     updatedAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    customData: unknown | null;
 }
 export interface VehiclesInsert {
     id?: string;
@@ -7049,6 +7362,7 @@ export interface VehiclesInsert {
     updatedAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    customData?: unknown | null;
 }
 export const vehicles = {
     $name: "vehicles" as const,
@@ -7069,6 +7383,7 @@ export const vehicles = {
     updatedAt: column("vehicles", "updated_at"),
     ownerId: column("vehicles", "owner_id"),
     groupId: column("vehicles", "group_id"),
+    customData: column("vehicles", "custom_data"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── visitors ────────────────────────────────────
@@ -7098,6 +7413,8 @@ export interface VisitorsRow {
     groupId: string | null;
     phoneEnc: string | null;
     emailEnc: string | null;
+    customData: unknown | null;
+    updatedAt: Date | null;
 }
 export interface VisitorsInsert {
     id?: string;
@@ -7125,6 +7442,8 @@ export interface VisitorsInsert {
     groupId?: string | null;
     phoneEnc?: string | null;
     emailEnc?: string | null;
+    customData?: unknown | null;
+    updatedAt?: Date | null;
 }
 export const visitors = {
     $name: "visitors" as const,
@@ -7153,6 +7472,8 @@ export const visitors = {
     groupId: column("visitors", "group_id"),
     phoneEnc: column("visitors", "phone_enc"),
     emailEnc: column("visitors", "email_enc"),
+    customData: column("visitors", "custom_data"),
+    updatedAt: column("visitors", "updated_at"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── webhook_deliveries ──────────────────────────

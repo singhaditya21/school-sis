@@ -797,12 +797,11 @@ export function CustomObjectReportBuilder({
                                                     {String(row[metricColLabel] ?? 0)}
                                                 </span>
                                             </div>
-                                            <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
-                                                <div
-                                                    className="h-full bg-primary rounded-full"
-                                                    style={{ width: `${pct}%` }}
-                                                />
-                                            </div>
+                                            <progress
+                                                value={pct}
+                                                max={100}
+                                                className="h-2.5 w-full overflow-hidden rounded-full accent-primary"
+                                            />
                                         </div>
                                     );
                                 })}
