@@ -37,6 +37,7 @@ jest.mock('@/lib/db', () => ({
         PROVIDER_PAYMENT_LOOKUP: 'PROVIDER_PAYMENT_LOOKUP',
         PROVIDER_EVENT_LEDGER: 'PROVIDER_EVENT_LEDGER',
         RAZORPAY_SUBSCRIPTION_UPDATE: 'RAZORPAY_SUBSCRIPTION_UPDATE',
+        PUBLIC_PORTAL_TENANT_LOOKUP: 'PUBLIC_PORTAL_TENANT_LOOKUP',
     },
     runWithRlsBypass: (_justification: string, fn: () => unknown) => fn(),
     runWithTenantContext: (_tenantId: string, fn: () => unknown) => fn(),

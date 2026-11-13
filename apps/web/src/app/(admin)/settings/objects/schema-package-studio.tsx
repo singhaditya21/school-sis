@@ -16,6 +16,7 @@ import {
     CheckCircle2,
     Copy,
     Download,
+    Eye,
     Package,
     Sparkles,
     Upload,
@@ -30,6 +31,10 @@ import {
     generateAndDeploySchemaFromPrompt,
     importTenantSchemaBundle,
 } from '@/lib/actions/metadata-engine';
+import {
+    previewSchemaBundleImportAction,
+    type SchemaBundleDiffPreview,
+} from '@/lib/actions/lcnc-tier3';
 
 export function SchemaPackageStudio({
     customObjects,
@@ -52,6 +57,8 @@ export function SchemaPackageStudio({
 
     // Import state
     const [importJsonText, setImportJsonText] = useState<string>('');
+    const [diffPreview, setDiffPreview] = useState<SchemaBundleDiffPreview | null>(null);
+    const [pendingImportApprovalId, setPendingImportApprovalId] = useState<string>('');
 
     // Track F: Agentforce AI Schema & Workflow Copilot state
     const [aiPrompt, setAiPrompt] = useState<string>(
@@ -114,6 +121,30 @@ export function SchemaPackageStudio({
         }
     };
 
+    const handlePreviewBundle = () => {
+        if (!importJsonText.trim()) {
+            toast.error('Paste or upload a .scholarmind.json bundle first.');
+            return;
+        }
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(importJsonText);
+        } catch {
+            toast.error('Invalid JSON syntax in schema bundle.');
+            return;
+        }
+        startTransition(async () => {
+            const res = await previewSchemaBundleImportAction(parsed);
+            if (res.success === false || !res.preview) {
+                toast.error(res.error || 'Could not validate schema bundle.');
+                setDiffPreview(null);
+                return;
+            }
+            setDiffPreview(res.preview);
+            toast.success(`Dry-Run Preview verified (SHA-256: ${res.preview.sha256.slice(0, 12)}…)`);
+        });
+    };
+
     const handleImportBundle = () => {
         if (!importJsonText.trim()) {
             toast.error('Paste or upload a .scholarmind.json bundle first.');
@@ -128,7 +159,18 @@ export function SchemaPackageStudio({
         }
 
         startTransition(async () => {
-            const res = await importTenantSchemaBundle(parsed);
+            const res = await importTenantSchemaBundle(parsed, {
+                approvalRequestId: pendingImportApprovalId || undefined,
+                reason: 'Deploy portable ScholarMind schema bundle',
+            });
+            if (res.approvalRequired && res.approvalId) {
+                setPendingImportApprovalId(res.approvalId);
+                toast.message('Governance approval requested', {
+                    description:
+                        'Approve the bundle import under Approvals, then click Publish Approved Bundle.',
+                });
+                return;
+            }
             if (!res.success) {
                 toast.error(res.error || 'Schema bundle deployment failed.');
                 return;
@@ -137,6 +179,8 @@ export function SchemaPackageStudio({
                 `Deployed ${res.importedObjects.length} object(s), ${res.importedFields} new field(s), and ${res.importedWorkflows} workflow(s)!`,
             );
             setImportJsonText('');
+            setDiffPreview(null);
+            setPendingImportApprovalId('');
             router.refresh();
         });
     };
@@ -385,12 +429,86 @@ export function SchemaPackageStudio({
                         <textarea
                             rows={6}
                             value={importJsonText}
-                            onChange={e => setImportJsonText(e.target.value)}
+                            onChange={e => {
+                                setImportJsonText(e.target.value);
+                                setDiffPreview(null);
+                            }}
                             placeholder='{"formatVersion": "scholarmind.bundle.v1", "bundleName": "...", "objects": [...], "workflows": [...]}'
                             data-testid="import-schema-bundle-textarea"
                             className="w-full rounded-lg border border-border bg-background p-3 font-mono text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                         />
-                        <div className="flex justify-end">
+
+                        {diffPreview && (
+                            <div
+                                className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-2.5 text-xs"
+                                data-testid="bundle-dry-run-preview"
+                            >
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="font-semibold text-foreground">
+                                        Dry-Run Diff: {diffPreview.bundleName}
+                                    </span>
+                                    <Badge variant="outline" className="font-mono text-[10px]">
+                                        SHA-256: {diffPreview.sha256.slice(0, 16)}…
+                                    </Badge>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                    <div className="rounded border border-border bg-card p-2">
+                                        <span className="text-[10px] text-muted-foreground block">
+                                            New Objects
+                                        </span>
+                                        <span className="font-semibold text-success">
+                                            +{diffPreview.newObjects.length}
+                                        </span>
+                                    </div>
+                                    <div className="rounded border border-border bg-card p-2">
+                                        <span className="text-[10px] text-muted-foreground block">
+                                            Objects Updated
+                                        </span>
+                                        <span className="font-semibold text-foreground">
+                                            {diffPreview.existingObjectsToUpdate.length}
+                                        </span>
+                                    </div>
+                                    <div className="rounded border border-border bg-card p-2">
+                                        <span className="text-[10px] text-muted-foreground block">
+                                            New Fields
+                                        </span>
+                                        <span className="font-semibold text-primary">
+                                            +{diffPreview.newFieldsCount} ({diffPreview.existingFieldsCount} existing)
+                                        </span>
+                                    </div>
+                                    <div className="rounded border border-border bg-card p-2">
+                                        <span className="text-[10px] text-muted-foreground block">
+                                            Governance &amp; Flows
+                                        </span>
+                                        <span className="font-semibold text-foreground">
+                                            {diffPreview.validationRuleCount} rules ·{' '}
+                                            {diffPreview.approvalProcessCount} approvals ·{' '}
+                                            {diffPreview.workflowCount} flows
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {pendingImportApprovalId && (
+                            <p className="rounded-md border border-warning/30 bg-warning-subtle p-2.5 text-xs text-warning-subtle-foreground">
+                                Governance approval <span className="font-mono">{pendingImportApprovalId.slice(0, 8)}</span> requested. Approve under Approvals, then click Publish Approved Bundle.
+                            </p>
+                        )}
+
+                        <div className="flex flex-wrap justify-end gap-2">
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={isPending || !importJsonText.trim()}
+                                onClick={handlePreviewBundle}
+                                data-testid="preview-schema-bundle-btn"
+                                className="text-xs gap-1.5"
+                            >
+                                <Eye className="w-3.5 h-3.5" />
+                                Dry-Run Preview Diff
+                            </Button>
                             <Button
                                 type="button"
                                 size="sm"
@@ -402,7 +520,9 @@ export function SchemaPackageStudio({
                                 <Upload className="w-3.5 h-3.5" />
                                 {isPending
                                     ? 'Deploying to Neon...'
-                                    : 'Deploy Schema Bundle to Tenant'}
+                                    : pendingImportApprovalId
+                                      ? 'Publish Approved Bundle'
+                                      : 'Deploy Schema Bundle to Tenant'}
                             </Button>
                         </div>
                     </div>

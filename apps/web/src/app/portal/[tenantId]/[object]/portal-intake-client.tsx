@@ -57,11 +57,13 @@ export default function PortalIntakeClient({
         schema.portalConfig.availableTimeSlots?.[0] || '10:00',
     );
     const [paymentOrderId, setPaymentOrderId] = useState<string>('');
+    const [honeypotWebsite, setHoneypotWebsite] = useState<string>('');
     const [submissionResult, setSubmissionResult] = useState<{
         recordId: string;
         trackingReference: string;
         appointmentBooked?: { id: string; date: string; time: string } | null;
         feeReceiptNumber?: string | null;
+        approvalSubmitted?: { processName: string; currentStepName: string } | null;
     } | null>(null);
 
     // Status Tracker state
@@ -73,6 +75,13 @@ export default function PortalIntakeClient({
         currentStage?: string;
         stageLabel?: string;
         stageOptions?: string[];
+        approvalStatus?: {
+            status: string;
+            processName: string;
+            currentStep: number;
+            totalSteps: number;
+            currentStepName?: string;
+        } | null;
         submittedAt?: string;
         updatedAt?: string;
         error?: string;
@@ -107,10 +116,14 @@ export default function PortalIntakeClient({
             return;
         }
         startTransition(async () => {
+            const payloadWithGuard: Record<string, unknown> = {
+                ...formValues,
+                ...(honeypotWebsite ? { _hp_website: honeypotWebsite } : {}),
+            };
             const res = await submitPublicPortalIntakeRecord(
                 tenantId,
                 objectApiName,
-                formValues,
+                payloadWithGuard,
                 {
                     slotDate: slotDate || undefined,
                     slotTime: slotTime || undefined,
@@ -126,6 +139,7 @@ export default function PortalIntakeClient({
                 trackingReference: res.trackingReference,
                 appointmentBooked: res.appointmentBooked,
                 feeReceiptNumber: res.feeReceiptNumber,
+                approvalSubmitted: res.approvalSubmitted,
             });
             setReferenceInput(res.trackingReference);
             toast.success('Submitted! Your tracking reference is ready.');
@@ -250,6 +264,18 @@ export default function PortalIntakeClient({
                                             </span>
                                         </div>
                                     )}
+                                    {submissionResult.approvalSubmitted && (
+                                        <div
+                                            className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-foreground"
+                                            data-testid="portal-approval-submitted-confirmation"
+                                        >
+                                            Routed for Institutional Review:{' '}
+                                            <span className="font-semibold text-primary">
+                                                {submissionResult.approvalSubmitted.processName}
+                                            </span>{' '}
+                                            ({submissionResult.approvalSubmitted.currentStepName})
+                                        </div>
+                                    )}
                                     <div className="flex justify-center gap-3 pt-2">
                                         {schema.portalConfig.enableStatusTracker && (
                                             <Button
@@ -284,6 +310,18 @@ export default function PortalIntakeClient({
                                         className="space-y-4"
                                         data-testid="portal-intake-form"
                                     >
+                                        <div className="sr-only" aria-hidden="true">
+                                            <label htmlFor="portal-hp-website">Website</label>
+                                            <input
+                                                id="portal-hp-website"
+                                                name="_hp_website"
+                                                type="text"
+                                                tabIndex={-1}
+                                                autoComplete="off"
+                                                value={honeypotWebsite}
+                                                onChange={e => setHoneypotWebsite(e.target.value)}
+                                            />
+                                        </div>
                                         {visibleFields.map(field => {
                                             const subType = field.validationRules?.fieldSubType;
                                             const val = formValues[field.apiName];
@@ -563,6 +601,28 @@ export default function PortalIntakeClient({
                                             );
                                         })}
                                     </div>
+                                    {statusResult.approvalStatus && (
+                                        <div
+                                            className="rounded-lg border border-primary/25 bg-card p-3 flex flex-wrap items-center justify-between gap-2 text-xs"
+                                            data-testid="portal-status-approval-progress"
+                                        >
+                                            <div>
+                                                <span className="font-semibold text-foreground">
+                                                    {statusResult.approvalStatus.processName}
+                                                </span>
+                                                <span className="text-muted-foreground ml-2">
+                                                    Step {statusResult.approvalStatus.currentStep} of{' '}
+                                                    {statusResult.approvalStatus.totalSteps}
+                                                    {statusResult.approvalStatus.currentStepName
+                                                        ? ` · ${statusResult.approvalStatus.currentStepName}`
+                                                        : ''}
+                                                </span>
+                                            </div>
+                                            <Badge variant="outline" className="font-mono text-[10px]">
+                                                {statusResult.approvalStatus.status}
+                                            </Badge>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </CardContent>

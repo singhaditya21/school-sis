@@ -16,6 +16,7 @@ import {
 } from '@/lib/metadata/lcnc-helpers';
 import { Badge } from '@/components/ui/badge';
 import GenericListClient from './generic-list';
+import { ObjectCopilotBar } from './object-copilot-bar';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -94,6 +95,16 @@ export default async function GenericObjectListPage({
         const canCustomizeObject = evaluateEffectivePermission(roleCtx, 'metadata:publish');
         const canManageCategories =
             evaluateEffectivePermission(roleCtx, 'settings:write') || canCustomizeObject;
+        const canProposeApproval = evaluateEffectivePermission(roleCtx, 'agents:approve');
+
+        const firstTextKey = fields.find(f => f.dataType === 'TEXT')?.apiName;
+        const sampleRecordIds = records.slice(0, 25).map(r => {
+            const rawId = String(r.id || '');
+            const displayLabel = firstTextKey && r[firstTextKey]
+                ? String(r[firstTextKey]).slice(0, 48)
+                : `${objectDef.name} Record`;
+            return { id: rawId, label: displayLabel };
+        }).filter(item => item.id.length > 0);
 
         return (
             <div className="space-y-6">
@@ -126,6 +137,13 @@ export default async function GenericObjectListPage({
                         </p>
                     </div>
                 </div>
+
+                <ObjectCopilotBar
+                    objectApiName={resolvedParams.object}
+                    objectLabel={objectDef.name}
+                    sampleRecordIds={sampleRecordIds}
+                    canProposeApproval={canProposeApproval}
+                />
 
                 <GenericListClient
                     objectId={objectDef.id}

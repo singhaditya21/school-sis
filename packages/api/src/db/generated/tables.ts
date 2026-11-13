@@ -4521,6 +4521,54 @@ export const metadataFields = {
     groupId: column("metadata_fields", "group_id"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
+// ─── metadata_installed_packages ─────────────────
+export interface MetadataInstalledPackagesRow {
+    id: string;
+    tenantId: string;
+    packageKey: string;
+    name: string;
+    description: string | null;
+    version: string;
+    sourceType: string;
+    bundleSha256: string;
+    installedObjects: unknown;
+    artifactCounts: unknown;
+    installedBy: string | null;
+    installedAt: Date;
+    updatedAt: Date;
+}
+export interface MetadataInstalledPackagesInsert {
+    id?: string;
+    tenantId: string;
+    packageKey: string;
+    name: string;
+    description?: string | null;
+    version?: string;
+    sourceType?: string;
+    bundleSha256: string;
+    installedObjects?: unknown;
+    artifactCounts?: unknown;
+    installedBy?: string | null;
+    installedAt?: Date;
+    updatedAt?: Date;
+}
+export const metadataInstalledPackages = {
+    $name: "metadata_installed_packages" as const,
+    id: column("metadata_installed_packages", "id"),
+    tenantId: column("metadata_installed_packages", "tenant_id"),
+    packageKey: column("metadata_installed_packages", "package_key"),
+    name: column("metadata_installed_packages", "name"),
+    description: column("metadata_installed_packages", "description"),
+    version: column("metadata_installed_packages", "version"),
+    sourceType: column("metadata_installed_packages", "source_type"),
+    bundleSha256: column("metadata_installed_packages", "bundle_sha256"),
+    installedObjects: column("metadata_installed_packages", "installed_objects"),
+    artifactCounts: column("metadata_installed_packages", "artifact_counts"),
+    installedBy: column("metadata_installed_packages", "installed_by"),
+    installedAt: column("metadata_installed_packages", "installed_at"),
+    updatedAt: column("metadata_installed_packages", "updated_at"),
+} satisfies { $name: string } & Record<string, ColumnRef | string>;
+
 // ─── metadata_layouts ────────────────────────────
 export interface MetadataLayoutsRow {
     id: string;

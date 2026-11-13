@@ -48,7 +48,7 @@ describe('tenancy stage 0 — owners tier', () => {
     });
 
     it('pins the RLS catalog count to include the four new owners policies and LCNC tables', () => {
-        expect(deployment).toContain('EXPECTED_RLS_POLICY_COUNT = 196');
+        expect(deployment).toContain('EXPECTED_RLS_POLICY_COUNT = 197');
         expect(deployment).toContain('owners_tenant_isolation_select');
     });
 

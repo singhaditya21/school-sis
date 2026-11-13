@@ -141,6 +141,13 @@
       "when": 1794552000000,
       "tag": "0019_add_lcnc_tier2_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1794595200000,
+      "tag": "0020_add_lcnc_tier3_tables",
+      "breakpoints": true
     }
   ]
 }

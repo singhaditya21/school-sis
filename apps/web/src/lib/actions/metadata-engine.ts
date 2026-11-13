@@ -15,7 +15,15 @@
  *   7. Declarative Workflow Execution Engine (`runSingleWorkflowAction`, `executeMatchingWorkflows`)
  */
 
-import { pool, runWithTenantContext, sql, sqlFor, identifier } from '@/lib/db';
+import {
+    pool,
+    RLS_BYPASS_JUSTIFICATIONS,
+    runWithRlsBypass,
+    runWithTenantContext,
+    sql,
+    sqlFor,
+    identifier,
+} from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
 import { isTenantStaffRole } from '@/lib/auth/page-access';
 import { consumeRateLimit } from '@/lib/auth/rate-limit';
@@ -36,6 +44,7 @@ import {
 import type { AuthorizationRole } from '@school-sis/api';
 import {
     assertSafeMetadataIdentifier,
+    computeSchemaBundleSha256,
     detectMetadataDuplicates,
     evaluateMetadataFormula,
     evaluateMetadataRollupSummary,
@@ -4058,6 +4067,52 @@ export async function installEducationBlueprint(
                 }
             }
 
+            const blueprintSha256 = crypto
+                .createHash('sha256')
+                .update(
+                    JSON.stringify({
+                        packId: pack.id,
+                        objects: pack.objects,
+                        workflows: pack.workflows,
+                    }),
+                )
+                .digest('hex');
+
+            await q`
+                INSERT INTO metadata_installed_packages (
+                    tenant_id, package_key, name, description, version, source_type,
+                    bundle_sha256, installed_objects, artifact_counts, installed_by,
+                    installed_at, updated_at
+                )
+                VALUES (
+                    ${tenantId},
+                    ${`blueprint:${pack.id.toLowerCase()}`},
+                    ${pack.title},
+                    ${pack.tagline},
+                    '1.0.0',
+                    'BLUEPRINT',
+                    ${blueprintSha256},
+                    ${JSON.stringify(installedObjects)}::jsonb,
+                    ${JSON.stringify({
+                        objects: installedObjects.length,
+                        fields: pack.objects.reduce((acc, o) => acc + o.fields.length, 0),
+                        workflows: pack.workflows.length,
+                    })}::jsonb,
+                    ${userId},
+                    NOW(),
+                    NOW()
+                )
+                ON CONFLICT (tenant_id, package_key)
+                DO UPDATE SET
+                    name = EXCLUDED.name,
+                    description = EXCLUDED.description,
+                    bundle_sha256 = EXCLUDED.bundle_sha256,
+                    installed_objects = EXCLUDED.installed_objects,
+                    artifact_counts = EXCLUDED.artifact_counts,
+                    installed_by = EXCLUDED.installed_by,
+                    updated_at = NOW()
+            `.execute();
+
             await q`
                 INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, after_state)
                 VALUES (
@@ -4071,6 +4126,7 @@ export async function installEducationBlueprint(
                         title: pack.title,
                         installedObjects,
                         installedWorkflows,
+                        bundleSha256: blueprintSha256,
                         installedAt: new Date().toISOString(),
                     })}::jsonb
                 )
@@ -4440,6 +4496,29 @@ export interface ExperiencePortalConfig {
     availableTimeSlots?: string[];
     applicationFeeAmount?: number;
     applicationFeeLabel?: string;
+    autoSubmitForApproval?: boolean;
+}
+
+const PORTAL_TENANT_SLUG_RE = /^[a-z0-9][a-z0-9-_]{1,62}$/i;
+
+async function resolvePublicPortalTenantId(tenantRef: string): Promise<string | null> {
+    const trimmed = String(tenantRef || '').trim();
+    if (!trimmed) return null;
+    if (UUID_RE.test(trimmed)) return trimmed;
+    if (!PORTAL_TENANT_SLUG_RE.test(trimmed)) return null;
+
+    const rows = await runWithRlsBypass(
+        RLS_BYPASS_JUSTIFICATIONS.PUBLIC_PORTAL_TENANT_LOOKUP,
+        async () =>
+            sql<{ id: string }>`
+                SELECT id
+                FROM tenants
+                WHERE LOWER(code) = LOWER(${trimmed})
+                  AND is_active = true
+                LIMIT 1
+            `,
+    );
+    return rows[0]?.id ?? null;
 }
 
 /**
@@ -4503,6 +4582,7 @@ export async function savePortalIntakeConfig(
                 applicationFeeLabel:
                     config.applicationFeeLabel?.trim().slice(0, 120) ||
                     'Application & Prospectus Fee',
+                autoSubmitForApproval: Boolean(config.autoSubmitForApproval),
             };
 
             const nextSchema = {
@@ -4575,14 +4655,18 @@ export async function getPublicPortalIntakeSchema(
     objectApiName: string,
 ): Promise<PublicPortalSchemaResult | null> {
     try {
-        if (!UUID_RE.test(tenantId)) return null;
         assertSafeMetadataIdentifier(objectApiName, 'object API name');
+        const resolvedTenantId = await resolvePublicPortalTenantId(tenantId);
+        if (!resolvedTenantId) return null;
 
-        const throttled = await consumeGuestPortalRateLimit('portal-schema', tenantId, 60);
+        const throttled = await consumeGuestPortalRateLimit('portal-schema', resolvedTenantId, 60);
         if (throttled) return null;
 
-        return await runWithTenantContext(tenantId, async () => {
-            const { objectDef, fields, layouts } = await loadObjectMetadata(objectApiName, tenantId);
+        return await runWithTenantContext(resolvedTenantId, async () => {
+            const { objectDef, fields, layouts } = await loadObjectMetadata(
+                objectApiName,
+                resolvedTenantId,
+            );
             const formLayout = layouts.find(l => l.layoutType === 'FORM');
             const rawSchema = (formLayout?.schema || {}) as Record<string, unknown>;
             const rawPortal = (rawSchema.portalConfig || {}) as Partial<ExperiencePortalConfig>;
@@ -4650,6 +4734,7 @@ export async function getPublicPortalIntakeSchema(
                     applicationFeeAmount: Math.max(0, Number(rawPortal.applicationFeeAmount || 0) || 0),
                     applicationFeeLabel:
                         rawPortal.applicationFeeLabel || 'Application & Prospectus Fee',
+                    autoSubmitForApproval: Boolean(rawPortal.autoSubmitForApproval),
                 },
                 fields: publicFields,
                 stageField: stageCandidate
@@ -4668,11 +4753,11 @@ export async function getPublicPortalIntakeSchema(
 
 /**
  * Submits a record from the public Experience Cloud Web-to-Object Intake Portal:
- *   1. Verifies `portalConfig.enabled === true` on the object.
- *   2. Restricts submitted payload strictly to `portalConfig.exposedFields` plus optional `defaultStageField`.
- *   3. Runs full validation (`EMAIL`, `PHONE`, `URL`, Cross-Field Validation Rules, and `AUTO_NUMBER` generation).
+ *   1. Verifies `portalConfig.enabled === true` on the object (supporting UUID or friendly tenant slug).
+ *   2. Rejects automated bot honeypot payloads (`_hp_website`) and restricts payload strictly to `exposedFields`.
+ *   3. Runs full validation (`EMAIL`, `PHONE`, `URL`, Cross-Field Formula Validation Rules, and `AUTO_NUMBER`).
  *   4. Enforces `BLOCK` Duplicate Rules against existing tenant records.
- *   5. Saves the EAV record, triggers active workflows (`object.record.upserted`), and logs `EXPERIENCE_PORTAL_SUBMISSION`.
+ *   5. Saves the EAV record, triggers active workflows, optionally routes into active Multi-Step Approval Processes, and logs `EXPERIENCE_PORTAL_SUBMISSION`.
  */
 export async function submitPublicPortalIntakeRecord(
     tenantId: string,
@@ -4690,18 +4775,28 @@ export async function submitPublicPortalIntakeRecord(
     trackingReference?: string;
     appointmentBooked?: { id: string; date: string; time: string } | null;
     feeReceiptNumber?: string | null;
+    approvalSubmitted?: { processName: string; currentStepName: string } | null;
     error?: string;
 }> {
     try {
-        if (!UUID_RE.test(tenantId)) {
+        if (
+            rawSubmission &&
+            typeof rawSubmission._hp_website === 'string' &&
+            rawSubmission._hp_website.trim().length > 0
+        ) {
+            return { success: false, error: 'Automated bot submission rejected.' };
+        }
+
+        const resolvedTenantId = await resolvePublicPortalTenantId(tenantId);
+        if (!resolvedTenantId) {
             return { success: false, error: 'Invalid portal tenant identifier.' };
         }
-        const throttled = await consumeGuestPortalRateLimit('portal-submit', tenantId, 15);
+        const throttled = await consumeGuestPortalRateLimit('portal-submit', resolvedTenantId, 15);
         if (throttled) {
             return { success: false, error: throttled };
         }
 
-        const portalSchema = await getPublicPortalIntakeSchema(tenantId, objectApiName);
+        const portalSchema = await getPublicPortalIntakeSchema(resolvedTenantId, objectApiName);
         if (!portalSchema || !portalSchema.enabled) {
             return {
                 success: false,
@@ -4709,8 +4804,8 @@ export async function submitPublicPortalIntakeRecord(
             };
         }
 
-        return await runWithTenantContext(tenantId, async () => {
-            const { objectDef, fields } = await loadObjectMetadata(objectApiName, tenantId);
+        return await runWithTenantContext(resolvedTenantId, async () => {
+            const { objectDef, fields } = await loadObjectMetadata(objectApiName, resolvedTenantId);
             if (resolveMetadataStorageMode(objectDef) !== 'EAV') {
                 return {
                     success: false,
@@ -4755,6 +4850,16 @@ export async function submitPublicPortalIntakeRecord(
                 return { success: false, error: validated.errors.join(' ') };
             }
 
+            // Tier-2 Cross-Field Boolean Formula Validation Rules enforcement on Web-to-Object intake
+            const formulaValidation = await enforceObjectValidationRulesInternal(
+                resolvedTenantId,
+                objectApiName,
+                validated.data,
+            );
+            if (formulaValidation.ok === false) {
+                return { success: false, error: formulaValidation.error };
+            }
+
             // Check blocking duplicate rules without echoing stored PII
             const hasBlockingDuplicateRule = fieldsToValidate.some(
                 f => f.validationRules?.duplicateRuleBehavior === 'BLOCK',
@@ -4763,7 +4868,7 @@ export async function submitPublicPortalIntakeRecord(
                 const existingRecords = await queryEavRecords(
                     objectDef,
                     persistedFields,
-                    tenantId,
+                    resolvedTenantId,
                     null,
                     250,
                     0,
@@ -4806,7 +4911,7 @@ export async function submitPublicPortalIntakeRecord(
                     })}::jsonb,
                         updated_at = NOW()
                     WHERE id = ${candidateOrderId}
-                      AND tenant_id = ${tenantId}
+                      AND tenant_id = ${resolvedTenantId}
                       AND status = 'PAID'
                       AND UPPER(currency) = 'INR'
                       AND amount_minor = ${expectedAmountMinor}
@@ -4825,17 +4930,51 @@ export async function submitPublicPortalIntakeRecord(
             const recordId = await upsertEavRecord(
                 objectDef,
                 persistedFields,
-                tenantId,
+                resolvedTenantId,
                 validated.data,
             );
 
             await executeMatchingWorkflows(
-                tenantId,
+                resolvedTenantId,
                 objectApiName,
                 'object.record.upserted',
                 validated.data,
                 recordId,
             );
+
+            // Tier-3: Optional auto-entry into matching active Multi-Step Approval Process
+            let approvalSubmitted: { processName: string; currentStepName: string } | null = null;
+            if (portalSchema.portalConfig.autoSubmitForApproval) {
+                const processes = await loadObjectApprovalProcessesInternal(
+                    resolvedTenantId,
+                    objectApiName,
+                );
+                const matchedProcess = selectMatchingApprovalProcess(processes, validated.data);
+                if (matchedProcess) {
+                    const firstStepName = matchedProcess.steps[0]?.stepName || 'Step 1';
+                    await sql`
+                        INSERT INTO metadata_approval_instances (
+                            tenant_id, process_id, object_api_name, record_id,
+                            status, current_step, submission_comment, step_history, is_locked
+                        )
+                        VALUES (
+                            ${resolvedTenantId},
+                            ${matchedProcess.id},
+                            ${objectApiName},
+                            ${recordId},
+                            'PENDING',
+                            1,
+                            'Auto-submitted via Experience Cloud Web-to-Object Portal',
+                            '[]'::jsonb,
+                            ${Boolean(matchedProcess.lockRecordOnSubmit)}
+                        )
+                    `.execute();
+                    approvalSubmitted = {
+                        processName: matchedProcess.name,
+                        currentStepName: firstStepName,
+                    };
+                }
+            }
 
             const autoNumField = persistedFields.find(
                 f => f.validationRules?.fieldSubType === 'AUTO_NUMBER',
@@ -4858,7 +4997,7 @@ export async function submitPublicPortalIntakeRecord(
                         tenant_id, title, description, date, time, duration, status, type
                     )
                     VALUES (
-                        ${tenantId},
+                        ${resolvedTenantId},
                         ${`[Portal Booking] ${portalSchema.objectName} (${trackingReference})`},
                         ${`Self-service portal booking for ${portalSchema.objectName} ref ${trackingReference}.`},
                         ${bookingOptions.slotDate},
@@ -4888,7 +5027,7 @@ export async function submitPublicPortalIntakeRecord(
             await sql`
                 INSERT INTO audit_logs (tenant_id, action, entity_type, entity_id, after_state)
                 VALUES (
-                    ${tenantId},
+                    ${resolvedTenantId},
                     'CREATE',
                     ${objectApiName},
                     ${recordId},
@@ -4898,6 +5037,7 @@ export async function submitPublicPortalIntakeRecord(
                         submittedFields: Object.keys(validated.data),
                         appointmentBooked,
                         feeReceiptNumber,
+                        approvalSubmitted,
                         paymentOrderId: verifiedPaymentOrderId,
                         submittedAt: new Date().toISOString(),
                     })}::jsonb
@@ -4911,6 +5051,7 @@ export async function submitPublicPortalIntakeRecord(
                 trackingReference,
                 appointmentBooked,
                 feeReceiptNumber,
+                approvalSubmitted,
             };
         });
     } catch (error) {
@@ -4937,20 +5078,28 @@ export async function lookupPublicPortalRecordStatus(
     currentStage?: string;
     stageLabel?: string;
     stageOptions?: string[];
+    approvalStatus?: {
+        status: string;
+        processName: string;
+        currentStep: number;
+        totalSteps: number;
+        currentStepName?: string;
+    } | null;
     submittedAt?: string;
     updatedAt?: string;
     error?: string;
 }> {
     try {
-        if (!UUID_RE.test(tenantId)) {
+        const resolvedTenantId = await resolvePublicPortalTenantId(tenantId);
+        if (!resolvedTenantId) {
             return { found: false, error: 'Invalid portal tenant identifier.' };
         }
-        const throttled = await consumeGuestPortalRateLimit('portal-status', tenantId, 20);
+        const throttled = await consumeGuestPortalRateLimit('portal-status', resolvedTenantId, 20);
         if (throttled) {
             return { found: false, error: throttled };
         }
 
-        const portalSchema = await getPublicPortalIntakeSchema(tenantId, objectApiName);
+        const portalSchema = await getPublicPortalIntakeSchema(resolvedTenantId, objectApiName);
         if (!portalSchema || !portalSchema.enabled || !portalSchema.portalConfig.enableStatusTracker) {
             return { found: false, error: 'Application status tracking is not enabled for this portal.' };
         }
@@ -4964,8 +5113,8 @@ export async function lookupPublicPortalRecordStatus(
             };
         }
 
-        return await runWithTenantContext(tenantId, async () => {
-            const { objectDef, fields } = await loadObjectMetadata(objectApiName, tenantId);
+        return await runWithTenantContext(resolvedTenantId, async () => {
+            const { objectDef, fields } = await loadObjectMetadata(objectApiName, resolvedTenantId);
             const contactFieldNames = new Set(
                 fields
                     .filter(
@@ -4983,7 +5132,14 @@ export async function lookupPublicPortalRecordStatus(
                 };
             }
 
-            const records = await queryEavRecords(objectDef, fields, tenantId, null, 200, 0);
+            const records = await queryEavRecords(
+                objectDef,
+                fields,
+                resolvedTenantId,
+                null,
+                200,
+                0,
+            );
             const autoNumField = fields.find(f => f.validationRules?.fieldSubType === 'AUTO_NUMBER');
             const verifierDigits = cleanVerifier.replace(/\D/g, '');
             const candidateKeys = [...contactFieldNames];
@@ -5026,12 +5182,27 @@ export async function lookupPublicPortalRecordStatus(
                     ? String(matchedRow[autoNumField.apiName])
                     : String(matchedRow.id || '').slice(0, 8).toUpperCase();
 
+            const activeApproval = await loadActiveRecordApprovalInstanceInternal(
+                resolvedTenantId,
+                objectApiName,
+                String(matchedRow.id || ''),
+            );
+
             return {
                 found: true,
                 reference: displayRef,
                 currentStage,
                 stageLabel: stageField?.label || 'Application Status',
                 stageOptions: stageField?.options || ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED'],
+                approvalStatus: activeApproval
+                    ? {
+                          status: activeApproval.status,
+                          processName: activeApproval.processName,
+                          currentStep: activeApproval.currentStep,
+                          totalSteps: activeApproval.totalSteps,
+                          currentStepName: activeApproval.currentStepName,
+                      }
+                    : null,
                 submittedAt: matchedRow.created_at ? String(matchedRow.created_at) : undefined,
                 updatedAt: matchedRow.updated_at ? String(matchedRow.updated_at) : undefined,
             };
@@ -5116,14 +5287,38 @@ export async function exportTenantSchemaBundle(params: {
             `;
 
             const layoutRows = await sql<{
-                layout_type: 'FORM' | 'LIST';
+                layout_type: 'FORM' | 'LIST' | 'HOME';
+                name: string | null;
+                assigned_roles: string[] | null;
                 schema: Record<string, unknown>;
             }>`
-                SELECT layout_type, schema
+                SELECT layout_type, name, assigned_roles, schema
                 FROM metadata_layouts
                 WHERE object_id = ${obj.id}
-                  AND layout_type IN ('FORM', 'LIST')
+                  AND layout_type IN ('FORM', 'LIST', 'HOME')
             `;
+
+            const [owdSharing, validationRules, approvalProcesses, savedViewRows] =
+                await Promise.all([
+                    loadObjectOwdAndSharingInternal(tenantId, obj.api_name),
+                    loadObjectValidationRulesInternal(tenantId, obj.api_name),
+                    loadObjectApprovalProcessesInternal(tenantId, obj.api_name),
+                    sql<{
+                        name: string;
+                        display_mode: string;
+                        columns: string[] | null;
+                        filter_rules: { field: string; operator: string; value: string }[] | null;
+                        visibility: string;
+                        allowed_roles: string[] | null;
+                        is_default: boolean;
+                    }>`
+                        SELECT name, display_mode, columns, filter_rules, visibility, allowed_roles, is_default
+                        FROM metadata_views
+                        WHERE tenant_id = ${tenantId}
+                          AND object_api_name = ${obj.api_name}
+                        ORDER BY created_at ASC
+                    `,
+                ]);
 
             bundleObjects.push({
                 name: obj.name,
@@ -5139,7 +5334,54 @@ export async function exportTenantSchemaBundle(params: {
                 })),
                 layouts: layoutRows.map(l => ({
                     layoutType: l.layout_type,
+                    ...(l.name ? { name: l.name } : {}),
+                    ...(Array.isArray(l.assigned_roles) && l.assigned_roles.length > 0
+                        ? { assignedRoles: l.assigned_roles }
+                        : {}),
                     schema: l.schema || {},
+                })),
+                owdMode: owdSharing.owdMode,
+                sharingRules: owdSharing.sharingRules
+                    .filter(r => r.isActive)
+                    .map(r => ({
+                        name: r.name,
+                        criteriaField: r.criteriaField,
+                        criteriaOperator: r.criteriaOperator,
+                        criteriaValue: r.criteriaValue,
+                        sharedWithRole: r.sharedWithRole,
+                        accessLevel: r.accessLevel,
+                    })),
+                validationRules: validationRules
+                    .filter(r => r.isActive)
+                    .map(r => ({
+                        name: r.name,
+                        description: r.description,
+                        errorConditionFormula: r.errorConditionFormula,
+                        errorMessage: r.errorMessage,
+                        errorField: r.errorField,
+                    })),
+                approvalProcesses: approvalProcesses
+                    .filter(p => p.isActive)
+                    .map(p => ({
+                        name: p.name,
+                        description: p.description,
+                        entryCriteriaFormula: p.entryCriteriaFormula,
+                        steps: p.steps,
+                        lockRecordOnSubmit: p.lockRecordOnSubmit,
+                        fieldUpdatesOnApprove: p.fieldUpdatesOnApprove,
+                        fieldUpdatesOnReject: p.fieldUpdatesOnReject,
+                    })),
+                savedViews: savedViewRows.map(sv => ({
+                    name: sv.name,
+                    viewMode: sv.display_mode === 'KANBAN' ? 'KANBAN' : 'TABLE',
+                    columns: Array.isArray(sv.columns) ? sv.columns : [],
+                    filters: Array.isArray(sv.filter_rules) ? sv.filter_rules : [],
+                    visibility:
+                        sv.visibility === 'PRIVATE' || sv.visibility === 'ROLES'
+                            ? sv.visibility
+                            : 'SHARED',
+                    allowedRoles: Array.isArray(sv.allowed_roles) ? sv.allowed_roles : [],
+                    isDefault: Boolean(sv.is_default),
                 })),
             });
         }
@@ -5359,6 +5601,17 @@ export async function importTenantSchemaBundle(
                 }
 
                 if (objSpec.layouts.length > 0) {
+                    const layoutTypesInSpec = Array.from(
+                        new Set(objSpec.layouts.map(l => l.layoutType)),
+                    );
+                    for (const lt of layoutTypesInSpec) {
+                        await q`
+                            DELETE FROM metadata_layouts
+                            WHERE object_id = ${objectId}
+                              AND layout_type = ${lt}
+                        `.execute();
+                    }
+                    const seenDefaults = new Set<string>();
                     for (const layoutSpec of objSpec.layouts) {
                         const rawLayoutSchema =
                             layoutSpec.schema && typeof layoutSpec.schema === 'object'
@@ -5373,21 +5626,191 @@ export async function importTenantSchemaBundle(
                                 enabled: false,
                             };
                         }
+                        const isFirstOfType = !seenDefaults.has(layoutSpec.layoutType);
+                        seenDefaults.add(layoutSpec.layoutType);
+                        const layoutName = layoutSpec.name || 'Default Layout';
+                        const assignedRoles = Array.isArray(layoutSpec.assignedRoles)
+                            ? layoutSpec.assignedRoles
+                            : [];
                         await q`
-                            DELETE FROM metadata_layouts
-                            WHERE object_id = ${objectId}
-                              AND layout_type = ${layoutSpec.layoutType}
-                        `.execute();
-                        await q`
-                            INSERT INTO metadata_layouts (object_id, layout_type, schema, is_default, created_at)
+                            INSERT INTO metadata_layouts (
+                                object_id, layout_type, name, assigned_roles, schema, is_default, created_at
+                            )
                             VALUES (
                                 ${objectId},
                                 ${layoutSpec.layoutType},
+                                ${layoutName},
+                                ${JSON.stringify(assignedRoles)}::jsonb,
                                 ${JSON.stringify(rawLayoutSchema)}::jsonb,
-                                true,
+                                ${isFirstOfType && assignedRoles.length === 0},
                                 NOW()
                             )
                         `.execute();
+                    }
+                }
+
+                // Deploy Tier-2 OWD Mode if specified on bundle object
+                if (objSpec.owdMode) {
+                    await q`
+                        INSERT INTO tenant_object_settings (
+                            tenant_id, object_api_name, is_enabled, owd_mode, updated_by, updated_at
+                        )
+                        VALUES (
+                            ${tenantId},
+                            ${objSpec.apiName},
+                            true,
+                            ${objSpec.owdMode},
+                            ${userId},
+                            NOW()
+                        )
+                        ON CONFLICT (tenant_id, object_api_name)
+                        DO UPDATE SET
+                            owd_mode = EXCLUDED.owd_mode,
+                            updated_by = EXCLUDED.updated_by,
+                            updated_at = NOW()
+                    `.execute();
+                }
+
+                // Deploy Tier-2 Sharing Rules idempotently by name
+                if (Array.isArray(objSpec.sharingRules) && objSpec.sharingRules.length > 0) {
+                    for (const rule of objSpec.sharingRules) {
+                        const existingRule = await q<{ id: string }>`
+                            SELECT id
+                            FROM metadata_sharing_rules
+                            WHERE tenant_id = ${tenantId}
+                              AND object_api_name = ${objSpec.apiName}
+                              AND name = ${rule.name}
+                            LIMIT 1
+                        `;
+                        if (existingRule.length === 0) {
+                            await q`
+                                INSERT INTO metadata_sharing_rules (
+                                    tenant_id, object_api_name, name, criteria_field,
+                                    criteria_operator, criteria_value, shared_with_role,
+                                    access_level, is_active, created_by
+                                )
+                                VALUES (
+                                    ${tenantId},
+                                    ${objSpec.apiName},
+                                    ${rule.name},
+                                    ${rule.criteriaField ?? null},
+                                    ${rule.criteriaOperator || 'eq'},
+                                    ${rule.criteriaValue ?? null},
+                                    ${rule.sharedWithRole},
+                                    ${rule.accessLevel},
+                                    true,
+                                    ${userId}
+                                )
+                            `.execute();
+                        }
+                    }
+                }
+
+                // Deploy Tier-2 Cross-Field Validation Rules idempotently by name
+                if (Array.isArray(objSpec.validationRules) && objSpec.validationRules.length > 0) {
+                    for (const vRule of objSpec.validationRules) {
+                        const existingVRule = await q<{ id: string }>`
+                            SELECT id
+                            FROM metadata_validation_rules
+                            WHERE tenant_id = ${tenantId}
+                              AND object_api_name = ${objSpec.apiName}
+                              AND name = ${vRule.name}
+                            LIMIT 1
+                        `;
+                        if (existingVRule.length === 0) {
+                            await q`
+                                INSERT INTO metadata_validation_rules (
+                                    tenant_id, object_api_name, name, description,
+                                    error_condition_formula, error_message, error_field,
+                                    is_active, created_by
+                                )
+                                VALUES (
+                                    ${tenantId},
+                                    ${objSpec.apiName},
+                                    ${vRule.name},
+                                    ${vRule.description ?? null},
+                                    ${vRule.errorConditionFormula},
+                                    ${vRule.errorMessage},
+                                    ${vRule.errorField ?? null},
+                                    true,
+                                    ${userId}
+                                )
+                            `.execute();
+                        }
+                    }
+                }
+
+                // Deploy Tier-2 Multi-Step Approval Processes idempotently by name
+                if (
+                    Array.isArray(objSpec.approvalProcesses) &&
+                    objSpec.approvalProcesses.length > 0
+                ) {
+                    for (const proc of objSpec.approvalProcesses) {
+                        const existingProc = await q<{ id: string }>`
+                            SELECT id
+                            FROM metadata_approval_processes
+                            WHERE tenant_id = ${tenantId}
+                              AND object_api_name = ${objSpec.apiName}
+                              AND name = ${proc.name}
+                            LIMIT 1
+                        `;
+                        if (existingProc.length === 0) {
+                            await q`
+                                INSERT INTO metadata_approval_processes (
+                                    tenant_id, object_api_name, name, description,
+                                    entry_criteria_formula, steps, lock_record_on_submit,
+                                    field_updates_on_approve, field_updates_on_reject,
+                                    is_active, created_by
+                                )
+                                VALUES (
+                                    ${tenantId},
+                                    ${objSpec.apiName},
+                                    ${proc.name},
+                                    ${proc.description ?? null},
+                                    ${proc.entryCriteriaFormula ?? null},
+                                    ${JSON.stringify(proc.steps)}::jsonb,
+                                    ${proc.lockRecordOnSubmit !== false},
+                                    ${JSON.stringify(proc.fieldUpdatesOnApprove || {})}::jsonb,
+                                    ${JSON.stringify(proc.fieldUpdatesOnReject || {})}::jsonb,
+                                    true,
+                                    ${userId}
+                                )
+                            `.execute();
+                        }
+                    }
+                }
+
+                // Deploy Tier-1 Saved Views idempotently by name
+                if (Array.isArray(objSpec.savedViews) && objSpec.savedViews.length > 0) {
+                    for (const sv of objSpec.savedViews) {
+                        const existingView = await q<{ id: string }>`
+                            SELECT id
+                            FROM metadata_views
+                            WHERE tenant_id = ${tenantId}
+                              AND object_api_name = ${objSpec.apiName}
+                              AND name = ${sv.name}
+                            LIMIT 1
+                        `;
+                        if (existingView.length === 0) {
+                            await q`
+                                INSERT INTO metadata_views (
+                                    tenant_id, object_api_name, name, columns, filter_rules,
+                                    display_mode, is_default, visibility, allowed_roles, created_by
+                                )
+                                VALUES (
+                                    ${tenantId},
+                                    ${objSpec.apiName},
+                                    ${sv.name},
+                                    ${JSON.stringify(sv.columns)}::jsonb,
+                                    ${JSON.stringify(sv.filters)}::jsonb,
+                                    ${sv.viewMode},
+                                    ${Boolean(sv.isDefault)},
+                                    ${sv.visibility},
+                                    ${JSON.stringify(sv.allowedRoles || [])}::jsonb,
+                                    ${userId}
+                                )
+                            `.execute();
+                        }
                     }
                 }
 
@@ -5431,6 +5854,57 @@ export async function importTenantSchemaBundle(
                 }
             }
 
+            const bundleSha256 = computeSchemaBundleSha256(bundle);
+            const packageSlug =
+                bundle.bundleName
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/^-|-$/g, '')
+                    .slice(0, 90) || 'custom-bundle';
+
+            await q`
+                INSERT INTO metadata_installed_packages (
+                    tenant_id, package_key, name, description, version, source_type,
+                    bundle_sha256, installed_objects, artifact_counts, installed_by,
+                    installed_at, updated_at
+                )
+                VALUES (
+                    ${tenantId},
+                    ${`bundle:${packageSlug}`},
+                    ${bundle.bundleName},
+                    ${bundle.bundleDescription || null},
+                    '1.0.0',
+                    'BUNDLE_IMPORT',
+                    ${bundleSha256},
+                    ${JSON.stringify(importedObjects)}::jsonb,
+                    ${JSON.stringify({
+                        objects: importedObjects.length,
+                        fields: bundle.objects.reduce((acc, o) => acc + o.fields.length, 0),
+                        workflows: bundle.workflows.length,
+                        validationRules: bundle.objects.reduce(
+                            (acc, o) => acc + (o.validationRules?.length || 0),
+                            0,
+                        ),
+                        approvalProcesses: bundle.objects.reduce(
+                            (acc, o) => acc + (o.approvalProcesses?.length || 0),
+                            0,
+                        ),
+                    })}::jsonb,
+                    ${userId},
+                    NOW(),
+                    NOW()
+                )
+                ON CONFLICT (tenant_id, package_key)
+                DO UPDATE SET
+                    name = EXCLUDED.name,
+                    description = EXCLUDED.description,
+                    bundle_sha256 = EXCLUDED.bundle_sha256,
+                    installed_objects = EXCLUDED.installed_objects,
+                    artifact_counts = EXCLUDED.artifact_counts,
+                    installed_by = EXCLUDED.installed_by,
+                    updated_at = NOW()
+            `.execute();
+
             await q`
                 INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, after_state)
                 VALUES (
@@ -5441,6 +5915,7 @@ export async function importTenantSchemaBundle(
                     ${JSON.stringify({
                         auditEvent: 'SCHEMA_BUNDLE_IMPORTED',
                         bundleName: bundle.bundleName,
+                        bundleSha256,
                         importedObjects,
                         importedFields,
                         importedWorkflows,

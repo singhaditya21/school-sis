@@ -141,4 +141,91 @@ const archiveStudent: AiMutationTool<z.infer<typeof archiveStudentSchema>> = {
     },
 };
 
-export const AI_MUTATION_TOOLS = [waiveInvoice, archiveStudent] as const;
+const requestMetadataRecordReviewSchema = z.object({
+    objectApiName: z
+        .string()
+        .trim()
+        .regex(/^[a-z][a-z0-9_]{1,62}$/)
+        .describe('The lowercase API name of the custom object (for example scholarship_grant).'),
+    recordId: z
+        .string()
+        .trim()
+        .uuid()
+        .describe('The exact UUID of the custom object record to propose a stage change for.'),
+    proposedStage: z
+        .string()
+        .trim()
+        .min(2)
+        .max(60)
+        .describe('The target stage value requested (for example APPROVED, ESCALATED, CLOSED).'),
+    reason: z
+        .string()
+        .trim()
+        .min(10)
+        .max(500)
+        .describe('Why this custom record stage change is being requested for human review.'),
+});
+
+const requestMetadataRecordReview: AiMutationTool<
+    z.infer<typeof requestMetadataRecordReviewSchema>
+> = {
+    kind: 'mutation',
+    name: 'metadata.request_record_review',
+    title: 'Request a custom object record stage change',
+    description:
+        'Proposes a stage update on one custom object record identified by object API name and UUID. Nothing is modified directly; raises a human approval request.',
+    permission: 'agents:approve',
+    approvalPolicyId: 'agents.approval.review',
+    inputSchema: requestMetadataRecordReviewSchema,
+    async propose(input, context) {
+        const rows = await runTenantScopedRead<{
+            record_id: string;
+            object_api_name: string;
+            object_name: string;
+        }>(
+            context,
+            `SELECT mr.id::text AS record_id,
+                    mo.api_name AS object_api_name,
+                    mo.name AS object_name
+             FROM metadata_records mr
+             JOIN metadata_objects mo ON mo.id = mr.object_id AND mo.tenant_id = $1
+             WHERE mr.tenant_id = $1
+               AND mo.api_name = $2
+               AND mr.id::text = $3
+             LIMIT 1`,
+            [context.tenantId, input.objectApiName, input.recordId],
+        );
+
+        if (rows.length === 0) {
+            return {
+                refused: `No record ${input.recordId} on custom object "${input.objectApiName}" exists in this school, so no approval request was raised.`,
+            };
+        }
+
+        const matched = rows[0];
+        return {
+            title: `Update ${matched.object_name} (${matched.record_id.slice(0, 8)}) to ${input.proposedStage}`,
+            description: `Requested through the school assistant for custom object "${matched.object_api_name}". Requires human approval before any field is modified.`,
+            reason: input.reason,
+            resource: {
+                type: matched.object_api_name,
+                id: matched.record_id,
+                label: `${matched.object_name} #${matched.record_id.slice(0, 8).toUpperCase()}`,
+            },
+            payload: {
+                objectApiName: matched.object_api_name,
+                recordId: matched.record_id,
+                proposedStage: input.proposedStage,
+                origin: 'ai_assistant',
+                requestedByUserId: context.userId,
+            },
+            priority: 'NORMAL',
+        };
+    },
+};
+
+export const AI_MUTATION_TOOLS = [
+    waiveInvoice,
+    archiveStudent,
+    requestMetadataRecordReview,
+] as const;

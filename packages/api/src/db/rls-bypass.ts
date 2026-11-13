@@ -156,6 +156,10 @@ export const RLS_BYPASS_JUSTIFICATIONS = {
     "security.demo-tenant-lookup",
     "Demo sandbox guard resolves immutable tenant demo status to isolate external messaging, payment, and storage side effects.",
   ),
+  PUBLIC_PORTAL_TENANT_LOOKUP: defineJustification(
+    "portal.public-tenant-lookup",
+    "Public Experience Cloud intake resolves an active tenant slug or code to its tenant UUID before entering tenant RLS context.",
+  ),
   TEST_CONTEXT_NESTING: defineJustification(
     "test.context-nesting",
     "The database context unit test verifies bypass nesting and outer tenant restoration.",

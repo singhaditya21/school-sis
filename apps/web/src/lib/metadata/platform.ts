@@ -1116,15 +1116,65 @@ export interface ScholarMindSchemaBundleField {
     validationRules: MetadataValidationRules;
 }
 
+export interface ScholarMindSchemaBundleSharingRule {
+    name: string;
+    criteriaField?: string | null;
+    criteriaOperator?: string;
+    criteriaValue?: string | null;
+    sharedWithRole: string;
+    accessLevel: 'READ' | 'READ_WRITE';
+}
+
+export interface ScholarMindSchemaBundleValidationRule {
+    name: string;
+    description?: string | null;
+    errorConditionFormula: string;
+    errorMessage: string;
+    errorField?: string | null;
+}
+
+export interface ScholarMindSchemaBundleApprovalProcess {
+    name: string;
+    description?: string | null;
+    entryCriteriaFormula?: string | null;
+    steps: {
+        stepNumber: number;
+        stepName: string;
+        approverRole: string;
+    }[];
+    lockRecordOnSubmit?: boolean;
+    fieldUpdatesOnApprove?: Record<string, string>;
+    fieldUpdatesOnReject?: Record<string, string>;
+}
+
+export interface ScholarMindSchemaBundleSavedView {
+    name: string;
+    viewMode: 'TABLE' | 'KANBAN';
+    columns: string[];
+    filters: { field: string; operator: string; value: string }[];
+    visibility: 'PRIVATE' | 'SHARED' | 'ROLES';
+    allowedRoles?: string[];
+    isDefault?: boolean;
+}
+
+export interface ScholarMindSchemaBundleLayout {
+    layoutType: 'FORM' | 'LIST' | 'HOME';
+    name?: string;
+    assignedRoles?: string[];
+    schema: Record<string, unknown>;
+}
+
 export interface ScholarMindSchemaBundleObject {
     name: string;
     apiName: string;
     description: string;
     fields: ScholarMindSchemaBundleField[];
-    layouts: {
-        layoutType: 'FORM' | 'LIST';
-        schema: Record<string, unknown>;
-    }[];
+    layouts: ScholarMindSchemaBundleLayout[];
+    owdMode?: 'PUBLIC_READ_WRITE' | 'PUBLIC_READ_ONLY' | 'PRIVATE';
+    sharingRules?: ScholarMindSchemaBundleSharingRule[];
+    validationRules?: ScholarMindSchemaBundleValidationRule[];
+    approvalProcesses?: ScholarMindSchemaBundleApprovalProcess[];
+    savedViews?: ScholarMindSchemaBundleSavedView[];
 }
 
 export interface ScholarMindSchemaBundleWorkflow {
@@ -1206,26 +1256,212 @@ export function validateScholarMindSchemaBundle(
             }
 
             const rawLayouts = Array.isArray(o.layouts) ? o.layouts : [];
-            const normalizedLayouts: { layoutType: 'FORM' | 'LIST'; schema: Record<string, unknown> }[] = [];
+            const normalizedLayouts: ScholarMindSchemaBundleLayout[] = [];
             for (const rl of rawLayouts) {
                 if (!rl || typeof rl !== 'object') continue;
                 const l = rl as Record<string, unknown>;
                 const lt = String(l.layoutType || '').toUpperCase();
-                if (lt !== 'FORM' && lt !== 'LIST') continue;
+                if (lt !== 'FORM' && lt !== 'LIST' && lt !== 'HOME') continue;
                 const schema =
                     l.schema && typeof l.schema === 'object' && !Array.isArray(l.schema)
                         ? (l.schema as Record<string, unknown>)
                         : {};
-                normalizedLayouts.push({ layoutType: lt, schema });
+                const layoutEntry: ScholarMindSchemaBundleLayout = { layoutType: lt, schema };
+                if (typeof l.name === 'string' && l.name.trim()) {
+                    layoutEntry.name = l.name.trim().slice(0, 120);
+                }
+                if (Array.isArray(l.assignedRoles) && l.assignedRoles.length > 0) {
+                    layoutEntry.assignedRoles = l.assignedRoles
+                        .map(r => String(r || '').trim().toUpperCase())
+                        .filter(Boolean)
+                        .slice(0, 50);
+                }
+                normalizedLayouts.push(layoutEntry);
             }
 
-            normalizedObjects.push({
+            const rawOwd = String(o.owdMode || '').trim().toUpperCase();
+            const owdMode: 'PUBLIC_READ_WRITE' | 'PUBLIC_READ_ONLY' | 'PRIVATE' | undefined =
+                rawOwd === 'PRIVATE' || rawOwd === 'PUBLIC_READ_ONLY' || rawOwd === 'PUBLIC_READ_WRITE'
+                    ? rawOwd
+                    : undefined;
+
+            const normalizedSharingRules: ScholarMindSchemaBundleSharingRule[] = [];
+            if (Array.isArray(o.sharingRules)) {
+                for (const sr of o.sharingRules.slice(0, 50)) {
+                    if (!sr || typeof sr !== 'object') continue;
+                    const s = sr as Record<string, unknown>;
+                    const ruleName = String(s.name || '').trim().slice(0, 120);
+                    const sharedWithRole = String(s.sharedWithRole || '').trim().toUpperCase().slice(0, 80);
+                    if (!ruleName || !sharedWithRole) continue;
+                    const criteriaField =
+                        typeof s.criteriaField === 'string' && s.criteriaField.trim()
+                            ? s.criteriaField.trim().toLowerCase()
+                            : null;
+                    if (criteriaField) {
+                        assertSafeMetadataIdentifier(criteriaField, 'sharing rule criteria field');
+                    }
+                    normalizedSharingRules.push({
+                        name: ruleName,
+                        criteriaField,
+                        criteriaOperator: String(s.criteriaOperator || 'eq').trim().toLowerCase(),
+                        criteriaValue:
+                            s.criteriaValue != null && String(s.criteriaValue).trim() !== ''
+                                ? String(s.criteriaValue).trim().slice(0, 240)
+                                : null,
+                        sharedWithRole,
+                        accessLevel:
+                            String(s.accessLevel || '').toUpperCase() === 'READ_WRITE'
+                                ? 'READ_WRITE'
+                                : 'READ',
+                    });
+                }
+            }
+
+            const normalizedValidationRules: ScholarMindSchemaBundleValidationRule[] = [];
+            if (Array.isArray(o.validationRules)) {
+                for (const vr of o.validationRules.slice(0, 50)) {
+                    if (!vr || typeof vr !== 'object') continue;
+                    const v = vr as Record<string, unknown>;
+                    const ruleName = String(v.name || '').trim().slice(0, 120);
+                    const formula = String(v.errorConditionFormula || '').trim().slice(0, 600);
+                    const errMsg = String(v.errorMessage || '').trim().slice(0, 300);
+                    if (!ruleName || !formula || !errMsg) continue;
+                    const errorField =
+                        typeof v.errorField === 'string' && v.errorField.trim()
+                            ? v.errorField.trim().toLowerCase()
+                            : null;
+                    if (errorField) {
+                        assertSafeMetadataIdentifier(errorField, 'validation rule error field');
+                    }
+                    normalizedValidationRules.push({
+                        name: ruleName,
+                        description:
+                            typeof v.description === 'string' && v.description.trim()
+                                ? v.description.trim().slice(0, 300)
+                                : null,
+                        errorConditionFormula: formula,
+                        errorMessage: errMsg,
+                        errorField,
+                    });
+                }
+            }
+
+            const normalizedApprovalProcesses: ScholarMindSchemaBundleApprovalProcess[] = [];
+            if (Array.isArray(o.approvalProcesses)) {
+                for (const ap of o.approvalProcesses.slice(0, 25)) {
+                    if (!ap || typeof ap !== 'object') continue;
+                    const a = ap as Record<string, unknown>;
+                    const procName = String(a.name || '').trim().slice(0, 120);
+                    const rawSteps = Array.isArray(a.steps) ? a.steps : [];
+                    const steps = rawSteps
+                        .filter((st): st is Record<string, unknown> => Boolean(st && typeof st === 'object'))
+                        .map((st, idx) => ({
+                            stepNumber: Number(st.stepNumber || idx + 1) || idx + 1,
+                            stepName: String(st.stepName || `Step ${idx + 1}`).trim().slice(0, 120),
+                            approverRole: String(st.approverRole || 'PRINCIPAL')
+                                .trim()
+                                .toUpperCase()
+                                .slice(0, 80),
+                        }))
+                        .slice(0, 10);
+                    if (!procName || steps.length === 0) continue;
+
+                    const toStringMap = (candidate: unknown): Record<string, string> => {
+                        if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+                            return {};
+                        }
+                        const out: Record<string, string> = {};
+                        for (const [k, val] of Object.entries(candidate as Record<string, unknown>)) {
+                            const cleanKey = k.trim().toLowerCase();
+                            if (!cleanKey) continue;
+                            assertSafeMetadataIdentifier(cleanKey, 'approval field update key');
+                            out[cleanKey] = String(val ?? '').trim().slice(0, 200);
+                        }
+                        return out;
+                    };
+
+                    normalizedApprovalProcesses.push({
+                        name: procName,
+                        description:
+                            typeof a.description === 'string' && a.description.trim()
+                                ? a.description.trim().slice(0, 300)
+                                : null,
+                        entryCriteriaFormula:
+                            typeof a.entryCriteriaFormula === 'string' && a.entryCriteriaFormula.trim()
+                                ? a.entryCriteriaFormula.trim().slice(0, 600)
+                                : null,
+                        steps,
+                        lockRecordOnSubmit: a.lockRecordOnSubmit !== false,
+                        fieldUpdatesOnApprove: toStringMap(a.fieldUpdatesOnApprove),
+                        fieldUpdatesOnReject: toStringMap(a.fieldUpdatesOnReject),
+                    });
+                }
+            }
+
+            const normalizedSavedViews: ScholarMindSchemaBundleSavedView[] = [];
+            if (Array.isArray(o.savedViews)) {
+                for (const sv of o.savedViews.slice(0, 50)) {
+                    if (!sv || typeof sv !== 'object') continue;
+                    const s = sv as Record<string, unknown>;
+                    const viewName = String(s.name || '').trim().slice(0, 120);
+                    if (!viewName) continue;
+                    const viewMode =
+                        String(s.viewMode || '').toUpperCase() === 'KANBAN' ? 'KANBAN' : 'TABLE';
+                    const columns = Array.isArray(s.columns)
+                        ? s.columns
+                              .map(c => String(c || '').trim().toLowerCase())
+                              .filter(Boolean)
+                              .slice(0, 40)
+                        : [];
+                    for (const col of columns) {
+                        assertSafeMetadataIdentifier(col, 'saved view column');
+                    }
+                    const filters = Array.isArray(s.filters)
+                        ? s.filters
+                              .filter((flt): flt is Record<string, unknown> => Boolean(flt && typeof flt === 'object'))
+                              .map(flt => ({
+                                  field: String(flt.field || '').trim().toLowerCase(),
+                                  operator: String(flt.operator || 'equals').trim(),
+                                  value: String(flt.value ?? '').trim(),
+                              }))
+                              .filter(flt => Boolean(flt.field))
+                              .slice(0, 20)
+                        : [];
+                    const rawVis = String(s.visibility || 'SHARED').toUpperCase();
+                    const visibility: 'PRIVATE' | 'SHARED' | 'ROLES' =
+                        rawVis === 'PRIVATE' || rawVis === 'ROLES' ? rawVis : 'SHARED';
+                    normalizedSavedViews.push({
+                        name: viewName,
+                        viewMode,
+                        columns,
+                        filters,
+                        visibility,
+                        allowedRoles: Array.isArray(s.allowedRoles)
+                            ? s.allowedRoles.map(r => String(r || '').trim().toUpperCase()).filter(Boolean)
+                            : [],
+                        isDefault: Boolean(s.isDefault),
+                    });
+                }
+            }
+
+            const objEntry: ScholarMindSchemaBundleObject = {
                 name,
                 apiName,
                 description: String(o.description || '').trim().slice(0, 500),
                 fields: normalizedFields,
                 layouts: normalizedLayouts,
-            });
+            };
+            if (owdMode) objEntry.owdMode = owdMode;
+            if (normalizedSharingRules.length > 0) objEntry.sharingRules = normalizedSharingRules;
+            if (normalizedValidationRules.length > 0) {
+                objEntry.validationRules = normalizedValidationRules;
+            }
+            if (normalizedApprovalProcesses.length > 0) {
+                objEntry.approvalProcesses = normalizedApprovalProcesses;
+            }
+            if (normalizedSavedViews.length > 0) objEntry.savedViews = normalizedSavedViews;
+
+            normalizedObjects.push(objEntry);
         }
 
         const rawWorkflows = Array.isArray(input.workflows) ? input.workflows : [];
@@ -1395,6 +1631,24 @@ function hmacSha256Hex(keyStr: string, messageStr: string): string {
     outer.set(oKeyPad);
     outer.set(innerDigest, 64);
     return Array.from(sha256Bytes(outer))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+/**
+ * Computes a deterministic SHA-256 hex digest over the normalized content of a
+ * `ScholarMindSchemaBundle` (ignoring ephemeral `exportedAt` timestamps) for
+ * AppExchange & Sandbox-to-Production package provenance.
+ */
+export function computeSchemaBundleSha256(bundle: ScholarMindSchemaBundle): string {
+    const canonicalPayload = JSON.stringify({
+        formatVersion: bundle.formatVersion,
+        bundleName: bundle.bundleName,
+        objects: bundle.objects,
+        workflows: bundle.workflows,
+    });
+    const bytes = new TextEncoder().encode(canonicalPayload);
+    return Array.from(sha256Bytes(bytes))
         .map((b) => b.toString(16).padStart(2, '0'))
         .join('');
 }

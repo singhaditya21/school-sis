@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth/middleware';
 import { getAllMetadataObjects, getObjectMetadataById } from '@/lib/actions/metadata-engine';
 import { listTenantRolesWithPermissions } from '@/lib/actions/lcnc-platform';
 import { getObjectGovernanceConfigAction } from '@/lib/actions/lcnc-tier2';
+import { listInstalledMetadataPackagesAction } from '@/lib/actions/lcnc-tier3';
 import FieldManagerClient from './field-manager';
 import ObjectLayoutBuilderClient from './layout-builder';
 import ObjectGovernanceStudioClient from './object-governance-studio';
@@ -61,14 +62,19 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
     }
 
     const { objectDef, fields, layouts } = metadata;
-    const governanceConfig = await getObjectGovernanceConfigAction(
-        String(objectDef.api_name),
-    ).catch(() => ({
-        owdMode: 'PUBLIC_READ_WRITE' as const,
-        sharingRules: [],
-        validationRules: [],
-        approvalProcesses: [],
-    }));
+    const [governanceConfig, pkgInfo] = await Promise.all([
+        getObjectGovernanceConfigAction(String(objectDef.api_name)).catch(() => ({
+            owdMode: 'PUBLIC_READ_WRITE' as const,
+            sharingRules: [],
+            validationRules: [],
+            approvalProcesses: [],
+        })),
+        listInstalledMetadataPackagesAction().catch(() => ({
+            success: false,
+            tenantCode: null,
+            packages: [],
+        })),
+    ]);
 
     return (
         <div className="space-y-6">
@@ -141,6 +147,7 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
                 objectName={objectDef.name}
                 objectApiName={String(objectDef.api_name)}
                 tenantId={String(objectDef.tenant_id || auth.tenantId || '')}
+                tenantCode={pkgInfo.tenantCode}
                 fields={fields}
                 initialLayouts={layouts ?? []}
             />

@@ -47,6 +47,7 @@ export default function ExperiencePortalPublisherClient({
     objectName,
     objectApiName,
     tenantId,
+    tenantCode,
     fields,
     initialLayouts,
 }: {
@@ -54,6 +55,7 @@ export default function ExperiencePortalPublisherClient({
     objectName: string;
     objectApiName: string;
     tenantId: string;
+    tenantCode?: string | null;
     fields: MetadataField[];
     initialLayouts: MetadataLayout[];
 }) {
@@ -103,8 +105,12 @@ export default function ExperiencePortalPublisherClient({
     const [applicationFeeAmount, setApplicationFeeAmount] = useState<string>(
         String(existingPortal.applicationFeeAmount || 0),
     );
+    const [autoSubmitForApproval, setAutoSubmitForApproval] = useState<boolean>(
+        Boolean(existingPortal.autoSubmitForApproval),
+    );
 
-    const portalPath = `/portal/${tenantId}/${objectApiName}`;
+    const effectiveSlug = tenantCode && tenantCode.trim() ? tenantCode.trim() : tenantId;
+    const portalPath = `/portal/${effectiveSlug}/${objectApiName}`;
     const selectedStageFieldObj = picklistFields.find(f => f.apiName === defaultStageField);
 
     const toggleExposedField = (apiName: string) => {
@@ -130,6 +136,7 @@ export default function ExperiencePortalPublisherClient({
                 enableStatusTracker,
                 enableSlotBooking,
                 applicationFeeAmount: Math.max(0, Number(applicationFeeAmount || 0) || 0),
+                autoSubmitForApproval,
             });
             if (!res.success) {
                 toast.error(res.error || 'Failed to save Experience Cloud portal settings.');
@@ -337,8 +344,8 @@ export default function ExperiencePortalPublisherClient({
                     </div>
                 </div>
 
-                {/* Track G: Experience Cloud 2.0 — Counselor Slot Booking & Application Fee Checkout */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                {/* Track G + Tier-3: Counselor Slot Booking, Multi-Step Approval Auto-Entry & Application Fee */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                     <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2.5">
                         <div className="space-y-0.5">
                             <span className="text-xs font-medium text-foreground block">
@@ -352,6 +359,21 @@ export default function ExperiencePortalPublisherClient({
                             checked={enableSlotBooking}
                             onCheckedChange={setEnableSlotBooking}
                             data-testid="toggle-portal-slot-booking"
+                        />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+                        <div className="space-y-0.5">
+                            <span className="text-xs font-medium text-foreground block">
+                                Auto-Submit to Multi-Step Approval
+                            </span>
+                            <span className="text-[11px] text-muted-foreground block">
+                                Enters matching active Approval Process &amp; locks record
+                            </span>
+                        </div>
+                        <Switch
+                            checked={autoSubmitForApproval}
+                            onCheckedChange={setAutoSubmitForApproval}
+                            data-testid="toggle-portal-auto-approval"
                         />
                     </div>
                     <div className="space-y-1.5">
@@ -368,6 +390,15 @@ export default function ExperiencePortalPublisherClient({
                         />
                     </div>
                 </div>
+
+                {tenantCode && (
+                    <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <span className="text-muted-foreground">
+                            Friendly Institution Slug Route:
+                        </span>
+                        <code className="font-mono text-primary font-semibold">{portalPath}</code>
+                    </div>
+                )}
 
                 {/* Confirmation message & Shareable URLs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
