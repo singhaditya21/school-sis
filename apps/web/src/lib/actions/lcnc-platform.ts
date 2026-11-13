@@ -12,6 +12,7 @@ import {
 } from '@/lib/rbac/custom-roles';
 import { assertSafeMetadataIdentifier, type RollupAggregateFunction } from '@/lib/metadata/platform';
 import type {
+    JoinedReportConfig,
     MetadataViewCategoryItem,
     ReportCategoryItem,
     SavedLcncReportItem,
@@ -1036,6 +1037,7 @@ export async function listReportCategoriesAndObjectReportsAction(
                 selected_metrics: string[];
                 selected_dimensions: string[];
                 filters: SavedViewFilterRule[];
+                date_range: Record<string, unknown> | null;
                 chart_type: string;
                 allowed_roles: string[];
                 created_at: Date | string;
@@ -1050,6 +1052,7 @@ export async function listReportCategoriesAndObjectReportsAction(
                        r.selected_metrics,
                        r.selected_dimensions,
                        r.filters,
+                       r.date_range,
                        r.chart_type,
                        r.allowed_roles,
                        r.created_at
@@ -1085,6 +1088,12 @@ export async function listReportCategoriesAndObjectReportsAction(
                     const agg = (['COUNT', 'SUM', 'AVG', 'MIN', 'MAX'].includes(aggPart)
                         ? aggPart
                         : 'COUNT') as RollupAggregateFunction;
+                    const rawMeta =
+                        r.date_range && typeof r.date_range === 'object' ? r.date_range : {};
+                    const parsedJoinConfig =
+                        rawMeta.joinConfig && typeof rawMeta.joinConfig === 'object'
+                            ? (rawMeta.joinConfig as JoinedReportConfig)
+                            : null;
 
                     return {
                         id: r.id,
@@ -1093,13 +1102,18 @@ export async function listReportCategoriesAndObjectReportsAction(
                         categoryName: r.category_name,
                         objectApiName: r.object_api_name,
                         reportKind:
-                            r.report_kind === 'OBJECT_REPORT' ? 'OBJECT_REPORT' : 'STANDARD_BI',
+                            r.report_kind === 'JOINED_OBJECT_REPORT'
+                                ? 'JOINED_OBJECT_REPORT'
+                                : r.report_kind === 'OBJECT_REPORT'
+                                  ? 'OBJECT_REPORT'
+                                  : 'STANDARD_BI',
                         datasetKey: r.dataset_key,
                         groupByField: r.selected_dimensions?.[0] || '',
                         aggregateFunction: agg,
                         metricField: metricFldPart || null,
                         selectedColumns: (r.selected_dimensions || []).slice(1),
                         filterRules: Array.isArray(r.filters) ? r.filters : [],
+                        joinConfig: parsedJoinConfig,
                         chartType:
                             r.chart_type === 'BAR' || r.chart_type === 'KPI'
                                 ? r.chart_type
@@ -1196,6 +1210,7 @@ export async function saveLcncObjectReportAction(input: {
     aggregateFunction: RollupAggregateFunction;
     metricField?: string | null;
     filterRules?: SavedViewFilterRule[];
+    joinConfig?: JoinedReportConfig | null;
     chartType?: 'TABLE' | 'BAR' | 'KPI';
     allowedRoles?: string[];
 }): Promise<{ success: boolean; reportId?: string; error?: string }> {
@@ -1211,7 +1226,9 @@ export async function saveLcncObjectReportAction(input: {
         }
         const cleanApi = (input.objectApiName || '').trim().toLowerCase();
         assertSafeMetadataIdentifier(cleanApi, 'object API name');
-        assertSafeMetadataIdentifier(input.groupByField, 'group-by field');
+        for (const seg of (input.groupByField || '').split('.')) {
+            assertSafeMetadataIdentifier(seg, 'group-by field');
+        }
 
         const categoryId =
             input.categoryId && UUID_RE.test(input.categoryId) ? input.categoryId : null;
@@ -1221,6 +1238,20 @@ export async function saveLcncObjectReportAction(input: {
         const allowedRoles = Array.isArray(input.allowedRoles)
             ? input.allowedRoles.map(r => String(r).trim().toUpperCase()).filter(Boolean)
             : [];
+        const sanitizedJoinConfig: JoinedReportConfig | null = input.joinConfig
+            ? {
+                  relatedObjectApiName: input.joinConfig.relatedObjectApiName.trim().toLowerCase(),
+                  lookupFieldApiName: input.joinConfig.lookupFieldApiName.trim(),
+                  joinDirection:
+                      input.joinConfig.joinDirection === 'PARENT_TO_CHILD'
+                          ? 'PARENT_TO_CHILD'
+                          : 'CHILD_TO_PARENT',
+                  joinType: input.joinConfig.joinType === 'INNER' ? 'INNER' : 'LEFT',
+                  relatedColumns: (input.joinConfig.relatedColumns || []).map(String),
+              }
+            : null;
+        const reportKind = sanitizedJoinConfig ? 'JOINED_OBJECT_REPORT' : 'OBJECT_REPORT';
+        const metaJson = sanitizedJoinConfig ? { joinConfig: sanitizedJoinConfig } : {};
 
         return await runWithTenantContext(tenantId, async () => {
             if (input.id && UUID_RE.test(input.id)) {
@@ -1229,10 +1260,12 @@ export async function saveLcncObjectReportAction(input: {
                     SET name = ${name},
                         category_id = ${categoryId},
                         object_api_name = ${cleanApi},
+                        report_kind = ${reportKind},
                         dataset_key = ${`object:${cleanApi}`},
                         selected_metrics = ARRAY[${encodedMetric}]::text[],
                         selected_dimensions = ${dims}::text[],
                         filters = ${JSON.stringify(input.filterRules || [])}::jsonb,
+                        date_range = ${JSON.stringify(metaJson)}::jsonb,
                         chart_type = ${input.chartType || 'TABLE'},
                         allowed_roles = ${JSON.stringify(allowedRoles)}::jsonb,
                         updated_by = ${userId},
@@ -1259,12 +1292,12 @@ export async function saveLcncObjectReportAction(input: {
                     ${name},
                     ${categoryId},
                     ${cleanApi},
-                    'OBJECT_REPORT',
+                    ${reportKind},
                     ${`object:${cleanApi}`},
                     ARRAY[${encodedMetric}]::text[],
                     ${dims}::text[],
                     ${JSON.stringify(input.filterRules || [])}::jsonb,
-                    '{}'::jsonb,
+                    ${JSON.stringify(metaJson)}::jsonb,
                     '{}'::jsonb,
                     ${input.chartType || 'TABLE'},
                     ${JSON.stringify(allowedRoles)}::jsonb,

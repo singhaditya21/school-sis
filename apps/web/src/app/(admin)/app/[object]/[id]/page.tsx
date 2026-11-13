@@ -14,13 +14,20 @@ import { resolveEffectiveUserRoleContext } from '@/lib/rbac/custom-roles';
 import {
     listPermittedLayoutsForRole,
     resolveLayoutForRole,
+    type MetadataApprovalInstanceItem,
+    type MetadataRecordAttachmentItem,
 } from '@/lib/metadata/lcnc-helpers';
+import {
+    getRecordApprovalStatusAction,
+    listRecordAttachmentsAction,
+} from '@/lib/actions/lcnc-tier2';
 import type { DuplicateMatchEntry } from '@/lib/metadata/platform';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ExternalLink, Link2 } from 'lucide-react';
 import GenericFormClient from './generic-form';
 import {
+    RecordAttachmentsCard,
     RecordAuditTimelineCard,
     RecordExperienceHeader,
 } from './record-detail-client';
@@ -62,12 +69,27 @@ export default async function GenericObjectFormPage({
         let relatedGroups: RelatedLookupGroup[] = [];
         let auditTimeline: RecordAuditTimelineEntry[] = [];
         let potentialDuplicates: DuplicateMatchEntry[] = [];
+        let activeApprovalInstance: MetadataApprovalInstanceItem | null = null;
+        let recordAttachments: MetadataRecordAttachmentItem[] = [];
         if (resolvedParams.id !== 'new') {
-            const [records, loadedRelated, loadedTimeline, loadedDuplicates] = await Promise.all([
+            const [
+                records,
+                loadedRelated,
+                loadedTimeline,
+                loadedDuplicates,
+                approvalState,
+                loadedAttachments,
+            ] = await Promise.all([
                 queryRecords(resolvedParams.object, { id: resolvedParams.id }, 1, 0),
                 getRelatedLookupRecords(resolvedParams.object, resolvedParams.id),
                 getRecordAuditTimeline(resolvedParams.object, resolvedParams.id),
                 findPotentialDuplicateRecords(resolvedParams.object, resolvedParams.id),
+                getRecordApprovalStatusAction(resolvedParams.object, resolvedParams.id).catch(
+                    () => ({ activeInstance: null, hasConfiguredProcess: false }),
+                ),
+                listRecordAttachmentsAction(resolvedParams.object, resolvedParams.id).catch(
+                    () => [],
+                ),
             ]);
             if (records.length > 0) {
                 initialData = records[0];
@@ -77,6 +99,8 @@ export default async function GenericObjectFormPage({
             relatedGroups = loadedRelated;
             auditTimeline = loadedTimeline;
             potentialDuplicates = loadedDuplicates;
+            activeApprovalInstance = approvalState.activeInstance;
+            recordAttachments = loadedAttachments;
         }
 
         const permittedForms = listPermittedLayoutsForRole(
@@ -152,6 +176,7 @@ export default async function GenericObjectFormPage({
                         fields={fields}
                         recordData={initialData as Record<string, unknown>}
                         potentialDuplicates={potentialDuplicates}
+                        activeApprovalInstance={activeApprovalInstance}
                     />
                 )}
 
@@ -223,6 +248,14 @@ export default async function GenericObjectFormPage({
                             ))}
                         </CardContent>
                     </Card>
+                )}
+
+                {resolvedParams.id !== 'new' && (
+                    <RecordAttachmentsCard
+                        objectName={resolvedParams.object}
+                        recordId={resolvedParams.id}
+                        initialAttachments={recordAttachments}
+                    />
                 )}
 
                 {resolvedParams.id !== 'new' && (

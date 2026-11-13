@@ -6,9 +6,14 @@ import {
     getBiMetric,
 } from '@school-sis/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { listReportCategoriesAndObjectReportsAction } from '@/lib/actions/lcnc-platform';
+import {
+    listReportCategoriesAndObjectReportsAction,
+    listTenantRolesWithPermissions,
+} from '@/lib/actions/lcnc-platform';
+import { listMetadataDashboardsAction } from '@/lib/actions/lcnc-tier2';
 import ReportBuilder from './report-builder';
 import { CustomObjectReportBuilder } from './custom-object-report-builder';
+import { CustomDashboardStudio } from './custom-dashboard-studio';
 import { getCustomObjectReportCatalog, getSavedBiReports } from './bi-actions';
 import { getBiDatasetDateLabel, isExecutableBiDataset, UNSUPPORTED_BI_DATASETS } from './bi-query-plan';
 import type { ReportDatasetOption, ReportWorkspace } from './bi-types';
@@ -21,16 +26,24 @@ export const metadata = {
 };
 
 export default async function ReportsPage() {
-    const [{ tenantId, userId, session }, savedReports, customCatalog, lcncReportData] =
-        await Promise.all([
-            requireAuth('reports:read'),
-            getSavedBiReports().catch(() => []),
-            getCustomObjectReportCatalog().catch(() => []),
-            listReportCategoriesAndObjectReportsAction().catch(() => ({
-                categories: [],
-                reports: [],
-            })),
-        ]);
+    const [
+        { tenantId, userId, session },
+        savedReports,
+        customCatalog,
+        lcncReportData,
+        customDashboards,
+        rolesRes,
+    ] = await Promise.all([
+        requireAuth('reports:read'),
+        getSavedBiReports().catch(() => []),
+        getCustomObjectReportCatalog().catch(() => []),
+        listReportCategoriesAndObjectReportsAction().catch(() => ({
+            categories: [],
+            reports: [],
+        })),
+        listMetadataDashboardsAction().catch(() => []),
+        listTenantRolesWithPermissions().catch(() => ({ success: false, roles: [] })),
+    ]);
 
     const snapshot = buildBiCatalogSnapshot(
         { role: session.role, tenantId, userId },
@@ -108,6 +121,10 @@ export default async function ReportsPage() {
         session.role === 'SUPER_ADMIN' ||
         session.role === 'PLATFORM_ADMIN';
 
+    const activeCustomRoles = rolesRes.roles
+        .filter(r => r.isActive)
+        .map(r => ({ code: r.code, name: r.name }));
+
     return (
         <div className="space-y-6">
             <div>
@@ -115,9 +132,16 @@ export default async function ReportsPage() {
                     Custom Reports &amp; BI Studio
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                    Organize reports into tenant Report Categories, build custom reports across all 19 System Objects and Custom EAV Objects, and run governed BI ledger datasets.
+                    Compose role-scoped Custom Dashboards, organize reports into tenant Report Categories, build Cross-Object Joined Reports across all 19 System Objects and Custom EAV Objects, and run governed BI ledger datasets.
                 </p>
             </div>
+
+            <CustomDashboardStudio
+                initialDashboards={customDashboards}
+                savedObjectReports={lcncReportData.reports}
+                customRoles={activeCustomRoles}
+                canManageDashboards={canManageCategories}
+            />
 
             <CustomObjectReportBuilder
                 catalog={customCatalog}

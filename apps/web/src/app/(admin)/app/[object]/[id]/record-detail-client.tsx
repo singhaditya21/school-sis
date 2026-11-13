@@ -24,9 +24,13 @@ import {
     FileSignature,
     GitMerge,
     History,
+    Lock,
     MessageSquarePlus,
+    Paperclip,
     ShieldCheck,
     Timer,
+    Trash2,
+    Upload,
     XCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -55,6 +59,15 @@ import {
     computeRecordSlaStatus,
     type DuplicateMatchEntry,
 } from '@/lib/metadata/platform';
+import type {
+    MetadataApprovalInstanceItem,
+    MetadataRecordAttachmentItem,
+} from '@/lib/metadata/lcnc-helpers';
+import {
+    deleteRecordAttachmentAction,
+    downloadRecordAttachmentAction,
+    uploadRecordAttachmentAction,
+} from '@/lib/actions/lcnc-tier2';
 
 const STAGE_FIELD_PRIORITY = [
     'pipeline_stage',
@@ -72,12 +85,14 @@ export function RecordExperienceHeader({
     fields,
     recordData,
     potentialDuplicates = [],
+    activeApprovalInstance = null,
 }: {
     objectName: string;
     recordId: string;
     fields: MetadataField[];
     recordData: Record<string, unknown>;
     potentialDuplicates?: DuplicateMatchEntry[];
+    activeApprovalInstance?: MetadataApprovalInstanceItem | null;
 }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
@@ -445,56 +460,108 @@ export function RecordExperienceHeader({
 
             {/* 3. Declarative Record Approval Bar */}
             <Card className="border-border shadow-sm" data-testid="record-approval-bar">
-                <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 text-xs">
-                        <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
-                        <span className="font-semibold text-foreground">
-                            Approval Process
-                        </span>
-                        <Input
-                            value={approvalComment}
-                            onChange={e => setApprovalComment(e.target.value)}
-                            placeholder="Optional approval or review note..."
-                            className="h-8 text-xs w-56 sm:w-64"
-                        />
+                <CardContent className="p-4 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
+                            <span className="font-semibold text-foreground">
+                                Approval Process
+                            </span>
+                            {activeApprovalInstance && (
+                                <Badge
+                                    variant="outline"
+                                    className={
+                                        activeApprovalInstance.status === 'APPROVED'
+                                            ? 'bg-success-subtle text-success border-success/30'
+                                            : activeApprovalInstance.status === 'REJECTED'
+                                              ? 'bg-destructive-subtle text-destructive border-destructive/30'
+                                              : 'bg-warning-subtle text-warning border-warning/30'
+                                    }
+                                >
+                                    {activeApprovalInstance.processName} · Step{' '}
+                                    {activeApprovalInstance.currentStep}/
+                                    {activeApprovalInstance.totalSteps} ({activeApprovalInstance.status})
+                                </Badge>
+                            )}
+                            {activeApprovalInstance?.isLocked &&
+                                activeApprovalInstance.status === 'PENDING' && (
+                                    <Badge variant="outline" className="gap-1 font-mono text-[10px]">
+                                        <Lock className="w-3 h-3" /> Record Locked
+                                    </Badge>
+                                )}
+                            <Input
+                                value={approvalComment}
+                                onChange={e => setApprovalComment(e.target.value)}
+                                placeholder="Optional approval or review note..."
+                                className="h-8 text-xs w-56 sm:w-64"
+                            />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={
+                                    isPending || activeApprovalInstance?.status === 'PENDING'
+                                }
+                                onClick={handleSubmitApproval}
+                                data-testid="submit-record-approval"
+                                className="h-8 text-xs"
+                            >
+                                Submit for Approval
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={isPending}
+                                onClick={() => handleDecision('APPROVED')}
+                                data-testid="approve-record-btn"
+                                className="h-8 text-xs text-success border-success/30 hover:bg-success-subtle"
+                            >
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                Approve
+                                {activeApprovalInstance?.status === 'PENDING' &&
+                                activeApprovalInstance.currentApproverRole
+                                    ? ` (${activeApprovalInstance.currentApproverRole})`
+                                    : ''}
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={isPending}
+                                onClick={() => handleDecision('REJECTED')}
+                                data-testid="reject-record-btn"
+                                className="h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive-subtle"
+                            >
+                                <XCircle className="w-3.5 h-3.5 mr-1" />
+                                Reject
+                            </Button>
+                        </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isPending}
-                            onClick={handleSubmitApproval}
-                            data-testid="submit-record-approval"
-                            className="h-8 text-xs"
-                        >
-                            Submit for Approval
-                        </Button>
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isPending}
-                            onClick={() => handleDecision('APPROVED')}
-                            data-testid="approve-record-btn"
-                            className="h-8 text-xs text-success border-success/30 hover:bg-success-subtle"
-                        >
-                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                            Approve
-                        </Button>
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isPending}
-                            onClick={() => handleDecision('REJECTED')}
-                            data-testid="reject-record-btn"
-                            className="h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive-subtle"
-                        >
-                            <XCircle className="w-3.5 h-3.5 mr-1" />
-                            Reject
-                        </Button>
-                    </div>
+
+                    {activeApprovalInstance &&
+                        activeApprovalInstance.stepHistory.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5 text-[11px]">
+                                <span className="text-muted-foreground font-medium">
+                                    Completed Steps:
+                                </span>
+                                {activeApprovalInstance.stepHistory.map((h, i) => (
+                                    <Badge
+                                        key={`${h.stepNumber}-${i}`}
+                                        variant="outline"
+                                        className={
+                                            h.decision === 'APPROVED'
+                                                ? 'bg-success-subtle text-success border-success/30'
+                                                : 'bg-destructive-subtle text-destructive border-destructive/30'
+                                        }
+                                    >
+                                        Step {h.stepNumber}: {h.stepName} ({h.decision})
+                                    </Badge>
+                                ))}
+                            </div>
+                        )}
                 </CardContent>
             </Card>
 
@@ -581,6 +648,182 @@ export function RecordExperienceHeader({
     );
 }
 
+export function RecordAttachmentsCard({
+    objectName,
+    recordId,
+    initialAttachments = [],
+}: {
+    objectName: string;
+    recordId: string;
+    initialAttachments?: MetadataRecordAttachmentItem[];
+}) {
+    const router = useRouter();
+    const [isPending, startTransition] = useTransition();
+    const [attachments, setAttachments] =
+        useState<MetadataRecordAttachmentItem[]>(initialAttachments);
+    const [note, setNote] = useState('');
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 512 * 1024) {
+            toast.error('File exceeds the 512 KB inline attachment limit.');
+            e.target.value = '';
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            const base64Data = typeof reader.result === 'string' ? reader.result : '';
+            startTransition(async () => {
+                const res = await uploadRecordAttachmentAction({
+                    objectApiName: objectName,
+                    recordId,
+                    fileName: file.name,
+                    mimeType: file.type || 'application/pdf',
+                    base64Data,
+                    description: note.trim() || null,
+                });
+                if (!res.success) {
+                    toast.error(res.error || 'Failed to upload attachment');
+                    return;
+                }
+                setNote('');
+                toast.success(`Attached "${file.name}" (SHA-256 verified)`);
+                router.refresh();
+            });
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
+
+    const handleDownload = (att: MetadataRecordAttachmentItem) => {
+        startTransition(async () => {
+            const res = await downloadRecordAttachmentAction(att.id);
+            if (!res.success || !res.base64Data) {
+                toast.error(res.error || 'Failed to download attachment');
+                return;
+            }
+            const byteChars = atob(res.base64Data);
+            const bytes = new Uint8Array(byteChars.length);
+            for (let i = 0; i < byteChars.length; i++) {
+                bytes[i] = byteChars.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: res.mimeType || 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = res.fileName || att.fileName;
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+            URL.revokeObjectURL(url);
+        });
+    };
+
+    const handleDelete = (attId: string) => {
+        startTransition(async () => {
+            const res = await deleteRecordAttachmentAction(attId);
+            if (!res.success) {
+                toast.error(res.error || 'Failed to delete attachment');
+                return;
+            }
+            setAttachments(prev => prev.filter(a => a.id !== attId));
+            toast.success('Attachment removed');
+            router.refresh();
+        });
+    };
+
+    return (
+        <Card data-testid="record-attachments-card">
+            <CardHeader className="pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                        <Paperclip className="w-4 h-4 text-primary" />
+                        Record Files &amp; Supporting Documents ({attachments.length})
+                    </CardTitle>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Input
+                            value={note}
+                            onChange={e => setNote(e.target.value)}
+                            placeholder="Optional file label/note..."
+                            className="h-8 w-44 text-xs"
+                        />
+                        <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-foreground hover:bg-muted">
+                            <Upload className="w-3.5 h-3.5 text-primary" />
+                            <span>{isPending ? 'Uploading…' : 'Attach File (<=512 KB)'}</span>
+                            <input
+                                type="file"
+                                accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt,.docx,.xlsx"
+                                disabled={isPending}
+                                onChange={handleFileSelect}
+                                className="hidden"
+                            />
+                        </label>
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent>
+                {attachments.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                        No supporting documents attached yet (PDF, images, CSV, DOCX, XLSX supported).
+                    </p>
+                ) : (
+                    <div className="divide-y divide-border">
+                        {attachments.map(att => (
+                            <div
+                                key={att.id}
+                                className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-xs"
+                            >
+                                <div className="space-y-0.5">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-foreground">
+                                            {att.fileName}
+                                        </span>
+                                        <Badge variant="outline" className="font-mono text-[10px]">
+                                            {Math.max(1, Math.round(att.sizeBytes / 1024))} KB
+                                        </Badge>
+                                        <Badge
+                                            variant="outline"
+                                            className="font-mono text-[10px] text-success border-success/30 bg-success-subtle"
+                                        >
+                                            SHA-256: {att.sha256Checksum.slice(0, 10)}
+                                        </Badge>
+                                    </div>
+                                    {att.description && (
+                                        <p className="text-muted-foreground">{att.description}</p>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={isPending}
+                                        onClick={() => handleDownload(att)}
+                                        className="h-7 text-xs gap-1"
+                                    >
+                                        <Download className="w-3.5 h-3.5" /> Download
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        disabled={isPending}
+                                        onClick={() => handleDelete(att.id)}
+                                        className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 export function RecordAuditTimelineCard({
     timeline,
 }: {
@@ -591,7 +834,7 @@ export function RecordAuditTimelineCard({
             <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                     <History className="w-4 h-4 text-primary" />
-                    Activity &amp; Audit History Timeline
+                    Activity &amp; Field-Level Audit History Timeline
                 </CardTitle>
             </CardHeader>
             <CardContent>
@@ -606,8 +849,8 @@ export function RecordAuditTimelineCard({
                                 key={entry.id}
                                 className="flex items-start justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3 text-xs"
                             >
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
+                                <div className="space-y-1.5">
+                                    <div className="flex flex-wrap items-center gap-2">
                                         <Badge variant="outline" className="font-mono text-[10px]">
                                             {entry.action}
                                         </Badge>
@@ -615,6 +858,27 @@ export function RecordAuditTimelineCard({
                                             {entry.summary}
                                         </span>
                                     </div>
+                                    {entry.fieldDiffs && entry.fieldDiffs.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                            {entry.fieldDiffs.map(diff => (
+                                                <span
+                                                    key={diff.field}
+                                                    className="inline-flex items-center gap-1 rounded border border-border bg-card px-2 py-0.5 font-mono text-[11px]"
+                                                >
+                                                    <span className="text-muted-foreground">
+                                                        {diff.label}:
+                                                    </span>
+                                                    <span className="text-destructive line-through">
+                                                        {diff.before}
+                                                    </span>
+                                                    <span>→</span>
+                                                    <span className="text-success font-semibold">
+                                                        {diff.after}
+                                                    </span>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                                 <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground font-mono shrink-0">
                                     <Clock className="w-3 h-3" />

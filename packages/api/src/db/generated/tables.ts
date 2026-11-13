@@ -4326,6 +4326,141 @@ export const messages = {
     groupId: column("messages", "group_id"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
+// ─── metadata_approval_instances ─────────────────
+export interface MetadataApprovalInstancesRow {
+    id: string;
+    tenantId: string;
+    processId: string;
+    objectApiName: string;
+    recordId: string;
+    status: string;
+    currentStep: number;
+    submittedBy: string | null;
+    submissionComment: string | null;
+    stepHistory: unknown;
+    isLocked: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+}
+export interface MetadataApprovalInstancesInsert {
+    id?: string;
+    tenantId: string;
+    processId: string;
+    objectApiName: string;
+    recordId: string;
+    status?: string;
+    currentStep?: number;
+    submittedBy?: string | null;
+    submissionComment?: string | null;
+    stepHistory?: unknown;
+    isLocked?: boolean;
+    createdAt?: Date;
+    updatedAt?: Date;
+}
+export const metadataApprovalInstances = {
+    $name: "metadata_approval_instances" as const,
+    id: column("metadata_approval_instances", "id"),
+    tenantId: column("metadata_approval_instances", "tenant_id"),
+    processId: column("metadata_approval_instances", "process_id"),
+    objectApiName: column("metadata_approval_instances", "object_api_name"),
+    recordId: column("metadata_approval_instances", "record_id"),
+    status: column("metadata_approval_instances", "status"),
+    currentStep: column("metadata_approval_instances", "current_step"),
+    submittedBy: column("metadata_approval_instances", "submitted_by"),
+    submissionComment: column("metadata_approval_instances", "submission_comment"),
+    stepHistory: column("metadata_approval_instances", "step_history"),
+    isLocked: column("metadata_approval_instances", "is_locked"),
+    createdAt: column("metadata_approval_instances", "created_at"),
+    updatedAt: column("metadata_approval_instances", "updated_at"),
+} satisfies { $name: string } & Record<string, ColumnRef | string>;
+
+// ─── metadata_approval_processes ─────────────────
+export interface MetadataApprovalProcessesRow {
+    id: string;
+    tenantId: string;
+    objectApiName: string;
+    name: string;
+    description: string | null;
+    entryCriteriaFormula: string | null;
+    steps: unknown;
+    lockRecordOnSubmit: boolean;
+    fieldUpdatesOnApprove: unknown;
+    fieldUpdatesOnReject: unknown;
+    isActive: boolean;
+    createdBy: string | null;
+    createdAt: Date;
+}
+export interface MetadataApprovalProcessesInsert {
+    id?: string;
+    tenantId: string;
+    objectApiName: string;
+    name: string;
+    description?: string | null;
+    entryCriteriaFormula?: string | null;
+    steps?: unknown;
+    lockRecordOnSubmit?: boolean;
+    fieldUpdatesOnApprove?: unknown;
+    fieldUpdatesOnReject?: unknown;
+    isActive?: boolean;
+    createdBy?: string | null;
+    createdAt?: Date;
+}
+export const metadataApprovalProcesses = {
+    $name: "metadata_approval_processes" as const,
+    id: column("metadata_approval_processes", "id"),
+    tenantId: column("metadata_approval_processes", "tenant_id"),
+    objectApiName: column("metadata_approval_processes", "object_api_name"),
+    name: column("metadata_approval_processes", "name"),
+    description: column("metadata_approval_processes", "description"),
+    entryCriteriaFormula: column("metadata_approval_processes", "entry_criteria_formula"),
+    steps: column("metadata_approval_processes", "steps"),
+    lockRecordOnSubmit: column("metadata_approval_processes", "lock_record_on_submit"),
+    fieldUpdatesOnApprove: column("metadata_approval_processes", "field_updates_on_approve"),
+    fieldUpdatesOnReject: column("metadata_approval_processes", "field_updates_on_reject"),
+    isActive: column("metadata_approval_processes", "is_active"),
+    createdBy: column("metadata_approval_processes", "created_by"),
+    createdAt: column("metadata_approval_processes", "created_at"),
+} satisfies { $name: string } & Record<string, ColumnRef | string>;
+
+// ─── metadata_dashboards ─────────────────────────
+export interface MetadataDashboardsRow {
+    id: string;
+    tenantId: string;
+    name: string;
+    description: string | null;
+    allowedRoles: unknown;
+    isDefault: boolean;
+    widgets: unknown;
+    createdBy: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+}
+export interface MetadataDashboardsInsert {
+    id?: string;
+    tenantId: string;
+    name: string;
+    description?: string | null;
+    allowedRoles?: unknown;
+    isDefault?: boolean;
+    widgets?: unknown;
+    createdBy?: string | null;
+    createdAt?: Date;
+    updatedAt?: Date;
+}
+export const metadataDashboards = {
+    $name: "metadata_dashboards" as const,
+    id: column("metadata_dashboards", "id"),
+    tenantId: column("metadata_dashboards", "tenant_id"),
+    name: column("metadata_dashboards", "name"),
+    description: column("metadata_dashboards", "description"),
+    allowedRoles: column("metadata_dashboards", "allowed_roles"),
+    isDefault: column("metadata_dashboards", "is_default"),
+    widgets: column("metadata_dashboards", "widgets"),
+    createdBy: column("metadata_dashboards", "created_by"),
+    createdAt: column("metadata_dashboards", "created_at"),
+    updatedAt: column("metadata_dashboards", "updated_at"),
+} satisfies { $name: string } & Record<string, ColumnRef | string>;
+
 // ─── metadata_fields ─────────────────────────────
 export interface MetadataFieldsRow {
     id: string;
@@ -4539,6 +4674,54 @@ export const metadataObjects = {
     groupId: column("metadata_objects", "group_id"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
+// ─── metadata_record_attachments ─────────────────
+export interface MetadataRecordAttachmentsRow {
+    id: string;
+    tenantId: string;
+    objectApiName: string;
+    recordId: string;
+    fileName: string;
+    mimeType: string;
+    sizeBytes: number;
+    storageKey: string | null;
+    inlineBase64: string | null;
+    sha256Checksum: string;
+    description: string | null;
+    uploadedBy: string | null;
+    createdAt: Date;
+}
+export interface MetadataRecordAttachmentsInsert {
+    id?: string;
+    tenantId: string;
+    objectApiName: string;
+    recordId: string;
+    fileName: string;
+    mimeType: string;
+    sizeBytes: number;
+    storageKey?: string | null;
+    inlineBase64?: string | null;
+    sha256Checksum: string;
+    description?: string | null;
+    uploadedBy?: string | null;
+    createdAt?: Date;
+}
+export const metadataRecordAttachments = {
+    $name: "metadata_record_attachments" as const,
+    id: column("metadata_record_attachments", "id"),
+    tenantId: column("metadata_record_attachments", "tenant_id"),
+    objectApiName: column("metadata_record_attachments", "object_api_name"),
+    recordId: column("metadata_record_attachments", "record_id"),
+    fileName: column("metadata_record_attachments", "file_name"),
+    mimeType: column("metadata_record_attachments", "mime_type"),
+    sizeBytes: column("metadata_record_attachments", "size_bytes"),
+    storageKey: column("metadata_record_attachments", "storage_key"),
+    inlineBase64: column("metadata_record_attachments", "inline_base64"),
+    sha256Checksum: column("metadata_record_attachments", "sha256_checksum"),
+    description: column("metadata_record_attachments", "description"),
+    uploadedBy: column("metadata_record_attachments", "uploaded_by"),
+    createdAt: column("metadata_record_attachments", "created_at"),
+} satisfies { $name: string } & Record<string, ColumnRef | string>;
+
 // ─── metadata_records ────────────────────────────
 export interface MetadataRecordsRow {
     id: string;
@@ -4548,6 +4731,7 @@ export interface MetadataRecordsRow {
     updatedAt: Date | null;
     ownerId: string | null;
     groupId: string | null;
+    ownerUserId: string | null;
 }
 export interface MetadataRecordsInsert {
     id?: string;
@@ -4557,6 +4741,7 @@ export interface MetadataRecordsInsert {
     updatedAt?: Date | null;
     ownerId?: string | null;
     groupId?: string | null;
+    ownerUserId?: string | null;
 }
 export const metadataRecords = {
     $name: "metadata_records" as const,
@@ -4567,6 +4752,7 @@ export const metadataRecords = {
     updatedAt: column("metadata_records", "updated_at"),
     ownerId: column("metadata_records", "owner_id"),
     groupId: column("metadata_records", "group_id"),
+    ownerUserId: column("metadata_records", "owner_user_id"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── metadata_schema_versions ────────────────────
@@ -4615,6 +4801,93 @@ export const metadataSchemaVersions = {
     publishedAt: column("metadata_schema_versions", "published_at"),
     ownerId: column("metadata_schema_versions", "owner_id"),
     groupId: column("metadata_schema_versions", "group_id"),
+} satisfies { $name: string } & Record<string, ColumnRef | string>;
+
+// ─── metadata_sharing_rules ──────────────────────
+export interface MetadataSharingRulesRow {
+    id: string;
+    tenantId: string;
+    objectApiName: string;
+    name: string;
+    criteriaField: string | null;
+    criteriaOperator: string;
+    criteriaValue: string | null;
+    sharedWithRole: string;
+    accessLevel: string;
+    isActive: boolean;
+    createdBy: string | null;
+    createdAt: Date;
+}
+export interface MetadataSharingRulesInsert {
+    id?: string;
+    tenantId: string;
+    objectApiName: string;
+    name: string;
+    criteriaField?: string | null;
+    criteriaOperator?: string;
+    criteriaValue?: string | null;
+    sharedWithRole: string;
+    accessLevel?: string;
+    isActive?: boolean;
+    createdBy?: string | null;
+    createdAt?: Date;
+}
+export const metadataSharingRules = {
+    $name: "metadata_sharing_rules" as const,
+    id: column("metadata_sharing_rules", "id"),
+    tenantId: column("metadata_sharing_rules", "tenant_id"),
+    objectApiName: column("metadata_sharing_rules", "object_api_name"),
+    name: column("metadata_sharing_rules", "name"),
+    criteriaField: column("metadata_sharing_rules", "criteria_field"),
+    criteriaOperator: column("metadata_sharing_rules", "criteria_operator"),
+    criteriaValue: column("metadata_sharing_rules", "criteria_value"),
+    sharedWithRole: column("metadata_sharing_rules", "shared_with_role"),
+    accessLevel: column("metadata_sharing_rules", "access_level"),
+    isActive: column("metadata_sharing_rules", "is_active"),
+    createdBy: column("metadata_sharing_rules", "created_by"),
+    createdAt: column("metadata_sharing_rules", "created_at"),
+} satisfies { $name: string } & Record<string, ColumnRef | string>;
+
+// ─── metadata_validation_rules ───────────────────
+export interface MetadataValidationRulesRow {
+    id: string;
+    tenantId: string;
+    objectApiName: string;
+    name: string;
+    description: string | null;
+    errorConditionFormula: string;
+    errorMessage: string;
+    errorField: string | null;
+    isActive: boolean;
+    createdBy: string | null;
+    createdAt: Date;
+}
+export interface MetadataValidationRulesInsert {
+    id?: string;
+    tenantId: string;
+    objectApiName: string;
+    name: string;
+    description?: string | null;
+    errorConditionFormula: string;
+    errorMessage: string;
+    errorField?: string | null;
+    isActive?: boolean;
+    createdBy?: string | null;
+    createdAt?: Date;
+}
+export const metadataValidationRules = {
+    $name: "metadata_validation_rules" as const,
+    id: column("metadata_validation_rules", "id"),
+    tenantId: column("metadata_validation_rules", "tenant_id"),
+    objectApiName: column("metadata_validation_rules", "object_api_name"),
+    name: column("metadata_validation_rules", "name"),
+    description: column("metadata_validation_rules", "description"),
+    errorConditionFormula: column("metadata_validation_rules", "error_condition_formula"),
+    errorMessage: column("metadata_validation_rules", "error_message"),
+    errorField: column("metadata_validation_rules", "error_field"),
+    isActive: column("metadata_validation_rules", "is_active"),
+    createdBy: column("metadata_validation_rules", "created_by"),
+    createdAt: column("metadata_validation_rules", "created_at"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── metadata_values ─────────────────────────────
@@ -6804,6 +7077,7 @@ export interface TenantObjectSettingsRow {
     updatedBy: string | null;
     createdAt: Date;
     updatedAt: Date;
+    owdMode: string;
 }
 export interface TenantObjectSettingsInsert {
     id?: string;
@@ -6813,6 +7087,7 @@ export interface TenantObjectSettingsInsert {
     updatedBy?: string | null;
     createdAt?: Date;
     updatedAt?: Date;
+    owdMode?: string;
 }
 export const tenantObjectSettings = {
     $name: "tenant_object_settings" as const,
@@ -6823,6 +7098,7 @@ export const tenantObjectSettings = {
     updatedBy: column("tenant_object_settings", "updated_by"),
     createdAt: column("tenant_object_settings", "created_at"),
     updatedAt: column("tenant_object_settings", "updated_at"),
+    owdMode: column("tenant_object_settings", "owd_mode"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── tenant_role_permissions ─────────────────────

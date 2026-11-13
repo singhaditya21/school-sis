@@ -94,5 +94,10 @@ export const EXPECTED_DATABASE_MIGRATIONS = [
     "tag": "0018_add_lcnc_tables",
     "createdAt": "1794509000000",
     "hash": "20b706cf96448c7e880a036538ba53125077bb0d28ff488f21d205618624e0d8"
+  },
+  {
+    "tag": "0019_add_lcnc_tier2_tables",
+    "createdAt": "1794552000000",
+    "hash": "1656e86599f4a95c3b5c9fd6535ed62c8e4a9a1d5c717eb066f9bcd8f08e2955"
   }
 ] as const;

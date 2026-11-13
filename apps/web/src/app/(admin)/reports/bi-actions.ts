@@ -12,7 +12,12 @@ import {
     queryRecords,
 } from '@/lib/actions/metadata-engine';
 import type { RollupAggregateFunction } from '@/lib/metadata/platform';
-import { applyViewFilterRules, type SavedViewFilterRule } from '@/lib/metadata/lcnc-helpers';
+import {
+    applyViewFilterRules,
+    joinRecordsOnLookup,
+    type JoinedReportConfig,
+    type SavedViewFilterRule,
+} from '@/lib/metadata/lcnc-helpers';
 import {
     assertBiExportAllowed,
     getBiDataset,
@@ -643,18 +648,44 @@ export async function getSavedBiReports(): Promise<SavedBiReportDefinition[]> {
     }
 }
 
+export interface CustomObjectLookupRelationship {
+    lookupFieldApiName: string;
+    lookupFieldLabel: string;
+    relatedObjectApiName: string;
+    relatedObjectLabel: string;
+    joinDirection: 'CHILD_TO_PARENT' | 'PARENT_TO_CHILD';
+}
+
 export interface CustomObjectReportCatalogEntry {
     apiName: string;
     label: string;
     isCustom: boolean;
     dimensionFields: { apiName: string; label: string; dataType: string }[];
     numericFields: { apiName: string; label: string; dataType: string }[];
+    lookupRelationships: CustomObjectLookupRelationship[];
 }
+
+const STANDARD_FOREIGN_KEY_OBJECT_MAP: Record<string, string> = {
+    student_id: 'student',
+    guardian_id: 'guardian',
+    staff_id: 'staff',
+    class_id: 'class',
+    grade_id: 'class',
+    section_id: 'section',
+    subject_id: 'subject',
+    route_id: 'route',
+    vehicle_id: 'vehicle',
+    hostel_id: 'hostel',
+    book_id: 'book',
+    exam_id: 'exam',
+    invoice_id: 'invoice',
+};
 
 /**
  * Discovers all published metadata objects (including Education Cloud Blueprint objects
- * and custom EAV objects) and classifies their readable fields into groupable dimensions
- * and numeric/formula/roll-up metrics for the Metadata-Driven Report Builder.
+ * and custom EAV objects) and classifies their readable fields into groupable dimensions,
+ * numeric/formula/roll-up metrics, and bidirectional `LOOKUP` relationships for the
+ * Metadata-Driven & Joined Report Builder.
  */
 export async function getCustomObjectReportCatalog(): Promise<
     CustomObjectReportCatalogEntry[]
@@ -662,7 +693,12 @@ export async function getCustomObjectReportCatalog(): Promise<
     try {
         await requireAuth('reports:read');
         const allObjects = await getAllMetadataObjects();
-        const catalog: CustomObjectReportCatalogEntry[] = [];
+        const loadedObjects: {
+            apiName: string;
+            label: string;
+            isCustom: boolean;
+            fields: Awaited<ReturnType<typeof getObjectMetadata>>['fields'];
+        }[] = [];
 
         for (const obj of allObjects) {
             const apiName = String(obj.api_name || '');
@@ -670,47 +706,99 @@ export async function getCustomObjectReportCatalog(): Promise<
             try {
                 const { fields } = await getObjectMetadata(apiName);
                 if (fields.length === 0) continue;
-
-                const dimensionFields = fields
-                    .filter(
-                        f =>
-                            f.dataType === 'PICKLIST' ||
-                            f.dataType === 'TEXT' ||
-                            f.dataType === 'DATE' ||
-                            f.dataType === 'BOOLEAN',
-                    )
-                    .map(f => ({
-                        apiName: f.apiName,
-                        label: f.label,
-                        dataType: f.dataType,
-                    }));
-
-                const numericFields = fields
-                    .filter(
-                        f =>
-                            f.dataType === 'NUMBER' ||
-                            f.dataType === 'CURRENCY' ||
-                            f.validationRules?.fieldSubType === 'FORMULA' ||
-                            f.validationRules?.fieldSubType === 'ROLLUP_SUMMARY',
-                    )
-                    .map(f => ({
-                        apiName: f.apiName,
-                        label: f.label,
-                        dataType: f.dataType,
-                    }));
-
-                catalog.push({
+                loadedObjects.push({
                     apiName,
                     label: String(obj.name || apiName),
                     isCustom: Boolean(obj.is_custom),
-                    dimensionFields,
-                    numericFields,
+                    fields,
                 });
             } catch {
                 // Skip inaccessible objects
             }
         }
-        return catalog;
+
+        const labelByApi = new Map(loadedObjects.map(o => [o.apiName, o.label]));
+        const outgoingByObj = new Map<string, CustomObjectLookupRelationship[]>();
+        const incomingByObj = new Map<string, CustomObjectLookupRelationship[]>();
+
+        for (const obj of loadedObjects) {
+            const outgoing: CustomObjectLookupRelationship[] = [];
+            for (const f of obj.fields) {
+                const explicitTarget =
+                    f.validationRules?.fieldSubType === 'LOOKUP' &&
+                    f.validationRules?.lookupTargetObject
+                        ? String(f.validationRules.lookupTargetObject).toLowerCase()
+                        : null;
+                const standardTarget = STANDARD_FOREIGN_KEY_OBJECT_MAP[f.apiName] || null;
+                const targetApi = explicitTarget || standardTarget;
+                if (!targetApi || targetApi === obj.apiName || !labelByApi.has(targetApi)) {
+                    continue;
+                }
+                const targetLabel = labelByApi.get(targetApi) || targetApi;
+                outgoing.push({
+                    lookupFieldApiName: f.apiName,
+                    lookupFieldLabel: f.label,
+                    relatedObjectApiName: targetApi,
+                    relatedObjectLabel: targetLabel,
+                    joinDirection: 'CHILD_TO_PARENT',
+                });
+
+                const inc = incomingByObj.get(targetApi) || [];
+                inc.push({
+                    lookupFieldApiName: f.apiName,
+                    lookupFieldLabel: f.label,
+                    relatedObjectApiName: obj.apiName,
+                    relatedObjectLabel: obj.label,
+                    joinDirection: 'PARENT_TO_CHILD',
+                });
+                incomingByObj.set(targetApi, inc);
+            }
+            outgoingByObj.set(obj.apiName, outgoing);
+        }
+
+        return loadedObjects.map(obj => {
+            const dimensionFields = obj.fields
+                .filter(
+                    f =>
+                        f.dataType === 'PICKLIST' ||
+                        f.dataType === 'TEXT' ||
+                        f.dataType === 'DATE' ||
+                        f.dataType === 'BOOLEAN',
+                )
+                .map(f => ({
+                    apiName: f.apiName,
+                    label: f.label,
+                    dataType: f.dataType,
+                }));
+
+            const numericFields = obj.fields
+                .filter(
+                    f =>
+                        f.dataType === 'NUMBER' ||
+                        f.dataType === 'CURRENCY' ||
+                        f.validationRules?.fieldSubType === 'FORMULA' ||
+                        f.validationRules?.fieldSubType === 'ROLLUP_SUMMARY',
+                )
+                .map(f => ({
+                    apiName: f.apiName,
+                    label: f.label,
+                    dataType: f.dataType,
+                }));
+
+            const lookupRelationships = [
+                ...(outgoingByObj.get(obj.apiName) || []),
+                ...(incomingByObj.get(obj.apiName) || []),
+            ];
+
+            return {
+                apiName: obj.apiName,
+                label: obj.label,
+                isCustom: obj.isCustom,
+                dimensionFields,
+                numericFields,
+                lookupRelationships,
+            };
+        });
     } catch {
         return [];
     }
@@ -722,12 +810,13 @@ export interface RunCustomObjectBiReportResult {
     columns?: BiReportColumn[];
     rows?: BiReportRow[];
     totalRecordsScanned?: number;
+    previewJoinedRows?: Record<string, unknown>[];
 }
 
 /**
  * Executes a grouped aggregation (`COUNT`, `SUM`, `AVG`, `MIN`, `MAX`) over any
  * standard, custom EAV, or Education Cloud Blueprint object (`reports:read`),
- * including virtual `FORMULA` and `ROLLUP_SUMMARY` fields.
+ * including virtual `FORMULA`, `ROLLUP_SUMMARY`, and cross-object `LOOKUP` joined fields.
  */
 export async function runCustomObjectBiReport(input: {
     objectApiName: string;
@@ -735,20 +824,52 @@ export async function runCustomObjectBiReport(input: {
     aggregateFunction: RollupAggregateFunction;
     metricField?: string;
     filterRules?: SavedViewFilterRule[];
+    joinConfig?: JoinedReportConfig | null;
 }): Promise<RunCustomObjectBiReportResult> {
     try {
         await requireAuth('reports:read');
         const { objectDef, fields } = await getObjectMetadata(input.objectApiName);
-        const dimField = fields.find(f => f.apiName === input.groupByField);
+
+        let relatedObjectLabel = '';
+        let relatedFields: Awaited<ReturnType<typeof getObjectMetadata>>['fields'] = [];
+        if (input.joinConfig?.relatedObjectApiName) {
+            const relMeta = await getObjectMetadata(input.joinConfig.relatedObjectApiName);
+            relatedObjectLabel = relMeta.objectDef.name;
+            relatedFields = relMeta.fields;
+        }
+
+        const resolveFieldInfo = (fieldRef: string | undefined) => {
+            if (!fieldRef) return undefined;
+            if (
+                input.joinConfig &&
+                fieldRef.startsWith(`${input.joinConfig.relatedObjectApiName}.`)
+            ) {
+                const subApi = fieldRef.slice(input.joinConfig.relatedObjectApiName.length + 1);
+                const rf = relatedFields.find(f => f.apiName === subApi);
+                if (!rf) return undefined;
+                return {
+                    apiName: fieldRef,
+                    label: `${relatedObjectLabel}: ${rf.label}`,
+                    dataType: rf.dataType,
+                };
+            }
+            const pf = fields.find(f => f.apiName === fieldRef);
+            if (!pf) return undefined;
+            return {
+                apiName: pf.apiName,
+                label: pf.label,
+                dataType: pf.dataType,
+            };
+        };
+
+        const dimField = resolveFieldInfo(input.groupByField);
         if (!dimField) {
             return { success: false, error: `Unknown group-by field: ${input.groupByField}` };
         }
 
         const agg = input.aggregateFunction || 'COUNT';
         const targetMetricField =
-            agg === 'COUNT'
-                ? undefined
-                : fields.find(f => f.apiName === input.metricField);
+            agg === 'COUNT' ? undefined : resolveFieldInfo(input.metricField);
         if (agg !== 'COUNT' && !targetMetricField) {
             return {
                 success: false,
@@ -756,8 +877,35 @@ export async function runCustomObjectBiReport(input: {
             };
         }
 
-        const rawRecords = await queryRecords(input.objectApiName, {}, 500, 0);
-        const records = applyViewFilterRules(rawRecords, input.filterRules || []);
+        const rawPrimaryRecords = await queryRecords(input.objectApiName, {}, 500, 0);
+        const filteredPrimary = applyViewFilterRules(rawPrimaryRecords, input.filterRules || []);
+
+        let records: Record<string, unknown>[] = filteredPrimary;
+        let previewJoinedRows: Record<string, unknown>[] | undefined;
+
+        if (input.joinConfig?.relatedObjectApiName) {
+            const relatedRecords = await queryRecords(
+                input.joinConfig.relatedObjectApiName,
+                {},
+                500,
+                0,
+            );
+            const effectiveRelatedCols = Array.from(
+                new Set([
+                    ...(input.joinConfig.relatedColumns || []),
+                    ...relatedFields.slice(0, 5).map(f => f.apiName),
+                ]),
+            );
+            records = joinRecordsOnLookup({
+                primaryRows: filteredPrimary,
+                relatedRows: relatedRecords,
+                joinConfig: {
+                    ...input.joinConfig,
+                    relatedColumns: effectiveRelatedCols,
+                },
+            });
+            previewJoinedRows = records.slice(0, 20);
+        }
         const groups = new Map<string, number[]>();
 
         for (const rec of records) {
@@ -828,6 +976,7 @@ export async function runCustomObjectBiReport(input: {
             columns,
             rows,
             totalRecordsScanned: records.length,
+            previewJoinedRows,
         };
     } catch (error) {
         return {

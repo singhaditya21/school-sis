@@ -77,6 +77,22 @@ import {
     type MetadataEavJoinRow,
     type MetadataStorageMode,
 } from '@school-sis/api/src/metadata/runtime';
+import {
+    canAccessRecordUnderOwd,
+    computeReadableRecordFieldDiffs,
+    evaluateApprovalStepDecision,
+    evaluateRecordValidationRules,
+    selectMatchingApprovalProcess,
+    type RecordFieldDiffItem,
+} from '@/lib/metadata/lcnc-helpers';
+import {
+    checkRecordApprovalLockInternal,
+    enforceObjectValidationRulesInternal,
+    loadActiveRecordApprovalInstanceInternal,
+    loadObjectApprovalProcessesInternal,
+    loadObjectOwdAndSharingInternal,
+    loadObjectValidationRulesInternal,
+} from '@/lib/metadata/lcnc-tier2-db';
 
 export interface MetadataObject {
     id: string;
@@ -396,7 +412,7 @@ async function queryEavRecords(
 ) {
     const { rows } = await pool.query(
         `WITH page AS (
-             SELECT r.id, r.created_at, r.updated_at
+             SELECT r.id, r.owner_user_id, r.created_at, r.updated_at
              FROM metadata_records r
              JOIN metadata_objects o ON o.id = r.object_id
              WHERE r.object_id = $1
@@ -407,6 +423,7 @@ async function queryEavRecords(
              LIMIT $5 OFFSET $6
          )
          SELECT p.id AS record_id,
+                p.owner_user_id,
                 p.created_at,
                 p.updated_at,
                 f.api_name AS field_api_name,
@@ -433,7 +450,21 @@ async function queryEavRecords(
         ],
     );
 
-    return projectMetadataEavRows(rows as MetadataEavJoinRow[]);
+    const ownerByRecord = new Map<string, string>();
+    for (const r of rows as Array<{ record_id?: string; owner_user_id?: string | null }>) {
+        if (r.record_id && typeof r.owner_user_id === 'string' && r.owner_user_id) {
+            ownerByRecord.set(String(r.record_id), r.owner_user_id);
+        }
+    }
+
+    const projected = projectMetadataEavRows(rows as MetadataEavJoinRow[]);
+    for (const rec of projected) {
+        const ownerId = ownerByRecord.get(String(rec.id));
+        if (ownerId) {
+            rec.owner_user_id = ownerId;
+        }
+    }
+    return projected;
 }
 
 /**
@@ -614,10 +645,26 @@ export async function queryRecords(apiName: string, filters: Record<string, unkn
     const recordId = readIdFilter(filters);
     const safeLimit = clampPageSize(limit, 50, 500);
     const safeOffset = clampPageSize(offset, 0, 1_000_000);
+    const { owdMode, sharingRules } = await loadObjectOwdAndSharingInternal(
+        tenantId,
+        objectDef.apiName,
+    );
 
     if (resolveMetadataStorageMode(objectDef) === 'EAV') {
         const eavRecords = await queryEavRecords(objectDef, readableFields, tenantId, recordId, safeLimit, safeOffset);
-        return applyCalculatedFields(eavRecords, readableFields, tenantId, effectiveRole);
+        const calculatedEav = await applyCalculatedFields(eavRecords, readableFields, tenantId, effectiveRole);
+        if (owdMode === 'PUBLIC_READ_WRITE') return calculatedEav;
+        return calculatedEav.filter(rec =>
+            canAccessRecordUnderOwd({
+                owdMode,
+                operation: 'READ',
+                record: rec,
+                callerUserId: session.userId || '',
+                effectiveRoleCode: effectiveRole,
+                baseRole: session.role,
+                sharingRules,
+            }),
+        );
     }
 
     // Build standard SELECT columns
@@ -630,7 +677,7 @@ export async function queryRecords(apiName: string, filters: Record<string, unkn
 
     // We always need id and tenant_id
     const selectCols = [quoteIdentifier('id'), ...standardFields];
-    if (readableCustomFieldNames.size > 0) {
+    if (readableCustomFieldNames.size > 0 || owdMode !== 'PUBLIC_READ_WRITE') {
         selectCols.push(quoteIdentifier('custom_data'));
     }
 
@@ -659,14 +706,30 @@ export async function queryRecords(apiName: string, filters: Record<string, unkn
                 serializedRest[key] = val;
             }
         }
-        // Only surface custom keys the caller is allowed to read.
-        for (const [key, val] of Object.entries(custom_data || {})) {
+        // Only surface custom keys the caller is allowed to read (plus internal _owner_user_id for OWD).
+        const rawCustom = (custom_data && typeof custom_data === 'object' ? custom_data : {}) as Record<string, unknown>;
+        if (typeof rawCustom._owner_user_id === 'string' && rawCustom._owner_user_id) {
+            serializedRest._owner_user_id = rawCustom._owner_user_id;
+        }
+        for (const [key, val] of Object.entries(rawCustom)) {
             if (readableCustomFieldNames.has(key)) serializedRest[key] = val;
         }
         return serializedRest;
     });
 
-    return applyCalculatedFields(projected, readableFields, tenantId, effectiveRole);
+    const calculatedTable = await applyCalculatedFields(projected, readableFields, tenantId, effectiveRole);
+    if (owdMode === 'PUBLIC_READ_WRITE') return calculatedTable;
+    return calculatedTable.filter(rec =>
+        canAccessRecordUnderOwd({
+            owdMode,
+            operation: 'READ',
+            record: rec,
+            callerUserId: session.userId || '',
+            effectiveRoleCode: effectiveRole,
+            baseRole: session.role,
+            sharingRules,
+        }),
+    );
 }
 
 /**
@@ -788,6 +851,7 @@ async function upsertEavRecord(
     tenantId: string,
     validatedData: Record<string, unknown>,
     id?: string,
+    ownerUserId?: string | null,
 ) {
     const assignments = buildMetadataEavAssignments(fields, validatedData);
     const client = await pool.connect();
@@ -804,6 +868,14 @@ async function upsertEavRecord(
                 [recordId, tenantId, objectDef.id],
             );
             if (rows.length === 0) throw new Error('Record not found.');
+        } else if (ownerUserId && UUID_RE.test(ownerUserId)) {
+            const { rows } = await client.query(
+                `INSERT INTO metadata_records (tenant_id, object_id, owner_user_id, created_at, updated_at)
+                 VALUES ($1, $2, $3, NOW(), NOW())
+                 RETURNING id`,
+                [tenantId, objectDef.id, ownerUserId],
+            );
+            recordId = rows[0].id as string;
         } else {
             const { rows } = await client.query(
                 `INSERT INTO metadata_records (tenant_id, object_id, created_at, updated_at)
@@ -906,6 +978,65 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
             if (validated.ok === false) {
                 return { success: false, error: validated.errors.join(' ') };
             }
+
+            let priorEavRecord: Record<string, unknown> | null = null;
+            if (id) {
+                const lockCheck = await checkRecordApprovalLockInternal(
+                    tenantId,
+                    apiName,
+                    id,
+                    session.role,
+                );
+                if (lockCheck.locked === true) {
+                    return { success: false, error: lockCheck.error };
+                }
+
+                const { owdMode, sharingRules } = await loadObjectOwdAndSharingInternal(
+                    tenantId,
+                    apiName,
+                );
+                if (owdMode !== 'PUBLIC_READ_WRITE') {
+                    const existingForOwd = await queryRecords(apiName, { id }, 1, 0);
+                    priorEavRecord = existingForOwd[0] ?? null;
+                    if (
+                        !priorEavRecord ||
+                        !canAccessRecordUnderOwd({
+                            owdMode,
+                            operation: 'WRITE',
+                            record: priorEavRecord,
+                            callerUserId: session.userId || '',
+                            effectiveRoleCode: effectiveRole,
+                            baseRole: session.role,
+                            sharingRules,
+                        })
+                    ) {
+                        return {
+                            success: false,
+                            error: 'Forbidden by Organization-Wide Defaults (OWD): you do not have write sharing access to this record.',
+                        };
+                    }
+                } else {
+                    try {
+                        const existingRows = await queryRecords(apiName, { id }, 1, 0);
+                        priorEavRecord = existingRows[0] ?? null;
+                    } catch {
+                        priorEavRecord = null;
+                    }
+                }
+            }
+
+            const mergedCandidate = priorEavRecord
+                ? { ...priorEavRecord, ...validated.data }
+                : validated.data;
+            const formulaRuleCheck = await enforceObjectValidationRulesInternal(
+                tenantId,
+                apiName,
+                mergedCandidate,
+            );
+            if (formulaRuleCheck.ok === false) {
+                return { success: false, error: formulaRuleCheck.error };
+            }
+
             const hasBlockingDuplicateRule = persistedFields.some(
                 f => f.validationRules?.duplicateRuleBehavior === 'BLOCK',
             );
@@ -925,7 +1056,33 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
                     };
                 }
             }
-            const savedId = await upsertEavRecord(objectDef, persistedFields, tenantId, validated.data, id);
+            const savedId = await upsertEavRecord(
+                objectDef,
+                persistedFields,
+                tenantId,
+                validated.data,
+                id,
+                session.userId || null,
+            );
+            if (id && priorEavRecord && UUID_RE.test(tenantId)) {
+                try {
+                    const actorId = UUID_RE.test(session.userId || '') ? session.userId : null;
+                    await sql`
+                        INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, before_state, after_state)
+                        VALUES (
+                            ${tenantId},
+                            ${actorId},
+                            'UPDATE',
+                            ${apiName},
+                            ${savedId},
+                            ${JSON.stringify(priorEavRecord)}::jsonb,
+                            ${JSON.stringify({ ...validated.data, auditEvent: 'RECORD_UPDATED' })}::jsonb
+                        )
+                    `.execute();
+                } catch {
+                    // Best-effort timeline diff logging
+                }
+            }
             await executeMatchingWorkflows(tenantId, apiName, 'object.record.upserted', validated.data, savedId);
             redirect(`/app/${apiName}`);
         }
@@ -1113,6 +1270,65 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
             }
         }
 
+        const { owdMode: tableOwdMode, sharingRules: tableSharingRules } =
+            await loadObjectOwdAndSharingInternal(tenantId, apiName);
+        let priorTableRecord: Record<string, unknown> | null = null;
+
+        if (id) {
+            const lockCheck = await checkRecordApprovalLockInternal(
+                tenantId,
+                apiName,
+                id,
+                session.role,
+            );
+            if (lockCheck.locked === true) {
+                return { success: false, error: lockCheck.error };
+            }
+
+            if (tableOwdMode !== 'PUBLIC_READ_WRITE') {
+                const existingForOwd = await queryRecords(apiName, { id }, 1, 0);
+                priorTableRecord = existingForOwd[0] ?? null;
+                if (
+                    !priorTableRecord ||
+                    !canAccessRecordUnderOwd({
+                        owdMode: tableOwdMode,
+                        operation: 'WRITE',
+                        record: priorTableRecord,
+                        callerUserId: session.userId || '',
+                        effectiveRoleCode: effectiveRole,
+                        baseRole: session.role,
+                        sharingRules: tableSharingRules,
+                    })
+                ) {
+                    return {
+                        success: false,
+                        error: 'Forbidden by Organization-Wide Defaults (OWD): you do not have write sharing access to this record.',
+                    };
+                }
+            } else {
+                try {
+                    const existingRows = await queryRecords(apiName, { id }, 1, 0);
+                    priorTableRecord = existingRows[0] ?? null;
+                } catch {
+                    priorTableRecord = null;
+                }
+            }
+        } else if (tableOwdMode !== 'PUBLIC_READ_WRITE' && session.userId) {
+            customData._owner_user_id = session.userId;
+        }
+
+        const tableCandidate = priorTableRecord
+            ? { ...priorTableRecord, ...standardData, ...customData }
+            : { ...standardData, ...customData };
+        const tableFormulaRuleCheck = await enforceObjectValidationRulesInternal(
+            tenantId,
+            apiName,
+            tableCandidate,
+        );
+        if (tableFormulaRuleCheck.ok === false) {
+            return { success: false, error: tableFormulaRuleCheck.error };
+        }
+
         const hasCustomData = Object.keys(customData).length > 0 || customFields.length > 0;
         const tableName = quoteIdentifier(objectDef.tableName);
         
@@ -1141,12 +1357,32 @@ export async function upsertRecord(apiName: string, data: Record<string, unknown
                 RETURNING id
             `;
             const { rows } = await pool.query(query, values);
+            const updatedRecordId = String(rows[0]?.id ?? id);
+            if (priorTableRecord && UUID_RE.test(tenantId)) {
+                try {
+                    const actorId = UUID_RE.test(session.userId || '') ? session.userId : null;
+                    await sql`
+                        INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, before_state, after_state)
+                        VALUES (
+                            ${tenantId},
+                            ${actorId},
+                            'UPDATE',
+                            ${apiName},
+                            ${updatedRecordId},
+                            ${JSON.stringify(priorTableRecord)}::jsonb,
+                            ${JSON.stringify({ ...standardData, ...customData, auditEvent: 'RECORD_UPDATED' })}::jsonb
+                        )
+                    `.execute();
+                } catch {
+                    // Best-effort timeline diff logging
+                }
+            }
             await executeMatchingWorkflows(
                 tenantId,
                 apiName,
                 'object.record.upserted',
                 { ...standardData, ...customData },
-                String(rows[0]?.id ?? id),
+                updatedRecordId,
             );
             
             redirect(`/app/${apiName}`);
@@ -2124,6 +2360,7 @@ export async function updateRecordFieldValue(
     recordId: string,
     fieldApiName: string,
     value: unknown,
+    options?: { bypassApprovalLock?: boolean },
 ): Promise<{ success: boolean; error?: string }> {
     try {
         const { tenantId, session } = await requireAuth();
@@ -2161,8 +2398,9 @@ export async function updateRecordFieldValue(
             }
         }
 
+        const effectiveRole = session.effectiveRoleCode || session.role;
         const canWrite = canWriteMetadataField(
-            session.effectiveRoleCode || session.role,
+            effectiveRole,
             targetField as unknown as RuntimeMetadataFieldWithPermissions,
             session.role,
         );
@@ -2175,6 +2413,66 @@ export async function updateRecordFieldValue(
             return { success: false, error: validated.errors.join(' ') };
         }
         const normalizedVal = validated.data[fieldApiName];
+
+        if (!options?.bypassApprovalLock) {
+            const lockCheck = await checkRecordApprovalLockInternal(
+                tenantId,
+                apiName,
+                recordId,
+                session.role,
+            );
+            if (lockCheck.locked === true) {
+                return { success: false, error: lockCheck.error };
+            }
+        }
+
+        const [{ owdMode, sharingRules }, validationRules] = await Promise.all([
+            loadObjectOwdAndSharingInternal(tenantId, apiName),
+            loadObjectValidationRulesInternal(tenantId, apiName),
+        ]);
+
+        if (owdMode !== 'PUBLIC_READ_WRITE' || validationRules.length > 0) {
+            const existingRows = await queryRecords(apiName, { id: recordId }, 1, 0);
+            const priorRecord = existingRows[0] ?? null;
+
+            if (owdMode !== 'PUBLIC_READ_WRITE' && !options?.bypassApprovalLock) {
+                if (
+                    !priorRecord ||
+                    !canAccessRecordUnderOwd({
+                        owdMode,
+                        operation: 'WRITE',
+                        record: priorRecord,
+                        callerUserId: session.userId || '',
+                        effectiveRoleCode: effectiveRole,
+                        baseRole: session.role,
+                        sharingRules,
+                    })
+                ) {
+                    return {
+                        success: false,
+                        error: 'Forbidden by Organization-Wide Defaults (OWD): you do not have write sharing access to this record.',
+                    };
+                }
+            }
+
+            if (validationRules.length > 0) {
+                const candidate = {
+                    ...(priorRecord || {}),
+                    [fieldApiName]: normalizedVal,
+                };
+                const evalRes = evaluateRecordValidationRules(validationRules, candidate);
+                if (!evalRes.valid) {
+                    const formatted = evalRes.violations
+                        .map(v =>
+                            v.errorField
+                                ? `[${v.ruleName} -> ${v.errorField}] ${v.errorMessage}`
+                                : `[${v.ruleName}] ${v.errorMessage}`,
+                        )
+                        .join(' ');
+                    return { success: false, error: formatted };
+                }
+            }
+        }
 
         if (resolveMetadataStorageMode(objectDef) === 'EAV') {
             await upsertEavRecord(objectDef, [targetField], tenantId, { [fieldApiName]: normalizedVal }, recordId);
@@ -2260,8 +2558,40 @@ export async function deleteRecord(
             return { success: false, error: 'You do not have permission to delete records on this object.' };
         }
 
+        const lockCheck = await checkRecordApprovalLockInternal(
+            tenantId,
+            apiName,
+            recordId,
+            session.role,
+        );
+        if (lockCheck.locked === true) {
+            return { success: false, error: lockCheck.error };
+        }
+
+        const { owdMode, sharingRules } = await loadObjectOwdAndSharingInternal(tenantId, apiName);
         const matchedRows = await queryRecords(apiName, { id: recordId }, 1, 0);
-        const priorRecord = matchedRows[0] || { id: recordId };
+        const priorRecord = matchedRows[0] || null;
+
+        if (owdMode !== 'PUBLIC_READ_WRITE') {
+            if (
+                !priorRecord ||
+                !canAccessRecordUnderOwd({
+                    owdMode,
+                    operation: 'WRITE',
+                    record: priorRecord,
+                    callerUserId: session.userId || '',
+                    effectiveRoleCode: session.effectiveRoleCode || session.role,
+                    baseRole: session.role,
+                    sharingRules,
+                })
+            ) {
+                return {
+                    success: false,
+                    error: 'Forbidden by Organization-Wide Defaults (OWD): you do not have write sharing access to delete this record.',
+                };
+            }
+        }
+        const safePriorRecord = priorRecord || { id: recordId };
 
         await sql`
             DELETE FROM metadata_values
@@ -2291,7 +2621,7 @@ export async function deleteRecord(
                 ${recordId},
                 ${JSON.stringify({
                     auditEvent: 'METADATA_RECORD_DELETED',
-                    ...priorRecord,
+                    ...safePriorRecord,
                 })}::jsonb
             )
         `.execute();
@@ -2300,7 +2630,7 @@ export async function deleteRecord(
             tenantId,
             apiName,
             'object.record.deleted',
-            priorRecord,
+            safePriorRecord,
             recordId,
         );
 
@@ -3046,6 +3376,7 @@ export interface RecordAuditTimelineEntry {
     createdAt: string;
     summary: string;
     details: Record<string, unknown>;
+    fieldDiffs?: RecordFieldDiffItem[];
 }
 
 /**
@@ -3063,12 +3394,12 @@ export async function getRecordAuditTimeline(
             return [];
         }
         const { fields } = await loadObjectMetadata(apiName, tenantId);
-        const readableFieldSet = new Set(
-            (filterReadableMetadataFields(
-                fields as RuntimeMetadataFieldWithPermissions[],
-                session.role,
-            ) as unknown as MetadataField[]).map(f => f.apiName),
-        );
+        const readableFields = filterReadableMetadataFields(
+            fields as RuntimeMetadataFieldWithPermissions[],
+            session.effectiveRoleCode || session.role,
+            session.role,
+        ) as unknown as MetadataField[];
+        const readableFieldSet = new Set(readableFields.map(f => f.apiName));
         const allFieldSet = new Set(fields.map(f => f.apiName));
 
         const rows = await sql<{
@@ -3088,6 +3419,10 @@ export async function getRecordAuditTimeline(
         `;
 
         return rows.map(row => {
+            const rawBefore =
+                row.before_state && typeof row.before_state === 'object'
+                    ? (row.before_state as Record<string, unknown>)
+                    : null;
             const rawAfter = (row.after_state && typeof row.after_state === 'object'
                 ? row.after_state
                 : {}) as Record<string, unknown>;
@@ -3097,14 +3432,26 @@ export async function getRecordAuditTimeline(
                 if (allFieldSet.has(key) && !readableFieldSet.has(key)) continue;
                 after[key] = val;
             }
+            const fieldDiffs = computeReadableRecordFieldDiffs(rawBefore, rawAfter, readableFields);
             const eventAction = String(after.auditEvent || row.action);
             let summary = eventAction.replace(/_/g, ' ');
             if (eventAction === 'WORKFLOW_EXECUTED') {
                 summary = `Workflow "${String(after.workflowName || 'Automation')}" executed (${String(after.actionType || '')})`;
             } else if (eventAction === 'RECORD_APPROVAL_REQUESTED') {
-                summary = `Submitted for approval${after.comment ? `: "${String(after.comment)}"` : ''}`;
+                const procLabel = after.processName ? ` (${String(after.processName)})` : '';
+                summary = `Submitted for approval${procLabel}${after.comment ? `: "${String(after.comment)}"` : ''}`;
             } else if (eventAction === 'RECORD_APPROVAL_DECIDED') {
-                summary = `Approval ${String(after.decision || 'DECIDED')}${after.comment ? `: "${String(after.comment)}"` : ''}`;
+                const stepLabel = after.stepNumber ? ` [Step ${String(after.stepNumber)}]` : '';
+                summary = `Approval ${String(after.decision || 'DECIDED')}${stepLabel}${after.comment ? `: "${String(after.comment)}"` : ''}`;
+            } else if (eventAction === 'RECORD_UPDATED') {
+                summary =
+                    fieldDiffs.length > 0
+                        ? `Updated ${fieldDiffs.length} field${fieldDiffs.length === 1 ? '' : 's'}: ${fieldDiffs.map(d => d.label).join(', ')}`
+                        : 'Record updated';
+            } else if (eventAction === 'RECORD_FILE_ATTACHED') {
+                summary = `Attached file "${String(after.fileName || 'Document')}"`;
+            } else if (eventAction === 'RECORD_FILE_REMOVED') {
+                summary = `Removed file "${String(after.fileName || 'Document')}"`;
             } else if (eventAction === 'METADATA_RECORD_ACTIVITY') {
                 summary = `[${String(after.activityType || 'ACTIVITY')}] ${String(after.subject || 'Activity logged')}${after.notes ? ` — ${String(after.notes)}` : ''}`;
             } else if (eventAction === 'METADATA_RECORD_CLONED') {
@@ -3125,6 +3472,7 @@ export async function getRecordAuditTimeline(
                         : String(row.created_at),
                 summary,
                 details: after,
+                fieldDiffs: fieldDiffs.length > 0 ? fieldDiffs : undefined,
             };
         });
     } catch {
@@ -3134,8 +3482,9 @@ export async function getRecordAuditTimeline(
 
 /**
  * Submits a metadata record into a declarative Approval Process, updating any stage/approval
- * field (`approval_status` or `status`) to `SUBMITTED` and writing `RECORD_APPROVAL_REQUESTED`
- * to `audit_logs`.
+ * field (`approval_status` or `status`) to `SUBMITTED`, creating a stateful multi-step
+ * `metadata_approval_instances` row when an Approval Process matches, and writing
+ * `RECORD_APPROVAL_REQUESTED` to `audit_logs`.
  */
 export async function submitRecordForApproval(
     apiName: string,
@@ -3153,13 +3502,15 @@ export async function submitRecordForApproval(
                 error: 'Forbidden: staff access is required to submit records for approval.',
             };
         }
+        const effectiveRole = session.effectiveRoleCode || session.role;
         const { fields } = await loadObjectMetadata(apiName, tenantId);
         const hasObjectWriteAccess = fields.some(
             f =>
                 !isVirtualMetadataField(f) &&
                 canWriteMetadataField(
-                    session.role,
+                    effectiveRole,
                     f as unknown as RuntimeMetadataFieldWithPermissions,
+                    session.role,
                 ),
         );
         if (!hasObjectWriteAccess) {
@@ -3167,6 +3518,25 @@ export async function submitRecordForApproval(
                 success: false,
                 error: 'Forbidden: you do not have write permission on this object.',
             };
+        }
+
+        const existingActiveInstance = await loadActiveRecordApprovalInstanceInternal(
+            tenantId,
+            apiName,
+            recordId,
+        );
+        if (existingActiveInstance && existingActiveInstance.status === 'PENDING') {
+            return {
+                success: false,
+                error: `Record is already pending approval (${existingActiveInstance.processName} — Step ${existingActiveInstance.currentStep}).`,
+            };
+        }
+
+        const processes = await loadObjectApprovalProcessesInternal(tenantId, apiName);
+        let matchedProcess = null;
+        if (processes.length > 0) {
+            const currentRows = await queryRecords(apiName, { id: recordId }, 1, 0);
+            matchedProcess = selectMatchingApprovalProcess(processes, currentRows[0] || {});
         }
 
         const approvalField = fields.find(
@@ -3180,11 +3550,47 @@ export async function submitRecordForApproval(
                 recordId,
                 approvalField.apiName,
                 'SUBMITTED',
+                { bypassApprovalLock: true },
             );
             if (!res.success) return res;
         }
 
         const submitterId = session.userId || userId;
+        const safeSubmitterUuid = UUID_RE.test(submitterId) ? submitterId : null;
+
+        if (matchedProcess) {
+            const sortedSteps = [...matchedProcess.steps].sort(
+                (a, b) => a.stepNumber - b.stepNumber,
+            );
+            const firstStep = sortedSteps[0];
+            await sql`
+                INSERT INTO metadata_approval_instances (
+                    tenant_id,
+                    process_id,
+                    object_api_name,
+                    record_id,
+                    status,
+                    current_step,
+                    submitted_by,
+                    submission_comment,
+                    step_history,
+                    is_locked
+                )
+                VALUES (
+                    ${tenantId},
+                    ${matchedProcess.id},
+                    ${apiName},
+                    ${recordId},
+                    'PENDING',
+                    ${firstStep ? firstStep.stepNumber : 1},
+                    ${safeSubmitterUuid},
+                    ${comment?.trim() || null},
+                    '[]'::jsonb,
+                    ${matchedProcess.lockRecordOnSubmit}
+                )
+            `.execute();
+        }
+
         await sql`
             INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
             VALUES (
@@ -3196,6 +3602,9 @@ export async function submitRecordForApproval(
                 ${JSON.stringify({
                     auditEvent: 'RECORD_APPROVAL_REQUESTED',
                     status: 'SUBMITTED',
+                    processId: matchedProcess?.id || null,
+                    processName: matchedProcess?.name || null,
+                    isLocked: matchedProcess ? matchedProcess.lockRecordOnSubmit : false,
                     submittedBy: submitterId,
                     comment: comment?.trim() || null,
                     submittedAt: new Date().toISOString(),
@@ -3214,7 +3623,9 @@ export async function submitRecordForApproval(
 
 /**
  * Approves or rejects a record in a declarative Approval Process (`APPROVED` / `REJECTED`),
- * updates the record's approval picklist field if present, and logs `RECORD_APPROVAL_DECIDED`.
+ * progressing multi-step `metadata_approval_instances` (with custom/system role checks,
+ * maker-checker enforcement, record unlock, and auto field updates) or falling back to
+ * single-step approval when no process instance is active.
  */
 export async function decideRecordApproval(
     apiName: string,
@@ -3230,6 +3641,112 @@ export async function decideRecordApproval(
             return { success: false, error: 'Invalid approval decision.' };
         }
         const { tenantId, userId, session } = await requireAuth();
+        if (!isTenantStaffRole(session.role)) {
+            return {
+                success: false,
+                error: 'Your role does not have permission to approve or reject records.',
+            };
+        }
+
+        const actorUserId = session.userId || userId;
+        const effectiveRole = session.effectiveRoleCode || session.role;
+
+        // 1. Check for an active stateful multi-step approval instance first
+        const activeInstance = await loadActiveRecordApprovalInstanceInternal(
+            tenantId,
+            apiName,
+            recordId,
+        );
+        if (activeInstance && activeInstance.status === 'PENDING') {
+            const processes = await loadObjectApprovalProcessesInternal(tenantId, apiName);
+            const processDef = processes.find(p => p.id === activeInstance.processId);
+            if (!processDef) {
+                return {
+                    success: false,
+                    error: 'Approval process definition for this instance could not be found.',
+                };
+            }
+
+            const stepEval = evaluateApprovalStepDecision({
+                process: processDef,
+                instance: activeInstance,
+                actorUserId,
+                effectiveRoleCode: effectiveRole,
+                baseRole: session.role,
+                decision,
+                comment,
+            });
+            if (stepEval.ok === false) {
+                return { success: false, error: stepEval.error };
+            }
+
+            await sql`
+                UPDATE metadata_approval_instances
+                SET status = ${stepEval.nextStatus},
+                    current_step = ${stepEval.nextStep},
+                    step_history = ${JSON.stringify(stepEval.updatedHistory)}::jsonb,
+                    is_locked = ${stepEval.nextIsLocked},
+                    updated_at = NOW()
+                WHERE id = ${activeInstance.id}
+                  AND tenant_id = ${tenantId}
+            `.execute();
+
+            const { fields } = await loadObjectMetadata(apiName, tenantId);
+            for (const [fldKey, fldVal] of Object.entries(stepEval.fieldUpdatesToApply)) {
+                if (fields.some(f => f.apiName === fldKey)) {
+                    await updateRecordFieldValue(apiName, recordId, fldKey, fldVal, {
+                        bypassApprovalLock: true,
+                    });
+                }
+            }
+
+            if (stepEval.nextStatus === 'APPROVED' || stepEval.nextStatus === 'REJECTED') {
+                const approvalField = fields.find(
+                    f =>
+                        f.apiName === 'approval_status' ||
+                        (f.dataType === 'PICKLIST' &&
+                            (f.picklistOptions || []).includes(stepEval.nextStatus)),
+                );
+                if (
+                    approvalField &&
+                    !(approvalField.apiName in stepEval.fieldUpdatesToApply)
+                ) {
+                    const res = await updateRecordFieldValue(
+                        apiName,
+                        recordId,
+                        approvalField.apiName,
+                        stepEval.nextStatus,
+                        { bypassApprovalLock: true },
+                    );
+                    if (!res.success) return res;
+                }
+            }
+
+            await sql`
+                INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, after_state)
+                VALUES (
+                    ${tenantId},
+                    ${actorUserId},
+                    'UPDATE',
+                    ${apiName},
+                    ${recordId},
+                    ${JSON.stringify({
+                        auditEvent: 'RECORD_APPROVAL_DECIDED',
+                        processId: processDef.id,
+                        processName: processDef.name,
+                        stepNumber: activeInstance.currentStep,
+                        nextStatus: stepEval.nextStatus,
+                        decision,
+                        comment: comment?.trim() || null,
+                        decidedAt: new Date().toISOString(),
+                    })}::jsonb
+                )
+            `.execute();
+            revalidateTag('metadata', 'max');
+            return { success: true, status: stepEval.nextStatus };
+        }
+
+        // 2. Fallback: Legacy single-step approval behavior
         const allowedApproverRoles = new Set([
             'SUPER_ADMIN',
             'PLATFORM_ADMIN',
@@ -3247,7 +3764,6 @@ export async function decideRecordApproval(
             };
         }
 
-        const actorUserId = session.userId || userId;
         const priorSubmissions = await sql<{
             user_id: string | null;
             after_state: Record<string, unknown> | null;
@@ -3290,6 +3806,7 @@ export async function decideRecordApproval(
                 recordId,
                 approvalField.apiName,
                 decision,
+                { bypassApprovalLock: true },
             );
             if (!res.success) return res;
         }

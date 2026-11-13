@@ -1,14 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
     AlertTriangle,
     CheckCircle2,
     Clock3,
+    ExternalLink,
+    Lock,
     RefreshCw,
     ShieldCheck,
     XCircle,
 } from 'lucide-react';
+import { decideRecordApproval } from '@/lib/actions/metadata-engine';
+import { listPendingMetadataApprovalInstancesAction } from '@/lib/actions/lcnc-tier2';
+import type { MetadataApprovalInstanceItem } from '@/lib/metadata/lcnc-helpers';
 
 type WorkflowApprovalStatus =
     | 'PENDING'
@@ -82,6 +88,7 @@ function canReview(status: WorkflowApprovalStatus) {
 
 export default function ApprovalsPage() {
     const [approvals, setApprovals] = useState<WorkflowApproval[]>([]);
+    const [objectInstances, setObjectInstances] = useState<MetadataApprovalInstanceItem[]>([]);
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('PENDING');
     const [reviewReasons, setReviewReasons] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
@@ -99,10 +106,14 @@ export default function ApprovalsPage() {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch(`/api/workflow-approvals?${query}`, { cache: 'no-store' });
+            const [res, lcncInstances] = await Promise.all([
+                fetch(`/api/workflow-approvals?${query}`, { cache: 'no-store' }),
+                listPendingMetadataApprovalInstancesAction().catch(() => []),
+            ]);
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error || 'Failed to fetch approvals');
             setApprovals(((data as ApprovalResponse).approvals || []) as WorkflowApproval[]);
+            setObjectInstances(lcncInstances);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to fetch approvals');
         } finally {
@@ -143,6 +154,44 @@ export default function ApprovalsPage() {
             setSubmittingId(null);
         }
     };
+
+    const handleObjectInstanceReview = async (
+        inst: MetadataApprovalInstanceItem,
+        decision: 'APPROVED' | 'REJECTED',
+    ) => {
+        setSubmittingId(inst.id);
+        setNotice(null);
+        setError(null);
+        try {
+            const res = await decideRecordApproval(
+                inst.objectApiName,
+                inst.recordId,
+                decision,
+                reviewReasons[inst.id]?.trim() || undefined,
+            );
+            if (!res.success) {
+                throw new Error(res.error || 'Failed to review object approval step');
+            }
+            setReviewReasons(current => {
+                const next = { ...current };
+                delete next[inst.id];
+                return next;
+            });
+            setNotice(
+                `Object approval updated (${res.status || decision}).`,
+            );
+            await fetchApprovals();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to review object approval');
+        } finally {
+            setSubmittingId(null);
+        }
+    };
+
+    const filteredObjectInstances = useMemo(() => {
+        if (statusFilter === 'ALL') return objectInstances;
+        return objectInstances.filter(i => i.status === statusFilter);
+    }, [objectInstances, statusFilter]);
 
     return (
         <div className="mx-auto max-w-7xl p-6 lg:p-8">
@@ -319,6 +368,107 @@ export default function ApprovalsPage() {
                     ))
                 )}
             </div>
+
+            {filteredObjectInstances.length > 0 && (
+                <div className="mt-8 overflow-hidden rounded-lg border border-border bg-card">
+                    <div className="border-b border-border bg-muted px-4 py-3">
+                        <h2 className="text-sm font-semibold text-foreground">
+                            Multi-Step Object Record Approvals ({filteredObjectInstances.length})
+                        </h2>
+                        <p className="text-xs text-muted-foreground">
+                            Declarative custom &amp; system object approvals with maker-checker and
+                            record locking
+                        </p>
+                    </div>
+                    <div className="divide-y divide-border">
+                        {filteredObjectInstances.map(inst => (
+                            <div
+                                key={inst.id}
+                                className="flex flex-col gap-4 px-4 py-4 lg:flex-row lg:items-center lg:justify-between"
+                            >
+                                <div className="space-y-1 text-xs">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="rounded border border-border bg-muted px-2 py-0.5 font-mono font-semibold text-foreground">
+                                            {inst.status} · Step {inst.currentStep}/
+                                            {inst.totalSteps}
+                                        </span>
+                                        {inst.isLocked && inst.status === 'PENDING' && (
+                                            <span className="inline-flex items-center gap-1 rounded border border-border bg-warning-subtle px-2 py-0.5 font-mono text-warning">
+                                                <Lock className="h-3 w-3" /> Locked
+                                            </span>
+                                        )}
+                                        <span className="font-semibold text-sm text-foreground">
+                                            {inst.processName}
+                                        </span>
+                                    </div>
+                                    <div className="text-muted-foreground">
+                                        Object:{' '}
+                                        <span className="font-mono text-foreground">
+                                            {inst.objectApiName}
+                                        </span>{' '}
+                                        · Current Approver Role:{' '}
+                                        <span className="font-mono text-primary">
+                                            {inst.currentApproverRole || 'PRINCIPAL'}
+                                        </span>
+                                        {inst.currentStepName ? ` (${inst.currentStepName})` : ''}
+                                    </div>
+                                    {inst.submissionComment && (
+                                        <p className="text-muted-foreground">
+                                            Note: &ldquo;{inst.submissionComment}&rdquo;
+                                        </p>
+                                    )}
+                                    <Link
+                                        href={`/app/${inst.objectApiName}/${inst.recordId}`}
+                                        className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                                    >
+                                        Open Record #{inst.recordId.slice(0, 8)}{' '}
+                                        <ExternalLink className="h-3 w-3" />
+                                    </Link>
+                                </div>
+
+                                {inst.status === 'PENDING' && (
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={reviewReasons[inst.id] || ''}
+                                            onChange={e =>
+                                                setReviewReasons(prev => ({
+                                                    ...prev,
+                                                    [inst.id]: e.target.value,
+                                                }))
+                                            }
+                                            placeholder="Step review note..."
+                                            className="h-9 w-52 rounded-md border border-border bg-background px-3 text-xs text-foreground"
+                                        />
+                                        <button
+                                            type="button"
+                                            disabled={submittingId === inst.id}
+                                            onClick={() =>
+                                                void handleObjectInstanceReview(inst, 'APPROVED')
+                                            }
+                                            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-success/30 bg-success-subtle px-3 text-xs font-medium text-success hover:opacity-90 disabled:opacity-60"
+                                        >
+                                            <CheckCircle2 className="h-3.5 w-3.5" />
+                                            Approve Step
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={submittingId === inst.id}
+                                            onClick={() =>
+                                                void handleObjectInstanceReview(inst, 'REJECTED')
+                                            }
+                                            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive-subtle px-3 text-xs font-medium text-destructive hover:opacity-90 disabled:opacity-60"
+                                        >
+                                            <XCircle className="h-3.5 w-3.5" />
+                                            Reject
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

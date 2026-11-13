@@ -19,6 +19,12 @@ import {
 } from '@/lib/metadata/access-control';
 import { logAudit } from '@/lib/audit';
 import { logger } from '@/lib/observability/logger';
+import { canAccessRecordUnderOwd } from '@/lib/metadata/lcnc-helpers';
+import {
+  checkRecordApprovalLockInternal,
+  enforceObjectValidationRulesInternal,
+  loadObjectOwdAndSharingInternal,
+} from '@/lib/metadata/lcnc-tier2-db';
 
 type RouteContext = {
   params: Promise<{ object_name: string }>;
@@ -150,6 +156,7 @@ export async function GET(
         // Fetch bounded page of records and their EAV values for this object
         const recordsRows = await sql<{
           record_id: string;
+          owner_user_id: string | null;
           field_name: string | null;
           value_string: string | null;
           value_number: string | null;
@@ -157,7 +164,7 @@ export async function GET(
           value_date: string | null;
         }>`
           WITH page AS (
-            SELECT r.id, r.created_at
+            SELECT r.id, r.owner_user_id, r.created_at
             FROM metadata_records r
             WHERE r.object_id = ${objectId}
               AND r.tenant_id = ${tenantId}
@@ -165,6 +172,7 @@ export async function GET(
             LIMIT ${limit} OFFSET ${offset}
           )
           SELECT p.id as record_id,
+                 p.owner_user_id,
                  f.api_name as field_name,
                  v.value_string,
                  v.value_number,
@@ -183,7 +191,9 @@ export async function GET(
         const dataMap = new Map<string, Record<string, unknown>>();
         recordsRows.forEach((row) => {
           if (!dataMap.has(row.record_id)) {
-            dataMap.set(row.record_id, { id: row.record_id });
+            const baseRec: Record<string, unknown> = { id: row.record_id };
+            if (row.owner_user_id) baseRec.owner_user_id = row.owner_user_id;
+            dataMap.set(row.record_id, baseRec);
           }
           if (row.field_name) {
             const record = dataMap.get(row.record_id)!;
@@ -208,6 +218,13 @@ export async function GET(
             row.custom_data && typeof row.custom_data === 'object'
               ? (row.custom_data as Record<string, unknown>)
               : {};
+          if (typeof customBag._owner_user_id === 'string') {
+            projected._owner_user_id = customBag._owner_user_id;
+          } else if (typeof row.created_by === 'string') {
+            projected.created_by = row.created_by;
+          } else if (typeof row.user_id === 'string') {
+            projected.user_id = row.user_id;
+          }
           for (const field of readableFields) {
             if (!field.isCustom && isProtectedLegacyPlaintextColumn(field.apiName)) {
               continue;
@@ -220,6 +237,21 @@ export async function GET(
           }
           return projected;
         });
+      }
+
+      const { owdMode, sharingRules } = await loadObjectOwdAndSharingInternal(tenantId, objectName);
+      if (owdMode !== 'PUBLIC_READ_WRITE') {
+        data = data.filter((rec) =>
+          canAccessRecordUnderOwd({
+            owdMode,
+            operation: 'READ',
+            record: rec,
+            callerUserId: auth.context.userId || '',
+            effectiveRoleCode: effectiveRole,
+            baseRole: auth.context.role,
+            sharingRules,
+          }),
+        );
       }
 
       // Evaluate virtual FORMULA fields across all projected records
@@ -333,13 +365,25 @@ export async function POST(
       if (validated.ok === false) {
         return NextResponse.json({ error: 'Validation failed', details: validated.errors }, { status: 400 });
       }
+      const formulaValidation = await enforceObjectValidationRulesInternal(
+        tenantId,
+        objectName,
+        validated.data,
+      );
+      if (formulaValidation.ok === false) {
+        return NextResponse.json(
+          { error: 'Validation rule failed', details: [formulaValidation.error] },
+          { status: 400 },
+        );
+      }
       const fieldByApiName = new Map(fields.map((field) => [field.apiName, field]));
+      const ownerUuid = UUID_RE.test(auth.context.userId || '') ? auth.context.userId : null;
 
       const recordId = await withTenant(tenantId, async (tx) => {
         const q = sqlFor(tx);
         const recordRows = await q<{ id: string }>`
-          INSERT INTO metadata_records (id, tenant_id, object_id, created_at, updated_at)
-          VALUES (gen_random_uuid(), ${tenantId}, ${objectId}, NOW(), NOW())
+          INSERT INTO metadata_records (id, tenant_id, object_id, owner_user_id, created_at, updated_at)
+          VALUES (gen_random_uuid(), ${tenantId}, ${objectId}, ${ownerUuid}, NOW(), NOW())
           RETURNING id
         `;
         const createdId = recordRows[0].id;
@@ -428,6 +472,16 @@ async function handleUpdateRequest(
         ) {
           delete sanitizedBody[f.apiName];
         }
+      }
+
+      const lockCheck = await checkRecordApprovalLockInternal(
+        tenantId,
+        objectName,
+        recordId,
+        auth.context.role,
+      );
+      if (lockCheck.locked === true) {
+        return NextResponse.json({ error: lockCheck.error }, { status: 423 });
       }
 
       if (!isEavStorage) {
@@ -552,6 +606,18 @@ async function handleUpdateRequest(
       if (validated.ok === false) {
         return NextResponse.json(
           { error: 'Validation failed', details: validated.errors },
+          { status: 400 },
+        );
+      }
+
+      const formulaValidation = await enforceObjectValidationRulesInternal(
+        tenantId,
+        objectName,
+        validated.data,
+      );
+      if (formulaValidation.ok === false) {
+        return NextResponse.json(
+          { error: 'Validation rule failed', details: [formulaValidation.error] },
           { status: 400 },
         );
       }
@@ -684,6 +750,16 @@ export async function DELETE(
       }
       if (!UUID_RE.test(recordId)) {
         return NextResponse.json({ error: 'Valid record id (UUID) is required.' }, { status: 400 });
+      }
+
+      const lockCheck = await checkRecordApprovalLockInternal(
+        tenantId,
+        objectName,
+        recordId,
+        auth.context.role,
+      );
+      if (lockCheck.locked === true) {
+        return NextResponse.json({ error: lockCheck.error }, { status: 423 });
       }
 
       const fields = await fetchMetadataFields(objectDef.id);

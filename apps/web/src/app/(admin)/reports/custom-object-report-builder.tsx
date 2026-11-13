@@ -16,6 +16,7 @@ import {
     Download,
     FolderPlus,
     Layers,
+    Link2,
     Loader2,
     Play,
     Plus,
@@ -44,6 +45,7 @@ import {
 } from '@/components/ui/table';
 import type { RollupAggregateFunction } from '@/lib/metadata/platform';
 import type {
+    JoinedReportConfig,
     ReportCategoryItem,
     SavedLcncReportItem,
     SavedViewFilterRule,
@@ -75,7 +77,9 @@ export function CustomObjectReportBuilder({
     const router = useRouter();
     const [categories, setCategories] = useState<ReportCategoryItem[]>(initialCategories);
     const [savedReports, setSavedReports] = useState<SavedLcncReportItem[]>(
-        initialSavedReports.filter(r => r.reportKind === 'OBJECT_REPORT'),
+        initialSavedReports.filter(
+            r => r.reportKind === 'OBJECT_REPORT' || r.reportKind === 'JOINED_OBJECT_REPORT',
+        ),
     );
     const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('ALL');
 
@@ -83,6 +87,21 @@ export function CustomObjectReportBuilder({
         catalog.find(c => c.isCustom)?.apiName || catalog[0]?.apiName || '',
     );
     const activeObject = catalog.find(c => c.apiName === selectedObjectApi) || null;
+
+    const [selectedJoinKey, setSelectedJoinKey] = useState<string>('__none__');
+    const [joinType, setJoinType] = useState<'LEFT' | 'INNER'>('LEFT');
+
+    const activeJoinRel =
+        selectedJoinKey !== '__none__'
+            ? (activeObject?.lookupRelationships || []).find(
+                  rel =>
+                      `${rel.joinDirection}:${rel.relatedObjectApiName}:${rel.lookupFieldApiName}` ===
+                      selectedJoinKey,
+              ) || null
+            : null;
+    const joinedCatalogObject = activeJoinRel
+        ? catalog.find(c => c.apiName === activeJoinRel.relatedObjectApiName) || null
+        : null;
 
     const [groupByField, setGroupByField] = useState<string>(
         activeObject?.dimensionFields[0]?.apiName || '',
@@ -93,6 +112,19 @@ export function CustomObjectReportBuilder({
     );
     const [chartType, setChartType] = useState<'TABLE' | 'BAR' | 'KPI'>('TABLE');
     const [filterRules, setFilterRules] = useState<SavedViewFilterRule[]>([]);
+
+    const buildActiveJoinConfig = (): JoinedReportConfig | null => {
+        if (!activeJoinRel) return null;
+        return {
+            relatedObjectApiName: activeJoinRel.relatedObjectApiName,
+            lookupFieldApiName: activeJoinRel.lookupFieldApiName,
+            joinDirection: activeJoinRel.joinDirection,
+            joinType,
+            relatedColumns: (joinedCatalogObject?.dimensionFields || [])
+                .slice(0, 5)
+                .map(d => d.apiName),
+        };
+    };
 
     // Save report state
     const [editingReportId, setEditingReportId] = useState<string | undefined>(undefined);
@@ -112,6 +144,7 @@ export function CustomObjectReportBuilder({
 
     const handleObjectChange = (nextApi: string) => {
         setSelectedObjectApi(nextApi);
+        setSelectedJoinKey('__none__');
         const entry = catalog.find(c => c.apiName === nextApi);
         setGroupByField(entry?.dimensionFields[0]?.apiName || '');
         setMetricField(entry?.numericFields[0]?.apiName || '');
@@ -127,6 +160,7 @@ export function CustomObjectReportBuilder({
         aggregateFunction: RollupAggregateFunction;
         metricField?: string;
         filterRules?: SavedViewFilterRule[];
+        joinConfig?: JoinedReportConfig | null;
     }) => {
         setRunning(true);
         try {
@@ -157,6 +191,7 @@ export function CustomObjectReportBuilder({
             aggregateFunction: aggregateFn,
             metricField: aggregateFn === 'COUNT' ? undefined : metricField,
             filterRules,
+            joinConfig: buildActiveJoinConfig(),
         });
     };
 
@@ -166,6 +201,14 @@ export function CustomObjectReportBuilder({
         setReportName(rep.name);
         setSelectedCategoryId(rep.categoryId || '__none__');
         setSelectedObjectApi(rep.objectApiName);
+        if (rep.joinConfig) {
+            setSelectedJoinKey(
+                `${rep.joinConfig.joinDirection}:${rep.joinConfig.relatedObjectApiName}:${rep.joinConfig.lookupFieldApiName}`,
+            );
+            setJoinType(rep.joinConfig.joinType || 'LEFT');
+        } else {
+            setSelectedJoinKey('__none__');
+        }
         setGroupByField(rep.groupByField);
         setAggregateFn(rep.aggregateFunction);
         setMetricField(rep.metricField || '');
@@ -179,6 +222,7 @@ export function CustomObjectReportBuilder({
             metricField:
                 rep.aggregateFunction === 'COUNT' ? undefined : rep.metricField || undefined,
             filterRules: rep.filterRules || [],
+            joinConfig: rep.joinConfig || null,
         });
     };
 
@@ -194,6 +238,7 @@ export function CustomObjectReportBuilder({
         setSavingReport(true);
         try {
             const catId = selectedCategoryId !== '__none__' ? selectedCategoryId : null;
+            const activeJoin = buildActiveJoinConfig();
             const res = await saveLcncObjectReportAction({
                 id: editingReportId,
                 name: reportName.trim(),
@@ -203,6 +248,7 @@ export function CustomObjectReportBuilder({
                 aggregateFunction: aggregateFn,
                 metricField: aggregateFn === 'COUNT' ? null : metricField || null,
                 filterRules,
+                joinConfig: activeJoin,
                 chartType,
             });
             if (!res.success) {
@@ -216,13 +262,14 @@ export function CustomObjectReportBuilder({
                 categoryId: catId,
                 categoryName: catName,
                 objectApiName: selectedObjectApi,
-                reportKind: 'OBJECT_REPORT',
+                reportKind: activeJoin ? 'JOINED_OBJECT_REPORT' : 'OBJECT_REPORT',
                 datasetKey: `object:${selectedObjectApi}`,
                 groupByField,
                 aggregateFunction: aggregateFn,
                 metricField: aggregateFn === 'COUNT' ? null : metricField || null,
                 selectedColumns: [],
                 filterRules: [...filterRules],
+                joinConfig: activeJoin,
                 chartType,
                 allowedRoles: [],
                 createdAt: new Date().toISOString(),
@@ -467,6 +514,56 @@ export function CustomObjectReportBuilder({
                     </div>
                 )}
 
+                {/* Cross-Object Lookup Join Bar */}
+                {(activeObject?.lookupRelationships?.length ?? 0) > 0 && (
+                    <div
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-xs"
+                        data-testid="joined-report-bar"
+                    >
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Link2 className="w-4 h-4 text-primary shrink-0" />
+                            <span className="font-semibold text-foreground">
+                                Cross-Object Lookup Join (Optional):
+                            </span>
+                            <select
+                                value={selectedJoinKey}
+                                onChange={e => setSelectedJoinKey(e.target.value)}
+                                data-testid="joined-report-relationship-select"
+                                className="h-8 rounded border border-border bg-card px-2.5 text-xs text-foreground"
+                            >
+                                <option value="__none__">Single Object Report (No Join)</option>
+                                {(activeObject?.lookupRelationships || []).map(rel => {
+                                    const key = `${rel.joinDirection}:${rel.relatedObjectApiName}:${rel.lookupFieldApiName}`;
+                                    return (
+                                        <option key={key} value={key}>
+                                            {rel.joinDirection === 'CHILD_TO_PARENT'
+                                                ? `Join Parent: ${rel.relatedObjectLabel} (via ${rel.lookupFieldLabel})`
+                                                : `Join Child: ${rel.relatedObjectLabel} (via ${rel.lookupFieldLabel})`}
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                            {selectedJoinKey !== '__none__' && (
+                                <select
+                                    value={joinType}
+                                    onChange={e =>
+                                        setJoinType(e.target.value as 'LEFT' | 'INNER')
+                                    }
+                                    className="h-8 rounded border border-border bg-card px-2 text-xs text-foreground"
+                                >
+                                    <option value="LEFT">LEFT JOIN (Keep Unmatched)</option>
+                                    <option value="INNER">INNER JOIN (Matched Only)</option>
+                                </select>
+                            )}
+                        </div>
+                        {joinedCatalogObject && (
+                            <Badge variant="outline" className="font-mono text-primary">
+                                Joined with {joinedCatalogObject.label}
+                            </Badge>
+                        )}
+                    </div>
+                )}
+
                 {/* Report Query Designer */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                     <div className="space-y-1.5">
@@ -497,6 +594,15 @@ export function CustomObjectReportBuilder({
                                         {dim.label} ({dim.dataType})
                                     </SelectItem>
                                 ))}
+                                {joinedCatalogObject &&
+                                    joinedCatalogObject.dimensionFields.map(dim => (
+                                        <SelectItem
+                                            key={`${joinedCatalogObject.apiName}.${dim.apiName}`}
+                                            value={`${joinedCatalogObject.apiName}.${dim.apiName}`}
+                                        >
+                                            [{joinedCatalogObject.label}] {dim.label}
+                                        </SelectItem>
+                                    ))}
                             </SelectContent>
                         </Select>
                     </div>
@@ -533,6 +639,15 @@ export function CustomObjectReportBuilder({
                                             {nf.label}
                                         </SelectItem>
                                     ))}
+                                    {joinedCatalogObject &&
+                                        joinedCatalogObject.numericFields.map(nf => (
+                                            <SelectItem
+                                                key={`${joinedCatalogObject.apiName}.${nf.apiName}`}
+                                                value={`${joinedCatalogObject.apiName}.${nf.apiName}`}
+                                            >
+                                                [{joinedCatalogObject.label}] {nf.label}
+                                            </SelectItem>
+                                        ))}
                                 </SelectContent>
                             </Select>
                         </div>

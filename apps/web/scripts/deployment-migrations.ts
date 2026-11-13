@@ -108,9 +108,9 @@ const TENANT_CONTEXT_SECRET_PATTERN = /^[A-Za-z0-9_-]{43,128}$/;
 //
 // The test fixture in deployment-migrations.test.ts imports both constants
 // rather than copying them, so only these two lines need editing.
-export const EXPECTED_RLS_POLICY_COUNT = 190;
+export const EXPECTED_RLS_POLICY_COUNT = 196;
 export const EXPECTED_RLS_POLICY_CATALOG_SHA256 =
-  "6101c58598c14e37a5ef68b1c9cf8a5080795e7bccbfd98e40721a7b93911787";
+  "485b914e4cf783004c96c7c1f50a7df7650d1294a30909baf56efe7a54d9edab";
 const MAINTENANCE_OWNER_PATTERN = /^[A-Za-z0-9_.@/-]{2,100}$/;
 const MIGRATION_PATH_PATTERN = /^apps\/web\/drizzle\/[A-Za-z0-9_-]+\.sql$/;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);

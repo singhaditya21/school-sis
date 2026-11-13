@@ -4,8 +4,10 @@ import { ChevronLeft, ExternalLink } from 'lucide-react';
 import { requireAuth } from '@/lib/auth/middleware';
 import { getAllMetadataObjects, getObjectMetadataById } from '@/lib/actions/metadata-engine';
 import { listTenantRolesWithPermissions } from '@/lib/actions/lcnc-platform';
+import { getObjectGovernanceConfigAction } from '@/lib/actions/lcnc-tier2';
 import FieldManagerClient from './field-manager';
 import ObjectLayoutBuilderClient from './layout-builder';
+import ObjectGovernanceStudioClient from './object-governance-studio';
 import ExperiencePortalPublisherClient from './portal-publisher';
 import DocumentTemplateStudioClient from './document-template-studio';
 
@@ -59,6 +61,14 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
     }
 
     const { objectDef, fields, layouts } = metadata;
+    const governanceConfig = await getObjectGovernanceConfigAction(
+        String(objectDef.api_name),
+    ).catch(() => ({
+        owdMode: 'PUBLIC_READ_WRITE' as const,
+        sharingRules: [],
+        validationRules: [],
+        approvalProcesses: [],
+    }));
 
     return (
         <div className="space-y-6">
@@ -106,6 +116,17 @@ export default async function ObjectDetailsPage({ params }: { params: Promise<{ 
                 fields={fields}
                 initialLayouts={layouts ?? []}
                 customRoles={customRoles}
+            />
+
+            <ObjectGovernanceStudioClient
+                objectName={objectDef.name}
+                objectApiName={String(objectDef.api_name)}
+                fields={fields}
+                customRoles={customRoles}
+                initialOwdMode={governanceConfig.owdMode}
+                initialSharingRules={governanceConfig.sharingRules}
+                initialValidationRules={governanceConfig.validationRules}
+                initialApprovalProcesses={governanceConfig.approvalProcesses}
             />
 
             <DocumentTemplateStudioClient

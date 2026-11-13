@@ -51,7 +51,7 @@ describe('tenancy stage 1 — scope triple', () => {
         }
     });
 
-    it('changes no RLS policy in 0017 — catalog stays pinned at current reviewed count (190)', () => {
-        expect(deployment).toContain('EXPECTED_RLS_POLICY_COUNT = 190');
+    it('changes no RLS policy in 0017 — catalog stays pinned at current reviewed count (196)', () => {
+        expect(deployment).toContain('EXPECTED_RLS_POLICY_COUNT = 196');
     });
 });
