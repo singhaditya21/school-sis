@@ -11,7 +11,7 @@ The engine has four persisted records:
 - `workflow_approval_events`: append-only audit timeline for request, approval, rejection, escalation, cancellation, and expiry.
 - `workflow_approval_delegations`: temporary reviewer delegation from one user/role to another user/role.
 
-Every table is tenant-scoped and protected by RLS in `apps/web/drizzle/0011_workflow_approval_engine.sql`.
+Every table is tenant-scoped in `apps/web/drizzle/0000_init_baseline.sql` and protected by `FORCE ROW LEVEL SECURITY` in `packages/api/src/db/migrations/tenant-rls.sql`.
 
 ## State Model
 
@@ -115,7 +115,6 @@ Already adopted:
 Still pending:
 
 - partial refunds, chargebacks, and richer provider refund reconciliation
-- service-side removal or archival of the legacy Python `agent_approvals` queue once no agent code writes to it
 - approval-driven execution for additional privileged identity operations beyond role changes
 
 ## Operating Requirements

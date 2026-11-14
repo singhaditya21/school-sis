@@ -43,10 +43,10 @@ Workflows run reliably in the background, ensuring immediate action without manu
 - **Lead Pipeline**: A visual Kanban board (`Admissions Pipeline Board`) to track prospective students through various stages (e.g., Inquiry → Contacted → Interview → Admitted).
 - **Lead Management**: Capture comprehensive lead details including contact information, target grade, and document uploads.
 
-### Fees & Stripe Integration
-- **Automated Billing**: Generate digital invoices for tuition, transport, and ancillary fees.
-- **Stripe Checkout**: Deep integration with Stripe allows parents to pay securely online. 
-- **Real-Time Sync**: Using Stripe Webhooks, the system automatically marks invoices as `PAID` instantly upon successful checkout, without manual reconciliation.
+### Fees and payments
+- **Automated billing**: Generate digital invoices for tuition, transport, and ancillary fees.
+- **Parent checkout**: Parents pay through Razorpay (UPI and WhatsApp pay links) or Stripe. The signed provider webhook marks the invoice paid and writes the receipt.
+- **Real-time sync**: A successful provider webhook updates the invoice without a manual reconciliation step.
 - **Tenant Isolation**: Secure billing context ensures funds and invoices are strictly isolated per school/tenant.
 
 ### Attendance
@@ -60,22 +60,11 @@ Workflows run reliably in the background, ensuring immediate action without manu
 
 ---
 
-## 4. AI Integrations (ScholarMind)
+## 4. Copilot
 
-School SIS incorporates **ScholarMind AI Agents**—a suite of up to 26 specialized AI agents designed to augment education and administration.
+The in-app copilot answers from records the signed-in user is already allowed to see: student counts, attendance, fee balances, and the custom-object catalog. A change it suggests opens an approval for a person to accept. It does not change records on its own.
 
-### Agentic AI Tutor
-- **Personalized Learning**: An on-demand AI tutor available to students for homework help, concept explanations, and querying syllabus topics.
-- **Safety & Guardrails**: The system includes built-in safety guardrails. Students are guided accurately, with reminders that critical grading information should always be verified with instructors.
-
-### Student Welfare Agent
-- **Holistic Monitoring**: The AI analyzes cross-module data to monitor student wellbeing.
-- **Early Warning System**: By correlating factors such as a sudden drop in attendance, declining academic performance, and delays in fee payments, the AI can alert counselors to potential financial stress or personal hardship, allowing for proactive intervention.
-
-### AI Governance & Throttling (Admin)
-- **Control Center**: Platform administrators have access to an AI Governance dashboard.
-- **Resource Management**: Configure the **AI Throttle Engine** (e.g., setting AI Token Multipliers) to manage compute costs and ensure fair usage across the tenant.
-- **Paywall Access**: Advanced AI agents are restricted to `AI_PRO` and `Enterprise` subscription tiers.
+Platform administrators review AI usage from HQ → AI Governance. Model keys are an operator setting on the production deployment.
 
 ---
 

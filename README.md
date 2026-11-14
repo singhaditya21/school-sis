@@ -4,8 +4,16 @@ A multi-tenant School Information System (SIS) for K-12 school groups: fees and 
 admissions, attendance, exams, timetable, library, HR, transport, hostel, and parent/student
 portals — with per-tenant isolation enforced in the database.
 
-Production runs on **Vercel** (app) and **Neon** (Postgres). See
-[docs/devops/README.md](./docs/operations/devops/README.md) for the release pipeline, and
+Production runs on **Vercel** (app) and **Neon** (Postgres).
+
+| Surface | URL |
+|---|---|
+| Product app | https://school-sis-web.vercel.app |
+| Marketing site | https://school-sis-website.vercel.app |
+| Health check | https://school-sis-web.vercel.app/api/health |
+
+The product root redirects to `/login`. The Vercel project name is `school-sis-web` (region `sin1`). See
+[docs/operations/devops/README.md](./docs/operations/devops/README.md) for the release pipeline, and
 [RUNNING.md](./RUNNING.md) to run it locally.
 
 ---
@@ -38,10 +46,10 @@ separately credentialed role. Two CI gates protect this: a static policy matrix
 **Background work**: durable Postgres-backed job queue and a transactional notification
 outbox, drained via `/api/jobs/dispatch`.
 
-**AI**: an in-app copilot (`apps/web/src/app/api/copilot/route.ts`, `apps/web/src/lib/agents/`)
-providing bounded, human-in-the-loop decision support. It does not act autonomously. Claims
+**AI**: an in-app copilot (`apps/web/src/app/api/copilot/route.ts`, `apps/web/src/lib/ai/`)
+providing bounded, human-in-the-loop decision support. It does not act on its own. Claims
 about AI capability on the public site are gated by `pnpm audit:claims` — see
-[docs/sales/README.md](./docs/gtm/sales/README.md) for the approved-claims register.
+[docs/gtm/sales/README.md](./docs/gtm/sales/README.md) for the approved-claims register.
 
 ---
 
@@ -60,16 +68,22 @@ local database lifecycle, are in [RUNNING.md](./RUNNING.md).
 
 `pnpm audit:ci` runs the full static gate set locally — dependency audit, secret scan,
 repository hygiene, the risk-debt ratchet (`pnpm audit:debt`), the public-claims guard
-(`pnpm audit:claims`), migration safety, and the RLS policy matrix. CI runs the same set plus
-typecheck, build, lint, unit tests, and a Playwright smoke suite. Only the smoke suite gates
-pull requests; the full e2e suite is manual (`workflow_dispatch`).
+(`pnpm audit:claims`), migration safety, and the RLS policy matrix. GitHub Actions (`ubuntu-latest`,
+100% free on this public repository) runs the same set plus typecheck, build, lint, unit &
+architecture tests, live Postgres RLS isolation tests, and the 19-test Playwright E2E suite on pull
+requests, `main` pushes, and nightly schedules.
 
 ---
 
 ## Documentation
 
-- **[Running locally](./RUNNING.md)** — local Postgres, seed data, day-to-day development.
-- **[DevOps & release](./docs/operations/devops/README.md)** — the Vercel/Neon pipeline, environments, rollback. Source of truth for deployment.
+Full categorized index: **[docs/README.md](./docs/README.md)** (includes the **100% ₹0 / $0 Free-Tier** development & deployment stack).
+
+- **[Running locally](./RUNNING.md)** — local Postgres, seed data, day-to-day development (`₹0`, no cloud dependencies).
+- **[DevOps & release](./docs/operations/devops/README.md)** — the GitHub Free + Vercel + Neon pipeline, environments, rollback. Source of truth for deployment.
+- **[Go-live & ₹0 integrations](./docs/operations/GO_LIVE_INTEGRATIONS.md)** — free-tier & production setup for WhatsApp (WAHA/Evolution/Meta), Email, Push, AI Copilot, R2, and Turnstile.
+- **[LCNC platform architecture](./docs/architecture/LCNC_PLATFORM_ARCHITECTURE.md)** — custom objects, layouts, OWD sharing, flows, dashboards, portals, and `.scholarmind.json` bundles.
+- **[AI Copilot architecture](./docs/architecture/AI_AGENT_ARCHITECTURE.md)** — bounded TypeScript copilot, human approvals, and free-tier LLM provider chain.
 - **[End-user guide](./docs/guides/user-guide/README.md)** — for school admins and teachers.
 - **[Developer & API guide](./docs/guides/api/README.md)** — metadata engine, webhooks, integrations.
 - **[Testing architecture](./docs/architecture/TESTING_QUALITY_ARCHITECTURE.md)** — test layers and what actually gates CI.
@@ -79,6 +93,5 @@ pull requests; the full e2e suite is manual (`workflow_dispatch`).
 
 ### Reference
 
-- [Database security notes](./docs/operations/SECURITY_REPORT.md) — RLS policies and injection testing.
-- [Historical PRDs](./docs/product/PRDs) — product evolution; superseded by the roadmap above.
-- [Audit reports](./audits/reports/) — point-in-time application audits.
+- [Tenant isolation audit](./docs/operations/TENANT_ISOLATION_DEEPENING_AUDIT.md) & [RLS policy matrix](./docs/architecture/RLS_POLICY_MATRIX.md) — 144-table `FORCE ROW LEVEL SECURITY` enforcement and transaction-bound HMAC context.
+- [Audit reports](./docs/operations/audits/) — point-in-time application and security audits.

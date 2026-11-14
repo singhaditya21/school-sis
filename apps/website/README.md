@@ -4,6 +4,8 @@ Public marketing, architecture overview, synthetic Experience Cloud admission pr
 
 This Next.js application is deployed separately from the multi-tenant SaaS core (`apps/web`) so public content iterations remain isolated from tenant databases and authenticated school workflows.
 
+Live: https://school-sis-website.vercel.app. The product it links to is https://school-sis-web.vercel.app.
+
 ## Key Surfaces
 
 - `/` — Executive overview of multi-campus fee reconciliation, approval governance, and pilot engagement.

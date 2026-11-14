@@ -258,7 +258,7 @@ WHATSAPP_WEBHOOK_SECRET=your_hmac_secret`}
                             size="sm"
                             className="w-full gap-1.5 text-xs"
                             onClick={() => {
-                                const cmd = `SCHOLARMIND_WEBHOOK_URL=${webhookUrl} docker compose -f docker-compose.whatsapp-free.yml up -d`;
+                                const cmd = `SCHOLARMIND_WEBHOOK_URL=${webhookUrl} docker compose -f ops/whatsapp/docker-compose.whatsapp-free.yml up -d`;
                                 navigator.clipboard?.writeText(cmd);
                                 toast.success('Copied free WAHA Docker Compose launch command');
                             }}

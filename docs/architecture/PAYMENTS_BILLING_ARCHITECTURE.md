@@ -10,19 +10,18 @@ School SIS now treats payment collection as a tenant-owned ledger workflow rathe
 - **Reconciliation:** Provider completion locks the invoice, rejects overpayment, writes a `payments` row, updates `invoices.paid_amount/status`, and creates a receipt in a single transaction.
 - **Webhook idempotency:** Stripe events are recorded in `payment_provider_events` with a unique `(provider, event_id)` key before processing.
 - **Money audit trail:** Manual payments, provider order creation, completed provider payments, and duplicate payment attempts write `payment_audit_logs`.
-- **Shared Stripe webhook handling:** `/api/payments/webhook` and `/api/webhooks/stripe` use the same idempotent handler.
+- **Shared Stripe & Razorpay webhook handling:** `/api/payments/webhook` handles both signed Stripe (`stripe-signature`) and Razorpay (`x-razorpay-signature`) server-to-server webhooks idempotently, with `/api/webhooks/stripe` as a Stripe-specific alias and `/api/payments/verify` for client checkout verification.
 - **Approved finance execution:** invoice waivers, invoice cancellations, and full-payment ledger refunds require the reusable workflow approval engine before mutating `invoices`, `payments`, or `payment_audit_logs`.
 - **Provider-native refunds after approval:** approved full-payment refunds call Stripe refunds for stored payment intent IDs and Razorpay refunds for stored Razorpay payment IDs before the tenant ledger is marked refunded. Manual payments remain internal ledger refunds.
 
 ## Operational Requirements
 
-- Apply migration `0004_payment_billing_architecture.sql` before relying on live payment endpoints.
-- Set real production secrets: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RAZORPAY_KEY_ID`, and `RAZORPAY_KEY_SECRET`.
+- Apply the canonical migration chain (`apps/web/drizzle/0000_init_baseline.sql` + `0002_invoice_billing_integrity.sql` onward) before relying on live payment endpoints.
+- Set real production secrets for your chosen `PAYMENT_PROVIDER`: `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`, or `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` + `RAZORPAY_WEBHOOK_SECRET`.
 - Do not use mock or placeholder payment secrets in production.
 - Keep Stripe and Razorpay webhook endpoints pointed at the deployed app after every environment rebuild.
 
 ## Remaining Hardening
 
-- Add Razorpay server-to-server webhook ingestion for payment capture/failure events.
 - Add partial refunds and chargeback flows with the same audit/reconciliation model.
-- Add operator-facing reconciliation dashboards for provider events, failed events, and unmatched orders.
+- Expand operator-facing reconciliation workflows for unmatched orders and disputed settlements.

@@ -51,7 +51,6 @@ apps/**/package-lock.json
 
 # Local env files
 .env*
-!.env.example
 !apps/web/.env.example
 secrets/
 

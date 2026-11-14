@@ -1,48 +1,39 @@
-# AI / Agent Architecture
+# AI Copilot Architecture
 
-## Implemented Controls
+> **Architectural note:** The legacy external Python FastAPI agent service (`services/agents`, `AGENT_SERVICE_URL`, `AGENT_REDIS_URL`) was removed in `88793cdf` / `e2791939`. All AI capabilities run natively inside the TypeScript Next.js application (`apps/web/src/lib/ai/` and `apps/web/src/app/api/copilot/route.ts`).
 
-- Browser clients no longer call the Python agent service directly.
-- Next.js exposes tenant-authenticated proxy routes under `/api/agents/*`.
-- Agent human-in-the-loop approvals now use the generic workflow approval engine through compatibility routes at `/api/agents/approvals` and `/api/agents/approvals/:id/review`.
-- The web gateway forwards only trusted session context to agents:
-  - `Authorization: Bearer ${AGENT_API_TOKEN}`
-  - `X-Tenant-Id`
-  - `X-User-Id`
-  - `X-User-Role`
-- FastAPI agent routes bind body/path tenant IDs to `X-Tenant-Id`.
-- Approval review is bound to the session user and reviewer role through `workflow_approval_reviews`; callers cannot review as another user.
-- Async jobs are stored with tenant/user ownership and polling rejects cross-tenant/job access.
-- Public agent responses strip reasoning artifacts and redact tool arguments/results.
-- RAG search and embedding upsert set PostgreSQL tenant context before DB access.
-- Agent audit logs set tenant context; new approval queue writes are stored in `workflow_approval_requests`.
-- Student and invoice indexing now use the same `embeddings` table that RAG search reads.
-- Incremental indexing for single students and invoices is implemented.
-- Postgres has RLS-protected `embeddings`, `agent_audit_logs`, legacy `agent_approvals`, and generic `workflow_approval_*` tables.
-- Student/invoice database triggers emit indexing notifications on tenant-scoped changes.
+ScholarMind provides a **bounded, human-in-the-loop Copilot** for school staff and administrators. It summarizes records the signed-in user is already authorized to read and routes every proposed state change through the workflow approval engine — it never mutates records autonomously.
 
-## Runtime Requirements
+---
 
-Web app:
+## 1. Security & Governance Controls
 
-- `AGENT_SERVICE_URL`: private URL of the Python FastAPI agent service.
-- `AGENT_API_TOKEN`: shared service token, at least 32 characters, matching `AGENT_API_TOKEN` in the agent service.
+- **Session-bound RBAC & RLS:** `/api/copilot` authenticates the caller's Iron Session (`requireAuth`) and executes read tools strictly inside `runWithTenantContext` so PostgreSQL `FORCE ROW LEVEL SECURITY` and role permissions apply to every query.
+- **Human-in-the-loop mutations (`apps/web/src/lib/ai/tools/mutations.ts`):** Write-oriented tools do not mutate domain tables directly. They create persisted `workflow_approval_requests` (`packages/api/src/workflows/approvals`) reviewed by eligible humans at `/approvals` (or `/api/workflow-approvals/:id/review`).
+- **Per-tenant token & cost budgets (`ai_token_logs`):** Token consumption is metered per tenant and enforced against workspace quotas (`HQ → AI Governance`), with atomic rate limiting on AI endpoints that degrades stricter on backend outage.
+- **Honest degradation (`apps/web/src/lib/ai/provider.ts`):** When no LLM API key or local endpoint is configured, the copilot explicitly reports that no model provider is configured rather than fabricating answers or falling back to mock text.
+- **Evaluation & red-team coverage:** Prompt-injection resistance, tool-boundary enforcement, approval creation, and provider fallback are tested in `apps/web/src/lib/ai/__tests__/ai-spine.test.ts` and `apps/web/src/lib/ai/__tests__/ai-runtime-eval.test.ts`.
+- **Public-claims gate:** Marketing copy in `apps/website` is checked by `pnpm audit:claims` (`scripts/check-website-claims.mjs`) so public pages never claim autonomous AI agents.
 
-Agent service:
+---
 
-- `AGENT_API_TOKEN`: shared service token.
-- `AGENT_DATABASE_URL`: Postgres connection string.
-- `AGENT_REDIS_URL`: Redis for async job queue, job ownership, rate limiting, and token tracking.
-- `AGENT_LLM_API_KEY`: chat model provider key.
-- `AGENT_NVIDIA_API_KEY`: embedding provider key.
-- `AGENT_ALLOWED_ORIGINS`: production web origins.
-- `AGENT_ENVIRONMENT=production`.
+## 2. Ordered Provider Chain (100% Free-Tier Friendly)
 
-## Remaining Hardening
+`apps/web/src/lib/ai/provider.ts` resolves OpenAI-compatible providers in priority order and automatically falls back across configured providers on transient rate-limit/timeout errors (only when no tool side effects ran in the failed turn):
 
-- Deploy the Python agent service to a private service boundary, not a public browser-facing URL.
-- Add a dedicated agent worker process for ARQ jobs.
-- Add a replay-safe webhook/indexing event table if LISTEN/NOTIFY loss cannot be tolerated.
-- Add role-aware agent/tool permissions beyond tenant membership.
-- Add dashboards for agent audit logs, token usage, indexing lag, and failed jobs.
-- Remove or archive legacy Python `agent_approvals` writes once every agent action creates `agents.approval.review` workflow approvals directly.
+| Priority | Provider | Env Variables | Cost / Free-Tier Option |
+|---:|---|---|---|
+| 1 | **Cerebras** | `CEREBRAS_API_KEY` (`CEREBRAS_MODEL` default `llama3.1-8b`) | **₹0 / $0** free developer tier |
+| 2 | **Groq** | `GROQ_API_KEY` (`GROQ_MODEL` default `llama-3.3-70b-versatile`) | **₹0 / $0** free developer tier |
+| 3 | **Google Gemini** | `GEMINI_API_KEY` (`GEMINI_MODEL` default `gemini-2.5-flash`) | **₹0 / $0** Google AI Studio free tier |
+| 4 | **OpenAI** | `OPENAI_API_KEY` (`OPENAI_MODEL` default `gpt-4o-mini`) | Paid API (optional) |
+| 5 | **Ollama (Self-Hosted)** | `OLLAMA_BASE_URL` (`OLLAMA_MODEL` default `llama3.2`) | **₹0 / $0** local/self-hosted open-weight models, zero external API key |
+
+Leave all five unset to run a lean deployment with Copilot cleanly disabled.
+
+---
+
+## 3. Embeddings & Semantic Search
+
+- PostgreSQL 16 `pgvector` backs the RLS-protected `embeddings` table (`0000_init_baseline.sql` and `packages/api/src/db/migrations/tenant-rls.sql`).
+- Every vector read and write executes inside a signed tenant transaction context so cross-tenant similarity queries are impossible at the database layer.

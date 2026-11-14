@@ -41,10 +41,7 @@ Operator actions are not free-form commands. Each action has:
 
 Current actions include incident acknowledgement/resolution, job retry, notification replay, webhook retry, payment reconciliation, approval review, API key rotation, tenant suspension, and runbook open.
 
-## Remaining Product Work
+## Shipped UI & Remaining Product Work
 
-- Build the actual `/operator` UI over the API contract.
-- Persist scheduled snapshots from a background job for history and trend charts.
-- Add operator action execution endpoints that write `operator_console_action_logs` before invoking domain-specific workers.
-- Add alert routing from critical signals to email/SMS/on-call channels.
-- Add MTTA/MTTR and action-success dashboards.
+- **Shipped UI:** `/operator` renders the live operator control plane over `/api/operator/console`, complemented by `/hq` (platform governance) and `/settings/integrations` (tenant outbox & channel diagnostics).
+- **Remaining:** Persist scheduled snapshots from a background job for historical trend charts, route critical alerts to external on-call channels, and add MTTA/MTTR dashboards.

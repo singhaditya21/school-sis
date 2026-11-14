@@ -1,9 +1,9 @@
 # School SIS — Issues & Roadmap
 
-> **Document version**: 2.6.0
-> **Last updated**: 2026-10-20
-> **Source of truth**: [`audits/reports/2026-07-04-full-application-audit.md`](../../audits/reports/2026-07-04-full-application-audit.md), re-verified against the live GitHub issue/PR state and `main` on 2026-10-20.
-> **Runtime**: Production runs on Vercel (`sin1`) with Neon Postgres; previews deploy to `iad1` on Neon branches. GitHub Actions owns preview and production release ordering. Local development is local-only — see [RUNNING.md](../../RUNNING.md).
+> **Document version**: 2.8.0
+> **Last updated**: 2026-11-15
+> **Source of truth**: [`docs/operations/audits/2026-07-04-full-application-audit.md`](../operations/audits/2026-07-04-full-application-audit.md), re-verified against the live GitHub issue/PR state and `main` on 2026-11-15.
+> **Runtime**: Production runs on Vercel (`sin1`) with Neon Postgres. Product: https://school-sis-web.vercel.app. Marketing site: https://school-sis-website.vercel.app. Previews deploy to `iad1` on Neon branches. GitHub Actions owns preview and production release ordering. Local development is local-only — see [RUNNING.md](../../RUNNING.md).
 > **Supersedes**: v1.0.0 (2026-04-26) dependency/security audit — its still-open items are folded into the security, hygiene, and testing issues below.
 
 This roadmap is the human-readable index over the live GitHub issues. Every item below links to a tracked issue with re-verified evidence and residual done-criteria. Issues are grouped into three milestones by launch priority.
@@ -156,19 +156,35 @@ Adapted from the audit's closure plan and updated after completion of the priori
 5. Strict distributed rate-limit outage behavior completed — issue #29.
 6. Formal RLS/database isolation, SSL verification, bypass inventory, and migration gates completed — issue #26.
 
-### Next priority queue (Phase 1)
+### Roadmap ahead (verified 2026-11-14)
 
-1. Remove/replace the legacy R2 storage adapter — issue #24.
-2. Decide the Go gateway: secure or remove — issue #23.
-3. Produce notification delivery/provider evidence or disable unsupported channels — issue #25.
-4. Reimplement native PDF and user/role management — issue #42.
-5. Add AI eval suites, tenant leakage tests, model fallback, and cost budgets — issue #28.
-6. Complete mobile production auth + secure payment context, or gate the client — issue #21.
+The school product and the low-code platform are in the tree. The work left is proof, a few operator integrations, and deeper domain wiring. Do not start new modules.
 
-### Subsequent quality and scale work
+**1. Launch proof**
 
-1. Configure and prove external CRM delivery for the durable lead queue — issue #31.
-2. Continue lowering the enforced type and direct-SQL debt baselines as normal maintenance.
+1. Close [#18](https://github.com/singhaditya21/school-sis/issues/18): production env on Vercel and Neon, authenticated readiness, payment-provider UAT, and a reconciled ledger snapshot.
+
+**2. Turn on integrations that are already coded**
+
+1. Close [#25](https://github.com/singhaditya21/school-sis/issues/25): set WhatsApp, SMS, email, and push secrets and record one real delivery drill. Confirm one MSG91 receipt before trusting that parser.
+2. Close [#31](https://github.com/singhaditya21/school-sis/issues/31): set the external CRM webhook URL and signing secret for the lead queue.
+3. Finish the PII rollout: backfill remaining environments, then drop the leftover plaintext identifier columns in a separate migration.
+
+**3. Finish or keep gated**
+
+1. [#21](https://github.com/singhaditya21/school-sis/issues/21): the Expo app stays a companion (parent hub, teacher roll call, object explorer, status) until production auth and a secure payment context exist. The pilot freeze already keeps a store release out of scope.
+
+**4. Core SIS depth, after the pilot gate**
+
+1. Route admissions, fees, attendance, library, hostel, and exams through the lifecycle contracts in `packages/api/src/domain/core-sis`.
+2. Persist domain events on the notification outbox, module by module.
+3. Give exams a stored lifecycle status that matches `examLifecycle`.
+
+**Out of scope until three paid pilots finish**
+
+Mobile store release, autonomous agents, higher-ed and coaching expansion, and new library, transport, or HR scope. Those screens already exist. They are not the launch path.
+
+Items 1–6 in the old Phase 1 queue (#24, #23, #42, #28, and the R2/Go/PDF work) are done. Only #21 and #25 remain from that list.
 
 ---
 
@@ -181,7 +197,7 @@ Adapted from the audit's closure plan and updated after completion of the priori
 | Transport                                                  | Database tenant isolation is verified; pilot after route/stop authorization review and workflow tests.                                |
 | Parent portal                                              | Web pilot after payment-provider UAT; mobile remains gated by #21.                                                                    |
 | Student portal                                             | Access guard restored (done); pilot after portal workflow coverage.                                                                   |
-| AI / copilot / agents                                      | Not launch-ready for regulated customers until eval/leakage/fallback/budget evidence (#28).                                           |
+| AI / copilot / agents                                      | Bounded copilot, budgets, and evals are in (#28 closed). Autonomous agents stay out of scope. Production model keys remain an operator step. |
 | Integrations                                               | Runtime mocks are removed; pilot requires configured provider credentials, delivery evidence (#25), and integration-specific UAT.     |
 | Mobile app                                                 | Not production-ready until real auth + secure payments (#21).                                                                         |
 | Operator/SRE console                                       | Internal-only until incident/runbook/UAT evidence.                                                                                    |

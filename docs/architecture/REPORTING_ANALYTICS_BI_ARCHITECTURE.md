@@ -48,11 +48,7 @@ Exports are policy-backed, not free-form:
 
 Sensitive tenant exports are linked to `data.export_pii` approval metadata and require an audit reason.
 
-## Remaining Product Work
+## Shipped Builder & Remaining Product Work
 
-- Migrate existing analytics pages from ad hoc SQL actions onto the BI query executor.
-- Add a real BI query executor that maps approved metric/dimension IDs to parameterized SQL templates.
-- Add scheduled report jobs that write `bi_report_runs` and `bi_metric_snapshots`.
-- Add report builder persistence over `bi_report_definitions`.
-- Add CSV/XLSX generation through the export policy layer.
-- Add dashboard-level caching and snapshot comparison for month-over-month trends.
+- **Shipped:** Drag-and-drop Custom BI Report Builder at `/reports` with saved definitions (`bi_report_definitions`), scheduled email delivery (`BI_SCHEDULED_REPORT`), CSV export enforcement, and role-scoped dashboard builders (`/dashboards`, `/executive`).
+- **Remaining:** Migrate remaining legacy analytics screens from ad hoc SQL actions onto the semantic BI catalog and add month-over-month snapshot comparison (`bi_metric_snapshots`).

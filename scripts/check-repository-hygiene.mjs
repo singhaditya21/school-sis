@@ -3,14 +3,21 @@
 import { execFileSync } from 'node:child_process';
 
 const blockedExactPaths = new Set([
+  '.env.example',
+  'apps/web/fix_vector.py',
   'apps/web/pnpm_audit.json',
   'apps/web/test-query.cjs',
   'apps/web/test-schema.cjs',
   'apps/website/package-lock.json',
+  'docker-compose.whatsapp-free.yml',
   'package-lock.json',
 ]);
 
 const blockedPrefixes = [
+  'apps/web/docs/',
+  'audits/',
+  'docs/product/PRDs/',
+  'docs/product/specs/',
 ];
 
 function trackedFiles() {

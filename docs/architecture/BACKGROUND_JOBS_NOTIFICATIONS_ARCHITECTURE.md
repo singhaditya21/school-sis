@@ -35,7 +35,7 @@ CRON_SECRET=replace_with_at_least_32_random_characters
 
 Optional:
 
-- Set `EMAIL_PROVIDER=smtp|resend`, `SMS_PROVIDER=msg91|twilio`, or `PUSH_PROVIDER=firebase` only after real provider secrets are configured. WhatsApp stays unavailable until a live adapter lands.
+- Set `EMAIL_PROVIDER=smtp|resend`, `SMS_PROVIDER=msg91|twilio`, `WHATSAPP_PROVIDER=waha|evolution|meta_cloud`, or `PUSH_PROVIDER=firebase` after configuring the corresponding provider secrets (see [`docs/operations/GO_LIVE_INTEGRATIONS.md`](../operations/GO_LIVE_INTEGRATIONS.md) for ₹0 free-tier options).
 - For development/test-only delivery simulation, set `ENABLE_INTEGRATION_MOCKS=true` together with the desired `*_PROVIDER=mock`; never use these values in production.
 
 ## Operations
@@ -62,10 +62,7 @@ Run frequency:
 - More frequently only if provider rate limits and database capacity are sized for it.
 - The local scheduler (`pnpm scheduler`) triggers `/api/jobs/dispatch` on an interval (default 60s, `SCHEDULER_INTERVAL_MS`).
 
-## Remaining Hardening
+## Shipped Operations & Remaining Hardening
 
-- Run `pnpm scheduler` (or any scheduler) to call `/api/jobs/dispatch` on the desired interval.
-- Add operator dashboards for queued, failed, and dead-letter jobs.
-- Add provider-specific inbound webhook handling for delivery receipts.
-- Add rate limiting and per-tenant notification quotas.
-- Add alerting when dead-letter counts rise above threshold.
+- **Shipped:** `.github/workflows/jobs-dispatch.yml` drives `/api/jobs/dispatch` on a free GitHub Actions cron schedule; `/settings/integrations` and `/operator` expose channel readiness, outbox inspection, and retries; signed delivery-receipt webhooks are live at `/api/webhooks/whatsapp` and `/api/webhooks/sms`.
+- **Remaining:** Add per-tenant notification quotas and automated alerting when dead-letter counts rise above threshold.

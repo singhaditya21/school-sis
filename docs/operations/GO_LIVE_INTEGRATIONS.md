@@ -37,14 +37,34 @@ Rollout beyond the aadhaar/apaar pilot (email/phone, `users.email` last) follows
 
 ---
 
-## 2. WhatsApp delivery receipts
+## 2. WhatsApp messaging & delivery receipts
 
-Endpoint: `POST/GET https://<host>/api/webhooks/whatsapp`. Ingests Meta Cloud API
-message-status callbacks so a queued message advances to Delivered/Failed.
+Endpoint: `POST/GET https://<host>/api/webhooks/whatsapp`.
+
+### Option A — ₹0 / $0 Self-Hosted Open-Source Gateway (WAHA or Evolution API)
+Avoid paid BSP per-conversation markups by running the hardened Docker stack in [`ops/whatsapp/docker-compose.whatsapp-free.yml`](../../ops/whatsapp/docker-compose.whatsapp-free.yml) on any free VM (e.g., Oracle Cloud Always-Free) or school server behind TLS:
+
+```bash
+WHATSAPP_WEBHOOK_SECRET=your_random_32_char_secret \
+WAHA_API_KEY=your_waha_api_key \
+WAHA_DASHBOARD_PASSWORD=your_dashboard_password \
+docker compose -f ops/whatsapp/docker-compose.whatsapp-free.yml up -d
+```
 
 | Variable | Purpose |
 |---|---|
-| `WHATSAPP_PROVIDER` | must be a Meta Cloud value (`meta_cloud` / `meta` / `whatsapp_cloud` / `cloud_api`) for the receipt route to accept payloads |
+| `WHATSAPP_PROVIDER` | `waha` (or `evolution` when running `EvolutionAPI/evolution-api`) |
+| `WAHA_BASE_URL` | HTTPS origin of your WAHA gateway (`EVOLUTION_BASE_URL` + `EVOLUTION_INSTANCE` for Evolution) |
+| `WAHA_API_KEY` | Shared gateway key (`EVOLUTION_API_KEY` for Evolution) |
+| `WHATSAPP_WEBHOOK_SECRET` | Verifies inbound HMAC webhook signatures from WAHA |
+
+### Option B — Official Meta Cloud API
+Ingests Meta Cloud API message-status callbacks so a queued message advances to Delivered/Failed.
+
+| Variable | Purpose |
+|---|---|
+| `WHATSAPP_PROVIDER` | must be a Meta Cloud value (`meta_cloud` / `meta` / `whatsapp_cloud` / `cloud_api`) for the Meta receipt route to accept payloads |
+| `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_ACCESS_TOKEN` | outbound Meta Cloud API credentials |
 | `WHATSAPP_APP_SECRET` | verifies `X-Hub-Signature-256` (fail-closed if unset) |
 | `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | the GET subscription-handshake token |
 
@@ -104,10 +124,25 @@ rate-limits still apply).
 
 ---
 
-## 5. Toolchain (developers only — not a deploy var)
+## 5. Zero-Cost (`₹0 / $0`) Provider Recipes for Optional Capabilities
+
+Every optional integration has a 100% free tier suitable for development, demos, and initial pilots:
+
+- **Email (`EMAIL_PROVIDER`):**
+  - `EMAIL_PROVIDER=smtp` with a Gmail App Password (`smtp.gmail.com:587`) or Brevo Free SMTP (300/day free).
+  - `EMAIL_PROVIDER=resend` with Resend Free Tier (100/day, 3,000/month free).
+- **Push Notifications (`PUSH_PROVIDER=firebase`):** Firebase Cloud Messaging (FCM) is free (`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`).
+- **AI Copilot (`apps/web/src/lib/ai/provider.ts`):** Set one or more free-tier keys for automatic ordered fallback: `CEREBRAS_API_KEY` (Cerebras Free), `GROQ_API_KEY` (Groq Free), `GEMINI_API_KEY` (Google AI Studio Free Tier), or `OLLAMA_BASE_URL` (local/self-hosted Ollama, ₹0).
+- **Object Storage (`R2_*`):** Cloudflare R2 includes 10 GB/month storage and zero egress fees on the free tier.
+- **Rate Limiting & Background Jobs:** Set `RATE_LIMIT_BACKEND=postgres` and `JOB_QUEUE_MODE=database` to reuse Neon Free Tier without paying for Redis/Upstash; `.github/workflows/jobs-dispatch.yml` triggers `/api/jobs/dispatch` for free on GitHub Actions.
+- **Marketing Lead CRM:** Leads are encrypted and stored durably in Neon (`/hq/leads`) at ₹0. For external sheet/CRM notifications without a paid CRM, point `MARKETING_CRM_WEBHOOK_URL` at a free Google Apps Script Web App.
+
+---
+
+## 6. Toolchain (developers only — not a deploy var)
 
 Run `corepack enable` once locally; Corepack then uses the pinned pnpm from
-`package.json`. `pnpm check:toolchain` verifies Node/pnpm match the pins (it also gates
+`package.json`. `pnpm preflight` verifies Node/pnpm match the pins (it also gates
 CI). Nothing to set in Vercel.
 
 ---

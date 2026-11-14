@@ -430,7 +430,7 @@ describe('Security hardening: worker queues, tasks, headers, turnstile, SRE aler
             }
 
             const wahaCompose = readFileSync(
-                resolve(REPO_ROOT, 'docker-compose.whatsapp-free.yml'),
+                resolve(REPO_ROOT, 'ops/whatsapp/docker-compose.whatsapp-free.yml'),
                 'utf8',
             );
             expect(wahaCompose).toContain("'127.0.0.1:3005:3000'");

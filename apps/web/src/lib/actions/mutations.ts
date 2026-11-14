@@ -444,34 +444,3 @@ export async function createExam(formData: FormData) {
 
     return { success: true, examId: examRows[0].id };
 }
-
-// ─── Mark Class Attendance (for attendance-form.tsx) ──────
-export async function markClassAttendance(
-    sectionId: string,
-    date: Date,
-    attendanceData: { studentId: string; status: string; remarks?: string }[]
-) {
-    const { tenantId, userId } = await requireAuth('attendance:write');
-    const dateStr = date.toISOString().split('T')[0];
-    await assertSectionBelongsToTenant(tenantId, sectionId);
-    await assertStudentsBelongToSection(tenantId, sectionId, attendanceData.map((entry) => entry.studentId));
-
-    for (const entry of attendanceData) {
-        const existingRows = await sql<{ id: string }>`
-            SELECT id FROM attendance_records WHERE student_id = ${entry.studentId} AND date = ${dateStr} AND tenant_id = ${tenantId}
-        `;
-
-        if (existingRows.length > 0) {
-            await sql`
-                UPDATE attendance_records SET status = ${entry.status}, marked_by = ${userId} WHERE id = ${existingRows[0].id} AND tenant_id = ${tenantId}
-            `;
-        } else {
-            await sql`
-                INSERT INTO attendance_records (id, tenant_id, student_id, section_id, date, status, marked_by)
-                VALUES (${randomUUID()}, ${tenantId}, ${entry.studentId}, ${sectionId}, ${dateStr}, ${entry.status}, ${userId})
-            `;
-        }
-    }
-
-    return { success: true as const, error: undefined as string | undefined };
-}

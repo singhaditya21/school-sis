@@ -43,7 +43,7 @@ For each field, in order, so the column is never half-broken:
 Migrations live in `apps/web/drizzle` (+ `db:types` regen from a migrated DB).
 `PII_ENCRYPTION_KEY` is required in production and `ENCRYPTION_KEY` is rejected there.
 Use the protected two-release rotation procedure in
-`apps/web/docs/PII_KEY_ROTATION.md`; never replace a key in place.
+[`docs/operations/PII_KEY_ROTATION.md`](./PII_KEY_ROTATION.md); never replace a key in place.
 
 ## Field inventory, by risk (do top-down)
 

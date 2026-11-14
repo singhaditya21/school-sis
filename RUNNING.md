@@ -4,8 +4,13 @@ This is the **local development** setup: the app and a project-local Postgres ru
 machine, with data in `./.pgdata` (git-ignored). No Docker required.
 
 Production and preview deployments are a separate, GitHub-Actions-owned path to **Vercel**
-(region `sin1`) and **Neon** — see [docs/devops/README.md](./docs/operations/devops/README.md). Nothing
+(region `sin1`) and **Neon** — see [docs/operations/devops/README.md](./docs/operations/devops/README.md). Nothing
 here deploys anything.
+
+Live production:
+
+- Product: https://school-sis-web.vercel.app
+- Marketing site: https://school-sis-website.vercel.app
 
 ## Prerequisites
 - **Node 24.x** and **pnpm 9.15.9** (`corepack enable && corepack prepare pnpm@9.15.9 --activate`). The root `preinstall`/`preflight` guard rejects other toolchains before they can mutate the lockfile.
@@ -39,7 +44,7 @@ Then log in with a seeded account (see the `apps/web/scripts/seed.ts` output for
   data in `./.pgdata`, managed by `scripts/local-db.sh`.
 - **Background jobs & notifications** — `POST /api/jobs/dispatch`, triggered on an
   interval by `pnpm scheduler` locally. In deployed environments the same endpoint is
-  driven on a schedule; see [docs/devops/README.md](./docs/operations/devops/README.md).
+  driven on a schedule; see [docs/operations/devops/README.md](./docs/operations/devops/README.md).
 - **Config** — `apps/web/.env.local` (copy of `apps/web/.env.example`). The only
   required vars are the DB URL and a few dev secrets; payments, storage, and AI
   providers are all opt-in.
@@ -49,6 +54,6 @@ Deployment is not done from a developer machine. Merging to `main` triggers the 
 Actions release pipeline, which migrates Neon and deploys `apps/web` to Vercel; pull requests
 get an isolated preview on a Neon branch. The pipeline, required checks, environment
 contract, and rollback procedure are documented in
-[docs/devops/README.md](./docs/operations/devops/README.md).
+[docs/operations/devops/README.md](./docs/operations/devops/README.md).
 
 `apps/website` (marketing) and `apps/mobile` are separate surfaces with their own lifecycles.

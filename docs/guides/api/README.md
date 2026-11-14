@@ -1,80 +1,63 @@
 # ScholarMind SIS: API & Developer Documentation
 
-Welcome to the API and Developer Documentation for the ScholarMind School Information System (SIS) platform. This document covers the core architectural patterns, dynamic metadata systems, external integrations, and real-time event implementations.
+Welcome to the API and Developer Documentation for the ScholarMind School Information System (SIS) platform. This guide covers the metadata REST APIs, provider adapters, payment & messaging webhooks, and accounting sync endpoints.
+
+Production API base: https://school-sis-web.vercel.app. Health: `GET /api/health`. Readiness: `GET /api/ready` (`Authorization: Bearer $METRICS_TOKEN`).
 
 ---
 
-## 1. Metadata Architecture
+## 1. Metadata & Low-Code Data APIs
 
-ScholarMind uses a dynamic, object-oriented Metadata Engine that allows the system to easily adapt to varying tenant data requirements without schema migrations. This engine relies on core Postgres tables:
-- `metadata_objects`: Defines custom or standard objects (e.g., student, course).
-- `metadata_fields`: Defines the properties/columns on these objects (e.g., first_name, date_of_birth), along with their data types, validation rules, and whether they are custom fields.
-- `metadata_layouts`: Controls how these fields are rendered in the UI (e.g., order, grouping).
+ScholarMind includes a multi-tenant Metadata Engine (`apps/web/src/lib/actions/metadata-engine.ts` and `packages/api/src/metadata/runtime.ts`) supporting both 19 Core System Objects (`TABLE` mode with `custom_data` JSONB) and tenant-defined custom objects (`EAV` mode in `metadata_records` / `metadata_values`). See [`LCNC_PLATFORM_ARCHITECTURE.md`](../../architecture/LCNC_PLATFORM_ARCHITECTURE.md) for full details.
 
-### How it Works Under the Hood
-The API provides functions like `getObjectMetadata(apiName)` and `getAllMetadataObjects()` located in `src/lib/actions/metadata-engine.ts`. 
-When a request is made to fetch an object's metadata:
-1. The metadata engine queries `metadata_objects`, `metadata_fields`, and `metadata_layouts` based on the object's `api_name` and the current user's `tenant_id`.
-2. The results are efficiently cached using Next.js `unstable_cache` tagged with `['metadata']` and `['object-metadata']`. 
-3. Dynamic CRUD operations (e.g., in reporting or forms) use this metadata to dynamically build SQL queries or render React forms on the fly.
-4. **Automations:** A complementary `metadata_workflows` table allows for trigger-based actions whenever records of specific metadata objects are created or modified.
+### Core Endpoints
+- `GET /api/data` — Returns the authenticated tenant's enabled standard and custom object catalog (`metadata_objects`, `tenant_object_settings`) filtered by role permissions.
+- `GET /api/data/[objectApiName]` — Lists tenant-scoped records enforcing Organization-Wide Defaults (`owd_mode`), sharing rules (`metadata_sharing_rules`), and Field-Level Security (`field_permissions`).
+- `POST /api/data/[objectApiName]` — Validates payload types and formula validation rules (`metadata_validation_rules`), persists the record, and triggers active `metadata_workflows`.
+- **Public Web-to-Object Intake:** `/portal/[tenantSlug]/[objectApiName]` exposes rate-limited guest intake forms and status lookups (`consumeGuestPortalRateLimit`) for published portal-enabled objects.
 
 ---
 
-## 2. Extensibility and Integrations
+## 2. Messaging, Storage & Accounting Integrations
 
-ScholarMind provides built-in integrations for payments, messaging, and accounting.
+All external notification channels default to fail-loud in live mode (`INTEGRATIONS_MODE=live`) and reject mock adapters in production. Every channel includes a ₹0 / $0 free-tier option (see [`GO_LIVE_INTEGRATIONS.md`](../../operations/GO_LIVE_INTEGRATIONS.md)).
 
-### SMS Providers (MSG91 & Twilio)
-The platform uses a unified `SmsProvider` interface (`src/lib/providers/sms.ts`), making it easy to swap between providers using the `SMS_PROVIDER` environment variable (options: `mock`, `msg91`, `twilio`).
+### WhatsApp (`apps/web/src/lib/providers/whatsapp.ts`)
+- **Self-Hosted Free Gateways (`₹0`):** `WHATSAPP_PROVIDER=waha` (`ops/whatsapp/docker-compose.whatsapp-free.yml`) or `WHATSAPP_PROVIDER=evolution`.
+- **Official Meta Cloud API:** `WHATSAPP_PROVIDER=meta_cloud` (`WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`).
+- **Inbound & Receipt Webhook:** `GET/POST /api/webhooks/whatsapp` verifies `X-Hub-Signature-256` (`WHATSAPP_APP_SECRET`) or WAHA HMAC (`WHATSAPP_WEBHOOK_SECRET`).
 
-**Twilio:**
-- Requires: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`
-- Implementation: Directly calls Twilio's `/Messages.json` REST API using basic authentication to send SMS notifications.
+### Email (`apps/web/src/lib/providers/email.ts`)
+- `EMAIL_PROVIDER=smtp` (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` — works with Gmail App Passwords or Brevo Free).
+- `EMAIL_PROVIDER=resend` (`RESEND_API_KEY`, `EMAIL_FROM`).
 
-**MSG91:**
-- Requires: `MSG91_AUTH_KEY`, `MSG91_SENDER_ID`
-- Implementation: Utilizes MSG91's v5 JSON API (`/api/v5/flow/`).
+### SMS (`apps/web/src/lib/providers/sms.ts`)
+- `SMS_PROVIDER=twilio` (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`) or `SMS_PROVIDER=msg91` (`MSG91_AUTH_KEY`).
+- **Delivery Receipt Webhook:** `POST /api/webhooks/sms` verifies `X-Twilio-Signature` or `MSG91_WEBHOOK_SECRET`.
 
 ### Accounting Sync (Tally ERP 9 / Prime)
-To bridge fee collections with financial accounting, ScholarMind allows exporting daily collections as Tally-compatible XML vouchers.
 - **Endpoint:** `POST /api/integrations/tally/vouchers`
-- **Workflow:** Admins map ScholarMind payment methods to exact Tally Ledger names via the UI. The system generates an XML file (`<TALLYREQUEST>Import Data</TALLYREQUEST>`) which can be natively imported into Tally via `Gateway of Tally > Import Data > Vouchers`.
+- **Workflow:** Maps ScholarMind payment methods to Tally ledger names and exports `<TALLYREQUEST>Import Data</TALLYREQUEST>` XML vouchers for `Gateway of Tally > Import Data > Vouchers`.
 
 ---
 
-## 3. Stripe Payments & Webhooks
+## 3. Online Payments & Webhooks (`Razorpay` & `Stripe`)
 
-ScholarMind handles fee payments via Stripe Checkout and tracks completion using Stripe Webhooks.
+Payment collection runs on a tenant-owned ledger (`apps/web/src/lib/payments/ledger.ts` and `apps/web/src/lib/payments/providers.ts`). Select `PAYMENT_PROVIDER=razorpay` or `PAYMENT_PROVIDER=stripe`.
 
-### Webhook Endpoint (`/api/payments/webhook`)
-- **Route:** `POST /api/payments/webhook`
-- **Purpose:** Listens to asynchronous Stripe events, particularly `checkout.session.completed`.
-- **Logic:** 
-  1. The webhook verifies the `stripe-signature` header against `STRIPE_WEBHOOK_SECRET`.
-  2. If the event type is `checkout.session.completed`, the handler retrieves the `invoiceId` and `tenantId` from the session's metadata.
-  3. It marks the corresponding invoice as `PAID` in the database, inserting a record into `payment_transactions`.
-  4. The endpoint always returns a `200 OK` status, even on internal processing errors, to prevent Stripe from repeatedly retrying problematic events.
+### Webhook & Verification Endpoints
+- **Unified Webhook (`Stripe` + `Razorpay`):** `POST /api/payments/webhook` — verifies `stripe-signature` (`STRIPE_WEBHOOK_SECRET`) or `x-razorpay-signature` (`RAZORPAY_WEBHOOK_SECRET`).
+- **Stripe Alias:** `POST /api/webhooks/stripe` — verifies `stripe-signature`.
+- **Razorpay Checkout Verification:** `POST /api/payments/verify` — verifies client checkout HMAC signatures against stored `payment_orders`.
 
-### Configuration
-To configure Stripe webhooks locally or in production:
-1. Provide your `STRIPE_SECRET_KEY`.
-2. Set up a webhook endpoint in the Stripe Dashboard pointing to `https://<your-domain>/api/payments/webhook`.
-3. Obtain the webhook signing secret from Stripe and set it as the `STRIPE_WEBHOOK_SECRET` environment variable.
+### Transactional Ledger Guarantees
+1. Inbound events are recorded idempotently in `payment_provider_events` (`UNIQUE (provider, event_id)`).
+2. Completion locks the target `invoices` row, prevents overpayment, writes `payments` and `payment_audit_logs`, updates `invoices.paid_amount` / `status`, and issues the receipt in a single database transaction.
+3. Unverified signatures or processing failures return non-2xx responses so providers retry safely against the idempotent ledger.
 
 ---
 
-## 4. Real-time Events (Pusher)
+## 4. Background Jobs, Outbox & Bounded Copilot
 
-ScholarMind requires real-time data flow for features like instant Attendance Tracking, which is powered by **Pusher**.
-
-### Server-Side Triggering
-When an action occurs (like marking a student's attendance via `src/lib/actions/attendance.ts`), the server uses the Pusher SDK (`src/lib/pusher.ts`) to trigger an event:
-```typescript
-await pusher.trigger('attendance-channel', 'attendance-marked', { /* payload */ })
-```
-
-### Client-Side Subscriptions
-The frontend listens for these events using a custom React hook: `usePusher` (`src/hooks/usePusher.ts`).
-- It instantiates a singleton `pusher-js` client utilizing `NEXT_PUBLIC_PUSHER_KEY` and `NEXT_PUBLIC_PUSHER_CLUSTER`.
-- Components subscribe to `attendance-channel` and respond dynamically when `attendance-marked` is received, instantly updating the UI without requiring page reloads or long-polling.
+- **Job & Outbox Dispatcher:** `GET/POST /api/jobs/dispatch` (authenticated via `CRON_SECRET` or `JOB_DISPATCH_SECRET`) claims due `background_jobs` and `notification_outbox` rows with `FOR UPDATE SKIP LOCKED`. Driven locally via `pnpm scheduler` and in production via `.github/workflows/jobs-dispatch.yml`.
+- **AI Copilot:** `POST /api/copilot` runs bounded, session-authenticated decision support (`apps/web/src/lib/ai/`). Any proposed write opens a human-reviewed `workflow_approval_requests` item (`/api/workflow-approvals`).

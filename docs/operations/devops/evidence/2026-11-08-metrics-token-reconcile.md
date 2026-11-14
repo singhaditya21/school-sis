@@ -4,7 +4,7 @@
 The Vercel project Production `METRICS_TOKEN` was a stale short value. Local
 `vercel env pull` therefore could not authenticate `/api/ready`, even though
 GitHub Actions Production Release injects the protected Environment secret at
-deploy time (see `apps/web/docs/PHASE_0_4_VALIDATION_2026-09-10.md`).
+deploy time (see [`2026-09-10-phase-0-4-validation.md`](./2026-09-10-phase-0-4-validation.md)).
 
 Unauthenticated `/api/ready` correctly returned 401. Liveness remained healthy
 on commit `0525e561` (`sin1`).

@@ -1,6 +1,14 @@
-# Security Report
+# Historical Pre-Remediation Security Scan (2026-04-26)
 
-This report outlines all security vulnerabilities and risks identified in the repository through automated dependency scanning and static analysis (SAST) tools.
+> [!NOTE]
+> **Historical Archive — All Findings Remediated on `main`.**
+> This document preserves the initial April 2026 automated SAST and dependency scan taken before the monorepo security overhaul. Every item listed below has since been resolved:
+> - **Dependencies:** Upgraded to `Next.js 16.4.2`, `React 19`, `jsPDF >=4.2.1`, `DOMPurify >=3.4.17`, `minimatch >=9.0.7`, `lodash >=4.17.23`, `flatted >=3.4.2`, and `jsonwebtoken >=9.0.2` (enforced on every commit by `pnpm audit:security`).
+> - **Cryptography:** `apps/web/src/lib/encryption.ts` enforces explicit 16-byte GCM authentication tags and versioned deterministic AEAD (`det.v2` / `rnd.v2`).
+> - **Retired Legacy Trees:** The unsigned `storage.ts` helper, root `docker-compose.yml`, and Java `backend/` directory were permanently removed from the repository.
+> - **Current Security Architecture:** See [`TENANT_ISOLATION_DEEPENING_AUDIT.md`](../TENANT_ISOLATION_DEEPENING_AUDIT.md) and [`RLS_POLICY_MATRIX.md`](../../architecture/RLS_POLICY_MATRIX.md).
+
+This report outlines the security vulnerabilities and risks originally identified in April 2026 through automated dependency scanning and static analysis (SAST) tools.
 
 ## 1. Dependency Vulnerabilities
 We ran `trivy`, `npm audit` and `pnpm audit` to identify known vulnerabilities (CVEs) in project dependencies. The list includes several critical and high severity flaws.

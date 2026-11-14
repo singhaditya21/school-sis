@@ -1,5 +1,18 @@
 # School SIS DevOps and Release Runbook
 
+## Live URLs
+
+Checked on 2026-11-14. The product health route returned 200, the product root redirected to `/login`, and the marketing site returned 200.
+
+| Surface | URL | Vercel project |
+| --- | --- | --- |
+| Product app | https://school-sis-web.vercel.app | `school-sis-web` |
+| Product health | https://school-sis-web.vercel.app/api/health | `school-sis-web` |
+| Marketing site | https://school-sis-website.vercel.app | `school-sis-website` |
+| Pull-request preview | `https://school-sis-preview-pr-{pr}.vercel.app` | separate preview project |
+
+`PRODUCTION_URL` is `https://school-sis-web.vercel.app`. `WEBSITE_PRODUCTION_URL` is `https://school-sis-website.vercel.app`.
+
 School SIS uses one deployment owner: GitHub Actions. Vercel Git deployments are disabled in `apps/web/vercel.json`, so Vercel and GitHub cannot race or deploy the same commit twice.
 
 The supported topology is:
@@ -581,174 +594,20 @@ provisioned inside the locked migration transaction through parameters; no
 workflow prints it, and artifact scans include both current and previous
 tenant-context secrets.
 
-## One-time legacy production ledger adoption
+## Historical legacy production ledger adoption (completed)
 
-The legacy-ledger adoption is a manual, one-time bridge for the exact historical
-16-row production ledger. It replaces only those rows with the reviewed `0000`
-baseline, leaves `0001_reconcile_production_integrity` pending, and never runs a
-migration, deploys Vercel, promotes a candidate, or runs on an ordinary push or
-pull request. The normal deploy migrator is unchanged. Do not invoke this path
-after the ledger has been adopted.
+The one-time bridge from the pre-baseline 16-row production migration ledger to
+`0000_init_baseline.sql` + `0001_reconcile_production_integrity.sql` has
+completed, and the temporary adoption workflow and script entrypoints have been
+retired from `main`.
 
-The only approved entry point is the `workflow_dispatch` workflow
-`.github/workflows/adopt-legacy-production.yml`, which invokes:
-
-```bash
-pnpm --silent db:adopt:legacy-production
-```
-
-Do not run that package command by hand. The protected workflow supplies and
-cross-checks the complete GitHub Actions identity (`GITHUB_ACTOR`,
-`GITHUB_TRIGGERING_ACTOR`, `GITHUB_EVENT_NAME`, `GITHUB_REF`,
-`GITHUB_REF_NAME`, `GITHUB_REF_TYPE`, `GITHUB_REF_PROTECTED`,
-`GITHUB_REPOSITORY`, `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`, `GITHUB_SHA`,
-`GITHUB_WORKSPACE`, and `RUNNER_TEMP`) plus `GITHUB_TOKEN`. It also supplies the
-following runtime inputs and fingerprinted approval material; none of these
-values may be inferred from a local shell:
-
-```text
-LEGACY_LEDGER_ADOPTION_CONFIRMATION
-LEGACY_LEDGER_ADOPTION_SNAPSHOT_CONFIRMATION
-LEGACY_LEDGER_ADOPTION_RESTORE_DRILL_ATTESTATION
-LEGACY_LEDGER_ADOPTION_APPROVAL_FINGERPRINT
-LEGACY_LEDGER_ADOPTION_APPROVED_AT
-LEGACY_LEDGER_ADOPTION_APPROVED_BY
-LEGACY_LEDGER_ADOPTION_DATABASE_URL
-LEGACY_LEDGER_ADOPTION_NEON_API_KEY
-LEGACY_LEDGER_ADOPTION_SSL_MODE
-LEGACY_LEDGER_ADOPTION_EXPECTED_NEON_HOST
-LEGACY_LEDGER_ADOPTION_EXPECTED_NEON_PROJECT_ID
-LEGACY_LEDGER_ADOPTION_EXPECTED_NEON_BRANCH_ID
-LEGACY_LEDGER_ADOPTION_EXPECTED_DATABASE
-LEGACY_LEDGER_ADOPTION_EXPECTED_ROLE
-LEGACY_LEDGER_ADOPTION_EXPECTED_RUNTIME_ROLE
-LEGACY_LEDGER_ADOPTION_EXPECTED_PLATFORM_ROLE
-LEGACY_LEDGER_ADOPTION_EXPECTED_HISTORICAL_COMMIT_SHA
-LEGACY_LEDGER_ADOPTION_GITHUB_COMMIT_SHA
-LEGACY_LEDGER_ADOPTION_GITHUB_PULL_REQUEST_URL
-LEGACY_LEDGER_ADOPTION_GITHUB_REPOSITORY
-LEGACY_LEDGER_ADOPTION_GITHUB_RUN_URL
-LEGACY_LEDGER_ADOPTION_RECONCILIATION_DISPOSITION
-LEGACY_LEDGER_ADOPTION_NEON_SNAPSHOT_CONSOLE_URL
-LEGACY_LEDGER_ADOPTION_NEON_SNAPSHOT_NAME
-LEGACY_LEDGER_ADOPTION_APPROVED_SOURCE_SCHEMA_FINGERPRINT
-LEGACY_LEDGER_ADOPTION_APPROVED_SOURCE_EVIDENCE_FINGERPRINT
-LEGACY_LEDGER_ADOPTION_SOURCE_EVIDENCE_URL
-LEGACY_LEDGER_ADOPTION_APPROVED_TARGET_SCHEMA_FINGERPRINT
-LEGACY_LEDGER_ADOPTION_APPROVED_TARGET_EVIDENCE_FINGERPRINT
-LEGACY_LEDGER_ADOPTION_TARGET_EVIDENCE_ARTIFACT_PATH
-LEGACY_LEDGER_ADOPTION_TARGET_EVIDENCE_ARTIFACT_SHA256
-LEGACY_LEDGER_ADOPTION_TARGET_EVIDENCE_URL
-```
-
-The `production` GitHub environment must require `singhaditya21`, the sole
-maintainer, as reviewer with self-review prevention disabled and administrator
-bypass disabled. It must provide `NEON_API_KEY` and the strict direct
-`NEON_PRODUCTION_DIRECT_URL` secrets, plus `NEON_PROJECT_ID`,
-`NEON_PRODUCTION_BRANCH_ID`, `NEON_DATABASE_NAME`, `NEON_MIGRATION_ROLE`,
-`NEON_RUNTIME_ROLE`, and `NEON_PLATFORM_ROLE` variables. The reviewed canonical
-transition evidence must be tracked at
-`docs/devops/evidence/legacy-production-transition-target-v2.json`. Do not
-dispatch if that artifact is absent or its raw SHA-256, schema fingerprint, or
-evidence fingerprint differs from the reviewed constants in the adoption CLI.
-
-### First-release sequence
-
-Merging PR #59 causes the normal `Production Release` to be created after E2E.
-Both workflows deliberately use the `production-release` concurrency group and
-the `production` environment. Follow this order exactly:
-
-1. Do **not** approve the initial `Production Release`. Cancel or decline it
-   while it is still waiting at the production-environment gate. That gate is
-   on the whole job and precedes every step, so a release stopped there cannot
-   create its recovery branch or touch Neon. Wait until the run is
-   concluded and the concurrency group is free.
-2. Confirm that the adoption PR is the unique merge at the current protected
-   `main` SHA, was authored by the repository owner, and all six required checks
-   passed. Peer approval is intentionally zero because there is one developer;
-   the owner-only dispatch attestations and recorded Production Environment
-   approval are the two deliberate production authorizations.
-3. Verify that a recent non-production Neon snapshot restore drill proved
-   database readability and that the manual recovery runbook is current. The
-   dispatch attestation is mandatory. Neon list metadata (`id`, `name`,
-   `created_at`, `full_size`, `source_branch_id`, and `manual`) does **not** by
-   itself prove restorability. Neon Free permits only one manual snapshot: after
-   preserving the drill evidence, delete the exact old manual snapshot and
-   verify the snapshot list is empty. Do not delete an unidentified snapshot.
-   The adoption transaction will create and retain its own fresh same-run
-   snapshot before changing the ledger.
-4. Freeze provider/IAM changes and manual DDL for the entire approved window
-   only after that exact cleanup. Do not create, rename, restore, or delete Neon
-   branches/snapshots; change roles, grants, default privileges, GitHub
-   configuration, or Vercel settings; or run another migration. Coordinate an
-   application maintenance window: reads can continue, but the adoption
-   transaction temporarily blocks writes to all 144 public tables.
-5. Dispatch the adoption from `main` with attempt 1 only. Copy every fingerprint
-   from the reviewed constants/artifact; do not retype, normalize, or substitute
-   a clean-build target:
-
-   ```bash
-   gh workflow run adopt-legacy-production.yml --ref main \
-     -f target_sha='<current-40-character-protected-main-sha>' \
-     -f approved_pull_request_url='https://github.com/singhaditya21/school-sis/pull/59' \
-     -f approve_exact_legacy_ledger_adoption=true \
-     -f attest_restore_drill_and_same_run_snapshot=true \
-     -f historical_commit_sha='f5d781ca354ec00450ee49e109642d243c5158af' \
-     -f source_schema_fingerprint='<reviewed-64-character-source-schema-sha256>' \
-     -f source_evidence_fingerprint='<reviewed-64-character-source-evidence-sha256>' \
-     -f target_schema_fingerprint='<reviewed-64-character-transition-schema-sha256>' \
-     -f target_evidence_fingerprint='<reviewed-64-character-transition-evidence-sha256>' \
-     -f target_artifact_sha256='<reviewed-64-character-tracked-artifact-sha256>'
-   ```
-
-6. Require a result status of `adopted` or
-   `adopted-with-lock-cleanup-warning`, with only
-   `0001_reconcile_production_integrity` pending. Then rerun the original
-   cancelled release with `gh run rerun <production-release-run-id>`. The normal
-   production workflow creates a no-endpoint recovery branch while retaining
-   the adoption snapshot, applies the locked migration and RLS postflight,
-   stages and verifies Vercel, and promotes the exact commit.
-
-The adoption CLI verifies the immutable historical SQL/ledger, current
-migration SQL/journal/RLS bytes, direct TLS Neon identity, role/ACL/ownership
-contract, canonical source and target evidence, data invariants, protected-main
-SHA, current first-attempt workflow, and exact sole-owner merged PR. It then
-holds both
-migration advisory locks, takes an `ACCESS EXCLUSIVE` ledger lock and one
-`SHARE ROW EXCLUSIVE` lock across the exact 144-table set, repeats the audit,
-and writes the exact live pre-mutation source audit to `RUNNER_TEMP`. Only while
-those locks remain held does it issue the single non-retried Neon snapshot
-`POST`, poll any returned operations, and re-GET the exact retained snapshot.
-It rechecks GitHub, provider identity, snapshot freshness, and the ten-minute
-run deadline before the ledger write and again before `COMMIT`.
-
-The workflow uploads the raw live source audit, tracked target audit, actual
-snapshot metadata, and result JSON as a non-secret evidence bundle retained for
-90 days. Download and archive that bundle with the release record before it
-expires; the pre-mutation source bytes cannot be reconstructed later. The
-same-run recovery snapshot is intentionally retained and is never
-automatically deleted or restored.
-
-Treat outcomes conservatively:
-
-- A normal refusal before `COMMIT` rolls back the database transaction. If the
-  message says the snapshot `POST` outcome is ambiguous, do not retry until the
-  deterministic snapshot name has been inspected in Neon.
-- Exit status 2 means the `COMMIT` acknowledgement was lost. Do not retry;
-  inspect the exact production ledger first.
-- Exit status 3 means the ledger commit is known to have succeeded but fresh
-  verification failed. Do not retry and do not run the deploy migrator until
-  the ledger and evidence are reconciled.
-- Workflow reruns are rejected. After any inspected, recoverable pre-commit
-  failure, use a newly approved dispatch rather than rerunning the old attempt.
-
-The snapshot restore API is Beta. A non-finalizing restore creates another
-provider branch and must finish its operations before a database connection can
-prove readability. That mutation, connection provisioning, and cleanup are not
-performed while production write locks are held. Recovery therefore requires
-the separately tested manual procedure attested above; this workflow never
-restores production automatically. See the
-[Neon snapshot restore API](https://api-docs.neon.tech/reference/restoresnapshot).
+- Reviewed canonical transition target artifact:
+  [`evidence/legacy-production-transition-target-v2.json`](./evidence/legacy-production-transition-target-v2.json)
+- Phase 0–4 production validation record:
+  [`evidence/2026-09-10-phase-0-4-validation.md`](./evidence/2026-09-10-phase-0-4-validation.md)
+- Active production releases now execute exclusively through
+  `.github/workflows/production-release.yml`, applying forward migrations
+  (`0000` through `0020`+) via `pnpm db:migrate:deploy --target production`.
 
 ## Local verification
 

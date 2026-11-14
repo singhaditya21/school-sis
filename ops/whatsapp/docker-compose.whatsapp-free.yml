@@ -7,7 +7,7 @@
 #   WHATSAPP_WEBHOOK_SECRET=your_random_32_char_secret \
 #   WAHA_API_KEY=your_waha_api_key \
 #   WAHA_DASHBOARD_PASSWORD=your_dashboard_password \
-#   docker compose -f docker-compose.whatsapp-free.yml up -d
+#   docker compose -f ops/whatsapp/docker-compose.whatsapp-free.yml up -d
 #
 # Production supply-chain note: pin the exact immutable image digest alongside the
 # version tag (`devlikeapro/waha:2026.2.2@sha256:<digest>`) before deploying on a

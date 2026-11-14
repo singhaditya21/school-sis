@@ -38,7 +38,6 @@ const BARE_SESSION_AUTH_ALLOWLIST = new Set([
     'lib/actions/platform.ts::returnToHQAction',
     'lib/actions/platform.ts::fetchActiveBroadcasts',
     // Tenant-scoped read/bootstrap helpers available to any authenticated tenant member under RLS
-    'lib/actions/scaffolding-bridge.ts::getTenantId',
     'lib/actions/payments.ts::getOnlinePaymentCapabilities',
     'lib/actions/queries.ts::getSectionInfo',
     'lib/actions/queries.ts::getAcademicYears',

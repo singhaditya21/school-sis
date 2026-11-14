@@ -60,7 +60,6 @@
   "exclude": [
     "node_modules",
     "scripts",
-    "src/graphify-out",
     "src/__tests__",
     "**/*.test.ts",
     "**/*.test.tsx"

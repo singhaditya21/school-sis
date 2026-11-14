@@ -12,18 +12,22 @@ Login brute-force protection now uses this backend order:
 
 The Postgres table is RLS-protected and only accessible through platform bypass context. This prevents serverless/worker instances from silently relying on per-process memory.
 
-Recommended production env:
+Recommended production env (`₹0` Neon Postgres backend — no paid Redis required):
+
+```env
+RATE_LIMIT_BACKEND=postgres
+```
+
+Optional Redis backend (`RATE_LIMIT_BACKEND=redis`):
 
 ```env
 UPSTASH_REDIS_REST_URL=...
 UPSTASH_REDIS_REST_TOKEN=...
 ```
 
-If Upstash is not available, no extra env is required; the app falls back to the shared Postgres bucket table.
-
 ## Query And Index Audit
 
-Migration `0010_performance_scale_architecture.sql` adds indexes for the highest-traffic tenant paths:
+Composite tenant indexes in `apps/web/drizzle/0000_init_baseline.sql` and `0016_tenant_indexes_and_integrity.sql` cover the highest-traffic tenant paths:
 
 - Students by tenant, status, grade, section, and admission number.
 - Guardians by tenant/student/primary and tenant/user.
@@ -111,4 +115,4 @@ pnpm perf:bundle
 pnpm --filter @school-sis/web run perf:load -- --dry-run
 ```
 
-Apply migration `0010_performance_scale_architecture.sql` before deploying app code that uses the Postgres rate-limit fallback.
+Ensure the canonical migration chain (`apps/web/drizzle/0000_init_baseline.sql` through `0016_tenant_indexes_and_integrity.sql`+) is applied before deploying app code that uses `RATE_LIMIT_BACKEND=postgres`.
