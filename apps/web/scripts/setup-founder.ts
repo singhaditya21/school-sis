@@ -68,6 +68,16 @@ async function setup() {
             console.log('🏢 Created ScholarMind HQ company.');
         }
 
+        const emailCandidates = hasPiiKey
+            ? encryptEmailCandidates(PERMANENT_PLATFORM_ADMIN_EMAIL)
+            : [];
+        const encryptedOwnerEmail = hasPiiKey
+            ? encryptEmail(PERMANENT_PLATFORM_ADMIN_EMAIL)
+            : null;
+        const plaintextOwnerEmail = hasPiiKey
+            ? null
+            : PERMANENT_PLATFORM_ADMIN_EMAIL;
+
         // 2. Ensure HQ tenant exists and is active under ScholarMind HQ company
         const existingHqTenant = await client.query<{ id: string }>(
             `SELECT id FROM tenants WHERE upper(code) = $1 LIMIT 1`,
@@ -84,28 +94,31 @@ async function setup() {
                      company_id = $3,
                      domain = COALESCE(domain, 'hq.scholarmind.app'),
                      email = $4,
+                     email_enc = COALESCE($5, email_enc),
                      is_active = true,
                      updated_at = NOW()
-                 WHERE id = $5`,
+                 WHERE id = $6`,
                 [
                     PLATFORM_HQ_TENANT_CODE,
                     PLATFORM_HQ_COMPANY_NAME,
                     companyId,
-                    PERMANENT_PLATFORM_ADMIN_EMAIL,
+                    plaintextOwnerEmail,
+                    encryptedOwnerEmail,
                     hqTenantId,
                 ],
             );
             console.log('📦 Verified HQ tenant governance settings.');
         } else {
             const insertedTenant = await client.query<{ id: string }>(
-                `INSERT INTO tenants (name, code, domain, company_id, email, is_active)
-                 VALUES ($1, $2, 'hq.scholarmind.app', $3, $4, true)
+                `INSERT INTO tenants (name, code, domain, company_id, email, email_enc, is_active)
+                 VALUES ($1, $2, 'hq.scholarmind.app', $3, $4, $5, true)
                  RETURNING id`,
                 [
                     PLATFORM_HQ_COMPANY_NAME,
                     PLATFORM_HQ_TENANT_CODE,
                     companyId,
-                    PERMANENT_PLATFORM_ADMIN_EMAIL,
+                    plaintextOwnerEmail,
+                    encryptedOwnerEmail,
                 ],
             );
             hqTenantId = insertedTenant.rows[0].id;
@@ -113,12 +126,6 @@ async function setup() {
         }
 
         // 3. Upsert & lock permanent full admin (`singhaditya21@gmail.com`) onto HQ
-        const emailCandidates = hasPiiKey
-            ? encryptEmailCandidates(PERMANENT_PLATFORM_ADMIN_EMAIL)
-            : [];
-        const encryptedOwnerEmail = hasPiiKey
-            ? encryptEmail(PERMANENT_PLATFORM_ADMIN_EMAIL)
-            : null;
 
         const existingOwner = await client.query<{ id: string }>(
             `SELECT id

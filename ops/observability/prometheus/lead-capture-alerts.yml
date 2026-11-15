@@ -1,0 +1,47 @@
+groups:
+  - name: school-sis-lead-capture
+    interval: 30s
+    rules:
+      - alert: SchoolSisLeadCaptureFailureSpike
+        expr: sum(increase(school_sis_lead_capture_requests_total{outcome="failed"}[10m])) >= 3
+        for: 0m
+        labels:
+          severity: critical
+          service: school-sis-web
+        annotations:
+          summary: School SIS public lead capture is failing
+          description: Three or more /api/leads requests failed persistence or threw an unhandled error within 10 minutes.
+          runbook_url: docs/operations/GO_LIVE_INTEGRATIONS.md#4-lead-capture-bot-protection-cloudflare-turnstile
+
+      - alert: SchoolSisLeadCaptureProxyAuthFailures
+        expr: sum(increase(school_sis_lead_capture_requests_total{outcome="unauthorized"}[10m])) >= 5
+        for: 2m
+        labels:
+          severity: warning
+          service: school-sis-web
+        annotations:
+          summary: Repeated unauthorized /api/leads proxy attempts
+          description: Five or more requests hit /api/leads without a matching LEAD_CAPTURE_PROXY_SECRET in 10 minutes.
+          runbook_url: docs/operations/GO_LIVE_INTEGRATIONS.md
+
+      - alert: SchoolSisLeadCaptureSpamSurge
+        expr: sum(increase(school_sis_lead_capture_requests_total{outcome=~"bot_screened|rate_limited|captcha_failed"}[15m])) >= 25
+        for: 5m
+        labels:
+          severity: warning
+          service: school-sis-web
+        annotations:
+          summary: Elevated bot, CAPTCHA, or rate-limit rejections on lead intake
+          description: Twenty-five or more inbound lead attempts were screened as bots, rate-limited, or failed Turnstile verification in 15 minutes.
+          runbook_url: docs/operations/GO_LIVE_INTEGRATIONS.md#4-lead-capture-bot-protection-cloudflare-turnstile
+
+      - alert: SchoolSisLeadCrmRoutingFailures
+        expr: sum(school_sis_marketing_leads_crm{status="FAILED"}) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: school-sis-web
+        annotations:
+          summary: Marketing leads failed external CRM webhook delivery
+          description: One or more marketing leads in the last 7 days are in FAILED CRM routing state. Verify LEAD_CRM_WEBHOOK_URL and LEAD_CRM_WEBHOOK_SECRET or inspect /hq/leads.
+          runbook_url: docs/operations/GO_LIVE_INTEGRATIONS.md#5-zero-cost-0--0-provider-recipes-for-optional-capabilities

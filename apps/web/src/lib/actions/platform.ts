@@ -214,8 +214,8 @@ export async function createTenantAction(formData: FormData) {
 
         // 2. Create Tenant bounded to Company
         const tenantRows = await sql<{ id: string }>`
-            INSERT INTO tenants (name, code, domain, email, company_id, is_active) 
-            VALUES (${name}, ${tenantCode}, ${domainUrl}, ${adminEmail}, ${newCompany.id}, ${true}) RETURNING id
+            INSERT INTO tenants (name, code, domain, email_enc, company_id, is_active) 
+            VALUES (${name}, ${tenantCode}, ${domainUrl}, ${encryptEmail(adminEmail)}, ${newCompany.id}, ${true}) RETURNING id
         `;
         const newTenant = tenantRows[0];
 

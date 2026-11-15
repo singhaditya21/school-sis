@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { decryptFieldTolerant, encryptEmail, encryptPhone } from '@/lib/encryption';
 import { isInstitutionType, type InstitutionType } from './constants';
 
 /**
@@ -70,8 +71,8 @@ const SCHOOL_PROFILE_COLUMNS = `
     city,
     state,
     pincode,
-    phone,
-    email,
+    COALESCE(phone_enc, phone) AS phone,
+    COALESCE(email_enc, email) AS email,
     website,
     affiliation_board AS "affiliationBoard",
     affiliation_number AS "affiliationNumber",
@@ -87,7 +88,13 @@ export async function getSchoolProfile(): Promise<SchoolProfile | null> {
         [tenantId],
     );
 
-    return (rows[0] as SchoolProfile | undefined) ?? null;
+    const row = rows[0] as SchoolProfile | undefined;
+    if (!row) return null;
+    return {
+        ...row,
+        phone: row.phone == null ? null : decryptFieldTolerant(row.phone) || null,
+        email: row.email == null ? null : decryptFieldTolerant(row.email) || null,
+    };
 }
 
 function trimmed(value: unknown): string {
@@ -193,8 +200,10 @@ export async function updateSchoolProfileAction(
                 city = $6,
                 state = $7,
                 pincode = $8,
-                phone = $9,
-                email = $10,
+                phone = NULL,
+                phone_enc = $9,
+                email = NULL,
+                email_enc = $10,
                 website = $11,
                 affiliation_board = $12,
                 affiliation_number = $13,
@@ -210,8 +219,8 @@ export async function updateSchoolProfileAction(
             orNull(values.city),
             orNull(values.state),
             orNull(values.pincode),
-            orNull(values.phone),
-            orNull(values.email),
+            values.phone.length > 0 ? encryptPhone(values.phone) : null,
+            values.email.length > 0 ? encryptEmail(values.email) : null,
             orNull(values.website),
             orNull(values.affiliationBoard),
             orNull(values.affiliationNumber),

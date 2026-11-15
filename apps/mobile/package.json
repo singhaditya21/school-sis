@@ -22,7 +22,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm --dir ../web exec jest src/__tests__/mobile-companion-security.test.ts"
   },
   "private": true
 }

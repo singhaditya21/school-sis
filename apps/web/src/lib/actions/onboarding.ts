@@ -162,8 +162,8 @@ async function setupSchoolWorkspaceWithBypass(formData: FormData) {
             companyId = companyRows[0].id;
 
             const tenantRows = await q<{ id: string; tenantSessionVersion?: number }>`
-                INSERT INTO tenants (company_id, name, code, domain, email, is_active)
-                VALUES (${companyId}, ${schoolName}, ${tenantCode}, ${domainUrl}, ${email}, ${true})
+                INSERT INTO tenants (company_id, name, code, domain, email_enc, is_active)
+                VALUES (${companyId}, ${schoolName}, ${tenantCode}, ${domainUrl}, ${encryptEmail(email)}, ${true})
                 RETURNING id, session_version AS "tenantSessionVersion"
             `;
             tenant = tenantRows[0];

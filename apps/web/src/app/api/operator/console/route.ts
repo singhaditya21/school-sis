@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext } from '@/lib/db';
+import { pool, RLS_BYPASS_JUSTIFICATIONS, runWithRlsBypass, runWithTenantContext, sql } from '@/lib/db';
 import { getDatabaseHealth } from '@/lib/observability/snapshot';
 import { requireApiAuth, ROLE_GROUPS } from '@/lib/auth/api';
 import { isValidTenantId } from '@/lib/tenant/isolation';
@@ -10,12 +10,14 @@ import {
   filterOperatorTilesForContext,
   type OperatorConsoleMetrics,
   type OperatorConsoleScope,
+  type OperatorNotificationChannelMetrics,
 } from '../../../../../../../packages/api/src/operations/operator-console';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 type CountRow = { count: string | number };
+type ChannelStatusCountRow = { channel: string; status: string; count: string | number };
 
 function firstCount(rows: CountRow[]): number {
   return Number(rows[0]?.count || 0);
@@ -57,6 +59,9 @@ async function collectOperatorConsoleMetrics(
     const failedNotifications = scopedWhere(scope, tenantId, "status = 'FAILED'");
     const deadNotifications = scopedWhere(scope, tenantId, "status = 'DEAD_LETTER'");
     const queuedNotifications = scopedWhere(scope, tenantId, "status IN ('PENDING', 'QUEUED')");
+    const sentNotifications = scopedWhere(scope, tenantId, "status = 'SENT'");
+    const deliveredNotifications = scopedWhere(scope, tenantId, "status = 'DELIVERED'");
+    const suppressedNotifications = scopedWhere(scope, tenantId, "status = 'SUPPRESSED'");
     const unreconciledOrders = scopedWhere(scope, tenantId, "status IN ('FAILED', 'REQUIRES_ACTION', 'CANCELLED')");
     const failedProviderEvents = scopedWhere(scope, tenantId, "status IN ('FAILED', 'ERROR')");
     const failingConnections = scopedWhere(scope, tenantId, "status IN ('FAILED', 'ERROR')");
@@ -85,6 +90,10 @@ async function collectOperatorConsoleMetrics(
       notificationsFailed,
       notificationsDead,
       notificationsQueued,
+      notificationsSent,
+      notificationsDelivered,
+      notificationsSuppressed,
+      notificationsByChannelResult,
       ordersUnreconciled,
       providerEventsFailed,
       connectionsFailing,
@@ -112,6 +121,21 @@ async function collectOperatorConsoleMetrics(
       count(`SELECT COUNT(*)::int AS count FROM notification_outbox ${failedNotifications.where}`, failedNotifications.values),
       count(`SELECT COUNT(*)::int AS count FROM notification_outbox ${deadNotifications.where}`, deadNotifications.values),
       count(`SELECT COUNT(*)::int AS count FROM notification_outbox ${queuedNotifications.where}`, queuedNotifications.values),
+      count(`SELECT COUNT(*)::int AS count FROM notification_outbox ${sentNotifications.where}`, sentNotifications.values),
+      count(`SELECT COUNT(*)::int AS count FROM notification_outbox ${deliveredNotifications.where}`, deliveredNotifications.values),
+      count(`SELECT COUNT(*)::int AS count FROM notification_outbox ${suppressedNotifications.where}`, suppressedNotifications.values),
+      scope === 'TENANT'
+        ? sql<ChannelStatusCountRow>`
+            SELECT channel, status, COUNT(*)::int AS count
+            FROM notification_outbox
+            WHERE tenant_id = ${tenantId}
+            GROUP BY channel, status
+          `
+        : sql<ChannelStatusCountRow>`
+            SELECT channel, status, COUNT(*)::int AS count
+            FROM notification_outbox
+            GROUP BY channel, status
+          `,
       count(`SELECT COUNT(*)::int AS count FROM payment_orders ${unreconciledOrders.where}`, unreconciledOrders.values),
       count(`SELECT COUNT(*)::int AS count FROM payment_provider_events ${failedProviderEvents.where}`, failedProviderEvents.values),
       count(`SELECT COUNT(*)::int AS count FROM integration_connections ${failingConnections.where}`, failingConnections.values),
@@ -131,6 +155,28 @@ async function collectOperatorConsoleMetrics(
       count(`SELECT COUNT(*)::int AS count FROM metadata_migration_jobs ${failedMetadataMigrations.where}`, failedMetadataMigrations.values),
     ]);
 
+    const byChannel: Record<string, OperatorNotificationChannelMetrics> = {};
+    for (const row of notificationsByChannelResult) {
+      const ch = row.channel || 'UNKNOWN';
+      if (!byChannel[ch]) {
+        byChannel[ch] = {
+          queued: 0,
+          sent: 0,
+          delivered: 0,
+          failed: 0,
+          deadLettered: 0,
+          suppressed: 0,
+        };
+      }
+      const n = Number(row.count || 0);
+      if (row.status === 'PENDING' || row.status === 'QUEUED') byChannel[ch].queued += n;
+      else if (row.status === 'SENT') byChannel[ch].sent += n;
+      else if (row.status === 'DELIVERED') byChannel[ch].delivered += n;
+      else if (row.status === 'FAILED') byChannel[ch].failed += n;
+      else if (row.status === 'DEAD_LETTER') byChannel[ch].deadLettered += n;
+      else if (row.status === 'SUPPRESSED') byChannel[ch].suppressed += n;
+    }
+
     return {
       database,
       tenants: {
@@ -147,6 +193,10 @@ async function collectOperatorConsoleMetrics(
         failed: notificationsFailed,
         deadLettered: notificationsDead,
         queued: notificationsQueued,
+        sent: notificationsSent,
+        delivered: notificationsDelivered,
+        suppressed: notificationsSuppressed,
+        byChannel,
       },
       payments: {
         unreconciledOrders: ordersUnreconciled,

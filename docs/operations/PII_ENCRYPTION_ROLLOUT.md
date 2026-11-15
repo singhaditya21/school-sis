@@ -45,7 +45,7 @@ Migrations live in `apps/web/drizzle` (+ `db:types` regen from a migrated DB).
 Use the protected two-release rotation procedure in
 [`docs/operations/PII_KEY_ROTATION.md`](./PII_KEY_ROTATION.md); never replace a key in place.
 
-## Field inventory, by risk (do top-down)
+## Field inventory, by risk (all expand + dual-read + encrypted-write + backfill/rotation slices complete)
 
 ### ✅ Done
 - **Pilot** (migration `0009`): `students.aadhaar_number`, `students.apaar_id`,
@@ -53,22 +53,30 @@ Use the protected two-release rotation procedure in
 - **visitors** (migration `0010`): `visitors.phone`, `visitors.email` — no equality
   lookup and no sort/search, so the cleanest case; contained to `lib/actions/visitor.ts`.
 - **guardians** (migration `0011`): `guardians.email`/`phone`/`alternate_phone` — the
-  highest-value contact PII (every notification path), across 5 files (messages, student
-  record, absence SMS, admissions INSERT, erasure). No value-equality lookup.
+  highest-value contact PII (every notification path + WhatsApp concierge candidate lookup),
+  unified on canonical `"email"` / `"phone"` deterministic purposes.
 - **small batch** (migration `0012`): `alumni_profiles.email`/`phone` (email keeps a
   case-insensitive uniqueness check → `encryptEmail` on ciphertext), `host_families.phone`,
   `health_records.emergency_phone`/`doctor_phone`.
 - **login identifier** (migration `0013`): `users.email`; password, SSO, onboarding,
   platform, user-management, and SCIM equality paths use rotation-safe candidates.
+- **international & marketing leads** (migrations `0014`–`0015`): `marketing_leads.contact_email`
+  (`contact_email_enc`) and `student_visas.passport_number` (`passport_number_enc`).
+- **admissions, HR financials & user phone** (migration `0017`): `admission_leads.parent_email` /
+  `.parent_phone` (`parent_email_enc` / `parent_phone_enc`), `staff_profiles.pan_number` /
+  `.bank_account` (`pan_number_enc` / `bank_account_enc`), `users.phone` (`phone_enc`), and
+  `tenants.email` (`email_enc`).
+- **tenant phone & message recipient contact fields** (migration `0021`): `tenants.phone`
+  (`phone_enc`) and `messages.recipient_email` / `.recipient_phone` (`recipient_email_enc` /
+  `recipient_phone_enc`), with dual-read (`COALESCE(*_enc, *)` + `decryptFieldTolerant`) and
+  encrypted writes across school settings, compliance, campus profile, receipts/report-card PDFs,
+  teacher profile, onboarding/HQ provisioning, pilot group provisioning, backfill
+  (`scripts/backfill-encrypt-pii-identifiers.ts`), and key rotation (`scripts/rotate-pii-encryption.ts`).
 
-### Medium — remaining
-- `admission_leads.parent_email` / `.parent_phone`, `marketing_leads.contact_email`
-  (lead-capture tables — pair with the #31 lead-consent work).
-
-### High-risk — auth and/or search; do LAST, with the most testing
-- `users.phone`, `tenants.email` / `tenants.phone`
-- `messages.recipient_email` / `.recipient_phone` (delivery + the new receipt webhooks
-  match on `provider_message_id`, not these, so they are display-only here)
+### Post-backfill contract phase (future destructive maintenance only)
+- Legacy nullable plaintext columns remain strictly quarantined behind `PROTECTED_LEGACY_PLAINTEXT_COLUMNS`
+  in `apps/web/src/lib/metadata/access-control.ts` and NULLed on write/backfill. Dropping any legacy
+  column requires a separate approved maintenance window per `docs/operations/devops/README.md`.
 
 ## Why this isn't done in one commit
 

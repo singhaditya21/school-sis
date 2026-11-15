@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { pool } from '@/lib/db';
+import { pool, sql } from '@/lib/db';
 import { decryptFieldTolerant } from '@/lib/encryption';
 import { sendWebhookRequest } from '@/lib/integrations/webhook-security';
 import {
@@ -54,11 +54,18 @@ async function markLeadCrmFailure(leadId: string, error: string): Promise<void> 
 
 export async function routeMarketingLead(payload: Record<string, unknown>): Promise<unknown> {
   const leadId = stringValue(payload, 'leadId');
-  const webhookUrl = process.env.LEAD_CRM_WEBHOOK_URL;
+  const webhookUrl = process.env.LEAD_CRM_WEBHOOK_URL?.trim();
   const webhookSecret = process.env.LEAD_CRM_WEBHOOK_SECRET;
 
   try {
-    if (!webhookUrl) throw new Error('LEAD_CRM_WEBHOOK_URL is not configured.');
+    if (!webhookUrl) {
+      await sql`
+        UPDATE marketing_leads
+           SET crm_status = 'INTERNAL_QUEUE', crm_last_attempt_at = NOW(), crm_error = NULL
+         WHERE id = ${leadId}
+      `.execute();
+      return { leadId, routed: false, mode: 'internal_hq_queue' };
+    }
     const parsedUrl = new URL(webhookUrl);
     if (process.env.NODE_ENV === 'production' && parsedUrl.protocol !== 'https:') {
       throw new Error('LEAD_CRM_WEBHOOK_URL must use HTTPS in production.');

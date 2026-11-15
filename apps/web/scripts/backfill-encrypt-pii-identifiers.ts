@@ -1,14 +1,11 @@
 /**
- * One-off backfill for the PII encryption pilot (migration 0009).
+ * Idempotent PII-at-rest encryption backfill across all national, financial, and contact
+ * identifier columns (`0009` through `0021`).
  *
- * Copies each existing plaintext national identifier into its `<col>_enc` column as
- * deterministic ciphertext and NULLs the plaintext, for:
- *   students.apaar_id → apaar_id_enc
- *   students.aadhaar_number → aadhaar_number_enc
- *   staff_profiles.aadhaar_number → aadhaar_number_enc
+ * Copies each existing plaintext value into its `<col>_enc` column as versioned AEAD
+ * ciphertext (`det.v2` or `rnd.v2`) and NULLs the legacy plaintext column.
  *
- * Idempotent (skips rows already migrated) and safe to re-run. Run once per
- * environment AFTER 0009 is applied, with PII_ENCRYPTION_KEY set:
+ * Safe to re-run (skips rows already migrated):
  *   DATABASE_URL=… PII_ENCRYPTION_KEY=… \
  *     pnpm --filter @school-sis/web exec tsx scripts/backfill-encrypt-pii-identifiers.ts
  */
@@ -16,33 +13,15 @@ import { Pool } from "pg";
 import { resolveDatabaseConnectionOptions } from "../../../packages/api/src/db/ssl";
 import {
   decryptFieldTolerant,
-  encryptIdNumber,
+  encrypt,
   encryptDeterministic,
   encryptEmail,
+  encryptIdNumber,
   encryptPhone,
 } from "@/lib/encryption";
 
-const connectionString =
-  process.env.DIRECT_URL ||
-  process.env.DATABASE_URL_UNPOOLED ||
-  process.env.DATABASE_URL;
-if (!connectionString) {
-  console.error(
-    "❌ DIRECT_URL, DATABASE_URL_UNPOOLED, or DATABASE_URL is required.",
-  );
-  process.exit(1);
-}
-
-const pool = new Pool({
-  ...resolveDatabaseConnectionOptions(connectionString),
-  max: 4,
-});
-
 // Table/column names are fixed constants below — never interpolate untrusted input.
-// `encrypt` is the field's own policy: id numbers normalise (encryptIdNumber, for the
-// equality dedup); free-text contact values preserve their exact form
-// (encryptDeterministic), since nothing looks them up by value.
-const TARGETS = [
+export const BACKFILL_TARGETS = [
   {
     table: "students",
     plain: "apaar_id",
@@ -60,6 +39,18 @@ const TARGETS = [
     plain: "aadhaar_number",
     enc: "aadhaar_number_enc",
     encrypt: encryptIdNumber,
+  },
+  {
+    table: "staff_profiles",
+    plain: "pan_number",
+    enc: "pan_number_enc",
+    encrypt: encryptIdNumber,
+  },
+  {
+    table: "staff_profiles",
+    plain: "bank_account",
+    enc: "bank_account_enc",
+    encrypt,
   },
   {
     table: "visitors",
@@ -103,7 +94,6 @@ const TARGETS = [
     enc: "parent_phone_enc",
     encrypt: encryptPhone,
   },
-  // alumni email keeps a case-insensitive uniqueness check → encryptEmail (normalising).
   {
     table: "alumni_profiles",
     plain: "email",
@@ -139,8 +129,33 @@ const TARGETS = [
       encryptDeterministic(value, "health-records.doctor-phone"),
   },
   // users.email is the LOGIN identifier — encryptEmail (normalising) so every login
-  // lookup's encryptEmail(input) matches the stored value. Highest-risk; verify sign-in.
+  // lookup's encryptEmail(input) matches the stored value.
   { table: "users", plain: "email", enc: "email_enc", encrypt: encryptEmail },
+  { table: "users", plain: "phone", enc: "phone_enc", encrypt: encryptPhone },
+  {
+    table: "tenants",
+    plain: "email",
+    enc: "email_enc",
+    encrypt: encryptEmail,
+  },
+  {
+    table: "tenants",
+    plain: "phone",
+    enc: "phone_enc",
+    encrypt: encryptPhone,
+  },
+  {
+    table: "messages",
+    plain: "recipient_email",
+    enc: "recipient_email_enc",
+    encrypt: encryptEmail,
+  },
+  {
+    table: "messages",
+    plain: "recipient_phone",
+    enc: "recipient_phone_enc",
+    encrypt: encryptPhone,
+  },
   {
     table: "marketing_leads",
     plain: "contact_email",
@@ -161,7 +176,10 @@ const TARGETS = [
 
 const BATCH = 500;
 
-async function backfill(target: (typeof TARGETS)[number]): Promise<number> {
+async function backfill(
+  pool: Pool,
+  target: (typeof BACKFILL_TARGETS)[number],
+): Promise<number> {
   const { table, plain, enc } = target;
   let migrated = 0;
   for (;;) {
@@ -204,7 +222,7 @@ const PURPOSE_UNIFICATION_TARGETS = [
   },
 ] as const;
 
-async function reencryptLegacyGuardianPurposes(): Promise<number> {
+async function reencryptLegacyGuardianPurposes(pool: Pool): Promise<number> {
   let updated = 0;
   for (const target of PURPOSE_UNIFICATION_TARGETS) {
     let targetUpdated = 0;
@@ -233,19 +251,42 @@ async function reencryptLegacyGuardianPurposes(): Promise<number> {
 }
 
 async function main(): Promise<void> {
-  console.info("🔐 Backfilling encrypted national & contact identifiers…");
-  let total = 0;
-  for (const target of TARGETS) {
-    const n = await backfill(target);
-    console.info(`✓ ${target.table}.${target.plain}: ${n} value(s) encrypted`);
-    total += n;
+  const connectionString =
+    process.env.DIRECT_URL ||
+    process.env.DATABASE_URL_UNPOOLED ||
+    process.env.DATABASE_URL;
+  if (!connectionString) {
+    console.error(
+      "❌ DIRECT_URL, DATABASE_URL_UNPOOLED, or DATABASE_URL is required.",
+    );
+    process.exit(1);
   }
-  const unified = await reencryptLegacyGuardianPurposes();
-  console.info(`Done — ${total} value(s) encrypted, ${unified} legacy purpose row(s) unified.`);
-  await pool.end();
+
+  const pool = new Pool({
+    ...resolveDatabaseConnectionOptions(connectionString),
+    max: 4,
+  });
+
+  try {
+    console.info("🔐 Backfilling encrypted national & contact identifiers…");
+    let total = 0;
+    for (const target of BACKFILL_TARGETS) {
+      const n = await backfill(pool, target);
+      console.info(`✓ ${target.table}.${target.plain}: ${n} value(s) encrypted`);
+      total += n;
+    }
+    const unified = await reencryptLegacyGuardianPurposes(pool);
+    console.info(
+      `Done — ${total} value(s) encrypted, ${unified} legacy purpose row(s) unified.`,
+    );
+  } finally {
+    await pool.end();
+  }
 }
 
-main().catch((error) => {
-  console.error("Backfill failed:", error);
-  process.exit(1);
-});
+if (process.argv[1]?.includes("backfill-encrypt-pii-identifiers")) {
+  main().catch((error) => {
+    console.error("Backfill failed:", error);
+    process.exit(1);
+  });
+}

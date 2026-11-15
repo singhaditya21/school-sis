@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -151,8 +152,8 @@ export async function getReceiptDocument(receiptId: string): Promise<ReceiptDeta
             t.city                  AS "schoolCity",
             t.state                 AS "schoolState",
             t.pincode               AS "schoolPincode",
-            t.phone                 AS "schoolPhone",
-            t.email                 AS "schoolEmail",
+            COALESCE(t.phone_enc, t.phone) AS "schoolPhone",
+            COALESCE(t.email_enc, t.email) AS "schoolEmail",
             t.affiliation_board     AS "affiliationBoard",
             t.udise_code            AS "udiseCode"
         FROM receipts r
@@ -166,7 +167,13 @@ export async function getReceiptDocument(receiptId: string): Promise<ReceiptDeta
         [receiptId, tenantId],
     );
 
-    return rows.length > 0 ? rows[0] : null;
+    const row = rows[0];
+    if (!row) return null;
+    return {
+        ...row,
+        schoolPhone: row.schoolPhone == null ? null : decryptFieldTolerant(row.schoolPhone) || null,
+        schoolEmail: row.schoolEmail == null ? null : decryptFieldTolerant(row.schoolEmail) || null,
+    };
 }
 
 /**

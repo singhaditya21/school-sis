@@ -36,9 +36,26 @@
  */
 
 import { pool, runWithRlsBypass, RLS_BYPASS_JUSTIFICATIONS } from '@/lib/db';
+import { encryptEmail, encryptPhone } from '@/lib/encryption';
 import { hash } from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
 import type { PoolClient } from 'pg';
+
+const hasPiiKey =
+    Boolean(process.env.PII_ENCRYPTION_KEY && process.env.PII_ENCRYPTION_KEY.length >= 32) ||
+    Boolean(
+        process.env.NODE_ENV !== 'production' &&
+            process.env.ENCRYPTION_KEY &&
+            process.env.ENCRYPTION_KEY.length >= 32,
+    );
+
+function storeEmail(value: string): [string | null, string | null] {
+    return hasPiiKey ? [null, encryptEmail(value)] : [value, null];
+}
+
+function storePhone(value: string): [string | null, string | null] {
+    return hasPiiKey ? [null, encryptPhone(value)] : [value, null];
+}
 
 // ─── The group ──────────────────────────────────────────────────────────────
 
@@ -266,16 +283,18 @@ async function provisionBranch(
 
     const rng = makeRandom(branch.code);
 
+    const [branchPhone, branchPhoneEnc] = storePhone(pilotPhone(1));
+    const [branchEmail, branchEmailEnc] = storeEmail(pilotEmail('office', branch.code));
     const { rows: tenantRows } = await client.query<{ id: string }>(
         `INSERT INTO tenants
              (company_id, name, code, domain, institution_type, address, city, state,
-              pincode, phone, email, affiliation_board, is_active)
-         VALUES ($1,$2,$3,$4,'K12',$5,$6,$7,$8,$9,$10,'CBSE',true)
+              pincode, phone, phone_enc, email, email_enc, affiliation_board, is_active)
+         VALUES ($1,$2,$3,$4,'K12',$5,$6,$7,$8,$9,$10,$11,$12,'CBSE',true)
          RETURNING id`,
         [
             companyId, branch.name, branch.code, `${branch.code}.scholarmind.app`,
             branch.address, branch.city, branch.state, branch.pincode,
-            pilotPhone(1), pilotEmail('office', branch.code),
+            branchPhone, branchPhoneEnc, branchEmail, branchEmailEnc,
         ],
     );
     const tenantId = tenantRows[0].id;
@@ -321,12 +340,16 @@ async function provisionBranch(
             staffIndex += 1;
             const first = pick(rng, rng() > 0.5 ? FATHER_NAMES : MOTHER_NAMES);
             const last = pick(rng, SURNAMES);
+            const [staffEmail, staffEmailEnc] = storeEmail(
+                pilotEmail(`${first}.${last}.${staffIndex}`, branch.code),
+            );
             const { rows: staffRows } = await client.query<{ id: string }>(
-                `INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role, is_active)
-                 VALUES ($1,$2,$3,$4,$5,$6::user_role,true) RETURNING id`,
+                `INSERT INTO users (tenant_id, email, email_enc, password_hash, first_name, last_name, role, is_active)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7::user_role,true) RETURNING id`,
                 [
                     tenantId,
-                    pilotEmail(`${first}.${last}.${staffIndex}`, branch.code),
+                    staffEmail,
+                    staffEmailEnc,
                     lockedHash, first, last, role,
                 ],
             );
@@ -396,27 +419,30 @@ async function provisionBranch(
         const studentId = studentRows[0].id;
 
         const guardianEmail = pilotEmail(`${first}.${last}.parent.${i + 1}`, branch.code);
+        const [parentEmail, parentEmailEnc] = storeEmail(guardianEmail);
+        const [fatherPhone, fatherPhoneEnc] = storePhone(pilotPhone(i * 2 + 10));
+        const [motherPhone, motherPhoneEnc] = storePhone(pilotPhone(i * 2 + 11));
         const { rows: parentRows } = await client.query<{ id: string }>(
-            `INSERT INTO users (tenant_id, email, password_hash, first_name, last_name, role, is_active)
-             VALUES ($1,$2,$3,$4,$5,'PARENT',true) RETURNING id`,
-            [tenantId, guardianEmail, lockedHash, pick(rng, FATHER_NAMES), last],
+            `INSERT INTO users (tenant_id, email, email_enc, password_hash, first_name, last_name, role, is_active)
+             VALUES ($1,$2,$3,$4,$5,$6,'PARENT',true) RETURNING id`,
+            [tenantId, parentEmail, parentEmailEnc, lockedHash, pick(rng, FATHER_NAMES), last],
         );
 
         await client.query(
             `INSERT INTO guardians
-                 (tenant_id, user_id, student_id, relation, first_name, last_name, email,
-                  phone, occupation, is_primary, is_emergency_contact)
-             VALUES ($1,$2,$3,'FATHER',$4,$5,$6,$7,$8,true,true)`,
+                 (tenant_id, user_id, student_id, relation, first_name, last_name, email, email_enc,
+                  phone, phone_enc, occupation, is_primary, is_emergency_contact)
+             VALUES ($1,$2,$3,'FATHER',$4,$5,$6,$7,$8,$9,$10,true,true)`,
             [
                 tenantId, parentRows[0].id, studentId, pick(rng, FATHER_NAMES), last,
-                guardianEmail, pilotPhone(i * 2 + 10), pick(rng, OCCUPATIONS),
+                parentEmail, parentEmailEnc, fatherPhone, fatherPhoneEnc, pick(rng, OCCUPATIONS),
             ],
         );
         await client.query(
             `INSERT INTO guardians
-                 (tenant_id, student_id, relation, first_name, last_name, phone, is_primary)
-             VALUES ($1,$2,'MOTHER',$3,$4,$5,false)`,
-            [tenantId, studentId, pick(rng, MOTHER_NAMES), last, pilotPhone(i * 2 + 11)],
+                 (tenant_id, student_id, relation, first_name, last_name, phone, phone_enc, is_primary)
+             VALUES ($1,$2,'MOTHER',$3,$4,$5,$6,false)`,
+            [tenantId, studentId, pick(rng, MOTHER_NAMES), last, motherPhone, motherPhoneEnc],
         );
 
         // A believable collection position: most paid, some part-paid, some open.

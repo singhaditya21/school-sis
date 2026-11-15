@@ -5,6 +5,7 @@ import { consumeRateLimit } from '@/lib/auth/rate-limit';
 import { parseLeadIntake } from '@/lib/marketing/lead-intake';
 import { verifyTurnstileToken } from '@/lib/marketing/turnstile';
 import { logger } from '@/lib/observability/logger';
+import { recordLeadCaptureOutcome } from '@/lib/observability/metrics';
 
 function clientIpFrom(request: Request): string {
     return (
@@ -38,12 +39,14 @@ function json(body: Record<string, unknown>, status = 200) {
 export async function POST(request: Request) {
     try {
         if (!authorizedLeadProxy(request)) {
+            recordLeadCaptureOutcome('unauthorized');
             return json({ error: 'Lead intake is unavailable.' }, process.env.LEAD_CAPTURE_PROXY_SECRET ? 401 : 503);
         }
 
         const formData = await request.formData();
         const parsed = parseLeadIntake(formData);
         if ('bot' in parsed) {
+            recordLeadCaptureOutcome(parsed.bot ? 'bot_screened' : 'invalid');
             return parsed.bot ? json({ success: true }, 202) : json({ error: parsed.error }, 400);
         }
 
@@ -55,6 +58,7 @@ export async function POST(request: Request) {
             message: 'Too many lead submissions. Please try again later.',
         });
         if (ipLimitError) {
+            recordLeadCaptureOutcome('rate_limited');
             return json({ error: ipLimitError }, 429);
         }
 
@@ -64,6 +68,7 @@ export async function POST(request: Request) {
             remoteIp: clientIpFrom(request),
         });
         if (!captcha.ok) {
+            recordLeadCaptureOutcome('captcha_failed');
             logger.warn('lead_capture.captcha_failed', 'Lead submission failed human verification', {
                 source: 'api',
                 metadata: { reason: captcha.reason, ip: clientIpFrom(request) },
@@ -79,6 +84,7 @@ export async function POST(request: Request) {
             message: 'Too many lead submissions for this email. Please try again later.',
         });
         if (emailLimitError) {
+            recordLeadCaptureOutcome('rate_limited');
             return json({ error: emailLimitError }, 429);
         }
 
@@ -89,11 +95,14 @@ export async function POST(request: Request) {
         });
 
         if (result.error) {
+            recordLeadCaptureOutcome('failed');
             return json({ error: result.error }, 400);
         }
 
+        recordLeadCaptureOutcome('accepted');
         return json({ success: true });
     } catch (error) {
+        recordLeadCaptureOutcome('failed');
         logger.error('lead_capture.failed', 'Lead capture request failed', {
             source: 'api',
             metadata: { error: error instanceof Error ? error.message : String(error) },

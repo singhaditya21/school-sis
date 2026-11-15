@@ -171,10 +171,10 @@ export async function provisionTenantFromLeadAction(input: {
             companyId = companyRes.rows[0].id;
 
             const tenantRes = await client.query<{ id: string }>(
-                `INSERT INTO tenants (name, code, domain, email, company_id, is_active)
+                `INSERT INTO tenants (name, code, domain, email_enc, company_id, is_active)
                  VALUES ($1, $2, $3, $4, $5, true)
                  RETURNING id`,
-                [schoolName, tenantCode, domainUrl, adminEmail, companyId],
+                [schoolName, tenantCode, domainUrl, encryptEmail(adminEmail), companyId],
             );
             tenantId = tenantRes.rows[0].id;
 

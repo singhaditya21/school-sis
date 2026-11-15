@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { decryptFieldTolerant } from '@/lib/encryption';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,7 +74,9 @@ export default async function CompliancePage() {
         await Promise.all([
             pool.query<TenantRow>(
                 `SELECT name, udise_code, affiliation_board, affiliation_number,
-                        address, city, state, pincode, phone, email
+                        address, city, state, pincode,
+                        COALESCE(phone_enc, phone) AS phone,
+                        COALESCE(email_enc, email) AS email
                    FROM tenants
                   WHERE id = $1`,
                 [tenantId],
@@ -97,7 +100,7 @@ export default async function CompliancePage() {
             pool.query<StaffCoverageRow>(
                 `SELECT count(*)::int AS active,
                         count(*) FILTER (WHERE COALESCE(aadhaar_number_enc, aadhaar_number) IS NULL OR btrim(COALESCE(aadhaar_number_enc, aadhaar_number)) = '')::int AS no_aadhaar,
-                        count(*) FILTER (WHERE pan_number IS NULL OR btrim(pan_number) = '')::int AS no_pan,
+                        count(*) FILTER (WHERE COALESCE(pan_number_enc, pan_number) IS NULL OR btrim(COALESCE(pan_number_enc, pan_number)) = '')::int AS no_pan,
                         count(*) FILTER (WHERE qualification IS NULL OR btrim(qualification) = '')::int AS no_qualification
                    FROM staff_profiles
                   WHERE tenant_id = $1 AND status = 'ACTIVE'`,
@@ -149,8 +152,8 @@ export default async function CompliancePage() {
               { label: 'City', value: tenant.city },
               { label: 'State', value: tenant.state },
               { label: 'PIN code', value: tenant.pincode },
-              { label: 'Phone', value: tenant.phone },
-              { label: 'Email', value: tenant.email },
+              { label: 'Phone', value: tenant.phone ? decryptFieldTolerant(tenant.phone) : null },
+              { label: 'Email', value: tenant.email ? decryptFieldTolerant(tenant.email) : null },
           ]
         : [];
     const profileMissing = profileFields.filter((field) => !field.value?.trim()).length;

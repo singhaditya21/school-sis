@@ -13,27 +13,21 @@ to the browser by design; everything else is server-only. After changing env, re
 
 ## 1. PII encryption at rest (`PII_ENCRYPTION_KEY`)
 
-Deterministic-AEAD encryption for national identifiers. Migration `0009` adds the
-`*_enc` columns; the app encrypts on write and reads tolerantly.
+Deterministic-AEAD (`det.v2`) and randomized-AEAD (`rnd.v2`) encryption for national identifiers, financial numbers, and contact fields across migrations `0009`, `0014`, `0015`, `0017`, and `0021`. The application encrypts on write and dual-reads tolerantly during backfill/rotation.
 
 | Variable | Required | Notes |
 |---|---|---|
-| `PII_ENCRYPTION_KEY` | **yes** (already enforced in prod) | ≥ 32 chars, high-entropy. **Stable — do NOT rotate** without a full re-encryption pass; the ciphertext is keyed, so a new key orphans every encrypted value. |
+| `PII_ENCRYPTION_KEY` | **yes** (already enforced in prod) | ≥ 32 chars, high-entropy, or keyring format `k2:<secret>,k1:<oldSecret>`. **Stable — rotate only via [`PII_KEY_ROTATION.md`](./PII_KEY_ROTATION.md)** (`scripts/rotate-pii-encryption.ts`). |
 
 **Deploy order:**
-1. Apply migration `0009` (adds `students.apaar_id_enc`, `students.aadhaar_number_enc`,
-   `staff_profiles.aadhaar_number_enc`) via the usual prod DDL path.
+1. Apply expand-only migrations (`0009`–`0021`) via `deploy-production.yml` (`pnpm db:migrate:deploy -- --target production` against Neon).
 2. Run the one-off backfill (idempotent, safe to re-run):
    ```
    DATABASE_URL=… PII_ENCRYPTION_KEY=… \
-     pnpm --filter @school-sis/web exec tsx scripts/backfill-encrypt-pii-identifiers.ts
+     pnpm --filter @school-sis/web exec tsx scripts/backfill-encrypt-pii-identifiers.ts --apply
    ```
-3. Verify aadhaar/apaar read back correctly on the DigiLocker + compliance screens.
-4. The old plaintext `varchar` columns are dropped **later**, in a separate approved
-   destructive migration, once every environment is backfilled.
-
-Rollout beyond the aadhaar/apaar pilot (email/phone, `users.email` last) follows
-[`PII_ENCRYPTION_ROLLOUT.md`](./PII_ENCRYPTION_ROLLOUT.md).
+3. Verify zero pending plaintext or legacy key-ID rows via `scripts/rotate-pii-encryption.ts` (dry-run audit mode).
+4. Legacy plaintext columns are dropped **later**, only in a separate approved maintenance window per [`PII_ENCRYPTION_ROLLOUT.md`](./PII_ENCRYPTION_ROLLOUT.md).
 
 ---
 
@@ -41,8 +35,10 @@ Rollout beyond the aadhaar/apaar pilot (email/phone, `users.email` last) follows
 
 Endpoint: `POST/GET https://<host>/api/webhooks/whatsapp`.
 
+> **Cloud Mandate Note:** Application hosting is strictly **Vercel** and database is strictly **Neon**. Do not deploy secondary cloud VMs for core hosting; WAHA/Evolution below is solely an optional on-campus/LAN Docker bridge when a school prefers not to use Meta Cloud API.
+
 ### Option A — ₹0 / $0 Self-Hosted Open-Source Gateway (WAHA or Evolution API)
-Avoid paid BSP per-conversation markups by running the hardened Docker stack in [`ops/whatsapp/docker-compose.whatsapp-free.yml`](../../ops/whatsapp/docker-compose.whatsapp-free.yml) on any free VM (e.g., Oracle Cloud Always-Free) or school server behind TLS:
+Avoid paid BSP per-conversation markups by running the hardened Docker stack in [`ops/whatsapp/docker-compose.whatsapp-free.yml`](../../ops/whatsapp/docker-compose.whatsapp-free.yml) on an existing school server / campus machine behind HTTPS:
 
 ```bash
 WHATSAPP_WEBHOOK_SECRET=your_random_32_char_secret \
@@ -135,7 +131,7 @@ Every optional integration has a 100% free tier suitable for development, demos,
 - **AI Copilot (`apps/web/src/lib/ai/provider.ts`):** Set one or more free-tier keys for automatic ordered fallback: `CEREBRAS_API_KEY` (Cerebras Free), `GROQ_API_KEY` (Groq Free), `GEMINI_API_KEY` (Google AI Studio Free Tier), or `OLLAMA_BASE_URL` (local/self-hosted Ollama, ₹0).
 - **Object Storage (`R2_*`):** Cloudflare R2 includes 10 GB/month storage and zero egress fees on the free tier.
 - **Rate Limiting & Background Jobs:** Set `RATE_LIMIT_BACKEND=postgres` and `JOB_QUEUE_MODE=database` to reuse Neon Free Tier without paying for Redis/Upstash; `.github/workflows/jobs-dispatch.yml` triggers `/api/jobs/dispatch` for free on GitHub Actions.
-- **Marketing Lead CRM:** Leads are encrypted and stored durably in Neon (`/hq/leads`) at ₹0. For external sheet/CRM notifications without a paid CRM, point `MARKETING_CRM_WEBHOOK_URL` at a free Google Apps Script Web App.
+- **Marketing Lead CRM (`LEAD_CRM_WEBHOOK_URL` + `LEAD_CRM_WEBHOOK_SECRET`):** Leads are encrypted and stored durably in Neon (`/hq/leads`) at ₹0. For external Google Sheets + email alerts without a paid CRM, deploy [`ops/crm/google-apps-script-lead-webhook.gs`](../../ops/crm/google-apps-script-lead-webhook.gs) as a free Google Apps Script Web App and set `LEAD_CRM_WEBHOOK_URL` + `LEAD_CRM_WEBHOOK_SECRET` on Vercel (`school-sis-web`).
 
 ---
 

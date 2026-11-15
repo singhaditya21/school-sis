@@ -6,10 +6,11 @@ import {
   encryptDeterministic,
   encryptEmail,
   encryptIdNumber,
+  encryptPhone,
   getPiiEncryptionKeyStatus,
 } from "@/lib/encryption";
 
-type RotationTarget = {
+export type RotationTarget = {
   table: string;
   column: string;
   currentPrefix: (keyId: string) => string;
@@ -29,7 +30,7 @@ const deterministicTarget = (
   encrypt: encryptValue,
 });
 
-const TARGETS: RotationTarget[] = [
+export const ROTATION_TARGETS: RotationTarget[] = [
   deterministicTarget("students", "apaar_id_enc", "id-number", encryptIdNumber),
   deterministicTarget(
     "students",
@@ -43,14 +44,39 @@ const TARGETS: RotationTarget[] = [
     "id-number",
     encryptIdNumber,
   ),
+  deterministicTarget(
+    "staff_profiles",
+    "pan_number_enc",
+    "id-number",
+    encryptIdNumber,
+  ),
+  {
+    table: "staff_profiles",
+    column: "bank_account_enc",
+    currentPrefix: (keyId) => `rnd.v2:${keyId}:`,
+    encrypt,
+  },
   deterministicTarget("visitors", "phone_enc", "visitors.phone"),
   deterministicTarget("visitors", "email_enc", "visitors.email"),
-  deterministicTarget("guardians", "phone_enc", "guardians.phone"),
-  deterministicTarget("guardians", "email_enc", "guardians.email"),
+  deterministicTarget("guardians", "phone_enc", "phone", encryptPhone),
+  deterministicTarget("guardians", "email_enc", "email", encryptEmail),
   deterministicTarget(
     "guardians",
     "alternate_phone_enc",
-    "guardians.alternate-phone",
+    "phone",
+    encryptPhone,
+  ),
+  deterministicTarget(
+    "admission_leads",
+    "parent_email_enc",
+    "email",
+    encryptEmail,
+  ),
+  deterministicTarget(
+    "admission_leads",
+    "parent_phone_enc",
+    "phone",
+    encryptPhone,
   ),
   deterministicTarget("alumni_profiles", "email_enc", "email", encryptEmail),
   deterministicTarget("alumni_profiles", "phone_enc", "alumni-profiles.phone"),
@@ -66,6 +92,11 @@ const TARGETS: RotationTarget[] = [
     "health-records.doctor-phone",
   ),
   deterministicTarget("users", "email_enc", "email", encryptEmail),
+  deterministicTarget("users", "phone_enc", "phone", encryptPhone),
+  deterministicTarget("tenants", "email_enc", "email", encryptEmail),
+  deterministicTarget("tenants", "phone_enc", "phone", encryptPhone),
+  deterministicTarget("messages", "recipient_email_enc", "email", encryptEmail),
+  deterministicTarget("messages", "recipient_phone_enc", "phone", encryptPhone),
   deterministicTarget(
     "marketing_leads",
     "contact_email_enc",
@@ -76,6 +107,11 @@ const TARGETS: RotationTarget[] = [
     "student_visas",
     "passport_number_enc",
     "student-visas.passport-number",
+    (value) =>
+      encryptDeterministic(
+        value.trim().toUpperCase(),
+        "student-visas.passport-number",
+      ),
   ),
   {
     table: "users",
@@ -194,7 +230,7 @@ async function main(): Promise<void> {
   });
   try {
     let totalPending = 0;
-    for (const target of TARGETS) {
+    for (const target of ROTATION_TARGETS) {
       const prefix = target.currentPrefix(keyStatus.currentKeyId);
       const pending = await countPending(pool, target, prefix);
       totalPending += pending;
@@ -236,7 +272,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  console.error("PII encryption rotation failed:", error);
-  process.exitCode = 1;
-});
+if (process.argv[1]?.includes("rotate-pii-encryption")) {
+  main().catch((error) => {
+    console.error("PII encryption rotation failed:", error);
+    process.exitCode = 1;
+  });
+}

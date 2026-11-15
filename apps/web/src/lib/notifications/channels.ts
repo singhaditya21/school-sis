@@ -12,7 +12,11 @@ import { emailAvailability } from '@/lib/providers/email';
 import { pushAvailability } from '@/lib/providers/push';
 import { smsAvailability } from '@/lib/providers/sms';
 import { whatsAppAvailability } from '@/lib/providers/whatsapp';
-import { META_CLOUD_PROVIDER_ALIASES } from '@/lib/providers/whatsapp';
+import {
+  EVOLUTION_PROVIDER_ALIASES,
+  META_CLOUD_PROVIDER_ALIASES,
+  WAHA_PROVIDER_ALIASES,
+} from '@/lib/providers/whatsapp';
 import type { ProviderAvailability } from '@/lib/providers/transport';
 
 export type NotificationChannel = 'EMAIL' | 'SMS' | 'WHATSAPP' | 'PUSH' | 'IN_APP';
@@ -24,7 +28,12 @@ export type NotificationChannel = 'EMAIL' | 'SMS' | 'WHATSAPP' | 'PUSH' | 'IN_AP
 export const SUPPORTED_NOTIFICATION_PROVIDERS: Record<NotificationChannel, readonly string[]> = {
   EMAIL: ['smtp', 'resend', 'mock'],
   SMS: ['msg91', 'twilio', 'mock'],
-  WHATSAPP: [...META_CLOUD_PROVIDER_ALIASES, 'mock'],
+  WHATSAPP: [
+    ...META_CLOUD_PROVIDER_ALIASES,
+    ...WAHA_PROVIDER_ALIASES,
+    ...EVOLUTION_PROVIDER_ALIASES,
+    'mock',
+  ],
   PUSH: ['firebase', 'mock'],
   IN_APP: ['database'],
 };
@@ -33,7 +42,11 @@ export const SUPPORTED_NOTIFICATION_PROVIDERS: Record<NotificationChannel, reado
 export const LIVE_NOTIFICATION_PROVIDERS: Record<NotificationChannel, readonly string[]> = {
   EMAIL: ['smtp', 'resend'],
   SMS: ['msg91', 'twilio'],
-  WHATSAPP: [...META_CLOUD_PROVIDER_ALIASES],
+  WHATSAPP: [
+    ...META_CLOUD_PROVIDER_ALIASES,
+    ...WAHA_PROVIDER_ALIASES,
+    ...EVOLUTION_PROVIDER_ALIASES,
+  ],
   PUSH: ['firebase'],
   IN_APP: ['database'],
 };

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { pool } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/middleware';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import { hasPermission, UserRole } from '@/lib/rbac/permissions';
 
 /**
@@ -84,8 +85,8 @@ export async function getSchoolsPageData(): Promise<SchoolsPageData> {
                 t.city,
                 t.state,
                 t.pincode,
-                t.phone,
-                t.email,
+                COALESCE(t.phone_enc, t.phone) AS phone,
+                COALESCE(t.email_enc, t.email) AS email,
                 t.website,
                 t.affiliation_board AS "affiliationBoard",
                 t.affiliation_number AS "affiliationNumber",
@@ -115,9 +116,16 @@ export async function getSchoolsPageData(): Promise<SchoolsPageData> {
     ]);
 
     const counts = countsResult.rows[0] ?? {};
+    const rawCampus = campusResult.rows[0] as CampusProfile | undefined;
 
     return {
-        campus: (campusResult.rows[0] as CampusProfile | undefined) ?? null,
+        campus: rawCampus
+            ? {
+                  ...rawCampus,
+                  phone: rawCampus.phone == null ? null : decryptFieldTolerant(rawCampus.phone) || null,
+                  email: rawCampus.email == null ? null : decryptFieldTolerant(rawCampus.email) || null,
+              }
+            : null,
         counts: {
             activeStudents: Number(counts.activeStudents ?? 0),
             staffAccounts: Number(counts.staffAccounts ?? 0),

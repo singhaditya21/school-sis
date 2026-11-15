@@ -1,4 +1,5 @@
 import { pool } from '@/lib/db';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import { amountInWords } from '@/app/(admin)/receipts/amount-in-words';
 import type { ReceiptDetail } from '@/app/(admin)/receipts/receipt-data';
 import {
@@ -140,8 +141,8 @@ export async function loadReceiptForPdf(
             t.city                  AS "schoolCity",
             t.state                 AS "schoolState",
             t.pincode               AS "schoolPincode",
-            t.phone                 AS "schoolPhone",
-            t.email                 AS "schoolEmail",
+            COALESCE(t.phone_enc, t.phone) AS "schoolPhone",
+            COALESCE(t.email_enc, t.email) AS "schoolEmail",
             t.affiliation_board     AS "affiliationBoard",
             t.udise_code            AS "udiseCode"
         FROM receipts r
@@ -155,7 +156,13 @@ export async function loadReceiptForPdf(
         [receiptId, tenantId],
     );
 
-    return rows.length > 0 ? rows[0] : null;
+    const row = rows[0];
+    if (!row) return null;
+    return {
+        ...row,
+        schoolPhone: row.schoolPhone == null ? null : decryptFieldTolerant(row.schoolPhone) || null,
+        schoolEmail: row.schoolEmail == null ? null : decryptFieldTolerant(row.schoolEmail) || null,
+    };
 }
 
 /** Resolve a payment id to the receipt issued against it, tenant-scoped. */
@@ -206,8 +213,8 @@ export function renderReceiptPdf(receipt: ReceiptDetail): Uint8Array {
             .filter(Boolean)
             .join(', '),
         contactLine: [
-            receipt.schoolPhone ? `Phone: ${receipt.schoolPhone}` : null,
-            receipt.schoolEmail ? `Email: ${receipt.schoolEmail}` : null,
+            receipt.schoolPhone ? `Phone: ${decryptFieldTolerant(receipt.schoolPhone)}` : null,
+            receipt.schoolEmail ? `Email: ${decryptFieldTolerant(receipt.schoolEmail)}` : null,
             receipt.affiliationBoard ? `Board: ${receipt.affiliationBoard}` : null,
             receipt.udiseCode ? `UDISE: ${receipt.udiseCode}` : null,
         ]

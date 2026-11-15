@@ -101,6 +101,15 @@ export interface OperatorConsoleSnapshot {
     metrics: OperatorConsoleMetrics;
 }
 
+export interface OperatorNotificationChannelMetrics {
+    queued: number;
+    sent: number;
+    delivered: number;
+    failed: number;
+    deadLettered: number;
+    suppressed: number;
+}
+
 export interface OperatorConsoleMetrics {
     database?: {
         status?: 'healthy' | 'degraded' | 'unhealthy' | OperatorSeverity;
@@ -120,8 +129,12 @@ export interface OperatorConsoleMetrics {
     };
     notifications?: {
         queued?: number;
+        sent?: number;
+        delivered?: number;
         failed?: number;
         deadLettered?: number;
+        suppressed?: number;
+        byChannel?: Record<string, OperatorNotificationChannelMetrics>;
     };
     payments?: {
         unreconciledOrders?: number;

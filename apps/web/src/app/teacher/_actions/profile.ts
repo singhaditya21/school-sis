@@ -44,7 +44,7 @@ export async function getMyProfile(): Promise<TeacherProfile | null> {
             u.first_name AS "firstName",
             u.last_name AS "lastName",
             COALESCE(u.email_enc, u.email) AS "email",
-            u.phone,
+            COALESCE(u.phone_enc, u.phone) AS "phone",
             u.role,
             u.is_active AS "isActive",
             u.last_login_at::text AS "lastLoginAt",
@@ -67,5 +67,11 @@ export async function getMyProfile(): Promise<TeacherProfile | null> {
     );
 
     const row = rows[0];
-    return row ? { ...row, email: row.email == null ? row.email : decryptFieldTolerant(row.email) } : null;
+    return row
+        ? {
+              ...row,
+              email: row.email == null ? row.email : decryptFieldTolerant(row.email),
+              phone: row.phone == null ? null : decryptFieldTolerant(row.phone) || null,
+          }
+        : null;
 }

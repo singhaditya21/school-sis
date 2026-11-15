@@ -27,9 +27,9 @@ import { decryptFieldTolerant } from '@/lib/encryption';
 import { isDemoSession, isDemoTenantId } from '@/lib/tenant/demo-guard';
 import {
     enqueueNotification,
-    providerForChannel,
     type NotificationChannel,
 } from '@/lib/notifications/outbox';
+import { describeChannelReadiness } from '@/lib/notifications/channels';
 import {
     MESSAGE_CHANNELS,
     extractTemplateVariables,
@@ -58,56 +58,29 @@ function isoOrNull(value: unknown): string | null {
 
 // ─── Channel availability ────────────────────────────────────────────────────
 /**
- * Adapters `lib/notifications/outbox.ts` will actually dispatch through. Mirrors the
- * table inside its `assertSupportedProvider`; anything else makes `enqueueNotification`
- * throw, so the UI must not offer the channel. WhatsApp has no live adapter at all —
- * only the development mock — which is why its live list is empty.
- */
-const SUPPORTED_PROVIDERS: Record<string, readonly string[]> = {
-    EMAIL: ['smtp', 'resend'],
-    SMS: ['msg91', 'twilio'],
-    WHATSAPP: [],
-};
-
-/**
- * Reports which channels the outbox will accept a message on in this runtime.
- * `providerForChannel` returns 'unconfigured' when no <CHANNEL>_PROVIDER env var is set,
- * and `enqueueNotification` throws for those channels — so this is the difference
- * between a queue attempt that works and one that fails immediately.
+ * Reports which channels the outbox can actually dispatch on in this runtime,
+ * delegating directly to `describeChannelReadiness` so `/messages/compose` and
+ * `enqueueNotification` share one source of truth (including Meta Cloud, WAHA,
+ * and Evolution API WhatsApp adapters).
  */
 function resolveAvailability(channel: MessageChannel): ChannelAvailability {
-    const provider = providerForChannel(channel as NotificationChannel);
+    const readiness = describeChannelReadiness(channel as NotificationChannel);
 
-    if (provider === 'unconfigured') {
+    if (readiness.provider === 'mock' && readiness.available) {
         return {
             channel,
-            provider,
-            configured: false,
-            reason: `No ${channel}_PROVIDER is set for this deployment.`,
-        };
-    }
-
-    // 'mock' resolves only where mock integrations are explicitly permitted, which
-    // never includes production; treat it as usable but say so plainly.
-    if (provider === 'mock') {
-        return {
-            channel,
-            provider,
+            provider: readiness.provider,
             configured: true,
             reason: 'Development mock provider — nothing leaves the machine.',
         };
     }
 
-    if (!SUPPORTED_PROVIDERS[channel]?.includes(provider)) {
-        return {
-            channel,
-            provider,
-            configured: false,
-            reason: `No adapter is installed for the "${provider}" ${channel} provider.`,
-        };
-    }
-
-    return { channel, provider, configured: true, reason: null };
+    return {
+        channel,
+        provider: readiness.provider,
+        configured: readiness.available,
+        reason: readiness.reason,
+    };
 }
 
 export async function getChannelAvailability(): Promise<ChannelAvailability[]> {

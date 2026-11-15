@@ -1,4 +1,5 @@
 import { pool } from '@/lib/db';
+import { decryptFieldTolerant } from '@/lib/encryption';
 import { EMPTY, filenameSlug, formatPdfDate, orEmpty } from './format';
 import {
     GOOD,
@@ -196,8 +197,8 @@ export async function loadReportCardForPdf(
                 t.city               AS "schoolCity",
                 t.state              AS "schoolState",
                 t.pincode            AS "schoolPincode",
-                t.phone              AS "schoolPhone",
-                t.email              AS "schoolEmail",
+                COALESCE(t.phone_enc, t.phone) AS "schoolPhone",
+                COALESCE(t.email_enc, t.email) AS "schoolEmail",
                 t.affiliation_board  AS "affiliationBoard",
                 t.udise_code         AS "udiseCode"
          FROM students st
@@ -317,8 +318,8 @@ export async function loadReportCardForPdf(
                 .filter(Boolean)
                 .join(', '),
             contactLine: [
-                studentRow.schoolPhone ? `Phone: ${studentRow.schoolPhone}` : null,
-                studentRow.schoolEmail ? `Email: ${studentRow.schoolEmail}` : null,
+                studentRow.schoolPhone ? `Phone: ${decryptFieldTolerant(studentRow.schoolPhone)}` : null,
+                studentRow.schoolEmail ? `Email: ${decryptFieldTolerant(studentRow.schoolEmail)}` : null,
                 studentRow.affiliationBoard ? `Board: ${studentRow.affiliationBoard}` : null,
                 studentRow.udiseCode ? `UDISE: ${studentRow.udiseCode}` : null,
             ]

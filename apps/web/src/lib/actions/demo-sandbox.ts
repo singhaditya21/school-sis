@@ -142,13 +142,13 @@ async function ensureDemoTenantAndUsers(): Promise<{
             companyId = companyRows[0].id;
 
             const tenantRows = await sql<{ id: string; tenantSessionVersion: number }>`
-                INSERT INTO tenants (company_id, name, code, domain, email, city, state, affiliation_board, is_active, is_demo)
+                INSERT INTO tenants (company_id, name, code, domain, email_enc, city, state, affiliation_board, is_active, is_demo)
                 VALUES (
                     ${companyId},
                     ${DEMO_SANDBOX_COMPANY_NAME},
                     ${DEMO_SANDBOX_TENANT_CODE},
                     ${domainUrl},
-                    ${'sandbox@scholarmind.app'},
+                    ${encryptEmail('sandbox@scholarmind.app')},
                     ${'New Delhi'},
                     ${'Delhi'},
                     ${'CBSE'},
@@ -760,13 +760,13 @@ async function ensureDemoSisterCampusSeeded(companyId: string): Promise<void> {
             `;
         } else {
             const inserted = await sql<{ id: string }>`
-                INSERT INTO tenants (company_id, name, code, domain, email, city, state, affiliation_board, is_active, is_demo)
+                INSERT INTO tenants (company_id, name, code, domain, email_enc, city, state, affiliation_board, is_active, is_demo)
                 VALUES (
                     ${companyId},
                     ${'ScholarMind Junior Wing — Vasant Vihar'},
                     ${sisterCode},
                     ${'demo-south.scholarmind.app'},
-                    ${'south.wing@scholarmind.app'},
+                    ${encryptEmail('south.wing@scholarmind.app')},
                     ${'New Delhi'},
                     ${'Delhi'},
                     ${'ICSE'},

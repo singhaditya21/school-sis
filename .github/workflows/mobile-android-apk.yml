@@ -59,6 +59,9 @@ jobs:
       - name: Typecheck Expo Mobile App
         run: pnpm --filter mobile run typecheck
 
+      - name: Run Mobile Security & Offline Queue Unit Tests
+        run: pnpm --filter mobile run test
+
       - name: Prebuild Native Android Project via Expo
         working-directory: apps/mobile
         env:

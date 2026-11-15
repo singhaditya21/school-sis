@@ -345,7 +345,7 @@ describe('Permanent Platform Owner (`singhaditya21@gmail.com`) & Automated Tenan
                 "St. Jude's Academy",
                 'STJUDES', // UPPERCASE so loginActionV2 matches immediately!
                 'stjudes.scholarmind.app',
-                'principal@stjudes.edu',
+                'enc:principal@stjudes.edu',
                 true, // Active immediately!
             ]);
 

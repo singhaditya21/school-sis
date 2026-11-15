@@ -7,7 +7,7 @@ All project documentation is organized under five domain directories in `docs/`,
 | Category | Path | Scope |
 |---|---|---|
 | **Product & Roadmap** | [`docs/product/`](./product/) | Live issue tracker mapping, launch gates, and phased delivery roadmap. |
-| **Architecture** | [`docs/architecture/`](./architecture/) | Core SIS domain contracts, 144-table RLS matrix, LCNC platform, AI copilot, auth, jobs, payments, BI, observability, and test gates. |
+| **Architecture** | [`docs/architecture/`](./architecture/) | Core SIS domain contracts, 158-table RLS matrix, LCNC platform, AI copilot, auth, jobs, payments, BI, observability, and test gates. |
 | **Guides** | [`docs/guides/`](./guides/) | School admin/teacher user guide and developer API/webhook integration reference. |
 | **Operations & Audits** | [`docs/operations/`](./operations/) | Vercel + Neon CI/CD runbook, ₹0/go-live integration setup, PII encryption & key rotation, tenant isolation audit, release evidence, and point-in-time audits. |
 | **Go-To-Market (GTM)** | [`docs/gtm/`](./gtm/) | Pilot scope freeze, Group Finance Control Pilot, approved public-claims register, buyer research, and evidence log. |
@@ -22,7 +22,7 @@ All project documentation is organized under five domain directories in `docs/`,
 
 - [`CORE_SIS_DOMAIN_ARCHITECTURE.md`](./architecture/CORE_SIS_DOMAIN_ARCHITECTURE.md) — Shared K-12 domain contracts (`packages/api/src/domain/core-sis`).
 - [`LCNC_PLATFORM_ARCHITECTURE.md`](./architecture/LCNC_PLATFORM_ARCHITECTURE.md) — Low-Code / No-Code platform: 19 system objects + EAV custom objects, layouts, OWD sharing, formula/validation rules, approvals, Flow Builder, BI dashboards, Web-to-Object portals, and `.scholarmind.json` packaging.
-- [`RLS_POLICY_MATRIX.md`](./architecture/RLS_POLICY_MATRIX.md) — Enforced 144-table PostgreSQL `FORCE ROW LEVEL SECURITY` inventory verified by `pnpm audit:rls-matrix`.
+- [`RLS_POLICY_MATRIX.md`](./architecture/RLS_POLICY_MATRIX.md) — Enforced 158-table PostgreSQL `FORCE ROW LEVEL SECURITY` inventory verified by `pnpm audit:rls-matrix`.
 - [`IDENTITY_ARCHITECTURE.md`](./architecture/IDENTITY_ARCHITECTURE.md) — Iron Session authentication, MFA, SSO/SCIM/LTI boundaries, and session revocation.
 - [`FINE_GRAINED_AUTHORIZATION_ARCHITECTURE.md`](./architecture/FINE_GRAINED_AUTHORIZATION_ARCHITECTURE.md) — Central RBAC, field-level security (FLS), object-level security (OLS), and route access matrices.
 - [`WORKFLOW_APPROVAL_ENGINE_ARCHITECTURE.md`](./architecture/WORKFLOW_APPROVAL_ENGINE_ARCHITECTURE.md) — Reusable multi-role approval state machine (`packages/api/src/workflows/approvals`).
@@ -61,20 +61,20 @@ All project documentation is organized under five domain directories in `docs/`,
 
 ---
 
-## 100% Free-Tier (`₹0 / $0`) Development & Deployment Stack
+## Mandated Production Stack & 100% Free-Tier (`₹0 / $0`) Operations
 
-ScholarMind is engineered so development, CI/CD, hosting, database, mobile builds, AI, and messaging can run at **₹0 / $0 cost**:
+**Production Mandate:** **Vercel** (`school-sis-web` + `school-sis-website`) is the canonical production application host and **Neon** (PostgreSQL + `pgvector`) is the canonical production database, orchestrated by **GitHub Actions** at **₹0 / $0 cost**:
 
-| Layer | Free-Tier Stack | Repository Wiring |
+| Layer | Mandated / Free-Tier Stack | Repository Wiring |
 |---|---|---|
-| **Local Dev & DB** | Local Node 24 + Homebrew PostgreSQL 16 + `pgvector` (`./.pgdata`) | `pnpm local:setup` & `pnpm dev` — zero cloud dependencies |
-| **Source & CI/CD** | **GitHub Free** (public repo: unlimited `ubuntu-latest` Actions minutes + Environments) | `.github/workflows/ci.yml`, `e2e.yml`, `production-release.yml`, `website-release.yml` |
-| **Cron Scheduler** | **GitHub Actions Cron** + Postgres `background_jobs` (`JOB_QUEUE_MODE=database`) | `.github/workflows/jobs-dispatch.yml` (waking-hours IST schedule preserves Neon compute) |
+| **Local Dev & DB** | Local Node 24 + PostgreSQL + `pgvector` (`./.pgdata` or local Docker) | `pnpm local:setup` & `pnpm dev` — zero cloud dependencies |
+| **Source & CI/CD** | **GitHub Free** (public repo: unlimited `ubuntu-latest` Actions minutes + Environments) | `.github/workflows/ci.yml`, `e2e.yml`, `deploy-production.yml`, `deploy-website.yml` |
+| **Cron Scheduler** | **GitHub Actions Cron** + Neon Postgres `background_jobs` (`JOB_QUEUE_MODE=database`) | `.github/workflows/jobs-dispatch.yml` (waking-hours IST schedule preserves Neon compute) |
 | **Mobile Builds** | **GitHub Actions Android Gradle** (zero paid Expo EAS build credits) | `.github/workflows/mobile-android-apk.yml` |
-| **Web Hosting** | **Vercel Hobby / Free** (`sin1` Mumbai/Singapore edge) | `school-sis-web` + `school-sis-website` |
-| **Database & Rate Limits** | **Neon Free Tier** (Postgres 16 + `pgvector`, scale-to-zero, `RATE_LIMIT_BACKEND=postgres`) | `apps/web/drizzle/0000`–`0020` + Postgres `rate_limit_buckets` (no paid Redis required) |
-| **AI Copilot** | **Google Gemini Free Tier**, **Groq Free**, **Cerebras Free**, or self-hosted **Ollama** | `apps/web/src/lib/ai/provider.ts` (`GEMINI_API_KEY`, `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `OLLAMA_BASE_URL`) |
-| **WhatsApp** | Self-hosted open-source **WAHA** or **Evolution API** in Docker (`₹0` BSP markup) | `ops/whatsapp/docker-compose.whatsapp-free.yml` (`WHATSAPP_PROVIDER=waha`) |
+| **Production App (Mandated)** | **Vercel Hobby / Free** (`sin1` region) | `school-sis-web` (`https://school-sis-web.vercel.app`) + `school-sis-website` (`https://school-sis-website.vercel.app`) |
+| **Production DB (Mandated)** | **Neon Free Tier** (Postgres + `pgvector`, scale-to-zero, `RATE_LIMIT_BACKEND=postgres`) | `apps/web/drizzle/0000`–`0021` + Postgres `rate_limit_buckets` (no paid Redis required) |
+| **AI Copilot** | **Google Gemini Free Tier**, **Groq Free**, **Cerebras Free**, or local **Ollama** | `apps/web/src/lib/ai/provider.ts` (`GEMINI_API_KEY`, `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `OLLAMA_BASE_URL`) |
+| **WhatsApp** | Optional campus-LAN Docker **WAHA** / **Evolution API** (`₹0` BSP markup) or Meta Cloud | `ops/whatsapp/docker-compose.whatsapp-free.yml` (`WHATSAPP_PROVIDER=waha`) |
 | **Email & Push** | **SMTP** (Gmail App Password / Brevo Free 300/day) or **Resend Free** + **Firebase FCM** (`₹0`) | `EMAIL_PROVIDER=smtp\|resend`, `PUSH_PROVIDER=firebase` |
 | **Object Storage & Bot Guard** | **Cloudflare R2 Free** (10 GB/mo, zero egress) + **Cloudflare Turnstile** (`₹0` CAPTCHA) | `R2_*` + `TURNSTILE_SECRET_KEY` |
-| **Lead CRM** | Built-in **HQ Lead Queue** (`/hq/leads` in Neon) + optional Google Apps Script webhook | `apps/web/src/app/api/leads/route.ts` |
+| **Lead CRM** | Built-in **HQ Lead Queue** (`/hq/leads` in Neon) + optional Google Apps Script webhook | `apps/web/src/app/api/leads/route.ts` + `ops/crm/google-apps-script-lead-webhook.gs` |

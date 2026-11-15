@@ -4281,6 +4281,8 @@ export interface MessagesRow {
     createdAt: Date;
     ownerId: string | null;
     groupId: string | null;
+    recipientPhoneEnc: string | null;
+    recipientEmailEnc: string | null;
 }
 export interface MessagesInsert {
     id?: string;
@@ -4302,6 +4304,8 @@ export interface MessagesInsert {
     createdAt?: Date;
     ownerId?: string | null;
     groupId?: string | null;
+    recipientPhoneEnc?: string | null;
+    recipientEmailEnc?: string | null;
 }
 export const messages = {
     $name: "messages" as const,
@@ -4324,6 +4328,8 @@ export const messages = {
     createdAt: column("messages", "created_at"),
     ownerId: column("messages", "owner_id"),
     groupId: column("messages", "group_id"),
+    recipientPhoneEnc: column("messages", "recipient_phone_enc"),
+    recipientEmailEnc: column("messages", "recipient_email_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── metadata_approval_instances ─────────────────
@@ -7248,6 +7254,7 @@ export interface TenantsRow {
     sessionVersion: number;
     isDemo: boolean;
     emailEnc: string | null;
+    phoneEnc: string | null;
 }
 export interface TenantsInsert {
     id?: string;
@@ -7275,6 +7282,7 @@ export interface TenantsInsert {
     sessionVersion?: number;
     isDemo?: boolean;
     emailEnc?: string | null;
+    phoneEnc?: string | null;
 }
 export const tenants = {
     $name: "tenants" as const,
@@ -7303,6 +7311,7 @@ export const tenants = {
     sessionVersion: column("tenants", "session_version"),
     isDemo: column("tenants", "is_demo"),
     emailEnc: column("tenants", "email_enc"),
+    phoneEnc: column("tenants", "phone_enc"),
 } satisfies { $name: string } & Record<string, ColumnRef | string>;
 
 // ─── terms ───────────────────────────────────────
